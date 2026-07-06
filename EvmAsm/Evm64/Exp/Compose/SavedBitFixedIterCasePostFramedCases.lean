@@ -45,6 +45,7 @@ abbrev expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   expTwoMulFixedIterSkipCondRestScratchSuffix base **
   (.x19 ↦ᵣ nextLimb) **
+  (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New = 0⌝ **
   expTwoMulFixedIterReloadPointerFrame ptr nextLimb **
@@ -69,6 +70,7 @@ abbrev expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
   (.x19 ↦ᵣ nextLimb) **
+  (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New = 0⌝ **
   expTwoMulFixedIterReloadPointerFrame ptr nextLimb **
@@ -501,7 +503,8 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_pures
     hSuffix, _hPtr⟩ := hSuffixPtr
   obtain ⟨_psRet, _psSkipCondFrame, _hDisjointRet, _hUnionRet,
     _hRet, hSkipCondFrame⟩ := hSuffix
-  obtain ⟨_, _, _, _, _, hFrameTail⟩ := hSkipCondFrame
+  obtain ⟨_, _, _, _, _, hX20Tail⟩ := hSkipCondFrame
+  obtain ⟨_, _, _, _, _, hFrameTail⟩ := hX20Tail
   obtain ⟨_, _, _, _, _, hPureTail⟩ := hFrameTail
   have h_c6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 :=
     ((sepConj_pure_left _).1 hPureTail).1
@@ -544,7 +547,8 @@ theorem expTwoMulFixedIterSkipScratchFrame_pures
   obtain ⟨_psSkipRest, _psBaseFrame, _hDisjointSkipRest, _hUnionSkipRest,
     hSkipRest, _hBaseFrame⟩ := hSuffix
   obtain ⟨_, _, _, _, _, hSkipRestTail⟩ := hSkipRest
-  obtain ⟨_, _, _, _, _, hX18Tail⟩ := hSkipRestTail
+  obtain ⟨_, _, _, _, _, hX20Tail⟩ := hSkipRestTail
+  obtain ⟨_, _, _, _, _, hX18Tail⟩ := hX20Tail
   obtain ⟨_, _, _, _, _, hPureTail⟩ := hX18Tail
   have h_c6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 :=
     ((sepConj_pure_left _).1 hPureTail).1
@@ -583,7 +587,8 @@ theorem expTwoMulFixedIterReloadCondScratchFrame_pures
     _hScratch, hSuffix⟩ := hTail
   obtain ⟨_psRet, _psReloadCondFrame, _hDisjointRet, _hUnionRet,
     _hRet, hReloadCondFrame⟩ := hSuffix
-  obtain ⟨_, _, _, _, _, hReloadCondTail⟩ := hReloadCondFrame
+  obtain ⟨_, _, _, _, _, hX20Tail⟩ := hReloadCondFrame
+  obtain ⟨_, _, _, _, _, hReloadCondTail⟩ := hX20Tail
   obtain ⟨_, _, _, _, _, hPureTail⟩ := hReloadCondTail
   have hC6Tail := ((sepConj_pure_left _).1 hPureTail)
   have h_c6 : c6 + signExtend12 (-1 : BitVec 12) = 0 := hC6Tail.1
@@ -629,7 +634,8 @@ theorem expTwoMulFixedIterReloadSkipScratchFrame_pures
   obtain ⟨_, _, _, _, _, hReloadSkipTail1⟩ := hReloadSkip
   obtain ⟨_, _, _, _, _, hReloadSkipTail2⟩ := hReloadSkipTail1
   obtain ⟨_, _, _, _, _, hReloadSkipTail3⟩ := hReloadSkipTail2
-  obtain ⟨_, _, _, _, hC6Pure, hPtrMemBit⟩ := hReloadSkipTail3
+  obtain ⟨_, _, _, _, _, hReloadSkipTail4⟩ := hReloadSkipTail3
+  obtain ⟨_, _, _, _, hC6Pure, hPtrMemBit⟩ := hReloadSkipTail4
   have h_c6 : c6 + signExtend12 (-1 : BitVec 12) = 0 :=
     hC6Pure.2
   obtain ⟨_, _, _, _, _, hMemBit⟩ := hPtrMemBit
@@ -638,6 +644,19 @@ theorem expTwoMulFixedIterReloadSkipScratchFrame_pures
       (e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) = 0 :=
     hBitPure.2
   exact ⟨h_exit, h_c6, h_bit⟩
+
+/-- Weaken the per-iteration scratch frame's `x6` value slot to ownership.
+    After the counter moved to `x20`, the next `IterPre` keeps `x6` only as
+    `regOwn` scratch, so the loop-back post's concrete `x6` value is dropped. -/
+theorem expTwoMulFixedIterScratchIs_x6_to_regOwn
+    {evmSp v6 v7 v10 v11 d0 d1 d2 d3 : Word} :
+    ∀ ps, expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 ps →
+      (regOwn .x6 ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (evmSp ↦ₘ d0) ** ((evmSp + 8) ↦ₘ d1) ** ((evmSp + 16) ↦ₘ d2) **
+       ((evmSp + 24) ↦ₘ d3)) ps := by
+  intro ps h
+  unfold expTwoMulFixedIterScratchIs at h
+  exact sepConj_mono_left (regIs_implies_regOwn .x6) _ h
 
 theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame
     {iterCount e c6 ptr nextLimb sp evmSp
@@ -655,7 +674,7 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame
     let rw := expTwoMulCondRw squareW a0 a1 a2 a3
     ((expTwoMulFixedIterPre
       (e <<< (1 : BitVec 6).toNat)
-      v6
+      (c6 + signExtend12 (-1 : BitVec 12))
       (expTwoMulIterCountNew iterCount)
       v10
       ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -670,9 +689,11 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame
   intro squareW rw
   have h_pures := expTwoMulFixedIterSkipCondScratchFrame_pures h
   rcases h_pures with ⟨h_exit, h_c6, h_bit⟩
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ h
   unfold expTwoMulFixedIterSkipCondCountPostScratchPrefix
     expTwoMulFixedIterSkipCondRestScratchPrefix
-    expTwoMulFixedIterScratchIs
     expTwoMulFixedIterSkipCondCountPostScratchSuffix
     expTwoMulFixedIterSkipCondRestScratchSuffix
     expTwoMulFixedIterSkipCondFrame at h
@@ -721,7 +742,7 @@ theorem expTwoMulFixedIterSkipScratchFrame_to_iterPre_frame
     let squareW := expSquaringCallSquareW r0 r1 r2 r3
     ((expTwoMulFixedIterPre
       (e <<< (1 : BitVec 6).toNat)
-      v6
+      (c6 + signExtend12 (-1 : BitVec 12))
       (expTwoMulIterCountNew iterCount)
       v10
       ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -738,9 +759,11 @@ theorem expTwoMulFixedIterSkipScratchFrame_to_iterPre_frame
   intro squareW
   have h_pures := expTwoMulFixedIterSkipScratchFrame_pures h
   rcases h_pures with ⟨h_exit, h_c6, h_bit⟩
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ h
   unfold expTwoMulFixedIterSkipCountPostScratchPrefix
     expTwoMulFixedIterSkipRestScratchPrefix
-    expTwoMulFixedIterScratchIs
     expTwoMulFixedIterSkipCountPostScratchSuffix
     expTwoMulFixedIterSkipRestScratchSuffix
     expTwoMulFixedIterBaseFrame at h

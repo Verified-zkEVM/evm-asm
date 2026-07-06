@@ -1,0 +1,81 @@
+name: Progress velocity (PR gate)
+
+# PR-time DIV-style silent-downgrade alarm (steering Phase 4 D7, Phase-2
+# deferral of R-A5). The post-merge progress-history.yml records the main-branch
+# trend but CANNOT block a merge. This job catches a monotonic regression
+# (provenCount/provenBytes/conformanceCount/obligationsDone going DOWN) in the
+# PR *before* it lands.
+#
+# Comparison is PR-base -> PR-head (NOT head vs latest-main): a branch that is
+# merely behind main has not regressed, and comparing against the tip would
+# false-positive on every stale branch. We snapshot the base commit with
+# `progress-snapshot.sh --ref` (pure git show, no checkout) and the head from
+# the working tree, then run `progress-velocity.sh --check` on the 2-record log.
+#
+# Cheap: parses the drift-gated PROGRESS.md + All.lean — NO `lake build`
+# (report §6 build-budget non-goal). The drift between PROGRESS.md and the
+# kernel-checked registry is gated separately by check-progress.sh in build.yml,
+# so the counts here are trustworthy.
+#
+# BLOCKING by default: a monotonic downgrade (proven/conformance/obligation
+# count going DOWN) FAILS the PR. A legitimate downgrade — e.g. an opcode
+# merge/rename that deliberately rebuckets counts — is acknowledged by setting
+# the repository variable VELOCITY_GATE=warn to relax to advisory for that
+# known generalization, then restoring it to block (Phase 4 open question #4).
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  velocity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need both base and head reachable for `git show <base>:…`.
+          fetch-depth: 0
+
+      - name: PR-base → PR-head velocity check
+        env:
+          VELOCITY_GATE: ${{ vars.VELOCITY_GATE || 'block' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+
+          # Base snapshot via git show. If the base commit's PROGRESS.md is an
+          # older shape that the strict parser rejects, skip the gate (advisory)
+          # rather than fail a PR on a pre-existing base.
+          if ! scripts/progress-snapshot.sh --ref "$BASE_SHA" > "$log" 2>/tmp/base.err; then
+            echo "::notice::velocity gate skipped — could not snapshot base $BASE_SHA:"
+            cat /tmp/base.err || true
+            exit 0
+          fi
+          # Head snapshot from the checked-out PR merge ref (working tree).
+          scripts/progress-snapshot.sh >> "$log"
+
+          echo "Velocity log (PR base → PR head):"
+          cat "$log"
+          echo
+
+          if scripts/progress-velocity.sh --check "$log"; then
+            echo "velocity: no monotonic regression in this PR."
+            exit 0
+          fi
+
+          # A monotonic metric regressed.
+          if [[ "${VELOCITY_GATE}" == "block" ]]; then
+            echo "::error::A monotonic progress metric regressed in this PR (VELOCITY_GATE=block). A proven/conformance/obligation count went DOWN — confirm this is an intended generalization, not a silent downgrade."
+            exit 1
+          else
+            echo "::warning::A monotonic progress metric regressed in this PR. A proven/conformance/obligation count went DOWN. Gate relaxed to advisory because repo variable VELOCITY_GATE=warn — restore it to block after this known generalization lands."
+            exit 0
+          fi

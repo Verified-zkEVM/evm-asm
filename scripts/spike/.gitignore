@@ -1,0 +1,11 @@
+*.elf
+*.o
+*.sig
+*.so
+handler.bin
+handler_bin.h
+spike_run
+test/*.elf
+test/*.input
+test/*.o
+test/*.sig

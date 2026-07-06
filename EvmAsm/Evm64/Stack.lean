@@ -22,6 +22,10 @@ def evmWordIs (addr : Word) (v : EvmWord) : Assertion :=
   ((addr + 16) ↦ₘ v.getLimbN 2) **
   ((addr + 24) ↦ₘ v.getLimbN 3)
 
+/-- Own the four doublewords occupied by an EVM word, without constraining their values. -/
+def evmWordOwn (addr : Word) : Assertion :=
+  memOwn addr ** memOwn (addr + 8) ** memOwn (addr + 16) ** memOwn (addr + 24)
+
 /-- Assert an EVM stack starting at sp. Each element is 32 bytes (4 × 8-byte limbs). -/
 def evmStackIs (sp : Word) (values : List EvmWord) : Assertion :=
   match values with
@@ -32,6 +36,19 @@ theorem pcFree_evmWordIs {addr : Word} {v : EvmWord} :
     (evmWordIs addr v).pcFree := by
   unfold evmWordIs; pcFree
 
+theorem pcFree_evmWordOwn {addr : Word} :
+    (evmWordOwn addr).pcFree := by
+  unfold evmWordOwn; pcFree
+
+theorem evmWordIs_to_evmWordOwn {addr : Word} {v : EvmWord} {ps : PartialState}
+    (h : evmWordIs addr v ps) :
+    evmWordOwn addr ps := by
+  unfold evmWordIs at h
+  unfold evmWordOwn
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) ps h
+
 theorem pcFree_evmStackIs {sp : Word} {values : List EvmWord} :
     (evmStackIs sp values).pcFree := by
   induction values generalizing sp with
@@ -40,6 +57,9 @@ theorem pcFree_evmStackIs {sp : Word} {values : List EvmWord} :
 
 instance (addr : Word) (v : EvmWord) : Assertion.PCFree (evmWordIs addr v) :=
   ⟨pcFree_evmWordIs⟩
+
+instance (addr : Word) : Assertion.PCFree (evmWordOwn addr) :=
+  ⟨pcFree_evmWordOwn⟩
 
 instance (sp : Word) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp values) :=
   ⟨pcFree_evmStackIs⟩

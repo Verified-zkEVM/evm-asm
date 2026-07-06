@@ -422,7 +422,7 @@ theorem evm_mul_code_eq_ofProg (base : Word) :
             (mul_col1 ++ (mul_col2 ++ (mul_col3 ++ mul_epilogue)))) := by
     exact CodeReq.ofProg_append
   rw [h0]
-  rw [show 4 * mul_col0.length = 84 by native_decide]
+  rw [show 4 * mul_col0.length = 84 by decide]
   have h1 :
       CodeReq.ofProg (base + BitVec.ofNat 64 84)
           (mul_col1 ++ (mul_col2 ++ (mul_col3 ++ mul_epilogue))) =
@@ -432,7 +432,7 @@ theorem evm_mul_code_eq_ofProg (base : Word) :
             (mul_col2 ++ (mul_col3 ++ mul_epilogue))) := by
     exact CodeReq.ofProg_append
   rw [h1]
-  rw [show 4 * mul_col1.length = 92 by native_decide]
+  rw [show 4 * mul_col1.length = 92 by decide]
   rw [show (base + BitVec.ofNat 64 84 : Word) + BitVec.ofNat 64 92 =
     base + 176 by bv_omega]
   have h2 :
@@ -442,7 +442,7 @@ theorem evm_mul_code_eq_ofProg (base : Word) :
             (mul_col3 ++ mul_epilogue)) := by
     exact CodeReq.ofProg_append
   rw [h2]
-  rw [show 4 * mul_col2.length = 52 by native_decide]
+  rw [show 4 * mul_col2.length = 52 by decide]
   rw [show (base + 176 : Word) + BitVec.ofNat 64 52 = base + 228 by bv_omega]
   have h3 :
       CodeReq.ofProg (base + 228) (mul_col3 ++ mul_epilogue) =
@@ -451,7 +451,7 @@ theorem evm_mul_code_eq_ofProg (base : Word) :
             mul_epilogue) := by
     exact CodeReq.ofProg_append
   rw [h3]
-  rw [show 4 * mul_col3.length = 20 by native_decide]
+  rw [show 4 * mul_col3.length = 20 by decide]
   rw [show (base + 228 : Word) + BitVec.ofNat 64 20 = base + 248 by bv_omega]
   unfold mul_epilogue ADDI single
   rw [CodeReq.ofProg_singleton]

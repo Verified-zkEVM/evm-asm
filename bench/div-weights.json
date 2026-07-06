@@ -1,0 +1,217 @@
+{
+  "label": "mainnet-32blocks-2026-06",
+  "_meta": {
+    "what": "Empirical EVM DIV/MOD/SDIV/SMOD operand distribution for Phase 3 of the DIV-perf effort. See docs/divmod-evm-workload.md.",
+    "source": "real mainnet transactions, opcode-level debug_traceTransaction (drpc.org), frequency-weighted over the sample (every executed division counts once)",
+    "sample": "32 distinct blocks, 25238313..25431308 (~27 days, June 2026), 145888 division ops (138601 unsigned DIV+MOD core). UNION of two collection runs (count=25 stride=7919 head-3001; plus count=30 stride=9973 from head, of which only 4 blocks completed before the endpoint throttled) plus a 3-block probe -- so block spacing is mostly 7919 with an irregular tail; three block pairs are 6 apart. NOT reproducible from a single command; the exact 32-block list is in block_list below.",
+    "block_list": [25238313,25246232,25254151,25262070,25269989,25277908,25285827,25293746,25301665,25309584,25317503,25325422,25333341,25341260,25349179,25357098,25365017,25372936,25380855,25388774,25396693,25401389,25404612,25411356,25411362,25412531,25420450,25421329,25421335,25428369,25431302,25431308],
+    "reproduce": "zcat bench/div-operands-mainnet.jsonl.gz | python3 scripts/analyze-div-operands.py /dev/stdin --weights bench/div-weights.json  (regenerates this file byte-for-byte except this _meta block)",
+    "n_definition": "divisor word-count: 0 (b==0), 1 (<2^64), 2 (<2^128), 3 (<2^192), 4 (<2^256)",
+    "HOW_TO_WEIGHT": "Use the 'partition' block: a NON-OVERLAPPING partition of ALL divides that sums to 1.0 (precedence a<b > pow2 > genuine-by-n). Do NOT add a_lt_b_frac+pow2_frac -- they overlap ~15pp (byte-extraction with zero high bytes is both). cheap_frac = a_lt_b_frac + pow2(not a<b) + b0.",
+    "pow2_caveat": "pow2_byte_aligned_frac of the 0.46 pow2 class are divisor==2^(8k) byte/word-extraction idioms (dominated by 2^224 and 2^160), NOT Q96/Q128 fixed-point (which is only ~3% of pow2). These are real executed DIV opcodes so a shift path helps them, but the mix is contract-vintage-sensitive (modern Solidity emits SHR).",
+    "stability": "Per-block cheap% ranges 30%..93% (stdev 19pp); block-bootstrap 95% CI on the 54% op-weighted cheap figure is [48.4%, 60.5%]. Biggest single block = 12.4% of ops, top 10 of 32 = 51%. Headline survives dropping the dominant block (54.1->54.6%).",
+    "known_bias": "The heaviest ~3-8% of txs (largest aggregator/MEV swaps) drop to server-side trace timeouts (148 logged failures across the runs) and are NOT sampled. Their op-density and divisor mix are unmeasured, so the bias DIRECTION is unproven -- do not assume it is conservative."
+  },
+  "div": {
+    "total": 133716,
+    "n0": 0.002123904394388106,
+    "n1": 0.4857683448502797,
+    "n2": 0.2140357174908014,
+    "n3": 0.14986239492656078,
+    "n4": 0.14820963833797002,
+    "a_lt_b_frac": 0.22990517215591252,
+    "pow2_frac": 0.45985521553142483,
+    "b_zero_frac": 0.002123904394388106,
+    "cheap_frac": 0.5392623171497801,
+    "pow2_byte_aligned_frac": 0.3942534924765922,
+    "partition": {
+      "b0": 0.002123904394388106,
+      "a_lt_b": 0.22990517215591252,
+      "pow2_not_altb": 0.3072332405994795,
+      "genuine_n1": 0.26231714978013104,
+      "genuine_n2": 0.18113763498758562,
+      "genuine_n3": 0.016303209787908703,
+      "genuine_n4": 0.0009796882945945138
+    },
+    "genuine_by_n": {
+      "0": 0.0,
+      "1": 0.26231714978013104,
+      "2": 0.18113763498758562,
+      "3": 0.016303209787908703,
+      "4": 0.0009796882945945138
+    },
+    "dividend_n": {
+      "0": 0.16446797690627898,
+      "1": 0.12144395584671991,
+      "2": 0.1692691974034521,
+      "3": 0.2965239761883395,
+      "4": 0.24829489365520954
+    },
+    "pow2_by_n": {
+      "4": 0.993137551720658,
+      "1": 0.30479562774228314,
+      "2": 0.14612159329140462,
+      "3": 0.8896651529517441,
+      "0": 0.0
+    },
+    "altb_by_n": {
+      "4": 0.05207387223735998,
+      "1": 0.24407666846278192,
+      "2": 0.01740041928721174,
+      "3": 0.6666001297469933,
+      "0": 0.0
+    }
+  },
+  "mod": {
+    "total": 4885,
+    "n0": 0.0,
+    "n1": 0.6822927328556807,
+    "n2": 0.20122824974411463,
+    "n3": 0.006960081883316274,
+    "n4": 0.10951893551688843,
+    "a_lt_b_frac": 0.18362333674513817,
+    "pow2_frac": 0.45506653019447285,
+    "b_zero_frac": 0.0,
+    "cheap_frac": 0.5846468781985671,
+    "pow2_byte_aligned_frac": 0.26202661207778916,
+    "partition": {
+      "b0": 0.0,
+      "a_lt_b": 0.18362333674513817,
+      "pow2_not_altb": 0.4010235414534289,
+      "genuine_n1": 0.195496417604913,
+      "genuine_n2": 0.19365404298874103,
+      "genuine_n3": 0.0038894575230296827,
+      "genuine_n4": 0.022313203684749233
+    },
+    "genuine_by_n": {
+      "0": 0.0,
+      "1": 0.195496417604913,
+      "2": 0.19365404298874103,
+      "3": 0.0038894575230296827,
+      "4": 0.022313203684749233
+    },
+    "dividend_n": {
+      "0": 0.0255885363357216,
+      "1": 0.3828045035823951,
+      "2": 0.17789150460593653,
+      "3": 0.2847492323439099,
+      "4": 0.12896622313203684
+    },
+    "pow2_by_n": {
+      "2": 0.021363173957273652,
+      "1": 0.6585658565856586,
+      "3": 0.17647058823529413,
+      "4": 0.001869158878504673
+    },
+    "altb_by_n": {
+      "2": 0.01627670396744659,
+      "1": 0.1323132313231323,
+      "3": 0.4411764705882353,
+      "4": 0.794392523364486
+    }
+  },
+  "divmod": {
+    "total": 138601,
+    "n0": 0.002049047265171247,
+    "n1": 0.4926948579014581,
+    "n2": 0.21358431757346627,
+    "n3": 0.14482579490768466,
+    "n4": 0.14684598235221968,
+    "a_lt_b_frac": 0.2282739662772996,
+    "pow2_frac": 0.4596864380487875,
+    "b_zero_frac": 0.002049047265171247,
+    "cheap_frac": 0.5408618985433006,
+    "pow2_byte_aligned_frac": 0.38959314867858097,
+    "partition": {
+      "b0": 0.002049047265171247,
+      "a_lt_b": 0.2282739662772996,
+      "pow2_not_altb": 0.3105388850008297,
+      "genuine_n1": 0.25996204933586337,
+      "genuine_n2": 0.18157877648790413,
+      "genuine_n3": 0.015865686394759056,
+      "genuine_n4": 0.0017315892381728848
+    },
+    "genuine_by_n": {
+      "0": 0.0,
+      "1": 0.25996204933586337,
+      "2": 0.18157877648790413,
+      "3": 0.015865686394759056,
+      "4": 0.0017315892381728848
+    },
+    "dividend_n": {
+      "0": 0.1595731632527904,
+      "1": 0.1306556229753032,
+      "2": 0.1695730911032388,
+      "3": 0.29610897468272235,
+      "4": 0.24408914798594528
+    },
+    "pow2_by_n": {
+      "4": 0.967081019997052,
+      "1": 0.3220624414245548,
+      "2": 0.14197885349457826,
+      "3": 0.888457131470134,
+      "0": 0.0
+    },
+    "altb_by_n": {
+      "4": 0.0715864983049182,
+      "1": 0.2386217197750703,
+      "2": 0.017363105090700267,
+      "3": 0.6662183031933443,
+      "0": 0.0
+    }
+  },
+  "sdiv_smod": {
+    "total": 7287,
+    "n0": 0.003979689858652395,
+    "n1": 0.7979964320021957,
+    "n2": 0.19761218608480857,
+    "n3": 0.0004116920543433512,
+    "n4": 0.0,
+    "a_lt_b_frac": 0.04350212707561411,
+    "pow2_frac": 0.26526691368189925,
+    "b_zero_frac": 0.003979689858652395,
+    "cheap_frac": 0.3025936599423631,
+    "pow2_byte_aligned_frac": 0.20927679429120352,
+    "partition": {
+      "b0": 0.003979689858652395,
+      "a_lt_b": 0.04350212707561411,
+      "pow2_not_altb": 0.2551118430080966,
+      "genuine_n1": 0.5187319884726225,
+      "genuine_n2": 0.17826265953067105,
+      "genuine_n3": 0.0004116920543433512,
+      "genuine_n4": 0.0
+    },
+    "genuine_by_n": {
+      "0": 0.0,
+      "1": 0.5187319884726225,
+      "2": 0.17826265953067105,
+      "3": 0.0004116920543433512,
+      "4": 0.0
+    },
+    "dividend_n": {
+      "0": 0.01948675723891862,
+      "1": 0.4932070811033347,
+      "2": 0.2638946068340881,
+      "3": 0.17647866062851653,
+      "4": 0.04693289419514203
+    },
+    "pow2_by_n": {
+      "1": 0.3172828890799656,
+      "2": 0.06111111111111111,
+      "0": 0.0,
+      "3": 0.0
+    },
+    "altb_by_n": {
+      "1": 0.04350816852966466,
+      "2": 0.044444444444444446,
+      "0": 0.0,
+      "3": 0.0
+    }
+  },
+  "op_mix": {
+    "DIV": 133716,
+    "MOD": 4885,
+    "SDIV": 5783,
+    "SMOD": 1504
+  }
+}

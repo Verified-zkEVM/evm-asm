@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # codegen-zisk-validate-header-full-check.sh -- PR-K75.
 #
-# Run all five header validation checks (post_merge, extra_data,
-# basic, gas_limit, base_fee) in sequence and verify the
+# Run header validation checks (post_merge, extra_data,
+# basic, gas_limit, base_fee, excess_blob_gas) in sequence and verify the
 # composite return code.
 set -euo pipefail
 
@@ -38,12 +38,15 @@ EMPTY_OMMERS_HASH="1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49
 #   <this_extra_data_hex>
 #   <this_number> <this_timestamp> <this_gas_limit> <this_gas_used> <this_base_fee>
 #   <parent_number> <parent_timestamp> <parent_gas_limit> <parent_gas_used> <parent_base_fee>
+#   [this_blob_gas_used] [this_excess_blob_gas] [parent_blob_gas_used] [parent_excess_blob_gas]
 build_test() {
   local name="$1" expected_status="$2"
   local this_ommers="$3" this_diff="$4" this_nonce="$5"
   local this_extra="$6"
   local this_number="$7" this_ts="$8" this_gas_limit="$9" this_gas_used="${10}" this_bf="${11}"
   local p_number="${12}" p_ts="${13}" p_gas_limit="${14}" p_gas_used="${15}" p_bf="${16}"
+  local this_blob_gas_used="${17:-0}" this_excess_blob_gas="${18:-0}"
+  local parent_blob_gas_used="${19:-0}" parent_excess_blob_gas="${20:-0}"
 
   local in_file="$REPO_ROOT/gen-out/zisk_validate_header_full_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_validate_header_full_${name}.output"
@@ -74,8 +77,8 @@ rlp_bytes = rlp.encode(this_fields)
 if len(rlp_bytes) > 1024:
     raise RuntimeError(f'rlp too long for fixture: {len(rlp_bytes)}')
 
-# Build extended-decode structs (128 B each)
-def build_struct(parent_hash, state_root, number, ts, gl, gu, bf):
+# Build extended-decode structs (144 B each)
+def build_struct(parent_hash, state_root, number, ts, gl, gu, bf, blob_gas_used=0, excess_blob_gas=0):
     out  = parent_hash
     out += state_root
     out += struct.pack('<Q', number)
@@ -83,23 +86,27 @@ def build_struct(parent_hash, state_root, number, ts, gl, gu, bf):
     out += struct.pack('<Q', gl)
     out += struct.pack('<Q', gu)
     out += bf.to_bytes(32, 'big')
-    assert len(out) == 128
+    out += struct.pack('<Q', blob_gas_used)
+    out += struct.pack('<Q', excess_blob_gas)
+    assert len(out) == 144
     return out
 
 this_struct   = build_struct(b'\x11' * 32, b'\x44' * 32,
                               $this_number, $this_ts,
-                              $this_gas_limit, $this_gas_used, $this_bf)
+                              $this_gas_limit, $this_gas_used, $this_bf,
+                              $this_blob_gas_used, $this_excess_blob_gas)
 parent_struct = build_struct(b'\x22' * 32, b'\x55' * 32,
                               $p_number, $p_ts,
-                              $p_gas_limit, $p_gas_used, $p_bf)
+                              $p_gas_limit, $p_gas_used, $p_bf,
+                              $parent_blob_gas_used, $parent_excess_blob_gas)
 
 # Assemble input file
 out  = struct.pack('<Q', len(rlp_bytes))   # bytes 0..8: rlp_len
 out += rlp_bytes
 out += b'\x00' * (1024 - len(rlp_bytes))   # pad rlp area to 1024 B
-out += this_struct                          # 128 B
-out += parent_struct                        # 128 B
-assert len(out) == 8 + 1024 + 256
+out += this_struct                          # 144 B
+out += parent_struct                        # 144 B
+assert len(out) == 8 + 1024 + 288
 
 with open(sys.argv[1], 'wb') as f:
     f.write(out)
@@ -200,6 +207,57 @@ build_test "step5_base_fee_wrong" 501 \
   101 1700000100 30000000 15000000 "$WRONG_BF" \
   100 1700000000 30000000 15000000 "$BF_50" || FAILED=1
 
+
+# Step 6 fail: this.excess_blob_gas must follow the Amsterdam recurrence.
+build_test "step6_excess_blob_wrong" 602 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "74657374" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 1 0 0 || FAILED=1
+
+# All pass: Amsterdam high-base-fee schedule branch.
+# parent_blob_gas >= target and parent.base_fee > 16 * blob_price(0), so
+# expected excess = parent_excess + parent_blob_gas_used // 3.
+build_test "all_pass_excess_schedule" 0 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 917504 2752512 0 || FAILED=1
+
+# Step 6 fail in the schedule branch.
+build_test "step6_excess_schedule_wrong" 602 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 917505 2752512 0 || FAILED=1
+
+# Step 6 fail: schedule branch where the spec's U64 `blob_gas_used * 7`
+# overflows ((2^64-1)//7 + 1 = 2635249153387078803) → OverflowError in the
+# spec, status 601 here. this.excess matches the unguarded `used // 3` value
+# so a guest missing the overflow guard would wrongly return 0.
+MUL_OVERFLOW_USED=2635249153387078803
+MUL_OVERFLOW_EXCESS=$(python3 -c "print($MUL_OVERFLOW_USED // 3)")
+build_test "step6_blob_mul_overflow" 601 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 "$MUL_OVERFLOW_EXCESS" "$MUL_OVERFLOW_USED" 0 || FAILED=1
+
+# All pass: schedule branch at the largest non-overflowing blob_gas_used
+# ((2^64-1)//7, where used * 7 = 2^64-2 still fits in U64).
+MUL_BOUND_USED=2635249153387078802
+MUL_BOUND_EXCESS=$(python3 -c "print($MUL_BOUND_USED // 3)")
+build_test "all_pass_blob_mul_at_bound" 0 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 "$MUL_BOUND_EXCESS" "$MUL_BOUND_USED" 0 || FAILED=1
+
 # All pass: realistic Holesky 60% used scenario
 # parent.gas_used=18000000, target=15000000 (above), bf grows
 # expected = bf + delta where delta = max((bf*3M/15M)/8, 1) = (bf*0.2)/8 = bf*0.025
@@ -221,7 +279,7 @@ build_test "all_pass_holesky_60" 0 \
 
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: validate_header_full runs all 5 checks and routes via composite codes"
+  echo "==> PASS: validate_header_full runs all 6 checks and routes via composite codes"
   exit 0
 else
   echo "==> FAIL"

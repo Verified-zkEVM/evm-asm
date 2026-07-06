@@ -5,7 +5,7 @@ Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
 `xperm_pure h` is a sibling of `xperm_hyp` that tolerates pure (`⌜·⌝`)
 atoms in the source hypothesis and/or the goal. It composes the
-`extract_pure` machinery (#1432, `EvmAsm/Rv64/Tactics/ExtractPure.lean`)
+`extract_pure_deep` machinery (#1432, `EvmAsm/Rv64/Tactics/ExtractPure.lean`)
 with `xperm_hyp` (`EvmAsm/Rv64/Tactics/XSimp.lean`).
 
 ## Semantics
@@ -17,7 +17,7 @@ hypothesis side, `xperm_pure h` closes the goal.
 
 Concretely, `xperm_pure h`:
 
-1. Runs `extract_pure` on the hypothesis, peeling every `⌜P_i⌝` atom
+1. Runs `extract_pure_deep` on the hypothesis, peeling every `⌜P_i⌝` atom
    into a `∧`-chain. After this `h : P₁ ∧ … ∧ Pₖ ∧ Hr s` where `Hr`
    is the resource-only tail.
 2. Runs the same `simp only` lemma set on the goal, peeling every
@@ -90,12 +90,26 @@ def evalXpermPure : Tactic := fun stx => do
       -- Step 1: peel pures from the hypothesis. Use `try` so that a
       -- bare resource hypothesis (no pures, no `**`) is left
       -- untouched.
-      evalTactic (← `(tactic| try extract_pure $h:ident))
-      -- Step 2: peel pures from the goal via the same simp lemma set.
+      evalTactic (← `(tactic| try extract_pure_deep $h:ident))
+      -- Step 2: peel pures from the goal via the same two-phase simp lemma set.
       evalTactic (← `(tactic|
         try
           simp only
             [ ← EvmAsm.Rv64.sepConj_assoc'
+            , EvmAsm.Rv64.sepConj_pure_right
+            , EvmAsm.Rv64.sepConj_pure_left
+            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
+            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_right
+            , EvmAsm.Rv64.sepConj_emp_left'
+            , EvmAsm.Rv64.sepConj_emp_right'
+            ]))
+      evalTactic (← `(tactic|
+        try
+          simp only
+            [ EvmAsm.Rv64.Tactics.sepConj_pure_pure_left_eq
+            , EvmAsm.Rv64.Tactics.sepConj_pure_pure_eq
+            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_assoc_eq
+            , EvmAsm.Rv64.Tactics.sepConj_pure_head_assoc_eq
             , EvmAsm.Rv64.sepConj_pure_right
             , EvmAsm.Rv64.sepConj_pure_left
             , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left

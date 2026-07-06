@@ -75,6 +75,23 @@ theorem expTwoMulLoopExitPost_unfold
   rw [expTwoMulLoopExitFullStackPostFrame_unfold,
     expTwoMulLoopExitControl_unfold]
 
+/-- Visible-stack view of the named EXP loop-exit post. -/
+theorem expTwoMulLoopExitPost_stack_unfold
+    {sp evmSp iterCountNew r0 r1 r2 r3 : Word}
+    {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :
+    expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
+      baseWord rest exitCond =
+      (((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) **
+       ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + 32)) ** (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmWordIs evmSp baseWord **
+        evmStackIs (evmSp + 32) (expResultWord r0 r1 r2 r3 :: rest))) := by
+  unfold expTwoMulLoopExitPost
+  rw [expTwoMulLoopExitFullStackPostFrame_stack_unfold, expTwoMulLoopExitControl_unfold]
+
 theorem expTwoMulLoopExitPost_pcFree
     {sp evmSp iterCountNew r0 r1 r2 r3 : Word}
     {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :

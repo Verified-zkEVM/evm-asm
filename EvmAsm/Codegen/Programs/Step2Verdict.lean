@@ -28,8 +28,12 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Mpt
@@ -46,64 +50,114 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
 /-! ## step2_verdict -- compose the full Step-2 successful_validation bit.
 
-    a0 = params ptr (12 u64 fields):
+    a0 = params ptr (13 u64 fields):
       +0 payload   +8 parent_rlp  +16 parent_rlp_len  +24 parent_state_root
       +32 tx_root  +40 wd_root     +48 beacon_root     +56 requests_hash
       +64 wds_descriptors  +72 n_wds  +80 witness  +88 witness_len
+      +96 block_access_list_hash
     a0 (output) = verdict bit (0 / 1). -/
-def step2VerdictFunction : String :=
-  "step2_verdict:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # params\n" ++
-  "  # 1. this header RLP = block_header_ssz_to_rlp(payload, 4 roots).\n" ++
-  "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0)\n" ++
-  "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
-  "  jal ra, block_header_ssz_to_rlp\n" ++
-  "  # 2. validate_header_rlp_pair(this_rlp, parent_rlp).\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
-  "  ld a2, 8(s0); ld a3, 16(s0)\n" ++
-  "  jal ra, validate_header_rlp_pair\n" ++
-  "  mv s1, a0                   # header validity status\n" ++
-  "  # 3. recompute post-state root from withdrawals over the pre-state.\n" ++
-  "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0)\n" ++
-  "  ld a3, 64(s0); ld a4, 72(s0); la a5, sv_recomputed\n" ++
-  "  jal ra, withdrawals_state_root\n" ++
-  "  mv s2, a0                   # recompute status\n" ++
-  "  # 4. memcmp(recomputed, this.state_root = payload+52) over 32 bytes.\n" ++
-  "  la t0, sv_recomputed\n" ++
-  "  ld t1, 0(s0); addi t1, t1, 52   # claimed state_root ptr\n" ++
-  "  li t2, 32\n" ++
-  ".Lsv_cmp:\n" ++
-  "  beqz t2, .Lsv_cmp_ok\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1)\n" ++
-  "  bne t3, t4, .Lsv_zero\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
-  "  j .Lsv_cmp\n" ++
-  ".Lsv_cmp_ok:\n" ++
-  "  # 5. verdict = (header valid) AND (recompute ok) AND (root match).\n" ++
-  "  bnez s1, .Lsv_zero\n" ++
-  "  bnez s2, .Lsv_zero\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lsv_ret\n" ++
-  ".Lsv_zero:\n" ++
-  "  li a0, 0\n" ++
-  ".Lsv_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def step2Verdict_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .LD .x10 .x8 (0 : BitVec 12),
+    .LD .x11 .x8 (32 : BitVec 12),
+    .LD .x12 .x8 (40 : BitVec 12),
+    .LD .x13 .x8 (48 : BitVec 12),
+    .LD .x14 .x8 (56 : BitVec 12),
+    .LD .x17 .x8 (96 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 48)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 48)),
+    .AUIPC .x16 (laHi GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 56)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 56)),
+    .JAL .x1 (jalOff GuestAddrs.block_header_ssz_to_rlp (GuestAddrs.step2_verdict + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 76)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LD .x12 .x8 (8 : BitVec 12),
+    .LD .x13 .x8 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.validate_header_rlp_pair (GuestAddrs.step2_verdict + 96)),
+    .MV .x9 .x10,
+    .LD .x10 .x8 (24 : BitVec 12),
+    .LD .x11 .x8 (80 : BitVec 12),
+    .LD .x12 .x8 (88 : BitVec 12),
+    .LD .x13 .x8 (64 : BitVec 12),
+    .LD .x14 .x8 (72 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 124)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 124)),
+    .JAL .x1 (jalOff GuestAddrs.withdrawals_state_root (GuestAddrs.step2_verdict + 132)),
+    .MV .x18 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 140)),
+    .LD .x6 .x8 (0 : BitVec 12),
+    .ADDI .x6 .x6 (52 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (36 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .BNE .x9 .x0 (16 : BitVec 13),
+    .BNE .x18 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `step2Verdict_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def step2Verdict_relocs : RelocTable :=
+  [ (12, .la .x15 "sv_this_rlp"),
+    (14, .la .x16 "sv_this_rlp_len"),
+    (16, .jal .x1 "block_header_ssz_to_rlp"),
+    (17, .la .x10 "sv_this_rlp"),
+    (19, .la .x5 "sv_this_rlp_len"),
+    (24, .jal .x1 "validate_header_rlp_pair"),
+    (31, .la .x15 "sv_recomputed"),
+    (33, .jal .x1 "withdrawals_state_root"),
+    (35, .la .x5 "sv_recomputed") ]
+
+def step2VerdictFunction : String :=
+  "step2_verdict:\n" ++ emitProgramR step2Verdict_prog step2Verdict_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `step2Verdict_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem step2VerdictFunction_eq_prog :
+    step2VerdictFunction = "step2_verdict:\n" ++ emitProgramR step2Verdict_prog step2Verdict_relocs := rfl
+
+#guard step2VerdictFunction.startsWith "step2_verdict:\n"
+#guard step2Verdict_prog.length = 59
 /-- `zisk_step2_verdict`: probe. Input layout (file -> INPUT+8):
       +8  witness_len   +16 n_wds   +24 parent_rlp_len   +32 payload_len
       +40 parent_state_root(32)  +72 tx_root(32)  +104 wd_root(32)
       +136 beacon_root(32)  +168 requests_hash(32)
-      +200 parent_rlp (parent_rlp_len, 8-aligned)
+      +200 block_access_list_hash(32)
+      +232 parent_rlp (parent_rlp_len, 8-aligned)
       then payload (payload_len, 8-aligned), then wd length table (N x u64)
       + wd blobs (8-aligned each), then witness (8-aligned).
     The prologue builds the params struct + the wd descriptor array, then
@@ -121,10 +175,11 @@ def ziskStep2VerdictPrologue : String :=
   "  addi t2, t0, 104; sd t2, 40(t1)  # wd_root\n" ++
   "  addi t2, t0, 136; sd t2, 48(t1)  # beacon_root\n" ++
   "  addi t2, t0, 168; sd t2, 56(t1)  # requests_hash\n" ++
+  "  addi t2, t0, 200; sd t2, 96(t1)  # block_access_list_hash\n" ++
   "  sd a3, 16(t1)                    # parent_rlp_len\n" ++
   "  sd a4, 72(t1)                    # n_wds\n" ++
   "  sd a2, 88(t1)                    # witness_len\n" ++
-  "  addi t3, t0, 200; sd t3, 8(t1)   # parent_rlp ptr (= INPUT+200)\n" ++
+  "  addi t3, t0, 232; sd t3, 8(t1)   # parent_rlp ptr (= INPUT+232)\n" ++
   "  # payload ptr = parent_rlp + roundup8(parent_rlp_len)\n" ++
   "  addi t4, a3, 7; andi t4, t4, -8; add t3, t3, t4; sd t3, 0(t1)\n" ++
   "  # wd table base = payload + roundup8(payload_len)\n" ++
@@ -172,6 +227,7 @@ def ziskStep2VerdictPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   withdrawalToPathDeltaFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
@@ -180,6 +236,7 @@ def ziskStep2VerdictPrologue : String :=
   mptWalkFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
@@ -189,9 +246,14 @@ def ziskStep2VerdictPrologue : String :=
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++
@@ -215,6 +277,8 @@ def ziskStep2VerdictDataSection : String :=
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
   ".balign 32\n" ++
   "hvbf_expected:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "hvpm_off:\n  .zero 8\n" ++
   "hvpm_len:\n  .zero 8\n" ++
@@ -227,9 +291,9 @@ def ziskStep2VerdictDataSection : String :=
   ".balign 32\n" ++
   "hvph_computed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "vhrp_this_struct:\n  .zero 128\n" ++
+  "vhrp_this_struct:\n  .zero 144\n" ++
   ".balign 8\n" ++
-  "vhrp_parent_struct:\n  .zero 128\n" ++
+  "vhrp_parent_struct:\n  .zero 144\n" ++
   -- block_header_ssz_to_rlp extras (zk3_state already present)
   ".balign 32\n" ++
   "bhr_empty_ommers:\n" ++
@@ -254,7 +318,7 @@ def ziskStep2VerdictDataSection : String :=
   ".balign 32\n" ++
   "sv_recomputed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "sv_params:\n  .zero 96\n" ++
+  "sv_params:\n  .zero 104\n" ++
   "sv_wds:\n  .zero 1024\n" ++
   "sv_this_rlp:\n  .zero 1024"
 

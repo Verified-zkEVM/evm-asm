@@ -56,7 +56,7 @@ theorem evm_not_spec_within (sp base : Word)
 theorem xor_signExtend12_neg_one (x : Word) :
     x ^^^ signExtend12 (-1 : BitVec 12) = ~~~ x := by
   have h : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
-  rw [h]; bv_decide
+  rw [h, show (-1 : Word) = BitVec.allOnes 64 by decide, BitVec.xor_allOnes]
 
 /-- Stack-level 256-bit EVM NOT: operates on a single EvmWord via evmWordIs.
     Unary opcode — sp unchanged, in-place complement. -/

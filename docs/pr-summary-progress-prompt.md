@@ -22,10 +22,17 @@ Emit a top-level section titled exactly `## Progress assessment` at
 the **end** of the PR summary. The section is short, factual, and
 narrates what the computed delta means in the project's vocabulary.
 
-If the computed delta shows no count changes and no tier transitions,
-write exactly:
+**Begin the section by reproducing, VERBATIM, the deterministic
+`### Risk: <LEVEL>` line and the `### Scorecard` table** from the
+computed delta above (the `scripts/progress-delta.sh` output). Do
+**not** recompute, reword, re-rank, or omit them — they are a
+kernel-/git-derived triage signal for the human reviewer and must
+appear unchanged and on every PR (including metric-neutral ones). The
+risk label is triage ordering only; never describe it as a merge
+verdict. After the verbatim block, add the narrative below.
 
-    ## Progress assessment
+If the computed delta shows no count changes and no tier transitions,
+write the verbatim Risk + Scorecard block followed by exactly:
 
     Metric-neutral PR (no tier transitions, no count deltas).
 
@@ -48,10 +55,53 @@ Otherwise, include up to four bullets covering:
   `Advances obligation #5: full opcode coverage`). At most one
   obligation per bullet.
 
+## Statement-strength review (spec quality ONLY — never correctness)
+
+> Steering Phase 4, R-B3 / D5. This is the **one** place the LLM adds
+> signal the kernel cannot: the kernel proves a statement *is true*, but
+> it cannot judge whether the statement is *strong enough to be worth
+> proving*. Layer your judgement **only** on this question. **Never**
+> opine on whether a proof is correct — the Lean kernel is the perfect,
+> non-gameable oracle for that, and an LLM correctness verdict is itself
+> gameable. If a theorem elaborated, it is correct. Full stop.
+
+When this PR **adds or changes a top-level stack-spec triple** (a
+`theorem evm_<name>_stack_spec[_within] …`), assess its *statement
+strength* against EVM semantics and emit a single sign-off line at the
+end of the Progress assessment:
+
+    Statement-strength: <OK | REVIEW> — <≤ 1 sentence>
+
+Mark `REVIEW` (and say which check failed) if any of these hold; else
+`OK`:
+
+- **Vacuous / over-restricted precondition.** Does the antecedent
+  exclude a large, real input region so the triple is near-vacuous? The
+  DIV-class trap is the canonical example: a spec quantified only over
+  `b.getLimbN 3 = 0` looks proven but covers a fraction of inputs. A
+  `conditional`-tier entry is *expected* to be domain-restricted — flag
+  only if a `proven`-tier triple hides such a restriction, or if a
+  `conditional` triple lacks a stated/`coverRef` reachable domain.
+- **Incomplete postcondition.** Does it cover the full observable
+  effect — **stack** (pointer advanced + result word), **memory** (if
+  the opcode touches memory), **gas** (charged/bounded), and
+  **halting / cycle bound** (`cpsTripleWithin N`)? A postcondition that
+  asserts the stack result but silently drops gas or memory is weaker
+  than the opcode's real contract.
+- **Trivial / mismatched statement.** Does the triple actually model the
+  named opcode, or does it restate a tautology / a renamed helper lemma?
+
+Keep it to one line. If the PR adds no top-level triple, **omit the
+sign-off line entirely** (do not write "Statement-strength: n/a"). This
+is advisory review fodder for the human — it does not gate the merge and
+must never contradict the kernel.
+
 ## What NOT to do
 
 - **Do not recompute counts** from the diff. The numbers above are
   derived from the kernel-checked registry and are authoritative.
+- **Do not judge proof correctness.** The kernel already did, perfectly.
+  Your statement-strength note is about the *spec*, not the *proof*.
 - **Do not editorialize** ("major step forward", "significant
   improvement", "well done"). Stay factual.
 - **Do not duplicate** the existing `Mathematical Formalization` /

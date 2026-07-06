@@ -2,15 +2,19 @@ name: Benchmark
 
 # Weekly lake-build benchmark to track total build wall time and peak RSS.
 #
-# Scope (per #949 slice 1 design): a minimal baseline metric — wall time
-# and peak RSS for `lake build` after Mathlib's cache is fetched. No external
-# service, no per-target / per-file profiling (lakeprof) yet, no PR-comment
-# integration, no history persistence yet. Results surface only in the run's
-# job summary. History persistence + finer-grained metrics are follow-up
-# slices (see beads evm-asm-alg, evm-asm-wgr).
+# Two jobs, both weekly, both persisting append-only JSONL to the
+# `benchmark-history` orphan branch (no PR gate, no hard threshold — proof
+# times are noisy by design, see docs/benchmark-workflow-design.md):
+#   * benchmark — `lake build` wall time + peak RSS (kind="build").
+#   * lakeprof  — per-MODULE build time (kind="lakeprof", top_modules) AND, as
+#                 of R-F2, per-module compiled-artifact SIZE (olean_sizes).
+#                 Size is deterministic where time is noisy, so a ballooning
+#                 proof (the n=4 division proofs are the prime suspects)
+#                 surfaces as a monotone size trend even on a noisy runner.
 #
 # This workflow is independent of PR CI (`build.yml`) and does not gate any
-# pull request.
+# pull request. NEVER bump maxHeartbeats to make a slow/large proof "pass" — the
+# trend is for human reading, not a forcing function (report §6 non-goals).
 
 on:
   schedule:
@@ -287,6 +291,18 @@ jobs:
             --out lakeprof.topn.json \
             --n "${LAKEPROF_TOP_N}"
 
+      # R-F2 proof-SIZE trend: merge top-N largest .olean sizes into
+      # lakeprof.topn.json so the append step carries them. Runs after the
+      # build (oleans exist) and never fails the job (size is advisory trend).
+      - name: Collect per-module .olean sizes
+        id: oleansize
+        if: steps.record.outcome == 'success'
+        continue-on-error: true
+        env:
+          OLEANSIZE_TOP_N: '30'
+          TOPN_JSON: lakeprof.topn.json
+        run: bash .github/workflows/scripts/oleansize_collect.sh
+
       - name: Write job summary
         if: always()
         run: |
@@ -308,8 +324,14 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Append top-modules to benchmark-history
-        if: steps.topn.outcome == 'success'
+      # Gate on `record` (the build), NOT `topn`: the deterministic olean-size
+      # trend (R-F2) must persist even when the noisy `lakeprof report`/`topn`
+      # steps flake — that's the whole point of a size metric on a noisy runner.
+      # oleansize_collect.sh creates/merges lakeprof.topn.json (with olean_sizes
+      # and possibly no top_modules); lakeprof_append.sh tolerates either key
+      # being absent.
+      - name: Append top-modules + olean sizes to benchmark-history
+        if: steps.record.outcome == 'success' && (steps.topn.outcome == 'success' || steps.oleansize.outcome == 'success')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LAKEPROF_TOPN_JSON: lakeprof.topn.json

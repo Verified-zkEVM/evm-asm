@@ -48,6 +48,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesGetLimb
 import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesNonzero
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeGetLimbStep
+import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeExtra
 import EvmAsm.Evm64.DivMod.Spec.N1Harith
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
@@ -60,6 +61,7 @@ import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
 import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseToShape
+import EvmAsm.Evm64.DivMod.Spec.DivisorShapeToLimbCase
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDecidable
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDisjoint
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNeZero

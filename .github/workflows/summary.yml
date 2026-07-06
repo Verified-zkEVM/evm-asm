@@ -2,7 +2,7 @@ name: 'PR Summary'
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -16,6 +16,7 @@ permissions:
 jobs:
   summarize:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # Pre-steps: own checkout so we can compute the deterministic
       # PROGRESS.md base↔head delta before the summary action runs its
@@ -29,15 +30,35 @@ jobs:
 
       - name: Compute deterministic progress delta
         id: progress_delta
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -uo pipefail
           # Parses PROGRESS.md at base + head, emits structured Markdown
-          # (count deltas + per-opcode tier transitions). Pure git+awk;
-          # no LLM. Output is consumed below as part of the augmented
-          # instructions file passed to the summary action.
-          scripts/progress-delta.sh \
-            "${{ github.event.pull_request.base.sha }}" \
-            "${{ github.event.pull_request.head.sha }}" \
-            > /tmp/progress-delta.md
+          # (count deltas + per-opcode tier transitions + risk scorecard).
+          # Pure git+awk; no LLM. Output is consumed below as part of the
+          # augmented instructions file passed to the summary action.
+          #
+          # SECURITY (pull_request_target hardening). This workflow runs with a
+          # WRITE token + the OPENROUTER_KEY secret and checks out the PR head,
+          # so executing the PR's own copy of progress-delta.sh would let a
+          # malicious PR exfiltrate the secret / abuse the token. The script
+          # only READS committed PROGRESS.md blobs via `git show`, so running the
+          # BASE (trusted) version against either-side data is safe. We overwrite
+          # the workspace copy with the base blob before running it. Consequence:
+          # a PR that edits progress-delta.sh is summarized with the base logic
+          # (the new logic takes effect once merged) — an acceptable, cosmetic
+          # lag, never a correctness or token-safety compromise.
+          git fetch --depth=1 origin "$BASE_SHA" >/dev/null 2>&1 || true
+          if git show "${BASE_SHA}:scripts/progress-delta.sh" > scripts/progress-delta.sh 2>/dev/null; then
+            echo "progress-delta: pinned to trusted base ${BASE_SHA}"
+            scripts/progress-delta.sh "$BASE_SHA" "$HEAD_SHA" > /tmp/progress-delta.md \
+              || : > /tmp/progress-delta.md
+          else
+            echo "::warning::base progress-delta.sh unavailable; emitting empty delta (refusing to run PR-head code with a privileged token)"
+            : > /tmp/progress-delta.md
+          fi
           echo "Generated /tmp/progress-delta.md ($(wc -l < /tmp/progress-delta.md) lines)"
 
       - name: Build augmented instructions file
@@ -71,14 +92,10 @@ jobs:
         uses: alexanderlhicks/lean-summary-workflow@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          api_key: ${{ secrets.GEMINI_API_KEY }}
-          provider: gemini  # or: anthropic, openai
-          model: gemini-3-flash-preview  # or: claude-sonnet-4-6, gpt-5.4-mini
+          api_key: ${{ secrets.OPENROUTER_KEY }}
+          # model: inherits the action default (deepseek/deepseek-v4-flash).
+          #        Set `model: <openrouter-slug>` here to override for this repo only.
           github_repository: ${{ github.repository }}
           pr_number: ${{ github.event.pull_request.number }}
-          # NOTE: input name change pending — see lean-summary-workflow PR
-          # that renames `style_guide_path` → `additional_instructions_path`.
-          # When that lands, swap the line below and drop this NOTE.
           additional_instructions_path: '/tmp/augmented-instructions.md'
           validate_title: 'true'
-          # upstream_path: 'ToMathlib/'

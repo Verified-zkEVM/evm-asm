@@ -213,6 +213,16 @@ def sailStateWithReg (sSail : SailState) (rd : Reg) (v : BitVec 64) : SailState 
     (sailStateWithReg sSail rd v).mem = sSail.mem := by
   cases rd <;> rfl
 
+/-- An integer-register write doesn't touch `nextPC` (distinct key from every `xN`). -/
+@[simp] theorem sailStateWithReg_get?_nextPC (sSail : SailState) (rd : Reg) (v : BitVec 64) :
+    (sailStateWithReg sSail rd v).regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+  cases rd <;> simp [sailStateWithReg, Std.ExtDHashMap.get?_insert]
+
+/-- An integer-register write doesn't touch `PC` (distinct key from every `xN`). -/
+@[simp] theorem sailStateWithReg_get?_PC (sSail : SailState) (rd : Reg) (v : BitVec 64) :
+    (sailStateWithReg sSail rd v).regs.get? Register.PC = sSail.regs.get? Register.PC := by
+  cases rd <;> simp [sailStateWithReg, Std.ExtDHashMap.get?_insert]
+
 /-- A non-x0 write doesn't touch memory on the Rv64 side either. -/
 @[simp] theorem MachineState_setReg_getMem (sRv : MachineState) (rd : Reg) (v : Word) (a : Word) :
     (sRv.setReg rd v).getMem a = sRv.getMem a := by
@@ -231,8 +241,37 @@ def sailStateWithReg (sSail : SailState) (rd : Reg) (v : BitVec 64) : SailState 
 structure StateRel (sRv : MachineState) (sSail : SailState) : Prop where
   /-- Registers agree on all 32 integer registers. -/
   reg_agree : ∀ (r : Reg), sailRegVal sSail r = some (sRv.getReg r)
-  /-- Memory agrees: SAIL bytes reconstruct to Rv64 doublewords. -/
-  mem_agree : ∀ (a : BitVec 64),
+  /-- Memory agrees on **8-aligned doublewords**: the SAIL bytes at `a` reconstruct
+      to the Rv64 doubleword `getMem a`.
+
+      Restricted to 8-aligned `a` because Rv64 `mem` is dword-granular (a store is a
+      single-point `setMem`), so the unrestricted ∀-byte form (overlapping 8-byte
+      windows at every offset) cannot be preserved by a store — the byte write would
+      change the windows at the seven preceding offsets, which the dword-granular
+      `mem` does not track. Distinct 8-aligned dwords are disjoint, so an 8-aligned
+      store *does* preserve this form. -/
+  mem_agree : ∀ (a : BitVec 64), a.toNat % 8 = 0 →
     reconstructDword sSail.mem a.toNat = sRv.getMem a
+
+/-- Inserting the `PC` register preserves `StateRel`: `PC` is not in the tracked
+    integer-register set (`sailRegVal` reads only `x0`..`x31`), and a register
+    insert doesn't touch memory. Mirrors the `nextPC` version used for branches. -/
+theorem stateRel_PC_insert {sRv : MachineState} {sSail : SailState}
+    (hrel : StateRel sRv sSail) (v : BitVec 64) :
+    StateRel sRv { sSail with regs := sSail.regs.insert Register.PC v } :=
+  ⟨fun r => by
+    have ha := hrel.reg_agree r
+    cases r <;> simpa [sailRegVal, Std.ExtDHashMap.get?_insert] using ha,
+   fun a ha => hrel.mem_agree a ha⟩
+
+/-- PC-aware abstraction relation: `StateRel` (registers + memory) plus agreement
+    of the committed `PC`.  This is the step-stable relation that holds at each
+    fetch boundary.  It is kept separate from `StateRel` because `execute_*` does
+    not commit `PC` (it writes `nextPC`); only `tick_pc` commits `PC := nextPC`,
+    so `PC` agreement is re-established once per `execute_* ; tick_pc` step. -/
+structure StateRelPC (sRv : MachineState) (sSail : SailState) : Prop extends
+    StateRel sRv sSail where
+  /-- The committed program counter agrees. -/
+  pc_agree : sSail.regs.get? Register.PC = some sRv.pc
 
 end EvmAsm.Rv64.SailEquiv

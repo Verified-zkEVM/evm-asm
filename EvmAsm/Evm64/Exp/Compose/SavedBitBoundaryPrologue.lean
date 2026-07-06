@@ -65,12 +65,12 @@ instance pcFreeInst_expTwoMulOperandFrame
 theorem expTwoMulBoundaryCounterInitWord :
     ((0 : Word) + signExtend12 (256 : BitVec 12)) = (256 : Word) := by
   rw [EvmAsm.Evm64.Exp.AddrNorm.exp_se12_256]
-  bv_decide
+  bv_omega
 
 theorem expTwoMulBoundaryAccumulatorInitWord :
     ((0 : Word) + signExtend12 (1 : BitVec 12)) = (1 : Word) := by
   rw [signExtend12_1]
-  bv_decide
+  bv_omega
 
 theorem expTwoMulBoundaryAdvancedEvmSpWord (evmSp : Word) :
     evmSp + signExtend12 (64 : BitVec 12) = evmSp + 64 := by
@@ -79,11 +79,8 @@ theorem expTwoMulBoundaryAdvancedEvmSpWord (evmSp : Word) :
 theorem expTwoMulPointerRestoreBackToEvmSp (evmSp : Word) :
     (evmSp + signExtend12 (64 : BitVec 12)) +
       signExtend12 ((-64) : BitVec 12) = evmSp := by
-  have hNeg64 :
-      signExtend12 ((-64) : BitVec 12) =
-        (18446744073709551552 : Word) := by decide
-  rw [signExtend12_64, hNeg64]
-  bv_decide
+  rw [signExtend12_64, EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64]
+  bv_omega
 
 theorem expTwoMulBoundaryResultEvmSpWord (evmSp : Word) :
     evmSp + signExtend12 (32 : BitVec 12) = evmSp + 32 := by

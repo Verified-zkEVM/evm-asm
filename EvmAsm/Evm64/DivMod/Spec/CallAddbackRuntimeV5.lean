@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
 
   V5 mirror of the hq_over-ASSUMING runtime-condition chain that culminates in
-  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions`.
+  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy`.
 
   This is the V5 analogue of the chain in
   `EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime` that ends in
@@ -652,8 +652,9 @@ theorem n4CallAddbackBeqSemanticHoldsV5_of_runtime_top_nonzero
     scaling step from the CLZ shift nonzero condition.
 
     V5 mirror of `n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions`.  Still
-    takes the trial-quotient `hq_over` bound as a hypothesis. -/
-theorem n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions
+    takes the trial-quotient `hq_over` bound as a hypothesis; the public
+    unconditional wrapper lives in `N4SemanticGen.lean`. -/
+theorem n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy
     {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)

@@ -247,6 +247,11 @@ scripts/codegen-evm_add-from-input-check.sh         # M4 ADD from ziskemu -i
 scripts/codegen-opcodes-runtime-check.sh            # M8.5 31-case opcode regression
 ```
 
+The EEST stateless-guest conformance harness is documented in
+[docs/eest-stateless-testing.md](docs/eest-stateless-testing.md), including
+large-batch, filtered, parallel, offset-resume, failure-capped, and quiet-output
+runs.
+
 Setup requirements: `riscv64-elf-binutils` (or `riscv-gnu-toolchain`)
 and `ziskemu`. The Zisk emulator can be installed with
 `bash <(curl -fsSL https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/install.sh)`
@@ -352,7 +357,7 @@ infrastructure. The stateless-guest helpers are scaffolding: they
 ship as `def *Function : String` raw-asm bodies emitted by
 `lake exe codegen`, registered through `BuildUnit` probes, and
 exercised end-to-end on ziskemu against the
-[`execution-specs`](execution-specs/) Python reference via the
+[`execution-specs`](https://github.com/ethereum/execution-specs/) Python reference via the
 `scripts/codegen-zisk-*-check.sh` fixtures (one script per PR).
 What that gives us today:
 
@@ -503,6 +508,22 @@ Top-line invariants:
   https://github.com/verse-lab/splean
   The `xperm` / `xperm_hyp` / `xsimp` tactics in `Tactics/` are inspired by
   SPlean's `xsimpl` tactic.
+- **YOLO** — Mikhalchuk, V., Gladshtein, V., Sergey, I. (2026).
+  "Lazy Proof Automation for Separation Logic." ITP 2026 (to appear).
+  Artifact: https://github.com/verse-lab/yolo
+  The certificate-based permutation prover `buildPermProofCert` / `seps_permute`
+  (in `Tactics/XPerm.lean` and `SepLogic.lean`, gated behind the `xperm.cert`
+  option) **re-implements YOLO's core idea** — run the unverified atom-matching
+  search once and discharge the whole entailment with a *single* cheap verified
+  replay instead of an eager step-by-step proof. It is an **independent
+  re-implementation of the idea, not a port of YOLO's code**: it shares none of
+  YOLO's machinery (no `hprop` syntax tree, no left/right worklists, no
+  extensible operation-tag typeclasses, no recorded-tactic-script replay).
+  Instead it records the result as an index permutation `σ : List Nat` and
+  discharges it with one `seps_permute` lemma whose `σ.Perm (List.range n)` side
+  condition is closed by a single kernel-checked `decide`. Credit for the
+  underlying idea (separating fast untrusted simplification from a single
+  verified reconstruction) belongs to Mikhalchuk, Gladshtein, and Sergey.
 - Charguéraud, A. (2020). "Separation Logic for Sequential Programs
   (Functional Pearl)." *Proc. ACM Program. Lang.* 4, ICFP, Article 116.
   https://doi.org/10.1145/3408998

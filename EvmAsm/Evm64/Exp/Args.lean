@@ -269,9 +269,9 @@ theorem expTotalGasFromArgs_zero_exponent (base : EvmWord) :
 
 theorem expDynamicCostFromArgs_256_exponent (base : EvmWord) :
     expDynamicCostFromArgs (expArgs base 256) = 100 := by
-  simp only [expDynamicCostFromArgs, expArgs, ExpGas.expDynamicCostFromExponent,
-    ExpGas.expGasPerByte, ExpGas.exponentByteLength]
-  native_decide
+  unfold expDynamicCostFromArgs expArgs
+  change ExpGas.expDynamicCostFromExponent (256 : EvmWord) = 100
+  exact ExpGas.expDynamicCostFromExponent_256
 
 theorem expTotalGasFromArgs_256_exponent (base : EvmWord) :
     expTotalGasFromArgs (expArgs base 256) = 110 := by

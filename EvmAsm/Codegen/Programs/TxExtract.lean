@@ -13,21 +13,42 @@
     K108  tx_extract_gas_pricing   (gas_price / max_fee / priority_fee)
 
   Each takes a tx-bytes ptr + length and returns the specific
-  field via caller-supplied output buffer(s). Compose K20 / K34 /
-  K35 helpers from `RlpRead.lean` + `Tx.lean`.
+  field via caller-supplied output buffer(s). Newer extractors use
+  `RlpWalk.lean` cursor helpers for ordered field access; older
+  access-list helpers still compose K20 / K34 / K35 helpers from
+  `RlpRead.lean` + `Tx.lean`.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
+
+private def repeatAsm : Nat -> String -> String
+  | 0, _ => ""
+  | n + 1, s => s ++ repeatAsm n s
+
+private def txExtractWalkSkipAsm (failLabel : String) (n : Nat) : String :=
+  repeatAsm n <|
+    "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "; mv s5, a0\n"
+
+private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
+  txExtractWalkSkipAsm failLabel n ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "\n" ++
+  "  sub t6, a0, a2              # content ptr\n"
 
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
@@ -54,60 +75,65 @@ open EvmAsm.Rv64.Program
       a0 (output) : 0 success / 1 unknown / empty input
 
     Leaf-callable, no scratch. -/
-def txTypeDispatchFunction : String :=
-  "tx_type_dispatch:\n" ++
-  "  beqz a1, .Ltd_fail\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bgeu t0, t1, .Ltd_legacy\n" ++
-  "  li t1, 1\n" ++
-  "  beq t0, t1, .Ltd_t1\n" ++
-  "  li t1, 2\n" ++
-  "  beq t0, t1, .Ltd_t2\n" ++
-  "  li t1, 3\n" ++
-  "  beq t0, t1, .Ltd_t3\n" ++
-  "  li t1, 4\n" ++
-  "  beq t0, t1, .Ltd_t4\n" ++
-  "  j .Ltd_fail\n" ++
-  ".Ltd_legacy:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t1:\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t2:\n" ++
-  "  li t0, 2\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t3:\n" ++
-  "  li t0, 3\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t4:\n" ++
-  "  li t0, 4\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_fail:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def txTypeDispatch_prog : Program :=
+  [ .BEQ .x11 .x0 (164 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BGEU .x5 .x6 (40 : BitVec 13),
+    .LI .x6 (1 : Word),
+    .BEQ .x5 .x6 (48 : BitVec 13),
+    .LI .x6 (2 : Word),
+    .BEQ .x5 .x6 (64 : BitVec 13),
+    .LI .x6 (3 : Word),
+    .BEQ .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (4 : Word),
+    .BEQ .x5 .x6 (96 : BitVec 13),
+    .JAL .x0 (116 : BitVec 21),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txTypeDispatchFunction : String :=
+  "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txTypeDispatch_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txTypeDispatchFunction_eq_prog :
+    txTypeDispatchFunction = "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog := rfl
+
+#guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
+#guard txTypeDispatch_prog.length = 45
 /-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
 def ziskTxTypeDispatchPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -149,7 +175,8 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`  — typed-tx detector
-      - PR-K53 `rlp_field_to_u64`  — u64 field extraction
+      - RlpWalk cursor helpers     — ordered field extraction
+      - canonical content-to-u64   — u64 decoding
 
     Useful as a fast prelude to `check_transaction` (nonce
     ordering + gas-availability) without a full per-type decode.
@@ -165,15 +192,17 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
         1 : tx_type_dispatch failed
         2 : nonce field extraction failed
         3 : gas_limit field extraction failed
+        4 : nonce exceeds EIP-2681 maximum (`2^64 - 2`)
 
     Both outputs are zeroed on failure. Uses two 8-byte `.data`
     scratch slots (`teng_type`, `teng_inner_off`). -/
 def txExtractNonceAndGasFunction : String :=
   "tx_extract_nonce_and_gas:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # nonce out\n" ++
@@ -190,55 +219,71 @@ def txExtractNonceAndGasFunction : String :=
   ".Lteng_after_dispatch:\n" ++
   "  la t0, teng_type;      ld s4, 0(t0)    # type → s4\n" ++
   "  la t0, teng_inner_off; ld t5, 0(t0)\n" ++
-  "  add s5, s0, t5                          # inner_ptr → s5\n" ++
-  "  sub s6, s1, t5                          # inner_len → s6\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteng_nonce_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Step 2: extract nonce.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Lteng_n_legacy\n" ++
-  "  li t1, 1                              # typed: nonce index = 1\n" ++
-  "  j .Lteng_n_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_nonce_fail" 1 ++
+  "  j .Lteng_n_have_field\n" ++
   ".Lteng_n_legacy:\n" ++
-  "  li t1, 0                              # legacy: nonce index = 0\n" ++
-  ".Lteng_n_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Lteng_step3\n" ++
+  txExtractWalkFieldAsm ".Lteng_nonce_fail" 0 ++
+  ".Lteng_n_have_field:\n" ++
+  "  mv s7, a0                              # cursor after nonce\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  beqz a1, .Lteng_step3\n" ++
+  ".Lteng_nonce_fail:\n" ++
   "  sd zero, 0(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Lteng_ret\n" ++
   ".Lteng_step3:\n" ++
+  "  sd a0, 0(s2)\n" ++
+  "  ld t0, 0(s2)\n" ++
+  "  li t1, -1                              # EIP-2681 rejects u64 max\n" ++
+  "  bne t0, t1, .Lteng_nonce_under_cap\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 4\n" ++
+  "  j .Lteng_ret\n" ++
+  ".Lteng_nonce_under_cap:\n" ++
+  "  mv s5, s7                              # continue from after nonce\n" ++
   "  # Step 3: extract gas_limit.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Lteng_g_legacy\n" ++
   "  li t0, 1\n" ++
   "  beq s4, t0, .Lteng_g_2930\n" ++
-  "  li t1, 4                              # type 2/3/4: gas index = 4\n" ++
-  "  j .Lteng_g_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 2 ++
+  "  j .Lteng_g_have_field\n" ++
   ".Lteng_g_legacy:\n" ++
-  "  li t1, 2                              # legacy: gas index = 2\n" ++
-  "  j .Lteng_g_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 1 ++
+  "  j .Lteng_g_have_field\n" ++
   ".Lteng_g_2930:\n" ++
-  "  li t1, 3                              # 2930: gas index = 3\n" ++
-  ".Lteng_g_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Lteng_ok\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 1 ++
+  ".Lteng_g_have_field:\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  beqz a1, .Lteng_store_gas\n" ++
+  ".Lteng_gas_fail:\n" ++
   "  sd zero, 0(s3)\n" ++
   "  li a0, 3\n" ++
   "  j .Lteng_ret\n" ++
+  ".Lteng_store_gas:\n" ++
+  "  sd a0, 0(s3)\n" ++
+  "  j .Lteng_ok\n" ++
   ".Lteng_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lteng_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_nonce_and_gas`: probe BuildUnit. Reads
@@ -255,19 +300,13 @@ def ziskTxExtractNonceAndGasPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lteng_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   ".Lteng_pdone:"
 
 def ziskTxExtractNonceAndGasDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "teng_type:\n" ++
   "  .zero 8\n" ++
@@ -298,7 +337,7 @@ def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`   — typed-tx detector
-      - PR-K20 `rlp_list_nth_item`  — field extractor
+      - RlpWalk cursor helpers      — field extractor
 
     Useful for `apply_body` (CREATE vs CALL routing) and for any
     pre-EVM check that needs the recipient without doing a full
@@ -315,13 +354,13 @@ def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
         1 : tx_type_dispatch failed
         2 : `to` field extraction failed (not 0 or 20 B)
 
-    Uses two 8-byte `.data` scratch slots
-    (`tea_type` + `tea_inner_off`) plus K20's offset/length pair. -/
+    Uses two 8-byte `.data` scratch slots (`tea_type` + `tea_inner_off`). -/
 def txExtractToAddressFunction : String :=
   "tx_extract_to_address:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_bytes ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # 20B out ptr\n" ++
@@ -338,42 +377,32 @@ def txExtractToAddressFunction : String :=
   "  li a0, 1\n" ++
   "  j .Ltea_ret\n" ++
   ".Ltea_after_dispatch:\n" ++
-  "  la t0, tea_type;      ld t4, 0(t0)    # type\n" ++
+  "  la t0, tea_type;      ld s4, 0(t0)    # type\n" ++
   "  la t0, tea_inner_off; ld t5, 0(t0)    # inner_off\n" ++
-  "  add t6, s0, t5                         # inner_ptr\n" ++
-  "  sub t3, s1, t5                         # inner_len\n" ++
-  "  # Determine field index based on type.\n" ++
-  "  # type 0 → 3, type 1 → 4, type 2/3/4 → 5.\n" ++
+  "  add a0, s0, t5                         # inner_ptr\n" ++
+  "  sub a1, s1, t5                         # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltea_field_fail\n" ++
+  "  mv s5, a0                              # cursor\n" ++
+  "  mv s6, a1                              # end\n" ++
+  "  # Determine field index based on type: 0 -> 3, 1 -> 4, 2/3/4 -> 5.\n" ++
   "  li t0, 0\n" ++
-  "  beq t4, t0, .Ltea_legacy_idx\n" ++
+  "  beq s4, t0, .Ltea_legacy_idx\n" ++
   "  li t0, 1\n" ++
-  "  beq t4, t0, .Ltea_t1_idx\n" ++
-  "  li t1, 5                              # type 2,3,4\n" ++
-  "  j .Ltea_have_idx\n" ++
+  "  beq s4, t0, .Ltea_t1_idx\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 5 ++
+  "  j .Ltea_have_field\n" ++
   ".Ltea_legacy_idx:\n" ++
-  "  li t1, 3\n" ++
-  "  j .Ltea_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 3 ++
+  "  j .Ltea_have_field\n" ++
   ".Ltea_t1_idx:\n" ++
-  "  li t1, 4\n" ++
-  ".Ltea_have_idx:\n" ++
-  "  # rlp_list_nth_item(inner_ptr, inner_len, idx, &off, &len)\n" ++
-  "  mv a0, t6\n" ++
-  "  mv a1, t3\n" ++
-  "  mv a2, t1\n" ++
-  "  la a3, tea_field_off\n" ++
-  "  la a4, tea_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltea_field_fail\n" ++
-  "  la t0, tea_field_len; ld t2, 0(t0)\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 4 ++
+  ".Ltea_have_field:\n" ++
+  "  mv t2, a2                    # content length\n" ++
   "  beqz t2, .Ltea_creation\n" ++
   "  li t1, 20\n" ++
   "  bne t2, t1, .Ltea_field_fail\n" ++
-  "  # Copy 20 bytes from (inner_ptr + field_off) to s2.\n" ++
-  "  # We lost inner_ptr (t6); recompute from s0 + tea_inner_off.\n" ++
-  "  la t0, tea_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5\n" ++
-  "  la t0, tea_field_off; ld t4, 0(t0)\n" ++
-  "  add t6, t6, t4\n" ++
+  "  # Copy 20 bytes from content pointer t6 to s2.\n" ++
   "  ld t0,  0(t6); sd t0,  0(s2)\n" ++
   "  ld t0,  8(t6); sd t0,  8(s2)\n" ++
   "  lwu t0, 16(t6); sw t0, 16(s2)\n" ++
@@ -390,7 +419,8 @@ def txExtractToAddressFunction : String :=
   ".Ltea_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
@@ -412,7 +442,7 @@ def ziskTxExtractToAddressPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Ltea_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   ".Ltea_pdone:"
@@ -423,10 +453,6 @@ def ziskTxExtractToAddressDataSection : String :=
   "tea_type:\n" ++
   "  .zero 8\n" ++
   "tea_inner_off:\n" ++
-  "  .zero 8\n" ++
-  "tea_field_off:\n" ++
-  "  .zero 8\n" ++
-  "tea_field_len:\n" ++
   "  .zero 8"
 
 def ziskTxExtractToAddressProbeUnit : BuildUnit := {
@@ -452,7 +478,8 @@ def ziskTxExtractToAddressProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`        — typed-tx detector
-      - PR-K-rlp_field_to_u256_be helper — u256 BE field extraction
+      - RlpWalk cursor helpers           — field extraction
+      - canonical content-to-u256 helper — u256 BE decoding
 
     Useful for balance checks (`sender_balance >= value + gas_cost`)
     and for the priority-fee credit path. Together with PR-K101
@@ -474,9 +501,10 @@ def ziskTxExtractToAddressProbeUnit : BuildUnit := {
     slots (`tev_type`, `tev_inner_off`). -/
 def txExtractValueFunction : String :=
   "tx_extract_value:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # 32B out ptr\n" ++
@@ -493,29 +521,31 @@ def txExtractValueFunction : String :=
   ".Ltev_after_dispatch:\n" ++
   "  la t0, tev_type;      ld s3, 0(t0)    # type → s3\n" ++
   "  la t0, tev_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5                          # inner_ptr\n" ++
-  "  sub t4, s1, t5                          # inner_len\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltev_field_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Determine field index.\n" ++
   "  li t0, 0\n" ++
   "  beq s3, t0, .Ltev_legacy_idx\n" ++
   "  li t0, 1\n" ++
   "  beq s3, t0, .Ltev_t1_idx\n" ++
-  "  li t1, 6                              # type 2/3/4: value = 6\n" ++
-  "  j .Ltev_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 6 ++
+  "  j .Ltev_have_field\n" ++
   ".Ltev_legacy_idx:\n" ++
-  "  li t1, 4                              # legacy: value = 4\n" ++
-  "  j .Ltev_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 4 ++
+  "  j .Ltev_have_field\n" ++
   ".Ltev_t1_idx:\n" ++
-  "  li t1, 5                              # EIP-2930: value = 5\n" ++
-  ".Ltev_have_idx:\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 5 ++
+  ".Ltev_have_field:\n" ++
   "  mv a0, t6\n" ++
-  "  mv a1, t4\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltev_ok\n" ++
-  "  # Re-zero output on failure (rlp_field_to_u256_be may have\n" ++
-  "  # partially written).\n" ++
+  ".Ltev_field_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Ltev_ret\n" ++
@@ -524,7 +554,8 @@ def txExtractValueFunction : String :=
   ".Ltev_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_value`: probe BuildUnit. Reads (tx_len,
@@ -540,24 +571,13 @@ def ziskTxExtractValuePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltev_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
   ".Ltev_pdone:"
 
 def ziskTxExtractValueDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t48_offset:\n" ++
-  "  .zero 8\n" ++
-  "t48_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "tev_type:\n" ++
   "  .zero 8\n" ++
@@ -588,7 +608,7 @@ def ziskTxExtractValueProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`   — typed-tx detector
-      - PR-K20 `rlp_list_nth_item`  — byte-string content bounds
+      - RlpWalk cursor helpers      — byte-string content bounds
 
     Useful for:
     - intrinsic-gas pricing (zero/non-zero byte counts)
@@ -610,9 +630,10 @@ def ziskTxExtractValueProbeUnit : BuildUnit := {
     scratch slots (`teds_type`, `teds_inner_off`). -/
 def txExtractDataSectionFunction : String :=
   "tx_extract_data_section:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # data_ptr out\n" ++
@@ -627,38 +648,30 @@ def txExtractDataSectionFunction : String :=
   "  li a0, 1\n" ++
   "  j .Lteds_ret\n" ++
   ".Lteds_after_dispatch:\n" ++
-  "  la t0, teds_type;      ld t4, 0(t0)     # type\n" ++
+  "  la t0, teds_type;      ld s4, 0(t0)     # type\n" ++
   "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5                           # inner_ptr\n" ++
-  "  sub t3, s1, t5                           # inner_len\n" ++
+  "  add a0, s0, t5                           # inner_ptr\n" ++
+  "  sub a1, s1, t5                           # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteds_field_fail\n" ++
+  "  mv s5, a0                                # cursor\n" ++
+  "  mv s6, a1                                # end\n" ++
   "  # Determine field index.\n" ++
   "  li t0, 0\n" ++
-  "  beq t4, t0, .Lteds_legacy_idx\n" ++
+  "  beq s4, t0, .Lteds_legacy_idx\n" ++
   "  li t0, 1\n" ++
-  "  beq t4, t0, .Lteds_t1_idx\n" ++
-  "  li t1, 7                                # type 2/3/4: data = 7\n" ++
-  "  j .Lteds_have_idx\n" ++
+  "  beq s4, t0, .Lteds_t1_idx\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 7 ++
+  "  j .Lteds_have_field\n" ++
   ".Lteds_legacy_idx:\n" ++
-  "  li t1, 5                                # legacy: data = 5\n" ++
-  "  j .Lteds_have_idx\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 5 ++
+  "  j .Lteds_have_field\n" ++
   ".Lteds_t1_idx:\n" ++
-  "  li t1, 6                                # EIP-2930: data = 6\n" ++
-  ".Lteds_have_idx:\n" ++
-  "  mv a0, t6\n" ++
-  "  mv a1, t3\n" ++
-  "  mv a2, t1\n" ++
-  "  la a3, teds_field_off\n" ++
-  "  la a4, teds_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteds_field_fail\n" ++
-  "  # data_ptr = inner_ptr + field_off; data_len = field_len.\n" ++
-  "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5\n" ++
-  "  la t0, teds_field_off; ld t4, 0(t0)\n" ++
-  "  add t6, t6, t4\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 6 ++
+  ".Lteds_have_field:\n" ++
+  "  # data_ptr = content ptr; data_len = content length.\n" ++
   "  sd t6, 0(s2)\n" ++
-  "  la t0, teds_field_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s3)\n" ++
+  "  sd a2, 0(s3)\n" ++
   "  li a0, 0\n" ++
   "  j .Lteds_ret\n" ++
   ".Lteds_field_fail:\n" ++
@@ -666,7 +679,8 @@ def txExtractDataSectionFunction : String :=
   ".Lteds_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_data_section`: probe BuildUnit. Reads
@@ -685,7 +699,7 @@ def ziskTxExtractDataSectionPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lteds_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++
   ".Lteds_pdone:"
@@ -696,10 +710,6 @@ def ziskTxExtractDataSectionDataSection : String :=
   "teds_type:\n" ++
   "  .zero 8\n" ++
   "teds_inner_off:\n" ++
-  "  .zero 8\n" ++
-  "teds_field_off:\n" ++
-  "  .zero 8\n" ++
-  "teds_field_len:\n" ++
   "  .zero 8"
 
 def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
@@ -729,7 +739,8 @@ def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`        — typed-tx detector
-      - `rlp_field_to_u256_be` helper    — u256 field extractor
+      - RlpWalk cursor helpers           — field bounds
+      - `rlp_content_to_u256_be` helper  — canonical u256 content decoder
 
     Calling convention:
       a0 (input)  : tx_bytes ptr (encoded form)
@@ -744,13 +755,15 @@ def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
         3 : max_fee field extraction failed (typed only)
 
     Both outputs zeroed on failure. Uses two 8-byte `.data`
-    scratch slots (`tegp_type`, `tegp_inner_off`). -/
+    scratch slots (`tegp_type`, `tegp_inner_off`). Non-canonical integer
+    encodings are rejected by the content decoder. -/
 def txExtractGasPricingFunction : String :=
   "tx_extract_gas_pricing:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # max_priority_fee out (32B)\n" ++
@@ -769,23 +782,28 @@ def txExtractGasPricingFunction : String :=
   ".Ltegp_after_dispatch:\n" ++
   "  la t0, tegp_type;      ld s4, 0(t0)    # type → s4\n" ++
   "  la t0, tegp_inner_off; ld t5, 0(t0)\n" ++
-  "  add s5, s0, t5                          # inner_ptr → s5\n" ++
-  "  sub s6, s1, t5                          # inner_len → s6\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltegp_p_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Determine first u256 field index.\n" ++
   "  # Legacy: gas_price=1. 2930: gas_price=2. 1559/4844/7702: max_priority=2.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Ltegp_p_legacy\n" ++
-  "  li t1, 2                              # typed: index 2\n" ++
+  txExtractWalkFieldAsm ".Ltegp_p_fail" 2 ++
   "  j .Ltegp_p_have\n" ++
   ".Ltegp_p_legacy:\n" ++
-  "  li t1, 1                              # legacy: index 1\n" ++
+  txExtractWalkFieldAsm ".Ltegp_p_fail" 1 ++
   ".Ltegp_p_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv s7, a0                               # cursor after first fee field\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltegp_after_p\n" ++
+  ".Ltegp_p_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Ltegp_ret\n" ++
@@ -800,13 +818,15 @@ def txExtractGasPricingFunction : String :=
   "  li a0, 0\n" ++
   "  j .Ltegp_ret\n" ++
   ".Ltegp_typed_fee:\n" ++
-  "  # Type 2/3/4: max_fee = field 3.\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  li a2, 3\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Type 2/3/4: max_fee = next field after max_priority.\n" ++
+  "  mv s5, s7\n" ++
+  txExtractWalkFieldAsm ".Ltegp_fee_fail" 0 ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltegp_ok\n" ++
+  ".Ltegp_fee_fail:\n" ++
   "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
   "  li a0, 3\n" ++
   "  j .Ltegp_ret\n" ++
@@ -816,7 +836,8 @@ def txExtractGasPricingFunction : String :=
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_gas_pricing`: probe BuildUnit. Reads (tx_len,
@@ -833,19 +854,13 @@ def ziskTxExtractGasPricingPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltegp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   ".Ltegp_pdone:"
 
 def ziskTxExtractGasPricingDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "tegp_type:\n" ++
   "  .zero 8\n" ++
@@ -856,6 +871,177 @@ def ziskTxExtractGasPricingProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxExtractGasPricingPrologue
   dataAsm     := ziskTxExtractGasPricingDataSection
+}
+
+/-! ## tx_effective_gas_pricing -- EEST reusable fee pricing
+
+    Compose `tx_extract_gas_pricing` with the u256 fee-pricing helpers to
+    produce the values needed by general transaction settlement:
+
+      priority_fee_per_gas = min(max_priority_fee, max_fee - base_fee)
+      effective_gas_price  = base_fee + priority_fee_per_gas
+
+    `tx_extract_gas_pricing` normalizes legacy and EIP-2930 `gas_price` by
+    writing it to both max-priority and max-fee outputs, so the same formula
+    gives `effective_gas_price = gas_price` and
+    `priority_fee_per_gas = gas_price - base_fee`.
+
+    Calling convention:
+      a0 (input)  : tx bytes ptr
+      a1 (input)  : tx byte length
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : effective_gas_price out ptr (32 B BE)
+      a4 (input)  : priority_fee_per_gas out ptr (32 B BE)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx pricing extraction failed
+        2 : max_fee_per_gas < max_priority_fee_per_gas
+        3 : max_fee_per_gas < base_fee_per_gas
+        4 : effective_gas_price addition overflowed -/
+def txEffectiveGasPricing_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 68)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 68)),
+    .AUIPC .x13 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 76)),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_gas_pricing (GuestAddrs.tx_effective_gas_pricing + 84)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (148 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
+    .AUIPC .x11 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 108)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 108)),
+    .AUIPC .x12 (laHi GuestAddrs.tefgp_tmp (GuestAddrs.tx_effective_gas_pricing + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tefgp_tmp (GuestAddrs.tx_effective_gas_pricing + 116)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.tx_effective_gas_pricing + 124)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (108 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
+    .AUIPC .x11 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 148)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 148)),
+    .MV .x12 .x8,
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.priority_fee_per_gas_eip1559 (GuestAddrs.tx_effective_gas_pricing + 164)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (52 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.tx_effective_gas_pricing + 208)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txEffectiveGasPricing_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEffectiveGasPricing_relocs : RelocTable :=
+  [ (17, .la .x12 "tefgp_max_priority"),
+    (19, .la .x13 "tefgp_max_fee"),
+    (21, .jal .x1 "tx_extract_gas_pricing"),
+    (25, .la .x10 "tefgp_max_fee"),
+    (27, .la .x11 "tefgp_max_priority"),
+    (29, .la .x12 "tefgp_tmp"),
+    (31, .jal .x1 "u256_sub_be"),
+    (35, .la .x10 "tefgp_max_priority"),
+    (37, .la .x11 "tefgp_max_fee"),
+    (41, .jal .x1 "priority_fee_per_gas_eip1559"),
+    (52, .jal .x1 "u256_add_be") ]
+
+def txEffectiveGasPricingFunction : String :=
+  "tx_effective_gas_pricing:\n" ++ emitProgramR txEffectiveGasPricing_prog txEffectiveGasPricing_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEffectiveGasPricing_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEffectiveGasPricingFunction_eq_prog :
+    txEffectiveGasPricingFunction = "tx_effective_gas_pricing:\n" ++ emitProgramR txEffectiveGasPricing_prog txEffectiveGasPricing_relocs := rfl
+
+#guard txEffectiveGasPricingFunction.startsWith "tx_effective_gas_pricing:\n"
+#guard txEffectiveGasPricing_prog.length = 68
+/-- `zisk_tx_effective_gas_pricing`: probe BuildUnit. Reads
+    (32B base_fee, tx_len, tx_bytes), writes
+    (status, effective_gas_price BE, priority_fee_per_gas BE). -/
+def ziskTxEffectiveGasPricingPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  addi a2, a5, 8              # base_fee ptr\n" ++
+  "  ld a1, 40(a5)               # tx_len\n" ++
+  "  addi a0, a5, 48             # tx ptr\n" ++
+  "  li a3, 0xa0010008           # effective_gas_price out\n" ++
+  "  li a4, 0xa0010028           # priority_fee out\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltefgp_pdone\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  ".Ltefgp_pdone:"
+
+def ziskTxEffectiveGasPricingDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "tegp_type:\n" ++
+  "  .zero 8\n" ++
+  "tegp_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_max_fee:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_tmp:\n" ++
+  "  .zero 32"
+
+def ziskTxEffectiveGasPricingProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEffectiveGasPricingPrologue
+  dataAsm     := ziskTxEffectiveGasPricingDataSection
 }
 
 
@@ -900,74 +1086,131 @@ def ziskTxExtractGasPricingProbeUnit : BuildUnit := {
     Uses three 8-byte `.data` scratch slots
     (`alc_scratch`, `alc_entry_offset`, `alc_entry_length`,
     `alc_keys_offset`, `alc_keys_length`). -/
-def accessListCountFunction : String :=
-  "access_list_count:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # outer list ptr\n" ++
-  "  mv s1, a1                   # outer list len\n" ++
-  "  mv s2, a2                   # num_addresses out\n" ++
-  "  mv s3, a3                   # num_storage_keys out\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  # Step 1: outer count → s4 = N.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, alc_scratch\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  la t0, alc_scratch; ld s4, 0(t0)\n" ++
-  "  beqz s4, .Lalc_done\n" ++
-  "  # Step 2: iterate entries 0..N-1.\n" ++
-  "  li s5, 0                    # entry index\n" ++
-  ".Lalc_loop:\n" ++
-  "  beq s5, s4, .Lalc_done\n" ++
-  "  # Fetch entry s5 bounds in the outer list.\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
-  "  la a3, alc_entry_offset\n" ++
-  "  la a4, alc_entry_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  # entry_ptr = outer_ptr + entry_offset.\n" ++
-  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
-  "  la t0, alc_entry_length; ld t2, 0(t0)\n" ++
-  "  add a0, s0, t1              # entry_ptr\n" ++
-  "  mv a1, t2                   # entry_len\n" ++
-  "  # Fetch entry field 1 (the slots sub-list) bounds.\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, alc_keys_offset\n" ++
-  "  la a4, alc_keys_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  # keys_ptr = outer_ptr + entry_offset + keys_offset.\n" ++
-  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
-  "  la t0, alc_keys_offset; ld t3, 0(t0)\n" ++
-  "  add t1, t1, t3\n" ++
-  "  add a0, s0, t1              # keys_ptr\n" ++
-  "  la t0, alc_keys_length; ld a1, 0(t0)\n" ++
-  "  la a2, alc_scratch\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  la t0, alc_scratch; ld t1, 0(t0)\n" ++
-  "  ld t2, 0(s3)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  sd t2, 0(s3)\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lalc_loop\n" ++
-  ".Lalc_done:\n" ++
-  "  sd s4, 0(s2)                # num_addresses = N\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lalc_ret\n" ++
-  ".Lalc_fail:\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  li a0, 1\n" ++
-  ".Lalc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def accessListCount_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.access_list_count + 72)),
+    .BNE .x10 .x0 (228 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .BEQ .x20 .x0 (200 : BitVec 13),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x20 (192 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x21,
+    .AUIPC .x13 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 116)),
+    .AUIPC .x14 (laHi GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 132)),
+    .BNE .x10 .x0 (168 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 152)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x6,
+    .MV .x11 .x7,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 192)),
+    .BNE .x10 .x0 (108 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 212)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x28,
+    .ADD .x10 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 232)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 244)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 244)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.access_list_count + 252)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 260)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x19 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .SD .x19 .x7 (0 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-188 : BitVec 21),
+    .SD .x18 .x20 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accessListCount_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accessListCount_relocs : RelocTable :=
+  [ (16, .la .x12 "alc_scratch"),
+    (18, .jal .x1 "rlp_list_count_items"),
+    (20, .la .x5 "alc_scratch"),
+    (29, .la .x13 "alc_entry_offset"),
+    (31, .la .x14 "alc_entry_length"),
+    (33, .jal .x1 "rlp_list_nth_item"),
+    (35, .la .x5 "alc_entry_offset"),
+    (38, .la .x5 "alc_entry_length"),
+    (44, .la .x13 "alc_keys_offset"),
+    (46, .la .x14 "alc_keys_length"),
+    (48, .jal .x1 "rlp_list_nth_item"),
+    (50, .la .x5 "alc_entry_offset"),
+    (53, .la .x5 "alc_keys_offset"),
+    (58, .la .x5 "alc_keys_length"),
+    (61, .la .x12 "alc_scratch"),
+    (63, .jal .x1 "rlp_list_count_items"),
+    (65, .la .x5 "alc_scratch") ]
+
+def accessListCountFunction : String :=
+  "access_list_count:\n" ++ emitProgramR accessListCount_prog accessListCount_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accessListCount_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accessListCountFunction_eq_prog :
+    accessListCountFunction = "access_list_count:\n" ++ emitProgramR accessListCount_prog accessListCount_relocs := rfl
+
+#guard accessListCountFunction.startsWith "access_list_count:\n"
+#guard accessListCount_prog.length = 88
 /-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
     list_bytes) from host input, writes (status, num_addresses,
     num_storage_keys) to OUTPUT. -/

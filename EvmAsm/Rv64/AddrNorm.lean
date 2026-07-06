@@ -150,6 +150,7 @@ theorem word_add_zero {x : Word} : x + (0 : Word) = x := BitVec.add_zero x
 @[rv64_addr, grind =] theorem se12_60 : signExtend12 (60 : BitVec 12) = (60 : Word) := by decide
 
 -- Large offsets (≥ 2^11): result = 2^64 + offset - 2^12
+@[rv64_addr, grind =] theorem se12_3936 : signExtend12 (3936 : BitVec 12) = (18446744073709551456 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_3944 : signExtend12 (3944 : BitVec 12) = (18446744073709551464 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_3952 : signExtend12 (3952 : BitVec 12) = (18446744073709551472 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_3960 : signExtend12 (3960 : BitVec 12) = (18446744073709551480 : Word) := by decide

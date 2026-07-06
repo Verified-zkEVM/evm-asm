@@ -3,6 +3,13 @@
 
   Bridge from the `zkvm_secp256k1_ecrecover` accelerator output to the
   executable precompile-result surface.
+
+  The accelerator returns a 64-byte uncompressed public key payload. Ethereum
+  ECRECOVER does not return that payload directly: the precompile output is
+  `left_pad_zero_bytes(keccak256(pubkey)[12:32], 32)`, while invalid
+  signatures and failed recovery produce empty return data. The keccak/address
+  framing belongs to the EVM precompile dispatch layer, not to this raw
+  accelerator-result bridge.
 -/
 
 import EvmAsm.Evm64.Accelerators.Status

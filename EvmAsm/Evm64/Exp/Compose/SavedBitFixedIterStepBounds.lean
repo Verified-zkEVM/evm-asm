@@ -250,13 +250,13 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithControlFrame_stepPost_elim_bou
     (hBound : 193 + nSteps ≤ nBound)
     (hBranch :
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base bit
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReload :
       ∀ (bit : Bool)
@@ -304,13 +304,13 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_stepPost_elim_bound
     (hBound : 193 + nSteps ≤ nBound)
     (hBranch :
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base bit
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReload :
       ∀ (bit : Bool)
@@ -356,22 +356,22 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithControlFrame_stepPost_bit_elim
       nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
     (hBound : 193 + nSteps ≤ nBound)
     (hBranchTrue :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base true
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hBranchFalse :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base false
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReloadTrue :
       ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
@@ -431,22 +431,22 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_stepPost_bit_elim_b
       nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
     (hBound : 193 + nSteps ≤ nBound)
     (hBranchTrue :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base true
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hBranchFalse :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e controlC6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base false
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReloadTrue :
       ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
@@ -501,13 +501,13 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithFrame_stepPost_elim_bounded
     (hBound : 193 + nSteps ≤ nBound)
     (hBranch :
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e c6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base bit
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReload :
       ∀ (bit : Bool)
@@ -552,22 +552,22 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithFrame_stepPost_bit_elim_bounde
       nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
     (hBound : 193 + nSteps ≤ nBound)
     (hBranchTrue :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e c6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base true
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hBranchFalse :
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin nSteps (base + 44) exit
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedStepPostBranchPre k baseWord exponentWord
             iterCount e c6 ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base false
-            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+            v7' v10' v11' d0' d1' d2' d3' frame)
           Q)
     (hReloadTrue :
       ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),

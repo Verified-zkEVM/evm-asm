@@ -142,10 +142,12 @@ theorem push_zero_slot_word_zero (nsp : Word) :
       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) =
     evmWordIs nsp (0 : EvmWord) := by
-  rw [evmWordIs_zero]
-  simp only [signExtend12]
-  congr
-  all_goals bv_decide
+  have h0 : (nsp + signExtend12 (0 : BitVec 12) : Word) = nsp := by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega
+  have h8 : (nsp + signExtend12 (8 : BitVec 12) : Word) = nsp + 8 := by congr 1
+  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by congr 1
+  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by congr 1
+  rw [h0, h8, h16, h24, evmWordIs_zero]
 
 /-- Right-associated variant of `push_zero_slot_word_zero` for composing byte
     copy postconditions after the zero-fill prefix. -/
@@ -156,13 +158,13 @@ theorem push_zero_slot_word_zero_right (nsp : Word) (Q : Assertion) :
       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) ** Q) =
     (evmWordIs nsp (0 : EvmWord) ** Q) := by
   have h0 : (nsp + signExtend12 (0 : BitVec 12) : Word) = nsp := by
-    unfold signExtend12; bv_decide
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega
   have h8 : (nsp + signExtend12 (8 : BitVec 12) : Word) = nsp + 8 := by
-    unfold signExtend12; bv_decide
+    congr 1
   have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by
-    unfold signExtend12; bv_decide
+    congr 1
   have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by
-    unfold signExtend12; bv_decide
+    congr 1
   rw [h0, h8, h16, h24]
   rw [evmWordIs_zero_right]
 
@@ -217,8 +219,8 @@ theorem evm_push_zero_slot_full_stack_spec_within
       rw [evmStackIs_cons]
       rw [show (nsp + 32 : Word) = sp from by
         change (sp + signExtend12 ((-32 : BitVec 12)) + 32 : Word) = sp
-        unfold signExtend12
-        bv_decide]
+        rw [show signExtend12 ((-32 : BitVec 12)) = (-32 : Word) from by decide]
+        bv_omega]
       xperm_hyp hq)
     (evm_push_zero_slot_stack_spec_within n hn sp d0 d1 d2 d3 base rest)
 
@@ -571,12 +573,12 @@ theorem evm_push1_stack_spec_within
        evmStackIs nsp (pushImmediateWord 1 (fun _ => byteVal) :: rest)) := by
   intro nsp
   -- Address normalization helpers
-  have h8  : (nsp + signExtend12 (8  : BitVec 12) : Word) = nsp + 8  := by unfold signExtend12; bv_decide
-  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by unfold signExtend12; bv_decide
-  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by unfold signExtend12; bv_decide
+  have h8  : (nsp + signExtend12 (8  : BitVec 12) : Word) = nsp + 8  := by congr 1
+  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by congr 1
+  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by congr 1
   have h32 : (nsp + 32 : Word) = sp := by
     change (sp + signExtend12 ((-32 : BitVec 12)) + 32 : Word) = sp
-    unfold signExtend12; bv_decide
+    rw [show signExtend12 ((-32 : BitVec 12)) = (-32 : Word) from by decide]; bv_omega
   -- The dst byte offset within nsp is 0 (nsp is 8-byte aligned)
   have h_dstOff_zero : byteOffset (nsp + signExtend12 (BitVec.ofNat 12 (pushByteDstOffset 1 0))) = 0 := by
     -- All concrete parts: pushByteDstOffset 1 0 = 0, signExtend12 0 = 0

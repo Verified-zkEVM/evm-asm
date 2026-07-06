@@ -161,6 +161,146 @@ theorem fullDivN1R0V5_remainder_lt_of_shape
     (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
 
 -- ============================================================================
+-- Per-digit quotient extraction (R2, R1, R0): stored digit = `div128Quot_v5`
+-- ============================================================================
+
+/-- **v5 n=1 second-digit quotient, from shape.** -/
+theorem fullDivN1R2V5_quot_eq_div128_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr3lt⟩ := n1v5_step_facts
+    (fullDivN1R3V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R2V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_quot_eq_div128_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr3lt
+
+/-- **v5 n=1 third-digit quotient, from shape.** -/
+theorem fullDivN1R1V5_quot_eq_div128_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr2lt⟩ := n1v5_step_facts
+    (fullDivN1R2V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R1V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_quot_eq_div128_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr2lt
+
+/-- **v5 n=1 fourth-digit quotient, from shape.** -/
+theorem fullDivN1R0V5_quot_eq_div128_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr1lt⟩ := n1v5_step_facts
+    (fullDivN1R1V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R0V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_quot_eq_div128_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
+
+-- ============================================================================
+-- Per-digit remainder extraction (R2, R1, R0): stored limb = `uLo -₆₄ q·v0'`
+-- ============================================================================
+
+/-- **v5 n=1 second-digit remainder, closed form, from shape.** -/
+theorem fullDivN1R2V5_rem_eq_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 =
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1 -
+        div128Quot_v5 (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+                      (fullDivN1NormV b0 b1 b2 b3).1 *
+          (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr3lt⟩ := n1v5_step_facts
+    (fullDivN1R3V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R2V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_rem_eq_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr3lt
+
+/-- **v5 n=1 third-digit remainder, closed form, from shape.** -/
+theorem fullDivN1R1V5_rem_eq_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 =
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1 -
+        div128Quot_v5 (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+                      (fullDivN1NormV b0 b1 b2 b3).1 *
+          (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr2lt⟩ := n1v5_step_facts
+    (fullDivN1R2V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R1V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_rem_eq_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr2lt
+
+/-- **v5 n=1 fourth-digit remainder, closed form, from shape.** -/
+theorem fullDivN1R0V5_rem_eq_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 =
+      (fullDivN1NormU a0 a1 a2 a3 b0).1 -
+        div128Quot_v5 (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                      (fullDivN1NormU a0 a1 a2 a3 b0).1
+                      (fullDivN1NormV b0 b1 b2 b3).1 *
+          (fullDivN1NormV b0 b1 b2 b3).1 := by
+  obtain ⟨h1, h2, h3, hr1lt⟩ := n1v5_step_facts
+    (fullDivN1R1V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R0V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_rem_eq_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
+
+-- ============================================================================
 -- Per-step Euclidean conservation (building block for the 4-digit accumulation)
 -- ============================================================================
 

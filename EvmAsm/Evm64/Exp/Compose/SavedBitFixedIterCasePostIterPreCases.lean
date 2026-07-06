@@ -74,12 +74,12 @@ theorem expTwoMulFixedIterCaseLoopPost_iterPre_or_reloadPointerFrame
     hSkipCond | hRest
   · rcases hSkipCond with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
     exact Or.inl
-      ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+      ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
         expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame hScratch⟩
   · rcases hRest with hSkip | hRest
     · rcases hSkip with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
       exact Or.inr (Or.inl
-        ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+        ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
           expTwoMulFixedIterSkipScratchFrame_to_iterPre_frame hScratch⟩)
     · rcases hRest with hReloadCond | hReloadSkip
       · exact Or.inr (Or.inr (Or.inl hReloadCond))
@@ -304,12 +304,12 @@ theorem expTwoMulFixedIterCaseExitPost_iterPre_or_reloadPointerFrame
     hSkipCond | hRest
   · rcases hSkipCond with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
     exact Or.inl
-      ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+      ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
         expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame hScratch⟩
   · rcases hRest with hSkip | hRest
     · rcases hSkip with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
       exact Or.inr (Or.inl
-        ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+        ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
           expTwoMulFixedIterSkipScratchFrame_to_iterPre_frame hScratch⟩)
     · rcases hRest with hReloadCond | hReloadSkip
       · exact Or.inr (Or.inr (Or.inl hReloadCond))

@@ -263,7 +263,7 @@ partial def buildPcFreeProof (assertion : Expr) : MetaM Expr := do
 /-- Build a lambda `fun (h : PartialState) (hp : P h) => proof h hp`
     where proof converts `P h` to `Q h` using a permutation equality `P = Q`. -/
 def mkPermLambda (src tgt : Expr) : MetaM Expr := do
-  let permProof ← buildPermProof src tgt
+  let permProof ← buildPermProofDispatch src tgt
   let psType := mkConst ``EvmAsm.Rv64.PartialState
   withLocalDeclD `h psType fun h => do
     withLocalDeclD `hp (mkApp src h) fun hp => do

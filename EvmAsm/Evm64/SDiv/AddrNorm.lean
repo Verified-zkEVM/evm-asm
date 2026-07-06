@@ -64,17 +64,17 @@ attribute [sdiv_addr]
 @[sdiv_addr, grind =] theorem divisorBaseSlot8 (sp : Word) :
     (sp + EvmAsm.Rv64.signExtend12 (40 : BitVec 12) : Word) = (sp + 32) + 8 := by
   rw [EvmAsm.Rv64.AddrNorm.se12_40]
-  bv_decide
+  bv_omega
 
 @[sdiv_addr, grind =] theorem divisorBaseSlot16 (sp : Word) :
     (sp + EvmAsm.Rv64.signExtend12 (48 : BitVec 12) : Word) = (sp + 32) + 16 := by
   rw [EvmAsm.Rv64.AddrNorm.se12_48]
-  bv_decide
+  bv_omega
 
 @[sdiv_addr, grind =] theorem divisorBaseSlot24 (sp : Word) :
     (sp + EvmAsm.Rv64.signExtend12 (56 : BitVec 12) : Word) = (sp + 32) + 24 := by
   rw [EvmAsm.Rv64.AddrNorm.se12_56]
-  bv_decide
+  bv_omega
 
 @[sdiv_addr, grind =] theorem dividendTopSlot (sp : Word) :
     (sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff : Word) =
@@ -92,7 +92,7 @@ attribute [sdiv_addr]
 @[sdiv_addr]
 theorem wrapperStart_addr (base : Word) :
     base = base + BitVec.ofNat 64 (4 * 0) := by
-  bv_decide
+  bv_omega
 
 /-- The appended unsigned DIV callable starts after the 71-instruction wrapper,
     at byte offset 284 from the enclosing SDIV program base. -/
@@ -100,6 +100,6 @@ theorem wrapperStart_addr (base : Word) :
 theorem divCallableStart_addr (base : Word) :
     base + (284 : Word) =
       base + BitVec.ofNat 64 (4 * 71) := by
-  bv_decide
+  bv_omega
 
 end EvmAsm.Evm64.SDiv.AddrNorm

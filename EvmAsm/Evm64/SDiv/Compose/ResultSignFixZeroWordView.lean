@@ -33,13 +33,13 @@ theorem resultSignFixPost_sdivResultSign_word
         (sdivResultSignFixedWord dividendTop divisorTop limb0 limb1 limb2 limb3)) := by
   dsimp only
   rw [resultSignFixPost_unfold, evmWordIs_sp_unfold]
-  unfold sdivResultSignFixedWord
+  unfold sdivResultSignFixedWord rippleNegWord
   dsimp only
   simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
     EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24,
     EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
     EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3]
-  rw [show (sp + 0 : Word) = sp by bv_decide]
+  rw [show (sp + 0 : Word) = sp by bv_omega]
 
 /-- Postcondition view for the SDIV zero-divisor branch after result-sign
     fixup: conditional negation of the zero quotient is still the zero EVM

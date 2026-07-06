@@ -79,9 +79,10 @@ for `i ∈ {0,1,2,3}`. The 512-bit version (`limb i` for `i = 4..7`) is
   `EvmWordArith/Common.lean` carry the limb-level Nat algebra used
   by every higher-level theorem (`toNat_eq_limb_sum`,
   `BitVec.toNat_add`-style bridges, …).
-- There is currently **no** `EvmWord.addmod_correct` /
-  `EvmWord.mulmod_correct`. Slices 2 and 4 add them next to the
-  existing `*_correct` cluster.
+- `EvmWord.addmod_correct` and `EvmWord.mulmod_correct` now live in
+  `EvmAsm/Evm64/EvmWordArith/AddMod.lean` and
+  `EvmAsm/Evm64/EvmWordArith/MulMod.lean`; later slices should reuse
+  these semantic targets rather than restating opcode semantics.
 
 ## 2. Question (a) — can DivMod 4-limb modulo be reused by zero-padding?
 
@@ -176,9 +177,9 @@ MULMOD needs:
 
 ## 4. Question (c) — where does the algebraic correctness theorem live?
 
-`EvmAsm/Evm64/EvmWordArith/AddModMulMod.lean` (new file in slices 2/4),
-imported by both `Add/Spec.lean` (no, irrelevant) and the future
-`Addmod/Spec.lean` / `Mulmod/Spec.lean`. The theorem statements:
+`EvmAsm/Evm64/EvmWordArith/AddMod.lean` and
+`EvmAsm/Evm64/EvmWordArith/MulMod.lean`, imported by the future total
+`AddMod/Spec.lean` / `MulMod/Spec.lean` surfaces. The theorem statements:
 
 ```lean
 namespace EvmAsm.Evm64.EvmWord
@@ -200,6 +201,13 @@ runtime side. The N=0 branch reduces by `simp` since both
 ## 5. Question (d) — Program / block layout sketches
 
 ### 5.1 `evm_addmod` Program (slice 3, `evm-asm-sord`)
+
+
+> 2026-06 runtime update: ADDMOD is total in execution-specs, including
+> 257-bit carry-out cases. The runtime must compute the carry contribution
+> instead of routing `x7 != 0` to invalid-op. See
+> [`addmod-total-runtime-plan.md`](addmod-total-runtime-plan.md) for the
+> concrete helper-block plan and current dispatcher offsets.
 
 Stack input top-to-bottom: `[a, b, N, …]` (32 bytes each); output: `[r, …]`
 where `r = (a+b) mod N` or 0 if N=0.

@@ -661,7 +661,7 @@ theorem rlp_phase1_acc_fact_classifyPrefix_singleByte
   simp only [BitVec.toNat_setWidth] at h
   have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
     Nat.mod_eq_of_lt (by omega)
-  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by native_decide
+  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by decide
   rw [hmod, hk80] at h
   norm_num at h
   exact h
@@ -681,8 +681,8 @@ theorem rlp_phase1_acc_fact_classifyPrefix_shortBytes
   simp only [BitVec.toNat_setWidth] at h
   have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
     Nat.mod_eq_of_lt (by omega)
-  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by native_decide
-  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by native_decide
+  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by decide
+  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by decide
   rw [hmod, hk80, hkB8] at h
   norm_num at h
   omega
@@ -704,9 +704,9 @@ theorem rlp_phase1_acc_fact_classifyPrefix_longBytes
   simp only [BitVec.toNat_setWidth] at h
   have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
     Nat.mod_eq_of_lt (by omega)
-  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by native_decide
-  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by native_decide
-  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by native_decide
+  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by decide
+  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by decide
+  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by decide
   rw [hmod, hk80, hkB8, hkC0] at h
   norm_num at h
   omega
@@ -731,10 +731,10 @@ theorem rlp_phase1_acc_fact_classifyPrefix_shortList
   simp only [BitVec.toNat_setWidth] at h
   have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
     Nat.mod_eq_of_lt (by omega)
-  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by native_decide
-  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by native_decide
-  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by native_decide
-  have hkF8 : (((0 : Word) + signExtend12 0xF8).toNat = 0xF8) := by native_decide
+  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by decide
+  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by decide
+  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by decide
+  have hkF8 : (((0 : Word) + signExtend12 0xF8).toNat = 0xF8) := by decide
   rw [hmod, hk80, hkB8, hkC0, hkF8] at h
   norm_num at h
   omega
@@ -759,10 +759,10 @@ theorem rlp_phase1_acc_fact_classifyPrefix_longList
   simp only [BitVec.toNat_setWidth] at h
   have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
     Nat.mod_eq_of_lt (by omega)
-  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by native_decide
-  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by native_decide
-  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by native_decide
-  have hkF8 : (((0 : Word) + signExtend12 0xF8).toNat = 0xF8) := by native_decide
+  have hk80 : (((0 : Word) + signExtend12 0x80).toNat = 0x80) := by decide
+  have hkB8 : (((0 : Word) + signExtend12 0xB8).toNat = 0xB8) := by decide
+  have hkC0 : (((0 : Word) + signExtend12 0xC0).toNat = 0xC0) := by decide
+  have hkF8 : (((0 : Word) + signExtend12 0xF8).toNat = 0xF8) := by decide
   rw [hmod, hk80, hkB8, hkC0, hkF8] at h
   norm_num at h
   omega

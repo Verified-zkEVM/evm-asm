@@ -23,6 +23,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.MptEncode
@@ -30,6 +33,7 @@ import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 
 namespace EvmAsm.Codegen
 
@@ -41,136 +45,394 @@ open EvmAsm.Rv64
     a5 = out account RLP ptr   a6 = u64 out length ptr
     a0 (output) = 0 (ok) / 1 (non-empty prior storage: conservative) /
                   2 (parse fail). -/
+def accountApplyStorageSlot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot + 76)),
+    .AUIPC .x14 (laHi GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot + 84)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_apply_storage_slot + 92)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot + 100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (128 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot + 120)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x8 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.aps_empty_root (GuestAddrs.account_apply_storage_slot + 136)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aps_empty_root (GuestAddrs.account_apply_storage_slot + 136)),
+    .LI .x28 (32 : Word),
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (84 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .AUIPC .x13 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot + 192)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot + 192)),
+    .JAL .x1 (jalOff GuestAddrs.storage_root_single_slot (GuestAddrs.account_apply_storage_slot + 200)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot + 212)),
+    .MV .x13 .x21,
+    .MV .x14 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_set_storage_root (GuestAddrs.account_apply_storage_slot + 228)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `accountApplyStorageSlot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountApplyStorageSlot_relocs : RelocTable :=
+  [ (19, .la .x13 "aps_off"),
+    (21, .la .x14 "aps_len"),
+    (23, .jal .x1 "rlp_list_nth_item"),
+    (25, .la .x5 "aps_len"),
+    (30, .la .x5 "aps_off"),
+    (34, .la .x7 "aps_empty_root"),
+    (48, .la .x13 "aps_newsroot"),
+    (50, .jal .x1 "storage_root_single_slot"),
+    (53, .la .x12 "aps_newsroot"),
+    (57, .jal .x1 "account_set_storage_root") ]
+
 def accountApplyStorageSlotFunction : String :=
-  "account_apply_storage_slot:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # account\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # slot_key\n" ++
-  "  mv s3, a3                   # value\n" ++
-  "  mv s4, a4                   # value len\n" ++
-  "  mv s5, a5                   # out\n" ++
-  "  mv s6, a6                   # out len\n" ++
-  "  # field 2 = storageRoot -> aps_off / aps_len\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laps_parsefail\n" ++
-  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Laps_conservative\n" ++
-  "  # compare the 32 storageRoot bytes (account + aps_off) to EMPTY_TRIE_ROOT\n" ++
-  "  la t0, aps_off; ld t1, 0(t0); add t1, s0, t1   # storageRoot ptr\n" ++
-  "  la t2, aps_empty_root; li t3, 32\n" ++
-  ".Laps_cmp:\n" ++
-  "  beqz t3, .Laps_empty\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Laps_conservative\n" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laps_cmp\n" ++
-  ".Laps_empty:\n" ++
-  "  # new_storage_root = storage_root_single_slot(slot_key, value, value_len)\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s4; la a3, aps_newsroot\n" ++
-  "  jal ra, storage_root_single_slot\n" ++
-  "  # new account = account_set_storage_root(account, len, new_storage_root, out, out_len)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, aps_newsroot; mv a3, s5; mv a4, s6\n" ++
-  "  jal ra, account_set_storage_root\n" ++
-  "  bnez a0, .Laps_parsefail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laps_ret\n" ++
-  ".Laps_conservative:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Laps_ret\n" ++
-  ".Laps_parsefail:\n" ++
-  "  li a0, 2\n" ++
-  ".Laps_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+  "account_apply_storage_slot:\n" ++ emitProgramR accountApplyStorageSlot_prog accountApplyStorageSlot_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountApplyStorageSlot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountApplyStorageSlotFunction_eq_prog :
+    accountApplyStorageSlotFunction = "account_apply_storage_slot:\n" ++ emitProgramR accountApplyStorageSlot_prog accountApplyStorageSlot_relocs := rfl
 
+#guard accountApplyStorageSlotFunction.startsWith "account_apply_storage_slot:\n"
+#guard accountApplyStorageSlot_prog.length = 74
 /-! ## account_apply_storage_slot_acc
     Same external ABI as `account_apply_storage_slot`, but handles non-empty
     prior storage roots by updating the storage trie through `mpt_set_acc`.
     The caller must set `aps_witness_ptr` / `aps_witness_len` to the witness
     section containing the storage trie nodes before calling this helper. -/
-def accountApplyStorageSlotAccFunction : String :=
-  "account_apply_storage_slot_acc:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # account\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # slot_key\n" ++
-  "  mv s3, a3                   # value\n" ++
-  "  mv s4, a4                   # value len\n" ++
-  "  mv s5, a5                   # out\n" ++
-  "  mv s6, a6                   # out len\n" ++
-  "  # field 2 = storageRoot -> aps_off / aps_len\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lapsa_parsefail\n" ++
-  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lapsa_conservative\n" ++
-  "  la t0, aps_off; ld t1, 0(t0); add t1, s0, t1   # storageRoot ptr\n" ++
-  "  la t2, aps_empty_root; li t3, 32\n" ++
-  ".Lapsa_cmp:\n" ++
-  "  beqz t3, .Lapsa_empty\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lapsa_nonempty\n" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lapsa_cmp\n" ++
-  ".Lapsa_empty:\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s4; la a3, aps_newsroot\n" ++
-  "  jal ra, storage_root_single_slot\n" ++
-  "  j .Lapsa_set_account\n" ++
-  ".Lapsa_nonempty:\n" ++
-  "  # Need caller-provided witness for the existing storage trie.\n" ++
-  "  la t0, aps_witness_ptr; ld t0, 0(t0); beqz t0, .Lapsa_conservative\n" ++
-  "  # RLP(value) is the leaf value stored in the storage trie.\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, srss_rlpval; la a3, srss_rlpval_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  # Storage path = nibbles(keccak256(slot_key)).\n" ++
-  "  mv a0, s2; li a1, 32; la a2, srss_key\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la a0, srss_key; li a1, 32; la a2, aps_path\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  # Update the non-empty storage trie through mpt_set_acc.\n" ++
-  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
-  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
-  "  la t0, aps_off; ld t0, 0(t0); add a0, s0, t0\n" ++
-  "  la t0, aps_witness_ptr; ld a1, 0(t0)\n" ++
-  "  la t0, aps_witness_len; ld a2, 0(t0)\n" ++
-  "  la a3, aps_path; li a4, 64\n" ++
-  "  la a5, srss_rlpval; la t0, srss_rlpval_len; ld a6, 0(t0); la a7, aps_newsroot\n" ++
-  "  jal ra, mpt_set_acc\n" ++
-  "  beqz a0, .Lapsa_set_account\n" ++
-  "  # If the slot was absent, insert it into the existing storage trie.\n" ++
-  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
-  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
-  "  la t0, aps_off; ld t0, 0(t0); add a0, s0, t0\n" ++
-  "  la t0, aps_witness_ptr; ld a1, 0(t0)\n" ++
-  "  la t0, aps_witness_len; ld a2, 0(t0)\n" ++
-  "  la a3, aps_path; li a4, 64\n" ++
-  "  la a5, srss_rlpval; la t0, srss_rlpval_len; ld a6, 0(t0); la a7, aps_newsroot\n" ++
-  "  jal ra, mpt_insert_acc\n" ++
-  "  bnez a0, .Lapsa_conservative\n" ++
-  ".Lapsa_set_account:\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, aps_newsroot; mv a3, s5; mv a4, s6\n" ++
-  "  jal ra, account_set_storage_root\n" ++
-  "  bnez a0, .Lapsa_parsefail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lapsa_ret\n" ++
-  ".Lapsa_conservative:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lapsa_ret\n" ++
-  ".Lapsa_parsefail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lapsa_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def accountApplyStorageSlotAcc_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 76)),
+    .AUIPC .x14 (laHi GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot_acc + 84)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot_acc + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_apply_storage_slot_acc + 92)),
+    .BNE .x10 .x0 (672 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot_acc + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_len (GuestAddrs.account_apply_storage_slot_acc + 100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (644 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 120)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x8 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.aps_empty_root (GuestAddrs.account_apply_storage_slot_acc + 136)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aps_empty_root (GuestAddrs.account_apply_storage_slot_acc + 136)),
+    .LI .x28 (32 : Word),
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (52 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .BEQ .x20 .x0 (552 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .AUIPC .x13 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 196)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 196)),
+    .JAL .x1 (jalOff GuestAddrs.storage_root_single_slot (GuestAddrs.account_apply_storage_slot_acc + 204)),
+    .JAL .x0 (336 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 212)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (536 : BitVec 13),
+    .BEQ .x20 .x0 (356 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 240)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 240)),
+    .AUIPC .x13 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 248)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 248)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.account_apply_storage_slot_acc + 256)),
+    .MV .x10 .x18,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 268)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 268)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.account_apply_storage_slot_acc + 276)),
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 280)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 280)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 292)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 292)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.account_apply_storage_slot_acc + 300)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 304)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 304)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 316)),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 324)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 324)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 336)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 336)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 352)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 352)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 364)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 376)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 376)),
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 388)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 388)),
+    .AUIPC .x5 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 396)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 396)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .AUIPC .x17 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 408)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 408)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_set_acc (GuestAddrs.account_apply_storage_slot_acc + 416)),
+    .BEQ .x10 .x0 (124 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 424)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 424)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 436)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 436)),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 444)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 444)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 456)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 456)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 472)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 472)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 484)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 484)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 496)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 496)),
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 508)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.srss_rlpval (GuestAddrs.account_apply_storage_slot_acc + 508)),
+    .AUIPC .x5 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 516)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.account_apply_storage_slot_acc + 516)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .AUIPC .x17 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 528)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 528)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_insert_acc (GuestAddrs.account_apply_storage_slot_acc + 536)),
+    .BNE .x10 .x0 (220 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 552)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 552)),
+    .MV .x13 .x21,
+    .MV .x14 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_set_storage_root (GuestAddrs.account_apply_storage_slot_acc + 568)),
+    .BNE .x10 .x0 (196 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (192 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 592)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 592)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.account_apply_storage_slot_acc + 600)),
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 604)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.account_apply_storage_slot_acc + 604)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 616)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 616)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.account_apply_storage_slot_acc + 624)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 628)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.account_apply_storage_slot_acc + 628)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 640)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_data (GuestAddrs.account_apply_storage_slot_acc + 640)),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 648)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.account_apply_storage_slot_acc + 648)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 660)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.account_apply_storage_slot_acc + 660)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.account_apply_storage_slot_acc + 676)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 688)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.account_apply_storage_slot_acc + 688)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 700)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_path (GuestAddrs.account_apply_storage_slot_acc + 700)),
+    .LI .x14 (64 : Word),
+    .AUIPC .x17 (laHi GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 712)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.aps_newsroot (GuestAddrs.account_apply_storage_slot_acc + 712)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_delete_acc (GuestAddrs.account_apply_storage_slot_acc + 720)),
+    .BEQ .x10 .x0 (-180 : BitVec 13),
+    .JAL .x0 (32 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.account_apply_storage_slot_acc + 744)),
+    .SD .x22 .x9 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountApplyStorageSlotAcc_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountApplyStorageSlotAcc_relocs : RelocTable :=
+  [ (19, .la .x13 "aps_off"),
+    (21, .la .x14 "aps_len"),
+    (23, .jal .x1 "rlp_list_nth_item"),
+    (25, .la .x5 "aps_len"),
+    (30, .la .x5 "aps_off"),
+    (34, .la .x7 "aps_empty_root"),
+    (49, .la .x13 "aps_newsroot"),
+    (51, .jal .x1 "storage_root_single_slot"),
+    (53, .la .x5 "aps_witness_ptr"),
+    (60, .la .x12 "srss_rlpval"),
+    (62, .la .x13 "srss_rlpval_len"),
+    (64, .jal .x1 "rlp_encode_bytes"),
+    (67, .la .x12 "srss_key"),
+    (69, .jal .x1 "zkvm_keccak256"),
+    (70, .la .x10 "srss_key"),
+    (73, .la .x12 "aps_path"),
+    (75, .jal .x1 "bytes_to_nibbles"),
+    (76, .la .x5 "mset_db_count"),
+    (79, .la .x5 "mset_db_data"),
+    (81, .la .x6 "mset_db_top"),
+    (84, .la .x5 "aps_off"),
+    (88, .la .x5 "aps_witness_ptr"),
+    (91, .la .x5 "aps_witness_len"),
+    (94, .la .x13 "aps_path"),
+    (97, .la .x15 "srss_rlpval"),
+    (99, .la .x5 "srss_rlpval_len"),
+    (102, .la .x17 "aps_newsroot"),
+    (104, .jal .x1 "mpt_set_acc"),
+    (106, .la .x5 "mset_db_count"),
+    (109, .la .x5 "mset_db_data"),
+    (111, .la .x6 "mset_db_top"),
+    (114, .la .x5 "aps_off"),
+    (118, .la .x5 "aps_witness_ptr"),
+    (121, .la .x5 "aps_witness_len"),
+    (124, .la .x13 "aps_path"),
+    (127, .la .x15 "srss_rlpval"),
+    (129, .la .x5 "srss_rlpval_len"),
+    (132, .la .x17 "aps_newsroot"),
+    (134, .jal .x1 "mpt_insert_acc"),
+    (138, .la .x12 "aps_newsroot"),
+    (142, .jal .x1 "account_set_storage_root"),
+    (148, .la .x12 "srss_key"),
+    (150, .jal .x1 "zkvm_keccak256"),
+    (151, .la .x10 "srss_key"),
+    (154, .la .x12 "aps_path"),
+    (156, .jal .x1 "bytes_to_nibbles"),
+    (157, .la .x5 "mset_db_count"),
+    (160, .la .x5 "mset_db_data"),
+    (162, .la .x6 "mset_db_top"),
+    (165, .la .x5 "aps_off"),
+    (169, .la .x5 "aps_witness_ptr"),
+    (172, .la .x5 "aps_witness_len"),
+    (175, .la .x13 "aps_path"),
+    (178, .la .x17 "aps_newsroot"),
+    (180, .jal .x1 "mpt_delete_acc"),
+    (186, .jal .x1 "mset_memcpy") ]
+
+def accountApplyStorageSlotAccFunction : String :=
+  "account_apply_storage_slot_acc:\n" ++ emitProgramR accountApplyStorageSlotAcc_prog accountApplyStorageSlotAcc_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountApplyStorageSlotAcc_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountApplyStorageSlotAccFunction_eq_prog :
+    accountApplyStorageSlotAccFunction = "account_apply_storage_slot_acc:\n" ++ emitProgramR accountApplyStorageSlotAcc_prog accountApplyStorageSlotAcc_relocs := rfl
+
+#guard accountApplyStorageSlotAccFunction.startsWith "account_apply_storage_slot_acc:\n"
+#guard accountApplyStorageSlotAcc_prog.length = 203
 /-! ### zisk_account_apply_storage_slot probe.
     Input (file -> INPUT+8): file[0:8]=account_len, file[8:16]=value_len,
       file[16:48]=slot_key(32B), file[48:80]=value(<=32B), file[128:]=account RLP.
@@ -208,15 +470,6 @@ def ziskAccountApplyStorageSlotPrologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
-  accountApplyStorageSlotAccFunction ++ "\n" ++
-  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-  mptNodeSlotEncodeFunction ++ "\n" ++
-  nodeDbAppendFunction ++ "\n" ++
-  nodeDbLookupFunction ++ "\n" ++
-  mptNodeResolveFunction ++ "\n" ++
-  mptSetRecordWalkDbFunction ++ "\n" ++
-  mptSetAccFunction ++ "\n" ++
-  mptInsertAccFunction ++ "\n" ++
   ".Laps_pdone:"
 
 def ziskAccountApplyStorageSlotDataSection : String :=

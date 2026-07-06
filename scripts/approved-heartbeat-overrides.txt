@@ -1,0 +1,35 @@
+# approved-heartbeat-overrides.txt — the allowlist consumed by
+# scripts/check-heartbeats-approved.sh.
+#
+# Heartbeats are off-limits: the gate flags EVERY appearance of "heartbeats" in
+# EvmAsm/**.lean + the lakefiles. Each non-comment line below sanctions ONE
+# mention. Format (whitespace-separated):
+#
+#     <path-relative-to-repo-root>    <value>
+#
+# where <value> is the heartbeat number on that line (e.g. 800000, underscores
+# stripped), or `-` for a NON-numeric mention (a docstring/comment that names
+# the option without setting a value). A file with several mentions gets one
+# line each.
+#
+# The gate FAILS the build if any "heartbeats" mention is absent from this list
+# or carries a different value. This makes the heartbeat budget a *ceiling and
+# audit log*, not a license to inflate: raising a budget, or adding a new
+# override or even a mention, requires an explicit, reviewable edit to this file
+# (and lives under CODEOWNERS as a verifier-config change).
+#
+# Per AGENTS.md, the standing guidance is NOT to bump heartbeats to force a slow
+# proof green — diagnose and simplify instead. The numeric entries below are
+# grandfathered pre-existing overrides; each has a follow-up bead to relitigate
+# whether it can be removed by simplifying the proof. Do not treat their
+# presence here as precedent for new overrides.
+#
+# Grandfathered numeric overrides (report R-D1; relitigate per their beads):
+EvmAsm/Evm64/Swap/Spec.lean              800000
+EvmAsm/Rv64/RLP/UnifiedDecoderConcrete.lean 800000
+EvmAsm/Rv64/SailEquiv/ALUProofs.lean     4000000
+# Sanctioned non-numeric mentions (docstrings/comments that name "heartbeats"
+# without setting a budget — prose, not overrides):
+EvmAsm/Evm64/Dispatch/EntrySpec.lean                          -
+EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean                 -
+EvmAsm/Evm64/DivMod/Compose/FullPathN2V4NoNopFinalPost.lean   -

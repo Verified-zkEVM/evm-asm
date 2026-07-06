@@ -12,22 +12,79 @@
     K143  eip7702_authorization_extract_signature    (auth-tuple sig)
 
   Each extracts `(y_parity / v, r, s)` from the appropriate RLP
-  shape into a caller-supplied 65-byte buffer. Compose K20
-  `rlp_list_nth_item` + K34 `rlp_field_to_u64` + K35
-  `rlp_field_to_u256_be` — which all stay in `Programs/Tx.lean`.
+  shape into a caller-supplied 65-byte buffer. The extractors use
+  `Programs/RlpWalk.lean` cursor helpers so adjacent signature fields
+  are consumed by one list walk, then canonical-strict content decoders
+  validate and decode the scalar payloads.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
+
+private def repeatAsm : Nat -> String -> String
+  | 0, _ => ""
+  | n + 1, s => s ++ repeatAsm n s
+
+private def txSignatureSkipAsm (p : String) (n : Nat) : String :=
+  repeatAsm n <|
+    "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail; mv s5, a0\n"
+
+private def txSignatureWalkExtractFunction (name p ptrComment : String) (skip : Nat) : String :=
+  name ++ ":\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                   # " ++ ptrComment ++ " ptr\n" ++
+  "  mv s1, a1                   # " ++ ptrComment ++ " len\n" ++
+  "  mv s2, a2                   # y_parity/v out\n" ++
+  "  mv s3, a3                   # r out (32 B)\n" ++
+  "  mv s4, a4                   # s out (32 B)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, ." ++ p ++ "_fail\n" ++
+  "  mv s5, a0                   # cursor\n" ++
+  "  mv s6, a1                   # end\n" ++
+  txSignatureSkipAsm p skip ++
+  "  # ---- Signature field 0: y_parity/v (canonical uint <= 8 bytes) -> u64 ----\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
+  "  sub t0, a0, a2; mv s7, a0; mv a0, t0; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, ." ++ p ++ "_size\n" ++
+  "  sd a0, 0(s2); mv s5, s7\n" ++
+  "  # ---- Signature field 1: r (canonical u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
+  "  sub t0, a0, a2; mv s7, a0; mv a0, t0; mv a1, a2; mv a2, s3\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  bnez a0, ." ++ p ++ "_size\n" ++
+  "  mv s5, s7\n" ++
+  "  # ---- Signature field 2: s (canonical u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
+  "  sub t0, a0, a2; mv a0, t0; mv a1, a2; mv a2, s4\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  bnez a0, ." ++ p ++ "_size\n" ++
+  "  li a0, 0\n" ++
+  "  j ." ++ p ++ "_ret\n" ++
+  "." ++ p ++ "_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j ." ++ p ++ "_ret\n" ++
+  "." ++ p ++ "_size:\n" ++
+  "  li a0, 2\n" ++
+  "." ++ p ++ "_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
 
 /-! ## tx_legacy_extract_signature -- PR-K138
 
@@ -59,7 +116,8 @@ open EvmAsm.Rv64.Program
     previous pass).
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 6, 7, 8
+      - RlpWalk cursor helpers across fields 6, 7, 8
+      - canonical content decoders for v/r/s
 
     Calling convention:
       a0 (input)  : tx_rlp ptr
@@ -73,91 +131,7 @@ open EvmAsm.Rv64.Program
         1 : RLP parse failure / fields 6/7/8 missing
         2 : v > 8 bytes (cannot fit in u64) or r/s > 32 bytes -/
 def txLegacyExtractSignatureFunction : String :=
-  "tx_legacy_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tx_rlp ptr\n" ++
-  "  mv s1, a1                   # tx_rlp len\n" ++
-  "  mv s2, a2                   # v out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 6: v (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltlxs_fail\n" ++
-  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Ltlxs_size\n" ++
-  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Ltlxs_vloop:\n" ++
-  "  beqz t1, .Ltlxs_vdone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltlxs_vloop\n" ++
-  ".Ltlxs_vdone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 7: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltlxs_fail\n" ++
-  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Ltlxs_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1               # 32 - len\n" ++
-  "  add t4, s3, t2               # dst (right-aligned)\n" ++
-  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Ltlxs_rloop:\n" ++
-  "  beqz t1, .Ltlxs_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltlxs_rloop\n" ++
-  ".Ltlxs_rdone:\n" ++
-  "  # ---- Field 8: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltlxs_fail\n" ++
-  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Ltlxs_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Ltlxs_sloop:\n" ++
-  "  beqz t1, .Ltlxs_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltlxs_sloop\n" ++
-  ".Ltlxs_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltlxs_ret\n" ++
-  ".Ltlxs_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Ltlxs_ret\n" ++
-  ".Ltlxs_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Ltlxs_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "tx_legacy_extract_signature" "Ltlxs" "tx_rlp" 6
 
 /-- `zisk_tx_legacy_extract_signature`: probe BuildUnit.
     Input layout:
@@ -180,7 +154,7 @@ def ziskTxLegacyExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltlxs_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txLegacyExtractSignatureFunction ++ "\n" ++
   ".Ltlxs_pdone:"
 
@@ -226,7 +200,8 @@ def ziskTxLegacyExtractSignatureProbeUnit : BuildUnit := {
     indices).
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 9, 10, 11
+      - RlpWalk cursor helpers across fields 9, 10, 11
+      - canonical content decoders for y_parity/r/s
 
     Calling convention:
       a0 (input)  : inner_rlp ptr
@@ -240,91 +215,7 @@ def ziskTxLegacyExtractSignatureProbeUnit : BuildUnit := {
         1 : RLP parse failure / fields 9/10/11 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
 def txEip1559ExtractSignatureFunction : String :=
-  "tx_eip1559_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # inner_rlp ptr\n" ++
-  "  mv s1, a1                   # inner_rlp len\n" ++
-  "  mv s2, a2                   # y_parity out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 9: y_parity (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  la a3, txes_offset; la a4, txes_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxes_fail\n" ++
-  "  la t0, txes_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Ltxes_size\n" ++
-  "  la t0, txes_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Ltxes_yloop:\n" ++
-  "  beqz t1, .Ltxes_ydone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltxes_yloop\n" ++
-  ".Ltxes_ydone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 10: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  la a3, txes_offset; la a4, txes_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxes_fail\n" ++
-  "  la t0, txes_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Ltxes_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s3, t2\n" ++
-  "  la t0, txes_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Ltxes_rloop:\n" ++
-  "  beqz t1, .Ltxes_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltxes_rloop\n" ++
-  ".Ltxes_rdone:\n" ++
-  "  # ---- Field 11: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  la a3, txes_offset; la a4, txes_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxes_fail\n" ++
-  "  la t0, txes_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Ltxes_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, txes_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Ltxes_sloop:\n" ++
-  "  beqz t1, .Ltxes_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltxes_sloop\n" ++
-  ".Ltxes_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltxes_ret\n" ++
-  ".Ltxes_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Ltxes_ret\n" ++
-  ".Ltxes_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Ltxes_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "tx_eip1559_extract_signature" "Ltxes" "inner_rlp" 9
 
 /-- `zisk_tx_eip1559_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
@@ -347,7 +238,7 @@ def ziskTxEip1559ExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltxes_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip1559ExtractSignatureFunction ++ "\n" ++
   ".Ltxes_pdone:"
 
@@ -388,7 +279,8 @@ def ziskTxEip1559ExtractSignatureProbeUnit : BuildUnit := {
     land in follow-up PRs.
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 8, 9, 10
+      - RlpWalk cursor helpers across fields 8, 9, 10
+      - canonical content decoders for y_parity/r/s
 
     Calling convention:
       a0 (input)  : inner_rlp ptr
@@ -402,91 +294,7 @@ def ziskTxEip1559ExtractSignatureProbeUnit : BuildUnit := {
         1 : RLP parse failure / fields 8/9/10 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
 def txEip2930ExtractSignatureFunction : String :=
-  "tx_eip2930_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # inner_rlp ptr\n" ++
-  "  mv s1, a1                   # inner_rlp len\n" ++
-  "  mv s2, a2                   # y_parity out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 8: y_parity (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  la a3, t29es_offset; la a4, t29es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29es_fail\n" ++
-  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lt29es_size\n" ++
-  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Lt29es_yloop:\n" ++
-  "  beqz t1, .Lt29es_ydone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt29es_yloop\n" ++
-  ".Lt29es_ydone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 9: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  la a3, t29es_offset; la a4, t29es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29es_fail\n" ++
-  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt29es_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s3, t2\n" ++
-  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt29es_rloop:\n" ++
-  "  beqz t1, .Lt29es_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt29es_rloop\n" ++
-  ".Lt29es_rdone:\n" ++
-  "  # ---- Field 10: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  la a3, t29es_offset; la a4, t29es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29es_fail\n" ++
-  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt29es_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt29es_sloop:\n" ++
-  "  beqz t1, .Lt29es_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt29es_sloop\n" ++
-  ".Lt29es_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lt29es_ret\n" ++
-  ".Lt29es_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lt29es_ret\n" ++
-  ".Lt29es_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Lt29es_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "tx_eip2930_extract_signature" "Lt29es" "inner_rlp" 8
 
 /-- `zisk_tx_eip2930_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
@@ -505,7 +313,7 @@ def ziskTxEip2930ExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lt29es_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip2930ExtractSignatureFunction ++ "\n" ++
   ".Lt29es_pdone:"
 
@@ -548,7 +356,8 @@ def ziskTxEip2930ExtractSignatureProbeUnit : BuildUnit := {
     lands in a follow-up PR.
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 11, 12, 13
+      - RlpWalk cursor helpers across fields 11, 12, 13
+      - canonical content decoders for y_parity/r/s
 
     Calling convention:
       a0 (input)  : inner_rlp ptr
@@ -562,91 +371,7 @@ def ziskTxEip2930ExtractSignatureProbeUnit : BuildUnit := {
         1 : RLP parse failure / fields 11/12/13 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
 def txEip4844ExtractSignatureFunction : String :=
-  "tx_eip4844_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # inner_rlp ptr\n" ++
-  "  mv s1, a1                   # inner_rlp len\n" ++
-  "  mv s2, a2                   # y_parity out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 11: y_parity (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  la a3, t44es_offset; la a4, t44es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt44es_fail\n" ++
-  "  la t0, t44es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lt44es_size\n" ++
-  "  la t0, t44es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Lt44es_yloop:\n" ++
-  "  beqz t1, .Lt44es_ydone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt44es_yloop\n" ++
-  ".Lt44es_ydone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 12: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 12\n" ++
-  "  la a3, t44es_offset; la a4, t44es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt44es_fail\n" ++
-  "  la t0, t44es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt44es_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s3, t2\n" ++
-  "  la t0, t44es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt44es_rloop:\n" ++
-  "  beqz t1, .Lt44es_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt44es_rloop\n" ++
-  ".Lt44es_rdone:\n" ++
-  "  # ---- Field 13: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 13\n" ++
-  "  la a3, t44es_offset; la a4, t44es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt44es_fail\n" ++
-  "  la t0, t44es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt44es_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, t44es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt44es_sloop:\n" ++
-  "  beqz t1, .Lt44es_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt44es_sloop\n" ++
-  ".Lt44es_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lt44es_ret\n" ++
-  ".Lt44es_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lt44es_ret\n" ++
-  ".Lt44es_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Lt44es_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "tx_eip4844_extract_signature" "Lt44es" "inner_rlp" 11
 
 /-- `zisk_tx_eip4844_extract_signature`: probe BuildUnit. -/
 def ziskTxEip4844ExtractSignaturePrologue : String :=
@@ -661,7 +386,7 @@ def ziskTxEip4844ExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lt44es_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844ExtractSignatureFunction ++ "\n" ++
   ".Lt44es_pdone:"
 
@@ -713,7 +438,8 @@ def ziskTxEip4844ExtractSignatureProbeUnit : BuildUnit := {
       * PR-K142 EIP-7702
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 10, 11, 12
+      - RlpWalk cursor helpers across fields 10, 11, 12
+      - canonical content decoders for y_parity/r/s
 
     Calling convention:
       a0 (input)  : inner_rlp ptr
@@ -727,91 +453,7 @@ def ziskTxEip4844ExtractSignatureProbeUnit : BuildUnit := {
         1 : RLP parse failure / fields 10/11/12 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
 def txEip7702ExtractSignatureFunction : String :=
-  "tx_eip7702_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # inner_rlp ptr\n" ++
-  "  mv s1, a1                   # inner_rlp len\n" ++
-  "  mv s2, a2                   # y_parity out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 10: y_parity (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  la a3, t77es_offset; la a4, t77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77es_fail\n" ++
-  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lt77es_size\n" ++
-  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Lt77es_yloop:\n" ++
-  "  beqz t1, .Lt77es_ydone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt77es_yloop\n" ++
-  ".Lt77es_ydone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 11: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  la a3, t77es_offset; la a4, t77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77es_fail\n" ++
-  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt77es_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s3, t2\n" ++
-  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt77es_rloop:\n" ++
-  "  beqz t1, .Lt77es_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt77es_rloop\n" ++
-  ".Lt77es_rdone:\n" ++
-  "  # ---- Field 12: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 12\n" ++
-  "  la a3, t77es_offset; la a4, t77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77es_fail\n" ++
-  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lt77es_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lt77es_sloop:\n" ++
-  "  beqz t1, .Lt77es_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt77es_sloop\n" ++
-  ".Lt77es_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lt77es_ret\n" ++
-  ".Lt77es_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lt77es_ret\n" ++
-  ".Lt77es_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Lt77es_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "tx_eip7702_extract_signature" "Lt77es" "inner_rlp" 10
 
 /-- `zisk_tx_eip7702_extract_signature`: probe BuildUnit. -/
 def ziskTxEip7702ExtractSignaturePrologue : String :=
@@ -826,7 +468,7 @@ def ziskTxEip7702ExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lt77es_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip7702ExtractSignatureFunction ++ "\n" ++
   ".Lt77es_pdone:"
 
@@ -877,13 +519,13 @@ def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
          **delegator** (not the tx sender).
       4. K99 `address_from_pubkey` → 20-byte delegator address.
 
-    The caller is responsible for first using K20
-    `rlp_list_nth_item` to extract the i-th authorization tuple
+    The caller is responsible for first extracting the i-th authorization tuple
     from `authorization_list`; K143 operates on the already-
     extracted tuple bytes.
 
     Composes:
-      - PR-K20 `rlp_list_nth_item` on fields 3, 4, 5
+      - RlpWalk cursor helpers across fields 3, 4, 5
+      - canonical content decoders for y_parity/r/s
 
     Calling convention:
       a0 (input)  : authorization_tuple_rlp ptr
@@ -897,91 +539,7 @@ def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
         1 : RLP parse failure / fields 3/4/5 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
 def eip7702AuthorizationExtractSignatureFunction : String :=
-  "eip7702_authorization_extract_signature:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tuple_rlp ptr\n" ++
-  "  mv s1, a1                   # tuple_rlp len\n" ++
-  "  mv s2, a2                   # y_parity out\n" ++
-  "  mv s3, a3                   # r out (32 B)\n" ++
-  "  mv s4, a4                   # s out (32 B)\n" ++
-  "  # ---- Field 3: y_parity (uint <= 8 bytes) → u64 ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lta77es_fail\n" ++
-  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lta77es_size\n" ++
-  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Lta77es_yloop:\n" ++
-  "  beqz t1, .Lta77es_ydone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lta77es_yloop\n" ++
-  ".Lta77es_ydone:\n" ++
-  "  sd t2, 0(s2)\n" ++
-  "  # ---- Field 4: r (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lta77es_fail\n" ++
-  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lta77es_size\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s3, t2\n" ++
-  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lta77es_rloop:\n" ++
-  "  beqz t1, .Lta77es_rdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lta77es_rloop\n" ++
-  ".Lta77es_rdone:\n" ++
-  "  # ---- Field 5: s (u256 BE <= 32 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lta77es_fail\n" ++
-  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lta77es_size\n" ++
-  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  sub t2, t2, t1\n" ++
-  "  add t4, s4, t2\n" ++
-  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lta77es_sloop:\n" ++
-  "  beqz t1, .Lta77es_sdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lta77es_sloop\n" ++
-  ".Lta77es_sdone:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lta77es_ret\n" ++
-  ".Lta77es_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lta77es_ret\n" ++
-  ".Lta77es_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Lta77es_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  txSignatureWalkExtractFunction "eip7702_authorization_extract_signature" "Lta77es" "tuple_rlp" 3
 
 /-- `zisk_eip7702_authorization_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
@@ -999,7 +557,7 @@ def ziskEip7702AuthorizationExtractSignaturePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lta77es_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
   ".Lta77es_pdone:"
 

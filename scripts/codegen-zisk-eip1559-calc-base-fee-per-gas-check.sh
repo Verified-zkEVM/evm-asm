@@ -106,6 +106,7 @@ run_case "above_mid"            30000000 22500000 $(python3 -c "print(50 * $GWEI
 # gas_used < target (below path)
 run_case "below_small"          30000000 14999999 $(python3 -c "print(50 * $GWEI)") || FAILED=1  # delta tiny
 run_case "below_empty"          30000000 0        $(python3 -c "print(50 * $GWEI)") || FAILED=1
+run_case "below_empty_huge_gas" 9223372036854775807 0 11                              || FAILED=1
 run_case "below_mid"            30000000 7500000  $(python3 -c "print(50 * $GWEI)") || FAILED=1
 # max(_,1) edge: gas_used just above target with small base_fee
 run_case "max_floor_kicks_in"   30000000 15000001 1                                  || FAILED=1

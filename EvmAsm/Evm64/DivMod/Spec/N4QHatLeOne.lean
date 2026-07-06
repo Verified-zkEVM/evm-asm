@@ -3,7 +3,7 @@
 
   Under `U4 = 0`, the n=4 call trial quotient is at most 1, hence overestimates the
   normalized-window quotient by at most 1 (the `+1` `hq_over` the n=4 v5 semantic
-  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions` actually takes — tighter
+  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy` takes — tighter
   than the `+2` of #7574).
 
   `qHat = div128Quot_v5 U4 U3 B3' = (U4·2^64 + U3) / B3'` exactly (`#7218`,

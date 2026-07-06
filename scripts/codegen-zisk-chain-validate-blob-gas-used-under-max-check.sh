@@ -81,21 +81,23 @@ with open(sys.argv[1], 'wb') as f:
   fi
 }
 
-# MAX_BLOB_GAS_PER_BLOCK = 786432 (Cancun). GAS_PER_BLOB = 131072.
-# 6 blobs * 131072 = 786432. 7 blobs * 131072 = 917504 (over cap).
+# MAX_BLOB_GAS_PER_BLOCK = 2752512 (Amsterdam). GAS_PER_BLOB = 131072.
+# 21 blobs * 131072 = 2752512. 22 blobs * 131072 = 2883584 (over cap).
 FAILED=0
 run_case "empty"              "[]"                              0 1 0 || FAILED=1
 run_case "single_zero"        "[0]"                             0 1 0 || FAILED=1
 run_case "single_at_target"   "[393216]"                        0 1 0 || FAILED=1
-run_case "single_at_max"      "[786432]"                        0 1 0 || FAILED=1
-run_case "single_over_max"    "[917504]"                        0 0 0 || FAILED=1
+run_case "single_six_blobs"   "[786432]"                        0 1 0 || FAILED=1
+run_case "single_seven_blobs" "[917504]"                        0 1 0 || FAILED=1
+run_case "single_at_max"      "[2752512]"                       0 1 0 || FAILED=1
+run_case "single_over_max"    "[2883584]"                       0 0 0 || FAILED=1
 run_case "three_all_ok"       "[131072, 262144, 393216]"        0 1 0 || FAILED=1
-run_case "three_violate_mid"  "[131072, 917504, 393216]"        0 0 1 || FAILED=1
-run_case "three_violate_end"  "[131072, 262144, 917504]"        0 0 2 || FAILED=1
+run_case "three_violate_mid"  "[131072, 2883584, 393216]"       0 0 1 || FAILED=1
+run_case "three_violate_end"  "[131072, 262144, 2883584]"       0 0 2 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: chain_validate_blob_gas_used_under_max enforces Cancun cap"
+  echo "==> PASS: chain_validate_blob_gas_used_under_max enforces Amsterdam cap"
   exit 0
 else
   echo "==> FAIL"

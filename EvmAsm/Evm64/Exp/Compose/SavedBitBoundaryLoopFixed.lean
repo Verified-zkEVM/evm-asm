@@ -21,7 +21,7 @@ def expTwoMulBoundaryPreFixed
     (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
   ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
    (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-   (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+   (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
    ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
    ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
    ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -36,7 +36,7 @@ theorem expTwoMulBoundaryPreFixed_unfold
       m0 m1 m2 m3 vOld v18 baseWord exponentWord rest =
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -53,7 +53,7 @@ theorem expTwoMulBoundaryPreFixed_unfold_scratch
       m0 m1 m2 m3 vOld v18 baseWord exponentWord rest =
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **

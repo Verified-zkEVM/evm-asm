@@ -31,6 +31,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -42,6 +45,8 @@ import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
+
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
 namespace EvmAsm.Codegen
 
@@ -56,68 +61,147 @@ open EvmAsm.Rv64
     a4 = n_withdrawals          a5 = out_root ptr (32 B)
     a0 (output) = 0 ok / 1 a withdrawal targets a non-existent account
                   (insert needed, unsupported) / 2 parse/encode failure -/
-def withdrawalsStateRootFunction : String :=
-  "withdrawals_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # pre-state root hash\n" ++
-  "  mv s1, a1                   # witness\n" ++
-  "  mv s2, a2                   # witness_len\n" ++
-  "  mv s3, a3                   # withdrawals descriptors\n" ++
-  "  mv s4, a4                   # n_withdrawals\n" ++
-  "  mv s5, a5                   # out_root\n" ++
-  "  li s6, 0                    # i\n" ++
-  ".Lwsr_loop:\n" ++
-  "  beq s6, s4, .Lwsr_apply\n" ++
-  "  slli t0, s6, 4; add t0, s3, t0    # &wd[i]\n" ++
-  "  ld a0, 0(t0)                # wd_rlp ptr\n" ++
-  "  ld a1, 8(t0)                # wd_rlp len\n" ++
-  "  la t1, ws_path; slli t2, s6, 6; add a2, t1, t2   # path dst = ws_path + 64*i\n" ++
-  "  la a3, ws_delta\n" ++
-  "  jal ra, withdrawal_to_path_delta\n" ++
-  "  bnez a0, .Lwsr_fail\n" ++
-  "  # read current account from pre-state: mpt_walk(root, witness, path, 64).\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la t1, ws_path; slli t2, s6, 6; add a3, t1, t2\n" ++
-  "  li a4, 64\n" ++
-  "  la a5, ws_acct; la a6, ws_acct_len\n" ++
-  "  jal ra, mpt_walk\n" ++
-  "  bnez a0, .Lwsr_insert       # not found => insert needed (unsupported)\n" ++
-  "  # new account = account_add_balance(account, delta).\n" ++
-  "  la a0, ws_acct\n" ++
-  "  la t0, ws_acct_len; ld a1, 0(t0)\n" ++
-  "  la a2, ws_delta\n" ++
-  "  la t1, ws_newacct; slli t2, s6, 7; add a3, t1, t2   # new acct dst = ws_newacct + 128*i\n" ++
-  "  la a4, ws_newacct_len\n" ++
-  "  jal ra, account_add_balance\n" ++
-  "  bnez a0, .Lwsr_fail\n" ++
-  "  # record change[i] = (path_ptr, 64, value_ptr, value_len).\n" ++
-  "  la t0, ws_changes; slli t1, s6, 5; add t0, t0, t1\n" ++
-  "  la t1, ws_path; slli t2, s6, 6; add t1, t1, t2; sd t1, 0(t0)\n" ++
-  "  li t1, 64; sd t1, 8(t0)\n" ++
-  "  la t1, ws_newacct; slli t2, s6, 7; add t1, t1, t2; sd t1, 16(t0)\n" ++
-  "  la t1, ws_newacct_len; ld t1, 0(t1); sd t1, 24(t0)\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lwsr_loop\n" ++
-  ".Lwsr_apply:\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, ws_changes; mv a4, s4; mv a5, s5\n" ++
-  "  jal ra, mpt_state_root\n" ++
-  "  j .Lwsr_ret\n" ++
-  ".Lwsr_insert:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lwsr_ret\n" ++
-  ".Lwsr_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lwsr_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def withdrawalsStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x20 (256 : BitVec 13),
+    .SLLI .x5 .x22 (4 : BitVec 6),
+    .ADD .x5 .x19 .x5,
+    .LD .x10 .x5 (0 : BitVec 12),
+    .LD .x11 .x5 (8 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 84)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 84)),
+    .SLLI .x7 .x22 (6 : BitVec 6),
+    .ADD .x12 .x6 .x7,
+    .AUIPC .x13 (laHi GuestAddrs.ws_delta (GuestAddrs.withdrawals_state_root + 100)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ws_delta (GuestAddrs.withdrawals_state_root + 100)),
+    .JAL .x1 (jalOff GuestAddrs.withdrawal_to_path_delta (GuestAddrs.withdrawals_state_root + 108)),
+    .BNE .x10 .x0 (252 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x6 (laHi GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 128)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 128)),
+    .SLLI .x7 .x22 (6 : BitVec 6),
+    .ADD .x13 .x6 .x7,
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.ws_acct (GuestAddrs.withdrawals_state_root + 148)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ws_acct (GuestAddrs.withdrawals_state_root + 148)),
+    .AUIPC .x16 (laHi GuestAddrs.ws_acct_len (GuestAddrs.withdrawals_state_root + 156)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ws_acct_len (GuestAddrs.withdrawals_state_root + 156)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.withdrawals_state_root + 164)),
+    .BNE .x10 .x0 (188 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ws_acct (GuestAddrs.withdrawals_state_root + 172)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ws_acct (GuestAddrs.withdrawals_state_root + 172)),
+    .AUIPC .x5 (laHi GuestAddrs.ws_acct_len (GuestAddrs.withdrawals_state_root + 180)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ws_acct_len (GuestAddrs.withdrawals_state_root + 180)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ws_delta (GuestAddrs.withdrawals_state_root + 192)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ws_delta (GuestAddrs.withdrawals_state_root + 192)),
+    .AUIPC .x6 (laHi GuestAddrs.ws_newacct (GuestAddrs.withdrawals_state_root + 200)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_newacct (GuestAddrs.withdrawals_state_root + 200)),
+    .SLLI .x7 .x22 (7 : BitVec 6),
+    .ADD .x13 .x6 .x7,
+    .AUIPC .x14 (laHi GuestAddrs.ws_newacct_len (GuestAddrs.withdrawals_state_root + 216)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ws_newacct_len (GuestAddrs.withdrawals_state_root + 216)),
+    .JAL .x1 (jalOff GuestAddrs.account_add_balance (GuestAddrs.withdrawals_state_root + 224)),
+    .BNE .x10 .x0 (136 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ws_changes (GuestAddrs.withdrawals_state_root + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ws_changes (GuestAddrs.withdrawals_state_root + 232)),
+    .SLLI .x6 .x22 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 248)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_path (GuestAddrs.withdrawals_state_root + 248)),
+    .SLLI .x7 .x22 (6 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (64 : Word),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ws_newacct (GuestAddrs.withdrawals_state_root + 276)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_newacct (GuestAddrs.withdrawals_state_root + 276)),
+    .SLLI .x7 .x22 (7 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .SD .x5 .x6 (16 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ws_newacct_len (GuestAddrs.withdrawals_state_root + 296)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ws_newacct_len (GuestAddrs.withdrawals_state_root + 296)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-252 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.ws_changes (GuestAddrs.withdrawals_state_root + 332)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ws_changes (GuestAddrs.withdrawals_state_root + 332)),
+    .MV .x14 .x20,
+    .MV .x15 .x21,
+    .JAL .x1 (jalOff GuestAddrs.mpt_state_root (GuestAddrs.withdrawals_state_root + 348)),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `withdrawalsStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def withdrawalsStateRoot_relocs : RelocTable :=
+  [ (21, .la .x6 "ws_path"),
+    (25, .la .x13 "ws_delta"),
+    (27, .jal .x1 "withdrawal_to_path_delta"),
+    (32, .la .x6 "ws_path"),
+    (37, .la .x15 "ws_acct"),
+    (39, .la .x16 "ws_acct_len"),
+    (41, .jal .x1 "mpt_walk"),
+    (43, .la .x10 "ws_acct"),
+    (45, .la .x5 "ws_acct_len"),
+    (48, .la .x12 "ws_delta"),
+    (50, .la .x6 "ws_newacct"),
+    (54, .la .x14 "ws_newacct_len"),
+    (56, .jal .x1 "account_add_balance"),
+    (58, .la .x5 "ws_changes"),
+    (62, .la .x6 "ws_path"),
+    (69, .la .x6 "ws_newacct"),
+    (74, .la .x6 "ws_newacct_len"),
+    (83, .la .x13 "ws_changes"),
+    (87, .jal .x1 "mpt_state_root") ]
+
+def withdrawalsStateRootFunction : String :=
+  "withdrawals_state_root:\n" ++ emitProgramR withdrawalsStateRoot_prog withdrawalsStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `withdrawalsStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem withdrawalsStateRootFunction_eq_prog :
+    withdrawalsStateRootFunction = "withdrawals_state_root:\n" ++ emitProgramR withdrawalsStateRoot_prog withdrawalsStateRoot_relocs := rfl
+
+#guard withdrawalsStateRootFunction.startsWith "withdrawals_state_root:\n"
+#guard withdrawalsStateRoot_prog.length = 102
 /-- `zisk_withdrawals_state_root`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness_len (u64)       +16 n_withdrawals (u64)
@@ -180,6 +264,7 @@ def ziskWithdrawalsStateRootPrologue : String :=
   mptWalkFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++

@@ -1,0 +1,9 @@
+# axiom-allow.txt — burndown list of pre-existing native_decide
+# trust-axiom OWNERS reaching witnessed proofs (see check-axioms.sh).
+# Each line is the owning declaration of a *._native.native_decide.ax_*
+# axiom that the kernel found in the closure of a .proven/.partly
+# witness. GOAL: drive this list to zero (replace native_decide with
+# kernel-checkable proofs). The gate FAILS on any owner NOT listed here.
+# Regenerate with: scripts/check-axioms.sh --write-allow
+#
+# Generated 2026-06-01 from EvmAsm/Progress.lean witnesses.

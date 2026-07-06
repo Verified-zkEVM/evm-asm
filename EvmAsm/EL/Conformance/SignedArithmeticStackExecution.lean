@@ -273,12 +273,24 @@ theorem runSDivStack?_intMin_neg_one_vector :
 theorem runSDivStack?_pos_pos_vector :
     runSDivStack? { stack := [(9 : EvmWord), (2 : EvmWord), 42] } =
       some { effects := { stackWords := [4] }, stack := [42] } := by
-  native_decide
+  have h : EvmAsm.Evm64.SDivArgs.sdivResultFromArgs
+      (EvmAsm.Evm64.SDivArgs.sdivArgs (9 : EvmWord) (2 : EvmWord)) = (4 : EvmWord) := by
+    unfold EvmAsm.Evm64.SDivArgs.sdivResultFromArgs EvmAsm.Evm64.SDivArgs.sdivArgs
+      EvmAsm.Evm64.EvmWord.sdiv
+    decide
+  unfold runSDivStack?
+  rw [EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack?_cons, h]
 
 theorem runSDivStack?_neg_neg_vector :
     runSDivStack? { stack := [(-9 : EvmWord), (-2 : EvmWord), 42] } =
       some { effects := { stackWords := [4] }, stack := [42] } := by
-  native_decide
+  have h : EvmAsm.Evm64.SDivArgs.sdivResultFromArgs
+      (EvmAsm.Evm64.SDivArgs.sdivArgs (-9 : EvmWord) (-2 : EvmWord)) = (4 : EvmWord) := by
+    unfold EvmAsm.Evm64.SDivArgs.sdivResultFromArgs EvmAsm.Evm64.SDivArgs.sdivArgs
+      EvmAsm.Evm64.EvmWord.sdiv
+    decide
+  unfold runSDivStack?
+  rw [EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack?_cons, h]
 
 theorem runSDivStack?_pos_neg_trunc_vector :
     runSDivStack? { stack := [(7 : EvmWord), (-2 : EvmWord), 42] } =

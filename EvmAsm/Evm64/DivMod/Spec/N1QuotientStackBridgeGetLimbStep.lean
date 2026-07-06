@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeExtra
 
 namespace EvmAsm.Evm64
 

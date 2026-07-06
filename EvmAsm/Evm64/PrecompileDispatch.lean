@@ -56,6 +56,14 @@ theorem decode?_zero :
     decode? (0 : Address) = none := by
   exact Precompile.ofAddress?_zero
 
+theorem decode?_eighteen :
+    decode? (0x12 : Address) = none := by
+  exact Precompile.ofAddress?_eighteen
+
+theorem decode?_oneHundredOne :
+    decode? (0x101 : Address) = none := by
+  exact Precompile.ofAddress?_oneHundredOne
+
 theorem gasCost?_eq (input : PrecompileInput) :
     gasCost? input = Precompile.precompileGasCost? input.target input.input.length := rfl
 
@@ -191,6 +199,16 @@ theorem dispatchAddress?_none_zero (caller : Address) (payload out : List (BitVe
     (gas : Nat) :
     dispatchAddress? 0 caller payload out gas = none := by
   exact dispatchAddress?_none_of_decode?_none decode?_zero
+
+theorem dispatchAddress?_none_eighteen
+    (caller : Address) (payload out : List (BitVec 8)) (gas : Nat) :
+    dispatchAddress? 0x12 caller payload out gas = none := by
+  exact dispatchAddress?_none_of_decode?_none decode?_eighteen
+
+theorem dispatchAddress?_none_oneHundredOne
+    (caller : Address) (payload out : List (BitVec 8)) (gas : Nat) :
+    dispatchAddress? 0x101 caller payload out gas = none := by
+  exact dispatchAddress?_none_of_decode?_none decode?_oneHundredOne
 
 theorem dispatchAddress?_address (p : Precompile) (caller : Address)
     (payload out : List (BitVec 8)) (gas : Nat) :

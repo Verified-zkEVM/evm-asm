@@ -8,6 +8,8 @@ import EvmAsm.Evm64.SDiv.Compose.Words
 
 namespace EvmAsm.Evm64.SMod.Compose
 
+open EvmAsm.Rv64.BitAux
+
 /-- Absolute-value word produced by the SMOD dividend sign/absolute-value
     prefix. The computation matches SDIV; SMOD differs only in the final result
     sign, which follows the dividend sign. -/
@@ -27,25 +29,15 @@ def smodAbsDivisorWord
     SMOD result sign. For SMOD, the result sign is the dividend sign bit. -/
 def smodResultSignFixedWord
     (dividendTop limb0 limb1 limb2 limb3 : Word) : EvmWord :=
-  let resultSign := dividendTop >>> (63 : BitVec 6).toNat
-  let mask := (0 : Word) - resultSign
-  let sum0 := (limb0 ^^^ mask) + resultSign
-  let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
-  let sum1 := (limb1 ^^^ mask) + carry0
-  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-  let sum2 := (limb2 ^^^ mask) + carry1
-  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-  let sum3 := (limb3 ^^^ mask) + carry2
-  EvmWord.fromLimbs fun i : Fin 4 =>
-    match i with
-    | 0 => sum0 | 1 => sum1 | 2 => sum2 | 3 => sum3
+  EvmAsm.Evm64.SDiv.Compose.rippleNegWord limb0 limb1 limb2 limb3
+    (dividendTop >>> (63 : BitVec 6).toNat)
 
 /-- The SMOD result sign is the dividend top bit, hence it is a Boolean word. -/
 theorem smodResultSign_bool (dividendTop : Word) :
     let resultSign := dividendTop >>> (63 : BitVec 6).toNat
     resultSign = 0 ∨ resultSign = 1 := by
-  dsimp
-  bv_decide
+  dsimp only [bv6_63_toNat]
+  exact ushr63_bool dividendTop
 
 /-- Conditional negation by the SMOD result sign leaves zero modulo limbs
     equal to zero. -/
@@ -61,8 +53,9 @@ theorem smodResultSign_fixZeroLimbs
     let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
     let sum3 := ((0 : Word) ^^^ mask) + carry2
     sum0 = 0 ∧ sum1 = 0 ∧ sum2 = 0 ∧ sum3 = 0 := by
-  dsimp
-  bv_decide
+  rcases ushr63_bool dividendTop with h | h <;>
+  · simp only [bv6_63_toNat, h]
+    decide
 
 /-- Top output limb of SMOD result-sign-fix is zero when the unsigned modulo
     result is zero. -/
@@ -163,10 +156,9 @@ theorem smodResultSignFixedWord_eq_word_of_result_sign_zero
     smodResultSignFixedWord dividendTop
       (modulus.getLimbN 0) (modulus.getLimbN 1)
       (modulus.getLimbN 2) (modulus.getLimbN 3) = modulus := by
-  unfold smodResultSignFixedWord EvmWord.fromLimbs
-  rw [hSign]
-  unfold EvmWord.getLimbN EvmWord.getLimb
-  bv_decide
+  unfold smodResultSignFixedWord
+  rw [EvmAsm.Evm64.SDiv.Compose.rippleNegWord_of_sign_zero _ _ _ _ _ hSign,
+    EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN]
 
 /-- If the SMOD result sign is one, the result-sign-fix helper returns the
     two's-complement negation of the unsigned modulo word. -/
@@ -176,11 +168,9 @@ theorem smodResultSignFixedWord_eq_neg_word_of_result_sign_one
     smodResultSignFixedWord dividendTop
       (modulus.getLimbN 0) (modulus.getLimbN 1)
       (modulus.getLimbN 2) (modulus.getLimbN 3) = -modulus := by
-  unfold smodResultSignFixedWord EvmWord.fromLimbs
-  rw [hSign]
-  unfold EvmWord.getLimbN EvmWord.getLimb
-  simp only [Neg.neg]
-  bv_decide
+  unfold smodResultSignFixedWord
+  rw [EvmAsm.Evm64.SDiv.Compose.rippleNegWord_of_sign_one _ _ _ _ _ hSign,
+    EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN]
 
 /-- The SMOD dividend absolute-value word is zero exactly for the zero
     dividend. -/

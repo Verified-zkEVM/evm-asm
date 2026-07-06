@@ -49,7 +49,9 @@ theorem sdiv_wrapper_block_byte_offsets :
     resultSignFixOff = 196 ∧
     savedRaRetOff = 280 ∧
     wrapperEndOff = 284 := by
-  native_decide
+  unfold saveRaOff dividendSignOff divisorSignOff dividendAbsOff divisorAbsOff
+    signXorOff divCallOff resultSignFixOff savedRaRetOff wrapperEndOff
+  decide
 
 /-- Successive fall-through byte offsets for the concrete SDIV wrapper. -/
 theorem sdiv_wrapper_fallthrough_offsets :
@@ -62,6 +64,8 @@ theorem sdiv_wrapper_fallthrough_offsets :
     divCallOff + 4 = resultSignFixOff ∧
     resultSignFixOff + 84 = savedRaRetOff ∧
     savedRaRetOff + 4 = wrapperEndOff := by
-  native_decide
+  unfold saveRaOff dividendSignOff divisorSignOff dividendAbsOff divisorAbsOff
+    signXorOff divCallOff resultSignFixOff savedRaRetOff wrapperEndOff
+  decide
 
 end EvmAsm.Evm64.SDiv.Compose

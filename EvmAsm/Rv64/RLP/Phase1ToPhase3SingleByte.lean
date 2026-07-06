@@ -153,4 +153,45 @@ theorem rlp_phase1_e1_then_single_byte_spec_at_0x7F_within
     (0x7F : Word) v10 v11Old offset base target htarget
     (by decide) hd
 
+/--
+  Class-level single-byte wrapper for the full Phase 1 → Phase 3 e1 path.
+  Restates the dispatch precondition against the pure RLP classifier
+  (`classifyPrefix pfx = .singleByte`); the decoded length is the constant `1`
+  (a canonical single byte `< 0x80` *is* its own payload), so — unlike the
+  short/long forms — there is no length function to bridge, only the input
+  predicate. Completes the per-exit `classifyPrefix`-level bridge set
+  alongside the e2/e3/e4/e5 wrappers.
+-/
+theorem rlp_phase1_e1_single_byte_of_class_spec_within
+    (pfx : EvmAsm.EL.RLP.Byte) (v10 v11Old : Word)
+    (offset : BitVec 13)
+    (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (h_class : EvmAsm.EL.RLP.classifyPrefix pfx =
+      EvmAsm.EL.RLP.PrefixClass.singleByte)
+    (hd : (rlp_phase1_step_code 0x80 offset base).Disjoint
+            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
+    cpsTripleWithin 3 base (target + 4)
+      ((rlp_phase1_step_code 0x80 offset base).union
+         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) := by
+  have h_lt := (EvmAsm.EL.RLP.classifyPrefix_singleByte_iff pfx).mp h_class
+  have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  have hv5 :
+      BitVec.ult (pfx.zeroExtend 64)
+        ((0 : Word) + signExtend12 (0x80 : BitVec 12)) := by
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0x80 : BitVec 12)).toNat) = 0x80 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
+  exact rlp_phase1_e1_then_single_byte_spec_within
+    (pfx.zeroExtend 64) v10 v11Old offset base target htarget hv5 hd
+
 end EvmAsm.Rv64.RLP

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # codegen-zisk-header-extended-decode-check.sh -- PR-K39.
 #
-# Decode 7 header fields: parent_hash, state_root, number,
-# timestamp, gas_limit, gas_used, base_fee_per_gas.
+# Decode 9 header fields: parent_hash, state_root, number,
+# timestamp, gas_limit, gas_used, base_fee_per_gas, blob_gas_used,
+# excess_blob_gas.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -31,7 +32,7 @@ lake exe codegen --program zisk_header_extended_decode --halt linux93 \
 REPO_ROOT="$(pwd)"
 
 run_case() {
-  local name="$1" parent_hex="$2" state_root_hex="$3" number="$4" timestamp="$5" gas_limit="$6" gas_used="$7" base_fee="$8"
+  local name="$1" parent_hex="$2" state_root_hex="$3" number="$4" timestamp="$5" gas_limit="$6" gas_used="$7" base_fee="$8" blob_gas_used="$9" excess_blob_gas="${10}"
 
   local in_file="$REPO_ROOT/gen-out/zisk_header_extended_decode_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_header_extended_decode_${name}.output"
@@ -48,8 +49,10 @@ timestamp = $timestamp
 gas_limit = $gas_limit
 gas_used = $gas_used
 base_fee = $base_fee
+blob_gas_used = $blob_gas_used
+excess_blob_gas = $excess_blob_gas
 
-# Synthetic 16-field header (post-EIP-1559) with the indices populated.
+# Synthetic Amsterdam header with blob-gas fields populated.
 fields = [
     parent_hash,    # 0: parent_hash
     b'\x22' * 32,   # 1: ommers_hash
@@ -67,6 +70,10 @@ fields = [
     b'\x77' * 32,   # 13: prev_randao
     b'\x00' * 8,    # 14: nonce
     base_fee,       # 15: base_fee_per_gas
+    b'\x88' * 32,   # 16: withdrawals_root
+    blob_gas_used,  # 17: blob_gas_used
+    excess_blob_gas,# 18: excess_blob_gas
+    b'\x99' * 32,   # 19: parent_beacon_block_root
 ]
 header_rlp = rlp.encode(fields)
 
@@ -85,6 +92,8 @@ expected += struct.pack('<Q', timestamp)
 expected += struct.pack('<Q', gas_limit)
 expected += struct.pack('<Q', gas_used)
 expected += base_fee.to_bytes(32, 'big')
+expected += struct.pack('<Q', blob_gas_used)
+expected += struct.pack('<Q', excess_blob_gas)
 with open(sys.argv[2], 'wb') as f:
     f.write(expected)
 " "$in_file" "$exp_file"
@@ -99,7 +108,7 @@ with open(sys.argv[2], 'wb') as f:
   expected="$(xxd -p -l "$exp_size" "$exp_file" 2>/dev/null | tr -d '\n')"
 
   if [[ "$actual" == "$expected" ]]; then
-    printf "  %-26s OK   #%d gas=%d/%d basefee=%d\n" "$name" "$number" "$gas_used" "$gas_limit" "$base_fee"
+    printf "  %-26s OK   #%s gas=%s/%s basefee=%s blob=%s excess=%s\n" "$name" "$number" "$gas_used" "$gas_limit" "$base_fee" "$blob_gas_used" "$excess_blob_gas"
     return 0
   else
     printf "  %-26s FAIL\n    expected: %s\n    actual:   %s\n" "$name" "$expected" "$actual"
@@ -111,14 +120,14 @@ PARENT="$(printf '11%.0s' $(seq 1 32))"
 STATE_ROOT="$(printf '44%.0s' $(seq 1 32))"
 
 FAILED=0
-run_case "post_london_typical"  "$PARENT" "$STATE_ROOT" 1234567 1700000000 30000000  15000000  1000000000   || FAILED=1
-run_case "low_base_fee"         "$PARENT" "$STATE_ROOT" 1       1000       30000000  0         7            || FAILED=1
-run_case "high_base_fee"        "$PARENT" "$STATE_ROOT" 999999  1700000000 30000000  29999999  115792089237316195423570985008687907853269984665640564039457584007913129639935 || FAILED=1
-run_case "min_gas_used"         "$PARENT" "$STATE_ROOT" 5000    1500000000 8000000   21000     500000000    || FAILED=1
+run_case "amsterdam_typical"    "$PARENT" "$STATE_ROOT" 1234567 1700000000 30000000  15000000  1000000000  1835008 0       || FAILED=1
+run_case "low_base_fee"         "$PARENT" "$STATE_ROOT" 1       1000       30000000  0         7           0       0       || FAILED=1
+run_case "high_base_fee"        "$PARENT" "$STATE_ROOT" 999999  1700000000 30000000  29999999  115792089237316195423570985008687907853269984665640564039457584007913129639935 2752512 131072 || FAILED=1
+run_case "min_gas_used"         "$PARENT" "$STATE_ROOT" 5000    1500000000 8000000   21000     500000000   131072  42      || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: header_extended_decode extracts 7 fields with EIP-1559 base_fee"
+  echo "==> PASS: header_extended_decode extracts Amsterdam header fields"
   exit 0
 else
   echo "==> FAIL"

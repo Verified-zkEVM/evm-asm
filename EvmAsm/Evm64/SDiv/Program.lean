@@ -189,7 +189,7 @@ def evm_sdiv_wrapper : EvmAsm.Rv64.Program :=
   evm_sdiv_saved_ra_ret_block .x18
 
 theorem evm_sdiv_wrapper_length : evm_sdiv_wrapper.length = 71 := by
-  native_decide
+  decide
 
 theorem evm_sdiv_wrapper_byte_length :
     4 * evm_sdiv_wrapper.length = 284 := by
@@ -205,7 +205,7 @@ theorem evm_sdiv_call_target_byte_offset :
        (EvmAsm.Rv64.XOR' .x8 .x8 .x9).length) +
       EvmAsm.Rv64.signExtend21 evm_sdivCallOff =
     4 * evm_sdiv_wrapper.length := by
-  native_decide
+  decide
 
 /-- Legacy verified SDIV code region. The wrapper returns via `x18`; the
     appended `evm_div_callable` block is reached only by the wrapper's near
@@ -215,7 +215,14 @@ def evm_sdiv_legacy : EvmAsm.Rv64.Program :=
   evm_sdiv_wrapper ;; evm_div_callable_v1
 
 theorem evm_sdiv_legacy_length : evm_sdiv_legacy.length = 390 := by
-  native_decide
+  have h_v1 : evm_div_callable_v1.length = 319 := by
+    simp only [evm_div_callable_v1, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
+      divK_phaseA_len,
+      divK_phaseB_len, divK_clz_len, divK_phaseC2_len, divK_normB_len, divK_normA_len,
+      divK_copyAU_len, divK_loopSetup_len, divK_loopBody_len, divK_denorm_len,
+      divK_divEpilogue_len, divK_zeroPath_len, cc_ret_len, divK_div128_len]
+  simp only [evm_sdiv_legacy, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
+    evm_sdiv_wrapper_length, h_v1]
 
 theorem evm_sdiv_legacy_byte_length : 4 * evm_sdiv_legacy.length = 1560 := by
   rw [evm_sdiv_legacy_length]
@@ -237,11 +244,20 @@ theorem evm_sdiv_eq_v4 : evm_sdiv = evm_sdiv_v4 := rfl
 theorem evm_sdiv_v4_uses_div_callable_v4 :
     evm_sdiv_v4 = (evm_sdiv_wrapper ;; evm_div_callable_v4) := rfl
 
+/-- Full SDIV code region, using the v5 unsigned DIV callable. -/
+def evm_sdiv_v5 : EvmAsm.Rv64.Program :=
+  evm_sdiv_wrapper ;; evm_div_callable_v5
+
+theorem evm_sdiv_v5_uses_div_callable_v5 :
+    evm_sdiv_v5 = (evm_sdiv_wrapper ;; evm_div_callable_v5) := rfl
+
 theorem evm_sdiv_length : evm_sdiv.length = 414 := by
-  native_decide
+  simp only [evm_sdiv, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
+    evm_sdiv_wrapper_length, evm_div_callable_v4_length]
 
 theorem evm_sdiv_v4_length : evm_sdiv_v4.length = 414 := by
-  native_decide
+  simp only [evm_sdiv_v4, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
+    evm_sdiv_wrapper_length, evm_div_callable_v4_length]
 
 theorem evm_sdiv_byte_length : 4 * evm_sdiv.length = 1656 := by
   rw [evm_sdiv_length]
@@ -249,10 +265,17 @@ theorem evm_sdiv_byte_length : 4 * evm_sdiv.length = 1656 := by
 theorem evm_sdiv_v4_byte_length : 4 * evm_sdiv_v4.length = 1656 := by
   rw [evm_sdiv_v4_length]
 
+theorem evm_sdiv_v5_length : evm_sdiv_v5.length = 424 := by
+  simp only [evm_sdiv_v5, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
+    evm_sdiv_wrapper_length, evm_div_callable_v5_length]
+
+theorem evm_sdiv_v5_byte_length : 4 * evm_sdiv_v5.length = 1696 := by
+  rw [evm_sdiv_v5_length]
+
 example :
     (evm_sdiv_sign_bit_block .x12 .x5 24).length +
       (evm_sdiv_cond_negate_256_block .x12 .x5 .x6 .x7 .x11 0 8 16 24).length +
       (evm_sdiv_div_call_block 0).length = 24 := by
-  native_decide
+  decide
 
 end EvmAsm.Evm64

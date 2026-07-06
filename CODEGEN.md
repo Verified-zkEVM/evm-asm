@@ -28,6 +28,26 @@ repo and running them on the Zisk emulator (`ziskemu`). Companion to
    - This sidesteps the still-Open
      [`docs/host-io-halt-convention.md`](docs/host-io-halt-convention.md) ADR.
 
+## Current status
+
+Single source of truth for the headline numbers. Lower sections are kept in
+*completion order* and may lag; when they disagree with this block, this block
+(and the kernel-checked theorems it cites) wins.
+
+| Axis | State | Source of truth |
+|---|---|---|
+| **Opcode coverage** | **154 / 256 bytes wired** through `tinyInterpRegistry`; 102 → `h_invalid`. Covers 100% of the live EVM opcode space plus EIP-8024 stack ops (DUPN/SWAPN/EXCHANGE), CLZ, and blob/code handler bytes. | `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` (`tinyInterpRegistry_wired_opcode_count = 154`, kernel-checked) |
+| **Latest milestone** | M15.6 (precomputed valid-JUMPDEST bitmap, 2026-06-07). Most recent *feature* milestones: M33 + M31 (2026-06-04). | this file (§Milestones) |
+| **Codegen-proofs frontier** | Phase 1 (6 registry invariants) ✅; Phase 4 partial — **13 of ~87** handler-level `cpsTripleWithin` specs. Phases 2 (parser round-trip), 3 (dispatch-loop spec), 5 (end-to-end refinement) **not started**. | `Proofs/RegistryInvariants.lean`, `Proofs/HandlerSpecs.lean` |
+| **EEST conformance** | Stateless harness live (`scripts/codegen-eest-stateless-check.sh`); correctly rejects all 894 invalid-witness blocks but **0 full-output matches** (guest emits pre-`zkevm@v0.4.0` encoding). | PLAN.md Axis F |
+| **CI** | Link-time only (`scripts/codegen-stateless-link-check.sh` in `build.yml`). A round-trip / EEST smoke-subset CI job is **still TODO**. | `.github/workflows/build.yml` |
+
+> **Real-semantics caveat.** "100% wired" ≠ "100% spec-compliant". Several
+> opcodes are wired as no-ops that fake their effect: the 6 child-frame
+> opcodes (CREATE/CALL family) return all-zero; BALANCE / EXTCODE* /
+> BLOCKHASH / BLOBHASH / BLOBBASEFEE return 0; CLZ and the EIP-8024 stack ops
+> are raw-asm, not verified `Program` bodies. See §Next for the graduation path.
+
 ## File layout
 
 New code lives under a fresh `EvmAsm/Codegen/` tree so the verified core is
@@ -39,15 +59,17 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
-| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `arithNoopHandlers` (M20 — MULMOD + EXP as pop-N + push-zero no-ops; in `Programs/Noop.lean`), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **149 wired opcodes — 🎯 100% of the 149-byte EVM space**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The opcode-handler registry itself lives in `Programs/EvmRegistry.lean` (see below). |
+| `EvmAsm/Codegen/Programs/EvmRegistry.lean` | **Home of `def tinyInterpRegistry`** — the M5b dispatch registry. It is now just a composition: it `++`-concatenates ~30 handler-builder lists (each defined in its own file, see next rows) and appends `stopHandler`. Order doesn't affect correctness — `jumpTargetLabel` scans for the spec whose `opcodes` contains the fetched byte. **Total: 154 wired opcode bytes — 100% of the live EVM opcode space (149 legacy bytes) plus EIP-8024 stack ops + CLZ + blob/code handler bytes;** 102 bytes fall through to `h_invalid`. The exact count is kernel-checked in `Proofs/RegistryInvariants.lean`. |
+| `EvmAsm/Codegen/Programs/Evm*Handlers.lean` (+ `Storage.lean`, `Noop*.lean`, `ChildFrameHandlers.lean`) | The ~30 handler-builder lists, one concern per file. Stack: `EvmStackHandlers` (PUSH0..32 / DUP1..16 / SWAP1..16 / EIP-8024 DUPN/SWAPN/EXCHANGE). Arithmetic / bitwise / shift: `EvmSingletonHandlers` (clean-shape singletons incl. CLZ), `EvmDivModHandlers` (DIV/MOD), `EvmSignedDivModHandlers` (SDIV/SMOD trampoline), `EvmMulmodHandler`, `EvmSelfCallingHandlers` (ADDMOD + EXP inline-callable). Memory: `EvmMemoryHandlers` (MLOAD/MSTORE/MSTORE8), `EvmMcopyHandlers`. Env / context: `EvmEnvHandlers`, `EvmSlotnumHandlers`, `EvmBlobContextHandlers`, `EvmBlockHashHandlers`, `EvmGasHandlers`. Calldata / code: `EvmCalldataHandlers`, `EvmCodeHandlers`. Control flow: `EvmControlFlowHandlers` (JUMPDEST/JUMP/JUMPI/PC). Hash / log: `EvmHashHandlers` (KECCAK256 ECALL bridge), `EvmLogHandlers`. State: `Storage` (real SLOAD/SSTORE/TLOAD/TSTORE on the M24 Option-A log+journal), `EvmBalance`, `EvmAccountWitness`, `EvmExtcodecopy`. No-ops / halt: `Noop` (residual push-zero / copy builders), `NoopHalt` (RETURN/REVERT/INVALID/SELFDESTRUCT halt-kind tagging), `NoopReturnData`, `ChildFrameHandlers` (the 6 CREATE/CALL-family child-frame opcodes: the live CALL/CALLCODE/DELEGATECALL/STATICCALL descent + CREATE/CREATE2 operand decode and init-code mini-interpreter + precompile call tails). Several non-`*Handlers` siblings (`EvmMemoryGas`, `EvmStorageAccessGas`, `EvmAccessGas`, `EvmMcopyGas`, `EvmMessageCallGas`, `EvmNonce`, `EvmCodes`, …) hold the gas / witness / opcode-body helpers these builders call. |
+| `EvmAsm/Codegen/Programs/` (rest) | Execution-layer programs supporting the Stateless guest (300+ `.lean` files total under this dir): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Shared codegen helpers (`advancePc`, `copy64`, `evmAddEpilogue`, the `evm{Div,Mod,Sdiv,Smod}Patched` NOP-splice helpers) live alongside. |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**59 cases** as of M20). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**300+ cases**, grown well past the M20-era 59 as later milestones + EIP-specific suites landed). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
 | `lakefile.toml` | Add `[[lean_exe]] name = "codegen"; root = "Main"; supportInterpreter = true`. |
-| `scripts/codegen-*.sh` | Per-milestone round-trip checks: `codegen-smoke.sh` (M0), `codegen-evm_add-check.sh` (M2), `codegen-evm_add-from-input-check.sh` (M4), `codegen-tiny-interp-check.sh` (M5a), `codegen-tiny-interp-dispatch-check.sh` (M5b), `codegen-opcodes-check.sh` (M6a legacy per-case-ELF runner), `codegen-opcodes-runtime-check.sh` (M8.5 **canonical** runtime-bytecode runner, ~3× faster), `codegen-evm_div-check.sh` / `codegen-evm_div-cases-check.sh` / `codegen-evm_mod-check.sh` / `codegen-evm_mod-cases-check.sh` (standalone DIV/MOD wrappers — also routed through the dispatcher in M8). |
+| `scripts/codegen-*.sh` | Per-milestone round-trip checks: `codegen-smoke.sh` (M0), `codegen-evm_add-check.sh` (M2), `codegen-evm_add-from-input-check.sh` (M4), `codegen-tiny-interp-check.sh` (M5a), `codegen-tiny-interp-dispatch-check.sh` (M5b), `codegen-opcodes-runtime-check.sh` (M8.5 **canonical** runtime-bytecode runner, also reached via compatibility wrapper `codegen-opcodes-check.sh`), `codegen-evm_div-check.sh` / `codegen-evm_div-cases-check.sh` / `codegen-evm_mod-check.sh` / `codegen-evm_mod-cases-check.sh` (standalone DIV/MOD wrappers — also routed through the dispatcher in M8). |
 | `scripts/pack-bytecode.py` | Helper used by `codegen-opcodes-runtime-check.sh`: parses a comma-separated `0xNN` byte list and emits `<8-byte LE length><bytes><zero pad to multiple-of-8>` (ziskemu input file format). |
 | `gen-out/` | Generated `.s`/`.elf`/`.input`; gitignored. |
 
@@ -123,10 +145,12 @@ Wire enough memory and registers so the verified `evm_add` program
     epilogue is itself a verified `Program` — every instruction lives
     in `Instr` and goes through the same totalized `emitInstr` and
     `#guard` round-trip tests as the body.
-- `Driver.lean` adds `-Tdata=0xa0000000` to the link step so writable
+- `Driver.lean` adds `-Tdata=0xa0100000` to the link step so writable
   `.data` lands in `ziskemu`'s RAM region (`0xa0000000–0xc0000000`);
-  without this, the emulator refuses the ELF with
-  *"writable data section … outside RAM bounds"*.
+  without an explicit RAM address, the emulator refuses the ELF with
+  *"writable data section … outside RAM bounds"*. The data base is above
+  `OUTPUT_ADDR = 0xa0010000`, so large scratch sections cannot alias the
+  public output buffer.
 - `scripts/codegen-evm_add-check.sh` builds, emits, links, runs, and
   diffs the first 32 bytes of `ziskemu`'s `-o` output against the
   expected 4-limb sum. **PASSES** with the M2 test case
@@ -492,14 +516,12 @@ verified `Program`s; see `docs/99-mload-design.md` §4 and the
 - `x14, x15, x16, x17, x18` = caller-saved scratch for memory handlers
 
 **`.data` budget.**
-The dispatcher's `.data` section starts at `0xa0000000` and must
-stay under `0xa0010000` (= `OUTPUT_ADDR`). Post-M7 layout: ~50 B
-bytecode + 256 B stack scratch + 32 KiB EVM memory + 2 KiB jump
-table ≈ 35 KiB. Comfortably under the 64 KiB cap. A future
-milestone that needs > 32 KiB of EVM memory should either grow
-the budget (extending `.data` is bounded by `OUTPUT_ADDR`) or
-relocate `evm_memory` to a separate section linked above
-`OUTPUT_ADDR + 0x10000`.
+The dispatcher's `.data` section starts at `0xa0100000`, deliberately above
+the fixed ziskemu public-output page at `0xa0010000`. Earlier milestones kept
+`.data` below `OUTPUT_ADDR`; the stateless guest's scratch data now exceeds
+that old 64 KiB window, so the link layout reserves the output page instead of
+treating it as the upper bound for writable data. Large multi-MiB SSZ scratch
+buffers remain in the separate `.sszscratch` section at `0xa2000000`.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-check.sh` exits 0 with all 24 cases
@@ -707,14 +729,12 @@ bodies clobber `x10` as a JAL-target scratch.
   and `jumpTable_non_invalid_count`) from 91 → 93. Discharged by
   `decide` / `set_option maxRecDepth 2048 in decide` as before.
 
-**MSIZE (0x59) deferred.** The verified `evm_msize` Program exists
-(`EvmAsm/Evm64/MSize/Program.lean`, slice 6 of issue #99) and is a
-pure read of a memory-size cell, but slices 1–5 — updating that cell
-from MLOAD/MSTORE/MSTORE8 on memory expansion — have not shipped:
-`evm_mload` / `evm_mstore` / `evm_mstore8` take no `sizeReg`
-parameter and never reference `sizeLoc`. Wiring MSIZE today would
-push a 4-limb zero regardless of EVM-memory touches. Drop into
-`memoryHandlers` once issue #99 slices 1–5 land.
+**MSIZE (0x59) runtime slice.** The dispatcher maintains an
+active-memory-size cell in `evm_env` and wires MSIZE to push it as a
+low-u64 EVM word. MLOAD, MSTORE, MSTORE8, CALLDATACOPY, and MCOPY
+update that cell with 32-byte EVM rounding. This is a concrete
+runtime path, not the verified `evm_msize` Program yet, and exact
+memory gas / OOG behavior is still deferred.
 
 **EXP (0x0a) still blocked** pending the upstream
 `evm_exp_msb_saved_bit_two_mul_fixed_fixed` callee-saved variant.
@@ -872,13 +892,14 @@ computation). Lifts wired opcode count **108 → 111** (74.5% of the
   with three parametric Programs:
   - `evm_pc codeBaseReg tmpReg` (6 instructions) — `pc = x10 -
     codeBaseReg`, pushed as a 256-bit word.
-  - `evm_jump codeBaseReg destReg` (3 instructions) — `x10 :=
-    codeBaseReg + dest`. Tail is `.custom "  ret"`; no advance.
-  - `evm_jumpi codeBaseReg destReg condReg tmpReg`
-    (13 instructions) — OR-combines the 4 cond limbs to detect
-    nonzero; `BEQ +12` skips the jump path (lands at fall-through
-    `ADDI x10, x10, 1`), `JAL +8` skips the fall-through on the
-    cond-nonzero path (lands at the tail's `ret`).
+  - `evm_jump codeBaseReg envBaseReg destReg tmpReg validityReg` — rejects
+    nonzero upper destination limbs and `dest.low64 >= env.codeSize`, then
+    uses `x10 := codeBaseReg + dest.low64` and feeds the jump-validity tail.
+    No advance.
+  - `evm_jumpi codeBaseReg envBaseReg destReg condReg tmpReg validityReg` —
+    OR-combines the 4 cond limbs to detect nonzero; taken jumps reject nonzero
+    upper destination limbs and `dest.low64 >= env.codeSize`, while the
+    cond-zero path falls through without validating dest.
 - **`EvmAsm/Codegen/Dispatch.lean`**: dispatcher prologue (both
   `.data`-baked and runtime-bytecode variants) gains
   `la x21, evm_code` / `li x21, 0x40000010` — the **preserved
@@ -898,22 +919,124 @@ computation). Lifts wired opcode count **108 → 111** (74.5% of the
 **Known limitation: no JUMPDEST-validity check.** The verified
 bodies in this PR unconditionally follow the popped destination.
 A spec-compliant EVM rejects invalid jumps; ours doesn't. Trusted
-test programs all jump to real JUMPDEST bytes. A follow-on PR
-will inline the `LBU + BEQ 0x5b` check.
+test programs all jump to real JUMPDEST bytes. **Resolved (Level 1)
+in M15.5** — the inline `LBU` + `0x5b` check; see that section.
 
 **Other limitations** (same trust model):
-- 256-bit `dest` is truncated to its low 64 bits. EVM jumps with
-  `dest >= 2^64` are technically invalid; trusted programs never
-  go there.
-- Out-of-bounds `dest` reads beyond the bytecode region into
-  `.data` (stack, memory, env, jump table). The dispatcher's next
-  iteration would read whatever byte is there. Same trust caveat.
+- 256-bit `dest` was originally truncated to its low 64 bits. This was later
+  fixed in M15.5 by rejecting taken jumps whose upper destination limbs are
+  nonzero.
+- Out-of-bounds `dest` originally read beyond the bytecode region into
+  `.data` / runtime input trailer data. This was later fixed in M15.5 by
+  rejecting taken jumps with `dest.low64 >= env.codeSize` before loading
+  `code[dest]`.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 44
 cases PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
 scripts unchanged.
+
+### M15.5 — JUMPDEST-validity check (Level 1) — **DONE (2026-06-02)**
+
+Closes the M15 known limitation (JUMP/JUMPI unconditionally followed the
+popped destination). A spec-compliant EVM exceptionally halts on a jump to
+a non-JUMPDEST byte; this adds that check. Numbered M15.5 (the follow-on the
+M15 section + the `ControlFlow/Program.lean` docstring both promised) to avoid
+colliding with the M26–M29 numbers reserved for the stateless-track roadmap.
+
+**Scope.** Rejects jumps to non-canonical 256-bit destinations (any nonzero
+upper destination limb), out-of-bounds destinations (`dest.low64 >= code.length`),
+jumps to non-JUMPDEST bytes, and jumps to `0x5b` bytes inside PUSH1..PUSH32
+immediate data. The handler tail performs the pushdata-aware scan from the
+bytecode base to the candidate target before returning to dispatch.
+
+**Dual-use.** The byte *load* lives in the verified `evm_jump`/`evm_jumpi`
+bodies, so the stateless guest's VM (which is designed to plug in these
+bodies) inherits it; only the host-specific halt *routing* is in the codegen
+handler tail.
+
+**Delivered:**
+- **`EvmAsm/Evm64/ControlFlow/Program.lean`** — `evm_jump` and `evm_jumpi`
+  gain a `validityReg` path and an `envBaseReg` parameter. `evm_jump`
+  OR-reduces the upper destination limbs, rejects nonzero upper limbs or
+  `dest.low64 >= env.codeSize` with a non-`0x5b` sentinel, and otherwise loads
+  `code[dest.low64]`. `evm_jumpi` applies the same destination check only on
+  the *taken* path and writes the sentinel `0x5b` on the *not-taken* path, so
+  fall-through skips validation. No specs to update — these bodies have no
+  `cpsTriple` proofs yet.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `controlFlowHandlers` passes `.x20`
+  as `envBaseReg`, `.x17` as `validityReg`, and swaps JUMP/JUMPI's
+  `.custom "  ret"` tails for a pushdata-aware validity tail. JUMP also passes
+  `.x16` as the extra scratch register needed to check upper destination limbs
+  and code length.
+- **`EvmAsm/Codegen/Dispatch.lean`** — `emitDispatcherEpilogue` gains an
+  `.exit_invalid:` label that zero-fills `OUTPUT[0..32]` and tags
+  `halt_kind = 4` (distinct from 0=STOP / 1=RETURN / 2=REVERT, M23) then joins
+  `.exit_no_epilogue`. Reached only via `j .exit_invalid`; placed so it never
+  falls through into `exitBody`.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `jump_invalid_dest` (`PUSH1 0x00;
+  JUMP` → `code[0]=0x60≠0x5b`) and `jumpi_taken_invalid` (taken JUMPI to byte 0)
+  both assert `halt_kind = 4` + zero result. The
+  `jump_out_of_bounds_into_calldata_jumpdest_invalid` and
+  `jumpi_taken_out_of_bounds_into_calldata_jumpdest_invalid` regressions point
+  outside code and at runtime calldata byte `0x5b`, proving the length guard
+  runs before the target-byte load. `jumpi_not_taken` gains a `halt_kind = 0`
+  assertion confirming the sentinel path doesn't spuriously halt. Existing
+  `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST bytes) still pass.
+
+**Known limitations:** ~~validation uses a per-jump pushdata-aware scan instead
+of a precomputed valid-JUMPDEST bitmap~~ (resolved by M15.6 below).
+`RegistryInvariants` counts unchanged (149 — JUMP/JUMPI stay in
+`controlFlowHandlers`).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` is the ziskemu-backed gate for the
+full opcode registry (355 cases at this update, including the out-of-bounds
+runtime-trailer regressions). `scripts/check-progress.sh` exits 0. `lake build
+EvmAsm.Codegen` clean.
+
+### M15.6 — precomputed valid-JUMPDEST bitmap — **DONE (2026-06-07)**
+
+Closes M15.5's known limitation. The per-jump pushdata-aware scan made each
+JUMP / taken-JUMPI cost O(dest) guest instructions (~10 per scanned opcode),
+so a K-iteration EVM loop jumping back to offset `d` cost `K·d` — quadratic
+guest work for O(1) EVM gas (JUMP = 8, JUMPI = 10), a prover-cost hazard.
+M15.6 matches execution-specs' `get_valid_jump_destinations` shape: one
+pushdata-aware pass at startup, then O(1) per jump.
+
+**Delivered:**
+- **`EvmAsm/Codegen/Dispatch.lean`** — `emitJumpdestBitmapBuild`, emitted by
+  *both* dispatcher prologues immediately before `.dispatch_loop:`: one
+  pushdata-aware pass over the bytecode setting bit `idx` of
+  `evm_jumpdest_bitmap` for every JUMPDEST byte outside PUSH1..PUSH32
+  immediates. The scan is clamped to `jumpdestBitmapCodeCapacity` (128 KiB of
+  code = `0x20000` = the live EIP-7954 draft's `MAX_INIT_CODE_SIZE`, giving
+  2× headroom over the vendored-specs **Amsterdam** maximum of
+  `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`, so a future specs sync needs no
+  bitmap change — see the constant's docstring). `emitJumpdestBitmapData`
+  reserves the 16 KiB loader-zeroed bitmap region in both `.data` sections. Build-pass scratch is
+  `x5`–`x9`/`x11`, all dead at the insertion point.
+- **`EvmAsm/Codegen/Programs/EvmControlFlowHandlers.lean`** — the JUMP /
+  taken-JUMPI validity tail (`jumpBitmapCheckAsm`, formerly
+  `jumpPushdataAwareScanAsm`) keeps the `validityReg == 0x5b` compare (still
+  the routing for the body's non-canonical / out-of-bounds sentinel and the
+  not-taken JUMPI fall-through) and replaces the O(dest) scan with a 12-
+  instruction bit test: `dest = x10 - x21`, reject `dest ≥` bitmap capacity
+  (memory-safety backstop for oversized non-protocol test bytecode; protocol
+  code can't reach it), load `bitmap[dest >> 3]`, test bit `dest & 7`,
+  mismatch → `.exit_invalid`. Verified `evm_jump` / `evm_jumpi` bodies are
+  untouched.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `jumpi_loop_backward` (countdown
+  loop validating the same backward destination on every taken iteration) and
+  `jump_forward_second_bitmap_byte` (JUMPDEST at byte 9 exercises bitmap byte
+  indexing past `bitmap[0]`). All M15/M15.5 jump regressions (pushdata,
+  out-of-bounds, high-limb, not-taken sentinel) pin the unchanged semantics.
+
+**Complexity:** per execution O(codeSize) prologue + O(1) per jump, replacing
+O(jumps × dest). Worst-case adversarial cost drops from ~10¹¹ guest
+instructions per 30M-gas frame to the one-time ~10-instruction-per-opcode
+build pass.
 
 ### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**
 
@@ -1042,7 +1165,7 @@ Crosses the **90% coverage milestone** (135/149) and reaches
 verified body), EXP (blocked upstream), and the **6 child-frame
 opcodes** (CALL/CREATE family — the real gap to 100%).
 
-**Why no-ops.** Each of the 20 opcodes ships with at least one
+**Why no-ops.** Each of the remaining 16 opcodes ships with at least one
 spec-incompliance because the dispatcher has no model for the
 relevant state (accounts, calldata, block history, blob context,
 return-data buffers). Trusted bytecode that doesn't depend on
@@ -1056,19 +1179,19 @@ guardrail at the bottom of `Programs.lean`:
   INVALID (0xfe), SELFDESTRUCT (0xff). `body := []` + `.custom`
   tail that inlines the right `addi x12, x12, …` pop and
   `j .exit_label`.
-- **`pushZeroHandlers` (5 entries)**: CODESIZE (0x38),
-  RETURNDATASIZE (0x3d), BLOBBASEFEE (0x4a), MSIZE (0x59), GAS
-  (0x5a). 5-instruction body: decrement `x12` by 32 (push), then
+- **`pushZeroHandlers` (4 entries)**: CODESIZE (0x38),
+  RETURNDATASIZE (0x3d), BLOBBASEFEE (0x4a), GAS (0x5a).
+  5-instruction body: decrement `x12` by 32 (push), then
   4 × `SD .x12 .x0 …` (zero limbs).
-- **`popPushZeroHandlers` (6 entries)**: BALANCE (0x31),
-  CALLDATALOAD (0x35), EXTCODESIZE (0x3b), EXTCODEHASH (0x3f),
-  BLOCKHASH (0x40), BLOBHASH (0x49). Same shape as M17 SLOAD:
+- **`popPushZeroHandlers` (5 entries)**: BALANCE (0x31),
+  EXTCODESIZE (0x3b), EXTCODEHASH (0x3f), BLOCKHASH (0x40),
+  BLOBHASH (0x49). Same shape as M17 SLOAD:
   net stack delta 0; 4 × `SD .x12 .x0 …` overwrites the popped
   slot with zeros.
-- **`copyNoopHandlers` (5 entries)**: CALLDATACOPY (0x37),
-  CODECOPY (0x39), EXTCODECOPY (0x3c), RETURNDATACOPY (0x3e),
-  MCOPY (0x5e). 1-instruction body: `ADDI .x12 .x12 96` (or 128
-  for EXTCODECOPY's 4-pop).
+- **`copyNoopHandlers` (3 entries)**: CODECOPY (0x39),
+  EXTCODECOPY (0x3c), RETURNDATACOPY (0x3e). 1-instruction body:
+  `ADDI .x12 .x12 96` (or 128 for EXTCODECOPY's 4-pop). CALLDATACOPY
+  and MCOPY have since moved to concrete runtime handlers.
 
 `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` counts bumped
 121 → 141. All 6 invariant theorems now use `set_option
@@ -1088,8 +1211,8 @@ entries). Phase 1 recompile ~16 s, well under the 30 s budget.
   state).
 - CALLDATALOAD / CALLDATACOPY read empty calldata.
 - CODESIZE / CODECOPY / RETURNDATASIZE / RETURNDATACOPY /
-  EXTCODECOPY / MCOPY return / copy zero data.
-- BLOBBASEFEE / GAS / MSIZE always 0.
+  EXTCODECOPY return / copy zero data.
+- BLOBBASEFEE / GAS always 0.
 - RETURN / REVERT halt with whatever's at EVM stack top after
   the pop (deterministic if the program pre-pushes a known
   value).
@@ -1549,8 +1672,12 @@ OUTPUT_ADDR (0xa0010000):
               0 = STOP / unspecified (set by evmAddEpilogue)
               1 = RETURN
               2 = REVERT
-              (INVALID, SELFDESTRUCT inherit 0 in M23 — distinct
-               tagging deferred to a follow-up)
+              3 = INVALID (0xfe)            — M23.5
+              4 = invalid JUMP/JUMPI dest   — M15.5
+              5 = SELFDESTRUCT (0xff)       — M23.5
+              6 = out-of-gas                — M30
+              (M23 originally left INVALID/SELFDESTRUCT at 0; M15.5 added
+               4, M23.5 added 3/5, M30 added 6 — all distinct.)
   +40..256  <unused, room for future surfaces>
 ```
 
@@ -1670,6 +1797,158 @@ flow through `.exit_label → evmAddEpilogue → halt stub`:
 **68 cases PASS** (64 pre-M23 + 4 updated/new; 3 new RETURN/
 REVERT cases all assert halt_kind). `scripts/check-progress.sh`
 exits 0. Build clean (`lake build EvmAsm.Codegen` exits 0).
+
+### M23.5 — distinct INVALID / SELFDESTRUCT halt kinds — **DONE (2026-06-02)**
+
+Completes the exceptional-halt-tagging story started by M23 (RETURN/REVERT
+halt kinds) and M15.5 (invalid-jump `halt_kind = 4`). INVALID (0xfe) and
+SELFDESTRUCT (0xff) previously routed through `.exit_label → evmAddEpilogue`,
+surfacing the EVM stack top + `halt_kind = 0` — indistinguishable from STOP.
+Now they surface zero result data (no return data) and a distinct kind, so a
+caller / EEST-style check can tell all six halt outcomes apart.
+
+**halt_kind scheme (finalized, `OUTPUT + 32`):** `0` STOP · `1` RETURN ·
+`2` REVERT · `3` INVALID (M23.5) · `4` invalid JUMP/JUMPI dest (M15.5) ·
+`5` SELFDESTRUCT (M23.5). INVALID is an exceptional halt (success=false);
+SELFDESTRUCT is a normal halt (success=true); both have empty return data.
+
+**Delivered:**
+- **`EvmAsm/Codegen/Dispatch.lean`** — factor M15.5's inline `.exit_invalid`
+  block into a reusable `emitExceptionalExit (label) (kind)` helper (zero-fill
+  `OUTPUT[0..32]` + tag `halt_kind` + `j .exit_no_epilogue`), and emit three
+  labels via it: `.exit_invalid` (4), `.exit_invalid_op` (3), `.exit_selfdestruct`
+  (5). No behavior change for the existing `.exit_invalid`.
+- **`EvmAsm/Codegen/Programs/Noop.lean`** — `haltHandlers`: INVALID tail
+  `j .exit_invalid_op`; SELFDESTRUCT tail `addi x12, x12, 32 ; j .exit_selfdestruct`
+  (keeps the 1-word pop). Docstring updated.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `invalid_halt` updated (result was the
+  leaked stack-top `0x42`; now zero + `halt_kind = 3`); new `selfdestruct_halt`
+  (`PUSH1 0xff; SELFDESTRUCT` → zero + `halt_kind = 5`).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **90 cases PASS**
+(all six halt kinds asserted distinct: RETURN=1, REVERT=2, INVALID=3,
+invalid-jump=4, SELFDESTRUCT=5, STOP=0). `scripts/check-progress.sh` exits 0.
+`lake build EvmAsm.Codegen` clean; `RegistryInvariants` unchanged (149).
+
+### M30 — Gas metering (first slice: static base costs) — **DONE (2026-06-02)**
+
+The first real gas metering in the dispatcher — the cross-cutting feature both
+tracks need (it lets out-of-gas reuse the M23.5 exceptional-halt machinery and
+is the bridge toward the `Stateless/VM/Interpreter.lean` integration).
+**Scope = static base costs only**; dynamic costs (memory expansion, cold/warm
+SLOAD, call stipend, per-word/byte/topic, SSTORE refunds) are deferred.
+
+**Design:** the gas counter is an env cell (`env+568`), not a register — every
+high register is transiently clobbered by some handler. The dispatch loop (both
+prologue variants) charges each opcode's static base cost before executing it;
+underflow routes to `.exit_outofgas` (`halt_kind = 6`). Charge-then-execute
+matches the spec's `charge_gas` order (so GAS reflects its own cost).
+
+**Delivered:**
+- **`Dispatch.lean`** — `staticGasCost : Nat → Nat` (EVM base-cost tiers from
+  `execution-specs/.../prague/vm/gas.py`; halts + unwired bytes = 0) emitted as
+  a 256-`.dword` `opcode_gas_costs:` table in both data sections; the
+  `.dispatch_loop` body looks up `cost = opcode_gas_costs[op]`, `bltu`s to
+  `.exit_outofgas` on underflow, else charges `env+568`. New gas cell at
+  `env+568` (`.zero 568→576`); runtime prologue reads the gas limit from the
+  input trailer, `.data`-baked prologue seeds 30,000,000.
+  `emitExceptionalExit ".exit_outofgas" 6`.
+- **`pack-bytecode.py`** — `--gas N` appends an 8-byte LE gas-limit trailer
+  (default 30,000,000; back-compatible).
+- **`Programs/Evm.lean`** — real `gasHandlers` (GAS 0x5a reads `env+568` and
+  pushes it); removed from `pushZeroHandlers`. `RegistryInvariants` unchanged
+  (149 — GAS only moved lists).
+- **Tests** — `gas_opcode_sufficient` (`GAS; STOP`, limit 1000 → 998 after the
+  charge), `gas_opcode_out_of_gas` (`PUSH1`, limit 2 → `halt_kind = 6`); new
+  `gasLimit` TSV column threaded through `Cli.lean` + the bash runner.
+
+**Limitations** (documented in `staticGasCost`): static base only — state ops
+(SLOAD/SSTORE/CALL/EXTCODE*/KECCAK/LOG/EXP/copies) under-charge; per-iteration
+cost lookup adds ~6 instrs/op; gas-used not yet surfaced at OUTPUT; MSIZE/memory
+gas unchanged. `Layout.lean`'s `envSize` remains stale vs the dispatcher's
+raw-offset env cells (pre-existing; a sync is a separate cleanup).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh`: the two new gas cases pass and no
+prior case regresses. (Two BLOCKHASH cases — `blockhash_parent`,
+`blockhash_historical` — fail identically on pristine `upstream/main`; they are
+a **pre-existing** env-offset drift in the BLOCKHASH handler, unrelated to this
+PR.) `lake build EvmAsm.Codegen` clean.
+
+### M33 — Real CODESIZE (0x38) + CODECOPY (0x39): graduate from no-ops — **DONE (2026-06-04)**
+
+CODESIZE and CODECOPY are the one account-state slice that needs **no witness /
+external-account model** — they read the *currently executing* bytecode, which
+the dispatcher already holds in memory (code base in `x21`, exact length in a new
+env cell). This graduates the last two stubs out of `Noop.lean` and leaves
+`pushZeroHandlers` / `copyNoopHandlers` empty.
+
+**Design:** a new env cell `codeSize` at `env+496` (the free gap between
+`activeMemorySize` @488 and the M28 blob cells @512) holds the exact running
+bytecode length. Both prologues seed it: the runtime-bytecode prologue stores the
+input-trailer length (exact, pre-rounding) read at `0x40000008`; the `.data`-baked
+prologue computes `evm_code_end − evm_code` via a new `evm_code_end:` label
+emitted right after the baked bytecode (avoids the `.balign 32` over-count before
+`evm_memory`).
+
+**Delivered:**
+- **`EvmAsm/Evm64/Code/CopyProgram.lean`** — verified `evm_codecopy` body (18
+  instrs), sibling of `Calldata.evm_calldatacopy`: pops `(destOffset, dataOffset,
+  size)`, copies `code[dataOffset..]` → `memory[destOffset..]` with zero-fill past
+  `len(code)`. Source base from a register (`x21`), source length from `env+496`.
+  Length theorems included; axiom-clean.
+- **`Dispatch.lean`** — both prologues seed `env+496`; data section emits
+  `evm_code_end:`.
+- **`Programs/Evm.lean`** — new `codeHandlers` (CODESIZE custom-asm env-cell push,
+  mirroring MSIZE/GAS; CODECOPY = `evm_codecopy` body + `stackUnderflowGuardAsm 3`
+  / `updateActiveMemorySizeAsm` preBody), wired into `tinyInterpRegistry`.
+- **`Programs/Noop.lean`** — `pushZeroHandlers` / `copyNoopHandlers` now empty.
+- **Tests** — `codesize_basic` (len 5 incl. trailing data), `codecopy_basic`
+  (1 in-bounds byte → MLOAD), `codecopy_zero_pad` (offset past `len` → all zero).
+
+**Exit criteria (met).** `scripts/codegen-opcodes-runtime-check.sh` → ALL PASS
+(182 cases, incl. the 3 new); the `.data`-baked `tiny_interp_dispatch_add`
+assembles + runs on ziskemu (validates `evm_code_end`); `scripts/check-progress.sh`
+exits 0; `lake build EvmAsm.Codegen` clean.
+
+**Out of scope:** CODESIZE/CODECOPY gas is still the M30 static base (no
+per-word copy cost); witness-backed BALANCE/EXTCODE* are a separate track.
+
+### M31 — Memory-expansion dynamic gas — **DONE (2026-06-04)**
+
+The first general dynamic-gas slice after M30's static base costs. Every access
+that grows EVM memory now pays `cost(w) = 3·w + ⌊w²/512⌋` (per
+`execution-specs/.../vm/gas.py` `calculate_memory_gas_cost`, `w` = 32-byte
+words) for the *new* high-water mark minus the *old* one — closing a major
+under-charge that blocked realistic EEST gas accounting.
+
+**Design:** charged at the single chokepoint every memory opcode already routes
+through — `updateActiveMemorySizeAsm` — which has the old size (`env+488`) and
+the rounded new size in hand. A `chargeGas : Bool` gates the new gas block so
+MCOPY (which already charges full dynamic gas, incl. expansion, via
+`mcopyDynamicGasAsm`) keeps **size-tracking only** and is not double-charged.
+The gas math reuses the helper's register set plus one scratch (`x6`), preserving
+`offsetReg`/`lengthReg`/`roundedReg`; a `mulhu` guard routes `w ≥ 2^32` (≈128 GiB)
+to `.exit_outofgas` rather than wrapping `w²` mod 2^64. Underflow → out-of-gas
+(`halt_kind = 6`).
+
+**Delivered:**
+- **`EvmAsm/Codegen/Programs/EvmMemoryGas.lean`** (new) — `activeMemorySizeOff`
+  + `updateActiveMemorySizeAsm` (with the `chargeGas`-gated expansion charge) +
+  `updateActiveMemorySizeConstAsm`, extracted from `Programs/Evm.lean` (file-size
+  guardrail).
+- **`Programs/Evm.lean`** — MLOAD / MSTORE / MSTORE8 / CALLDATACOPY / CODECOPY
+  pass `chargeGas = true`; MCOPY passes `false`. (RETURNDATACOPY / EXTCODECOPY
+  are not on this chokepoint — unchanged.)
+- **Tests** — `mem_expansion_sufficient` (33-word write, expansion 101, fits at
+  gasLimit 113), `mem_expansion_oog` (one short → `halt_kind = 6`),
+  `mem_expansion_no_double_charge` (second write at same offset charges 0);
+  `mcopy_gas_dest_only_after_mstore8` expectation updated (MSTORE8 now also pays
+  its 9-gas expansion: 968 → 959).
+
+**Out of scope (follow-ups):** per-word copy gas for the `*COPY` ops, EIP-2929
+cold/warm SLOAD/SSTORE, EXP per-byte, gas-used surfaced to OUTPUT.
 
 ### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
 
@@ -1961,9 +2240,86 @@ dedup-and-emit only writes within that previously-unused
 range). `scripts/check-progress.sh` exits 0. Build clean
 (`lake build EvmAsm.Codegen` exits 0).
 
+### M27 — Real EXP (0x0a): graduate from no-op to verified body — **DONE (2026-06-02)**
+
+(Numbered M27 to leave room for the real LOG-event-capture work that
+landed after M25 in git — commit `7a160eec2` — but was not given its own
+doc milestone.)
+
+EXP (0x0a) graduates from the M20 `arithNoopHandlers` no-op to its real
+verified body, routed through `selfCallingHandlers` with the same
+inline-callable pattern as ADDMOD (M10).
+
+**The blocker was a real bug, not an upstream gap.** The `_fixed` EXP body
+(`EvmAsm/Evm64/Exp/Program.lean`) moved the exponent *cursor* to
+callee-saved `x19`, but left the per-limb *counter* in `x6` — which
+`mul_callable` (= `evm_mul ;; cc_ret`) clobbers ~51× per call. Since the
+squaring / conditional-multiply blocks call `mul_callable` mid-iteration,
+`x6` was garbage on the next bit-test, producing wrong results / an
+infinite reload loop (documented in `scripts/codegen-evm_exp-property-check.sh`).
+The earlier "x16 is also unsafe" note was stale — `evm_mul` touches none
+of `x16/x18/x19/x22`.
+
+**Delivered:**
+- **`EvmAsm/Evm64/Exp/Program.lean`** — new `_fixed_fixed` family
+  (`exp_prologue_fixed_fixed`, `exp_msb_bit_test_block_fixed_fixed`,
+  `exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed`,
+  `evm_exp_msb_saved_bit_two_mul_fixed_fixed[_canonical]` + length
+  theorems). Pure register substitution `x6 → x22` (s6, callee-saved); all
+  instruction counts and byte offsets identical to `_fixed`, so the
+  canonical branch/MUL offsets carry over.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `evmExpComposed` =
+  `evm_exp_..._fixed_fixed_canonical 200 92 ;; JAL x0 +260 ;; mul_callable`,
+  mirroring `evmAddmodComposed`. MUL-call offsets shift +4 (196→200,
+  88→92) because the 4-byte skip-JAL pushes `mul_callable` to body byte
+  340; the skip-JAL (260 = 4 + 256) carries the loop-exit fall-through
+  past the callable to the tail (`exp_epilogue` has no trailing jump). New
+  `h_EXP` entry in `selfCallingHandlers` with
+  `preBody := "mv x14, x10\n  la x2, exp_scratch"` and a custom `expTail`
+  (`mv x10, x14; la sp, lp64_sp_top; addi x10, x10, 1; j .dispatch_loop`).
+  Removed EXP from `arithNoopHandlers` (MULMOD stays).
+- **`EvmAsm/Codegen/Dispatch.lean`** — both data sections gain a 32-byte
+  `exp_scratch:` region. The EXP body uses `x2`(sp)+0..24 as its result
+  accumulator; the dispatcher's `sp = lp64_sp_top` is the top of a
+  down-growing stack immediately followed by the jump table, so `sp+0..24`
+  would corrupt opcode-handler entries 0–3 (incl. STOP). `h_EXP` repoints
+  `x2` at `exp_scratch` and its tail restores `sp`.
+- **`EvmAsm/Codegen/Programs/ExpProperty.lean`** — `evm_exp_from_input`
+  upgraded to the `_fixed_fixed` body + skip-JAL (it was doubly broken: the
+  x6 clobber *and* `exp_epilogue` falling straight into `mul_callable`).
+  `scripts/codegen-evm_exp-property-check.sh` now validates random
+  `(base, exponent)` pairs against Python `pow(base, exp, 2**256)`.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — replaced the `exp_pop2` no-op
+  case with two real cases: `exp_basic` (2³=8, exercises cond-multiply)
+  and `exp_zero` (5⁰=1, exercises the per-limb counter reload across all
+  4 limbs via 256 squarings). Total cases 76 → 77.
+
+**Known limitation (documented in `evmExpComposed`):** the verified EXP
+body uses `x12+64..120` (deeper-stack direction) as MUL factor scratch —
+fine when EXP's operands are the shallowest live elements (true for the
+test cases and the standalone harness's reserved `operands_ram+64..127`),
+but it overwrites deeper stack slots if EXP runs with a deeper stack. A
+full-domain dispatcher fix would give the body a dedicated MUL-scratch
+base register instead of reusing `x12`. `RegistryInvariants` counts are
+unchanged (149) — EXP was already counted; it only moved lists.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **77 cases
+PASS** (`exp_basic`, `exp_zero` included). `scripts/codegen-evm_exp-property-check.sh
+--count=30` exits 0 (all 30 random cases match Python `pow`).
+`scripts/check-progress.sh` exits 0. Build clean (`lake build EvmAsm.Codegen`
+exits 0).
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M24 ✅ → **M25 ✅**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M15.5 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M23.5 ✅ → M24 ✅ → M25 ✅ → M30 ✅ → M27 ✅ → M33 ✅ → M31 ✅ → **M15.6 ✅ (2026-06-07, latest)**.
+
+> **Section ordering.** The milestone sections below are written in
+> *completion order*, which is **not** numeric order — M30/M33/M31 shipped
+> before M24/M25 because the #7130 storage pivot reprioritised gas/code work
+> while the Option-A storage design settled. M27 is "Real EXP" (it was
+> renumbered out of the M26+ storage band; see its header). When in doubt,
+> the §Current status block at the top of this file is authoritative.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -1997,15 +2353,21 @@ of C vs D-flat overlay is ongoing in parallel. Status:
 - M21 ✅ real calldata
 - M22 ✅ real persistent storage (slot-table v1, superseded by M24)
 - M23 ✅ real RETURN/REVERT with halt-kind
+- M23.5 ✅ distinct INVALID / SELFDESTRUCT halt kinds
 - M24 ✅ storage on Option A + real TLOAD/TSTORE + REVERT rollback
 - M25 ✅ post-state slot serializer (modified slots at OUTPUT+56)
+- M27 ✅ real EXP body (graduated from the M20 no-op)
+- M30 ✅ gas metering — static base costs
+- M31 ✅ memory-expansion dynamic gas
+- M33 ✅ real CODESIZE + CODECOPY (graduated from no-ops)
 
 **Storage-coupled candidates for M26+** (all build on M24's
 Option A layout; each will need rework if/when #7130's design
 re-evaluation lands on D+flat overlay — but ~30-40% of work
 carries over):
 - M26 — `addrHash` dimension (multi-contract storage keying)
-- M27 — Nested call frames + multi-frame journal push/pop
+- M34 — Nested call frames + multi-frame journal push/pop
+  (was provisionally "M27"; renumbered when M27 was assigned to Real EXP)
 - M28 — Witness MPT integration (cold reads + commit sweep)
 - M29 — EEST fixture harness + CI — 🟡 stateless harness **landed**:
   `scripts/eest-fetch-fixtures.sh` (download `fixtures_zkevm.tar.gz`),
@@ -2016,14 +2378,14 @@ carries over):
   CI job (smoke subset on PRs) still TODO.
 
 **Storage-orthogonal candidates** (any order, interleave anywhere):
-- Real EXP body wiring (verified body exists complete; M10-
-  style inline-callable composition)
-- INVALID/SELFDESTRUCT distinct halt-kind tagging
-- Gas-metering scaffolding
-- ECRecover precompile via ECALL bridge
-- Returndata > 32 bytes (extend OUTPUT layout)
-- Real RETURNDATASIZE / RETURNDATACOPY (needs nested call
-  frames)
+- ~~Real EXP body wiring~~ — **DONE (M27)**.
+- ~~INVALID/SELFDESTRUCT distinct halt-kind tagging~~ — **DONE (M23.5)**.
+- ~~Gas-metering scaffolding~~ — **DONE (M30 static base + M31 memory expansion)**;
+  dynamic costs (EIP-2929 cold/warm SLOAD/SSTORE, per-word copy gas, EXP-byte
+  gas, SSTORE refunds) and surfacing gas-used at OUTPUT remain.
+- ECRecover precompile via ECALL bridge (still open)
+- Returndata > 32 bytes — extend OUTPUT layout (still open)
+- Real RETURNDATASIZE / RETURNDATACOPY (needs nested call frames — see M34)
 
 **Storage-redesign-dependent work** (deferred until #7130
 lands):
@@ -2365,20 +2727,14 @@ state-root output) is the project's real end goal.
   x10-clobber / saved-ra / self-calling variants. Drift detection
   re-validated on SUB.
 
-## Future work (post-M10)
+## Remaining work (post-M33)
 
-Near-term:
+Already shipped since this section was first written (do not re-open):
+**EXP** (M27), **JUMP / JUMPI / PC + JUMPDEST-validity table** (M15 / M15.5 /
+M15.6), **INVALID/SELFDESTRUCT halt-kinds** (M23.5), and **gas scaffolding**
+(M30 static + M31 memory-expansion).
 
-- **EXP (0x0a).** Blocked on upstream: needs an
-  `evm_exp_msb_saved_bit_two_mul_fixed_fixed` variant that moves
-  the per-limb counter (`x6`) and limb pointer (`x16`) to
-  callee-saved registers (e.g. `x20`/`x21`). Once that lands, EXP
-  can drop into `selfCallingHandlers` next to ADDMOD using the
-  same inline-callable + `signedDivModTail` pattern; the skip-JAL
-  offset and `mulOff` / `condMulOff` derivations from this PR's
-  preliminary work are recorded in the git history.
-
-Longer-term (genuine new design surface):
+Genuine new design surface still ahead:
 
 - **Codegen-proofs Phases 2–5.** Phase 1 (registry invariants)
   shipped; the rest of the roadmap:
@@ -2392,10 +2748,10 @@ Longer-term (genuine new design surface):
     control transfers to `h` with `x1` pointing at the loop's
     re-entry point."
   - **Phase 4:** lift each `OpcodeHandlerSpec`'s spec from the body
-    alone to `preBody + body + tail` — covers the ~90 wired
-    handlers via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
-    divModTail, signedDivModTail, self-calling). **13 of 91 wired
-    opcodes covered** (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
+    alone to `preBody + body + tail` — covers the ~87 handler
+    builders via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
+    divModTail, signedDivModTail, self-calling). **13 of ~87 handlers
+    covered** (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
     AND, OR, XOR, NOT — all using `cleanRetHandlerSpec`); follow-ups
     extend to memory handlers (MLOAD/MSTORE/MSTORE8), parameterized
     PUSH / DUP / SWAP families, and add `withX10SavePreBody`
@@ -2404,10 +2760,6 @@ Longer-term (genuine new design surface):
   - **Phase 5:** end-to-end refinement — for every bytecode `B`,
     the runtime dispatcher's final state matches the EVM
     executable-spec interpreter's final state.
-- **JUMP / JUMPI + JUMPDEST table.** Real control flow. Handlers must
-  write `x10` directly (the wrapper baking in a fixed advance no longer
-  works) and JUMP/JUMPI need to consult a JUMPDEST validity table built
-  from the bytecode at codegen time.
 - **Lean-native binary encoder** (`Instr → BitVec 32` + ELF writer) to
   drop the GNU binutils dependency. Cross-check the encoded bytes
   against the verified `step` semantics.
@@ -2418,6 +2770,33 @@ Longer-term (genuine new design surface):
 - **Cross-zkVM testing** (SP1, RISC0) to validate the halt-convention
   ADR closure described in
   [`docs/host-io-halt-convention.md`](docs/host-io-halt-convention.md).
+
+## Next
+
+With opcode wiring at 100% and the doc reconciled, the three highest-leverage
+tracks (pick by goal — they are largely independent):
+
+1. **EEST conformance (functional target, most measurable).** Close the
+   "0 full-output matches" gap: the stateless guest still emits a pre-`v0.4.0`
+   output encoding, so it agrees on the invalid/valid *bit* (894 invalid blocks
+   rejected) but never on full output. Then promote the harness to CI as a
+   smoke subset (the round-trip job that is currently TODO). Concrete metric in
+   PLAN.md Axis F.
+
+2. **Codegen-proofs (shrink the unverified surface).** The codegen layer is
+   essentially unverified beyond Phase 1 + 13 handler specs. Cheapest progress:
+   instantiate the remaining ~74 Phase 4 handler specs via the existing
+   `cleanRetHandlerSpec` template and its planned variants
+   (`withX10SavePreBody`, trampoline, self-calling). Bigger swings: scope
+   Phase 2 (parser round-trip `parseInstr (emitInstr i) = some i`) or Phase 3
+   (dispatch-loop `cpsTripleWithin`).
+
+3. **Real semantics → STF (the end goal).** Graduate the remaining faked
+   opcodes — the 6 child-frame CREATE/CALL-family no-ops and the
+   account/block/blob reads (BALANCE, EXTCODE*, BLOCKHASH, BLOBHASH,
+   BLOBBASEFEE) — which requires **M34 nested call frames** + **M28 witness-MPT
+   integration**, building toward **PLAN.md Phase 11 (block-level STF)**, the
+   project's real end goal. Largest design surface.
 
 ## References
 

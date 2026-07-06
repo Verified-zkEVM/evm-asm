@@ -15,14 +15,16 @@ def expPreReloadDirectTailFrameN
     (exponentWord : EvmWord) (k : Nat) (ptr nextNextLimb : Word) :
     Assertion :=
   expReloadDirectTailFrame ptr nextNextLimb
-    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr)
+    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12)))
 
 theorem expPreReloadDirectTailFrameN_unfold
     {exponentWord : EvmWord} {k : Nat} {ptr nextNextLimb : Word} :
     expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb =
       (((((ptr + signExtend12 (-8 : BitVec 12)) +
         signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb) **
-        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr)) := by
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12)))) := by
   rw [expPreReloadDirectTailFrameN, expReloadDirectTailFrame_unfold]
 
 @[irreducible]
@@ -30,7 +32,8 @@ def expPreReloadDirectFalseFrameN
     (exponentWord : EvmWord) (k : Nat)
     (controlC6 e iterCount ptr nextLimb : Word) : Assertion :=
   expReloadDirectFalseFrame controlC6 e iterCount ptr nextLimb
-    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr)
+    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12)))
 
 theorem expPreReloadDirectFalseFrameN_unfold
     {exponentWord : EvmWord} {k : Nat}
@@ -42,7 +45,8 @@ theorem expPreReloadDirectFalseFrameN_unfold
         ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
         ⌜(e >>> (63 : BitVec 6).toNat) +
           signExtend12 (0 : BitVec 12) = 0⌝ **
-        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr) := by
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12))) := by
   rw [expPreReloadDirectFalseFrameN, expReloadDirectFalseFrame_unfold]
 
 @[irreducible]
@@ -50,7 +54,8 @@ def expPreReloadDirectTrueFrameN
     (exponentWord : EvmWord) (k : Nat)
     (controlC6 e iterCount ptr nextLimb : Word) : Assertion :=
   expReloadDirectTrueFrame controlC6 e iterCount ptr nextLimb
-    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr)
+    (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12)))
 
 theorem expPreReloadDirectTrueFrameN_unfold
     {exponentWord : EvmWord} {k : Nat}
@@ -62,7 +67,8 @@ theorem expPreReloadDirectTrueFrameN_unfold
         ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
         ⌜(e >>> (63 : BitVec 6).toNat) +
           signExtend12 (0 : BitVec 12) ≠ 0⌝ **
-        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr) := by
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12))) := by
   rw [expPreReloadDirectTrueFrameN, expReloadDirectTrueFrame_unfold]
 
 /-- Pre-reload direct head step over the two-cell lookahead frame.
@@ -91,41 +97,41 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
@@ -152,7 +158,8 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
   have hPreReloadEq :
       expTwoMulFixedPreReloadFrameN exponentWord k ptr =
         (expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr **
-          expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr) :=
+          expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12))) :=
     expTwoMulFixedPreReloadFrameN_handoff_of_control hControl hC6
   exact
     cpsTripleWithin_weaken
@@ -167,7 +174,8 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
         controlC6 e machineC6 iterCount v10 v18 ptr nextLimb nextNextLimb
         sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
         a0 a1 a2 a3 v7 v11 base
-        (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr)
+        (expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+      (ptr + signExtend12 (-8 : BitVec 12)))
         Q
         (by
           rw [expTwoMulFixedReloadLimbFrameN_unfold,
@@ -218,41 +226,41 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr

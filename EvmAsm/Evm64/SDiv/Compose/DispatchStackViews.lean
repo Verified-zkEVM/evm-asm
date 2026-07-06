@@ -38,7 +38,7 @@ theorem saveRaSignsAbsSignXorThenDivCallPre_stack_pair
     EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24,
     EvmAsm.Rv64.signExtend12_32, EvmAsm.Rv64.signExtend12_40,
     EvmAsm.Rv64.signExtend12_48, EvmAsm.Rv64.signExtend12_56]
-  rw [show (sp + 0 : Word) = sp by bv_decide]
+  rw [show (sp + 0 : Word) = sp by bv_omega]
   xperm
 
 /-- Tail-stack companion to `saveRaSignsAbsSignXorThenDivCallPre_stack_pair`:

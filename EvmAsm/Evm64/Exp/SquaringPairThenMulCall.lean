@@ -86,16 +86,16 @@ theorem exp_loop_un_marshal_and_restore_word_spec_within
     (fun _ hp => by
       have h0 : ((evmSp + 32) + signExtend12 (0 : BitVec 12) : Word) =
           evmSp + 32 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h8 : ((evmSp + 32) + signExtend12 (8 : BitVec 12) : Word) =
           evmSp + 40 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h16 : ((evmSp + 32) + signExtend12 (16 : BitVec 12) : Word) =
           evmSp + 48 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h24 : ((evmSp + 32) + signExtend12 (24 : BitVec 12) : Word) =
           evmSp + 56 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       rw [h0, h8, h16, h24]
       unfold evmWordIs at hp
       have hSrc8 : ((evmSp + 32) + 8 : Word) = evmSp + 40 :=
@@ -109,28 +109,29 @@ theorem exp_loop_un_marshal_and_restore_word_spec_within
     (fun _ hp => by
       have hRestore : ((evmSp + 32) + signExtend12 (-32 : BitVec 12) : Word) =
           evmSp := by
-        unfold signExtend12; bv_decide
+        have : signExtend12 (-32 : BitVec 12) = (-32 : Word) := by decide
+        rw [this]; bv_omega
       have h0 : ((evmSp + 32) + signExtend12 (0 : BitVec 12) : Word) =
           evmSp + 32 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h8 : ((evmSp + 32) + signExtend12 (8 : BitVec 12) : Word) =
           evmSp + 40 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h16 : ((evmSp + 32) + signExtend12 (16 : BitVec 12) : Word) =
           evmSp + 48 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have h24 : ((evmSp + 32) + signExtend12 (24 : BitVec 12) : Word) =
           evmSp + 56 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       rw [hRestore, h0, h8, h16, h24] at hp
       have hSp0 : (sp + signExtend12 (0 : BitVec 12) : Word) = sp := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have hSp8 : (sp + signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have hSp16 : (sp + signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have hSp24 : (sp + signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
-        unfold signExtend12; bv_decide
+        simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
       have hSrc8 : ((evmSp + 32) + 8 : Word) = evmSp + 40 :=
         EvmAsm.Evm64.Exp.AddrNorm.expAdd32Add8 evmSp
       have hSrc16 : ((evmSp + 32) + 16 : Word) = evmSp + 48 :=
@@ -277,21 +278,21 @@ theorem exp_squaring_marshal_pair_then_mul_call_spec_within
           -- offsets, no `signExtend12` wrapper), canonicalize the pair-post
           -- offsets to match, and permute atom-by-atom.
           have h0  : (evmSp + signExtend12 (0  : BitVec 12) : Word) = evmSp       := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h8  : (evmSp + signExtend12 (8  : BitVec 12) : Word) = evmSp + 8   := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h16 : (evmSp + signExtend12 (16 : BitVec 12) : Word) = evmSp + 16  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h24 : (evmSp + signExtend12 (24 : BitVec 12) : Word) = evmSp + 24  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h32 : (evmSp + signExtend12 (32 : BitVec 12) : Word) = evmSp + 32  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h40 : (evmSp + signExtend12 (40 : BitVec 12) : Word) = evmSp + 40  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h48 : (evmSp + signExtend12 (48 : BitVec 12) : Word) = evmSp + 48  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) = evmSp + 56  := by
-            unfold signExtend12; bv_decide
+            simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
           rw [h0, h8, h16, h24, h32, h40, h48, h56] at hp
           have hL : evmWordIs evmSp (expResultWord r0 r1 r2 r3) = _ :=
             evmWordIs_sp_limbs_eq evmSp (expResultWord r0 r1 r2 r3) r0 r1 r2 r3
@@ -364,7 +365,22 @@ theorem exp_squaring_call_block_spec_within
     sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
     v6 v7 v10 v11 mul_target mulOff base hmt hd
   -- (2) Alignment: under base &&& 1 = 0, (base+68) &&& ~~~1 = base+68.
-  have halign : (base + 68 : Word) &&& ~~~(1 : Word) = base + 68 := by bv_decide
+  have halign : (base + 68 : Word) &&& ~~~(1 : Word) = base + 68 := by
+    have hb0 : base.getLsbD 0 = false := by
+      have h : (base &&& 1).getLsbD 0 = (0 : Word).getLsbD 0 := by rw [hbase]
+      rw [BitVec.getLsbD_and] at h
+      rw [show BitVec.getLsbD (1 : Word) 0 = true from rfl,
+          show BitVec.getLsbD (0 : Word) 0 = false from rfl, Bool.and_true] at h
+      exact h
+    have hsum0 : (base + 68 : Word).getLsbD 0 = false := by
+      rw [BitVec.getLsbD_add (by omega), hb0, BitVec.carry_zero]; rfl
+    apply BitVec.eq_of_getLsbD_eq
+    intro i hi
+    rw [BitVec.getLsbD_and, BitVec.getLsbD_not]
+    by_cases h0 : i = 0
+    · subst h0; rw [hsum0]; simp
+    · have h1 : (1 : Word).getLsbD i = false := by simp [BitVec.getLsbD_one, h0]
+      rw [h1]; simp [hi]
   rw [halign] at h1
   -- (3) un_marshal_and_restore_word at offset (base+68), with w' = squareW.
   have h2_raw := exp_loop_un_marshal_and_restore_word_spec_within_regOwn5

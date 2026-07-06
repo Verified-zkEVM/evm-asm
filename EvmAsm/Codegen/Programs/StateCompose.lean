@@ -6,6 +6,10 @@
   so it can reference the string-constant helpers defined there.
 -/
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -295,49 +299,87 @@ def ziskValidateStateRootAgainstWitnessNodeProbeUnit : BuildUnit := {
       offset 40.. 72 : storage_root (32 B)
       offset 72..104 : code_hash (32 B)
 -/
-def accountAtHeaderStateRootFunction : String :=
-  "account_at_header_state_root:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # address_len\n" ++
-  "  mv s4, a4                  # witness ptr\n" ++
-  "  mv s5, a5                  # witness_len\n" ++
-  "  mv s6, a6                  # output struct ptr\n" ++
-  "  # Step 1: extract header.state_root -> aahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, aahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Laahsr_step2\n" ++
-  "  # Header parse / size fail: zero output struct, return 4.\n" ++
-  "  sd zero,  0(s6); sd zero,  8(s6); sd zero, 16(s6); sd zero, 24(s6)\n" ++
-  "  sd zero, 32(s6); sd zero, 40(s6); sd zero, 48(s6); sd zero, 56(s6)\n" ++
-  "  sd zero, 64(s6); sd zero, 72(s6); sd zero, 80(s6); sd zero, 88(s6)\n" ++
-  "  sd zero, 96(s6)\n" ++
-  "  li a0, 4\n" ++
-  "  j .Laahsr_ret\n" ++
-  ".Laahsr_step2:\n" ++
-  "  # Step 2: account_at_address(addr, len, &state_root, witness, len, out).\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s3\n" ++
-  "  la a2, aahsr_state_root\n" ++
-  "  mv a3, s4\n" ++
-  "  mv a4, s5\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  # a0 already holds account_at_address's status (0/1/2/3).\n" ++
-  ".Laahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def accountAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 76)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 76)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.account_at_header_state_root + 84)),
+    .BEQ .x10 .x0 (64 : BitVec 13),
+    .SD .x22 .x0 (0 : BitVec 12),
+    .SD .x22 .x0 (8 : BitVec 12),
+    .SD .x22 .x0 (16 : BitVec 12),
+    .SD .x22 .x0 (24 : BitVec 12),
+    .SD .x22 .x0 (32 : BitVec 12),
+    .SD .x22 .x0 (40 : BitVec 12),
+    .SD .x22 .x0 (48 : BitVec 12),
+    .SD .x22 .x0 (56 : BitVec 12),
+    .SD .x22 .x0 (64 : BitVec 12),
+    .SD .x22 .x0 (72 : BitVec 12),
+    .SD .x22 .x0 (80 : BitVec 12),
+    .SD .x22 .x0 (88 : BitVec 12),
+    .SD .x22 .x0 (96 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 160)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 160)),
+    .MV .x13 .x20,
+    .MV .x14 .x21,
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.account_at_header_state_root + 180)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountAtHeaderStateRoot_relocs : RelocTable :=
+  [ (19, .la .x12 "aahsr_state_root"),
+    (21, .jal .x1 "header_extract_state_root"),
+    (40, .la .x12 "aahsr_state_root"),
+    (45, .jal .x1 "account_at_address") ]
+
+def accountAtHeaderStateRootFunction : String :=
+  "account_at_header_state_root:\n" ++ emitProgramR accountAtHeaderStateRoot_prog accountAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountAtHeaderStateRootFunction_eq_prog :
+    accountAtHeaderStateRootFunction = "account_at_header_state_root:\n" ++ emitProgramR accountAtHeaderStateRoot_prog accountAtHeaderStateRoot_relocs := rfl
+
+#guard accountAtHeaderStateRootFunction.startsWith "account_at_header_state_root:\n"
+#guard accountAtHeaderStateRoot_prog.length = 57
 /-- `zisk_account_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -519,62 +561,98 @@ def ziskAccountAtHeaderStateRootProbeUnit : BuildUnit := {
     The 32-byte slot value (u256, big-endian) is written to
     `sahsr_u256` -- the probe BuildUnit copies it to OUTPUT.
 -/
-def slotAtHeaderStateRootFunction : String :=
-  "slot_at_header_state_root:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # slot_idx ptr\n" ++
-  "  mv s4, a4                  # witness.state ptr\n" ++
-  "  mv s5, a5                  # witness.state len\n" ++
-  "  mv s6, a6                  # witness.storage ptr\n" ++
-  "  mv s7, a7                  # witness.storage len\n" ++
-  "  # Step 1: extract header.state_root -> sahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, sahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lsahsr_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lsahsr_ret\n" ++
-  ".Lsahsr_step2:\n" ++
-  "  # Step 2: account_at_address -> sahsr_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20                  # address byte length\n" ++
-  "  la a2, sahsr_state_root\n" ++
-  "  mv a3, s4\n" ++
-  "  mv a4, s5\n" ++
-  "  la a5, sahsr_acct_struct\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lsahsr_step3\n" ++
-  "  # a0 is 1/2/3 already; just return it.\n" ++
-  "  j .Lsahsr_ret\n" ++
-  ".Lsahsr_step3:\n" ++
-  "  # Step 3: slot_at_index(slot_idx, 32, &acct.storage_root, witness.storage, ..., sahsr_u256).\n" ++
-  "  mv a0, s3\n" ++
-  "  li a1, 32\n" ++
-  "  la a2, sahsr_acct_struct\n" ++
-  "  addi a2, a2, 40            # &acct_struct.storage_root\n" ++
-  "  mv a3, s6\n" ++
-  "  mv a4, s7\n" ++
-  "  la a5, sahsr_u256\n" ++
-  "  jal ra, slot_at_index\n" ++
-  "  beqz a0, .Lsahsr_ret\n" ++
-  "  # slot_at_index returned 1/2/3; remap to 5/6/7.\n" ++
-  "  addi a0, a0, 4\n" ++
-  ".Lsahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+def slotAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x23 .x17,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.sahsr_state_root (GuestAddrs.slot_at_header_state_root + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sahsr_state_root (GuestAddrs.slot_at_header_state_root + 88)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.slot_at_header_state_root + 96)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (96 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.sahsr_state_root (GuestAddrs.slot_at_header_state_root + 120)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sahsr_state_root (GuestAddrs.slot_at_header_state_root + 120)),
+    .MV .x13 .x20,
+    .MV .x14 .x21,
+    .AUIPC .x15 (laHi GuestAddrs.sahsr_acct_struct (GuestAddrs.slot_at_header_state_root + 136)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sahsr_acct_struct (GuestAddrs.slot_at_header_state_root + 136)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.slot_at_header_state_root + 144)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (52 : BitVec 21),
+    .MV .x10 .x19,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.sahsr_acct_struct (GuestAddrs.slot_at_header_state_root + 164)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sahsr_acct_struct (GuestAddrs.slot_at_header_state_root + 164)),
+    .ADDI .x12 .x12 (40 : BitVec 12),
+    .MV .x13 .x22,
+    .MV .x14 .x23,
+    .AUIPC .x15 (laHi GuestAddrs.sahsr_u256 (GuestAddrs.slot_at_header_state_root + 184)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sahsr_u256 (GuestAddrs.slot_at_header_state_root + 184)),
+    .JAL .x1 (jalOff GuestAddrs.slot_at_index (GuestAddrs.slot_at_header_state_root + 192)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .ADDI .x10 .x10 (4 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `slotAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def slotAtHeaderStateRoot_relocs : RelocTable :=
+  [ (22, .la .x12 "sahsr_state_root"),
+    (24, .jal .x1 "header_extract_state_root"),
+    (30, .la .x12 "sahsr_state_root"),
+    (34, .la .x15 "sahsr_acct_struct"),
+    (36, .jal .x1 "account_at_address"),
+    (41, .la .x12 "sahsr_acct_struct"),
+    (46, .la .x15 "sahsr_u256"),
+    (48, .jal .x1 "slot_at_index") ]
+
+def slotAtHeaderStateRootFunction : String :=
+  "slot_at_header_state_root:\n" ++ emitProgramR slotAtHeaderStateRoot_prog slotAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `slotAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem slotAtHeaderStateRootFunction_eq_prog :
+    slotAtHeaderStateRootFunction = "slot_at_header_state_root:\n" ++ emitProgramR slotAtHeaderStateRoot_prog slotAtHeaderStateRoot_relocs := rfl
+
+#guard slotAtHeaderStateRootFunction.startsWith "slot_at_header_state_root:\n"
+#guard slotAtHeaderStateRoot_prog.length = 64
 /-- `zisk_slot_at_header_state_root`: probe BuildUnit.
 
     Input layout at INPUT_ADDR:
@@ -739,10 +817,10 @@ def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
     extract `state_root` from the header, walk the state trie to
     the account leaf, decode the four account fields, then look
     up the account's `code_hash` in the `witness.codes` SSZ list
-    via `witness_lookup_by_hash`.
+    via `witness_codes_lookup_by_hash`.
 
     Composes K201 `header_extract_state_root`, K28
-    `account_at_address`, and K19 `witness_lookup_by_hash`.
+    `account_at_address`, and the code-specific K19 `witness_codes_lookup_by_hash`.
 
     Calling convention (7 args, fits in a0..a6):
       a0 (input)  : header_rlp ptr
@@ -767,57 +845,94 @@ def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
     `cahsr_code_length`; the probe BuildUnit copies them to
     OUTPUT.
 -/
-def codeAtHeaderStateRootFunction : String :=
-  "code_at_header_state_root:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # witness.codes ptr\n" ++
-  "  mv s6, a6                  # witness.codes len\n" ++
-  "  # Step 1: header.state_root -> cahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, cahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lcahsr_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lcahsr_ret\n" ++
-  ".Lcahsr_step2:\n" ++
-  "  # Step 2: account_at_address -> cahsr_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, cahsr_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la a5, cahsr_acct_struct\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lcahsr_step3\n" ++
-  "  # a0 is 1/2/3; propagate.\n" ++
-  "  j .Lcahsr_ret\n" ++
-  ".Lcahsr_step3:\n" ++
-  "  # Step 3: witness_lookup_by_hash(codes, &acct.code_hash).\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  la a2, cahsr_acct_struct\n" ++
-  "  addi a2, a2, 72            # &acct_struct.code_hash\n" ++
-  "  la a3, cahsr_code_offset\n" ++
-  "  la a4, cahsr_code_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  beqz a0, .Lcahsr_ret       # a0=0 hit\n" ++
-  "  li a0, 5                   # miss -> 5\n" ++
-  ".Lcahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def codeAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 76)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 76)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.code_at_header_state_root + 84)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (96 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 108)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 108)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x15 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 124)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 124)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.code_at_header_state_root + 132)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (52 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 152)),
+    .ADDI .x12 .x12 (72 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 164)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 164)),
+    .AUIPC .x14 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
+    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_at_header_state_root + 180)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .LI .x10 (5 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `codeAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def codeAtHeaderStateRoot_relocs : RelocTable :=
+  [ (19, .la .x12 "cahsr_state_root"),
+    (21, .jal .x1 "header_extract_state_root"),
+    (27, .la .x12 "cahsr_state_root"),
+    (31, .la .x15 "cahsr_acct_struct"),
+    (33, .jal .x1 "account_at_address"),
+    (38, .la .x12 "cahsr_acct_struct"),
+    (41, .la .x13 "cahsr_code_offset"),
+    (43, .la .x14 "cahsr_code_length"),
+    (45, .jal .x1 "witness_codes_lookup_by_hash") ]
+
+def codeAtHeaderStateRootFunction : String :=
+  "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `codeAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem codeAtHeaderStateRootFunction_eq_prog :
+    codeAtHeaderStateRootFunction = "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs := rfl
+
+#guard codeAtHeaderStateRootFunction.startsWith "code_at_header_state_root:\n"
+#guard codeAtHeaderStateRoot_prog.length = 59
 /-- `zisk_code_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -835,17 +950,21 @@ def codeAtHeaderStateRootFunction : String :=
       bytes 16..24 : matched code length (on hit) -/
 def ziskCodeAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  ld t4, 24(t1)               # witness_codes_len\n" ++
-  "  addi a2, t1, 32             # address ptr (20 B)\n" ++
-  "  addi a0, t1, 52             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a3, a0, t2              # witness.state ptr\n" ++
-  "  mv a4, t3                   # witness_state_len\n" ++
-  "  add a5, a3, t3              # witness.codes ptr\n" ++
-  "  mv a6, t4                   # witness_codes_len\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)                # header_rlp_len\n" ++
+  "  ld s2, 16(s0)               # witness_state_len\n" ++
+  "  ld s3, 24(s0)               # witness_codes_len\n" ++
+  "  addi s4, s0, 52             # header_rlp ptr\n" ++
+  "  add s5, s4, s1              # witness.state ptr\n" ++
+  "  add s6, s5, s2              # witness.codes ptr\n" ++
+  "  mv a0, s6; mv a1, s3; jal ra, witness_codes_index_build\n" ++
+  "  mv a0, s4                   # header_rlp ptr\n" ++
+  "  mv a1, s1                   # header_rlp_len\n" ++
+  "  addi a2, s0, 32             # address ptr (20 B)\n" ++
+  "  mv a3, s5                   # witness.state ptr\n" ++
+  "  mv a4, s2                   # witness_state_len\n" ++
+  "  mv a5, s6                   # witness.codes ptr\n" ++
+  "  mv a6, s3                   # witness_codes_len\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
@@ -855,6 +974,7 @@ def ziskCodeAtHeaderStateRootPrologue : String :=
   "  j .Lcahsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -875,6 +995,8 @@ def ziskCodeAtHeaderStateRootDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++
@@ -981,7 +1103,7 @@ def ziskCodeAtHeaderStateRootProbeUnit : BuildUnit := {
     rule).
 
     Composes K201 `header_extract_state_root`, K28
-    `account_at_address`, K19 `witness_lookup_by_hash`, and an
+    `account_at_address`, code-specific K19 `witness_codes_lookup_by_hash`, and an
     inline 4 x u64 compare against the pre-baked
     `EMPTY_CODE_HASH` constant.
 
@@ -1006,79 +1128,121 @@ def ziskCodeAtHeaderStateRootProbeUnit : BuildUnit := {
 
     The probe BuildUnit copies `ecsahsr_code_len` to OUTPUT + 8.
 -/
-def extcodesizeAtHeaderStateRootFunction : String :=
-  "extcodesize_at_header_state_root:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # witness.codes ptr\n" ++
-  "  mv s6, a6                  # witness.codes len\n" ++
-  "  # Pre-zero output (covers the missing/empty cases).\n" ++
-  "  la t0, ecsahsr_code_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  # Step 1: header.state_root -> ecsahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, ecsahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lecsahsr_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lecsahsr_ret\n" ++
-  ".Lecsahsr_step2:\n" ++
-  "  # Step 2: account_at_address -> ecsahsr_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, ecsahsr_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s7, ecsahsr_acct_struct\n" ++
-  "  mv a5, s7\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lecsahsr_check_empty\n" ++
-  "  # status 1 (not in trie) -> spec returns 0 (output already zero).\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Lecsahsr_success_zero\n" ++
-  "  # status 2/3 -> propagate.\n" ++
-  "  j .Lecsahsr_ret\n" ++
-  ".Lecsahsr_success_zero:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lecsahsr_ret\n" ++
-  ".Lecsahsr_check_empty:\n" ++
-  "  # code_hash == EMPTY_CODE_HASH ?\n" ++
-  "  la t0, ecsahsr_empty_code_hash\n" ++
-  "  ld t1,  0(t0); ld t2, 72(s7); bne t1, t2, .Lecsahsr_lookup\n" ++
-  "  ld t1,  8(t0); ld t2, 80(s7); bne t1, t2, .Lecsahsr_lookup\n" ++
-  "  ld t1, 16(t0); ld t2, 88(s7); bne t1, t2, .Lecsahsr_lookup\n" ++
-  "  ld t1, 24(t0); ld t2, 96(s7); bne t1, t2, .Lecsahsr_lookup\n" ++
-  "  # code is empty; output stays 0, return 0.\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lecsahsr_ret\n" ++
-  ".Lecsahsr_lookup:\n" ++
-  "  # Step 3: witness_lookup_by_hash(codes, &acct.code_hash).\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  addi a2, s7, 72            # &acct.code_hash\n" ++
-  "  la a3, ecsahsr_dummy_offset\n" ++
-  "  la a4, ecsahsr_code_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  beqz a0, .Lecsahsr_ret\n" ++
-  "  # miss -> witness integrity violation (5); zero output.\n" ++
-  "  la t0, ecsahsr_code_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  li a0, 5\n" ++
-  ".Lecsahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def extcodesizeAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .AUIPC .x5 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 68)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.ecsahsr_state_root (GuestAddrs.extcodesize_at_header_state_root + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ecsahsr_state_root (GuestAddrs.extcodesize_at_header_state_root + 88)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extcodesize_at_header_state_root + 96)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (184 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.ecsahsr_state_root (GuestAddrs.extcodesize_at_header_state_root + 120)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ecsahsr_state_root (GuestAddrs.extcodesize_at_header_state_root + 120)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x23 (laHi GuestAddrs.ecsahsr_acct_struct (GuestAddrs.extcodesize_at_header_state_root + 136)),
+    .ADDI .x23 .x23 (laLo GuestAddrs.ecsahsr_acct_struct (GuestAddrs.extcodesize_at_header_state_root + 136)),
+    .MV .x15 .x23,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.extcodesize_at_header_state_root + 148)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (128 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (120 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ecsahsr_empty_code_hash (GuestAddrs.extcodesize_at_header_state_root + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_empty_code_hash (GuestAddrs.extcodesize_at_header_state_root + 176)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x23 (72 : BitVec 12),
+    .BNE .x6 .x7 (48 : BitVec 13),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LD .x7 .x23 (80 : BitVec 12),
+    .BNE .x6 .x7 (36 : BitVec 13),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LD .x7 .x23 (88 : BitVec 12),
+    .BNE .x6 .x7 (24 : BitVec 13),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .LD .x7 .x23 (96 : BitVec 12),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (56 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .ADDI .x12 .x23 (72 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ecsahsr_dummy_offset (GuestAddrs.extcodesize_at_header_state_root + 252)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ecsahsr_dummy_offset (GuestAddrs.extcodesize_at_header_state_root + 252)),
+    .AUIPC .x14 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 260)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 260)),
+    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.extcodesize_at_header_state_root + 268)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 276)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x10 (5 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `extcodesizeAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extcodesizeAtHeaderStateRoot_relocs : RelocTable :=
+  [ (17, .la .x5 "ecsahsr_code_len"),
+    (22, .la .x12 "ecsahsr_state_root"),
+    (24, .jal .x1 "header_extract_state_root"),
+    (30, .la .x12 "ecsahsr_state_root"),
+    (34, .la .x23 "ecsahsr_acct_struct"),
+    (37, .jal .x1 "account_at_address"),
+    (44, .la .x5 "ecsahsr_empty_code_hash"),
+    (63, .la .x13 "ecsahsr_dummy_offset"),
+    (65, .la .x14 "ecsahsr_code_len"),
+    (67, .jal .x1 "witness_codes_lookup_by_hash"),
+    (69, .la .x5 "ecsahsr_code_len") ]
+
+def extcodesizeAtHeaderStateRootFunction : String :=
+  "extcodesize_at_header_state_root:\n" ++ emitProgramR extcodesizeAtHeaderStateRoot_prog extcodesizeAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extcodesizeAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem extcodesizeAtHeaderStateRootFunction_eq_prog :
+    extcodesizeAtHeaderStateRootFunction = "extcodesize_at_header_state_root:\n" ++ emitProgramR extcodesizeAtHeaderStateRoot_prog extcodesizeAtHeaderStateRoot_relocs := rfl
+
+#guard extcodesizeAtHeaderStateRootFunction.startsWith "extcodesize_at_header_state_root:\n"
+#guard extcodesizeAtHeaderStateRoot_prog.length = 84
 /-- `zisk_extcodesize_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -1094,17 +1258,21 @@ def extcodesizeAtHeaderStateRootFunction : String :=
       bytes  8..16 : code length (u64; 0 for missing/empty) -/
 def ziskExtcodesizeAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  ld t4, 24(t1)               # witness_codes_len\n" ++
-  "  addi a2, t1, 32             # address ptr\n" ++
-  "  addi a0, t1, 52             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a3, a0, t2              # witness.state ptr\n" ++
-  "  mv a4, t3                   # witness_state_len\n" ++
-  "  add a5, a3, t3              # witness.codes ptr\n" ++
-  "  mv a6, t4                   # witness_codes_len\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)                # header_rlp_len\n" ++
+  "  ld s2, 16(s0)               # witness_state_len\n" ++
+  "  ld s3, 24(s0)               # witness_codes_len\n" ++
+  "  addi s4, s0, 52             # header_rlp ptr\n" ++
+  "  add s5, s4, s1              # witness.state ptr\n" ++
+  "  add s6, s5, s2              # witness.codes ptr\n" ++
+  "  mv a0, s6; mv a1, s3; jal ra, witness_codes_index_build\n" ++
+  "  mv a0, s4                   # header_rlp ptr\n" ++
+  "  mv a1, s1                   # header_rlp_len\n" ++
+  "  addi a2, s0, 32             # address ptr\n" ++
+  "  mv a3, s5                   # witness.state ptr\n" ++
+  "  mv a4, s2                   # witness_state_len\n" ++
+  "  mv a5, s6                   # witness.codes ptr\n" ++
+  "  mv a6, s3                   # witness_codes_len\n" ++
   "  jal ra, extcodesize_at_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
@@ -1113,6 +1281,7 @@ def ziskExtcodesizeAtHeaderStateRootPrologue : String :=
   "  j .Lecsahsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -1133,6 +1302,8 @@ def ziskExtcodesizeAtHeaderStateRootDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++

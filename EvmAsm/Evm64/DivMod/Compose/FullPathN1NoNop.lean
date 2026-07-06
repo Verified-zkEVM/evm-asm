@@ -119,9 +119,9 @@ theorem evm_div_phaseAB_n1_clz_c2_spec_within_noNop (sp base : Word)
 @[irreducible]
 def evmDivPhaseABN1ClzC2NormBPre
     (sp v5 v6 v7 v10 b0 b1 b2 b3
-      q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word) : Assertion :=
+      q0 q1 q2 q3 u5 u6 u7 nMem shiftMem x2In : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-  (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+  (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ x2In) **
   ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
   ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
   ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -132,11 +132,11 @@ def evmDivPhaseABN1ClzC2NormBPre
 
 theorem evmDivPhaseABN1ClzC2NormBPre_unfold
     {sp v5 v6 v7 v10 b0 b1 b2 b3
-      q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word} :
+      q0 q1 q2 q3 u5 u6 u7 nMem shiftMem x2In : Word} :
     evmDivPhaseABN1ClzC2NormBPre sp v5 v6 v7 v10 b0 b1 b2 b3
-        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem =
+        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem x2In =
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ x2In) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -219,7 +219,7 @@ theorem evm_div_phaseAB_n1_clz_c2_normB_spec_within_noNop (sp base : Word)
     (hshift_nz : (clzResult b0).1 ≠ 0) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21) base (base + normAOff) (divCode_noNop base)
       (evmDivPhaseABN1ClzC2NormBPre sp v5 v6 v7 v10 b0 b1 b2 b3
-        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem)
+        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem ((clzResult b0).2 >>> (63 : Nat)))
       (evmDivPhaseABN1ClzC2NormBFullPost sp b0 b1 b2 b3) := by
   simp only [evmDivPhaseABN1ClzC2NormBPre_unfold,
              evmDivPhaseABN1ClzC2NormBFullPost_unfold]

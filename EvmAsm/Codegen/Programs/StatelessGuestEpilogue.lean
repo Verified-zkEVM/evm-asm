@@ -15,6 +15,8 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictV2
+import EvmAsm.Codegen.Programs.HeaderChain
 
 namespace EvmAsm.Codegen
 
@@ -53,6 +55,12 @@ def statelessGuestValidatorPipeline : String :=
   "                              # SSZ_BASE for the encoder's bounded byte-copy)\n" ++
   "  mv s4, x14                  # s4 = section_len\n" ++
   "  beqz s2, .Lsg_all_pass      # N=0: skip validators\n" ++
+  "  # 9lw0m: spec validate_headers asserts len(encoded_headers) <= 256. Enforce it\n" ++
+  "  # here, BEFORE building sg_header_lengths (a fixed 256*8 = 2048-byte buffer):\n" ++
+  "  # this both matches the spec (a >256-header witness is invalid -> reject, closing\n" ++
+  "  # a false-accept) and prevents the .Lsg_bl loop from overflowing sg_header_lengths.\n" ++
+  "  li t0, 256\n" ++
+  "  bgtu s2, t0, .Lsg_fail_toomany\n" ++
   "  # Build sg_header_lengths[N]: convert N u32 inner-offset deltas\n" ++
   "  # to N u64 absolute lengths.\n" ++
   "  mv t0, s3                   # t0 = offsets cursor (section_ptr)\n" ++
@@ -78,48 +86,40 @@ def statelessGuestValidatorPipeline : String :=
   "  # s5 = headers_data_ptr = section_ptr + 4*N\n" ++
   "  slli t0, s2, 2\n" ++
   "  add s5, s3, t0\n" ++
-  "  # Validator 1: K290 chain_validate_post_merge_full\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_post_merge_full\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_pm\n" ++
-  "  # Validator 2: K291 chain_validate_extra_data_length\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_extra_data_length\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ed\n" ++
-  "  # Validator 3: K240 chain_validate_gas_used_under_limit\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_gas_used_under_limit\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_gas\n" ++
-  "  # Validator 4: K278 chain_validate_blob_gas_used_multiple\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_blob_gas_used_multiple\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgm\n" ++
-  "  # Validator 5: K277 chain_validate_blob_gas_used_under_max\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_blob_gas_used_under_max\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgum\n" ++
-  "  # Validator 6: K229 chain_validate_increasing_timestamps\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_increasing_timestamps\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ts\n" ++
-  "  # Validator 7: K230 chain_validate_consecutive_numbers\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_consecutive_numbers\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_nm\n" ++
+  "  # 9lw0m: spec validate_headers parent_hash contiguity (stateless.py:266-277).\n" ++
+  "  # For i in 1..N-1, child.parent_hash == keccak256(encoded_header[i-1]); reject a\n" ++
+  "  # non-contiguous witness chain. This is the spec's ONLY header-chain check and\n" ++
+  "  # was previously omitted (a false-accept: a witness with a broken keccak link but\n" ++
+  "  # plausible fields would pass). N<2 is vacuously contiguous. s6-s9 hold the loop\n" ++
+  "  # state and survive validate_parent_hash_link (it saves s0-s4 only).\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s2, t0, .Lsg_contig_done\n" ++
+  "  la t0, sg_header_lengths\n" ++
+  "  ld s6, 0(t0)                # prev_len = lengths[0]\n" ++
+  "  mv s7, s5                   # prev_ptr = header[0]\n" ++
+  "  add s8, s5, s6              # cur_ptr = header[1]\n" ++
+  "  li s9, 1                    # i = 1\n" ++
+  ".Lsg_contig_loop:\n" ++
+  "  beq s9, s2, .Lsg_contig_done\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld a3, 0(t1)  # cur_len\n" ++
+  "  mv a0, s7; mv a1, s6; mv a2, s8; la a4, sg_contig_valid\n" ++
+  "  jal ra, validate_parent_hash_link\n" ++
+  "  bnez a0, .Lsg_fail_contig   # parse/size failure => reject\n" ++
+  "  la t0, sg_contig_valid; ld t0, 0(t0); beqz t0, .Lsg_fail_contig\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld t2, 0(t1)  # cur_len (a3 clobbered)\n" ++
+  "  mv s7, s8; mv s6, t2; add s8, s8, t2; addi s9, s9, 1\n" ++
+  "  j .Lsg_contig_loop\n" ++
+  ".Lsg_contig_done:\n" ++
+  "  # 9lw0m deviation B: the spec's validate_headers (amsterdam stateless.py:266-277)\n" ++
+  "  # field-validates the witness ancestor headers ONLY for parent_hash contiguity\n" ++
+  "  # (checked above) + count<=256 (checked at entry). It does NOT re-validate the\n" ++
+  "  # ancestors' post-merge fields / extra_data / gas_used / blob_gas / timestamps /\n" ++
+  "  # numbers -- those are historical blocks the stateless client trusts, and the\n" ++
+  "  # block-under-test's own header is validated separately in the verdict path. The\n" ++
+  "  # 7 per-witness-header validators here were a spec-absent over-check (a latent\n" ++
+  "  # false-reject vector), so they are removed to match the spec. (RLP-decodability\n" ++
+  "  # of each ancestor is still enforced: the contiguity check parses every header to\n" ++
+  "  # extract parent_hash.)\n" ++
   ".Lsg_all_pass:\n" ++
   "  # All validators that ran passed (or N=0 fast-path). NB: with\n" ++
   "  # the new-schema decoder stubs in `EvmAsm/Stateless/SSZ/Decode/\n" ++
@@ -130,6 +130,8 @@ def statelessGuestValidatorPipeline : String :=
   "  # False` outcome. Once the real witness walk + validators run,\n" ++
   "  # the body's encoder will see x11 = 1 from a real success.\n" ++
   "  j .Lsg_hash\n" ++
+  ".Lsg_fail_contig: li a0, 0x18; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_toomany: li a0, 0x19; j .Lsg_unimpl\n" ++
   ".Lsg_fail_pm:   li a0, 0x10; j .Lsg_unimpl\n" ++
   ".Lsg_fail_ed:   li a0, 0x11; j .Lsg_unimpl\n" ++
   ".Lsg_fail_gas:  li a0, 0x12; j .Lsg_unimpl\n" ++
@@ -145,9 +147,9 @@ def statelessGuestValidatorPipeline : String :=
   "  # for the same input shape (spec catches the validator exception\n" ++
   "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
   "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
-  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash stamps the\n" ++
-  "  # empty_npr_root constant at OUTPUT[0..32), and the codegen halt\n" ++
-  "  # stub takes over.\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash computes\n" ++
+  "  # the NPR root at OUTPUT[0..32), and the codegen halt stub takes\n" ++
+  "  # over.\n" ++
   "  j .Lsg_hash"
 
 def statelessGuestEpilogue : String :=
@@ -160,34 +162,36 @@ def statelessGuestEpilogue : String :=
   "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
   "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
   "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
-  "  # For all current fixtures every NPR field except\n" ++
-  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
-  "  # field_root[1], and field_root[3] are static constants\n" ++
-  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
-  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[0], field_root[1], and field_root[3] are derived\n" ++
+  "  # dynamically into `npr_exec_payload_root`,\n" ++
+  "  # `npr_versioned_hashes_dyn`, and `npr_exec_requests_dyn`.\n" ++
   "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
   "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
   "  # is always 16).\n" ++
   "  # \n" ++
   "  # Computation:\n" ++
+  "  #   left_subtree  = sha256(npr_exec_payload_root ||\n" ++
+  "  #                          npr_versioned_hashes_dyn)\n" ++
   "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
-  "  #                          npr_exec_requests_root)\n" ++
-  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
+  "  #                          npr_exec_requests_dyn)\n" ++
+  "  #   npr_root      = sha256(left_subtree || right_subtree)\n" ++
   "  # \n" ++
   "  # For pbr=zero (every previously-shipped fixture) the\n" ++
   "  # computation reproduces the precomputed `empty_npr_root`\n" ++
   "  # constant. For non-empty pbr it produces the spec-matching\n" ++
   "  # root.\n" ++
   "  # \n" ++
-  "  # Generalising to non-default execution_payload /\n" ++
-  "  # versioned_hashes / execution_requests requires recomputing\n" ++
-  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
-  "  # \n" ++
   "  # Re-derive SSZ_BASE in s6 (callee-saved -- survives zkvm_sha256\n" ++
   "  # calls). K-PR pipeline only saves s0-s5 in its validators, so\n" ++
   "  # s6 is free.\n" ++
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
+  "  # Preserve zisk's current trap vector: the embedded verdict uses a\n" ++
+  "  # large scratch arena and can overwrite CSR-like system memory.\n" ++
+  "  li t0, 0xa0009828           # zisk MTVEC memory slot\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t2, npr_saved_mtvec\n" ++
+  "  sd t1, 0(t2)\n" ++
   "  # \n" ++
   "  # ===== dynamic NPR list field-roots (replace empty-list consts) =====\n" ++
   "  # exec_payload_addr = NPR_addr + 44 (NPR fixed header) = s6 + 16 + 44\n" ++
@@ -415,16 +419,26 @@ def statelessGuestEpilogue : String :=
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_4_5_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_4_5 -> npr_node_4_5_scratch\n" ++
   "  # \n" ++
-  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_default ||\n" ++
+  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_root ||\n" ++
   "  #                            leaf_11=base_fee_per_gas):\n" ++
-  "  #   leaf_10 = SSZ default empty ByteList root = ssz_zero_hash[1]\n" ++
-  "  #             (= sha256(0||0) -- empty merkleized ByteList with\n" ++
-  "  #             length mix-in for the empty case).\n" ++
+  "  #   leaf_10 = hash_tree_root(extra_data: ByteList[32]) where\n" ++
+  "  #             extra_data is exec_payload@[extra_off .. tx_off].\n" ++
   "  #   leaf_11 = base_fee_per_gas (uint256, 32 bytes LE @\n" ++
   "  #             SSZ_BASE + 16 + 44 + 440 = +500)\n" ++
+  "  addi a0, s6, 496           # &extra_data_offset (exec_payload+436)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = extra_data_offset\n" ++
+  "  addi a0, s6, 564           # &transactions_offset (exec_payload+504)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = transactions_offset\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # extra_data_start\n" ++
+  "  sub a1, s8, s7             # extra_data_len\n" ++
+  "  li a2, 0                   # ByteList[32] => 2^0 chunks\n" ++
+  "  la a3, npr_leaf_10_extra_data_scratch\n" ++
+  "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, ssz_zero_hashes\n" ++
-  "  addi t3, t3, 32             # ssz_zero_hash[1]\n" ++
+  "  la t3, npr_leaf_10_extra_data_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
@@ -762,8 +776,75 @@ def statelessGuestEpilogue : String :=
   "  #  payload.state_root + EIP-7928 BAL gas-limit rule). NPR root is already at\n" ++
   "  #  OUTPUT[0..32); stamp the verdict bit at OUTPUT[32]. Conservative: any\n" ++
   "  #  unhandled case -> 0 (never a false positive).\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: the verdict's contract dispatch lets real RETURN/REVERT handlers
+  -- write OUTPUT_ADDR (0xa0010000), clobbering the result we just computed (npr_root + tail) on
+  -- revert/return blocks. Save OUTPUT[0:112] before the verdict and restore it after, so the
+  -- 105-byte SszStatelessValidationResult survives. (The verdict reads its outcome from env/rdg,
+  -- not its own OUTPUT, so discarding those dispatch-time OUTPUT writes is sound. a0 = the verdict
+  -- bit; the restore loop touches only t-regs, so a0 survives for the succ stamp below.)
+  "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
+  ".Lsg_npr_save:\n" ++
+  "  add t3, t0, t2; ld t4, 0(t3); add t3, t1, t2; sd t4, 0(t3)\n" ++
+  "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_save\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
+  "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
+  ".Lsg_npr_restore:\n" ++
+  "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
+  "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
+  -- b2ov4: enforce STATELESS_INPUT_SCHEMA_ID before emitting a successful
+  -- validation. The spec's deserialize_stateless_input (amsterdam
+  -- stateless_guest.py:31-40) reads the leading 2 bytes big-endian and RAISES
+  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x0001,
+  -- stateless_ssz.py:64) BEFORE any SSZ decode/verify. The guest reads the SSZ
+  -- body unconditionally from SSZ_BASE = INPUT+18, never consulting the 2-byte
+  -- schema prefix at INPUT+16, so a wrong-schema-but-otherwise-valid input would
+  -- decode and could reach succ=01 -- a false-accept of input the Python entry
+  -- point rejects. Gate it here (a0 = verdict bit; force 0 on a schema mismatch).
+  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x00, [INPUT+17]=0x01.
+  -- Every real fixture carries 0x0001, so this is transparent to passing rows.
+  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
+  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x00)\n" ++
+  "  lbu t3, 1(t1)                        # schema_id lo byte (must be 0x01)\n" ++
+  "  bnez t2, .Lsg_bad_input\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_bad_input\n" ++
+  -- b2ov4.1: canonical SszStatelessInput outer-offset gate. The spec decodes the
+  -- SSZ via remerkleable, which raises on non-canonical offsets BEFORE the verdict
+  -- reads any derived field. SszStatelessInput has 4 variable-length fields
+  -- (new_payload_request, witness, chain_config, public_keys -- chain_config is
+  -- variable via active_fork.blob_schedule = SszOptionalBlobSchedule), so the fixed
+  -- part is 4*4 = 16 bytes and the 4 u32-LE offsets live at SSZ_BASE+0/4/8/12.
+  -- Canonical SSZ requires: offset[0] == 16 (no gap before the first field),
+  -- offsets non-decreasing, and offset[3] (last field start) <= the SSZ section
+  -- length. The guest navigates these offsets unchecked, so a non-canonical offset
+  -- table could mis-slice fields and still reach succ=01. Byte-wise u32 loads
+  -- (SSZ_BASE = 0x40000012 is only 2-aligned). Transparent to real fixtures.
+  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_bad_input  # offset[0] == fixed part (16)\n" ++
+  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[1] >= offset[0]\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[2] >= offset[1]\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[3] >= offset[2]\n" ++
+  "  li t4, 0x40000008; ld t5, 0(t4); addi t5, t5, -2  # SSZ_len = host_blob_len - schema(2)\n" ++
+  "  bgtu t3, t5, .Lsg_bad_input          # offset[3] <= SSZ section length\n" ++
+  "  j .Lsg_input_ok\n" ++
+  ".Lsg_bad_input:\n" ++
+  "  li a0, 0                             # bad schema id or non-canonical SSZ offsets -> reject (succ=00)\n" ++
+  ".Lsg_input_ok:\n" ++
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
+  "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
+  "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++
+  "  la t1, npr_saved_mtvec\n" ++
+  "  ld t1, 0(t1)\n" ++
+  "  sd t1, 0(t0)\n" ++
   "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
   -- SSZ merkleization helpers for the dynamic transactions_root /
@@ -963,6 +1044,7 @@ def statelessGuestEpilogue : String :=
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
   chainValidateExtraDataLengthFunction ++ "\n" ++
   chainValidateGasUsedUnderLimitFunction ++ "\n" ++

@@ -55,7 +55,8 @@ abbrev expBoundaryProgram : Program :=
   EvmAsm.Evm64.exp_prologue ;; EvmAsm.Evm64.exp_epilogue
 
 theorem expBoundaryProgram_len : expBoundaryProgram.length = 15 := by
-  native_decide
+  unfold expBoundaryProgram EvmAsm.Rv64.seq
+  rw [EvmAsm.Rv64.Program.length_append, exp_prologue_len, exp_epilogue_len]
 
 theorem expBoundaryProgram_byte_len : 4 * expBoundaryProgram.length = 60 := by
   rw [expBoundaryProgram_len]

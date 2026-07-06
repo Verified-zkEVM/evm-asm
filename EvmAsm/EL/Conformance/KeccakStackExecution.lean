@@ -84,7 +84,7 @@ theorem runKeccakStack?_vector :
       { memory := [(0xaa : Byte), 0xbb, 0xcc]
         stack := [(1 : EvmWord), 2, 99] } =
       some [(0 : EvmWord), 99] := by
-  native_decide
+  rfl
 
 theorem runKeccakStack?_underflow :
     runKeccakStack?

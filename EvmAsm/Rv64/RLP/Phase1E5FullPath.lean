@@ -149,26 +149,49 @@ theorem rlp_phase1_e5_full_path_lenOfLen_of_class_spec_within
           (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixLongListLenOfLen pfx) : Word))) := by
   have h_range :=
     (EvmAsm.EL.RLP.classifyPrefix_longList_iff pfx).mp h_class
+  have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
+    Nat.mod_eq_of_lt (by omega)
   have hv5_lo :
       ¬ BitVec.ult (pfx.zeroExtend 64)
         ((0 : Word) + signExtend12 (0x80 : BitVec 12)) := by
-    native_decide +revert
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0x80 : BitVec 12)).toNat) = 0x80 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
   have hv5_2 :
       ¬ BitVec.ult (pfx.zeroExtend 64)
         ((0 : Word) + signExtend12 (0xB8 : BitVec 12)) := by
-    native_decide +revert
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0xB8 : BitVec 12)).toNat) = 0xB8 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
   have hv5_3 :
       ¬ BitVec.ult (pfx.zeroExtend 64)
         ((0 : Word) + signExtend12 (0xC0 : BitVec 12)) := by
-    native_decide +revert
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0xC0 : BitVec 12)).toNat) = 0xC0 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
   have hv5_hi :
       ¬ BitVec.ult (pfx.zeroExtend 64)
         ((0 : Word) + signExtend12 (0xF8 : BitVec 12)) := by
-    native_decide +revert
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0xF8 : BitVec 12)).toNat) = 0xF8 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
   have h_add_sub :
       pfx.zeroExtend 64 + signExtend12 (-(0xF7 : BitVec 12)) =
         pfx.zeroExtend 64 - (0xF7 : Word) := by
-    native_decide +revert
+    have hs : signExtend12 (-(0xF7 : BitVec 12)) = -(0xF7 : Word) := by decide
+    rw [hs, BitVec.sub_eq_add_neg]
   have h_len :=
     EvmAsm.EL.RLP.rlpPrefixLongListLenOfLen_toWord_of_class pfx h_class
   have h_add :

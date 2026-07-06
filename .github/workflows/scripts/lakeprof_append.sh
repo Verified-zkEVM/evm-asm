@@ -59,7 +59,9 @@ script="$tmpdir/append_record.py"
 cat > "$script" <<'PY'
 import json, os
 with open(os.environ["TOPN_JSON_ABS"], "r", encoding="utf-8") as f:
-    topn = json.load(f).get("top_modules") or []
+    _doc = json.load(f)
+topn = _doc.get("top_modules") or []
+olean_sizes = _doc.get("olean_sizes") or []   # merged by oleansize_collect.sh (R-F2); [] if absent
 rec = {
     "kind":         "lakeprof",
     "commit":       os.environ["GITHUB_SHA"],
@@ -68,6 +70,7 @@ rec = {
     "trigger":      os.environ["GITHUB_EVENT_NAME"],
     "run_id":       os.environ["GITHUB_RUN_ID"],
     "top_modules":  topn,
+    "olean_sizes":  olean_sizes,
 }
 with open("history.jsonl", "a", encoding="utf-8") as f:
     f.write(json.dumps(rec, sort_keys=True) + "\n")

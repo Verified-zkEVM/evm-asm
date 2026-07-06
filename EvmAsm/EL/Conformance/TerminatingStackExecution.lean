@@ -115,7 +115,7 @@ theorem runTerminatingStackVisible?_return :
           output := [(0xbb : Byte), 0xcc]
           gasRemaining := 123
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  rfl
 
 theorem terminatingReturnVector_passed :
     checkVector? runTerminatingStackVisible? terminatingReturnVector = .passed :=
@@ -142,7 +142,7 @@ theorem runTerminatingStackVisible?_revert :
           output := [(0xbb : Byte), 0xcc]
           gasRemaining := 45
           stack := [(77 : EvmWord)] } := by
-  native_decide
+  rfl
 
 theorem terminatingRevertStackConformanceVector_passed :
     checkVector? runTerminatingStackVisible? terminatingRevertStackConformanceVector =

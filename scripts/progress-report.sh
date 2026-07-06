@@ -67,21 +67,24 @@ CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
   EvmAsm/EL/Conformance/All.lean | head -1 | grep -oE '[0-9]+')"
 
 # --------------------------------------------------------------------
-# Section C.1 cycle bounds are carried in the registry's `notes` field
-# (e.g. "N=30") so they appear inline in the per-opcode coverage table.
+# Section C.1 cycle bounds are carried in the registry's typed
+# `cycleBound : Option Nat` field on `OpcodeEntry` (Phase 1, R-C4) and
+# rendered in the `Cycles (N)` column of the per-opcode coverage table.
 # A separate grep-based extraction was tried and removed: many proof
 # files emit per-branch / per-limb `cpsTripleWithin N` lemmas BEFORE the
 # top-level stack-spec theorem, so "first bound found" picked up
 # misleading sub-spec values (e.g. BYTE=11 instead of 29, DUP=2 instead
-# of 9). The right place to anchor the bound is the registry itself; a
-# kernel-checked `cycleBound : Option Nat` field on `OpcodeEntry` would
-# be the next step if drift becomes a concern.
+# of 9). The registry is now the single typed source of truth; a silent
+# `cpsTripleWithin 30 → 100` inflation surfaces as a registry diff. The
+# kernel-checked *binding* of `cycleBound` to the witness theorem's
+# literal `N` is a deferred follow-up (see PLAN.md).
 # --------------------------------------------------------------------
 # Section D.1/D.2 — codegen registry size and milestone status
 # --------------------------------------------------------------------
 
 codegen_registry_count() {
-  grep -c '=> some' EvmAsm/Codegen/Programs.lean || echo 0
+  # Programs.lean may be a thin import hub; count across all registry split files.
+  grep -rh '=> some' EvmAsm/Codegen/Programs.lean EvmAsm/Codegen/Programs/ 2>/dev/null | grep -c '=> some' || echo 0
 }
 
 codegen_milestones() {
@@ -121,7 +124,16 @@ codegen_scripts() {
 # --------------------------------------------------------------------
 
 sorry_count() { grep -rE '^\s*sorry\b' EvmAsm/ 2>/dev/null | wc -l | tr -d ' '; }
+# NOTE: this counts only the literal `axiom` *keyword* in source — it
+# CANNOT see trust axioms that `bv_decide`/`native_decide` synthesize per
+# call (`<owner>._native.<tactic>.ax_*`). The kernel-truth audit of those
+# lives in scripts/check-axioms.sh; the burndown count is below.
 axiom_count() { grep -rE '^\s*axiom\b' EvmAsm/ 2>/dev/null | wc -l | tr -d ' '; }
+# Pre-existing native_decide trust-axiom owners grandfathered in the
+# burndown allowlist (non-comment, non-blank lines).
+nd_grandfathered_count() {
+  grep -vE '^[[:space:]]*(#|$)' scripts/axiom-allow.txt 2>/dev/null | wc -l | tr -d ' '
+}
 
 # --------------------------------------------------------------------
 # Compose the report
@@ -154,9 +166,10 @@ cat <<EOF
 | Invariant | Status |
 |---|---|
 | \`sorry\` count in \`EvmAsm/\` | $(sorry_count) |
-| \`axiom\` count in \`EvmAsm/\` | $(axiom_count) |
-| Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} |
-| Build CI guardrails | \`check-no-warnings.sh\`, \`check-unbounded-cps.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\` |
+| literal \`axiom\` declarations in \`EvmAsm/\` | $(axiom_count) |
+| trust axioms in witnessed proofs (kernel \`#print axioms\`) | \`bv_decide\` and \`native_decide\` both forbidden and fully eliminated (trusted base = \`propext\`, \`Classical.choice\`, \`Quot.sound\` only) — $(nd_grandfathered_count) pre-existing owner(s) remain in [\`scripts/axiom-allow.txt\`](scripts/axiom-allow.txt) (burndown → 0), audited by [\`scripts/check-axioms.sh\`](scripts/check-axioms.sh) |
+| Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} (floor in [\`scripts/conformance-baseline.txt\`](scripts/conformance-baseline.txt), gated by \`check-conformance-floor.sh\`) |
+| Build CI guardrails | \`check-no-warnings.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\`, \`check-progress.sh\`, \`check-drift.sh\`, \`check-axioms.sh\`, \`check-conformance-floor.sh\` |
 
 EOF
 
@@ -167,7 +180,8 @@ cat <<EOF
 ## C.1 — Per-opcode cycle bounds
 
 Worst-case \`cpsTripleWithin N\` step bounds are listed inline in the
-per-opcode coverage table above (in the \`Notes\` column as \`N=…\`).
+per-opcode coverage table above (the typed \`Cycles (N)\` column, sourced
+from the kernel-checked \`cycleBound\` field of \`EvmAsm/Progress.lean\`).
 This is the verified gas-cost surrogate.
 
 ## D — Codegen reach

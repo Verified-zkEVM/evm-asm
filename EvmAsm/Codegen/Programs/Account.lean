@@ -8,187 +8,30 @@
     K120  account_extract_balance  (field 1, u256 BE)
     K123  account_is_empty         (EIP-161 emptiness)
 
-  All three compose `rlp_field_to_u64` (K34), `rlp_field_to_u256_be`
-  (K35), and `rlp_list_nth_item` (K20) — which remain in
-  `Programs/Tx.lean` and `Programs/RlpRead.lean`.
+  `account_is_empty` uses the cursor-walk helpers from `Programs/RlpWalk.lean`.
+  The remaining standalone field predicates in this file still use indexed RLP
+  access through `rlp_list_nth_item` where they perform one-off lookups.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.AccountFieldExtract
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
-
-/-! ## account_extract_nonce -- PR-K121
-
-    Extract the u64 `nonce` field (RLP field 0) from a fully
-    RLP-encoded Ethereum account:
-
-      account = [nonce, balance, storage_root, code_hash]
-
-    The nonce counts the number of outbound transactions an EOA
-    has issued (or contract creations for a contract). EIP-2681
-    caps it at `2^64 - 1` so a u64 fits.
-
-    K27 `account_decode` already extracts the full account record;
-    this narrower accessor avoids the 96-byte struct when only the
-    nonce is needed (e.g., the tx-replay-protection check inside
-    `check_transaction`, or to thread the nonce-mismatch error path
-    without unpacking balance / storage_root / code_hash).
-
-    Composes the existing `rlp_field_to_u64` helper (which in turn
-    uses PR-K20 `rlp_list_nth_item`).
-
-    Calling convention:
-      a0 (input)  : account_rlp ptr
-      a1 (input)  : account_rlp byte length
-      a2 (input)  : u64 output ptr
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure / field 0 missing / > 64 bits -/
-def accountExtractNonceFunction : String :=
-  "account_extract_nonce:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  mv s0, a2                   # u64 out ptr (stash)\n" ++
-  "  sd zero, 0(s0)\n" ++
-  "  # a0, a1 still hold (account_ptr, account_len).\n" ++
-  "  li a2, 0\n" ++
-  "  mv a3, s0\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Laen_ret\n" ++
-  "  sd zero, 0(s0)\n" ++
-  "  li a0, 1\n" ++
-  ".Laen_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
-
-/-- `zisk_account_extract_nonce`: probe BuildUnit. Reads
-    (account_len, account_bytes), writes (status, nonce u64) to
-    OUTPUT (16 bytes). -/
-def ziskAccountExtractNoncePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # account_rlp_len\n" ++
-  "  addi a0, a3, 16             # account_rlp ptr\n" ++
-  "  li a2, 0xa0010008           # nonce out\n" ++
-  "  jal ra, account_extract_nonce\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Laen_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  accountExtractNonceFunction ++ "\n" ++
-  ".Laen_pdone:"
-
-def ziskAccountExtractNonceDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-def ziskAccountExtractNonceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractNoncePrologue
-  dataAsm     := ziskAccountExtractNonceDataSection
-}
-
-/-! ## account_extract_balance -- PR-K120
-
-    Extract the u256 BE `balance` field (RLP field 1) from a fully
-    RLP-encoded Ethereum account:
-
-      account = [nonce, balance, storage_root, code_hash]
-
-    The balance is the account's wei holdings, ranged in
-    `[0, 2^256)`. Direct input to balance-check predicates
-    (`balance >= value + gas_cost`), priority-fee credit, and
-    the trie-rebuild path after value transfers.
-
-    K27 `account_decode` already extracts the full account record;
-    K120 (with PR-K119 `account_extract_storage_root`) is the
-    narrower accessor for callers that only need a single field.
-
-    Composes the existing `rlp_field_to_u256_be` helper (which in
-    turn uses PR-K20 `rlp_list_nth_item`).
-
-    Calling convention:
-      a0 (input)  : account_rlp ptr
-      a1 (input)  : account_rlp byte length
-      a2 (input)  : 32-byte output ptr (u256 BE)
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure / field 1 missing / > 256 bits -/
-def accountExtractBalanceFunction : String :=
-  "account_extract_balance:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  mv s0, a2                   # output 32B ptr (stash)\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  # a0, a1 still hold (account_ptr, account_len).\n" ++
-  "  li a2, 1\n" ++
-  "  mv a3, s0\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  beqz a0, .Laeb_ret\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  li a0, 1\n" ++
-  ".Laeb_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
-
-/-- `zisk_account_extract_balance`: probe BuildUnit. Reads
-    (account_len, account_bytes), writes (status, 32-byte balance
-    BE) to OUTPUT (40 bytes). -/
-def ziskAccountExtractBalancePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # account_rlp_len\n" ++
-  "  addi a0, a3, 16             # account_rlp ptr\n" ++
-  "  li a2, 0xa0010008           # 32B u256 output\n" ++
-  "  jal ra, account_extract_balance\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Laeb_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  accountExtractBalanceFunction ++ "\n" ++
-  ".Laeb_pdone:"
-
-def ziskAccountExtractBalanceDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t48_offset:\n" ++
-  "  .zero 8\n" ++
-  "t48_length:\n" ++
-  "  .zero 8"
-
-def ziskAccountExtractBalanceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractBalancePrologue
-  dataAsm     := ziskAccountExtractBalanceDataSection
-}
 
 /-! ## account_is_empty -- PR-K123
 
@@ -215,10 +58,10 @@ def ziskAccountExtractBalanceProbeUnit : BuildUnit := {
 
       0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
 
-    Composes:
-      - PR-K20 `rlp_list_nth_item`         — field bounds
-      - existing `rlp_field_to_u64`        — nonce
-      - existing `rlp_field_to_u256_be`    — balance
+    Composes a single RLP cursor walk over the four account fields:
+      - field 0 content decoded by rlp_content_to_u64 for nonce
+      - field 1 content decoded by rlp_content_to_u256_be for balance
+      - field 3 content copied/compared directly for code_hash
 
     Calling convention:
       a0 (input)  : account_rlp ptr
@@ -229,47 +72,51 @@ def ziskAccountExtractBalanceProbeUnit : BuildUnit := {
         0 : success — predicate written to *out
         1 : RLP parse failure / field missing / wrong width
 
-    Uses 8 + 32 + 8 + 8 + 32 = 88 bytes of `.data` scratch
-    (`aie_nonce` u64, `aie_balance` 32 B, `aie_offset` + `aie_length`,
-    `aie_empty_code_hash` constant). -/
+    Uses `.data` scratch for `aie_nonce` (u64), `aie_balance` (32 B), and the
+    `aie_empty_code_hash` constant. The probe data section also carries legacy
+    offset/length cells for sibling indexed helpers. -/
 def accountIsEmptyFunction : String :=
   "account_is_empty:\n" ++
-  "  addi sp, sp, -32\n" ++
+  "  addi sp, sp, -48\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0                   # account_ptr\n" ++
   "  mv s1, a1                   # account_len\n" ++
   "  mv s2, a2                   # out u64 ptr\n" ++
   "  sd zero, 0(s2)\n" ++
-  "  # Step 1: nonce (field 0) → aie_nonce.\n" ++
+  "  # Step 1: initialize the account field cursor.\n" ++
   "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, aie_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Laie_parse_fail\n" ++
-  "  la t0, aie_nonce; ld t1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Laie_parse_fail\n" ++
+  "  mv s3, a0                   # cursor\n" ++
+  "  mv s4, a1                   # end\n" ++
+  "  # Step 2: nonce (field 0) -> aie_nonce.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Laie_parse_fail\n" ++
+  "  la t0, aie_nonce; sd a0, 0(t0)\n" ++
+  "  mv t1, a0\n" ++
   "  bnez t1, .Laie_not_empty\n" ++
-  "  # Step 2: balance (field 1, u256 BE) → aie_balance.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, aie_balance\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Step 3: balance (field 1, u256 BE) -> aie_balance.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; la a2, aie_balance\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Laie_parse_fail\n" ++
   "  la t0, aie_balance\n" ++
   "  ld t1,  0(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1,  8(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1, 16(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1, 24(t0); bnez t1, .Laie_not_empty\n" ++
-  "  # Step 3: code_hash (field 3) compared against EMPTY_CODE_HASH.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 3\n" ++
-  "  la a3, aie_offset; la a4, aie_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laie_parse_fail\n" ++
-  "  la t0, aie_length; ld t1, 0(t0)\n" ++
+  "  # Step 4: skip storage_root (field 2).\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail; mv s3, a0\n" ++
+  "  # Step 5: code_hash (field 3) compared against EMPTY_CODE_HASH.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  mv t1, a2\n" ++
   "  li t2, 32\n" ++
   "  bne t1, t2, .Laie_parse_fail\n" ++
-  "  la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  sub t3, a0, a2\n" ++
   "  la t4, aie_empty_code_hash\n" ++
   "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Laie_not_empty\n" ++
   "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Laie_not_empty\n" ++
@@ -290,7 +137,8 @@ def accountIsEmptyFunction : String :=
   ".Laie_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
   "  ret"
 
 /-- `zisk_account_is_empty`: probe BuildUnit. Reads
@@ -306,9 +154,7 @@ def ziskAccountIsEmptyPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Laie_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   accountIsEmptyFunction ++ "\n" ++
   ".Laie_pdone:"
 
@@ -649,42 +495,61 @@ def ziskAccountValidateNonceZeroProbeUnit : BuildUnit := {
 
     Uses 32 bytes of `.data` scratch (`acpg_gas_fee`) plus the
     40-byte `u256m_acc` scratch from PR-K54. -/
-def accountChargeGasPreExecFunction : String :=
-  "account_charge_gas_pre_exec:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                   # balance ptr\n" ++
-  "  mv s1, a3                   # nonce ptr (in-out)\n" ++
-  "  # gas_fee = effective_gas_price × gas_limit\n" ++
-  "  mv a0, a1\n" ++
-  "  mv a1, a2\n" ++
-  "  la a2, acpg_gas_fee\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lacpg_fail_mul\n" ++
-  "  # balance -= gas_fee\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, acpg_gas_fee\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  bnez a0, .Lacpg_fail_sub\n" ++
-  "  # *nonce_ptr += 1\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  sd t0, 0(s1)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lacpg_ret\n" ++
-  ".Lacpg_fail_mul:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lacpg_ret\n" ++
-  ".Lacpg_fail_sub:\n" ++
-  "  li a0, 2\n" ++
-  ".Lacpg_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+def accountChargeGasPreExec_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .MV .x10 .x11,
+    .MV .x11 .x12,
+    .AUIPC .x12 (laHi GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 32)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 32)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.account_charge_gas_pre_exec + 40)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 52)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 52)),
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.account_charge_gas_pre_exec + 64)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountChargeGasPreExec_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountChargeGasPreExec_relocs : RelocTable :=
+  [ (8, .la .x12 "acpg_gas_fee"),
+    (10, .jal .x1 "u256_mul_u64_be"),
+    (13, .la .x11 "acpg_gas_fee"),
+    (16, .jal .x1 "u256_sub_be") ]
+
+def accountChargeGasPreExecFunction : String :=
+  "account_charge_gas_pre_exec:\n" ++ emitProgramR accountChargeGasPreExec_prog accountChargeGasPreExec_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountChargeGasPreExec_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountChargeGasPreExecFunction_eq_prog :
+    accountChargeGasPreExecFunction = "account_charge_gas_pre_exec:\n" ++ emitProgramR accountChargeGasPreExec_prog accountChargeGasPreExec_relocs := rfl
+
+#guard accountChargeGasPreExecFunction.startsWith "account_charge_gas_pre_exec:\n"
+#guard accountChargeGasPreExec_prog.length = 31
 /-- `zisk_account_charge_gas_pre_exec`: probe BuildUnit. Reads
     (32B balance, 32B egp, 8B gas_limit LE, 8B nonce LE) from
     host input; copies them into OUTPUT-resident buffers; calls
@@ -729,6 +594,251 @@ def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskAccountChargeGasPreExecPrologue
   dataAsm     := ziskAccountChargeGasPreExecDataSection
+}
+
+/-! ## tx_upfront_precharge -- compose transaction gas pricing + pre-charge
+
+    Standalone pre-execution gas mutation for one encoded transaction:
+
+      1. parse tx.nonce and tx.gas_limit,
+      2. compute effective_gas_price and priority_fee_per_gas from the tx and
+         block base_fee_per_gas,
+      3. call `account_charge_gas_pre_exec` to deduct
+         effective_gas_price * tx.gas_limit and increment the sender nonce.
+
+    This helper intentionally works on caller-supplied balance and nonce
+    buffers. BAL/state lookup and stateless-verdict wiring are separate slices.
+
+    Calling convention:
+      a0 (input)  : tx bytes ptr
+      a1 (input)  : tx byte length
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : sender balance ptr (32 B BE; modified in place)
+      a4 (input)  : sender nonce ptr (u64; modified in place on success)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        10 : tx nonce/gas extraction failed
+        20 : effective gas pricing failed
+        31 : gas_fee multiplication overflowed u256
+        32 : balance < gas_fee
+
+    On success and pricing success, `txup_effective_gas_price`,
+    `txup_priority_fee`, and `txup_gas_limit` are populated for callers that
+    need post-execution settlement. -/
+def txUpfrontPrecharge_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 52)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 64)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 76)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 100)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 132)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 132)),
+    .AUIPC .x13 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 140)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 140)),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_nonce_and_gas (GuestAddrs.tx_upfront_precharge + 148)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (10 : Word),
+    .JAL .x0 (112 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 184)),
+    .JAL .x1 (jalOff GuestAddrs.tx_effective_gas_pricing (GuestAddrs.tx_upfront_precharge + 192)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (20 : Word),
+    .JAL .x0 (68 : BitVec 21),
+    .MV .x10 .x19,
+    .AUIPC .x11 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 212)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 212)),
+    .AUIPC .x5 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 220)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x13 .x20,
+    .JAL .x1 (jalOff GuestAddrs.account_charge_gas_pre_exec (GuestAddrs.tx_upfront_precharge + 236)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (12 : BitVec 13),
+    .LI .x10 (32 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (31 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txUpfrontPrecharge_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txUpfrontPrecharge_relocs : RelocTable :=
+  [ (13, .la .x5 "txup_nonce"),
+    (16, .la .x5 "txup_gas_limit"),
+    (19, .la .x5 "txup_effective_gas_price"),
+    (25, .la .x5 "txup_priority_fee"),
+    (33, .la .x12 "txup_nonce"),
+    (35, .la .x13 "txup_gas_limit"),
+    (37, .jal .x1 "tx_extract_nonce_and_gas"),
+    (44, .la .x13 "txup_effective_gas_price"),
+    (46, .la .x14 "txup_priority_fee"),
+    (48, .jal .x1 "tx_effective_gas_pricing"),
+    (53, .la .x11 "txup_effective_gas_price"),
+    (55, .la .x5 "txup_gas_limit"),
+    (59, .jal .x1 "account_charge_gas_pre_exec") ]
+
+def txUpfrontPrechargeFunction : String :=
+  "tx_upfront_precharge:\n" ++ emitProgramR txUpfrontPrecharge_prog txUpfrontPrecharge_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txUpfrontPrecharge_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txUpfrontPrechargeFunction_eq_prog :
+    txUpfrontPrechargeFunction = "tx_upfront_precharge:\n" ++ emitProgramR txUpfrontPrecharge_prog txUpfrontPrecharge_relocs := rfl
+
+#guard txUpfrontPrechargeFunction.startsWith "tx_upfront_precharge:\n"
+#guard txUpfrontPrecharge_prog.length = 77
+/-- `zisk_tx_upfront_precharge`: probe BuildUnit. Reads
+    (32B base_fee, 32B balance, 8B nonce, 8B tx_len, tx_bytes), copies balance
+    and nonce to OUTPUT-resident mutable buffers, calls `tx_upfront_precharge`,
+    then writes:
+
+      OUTPUT+0   : status
+      OUTPUT+8   : sender balance (32 B BE)
+      OUTPUT+40  : sender nonce (u64 LE)
+      OUTPUT+48  : tx gas_limit (u64 LE)
+      OUTPUT+56  : effective_gas_price (32 B BE)
+      OUTPUT+88  : priority_fee_per_gas (32 B BE) -/
+def ziskTxUpfrontPrechargePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  # Copy sender balance to OUTPUT + 8 (in-place mutation target).\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  addi t1, a5, 40\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a3)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a3)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a3)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a3)\n" ++
+  "  # Copy sender nonce to OUTPUT + 40 (in-out scratch).\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  ld t2, 72(a5)\n" ++
+  "  sd t2, 0(a4)\n" ++
+  "  addi a2, a5, 8              # base_fee ptr\n" ++
+  "  ld a1, 80(a5)               # tx_len\n" ++
+  "  addi a0, a5, 88             # tx ptr\n" ++
+  "  jal ra, tx_upfront_precharge\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  la t1, txup_gas_limit; ld t2, 0(t1); sd t2, 48(t0)\n" ++
+  "  la t1, txup_effective_gas_price\n" ++
+  "  ld t2,  0(t1); sd t2,  56(t0)\n" ++
+  "  ld t2,  8(t1); sd t2,  64(t0)\n" ++
+  "  ld t2, 16(t1); sd t2,  72(t0)\n" ++
+  "  ld t2, 24(t1); sd t2,  80(t0)\n" ++
+  "  la t1, txup_priority_fee\n" ++
+  "  ld t2,  0(t1); sd t2,  88(t0)\n" ++
+  "  ld t2,  8(t1); sd t2,  96(t0)\n" ++
+  "  ld t2, 16(t1); sd t2, 104(t0)\n" ++
+  "  ld t2, 24(t1); sd t2, 112(t0)\n" ++
+  "  j .Ltxup_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  txUpfrontPrechargeFunction ++ "\n" ++
+  ".Ltxup_pdone:"
+
+def ziskTxUpfrontPrechargeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "teng_type:\n" ++
+  "  .zero 8\n" ++
+  "teng_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tegp_type:\n" ++
+  "  .zero 8\n" ++
+  "tegp_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_max_fee:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_tmp:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txup_nonce:\n" ++
+  "  .zero 8\n" ++
+  "txup_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "txup_effective_gas_price:\n" ++
+  "  .zero 32\n" ++
+  "txup_priority_fee:\n" ++
+  "  .zero 32\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "acpg_gas_fee:\n" ++
+  "  .zero 32"
+
+def ziskTxUpfrontPrechargeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxUpfrontPrechargePrologue
+  dataAsm     := ziskTxUpfrontPrechargeDataSection
 }
 
 /-! ## account_refund_gas_post_exec -- PR-K82
@@ -871,6 +981,219 @@ def ziskAccountRefundGasPostExecProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskAccountRefundGasPostExecPrologue
   dataAsm     := ziskAccountRefundGasPostExecDataSection
+}
+
+/-! ## tx_post_exec_gas_settlement
+
+    Transaction-level post-execution gas settlement wrapper. The lower-level
+    `account_refund_gas_post_exec` helper takes `gas_used` and
+    `remaining_gas`; callers that bracket one transaction naturally have
+    `tx.gas_limit` from pre-charge plus the interpreter's final
+    `remaining_gas`. This wrapper computes:
+
+      gas_used = tx_gas_limit - remaining_gas
+
+    rejects the impossible underflow shape, then applies the sender refund and
+    coinbase priority-fee credit through `account_refund_gas_post_exec`.
+
+    Calling convention:
+      a0 (input)  : sender.balance ptr (32 B u256 BE; modified in place)
+      a1 (input)  : coinbase.balance ptr (32 B u256 BE; modified in place)
+      a2 (input)  : effective_gas_price ptr (32 B u256 BE)
+      a3 (input)  : priority_fee_per_gas ptr (32 B u256 BE)
+      a4 (input)  : tx_gas_limit (u64)
+      a5 (input)  : remaining_gas after execution (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : success — both balances updated
+        1  : mul overflow on refund or credit
+        2  : add overflow on either balance
+        3  : remaining_gas > tx_gas_limit
+
+    On success, `txpost_gas_used` is populated for receipt/cumulative-gas
+    materialization. -/
+def txPostExecGasSettlementFunction : String :=
+  "tx_post_exec_gas_settlement:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # sender ptr\n" ++
+  "  mv s1, a1                   # coinbase ptr\n" ++
+  "  mv s2, a2                   # effective gas price ptr\n" ++
+  "  mv s3, a3                   # priority fee ptr\n" ++
+  "  mv s4, a4                   # tx gas limit\n" ++
+  "  mv s5, a5                   # remaining gas\n" ++
+  "  la t0, txpost_gas_used; sd zero, 0(t0)\n" ++
+  "  bgtu s5, s4, .Ltxpost_bad_remaining\n" ++
+  "  sub a4, s4, s5              # gas_used\n" ++
+  "  la t0, txpost_gas_used; sd a4, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a5, s5\n" ++
+  "  jal ra, account_refund_gas_post_exec\n" ++
+  "  j .Ltxpost_ret\n" ++
+  ".Ltxpost_bad_remaining:\n" ++
+  "  li a0, 3\n" ++
+  ".Ltxpost_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_tx_post_exec_gas_settlement`: probe BuildUnit. Reads
+    (32B sender_bal, 32B coinbase_bal, 32B egp, 32B priority_fee,
+    8B tx_gas_limit, 8B remaining_gas) from host input. Copies the
+    two balances to OUTPUT-resident scratch buffers, calls the
+    wrapper, then writes:
+
+      OUTPUT+0   : status
+      OUTPUT+8   : sender balance (32 B BE)
+      OUTPUT+40  : coinbase balance (32 B BE)
+      OUTPUT+72  : gas_used (u64 LE) -/
+def ziskTxPostExecGasSettlementPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  # Copy sender balance to OUTPUT + 8\n" ++
+  "  li a0, 0xa0010008\n" ++
+  "  addi t1, a6, 8\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a0)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
+  "  # Copy coinbase balance to OUTPUT + 40\n" ++
+  "  li a1, 0xa0010028\n" ++
+  "  addi t1, a6, 40\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a1)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a1)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a1)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a1)\n" ++
+  "  addi a2, a6, 72             # egp ptr\n" ++
+  "  addi a3, a6, 104            # priority_fee ptr\n" ++
+  "  ld a4, 136(a6)              # tx_gas_limit\n" ++
+  "  ld a5, 144(a6)              # remaining_gas\n" ++
+  "  jal ra, tx_post_exec_gas_settlement\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  la t1, txpost_gas_used; ld t2, 0(t1); sd t2, 72(t0)\n" ++
+  "  j .Ltxpost_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  accountRefundGasPostExecFunction ++ "\n" ++
+  txPostExecGasSettlementFunction ++ "\n" ++
+  ".Ltxpost_pdone:"
+
+def ziskTxPostExecGasSettlementDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "arg_sender_refund:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "arg_coinbase_credit:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txpost_gas_used:\n" ++
+  "  .zero 8"
+
+def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxPostExecGasSettlementPrologue
+  dataAsm     := ziskTxPostExecGasSettlementDataSection
+}
+
+/-! ## tx_gas_result_increments
+
+    EIP-7623/EIP-7778 gas increments derived from execution results.
+    This is the scalar post-execution formula used by Amsterdam
+    `process_transaction` before block-output and receipt updates:
+
+      before_refund = tx.gas - tx_output.gas_left
+      refund        = min(before_refund / 5, tx_output.refund_counter)
+      after_refund  = before_refund - refund
+      receipt_inc   = max(after_refund, calldata_floor_gas_cost)
+      block_inc     = max(before_refund, calldata_floor_gas_cost)
+
+    Calling convention:
+      a0 (input)  : tx_gas_limit u64
+      a1 (input)  : gas_left after execution u64
+      a2 (input)  : refund_counter u64
+      a3 (input)  : calldata_floor_gas_cost u64
+      ra (input)  : return
+      a0 (output) : status, 0 ok; 1 if gas_left > tx_gas_limit
+      a1 (output) : block_gas_used_in_tx
+      a2 (output) : receipt gas increment
+      a3 (output) : tx_gas_used_before_refund
+      a4 (output) : applied refund
+-/
+def txGasResultIncrements_prog : Program :=
+  [ .BLTU .x10 .x11 (80 : BitVec 13),
+    .SUB .x5 .x10 .x11,
+    .LI .x6 (5 : Word),
+    .DIVU .x7 .x5 .x6,
+    .MV .x28 .x12,
+    .BGEU .x7 .x28 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .SUB .x29 .x5 .x28,
+    .MV .x30 .x5,
+    .BGEU .x30 .x13 (8 : BitVec 13),
+    .MV .x30 .x13,
+    .MV .x31 .x29,
+    .BGEU .x31 .x13 (8 : BitVec 13),
+    .MV .x31 .x13,
+    .LI .x10 (0 : Word),
+    .MV .x11 .x30,
+    .MV .x12 .x31,
+    .MV .x13 .x5,
+    .MV .x14 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .LI .x14 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def txGasResultIncrementsFunction : String :=
+  "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txGasResultIncrements_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txGasResultIncrementsFunction_eq_prog :
+    txGasResultIncrementsFunction = "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog := rfl
+
+#guard txGasResultIncrementsFunction.startsWith "tx_gas_result_increments:\n"
+#guard txGasResultIncrements_prog.length = 26
+/-- `zisk_tx_gas_result_increments`: focused probe for the scalar
+    post-execution gas increment formula. Input payload after zisk's length
+    prefix is four u64s: tx_gas_limit, gas_left, refund_counter,
+    calldata_floor_gas_cost. Output is five u64s: status, block increment,
+    receipt increment, before-refund gas, applied refund. -/
+def ziskTxGasResultIncrementsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld a0,  8(s0)              # tx_gas_limit\n" ++
+  "  ld a1, 16(s0)              # gas_left\n" ++
+  "  ld a2, 24(s0)              # refund_counter\n" ++
+  "  ld a3, 32(s0)              # calldata_floor_gas_cost\n" ++
+  "  jal ra, tx_gas_result_increments\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0,  0(t0)\n" ++
+  "  sd a1,  8(t0)\n" ++
+  "  sd a2, 16(t0)\n" ++
+  "  sd a3, 24(t0)\n" ++
+  "  sd a4, 32(t0)\n" ++
+  "  j .Ltgri_probe_done\n" ++
+  txGasResultIncrementsFunction ++ "\n" ++
+  ".Ltgri_probe_done:"
+
+def ziskTxGasResultIncrementsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxGasResultIncrementsPrologue
+  dataAsm     := ".section .data\n.balign 8\n"
 }
 
 /-! ## account_validate_balance_zero -- PR-K259

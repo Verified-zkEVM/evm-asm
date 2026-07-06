@@ -123,3 +123,62 @@ at CSR `0x805` per `SYSCALL_SHA256F_ID`).
 
 This note exists so the upstream discussion can be revived later
 without re-deriving the cost picture from scratch.
+
+
+---
+
+## 2. EIP-7934 block RLP limit fixtures and stateless input equivalence
+
+**Where:**
+[`forks/osaka/fork.py`](https://github.com/ethereum/execution-specs/blob/d7fe16ab80dc7a39b802dcd990c69056326a0b59/src/ethereum/forks/osaka/fork.py#L222-L223)
+checks `len(rlp.encode(block)) > MAX_RLP_BLOCK_SIZE` before header and body
+validation.
+
+The zkVM guest should enforce the same rule without trusting fixture sidecars:
+it receives schema-prefixed `statelessInputBytes`, decodes `StatelessInput`,
+reconstructs the canonical block shape from that structured input, and compares
+the rebuilt RLP length to `8_388_608`. The raw fixture `blocks[].rlp` must not be
+appended as an auxiliary input; if the guest needs it, the stateless input schema
+is missing data.
+
+### Current zkevm fixture mismatch
+
+The cached zkevm fixture
+
+```text
+gen-out/eest-fixtures/zkevm@v0.4.0/fixtures/fixtures/blockchain_tests/for_amsterdam/osaka/eip7934_block_rlp_limit/max_block_rlp_size/block_at_rlp_size_limit_boundary.json
+```
+
+contains three boundary cases whose `statelessInputBytes` are byte-identical but
+whose fixture block RLP differs by one byte:
+
+| case | SHA-256(statelessInputBytes) prefix | decoded payload `extra_data` | fixture header `extra_data` | fixture block RLP length |
+| --- | --- | ---: | ---: | ---: |
+| `max_rlp_size_minus_1_byte` | `62d9f1361945ff5d` | 0 | 11 | 8,388,607 |
+| `max_rlp_size` | `62d9f1361945ff5d` | 0 | 12 | 8,388,608 |
+| `max_rlp_size_plus_1_byte` | `62d9f1361945ff5d` | 0 | 13 | 8,388,609 |
+
+Using execution-specs' own stateless decoder on those bytes gives the same
+semantic input for all three cases: `extra_data_len=0`, `tx_count=34`,
+`sum(len(tx))=8,387,806`, and no withdrawals. Reproduce the fixture-side check
+with `scripts/eest-eip7934-input-equivalence.py` under the execution-specs uv
+environment. The repo's RISC-V `zisk_stateless_verdict_v2` probe likewise
+computes the same rebuilt block RLP length (`8,388,562`) for all three inputs
+from the data it can see.
+
+### Consequence
+
+A guest that only reads `statelessInputBytes` cannot distinguish those three
+boundary cases. The correct fix is not a ziskemu input trailer or a raw fixture
+RLP side channel. Either the zkevm fixture generator must serialize the final
+block data that execution-specs validates into `statelessInputBytes`, or the
+stateless input schema must be extended with structured block-construction data
+that lets the guest reconstruct exactly `rlp.encode(block)`.
+
+### Status in this repo
+
+`EvmAsm/Codegen/Programs/BlockRlpSize.lean` follows the desired guest-side shape:
+it rebuilds block RLP length from the SSZ `ExecutionPayload`, the rebuilt header
+RLP length, an empty ommers list, and withdrawals. This is sound only under the
+input-equivalence invariant above: the decoded stateless input must represent the
+same block whose RLP execution-specs validated.

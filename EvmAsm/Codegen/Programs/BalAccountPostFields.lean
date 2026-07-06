@@ -14,7 +14,10 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -32,89 +35,199 @@ open EvmAsm.Rv64
     For each nonempty change list, extracts the final item and then field 1 of
     that item. A zero post-value is represented by length 0, distinct from the
     absent sentinel. -/
-def balAccountPostFieldsFunction : String :=
-  "bal_account_post_fields:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # account-change ptr\n" ++
-  "  mv s1, a1                   # account-change len\n" ++
-  "  mv s2, a2                   # balance out ptr\n" ++
-  "  mv s3, a3                   # balance len ptr\n" ++
-  "  mv s4, a4                   # nonce out ptr\n" ++
-  "  mv s5, a5                   # nonce len ptr\n" ++
-  "  li t0, -1; sd t0, 0(s3); sd t0, 0(s5)\n" ++
-  "  # balance_changes is field 3.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3; la a3, bpf_list_off; la a4, bpf_list_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_off; ld t0, 0(t0); add t0, s0, t0; la t1, bpf_list_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, bpf_list_len; ld a1, 0(t1); mv a0, t0; la a2, bpf_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_count; ld t0, 0(t0); beqz t0, .Lbpf_nonce\n" ++
-  "  addi a2, t0, -1; la t1, bpf_list_ptr; ld a0, 0(t1); la t1, bpf_list_len; ld a1, 0(t1)\n" ++
-  "  la a3, bpf_item_off; la a4, bpf_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_ptr; ld t0, 0(t0); la t1, bpf_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, bpf_item_len; ld t1, 0(t1)\n" ++
-  "  la t2, bpf_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, bpf_val_off; la a4, bpf_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t2, bpf_val_len; ld t2, 0(t2); li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
-  "  sd t2, 0(s3)\n" ++
-  "  la t0, bpf_item_ptr; ld t0, 0(t0)\n" ++
-  "  la t3, bpf_val_off; ld t3, 0(t3); add t0, t0, t3\n" ++
-  "  mv t4, s2\n" ++
-  ".Lbpf_bal_cp:\n" ++
-  "  beqz t2, .Lbpf_nonce\n" ++
-  "  lbu t5, 0(t0); sb t5, 0(t4)\n" ++
-  "  addi t0, t0, 1; addi t4, t4, 1; addi t2, t2, -1\n" ++
-  "  j .Lbpf_bal_cp\n" ++
-  ".Lbpf_nonce:\n" ++
-  "  # nonce_changes is field 4.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4; la a3, bpf_list_off; la a4, bpf_list_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_off; ld t0, 0(t0); add t0, s0, t0; la t1, bpf_list_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, bpf_list_len; ld a1, 0(t1); mv a0, t0; la a2, bpf_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_count; ld t0, 0(t0); beqz t0, .Lbpf_ok\n" ++
-  "  addi a2, t0, -1; la t1, bpf_list_ptr; ld a0, 0(t1); la t1, bpf_list_len; ld a1, 0(t1)\n" ++
-  "  la a3, bpf_item_off; la a4, bpf_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_ptr; ld t0, 0(t0); la t1, bpf_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, bpf_item_len; ld t1, 0(t1)\n" ++
-  "  la t2, bpf_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, bpf_val_off; la a4, bpf_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t2, bpf_val_len; ld t2, 0(t2); li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
-  "  sd t2, 0(s5)\n" ++
-  "  la t0, bpf_item_ptr; ld t0, 0(t0)\n" ++
-  "  la t3, bpf_val_off; ld t3, 0(t3); add t0, t0, t3\n" ++
-  "  mv t4, s4\n" ++
-  ".Lbpf_nonce_cp:\n" ++
-  "  beqz t2, .Lbpf_ok\n" ++
-  "  lbu t5, 0(t0); sb t5, 0(t4)\n" ++
-  "  addi t0, t0, 1; addi t4, t4, 1; addi t2, t2, -1\n" ++
-  "  j .Lbpf_nonce_cp\n" ++
-  ".Lbpf_ok:\n" ++
-  "  li a0, 0; j .Lbpf_ret\n" ++
-  ".Lbpf_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbpf_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def balAccountPostFields_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LI .x5 (-1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x21 .x5 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_post_fields + 76)),
+    .BNE .x12 .x0 (508 : BitVec 13),
+    .SD .x2 .x10 (56 : BitVec 12),
+    .SD .x2 .x11 (64 : BitVec 12),
+    .LD .x10 .x2 (56 : BitVec 12),
+    .LD .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 100)),
+    .BNE .x11 .x0 (484 : BitVec 13),
+    .SD .x2 .x10 (56 : BitVec 12),
+    .LD .x10 .x2 (56 : BitVec 12),
+    .LD .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 120)),
+    .BNE .x11 .x0 (464 : BitVec 13),
+    .SD .x2 .x10 (56 : BitVec 12),
+    .LD .x10 .x2 (56 : BitVec 12),
+    .LD .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 140)),
+    .BNE .x11 .x0 (444 : BitVec 13),
+    .SD .x2 .x10 (56 : BitVec 12),
+    .LD .x10 .x2 (56 : BitVec 12),
+    .LD .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 160)),
+    .BNE .x11 .x0 (424 : BitVec 13),
+    .SD .x2 .x10 (56 : BitVec 12),
+    .SUB .x5 .x10 .x12,
+    .MV .x6 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_post_fields + 188)),
+    .BNE .x12 .x0 (396 : BitVec 13),
+    .BEQ .x10 .x11 (172 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SD .x2 .x11 (80 : BitVec 12),
+    .LD .x5 .x2 (72 : BitVec 12),
+    .LD .x6 .x2 (80 : BitVec 12),
+    .BEQ .x5 .x6 (40 : BitVec 13),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 228)),
+    .BNE .x11 .x0 (356 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SUB .x5 .x10 .x12,
+    .SD .x2 .x5 (88 : BitVec 12),
+    .SD .x2 .x12 (96 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .LD .x10 .x2 (88 : BitVec 12),
+    .LD .x11 .x2 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_post_fields + 264)),
+    .BNE .x12 .x0 (320 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SD .x2 .x11 (80 : BitVec 12),
+    .LD .x10 .x2 (72 : BitVec 12),
+    .LD .x11 .x2 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 288)),
+    .BNE .x11 .x0 (296 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .LD .x10 .x2 (72 : BitVec 12),
+    .LD .x11 .x2 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 308)),
+    .BNE .x11 .x0 (276 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x7 .x12,
+    .LI .x28 (32 : Word),
+    .BLTU .x28 .x7 (260 : BitVec 13),
+    .SD .x19 .x7 (0 : BitVec 12),
+    .MV .x29 .x18,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LD .x10 .x2 (56 : BitVec 12),
+    .LD .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 376)),
+    .BNE .x11 .x0 (208 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x6 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_post_fields + 400)),
+    .BNE .x12 .x0 (184 : BitVec 13),
+    .BEQ .x10 .x11 (172 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SD .x2 .x11 (80 : BitVec 12),
+    .LD .x5 .x2 (72 : BitVec 12),
+    .LD .x6 .x2 (80 : BitVec 12),
+    .BEQ .x5 .x6 (40 : BitVec 13),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 440)),
+    .BNE .x11 .x0 (144 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SUB .x5 .x10 .x12,
+    .SD .x2 .x5 (88 : BitVec 12),
+    .SD .x2 .x12 (96 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .LD .x10 .x2 (88 : BitVec 12),
+    .LD .x11 .x2 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_post_fields + 476)),
+    .BNE .x12 .x0 (108 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .SD .x2 .x11 (80 : BitVec 12),
+    .LD .x10 .x2 (72 : BitVec 12),
+    .LD .x11 .x2 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 500)),
+    .BNE .x11 .x0 (84 : BitVec 13),
+    .SD .x2 .x10 (72 : BitVec 12),
+    .LD .x10 .x2 (72 : BitVec 12),
+    .LD .x11 .x2 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_post_fields + 520)),
+    .BNE .x11 .x0 (64 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x7 .x12,
+    .LI .x28 (32 : Word),
+    .BLTU .x28 .x7 (48 : BitVec 13),
+    .SD .x21 .x7 (0 : BitVec 12),
+    .MV .x29 .x20,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountPostFields_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountPostFields_relocs : RelocTable :=
+  [ (19, .jal .x1 "rlp_walk_init"),
+    (25, .jal .x1 "rlp_walk_next"),
+    (30, .jal .x1 "rlp_walk_next"),
+    (35, .jal .x1 "rlp_walk_next"),
+    (40, .jal .x1 "rlp_walk_next"),
+    (47, .jal .x1 "rlp_walk_init"),
+    (57, .jal .x1 "rlp_walk_next"),
+    (66, .jal .x1 "rlp_walk_init"),
+    (72, .jal .x1 "rlp_walk_next"),
+    (77, .jal .x1 "rlp_walk_next"),
+    (94, .jal .x1 "rlp_walk_next"),
+    (100, .jal .x1 "rlp_walk_init"),
+    (110, .jal .x1 "rlp_walk_next"),
+    (119, .jal .x1 "rlp_walk_init"),
+    (125, .jal .x1 "rlp_walk_next"),
+    (130, .jal .x1 "rlp_walk_next") ]
+
+def balAccountPostFieldsFunction : String :=
+  "bal_account_post_fields:\n" ++ emitProgramR balAccountPostFields_prog balAccountPostFields_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountPostFields_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountPostFieldsFunction_eq_prog :
+    balAccountPostFieldsFunction = "bal_account_post_fields:\n" ++ emitProgramR balAccountPostFields_prog balAccountPostFields_relocs := rfl
+
+#guard balAccountPostFieldsFunction.startsWith "bal_account_post_fields:\n"
+#guard balAccountPostFields_prog.length = 157
 /-- `zisk_bal_account_post_fields`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  AccountChanges RLP length (u64)
@@ -141,23 +254,12 @@ def ziskBalAccountPostFieldsPrologue : String :=
   "  jal ra, bal_account_post_fields\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)   # status at OUTPUT+0\n" ++
   "  j .Lbpf_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   ".Lbpf_pdone:"
 
 def ziskBalAccountPostFieldsDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "bpf_list_off:\n  .zero 8\n" ++
-  "bpf_list_len:\n  .zero 8\n" ++
-  "bpf_list_ptr:\n  .zero 8\n" ++
-  "bpf_count:\n  .zero 8\n" ++
-  "bpf_item_off:\n  .zero 8\n" ++
-  "bpf_item_len:\n  .zero 8\n" ++
-  "bpf_item_ptr:\n  .zero 8\n" ++
-  "bpf_val_off:\n  .zero 8\n" ++
-  "bpf_val_len:\n  .zero 8"
+  ""
 
 def ziskBalAccountPostFieldsProbeUnit : BuildUnit := {
   body        := NOP

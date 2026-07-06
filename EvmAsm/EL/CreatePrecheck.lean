@@ -1,0 +1,293 @@
+/-
+  EvmAsm.EL.CreatePrecheck
+
+  Pure CREATE/CREATE2 precheck and collision outcome surface.
+-/
+
+import EvmAsm.EL.CreateAddress
+import EvmAsm.EL.CreateCollisionResult
+import EvmAsm.EL.WorldStateAccount
+
+namespace EvmAsm.EL
+
+namespace CreatePrecheck
+
+/-- EVM maximum child call/create depth from execution-specs `STACK_DEPTH_LIMIT`. -/
+def stackDepthLimit : Nat := 1024
+
+/-- EIP-3860 initcode size cap used by Amsterdam and later forks.
+    Amsterdam (EIP-7954) doubled MAX_CODE_SIZE to 0x8000 (32768), so
+    MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 65536 (0x10000) — not the
+    pre-Amsterdam 2 * 0x6000 = 49152. -/
+def maxInitCodeSize : Nat := 65536
+
+/-- Creator nonce sentinel checked before CREATE-family child execution. -/
+def maxCreatorNonce : Nat := 2 ^ 64 - 1
+
+/-- Account metadata read by the precheck layer. -/
+structure CreatorAccountView where
+  nonce : Nat
+  balance : Word256
+  deriving Repr
+
+namespace CreatorAccountView
+
+def fromAccount (account : Account) : CreatorAccountView :=
+  { nonce := account.nonce, balance := account.balance }
+
+def fromState (state : WorldState) (creator : Address) : CreatorAccountView :=
+  match WorldState.getAccount state creator with
+  | some account => fromAccount account
+  | none => fromAccount Account.empty
+
+@[simp] theorem fromAccount_nonce (account : Account) :
+    (fromAccount account).nonce = account.nonce := rfl
+
+@[simp] theorem fromAccount_balance (account : Account) :
+    (fromAccount account).balance = account.balance := rfl
+
+theorem fromState_of_getAccount_some
+    {state : WorldState} {creator : Address} {account : Account}
+    (h_account : WorldState.getAccount state creator = some account) :
+    fromState state creator = fromAccount account := by
+  simp [fromState, h_account]
+
+theorem fromState_of_getAccount_none
+    {state : WorldState} {creator : Address}
+    (h_account : WorldState.getAccount state creator = none) :
+    fromState state creator = fromAccount Account.empty := by
+  simp [fromState, h_account]
+
+end CreatorAccountView
+
+/-- Inputs known after stack decoding, initcode slicing, address derivation,
+and collision lookup. `targetCollides` represents executable-spec
+`account_has_code_or_nonce(...) or account_has_storage(...)`. -/
+structure Input where
+  state : WorldState
+  request : CreateRequest
+  target : Address
+  depth : Nat
+  isStatic : Bool
+  creator : CreatorAccountView
+  targetCollides : Bool
+
+def inputFromState
+    (state : WorldState) (request : CreateRequest) (target : Address)
+    (depth : Nat) (isStatic targetCollides : Bool) : Input :=
+  { state := state
+    request := request
+    target := target
+    depth := depth
+    isStatic := isStatic
+    creator := CreatorAccountView.fromState state request.creator
+    targetCollides := targetCollides }
+
+/-- Collision predicate including the executable-spec storage collision arm. -/
+def targetHasStorage (state : WorldState) (addr : Address) : Prop :=
+  ∃ key, WorldState.getStorage state addr key ≠ 0
+
+def targetCollides (state : WorldState) (addr : Address) : Prop :=
+  CreateCollision.accountHasCodeOrNonce state addr ∨ targetHasStorage state addr
+
+def insufficientBalance (input : Input) : Prop :=
+  input.creator.balance.toNat < input.request.value.toNat
+
+def nonceExhausted (input : Input) : Prop :=
+  input.creator.nonce = maxCreatorNonce
+
+def depthOverflow (input : Input) : Prop :=
+  input.depth + 1 > stackDepthLimit
+
+def initcodeTooLarge (input : Input) : Prop :=
+  input.request.initcode.length > maxInitCodeSize
+
+/-- High-level branch taken before CREATE-family child initcode execution. -/
+inductive Outcome where
+  | writeInStaticContext
+  | initcodeTooLarge
+  | zeroResult
+  | addressCollision
+  | execute
+  deriving DecidableEq, Repr
+
+def decide (input : Input) : Outcome :=
+  if input.isStatic then
+    .writeInStaticContext
+  else if input.request.initcode.length > maxInitCodeSize then
+    .initcodeTooLarge
+  else if input.creator.balance.toNat < input.request.value.toNat then
+    .zeroResult
+  else if input.creator.nonce = maxCreatorNonce then
+    .zeroResult
+  else if input.depth + 1 > stackDepthLimit then
+    .zeroResult
+  else if input.targetCollides then
+    .addressCollision
+  else
+    .execute
+
+def failedResult (input : Input) : CreateResult :=
+  CreateCollisionResult.collisionResult input.state input.request.gas
+
+def stackWordForOutcome (input : Input) (outcome : Outcome) : Word256 :=
+  match outcome with
+  | .execute => input.target.zeroExtend 256
+  | _ => 0
+
+theorem targetHasStorage_of_getStorage_ne
+    {state : WorldState} {addr : Address} {key : StorageKey}
+    (h_storage : WorldState.getStorage state addr key ≠ 0) :
+    targetHasStorage state addr :=
+  ⟨key, h_storage⟩
+
+theorem targetCollides_of_codeOrNonce
+    {state : WorldState} {addr : Address}
+    (h_collision : CreateCollision.accountHasCodeOrNonce state addr) :
+    targetCollides state addr :=
+  Or.inl h_collision
+
+theorem targetCollides_of_storage
+    {state : WorldState} {addr : Address}
+    (h_storage : targetHasStorage state addr) :
+    targetCollides state addr :=
+  Or.inr h_storage
+
+theorem not_targetHasStorage_empty (addr : Address) :
+    ¬ targetHasStorage WorldState.empty addr := by
+  rintro ⟨key, h_storage⟩
+  simp at h_storage
+
+theorem not_targetCollides_empty (addr : Address) :
+    ¬ targetCollides WorldState.empty addr := by
+  intro h_collision
+  cases h_collision with
+  | inl h_codeOrNonce =>
+      exact (CreateCollision.createAddressAvailable_empty addr) h_codeOrNonce
+  | inr h_storage =>
+      exact not_targetHasStorage_empty addr h_storage
+
+theorem inputFromState_creator
+    (state : WorldState) (request : CreateRequest) (target : Address)
+    (depth : Nat) (isStatic targetCollides : Bool) :
+    (inputFromState state request target depth isStatic targetCollides).creator =
+      CreatorAccountView.fromState state request.creator := rfl
+
+theorem inputFromState_target
+    (state : WorldState) (request : CreateRequest) (target : Address)
+    (depth : Nat) (isStatic targetCollides : Bool) :
+    (inputFromState state request target depth isStatic targetCollides).target = target := rfl
+
+theorem decide_static {input : Input} (h_static : input.isStatic = true) :
+    decide input = .writeInStaticContext := by
+  simp [decide, h_static]
+
+theorem decide_initcodeTooLarge
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : input.request.initcode.length > maxInitCodeSize) :
+    decide input = .initcodeTooLarge := by
+  simp [decide, h_static, h_size]
+
+theorem decide_insufficientBalance
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : ¬ input.request.initcode.length > maxInitCodeSize)
+    (h_balance : input.creator.balance.toNat < input.request.value.toNat) :
+    decide input = .zeroResult := by
+  simp [decide, h_static, h_size, h_balance]
+
+theorem decide_nonceExhausted
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : ¬ input.request.initcode.length > maxInitCodeSize)
+    (h_balance : ¬ input.creator.balance.toNat < input.request.value.toNat)
+    (h_nonce : input.creator.nonce = maxCreatorNonce) :
+    decide input = .zeroResult := by
+  simp [decide, h_static, h_size, h_balance, h_nonce]
+
+theorem decide_depthOverflow
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : ¬ input.request.initcode.length > maxInitCodeSize)
+    (h_balance : ¬ input.creator.balance.toNat < input.request.value.toNat)
+    (h_nonce : input.creator.nonce ≠ maxCreatorNonce)
+    (h_depth : input.depth + 1 > stackDepthLimit) :
+    decide input = .zeroResult := by
+  simp [decide, h_static, h_size, h_balance, h_nonce, h_depth]
+
+theorem decide_collision
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : ¬ input.request.initcode.length > maxInitCodeSize)
+    (h_balance : ¬ input.creator.balance.toNat < input.request.value.toNat)
+    (h_nonce : input.creator.nonce ≠ maxCreatorNonce)
+    (h_depth : ¬ input.depth + 1 > stackDepthLimit)
+    (h_collision : input.targetCollides = true) :
+    decide input = .addressCollision := by
+  simp [decide, h_static, h_size, h_balance, h_nonce, h_depth, h_collision]
+
+theorem decide_execute
+    {input : Input} (h_static : input.isStatic = false)
+    (h_size : ¬ input.request.initcode.length > maxInitCodeSize)
+    (h_balance : ¬ input.creator.balance.toNat < input.request.value.toNat)
+    (h_nonce : input.creator.nonce ≠ maxCreatorNonce)
+    (h_depth : ¬ input.depth + 1 > stackDepthLimit)
+    (h_collision : input.targetCollides = false) :
+    decide input = .execute := by
+  simp [decide, h_static, h_size, h_balance, h_nonce, h_depth, h_collision]
+
+theorem failedResult_status (input : Input) :
+    (failedResult input).status = .failed := rfl
+
+theorem failedResult_state (input : Input) :
+    (failedResult input).state = input.state := rfl
+
+theorem failedResult_stackWord (input : Input) :
+    CreateResultBridge.createResultStackWord (failedResult input) = 0 := rfl
+
+theorem stackWordForOutcome_execute (input : Input) :
+    stackWordForOutcome input .execute = input.target.zeroExtend 256 := rfl
+
+theorem stackWordForOutcome_zeroResult (input : Input) :
+    stackWordForOutcome input .zeroResult = 0 := rfl
+
+theorem stackWordForOutcome_collision (input : Input) :
+    stackWordForOutcome input .addressCollision = 0 := rfl
+
+/-- CREATE request/salt shape is preserved when deriving the address input. -/
+theorem addressInput?_eq_fromRequest
+    (input : Input) (initcodeHash : Hash256) :
+    CreateAddress.fromRequest? input.request input.creator.nonce initcodeHash =
+      CreateAddress.fromRequest? input.request input.creator.nonce initcodeHash := rfl
+
+theorem addressInput?_forCreate
+    (creator : Address) (value : Word256) (initcode : List Byte) (gas creatorNonce : Nat)
+    (target : Address) (depth : Nat) (isStatic targetCollides : Bool)
+    (initcodeHash : Hash256) :
+    CreateAddress.fromRequest?
+        (inputFromState WorldState.empty
+          (CreateRequest.forCreate creator value initcode gas)
+          target depth isStatic targetCollides).request
+        creatorNonce initcodeHash =
+      some
+        { creator := creator
+          nonce := creatorNonce
+          salt? := none
+          initcodeHash := initcodeHash } := by
+  simp [inputFromState, CreateAddress.fromRequest?, CreateRequest.forCreate]
+
+theorem addressInput?_forCreate2
+    (creator : Address) (value : Word256) (initcode : List Byte) (gas creatorNonce : Nat)
+    (salt : Word256) (target : Address) (depth : Nat) (isStatic targetCollides : Bool)
+    (initcodeHash : Hash256) :
+    CreateAddress.fromRequest?
+        (inputFromState WorldState.empty
+          (CreateRequest.forCreate2 creator value initcode gas salt)
+          target depth isStatic targetCollides).request
+        creatorNonce initcodeHash =
+      some
+        { creator := creator
+          nonce := creatorNonce
+          salt? := some salt
+          initcodeHash := initcodeHash } := by
+  simp [inputFromState, CreateAddress.fromRequest?, CreateRequest.forCreate2]
+
+end CreatePrecheck
+
+end EvmAsm.EL

@@ -110,9 +110,69 @@ def emitInstr : Instr → String
   | .DIVU   rd rs1 rs2 => s!"divu {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
   | .REM    rd rs1 rs2 => s!"rem {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
   | .REMU   rd rs1 rs2 => s!"remu {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
+  -- ZisK accelerator call: pre-encoded `csrrs x0, csr, rs1` so the plain
+  -- rv64imac toolchain assembles it without Zicsr (the `.4byte` pattern
+  -- used throughout Codegen/Programs)
+  | .CSRS   csr rs1    =>
+      s!".4byte {(csr.toNat <<< 20) ||| (rs1.toNat <<< 15) ||| 0x2073}"
+
+-- The pre-encoded accelerator words match the hand-written guest literals
+-- (`csrs 0x800, a0` / `csrs 0x802, t0` / `csrs 0x805, a0`).
+example : emitInstr (.CSRS 0x800 .x10) = s!".4byte {0x80052073}" := rfl
+example : emitInstr (.CSRS 0x802 .x5) = s!".4byte {0x8022a073}" := rfl
+example : emitInstr (.CSRS 0x805 .x10) = s!".4byte {0x80552073}" := rfl
+example : emitInstr (.CSRS 0x803 .x5) = s!".4byte {0x8032a073}" := rfl
+example : emitInstr (.CSRS 0x804 .x5) = s!".4byte {0x8042a073}" := rfl
+example : emitInstr (.CSRS 0x806 .x5) = s!".4byte {0x8062a073}" := rfl
+example : emitInstr (.CSRS 0x807 .x5) = s!".4byte {0x8072a073}" := rfl
+example : emitInstr (.CSRS 0x808 .x5) = s!".4byte {0x8082a073}" := rfl
+example : emitInstr (.CSRS 0x809 .x5) = s!".4byte {0x8092a073}" := rfl
+example : emitInstr (.CSRS 0x80A .x5) = s!".4byte {0x80a2a073}" := rfl
+example : emitInstr (.CSRS 0x80B .x10) = s!".4byte {0x80b52073}" := rfl
+example : emitInstr (.CSRS 0x80C .x10) = s!".4byte {0x80c52073}" := rfl
+example : emitInstr (.CSRS 0x80D .x10) = s!".4byte {0x80d52073}" := rfl
+example : emitInstr (.CSRS 0x80E .x10) = s!".4byte {0x80e52073}" := rfl
+example : emitInstr (.CSRS 0x80F .x10) = s!".4byte {0x80f52073}" := rfl
+example : emitInstr (.CSRS 0x810 .x10) = s!".4byte {0x81052073}" := rfl
+example : emitInstr (.CSRS 0x819 .x10) = s!".4byte {0x81952073}" := rfl
 
 /-- Render a `Program` as one mnemonic per line, each indented two spaces. -/
 def emitProgram (p : Program) : String :=
   String.intercalate "\n" (p.map (fun i => "  " ++ emitInstr i))
+
+/-- A relocatable (link-layout-dependent) operand that must be emitted
+    *symbolically* so every image's linker resolves it against its own layout
+    (bead evm-asm-4ch8f.9.3).  The Program stores the concrete guest-linked
+    immediates (`AsmReloc.laHi`/`laLo`/`jalOff`) for the verification view; the
+    emitted guest string keeps the symbolic form via `emitProgramR`. -/
+inductive AsmSym where
+  /-- `la reg, symbol` — a two-instruction `auipc`+`addi` pair (the marked
+      index and the one after it) rendered as a single `la` line. -/
+  | la  (reg : Reg) (symbol : String)
+  /-- `jal rd, callee` — a cross-function jump rendered symbolically. -/
+  | jal (rd : Reg) (callee : String)
+  deriving Repr
+
+/-- Reloc side-table: `(instruction index in the Program, symbolic form)`.
+    An `la` entry additionally suppresses the following `addi` instruction. -/
+abbrev RelocTable := List (Nat × AsmSym)
+
+/-- Render a `Program` like `emitProgram`, except instructions covered by
+    `relocs` are emitted **symbolically** (`la reg, sym` / `jal rd, callee`) so
+    the string is image-agnostic — each linked image (guest, dispatcher, every
+    `zisk_*` probe) relocates it against its own `.text`/`.data` layout.  The
+    Program itself carries the concrete guest-linked immediates for proofs; this
+    render is what lands in the emitted guest text, byte-identical to the
+    hand-written `la`/`jal` in EVERY image.  An `la` entry consumes its `auipc`
+    plus the following `addi` (one emitted line). -/
+def emitProgramR (p : Program) (relocs : RelocTable) : String :=
+  let step : (List String × Nat) → (Instr × Nat) → (List String × Nat) :=
+    fun (acc, skip) (instr, idx) =>
+      if skip > 0 then (acc, skip - 1)
+      else match relocs.lookup idx with
+        | some (.la reg sym) => (s!"  la {emitReg reg}, {sym}" :: acc, 1)
+        | some (.jal rd cal) => (s!"  jal {emitReg rd}, {cal}" :: acc, 0)
+        | none               => (("  " ++ emitInstr instr) :: acc, 0)
+  String.intercalate "\n" (p.zipIdx.foldl step ([], 0)).1.reverse
 
 end EvmAsm.Codegen

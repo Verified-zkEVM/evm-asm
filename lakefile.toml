@@ -36,3 +36,18 @@ supportInterpreter = true
 name = "div128-v5-check"
 root = "MainDiv128V5Check"
 supportInterpreter = true
+
+[[lean_exe]]
+name = "arith-diff-check"
+root = "MainArithDiffCheck"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "rlp-diff-check"
+root = "MainRlpDiffCheck"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "specref-eest-check"
+root = "MainSpecRefEestCheck"
+supportInterpreter = true

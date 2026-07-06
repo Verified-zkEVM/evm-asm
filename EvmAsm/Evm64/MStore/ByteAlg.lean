@@ -28,7 +28,6 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 import EvmAsm.Rv64.Basic
-import Std.Tactic.BVDecide
 import Mathlib.Tactic.IntervalCases
 
 namespace EvmAsm.Evm64.MStore
@@ -56,12 +55,11 @@ theorem extractByte_def (w : Word) (i : Nat) :
   `byteReg`, i.e. `extractByte byteReg 0`) to the abstract big-endian
   byte view `extractByte accReg i`.
 
-  Proved by `bv_decide` after a finite case-split on `i`.
+  Proved kernel-checkably via `extractByte_def` (`>>> 0` is the identity).
 -/
-theorem extractByte_shr_zero (w : Word) (i : Nat) (h : i < 8) :
+theorem extractByte_shr_zero (w : Word) (i : Nat) (_h : i < 8) :
     extractByte (w >>> (i * 8)) 0 = extractByte w i := by
-  -- Eight cases on `i` fully decide via `bv_decide`.
-  interval_cases i <;> (simp only [extractByte_def, Nat.zero_mul]; bv_decide)
+  simp only [extractByte_def, Nat.zero_mul, BitVec.ushiftRight_zero]
 
 /--
   Convenience corollary specialised to the `(7 - k)` shape used in the

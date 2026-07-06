@@ -15,18 +15,38 @@
 
   ## Algorithm (RISC-V plan)
 
-      bucket = hash[0..4] mod NUM_BUCKETS
-      walk linked-list at NODE_DB_BUCKETS[bucket]:
-        for each (entry_hash, ptr, len):
-          if memcmp(entry_hash, hash, 32) == 0:
-            return (ptr, len, OK)
-        return (0, 0, MISSING_NODE)
+      Build a deterministic index over `(keccak256(node), ptr, len)` records,
+      then lookup by comparing the full 32-byte hash. The first draft used
+      `bucket = hash[0..4] mod NUM_BUCKETS` with linked chains, but GH #7929
+      notes that attacker-shaped buckets can become a DoS frontier. Prefer a
+      bounded-worst-case layout such as a sorted flat table with binary search,
+      a trie over hash bytes, or a balanced tree.
 
   On miss, the caller routes to
   `EvmAsm.Stateless.unimplemented_exit` with reason
   `REASON_WITNESS_MISSING_NODE`. A missing node means the witness
   was incomplete -- the prover did not include a required MPT
   node -- which is a stateless-verification failure.
+
+
+  ## Existing implementations surveyed
+
+  - execution-specs builds a Python `Dict[keccak256(entry)] = entry` once in
+    `forks/amsterdam/witness_state.py`, and `incremental_mpt.py` resolves child
+    hashes by dictionary lookup during trie decoding. This confirms the desired
+    semantic model is pre-indexed lookup, not repeated witness-section scans.
+  - geth exposes trie-node reads through keyed database helpers such as
+    `ReadTrieNode` / `ReadLegacyTrieNode` / `ReadStorageTrieNode`; the hot path
+    is a database/cache lookup by node identity, not a linear proof scan.
+  - reth's trie implementation is cursor-oriented (`TrieCursor`,
+    `HashedCursor`) over hashed state/trie data, again avoiding repeated
+    re-hashing of every candidate node per traversal step.
+  - Erigon documents flat key-value state/trie storage and trie `Get` APIs;
+    it also avoids scanning all witness nodes for each child reference.
+
+  For this zkVM guest, a randomized or adversarially-collidable hash table is a
+  poor fit: the prover controls witness bytes. Use a deterministic bounded
+  structure with full-hash equality checks.
 
   ## PR-K19 status
 
@@ -63,8 +83,12 @@
   ## Implementation shape
 
   Uses one 32-byte `.data` scratch (`wlh_scratch_hash`) for the
-  per-iteration keccak output. No element-count cap (linear
-  scan).
+  per-iteration keccak output. The linear scan is not size-capped: sections
+  without a registered index (notably `witness.codes`, which can exceed
+  64 KiB via large predeploy bytecode) must still resolve, since a capped
+  miss turns into a false witness-integrity rejection. Repeated lookups on
+  a large section should go through the sorted index built by
+  `witness_index_build` (the stateless verdict registers `witness.state`).
 -/
 
 namespace EvmAsm.Stateless.Witness.NodeDb.Lookup

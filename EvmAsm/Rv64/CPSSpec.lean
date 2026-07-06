@@ -303,6 +303,15 @@ theorem cpsTripleWithin_of_forall_memIs_to_memOwn
   exact h vOld R hR s hcr
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
+/-- Single-atom bounded variant of `cpsTripleWithin_of_forall_memIs_to_memOwn`. -/
+theorem cpsTripleWithin_of_forall_memIs_to_memOwn_single
+    {nSteps : Nat} {entry exit_ a Q} {cr : CodeReq}
+    (h : ∀ vOld, cpsTripleWithin nSteps entry exit_ cr (a ↦ₘ vOld) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (memOwn a) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hunion, ⟨vOld, hv⟩, hR2⟩ := hPR
+  exact h vOld R hR s hcr ⟨hp, hcompat, h1, h2, hd, hunion, hv, hR2⟩ hpc
+
 /-- Branch elimination: if both branch exits lead to the same
     continuation exit with R, merge back into a single cpsTripleWithin.
     All position/code/assertion arguments are implicit — inferred from `hbr`/`h_t`/`h_f`. -/
@@ -634,6 +643,127 @@ theorem cpsNBranchWithin_extend_head_nbranch {nSteps1 nSteps2 : Nat}
   | tail _ htail =>
     exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
       ex, List.mem_append_right exits htail, hpc1, hQF⟩
+
+/-- Extend the head exit of a bounded N-branch with a bounded triple over disjoint
+    tail code. The continued head path uses the tail code; non-head paths only
+    use the original branch code and are lifted into the summed bound. -/
+theorem cpsNBranchWithin_extend_head_disjoint {nSteps1 nSteps2 : Nat}
+    {entry l l' : Word} {cr1 cr2 : CodeReq}
+    {P Q R : Assertion}
+    {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P ((l, Q) :: others))
+    (hseq : cpsTripleWithin nSteps2 l l' cr2 Q R) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P ((l', R) :: others) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  cases hmem with
+  | head =>
+      have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+      obtain ⟨k2, hk2, s2, hstep2, hpc2, hRF⟩ := hseq F hF s1 hcr2' hQF hpc1
+      exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        (l', R), List.Mem.head _, hpc2, hRF⟩
+  | tail _ htail =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        ex, List.Mem.tail _ htail, hpc1, hQF⟩
+
+/-- Extend the head exit of a bounded N-branch with another bounded N-branch over
+    disjoint tail code. Continued head exits are prepended before the untouched
+    non-head exits. -/
+theorem cpsNBranchWithin_extend_head_nbranch_disjoint {nSteps1 nSteps2 : Nat}
+    {entry l : Word} {cr1 cr2 : CodeReq}
+    {P Q : Assertion}
+    {exits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P ((l, Q) :: others))
+    (hseq : cpsNBranchWithin nSteps2 l cr2 Q exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P (exits ++ others) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  cases hmem with
+  | head =>
+      have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+      obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hRF⟩ :=
+        hseq F hF s1 hcr2' hQF hpc1
+      exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        ex2, List.mem_append_left others hmem2, hpc2, hRF⟩
+  | tail _ htail =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        ex, List.mem_append_right exits htail, hpc1, hQF⟩
+
+/-- Extend an arbitrary exit of a bounded N-branch with another bounded N-branch
+    over disjoint tail code. Exits before the selected one are preserved as a
+    prefix, and exits after it are preserved as a suffix. -/
+theorem cpsNBranchWithin_extend_prefixed_nbranch_disjoint {nSteps1 nSteps2 : Nat}
+    {entry l : Word} {cr1 cr2 : CodeReq}
+    {P Q : Assertion}
+    {preExits exits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P (preExits ++ (l, Q) :: others))
+    (hseq : cpsNBranchWithin nSteps2 l cr2 Q exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P
+      ((preExits ++ exits) ++ others) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  rw [List.mem_append] at hmem
+  cases hmem with
+  | inl hprefix =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        ex, List.mem_append_left others (List.mem_append_left exits hprefix), hpc1, hQF⟩
+  | inr htail =>
+      cases htail with
+      | head =>
+          have hcr2p := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+          obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hRF⟩ :=
+            hseq F hF s1 hcr2p hQF hpc1
+          exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+            ex2, List.mem_append_left others (List.mem_append_right preExits hmem2), hpc2, hRF⟩
+      | tail _ htailRest =>
+          exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+            ex, List.mem_append_right (preExits ++ exits) htailRest, hpc1, hQF⟩
+
+/-- Extend the second exit of a bounded N-branch with another bounded N-branch
+    over disjoint tail code, preserving the first exit. This supports generated
+    left-to-right CFG proofs that classify one early exit and continue the
+    fall-through arm. -/
+theorem cpsNBranchWithin_extend_second_nbranch_disjoint {nSteps1 nSteps2 : Nat}
+    {entry head l : Word} {cr1 cr2 : CodeReq}
+    {P H Q : Assertion}
+    {exits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P ((head, H) :: (l, Q) :: others))
+    (hseq : cpsNBranchWithin nSteps2 l cr2 Q exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P
+      ((head, H) :: (exits ++ others)) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  cases hmem with
+  | head =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        (head, H), List.Mem.head _, hpc1, hQF⟩
+  | tail _ htail =>
+      cases htail with
+      | head =>
+          have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+          obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hRF⟩ :=
+            hseq F hF s1 hcr2' hQF hpc1
+          exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+            ex2, List.Mem.tail _ (List.mem_append_left others hmem2), hpc2, hRF⟩
+      | tail _ htailRest =>
+          exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+            ex, List.Mem.tail _ (List.mem_append_right exits htailRest), hpc1, hQF⟩
 
 /-- Bounded sequence with the same CodeReq: a triple followed by an N-branch. -/
 theorem cpsTripleWithin_seq_cpsNBranchWithin_same_cr {nSteps1 nSteps2 : Nat}
@@ -1118,5 +1248,85 @@ theorem cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr {nSteps1 nSteps2 :
   cpsBranchWithin_seq_cpsTripleWithin_same_cr
     (cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
     h2 ht1
+
+/-- Sequence a triple onto the **taken** (success) exit of a branch, keeping the fall-through exit
+    as the (abort) exit. Dual of `cpsBranchWithin_seq_cpsTripleWithin_same_cr`, with a CodeReq
+    union. Bounds add. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_taken {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_t2 : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P mid Q_t1 exit_f Q_f1)
+    (h2 : cpsTripleWithin nSteps2 mid target cr2 Q_t1 Q_t2) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P target Q_t2 exit_f Q_f1 := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · -- taken (success): continue into the follow-on triple.
+    have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hQ_t2R⟩ := h2 R hR s1 hcr2' hQ_t1R hpc_t1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+      Or.inl ⟨hpc2, hQ_t2R⟩⟩
+  · -- fall (abort): keep the fall-through exit.
+    exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inr ⟨hpc_f1, hQ_f1R⟩⟩
+
+/-- Sequence a branch onto the taken exit of a branch, converging the first branch
+    fall exit and the second branch taken exit onto one shared failure exit. The
+    second branch fall exit is the resulting success exit. This is the standard
+    decoder shape for parse-success followed by a validating check where malformed
+    input and check failure are one postcondition case. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_taken_converge {nSteps1 nSteps2 : Nat}
+    {entry mid succ fail : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_t2 Q_succ Q_fail : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P mid Q_t1 fail Q_f1)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 Q_t1 fail Q_t2 succ Q_succ)
+    (hf1 : ∀ h, Q_f1 h → Q_fail h)
+    (hf2 : ∀ h, Q_t2 h → Q_fail h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P succ Q_succ fail Q_fail := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · have hcr2Next := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2Next hQ_t1R hpc_t1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_succR⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inr ⟨hpc_t2, by
+          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+          exact ⟨hp, hcompat, sepConj_mono_left hf2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inl ⟨hpc_f2, hQ_succR⟩⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inr ⟨hpc_f1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_f1R
+        exact ⟨hp, hcompat, sepConj_mono_left hf1 hp hpq⟩⟩⟩
+
+/-- Sequence a triple onto the **not-taken** (fall-through) exit of a branch,
+    keeping the taken exit open.  Bounds add and code requirements are unioned. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_notTaken {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_t : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_f2 : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P exit_t Q_t1 mid Q_f1)
+    (h2 : cpsTripleWithin nSteps2 mid target cr2 Q_f1 Q_f2) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P exit_t Q_t1 target Q_f2 := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · -- taken: keep the taken exit open.
+    exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inl ⟨hpc_t1, hQ_t1R⟩⟩
+  · -- not-taken: continue into the follow-on triple.
+    have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hQ_f2R⟩ := h2 R hR s1 hcr2' hQ_f1R hpc_f1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+      Or.inr ⟨hpc2, hQ_f2R⟩⟩
 
 end EvmAsm.Rv64

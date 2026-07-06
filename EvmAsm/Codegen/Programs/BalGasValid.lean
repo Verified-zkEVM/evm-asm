@@ -20,12 +20,15 @@
 
   Division-free test: bal_items > gas_limit/2000  ⟺  bal_items*2000 > gas_limit.
 
-  Composes rlp_item_span (full sub-item spans, for nesting) + rlp_list_count_items.
+  Uses the cursor walker to count the BAL rows and the per-account storage lists.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -34,122 +37,277 @@ open EvmAsm.Rv64
 /-! ## bal_gas_valid
     a0 = BAL RLP ptr   a1 = BAL RLP length   a2 = block_gas_limit
     a0 (output) = 0 (valid) / 1 (gas-limit exceeded) / 2 (parse error). -/
+def balGasValid_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 76)),
+    .BNE .x12 .x0 (280 : BitVec 13),
+    .MV .x19 .x10,
+    .MV .x21 .x11,
+    .LI .x20 (0 : Word),
+    .MV .x10 .x19,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 104)),
+    .LI .x5 (2 : Word),
+    .BEQ .x11 .x5 (220 : BitVec 13),
+    .BNE .x11 .x0 (244 : BitVec 13),
+    .MV .x19 .x10,
+    .SUB .x22 .x10 .x12,
+    .MV .x23 .x12,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 144)),
+    .BNE .x12 .x0 (212 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x25 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 160)),
+    .BNE .x11 .x0 (196 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 180)),
+    .BNE .x11 .x0 (176 : BitVec 13),
+    .MV .x24 .x10,
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 200)),
+    .BNE .x12 .x0 (156 : BitVec 13),
+    .MV .x26 .x10,
+    .MV .x27 .x11,
+    .MV .x10 .x26,
+    .MV .x11 .x27,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 224)),
+    .LI .x5 (2 : Word),
+    .BEQ .x11 .x5 (20 : BitVec 13),
+    .BNE .x11 .x0 (124 : BitVec 13),
+    .MV .x26 .x10,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 260)),
+    .BNE .x11 .x0 (96 : BitVec 13),
+    .MV .x24 .x10,
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 280)),
+    .BNE .x12 .x0 (76 : BitVec 13),
+    .MV .x26 .x10,
+    .MV .x27 .x11,
+    .MV .x10 .x26,
+    .MV .x11 .x27,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 304)),
+    .LI .x5 (2 : Word),
+    .BEQ .x11 .x5 (-216 : BitVec 13),
+    .BNE .x11 .x0 (44 : BitVec 13),
+    .MV .x26 .x10,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x5 (2000 : Word),
+    .MUL .x6 .x20 .x5,
+    .BLTU .x18 .x6 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balGasValid_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balGasValid_relocs : RelocTable :=
+  [ (19, .jal .x1 "rlp_walk_init"),
+    (26, .jal .x1 "rlp_walk_next"),
+    (36, .jal .x1 "rlp_walk_init"),
+    (40, .jal .x1 "rlp_walk_next"),
+    (45, .jal .x1 "rlp_walk_next"),
+    (50, .jal .x1 "rlp_walk_init"),
+    (56, .jal .x1 "rlp_walk_next"),
+    (65, .jal .x1 "rlp_walk_next"),
+    (70, .jal .x1 "rlp_walk_init"),
+    (76, .jal .x1 "rlp_walk_next") ]
+
 def balGasValidFunction : String :=
-  "bal_gas_valid:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # BAL ptr\n" ++
-  "  mv s1, a1                   # BAL len\n" ++
-  "  mv s2, a2                   # gas_limit\n" ++
-  "  # n_accounts = rlp_list_count_items(BAL)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld s3, 0(t0)    # s3 = n_accounts\n" ++
-  "  li s4, 0                          # s4 = bal_items\n" ++
-  "  li s5, 0                          # s5 = i\n" ++
-  ".Lbgv_loop:\n" ++
-  "  beq s5, s3, .Lbgv_done\n" ++
-  "  # account span = rlp_item_span(BAL, i)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add s6, s0, t1    # account_ptr\n" ++
-  "  la t0, bgv_size; ld t1, 0(t0); la t2, bgv_acctlen; sd t1, 0(t2)  # account_len\n" ++
-  "  addi s4, s4, 1                    # +1 for the address\n" ++
-  "  # + count(item 1 = storage_changes)\n" ++
-  "  mv a0, s6; la t0, bgv_acctlen; ld a1, 0(t0); li a2, 1; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add a0, s6, t1\n" ++
-  "  la t0, bgv_size; ld a1, 0(t0); la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld t1, 0(t0); add s4, s4, t1\n" ++
-  "  # + count(item 2 = storage_reads)\n" ++
-  "  mv a0, s6; la t0, bgv_acctlen; ld a1, 0(t0); li a2, 2; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add a0, s6, t1\n" ++
-  "  la t0, bgv_size; ld a1, 0(t0); la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld t1, 0(t0); add s4, s4, t1\n" ++
-  "  addi s5, s5, 1; j .Lbgv_loop\n" ++
-  ".Lbgv_done:\n" ++
-  "  # invalid iff bal_items*2000 > gas_limit\n" ++
-  "  li t0, 2000; mul t1, s4, t0\n" ++
-  "  bgtu t1, s2, .Lbgv_exceeded\n" ++
-  "  li a0, 0; j .Lbgv_ret\n" ++
-  ".Lbgv_exceeded:\n" ++
-  "  li a0, 1; j .Lbgv_ret\n" ++
-  ".Lbgv_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lbgv_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+  "bal_gas_valid:\n" ++ emitProgramR balGasValid_prog balGasValid_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balGasValid_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balGasValidFunction_eq_prog :
+    balGasValidFunction = "bal_gas_valid:\n" ++ emitProgramR balGasValid_prog balGasValid_relocs := rfl
+
+#guard balGasValidFunction.startsWith "bal_gas_valid:\n"
+#guard balGasValid_prog.length = 106
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
+def bgvU32le_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LBU .x6 .x10 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (2 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (3 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bgvU32leFunction : String :=
-  "bgv_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+  "bgv_u32le:\n" ++ emitProgram bgvU32le_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bgvU32le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bgvU32leFunction_eq_prog :
+    bgvU32leFunction = "bgv_u32le:\n" ++ emitProgram bgvU32le_prog := rfl
+
+#guard bgvU32leFunction.startsWith "bgv_u32le:\n"
+#guard bgvU32le_prog.length = 12
 /-! ## bgv_u64le -- read a little-endian u64 byte-wise (a0=ptr -> a0). Leaf. -/
-def bgvU64leFunction : String :=
-  "bgv_u64le:\n" ++
-  "  li t0, 0; li t2, 0\n" ++
-  ".Lbgv64:\n" ++
-  "  li t3, 8; beq t2, t3, .Lbgv64d\n" ++
-  "  add t4, a0, t2; lbu t5, 0(t4); slli t6, t2, 3; sll t5, t5, t6; or t0, t0, t5\n" ++
-  "  addi t2, t2, 1; j .Lbgv64\n" ++
-  ".Lbgv64d:\n" ++
-  "  mv a0, t0; ret"
+def bgvU64le_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x7 (0 : Word),
+    .LI .x28 (8 : Word),
+    .BEQ .x7 .x28 (32 : BitVec 13),
+    .ADD .x29 .x10 .x7,
+    .LBU .x30 .x29 (0 : BitVec 12),
+    .SLLI .x31 .x7 (3 : BitVec 6),
+    .SLL .x30 .x30 .x31,
+    .OR .x5 .x5 .x30,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bgvU64leFunction : String :=
+  "bgv_u64le:\n" ++ emitProgram bgvU64le_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bgvU64le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bgvU64leFunction_eq_prog :
+    bgvU64leFunction = "bgv_u64le:\n" ++ emitProgram bgvU64le_prog := rfl
+
+#guard bgvU64leFunction.startsWith "bgv_u64le:\n"
+#guard bgvU64le_prog.length = 13
 /-! ## bal_section_info -- locate BAL RLP inside an SszStatelessInput.
     a0 = SSZ_BASE   a1 = out BAL ptr   a2 = out BAL len   a3 = out account count
     a0 (output) = 0 ok / 1 parse error. -/
-def balSectionInfoFunction : String :=
-  "bal_section_info:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  mv s3, a1                   # out ptr cell\n" ++
-  "  mv s4, a2                   # out len cell\n" ++
-  "  mv s5, a3                   # out count cell\n" ++
-  "  addi s1, s0, 16             # NPR = SSZ_BASE+16\n" ++
-  "  addi s2, s0, 60             # exec_payload = SSZ_BASE+60\n" ++
-  "  addi a0, s2, 528; jal ra, bgv_u32le\n" ++
-  "  add t0, s2, a0              # bal_start\n" ++
-  "  sd t0, 0(s3)\n" ++
-  "  addi a0, s1, 4; jal ra, bgv_u32le\n" ++
-  "  add t1, s1, a0              # bal_end\n" ++
-  "  ld t0, 0(s3); sub t1, t1, t0\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  mv a0, t0; mv a1, t1; mv a2, s5\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbsi_fail\n" ++
-  "  li a0, 0; j .Lbsi_ret\n" ++
-  ".Lbsi_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsi_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def balSectionInfo_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x19 .x11,
+    .MV .x20 .x12,
+    .MV .x21 .x13,
+    .ADDI .x9 .x8 (16 : BitVec 12),
+    .ADDI .x18 .x8 (60 : BitVec 12),
+    .ADDI .x10 .x18 (528 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.bal_section_info + 60)),
+    .ADD .x5 .x18 .x10,
+    .SD .x19 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x9 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.bal_section_info + 76)),
+    .ADD .x6 .x9 .x10,
+    .LD .x5 .x19 (0 : BitVec 12),
+    .SUB .x6 .x6 .x5,
+    .SD .x20 .x6 (0 : BitVec 12),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_section_info + 104)),
+    .BNE .x12 .x0 (64 : BitVec 13),
+    .MV .x9 .x10,
+    .MV .x18 .x11,
+    .LI .x8 (0 : Word),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_section_info + 132)),
+    .LI .x5 (2 : Word),
+    .BEQ .x11 .x5 (20 : BitVec 13),
+    .BNE .x11 .x0 (28 : BitVec 13),
+    .MV .x9 .x10,
+    .ADDI .x8 .x8 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SD .x21 .x8 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSectionInfo_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSectionInfo_relocs : RelocTable :=
+  [ (15, .jal .x1 "bgv_u32le"),
+    (19, .jal .x1 "bgv_u32le"),
+    (26, .jal .x1 "rlp_walk_init"),
+    (33, .jal .x1 "rlp_walk_next") ]
+
+def balSectionInfoFunction : String :=
+  "bal_section_info:\n" ++ emitProgramR balSectionInfo_prog balSectionInfo_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSectionInfo_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSectionInfoFunction_eq_prog :
+    balSectionInfoFunction = "bal_section_info:\n" ++ emitProgramR balSectionInfo_prog balSectionInfo_relocs := rfl
+
+#guard balSectionInfoFunction.startsWith "bal_section_info:\n"
+#guard balSectionInfo_prog.length = 53
 /-- `zisk_bal_section_info`: probe. Fed the SAME `-i` input as the guest.
     Output: OUTPUT+0 = status, OUTPUT+8 = BAL ptr, OUTPUT+16 = BAL len,
     OUTPUT+24 = account count. -/
@@ -162,9 +320,8 @@ def ziskBalSectionInfoPrologue : String :=
   "  jal ra, bal_section_info\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
   "  j .Lbsi_pdone\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
@@ -192,9 +349,8 @@ def ziskBalGasValidPrologue : String :=
   "  jal ra, bal_gas_valid\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
   "  j .Lbgv_pdone\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++

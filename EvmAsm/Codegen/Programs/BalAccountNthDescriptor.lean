@@ -32,9 +32,10 @@ def balAccountNthDescriptorFunction : String :=
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # BAL list ptr\n" ++
   "  mv s1, a1                   # BAL list len\n" ++
+  "  mv s8, a2                   # target index\n" ++
   "  mv s2, a3                   # account ptr\n" ++
   "  mv s3, a4                   # account len\n" ++
   "  mv s4, a5                   # is_insert\n" ++
@@ -42,18 +43,30 @@ def balAccountNthDescriptorFunction : String :=
   "  mv s6, a7                   # path out\n" ++
   "  la s7, baan_value_out       # value out\n" ++
   "  mv a0, s0; mv a1, s1\n" ++
-  "  la a3, baan_item_off; la a4, baan_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaan_ret\n" ++
-  "  la t0, baan_item_off; ld t0, 0(t0); add s8, s0, t0\n" ++
-  "  la t0, baan_item_len; ld t0, 0(t0)\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s8; mv a3, t0\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaan_fail\n" ++
+  "  mv s9, a0                   # cursor\n" ++
+  "  mv s10, a1                  # end\n" ++
+  "  li s11, 0                   # i\n" ++
+  ".Lbaan_walk:\n" ++
+  "  mv a0, s9; mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaan_fail\n" ++
+  "  mv s9, a0\n" ++
+  "  beq s11, s8, .Lbaan_found\n" ++
+  "  addi s11, s11, 1\n" ++
+  "  j .Lbaan_walk\n" ++
+  ".Lbaan_found:\n" ++
+  "  mv t0, a2; sub a2, a0, t0; mv a3, t0\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
   "  mv a4, s4; mv a5, s5; mv a6, s6; mv a7, s7\n" ++
   "  jal ra, bal_account_change_descriptor\n" ++
+  "  j .Lbaan_ret\n" ++
+  ".Lbaan_fail:\n" ++
+  "  li a0, 1\n" ++
   ".Lbaan_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
   "  addi sp, sp, 112\n" ++
   "  ret"
 
@@ -97,6 +110,7 @@ def ziskBalAccountNthDescriptorPrologue : String :=
   bytesToNibblesFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
@@ -106,6 +120,7 @@ def ziskBalAccountNthDescriptorPrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
@@ -114,9 +129,6 @@ def ziskBalAccountNthDescriptorPrologue : String :=
 
 def ziskBalAccountNthDescriptorDataSection : String :=
   ziskBalAccountChangeDescriptorDataSection ++ "\n" ++
-  ".balign 8\n" ++
-  "baan_item_off:\n  .zero 8\n" ++
-  "baan_item_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "baan_value_out:\n  .zero 512\n" ++
   "baan_pad:\n  .zero 8"

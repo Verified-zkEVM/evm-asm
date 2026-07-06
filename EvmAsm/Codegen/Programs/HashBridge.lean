@@ -13,190 +13,357 @@
   import them without pulling the whole registry hub.
 -/
 
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
+
 namespace EvmAsm.Codegen
 
+open EvmAsm.Rv64
+
+def zkvmSha256_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x19 (24 : BitVec 12),
+    .SD .x2 .x20 (32 : BitVec 12),
+    .SD .x2 .x21 (40 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.sha256_w_state (GuestAddrs.zkvm_sha256 + 28)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.sha256_w_state (GuestAddrs.zkvm_sha256 + 28)),
+    .MV .x9 .x10,
+    .MV .x18 .x11,
+    .MV .x19 .x12,
+    .SLLI .x20 .x11 (3 : BitVec 6),
+    .AUIPC .x21 (laHi GuestAddrs.sha256_w_input (GuestAddrs.zkvm_sha256 + 52)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.sha256_w_input (GuestAddrs.zkvm_sha256 + 52)),
+    .AUIPC .x5 (laHi GuestAddrs.sha256_w_iv (GuestAddrs.zkvm_sha256 + 60)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sha256_w_iv (GuestAddrs.zkvm_sha256 + 60)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x8 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x8 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x8 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x8 .x6 (24 : BitVec 12),
+    .LI .x5 (64 : Word),
+    .BLT .x18 .x5 (92 : BitVec 13),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .SD .x21 .x5 (0 : BitVec 12),
+    .LD .x5 .x9 (8 : BitVec 12),
+    .SD .x21 .x5 (8 : BitVec 12),
+    .LD .x5 .x9 (16 : BitVec 12),
+    .SD .x21 .x5 (16 : BitVec 12),
+    .LD .x5 .x9 (24 : BitVec 12),
+    .SD .x21 .x5 (24 : BitVec 12),
+    .LD .x5 .x9 (32 : BitVec 12),
+    .SD .x21 .x5 (32 : BitVec 12),
+    .LD .x5 .x9 (40 : BitVec 12),
+    .SD .x21 .x5 (40 : BitVec 12),
+    .LD .x5 .x9 (48 : BitVec 12),
+    .SD .x21 .x5 (48 : BitVec 12),
+    .LD .x5 .x9 (56 : BitVec 12),
+    .SD .x21 .x5 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 172)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 172)),
+    .CSRS (2053 : BitVec 12) .x10,
+    .ADDI .x9 .x9 (64 : BitVec 12),
+    .ADDI .x18 .x18 (-64 : BitVec 12),
+    .JAL .x0 (-92 : BitVec 21),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .SD .x21 .x0 (32 : BitVec 12),
+    .SD .x21 .x0 (40 : BitVec 12),
+    .SD .x21 .x0 (48 : BitVec 12),
+    .SD .x21 .x0 (56 : BitVec 12),
+    .MV .x5 .x21,
+    .MV .x6 .x9,
+    .MV .x7 .x18,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .SB .x5 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x5 .x21 .x18,
+    .LI .x6 (128 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x5 (56 : Word),
+    .BLT .x18 .x5 (48 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 288)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 288)),
+    .CSRS (2053 : BitVec 12) .x10,
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .SD .x21 .x0 (32 : BitVec 12),
+    .SD .x21 .x0 (40 : BitVec 12),
+    .SD .x21 .x0 (48 : BitVec 12),
+    .SD .x21 .x0 (56 : BitVec 12),
+    .ADDI .x5 .x21 (56 : BitVec 12),
+    .SRLI .x6 .x20 (56 : BitVec 6),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .SRLI .x6 .x20 (48 : BitVec 6),
+    .SB .x5 .x6 (1 : BitVec 12),
+    .SRLI .x6 .x20 (40 : BitVec 6),
+    .SB .x5 .x6 (2 : BitVec 12),
+    .SRLI .x6 .x20 (32 : BitVec 6),
+    .SB .x5 .x6 (3 : BitVec 12),
+    .SRLI .x6 .x20 (24 : BitVec 6),
+    .SB .x5 .x6 (4 : BitVec 12),
+    .SRLI .x6 .x20 (16 : BitVec 6),
+    .SB .x5 .x6 (5 : BitVec 12),
+    .SRLI .x6 .x20 (8 : BitVec 6),
+    .SB .x5 .x6 (6 : BitVec 12),
+    .SB .x5 .x20 (7 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 396)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 396)),
+    .CSRS (2053 : BitVec 12) .x10,
+    .LI .x5 (0 : Word),
+    .LI .x6 (32 : Word),
+    .BEQ .x5 .x6 (32 : BitVec 13),
+    .XORI .x7 .x5 (3 : BitVec 12),
+    .ADD .x28 .x8 .x7,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .ADD .x30 .x19 .x5,
+    .SB .x30 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x19 .x2 (24 : BitVec 12),
+    .LD .x20 .x2 (32 : BitVec 12),
+    .LD .x21 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `zkvmSha256_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def zkvmSha256_relocs : RelocTable :=
+  [ (7, .la .x8 "sha256_w_state"),
+    (13, .la .x21 "sha256_w_input"),
+    (15, .la .x5 "sha256_w_iv"),
+    (43, .la .x10 "sha256_w_params"),
+    (72, .la .x10 "sha256_w_params"),
+    (99, .la .x10 "sha256_w_params") ]
+
 def zkvmSha256Function : String :=
-  "zkvm_sha256:\n" ++
-  "  # save callee-saved regs (s0..s5)\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd s0, 0(sp)\n" ++
-  "  sd s1, 8(sp)\n" ++
-  "  sd s2, 16(sp)\n" ++
-  "  sd s3, 24(sp)\n" ++
-  "  sd s4, 32(sp)\n" ++
-  "  sd s5, 40(sp)\n" ++
-  "  # s0 = state ptr; s1 = data ptr; s2 = remaining len;\n" ++
-  "  # s3 = output ptr (= caller's a2); s4 = bit-length;\n" ++
-  "  # s5 = sha256_input buffer base.\n" ++
-  "  la s0, sha256_w_state\n" ++
-  "  mv s1, a0\n" ++
-  "  mv s2, a1\n" ++
-  "  mv s3, a2\n" ++
-  "  slli s4, a1, 3\n" ++
-  "  la s5, sha256_w_input\n" ++
-  "  # initialise state from IV (LE-u32 packed, 4 × u64)\n" ++
-  "  la t0, sha256_w_iv\n" ++
-  "  ld t1, 0(t0);  sd t1, 0(s0)\n" ++
-  "  ld t1, 8(t0);  sd t1, 8(s0)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s0)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s0)\n" ++
-  "  # absorb full 64-byte blocks\n" ++
-  ".Lzkv_sha_loop:\n" ++
-  "  li t0, 64\n" ++
-  "  blt s2, t0, .Lzkv_sha_final\n" ++
-  "  ld t0, 0(s1);  sd t0, 0(s5)\n" ++
-  "  ld t0, 8(s1);  sd t0, 8(s5)\n" ++
-  "  ld t0, 16(s1); sd t0, 16(s5)\n" ++
-  "  ld t0, 24(s1); sd t0, 24(s5)\n" ++
-  "  ld t0, 32(s1); sd t0, 32(s5)\n" ++
-  "  ld t0, 40(s1); sd t0, 40(s5)\n" ++
-  "  ld t0, 48(s1); sd t0, 48(s5)\n" ++
-  "  ld t0, 56(s1); sd t0, 56(s5)\n" ++
-  "  la a0, sha256_w_params\n" ++
-  "  .4byte 0x80552073           # csrs 0x805, a0\n" ++
-  "  addi s1, s1, 64\n" ++
-  "  addi s2, s2, -64\n" ++
-  "  j .Lzkv_sha_loop\n" ++
-  ".Lzkv_sha_final:\n" ++
-  "  # zero the input buffer\n" ++
-  "  sd zero, 0(s5);  sd zero, 8(s5);  sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  sd zero, 32(s5); sd zero, 40(s5); sd zero, 48(s5); sd zero, 56(s5)\n" ++
-  "  # byte-copy remaining s2 bytes from s1 to s5\n" ++
-  "  mv t0, s5\n" ++
-  "  mv t1, s1\n" ++
-  "  mv t2, s2\n" ++
-  ".Lzkv_sha_bcopy:\n" ++
-  "  beqz t2, .Lzkv_sha_pad\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  sb  t3, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lzkv_sha_bcopy\n" ++
-  ".Lzkv_sha_pad:\n" ++
-  "  # write 0x80 at offset s2 in input buffer\n" ++
-  "  add t0, s5, s2\n" ++
-  "  li  t1, 0x80\n" ++
-  "  sb  t1, 0(t0)\n" ++
-  "  # if remainder < 56: single final block; else two-block path\n" ++
-  "  li  t0, 56\n" ++
-  "  blt s2, t0, .Lzkv_sha_writelen\n" ++
-  "  # two-block: compress this block (data + 0x80, no length yet)\n" ++
-  "  la  a0, sha256_w_params\n" ++
-  "  .4byte 0x80552073\n" ++
-  "  # zero input buffer for the second (length-only) block\n" ++
-  "  sd zero, 0(s5);  sd zero, 8(s5);  sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  sd zero, 32(s5); sd zero, 40(s5); sd zero, 48(s5); sd zero, 56(s5)\n" ++
-  ".Lzkv_sha_writelen:\n" ++
-  "  # 8-byte BE bit-length at offset 56..64 of input buffer\n" ++
-  "  addi t0, s5, 56\n" ++
-  "  srli t1, s4, 56; sb t1, 0(t0)\n" ++
-  "  srli t1, s4, 48; sb t1, 1(t0)\n" ++
-  "  srli t1, s4, 40; sb t1, 2(t0)\n" ++
-  "  srli t1, s4, 32; sb t1, 3(t0)\n" ++
-  "  srli t1, s4, 24; sb t1, 4(t0)\n" ++
-  "  srli t1, s4, 16; sb t1, 5(t0)\n" ++
-  "  srli t1, s4,  8; sb t1, 6(t0)\n" ++
-  "  sb   s4, 7(t0)\n" ++
-  "  # compress final block\n" ++
-  "  la  a0, sha256_w_params\n" ++
-  "  .4byte 0x80552073\n" ++
-  "  # squeeze: byte-swap each u32 of state into output\n" ++
-  "  # output[i] = state[i ^ 3]   (reverses bytes within each 4-byte group)\n" ++
-  "  li  t0, 0\n" ++
-  ".Lzkv_sha_squeeze:\n" ++
-  "  li  t1, 32\n" ++
-  "  beq t0, t1, .Lzkv_sha_return\n" ++
-  "  xori t2, t0, 3\n" ++
-  "  add t3, s0, t2\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  add t5, s3, t0\n" ++
-  "  sb  t4, 0(t5)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lzkv_sha_squeeze\n" ++
-  ".Lzkv_sha_return:\n" ++
-  "  li  a0, 0\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+  "zkvm_sha256:\n" ++ emitProgramR zkvmSha256_prog zkvmSha256_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `zkvmSha256_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem zkvmSha256Function_eq_prog :
+    zkvmSha256Function = "zkvm_sha256:\n" ++ emitProgramR zkvmSha256_prog zkvmSha256_relocs := rfl
+
+#guard zkvmSha256Function.startsWith "zkvm_sha256:\n"
+#guard zkvmSha256_prog.length = 121
+def zkvmKeccak256_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x20 (24 : BitVec 12),
+    .MV .x20 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x8 (laHi GuestAddrs.zk3_state (GuestAddrs.zkvm_keccak256 + 32)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.zk3_state (GuestAddrs.zkvm_keccak256 + 32)),
+    .MV .x28 .x8,
+    .LI .x29 (25 : Word),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-12 : BitVec 13),
+    .LI .x29 (136 : Word),
+    .BLT .x9 .x29 (68 : BitVec 13),
+    .MV .x28 .x8,
+    .MV .x30 .x20,
+    .LI .x31 (17 : Word),
+    .LD .x5 .x30 (0 : BitVec 12),
+    .LD .x6 .x28 (0 : BitVec 12),
+    .XOR .x6 .x6 .x5,
+    .SD .x28 .x6 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x30 .x30 (8 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .BNE .x31 .x0 (-28 : BitVec 13),
+    .MV .x10 .x8,
+    .CSRS (2048 : BitVec 12) .x10,
+    .ADDI .x20 .x20 (136 : BitVec 12),
+    .ADDI .x9 .x9 (-136 : BitVec 12),
+    .JAL .x0 (-68 : BitVec 21),
+    .MV .x28 .x8,
+    .MV .x30 .x20,
+    .BEQ .x9 .x0 (36 : BitVec 13),
+    .LBU .x5 .x30 (0 : BitVec 12),
+    .LBU .x6 .x28 (0 : BitVec 12),
+    .XOR .x5 .x5 .x6,
+    .SB .x28 .x5 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .BNE .x9 .x0 (-28 : BitVec 13),
+    .LBU .x5 .x28 (0 : BitVec 12),
+    .XORI .x5 .x5 (1 : BitVec 12),
+    .SB .x28 .x5 (0 : BitVec 12),
+    .ADDI .x28 .x8 (135 : BitVec 12),
+    .LBU .x5 .x28 (0 : BitVec 12),
+    .XORI .x5 .x5 (128 : BitVec 12),
+    .SB .x28 .x5 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .CSRS (2048 : BitVec 12) .x10,
+    .LD .x5 .x8 (0 : BitVec 12),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LD .x5 .x8 (8 : BitVec 12),
+    .SD .x18 .x5 (8 : BitVec 12),
+    .LD .x5 .x8 (16 : BitVec 12),
+    .SD .x18 .x5 (16 : BitVec 12),
+    .LD .x5 .x8 (24 : BitVec 12),
+    .SD .x18 .x5 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x20 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `zkvmKeccak256_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def zkvmKeccak256_relocs : RelocTable :=
+  [ (8, .la .x8 "zk3_state") ]
 
 def zkvmKeccak256Function : String :=
-  "zkvm_keccak256:\n" ++
-  "  # save s0/s1/s2/s4 (callee-saved per RV64 ABI)\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd s0, 0(sp)\n" ++
-  "  sd s1, 8(sp)\n" ++
-  "  sd s2, 16(sp)\n" ++
-  "  sd s4, 24(sp)\n" ++
-  "  # stash args (a0/a1/a2 get clobbered during the absorb loop)\n" ++
-  "  mv s4, a0                # data ptr\n" ++
-  "  mv s1, a1                # remaining length\n" ++
-  "  mv s2, a2                # output ptr\n" ++
-  "  la s0, zk3_state\n" ++
-  "  # zero state (25 × u64)\n" ++
-  "  mv t3, s0\n" ++
-  "  li t4, 25\n" ++
-  ".Lzk3_zero:\n" ++
-  "  sd zero, 0(t3)\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lzk3_zero\n" ++
-  "  # absorb full blocks (rate = 136 bytes)\n" ++
-  ".Lzk3_full:\n" ++
-  "  li t4, 136\n" ++
-  "  blt s1, t4, .Lzk3_final\n" ++
-  "  mv t3, s0\n" ++
-  "  mv t5, s4\n" ++
-  "  li t6, 17\n" ++
-  ".Lzk3_xor:\n" ++
-  "  ld t0, 0(t5)\n" ++
-  "  ld t1, 0(t3)\n" ++
-  "  xor t1, t1, t0\n" ++
-  "  sd t1, 0(t3)\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t5, t5, 8\n" ++
-  "  addi t6, t6, -1\n" ++
-  "  bnez t6, .Lzk3_xor\n" ++
-  "  mv a0, s0\n" ++
-  "  .4byte 0x80052073\n" ++
-  "  addi s4, s4, 136\n" ++
-  "  addi s1, s1, -136\n" ++
-  "  j .Lzk3_full\n" ++
-  ".Lzk3_final:\n" ++
-  "  mv t3, s0\n" ++
-  "  mv t5, s4\n" ++
-  "  beqz s1, .Lzk3_pad\n" ++
-  ".Lzk3_bxor:\n" ++
-  "  lbu t0, 0(t5)\n" ++
-  "  lbu t1, 0(t3)\n" ++
-  "  xor t0, t0, t1\n" ++
-  "  sb t0, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi s1, s1, -1\n" ++
-  "  bnez s1, .Lzk3_bxor\n" ++
-  ".Lzk3_pad:\n" ++
-  "  lbu t0, 0(t3)\n" ++
-  "  xori t0, t0, 0x01\n" ++
-  "  sb t0, 0(t3)\n" ++
-  "  addi t3, s0, 135\n" ++
-  "  lbu t0, 0(t3)\n" ++
-  "  xori t0, t0, 0x80\n" ++
-  "  sb t0, 0(t3)\n" ++
-  "  mv a0, s0\n" ++
-  "  .4byte 0x80052073\n" ++
-  "  # squeeze 32 bytes to s2 (= output ptr)\n" ++
-  "  ld t0, 0(s0);  sd t0, 0(s2)\n" ++
-  "  ld t0, 8(s0);  sd t0, 8(s2)\n" ++
-  "  ld t0, 16(s0); sd t0, 16(s2)\n" ++
-  "  ld t0, 24(s0); sd t0, 24(s2)\n" ++
-  "  # return ZKVM_EOK\n" ++
-  "  li a0, 0\n" ++
-  "  ld s0, 0(sp)\n" ++
-  "  ld s1, 8(sp)\n" ++
-  "  ld s2, 16(sp)\n" ++
-  "  ld s4, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+  "zkvm_keccak256:\n" ++ emitProgramR zkvmKeccak256_prog zkvmKeccak256_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `zkvmKeccak256_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem zkvmKeccak256Function_eq_prog :
+    zkvmKeccak256Function = "zkvm_keccak256:\n" ++ emitProgramR zkvmKeccak256_prog zkvmKeccak256_relocs := rfl
+
+#guard zkvmKeccak256Function.startsWith "zkvm_keccak256:\n"
+#guard zkvmKeccak256_prog.length = 69
+/-- `zkvm_keccak256_segments`: streaming keccak256 over the CONCATENATION of a list
+    of (ptr,len) byte segments, without materializing the concatenation in one
+    buffer. Same sponge as `zkvm_keccak256` (reuses `zk3_state` + the keccak-f
+    permutation `.4byte 0x80052073`), but absorbs segment-by-segment, carrying the
+    136-byte rate-block fill across segment boundaries in a register. This lets a
+    caller hash `small_prefix || BIG_in_place_slice || small_suffix` (e.g. a tx
+    signing RLP whose calldata is megabytes) by passing the big slice as one
+    segment pointing straight into its source region -- O(1) extra memory, no copy,
+    no input mutation, no fixed-buffer cap. Identical digest to the one-shot.
+
+    Calling convention:
+      a0 (input) : segments array ptr -- N×16 bytes, each = (u64 ptr, u64 len)
+      a1 (input) : N (segment count; segments of len 0 are skipped)
+      a2 (input) : 32-byte output hash ptr
+      a0 (output): 0 (ZKVM_EOK)
+    Byte-wise absorb (correctness-first); the keccak-f permutation dominates and
+    is accelerated, so the per-byte XOR is cheap relative to the recovery. -/
+def zkvmKeccak256Segments_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x19 (laHi GuestAddrs.zk3_state (GuestAddrs.zkvm_keccak256_segments + 48)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.zk3_state (GuestAddrs.zkvm_keccak256_segments + 48)),
+    .MV .x5 .x19,
+    .LI .x6 (25 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .LI .x20 (0 : Word),
+    .BEQ .x9 .x0 (80 : BitVec 13),
+    .LD .x21 .x8 (0 : BitVec 12),
+    .LD .x22 .x8 (8 : BitVec 12),
+    .ADDI .x8 .x8 (16 : BitVec 12),
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .BEQ .x22 .x0 (-20 : BitVec 13),
+    .LBU .x5 .x21 (0 : BitVec 12),
+    .ADD .x6 .x19 .x20,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .XOR .x7 .x7 .x5,
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .ADDI .x22 .x22 (-1 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .LI .x5 (136 : Word),
+    .BNE .x20 .x5 (-40 : BitVec 13),
+    .MV .x10 .x19,
+    .CSRS (2048 : BitVec 12) .x10,
+    .LI .x20 (0 : Word),
+    .JAL .x0 (-56 : BitVec 21),
+    .ADD .x6 .x19 .x20,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .XORI .x7 .x7 (1 : BitVec 12),
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x6 .x19 (135 : BitVec 12),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .XORI .x7 .x7 (128 : BitVec 12),
+    .SB .x6 .x7 (0 : BitVec 12),
+    .MV .x10 .x19,
+    .CSRS (2048 : BitVec 12) .x10,
+    .LD .x5 .x19 (0 : BitVec 12),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LD .x5 .x19 (8 : BitVec 12),
+    .SD .x18 .x5 (8 : BitVec 12),
+    .LD .x5 .x19 (16 : BitVec 12),
+    .SD .x18 .x5 (16 : BitVec 12),
+    .LD .x5 .x19 (24 : BitVec 12),
+    .SD .x18 .x5 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `zkvmKeccak256Segments_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def zkvmKeccak256Segments_relocs : RelocTable :=
+  [ (12, .la .x19 "zk3_state") ]
+
+def zkvmKeccak256SegmentsFunction : String :=
+  "zkvm_keccak256_segments:\n" ++ emitProgramR zkvmKeccak256Segments_prog zkvmKeccak256Segments_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `zkvmKeccak256Segments_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem zkvmKeccak256SegmentsFunction_eq_prog :
+    zkvmKeccak256SegmentsFunction = "zkvm_keccak256_segments:\n" ++ emitProgramR zkvmKeccak256Segments_prog zkvmKeccak256Segments_relocs := rfl
+
+#guard zkvmKeccak256SegmentsFunction.startsWith "zkvm_keccak256_segments:\n"
+#guard zkvmKeccak256Segments_prog.length = 70
 end EvmAsm.Codegen

@@ -324,4 +324,64 @@ theorem exp_loop_from_looppost_induction_general
           base baseWord rest exitCond hbase hExit hLoop
       exact hSpec R hR s hcr hPR' hpc
 
+/-- Concrete 256-iteration loop body spec starting from the loop-**entry**
+    pre-state `expTwoMulIterPre` (counter `256`).
+
+    Unlike `exp_loop_from_looppost_full_body_general_spec_within` (which starts
+    from the loop-**back** post `expTwoMulIterLoopPost 256`, only reachable
+    *after* the first iteration has run), this starts from `expTwoMulIterPre` —
+    the state the prologue actually hands to the loop head at `base + 28`.  It
+    peels the first iteration with `exp_loop_body_succ_step_general` and runs the
+    remaining 255 via `exp_loop_from_looppost_induction_general`.
+
+    This is the body spec whose precondition the prologue's `loopEntryPost` can
+    bridge into by a pure separation-logic reshuffle (the analog of the fixed
+    path's `expTwoMulLoopEntryPostFixed_to_firstIterPre`), avoiding the
+    structurally-impossible `loopEntryPost → loopBackPost` bridge. -/
+theorem exp_loop_from_iterpre_full_body_general_spec_within
+    (e v18 sp evmSp vOld r0 r1 r2 r3 preD0 preD1 preD2 preD3
+      e0 e1 e2 e3 a0 a1 a2 a3 : Word)
+    (base : Word)
+    (hbase : base &&& 1 = 0)
+    (iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (hExitUniv : ∀ (bit0 : Word) (squarW0 rwW0 : EvmWord) (ps : PartialState),
+        expTwoMulIterExitPost 0 bit0 sp evmSp base a0 a1 a2 a3 squarW0 rwW0 ps →
+        expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond ps) :
+    cpsTripleWithin (256 * 189) (base + 28) (base + 264)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterPre e (256 : Word) v18 sp evmSp vOld r0 r1 r2 r3
+        preD0 preD1 preD2 preD3 e0 e1 e2 e3 a0 a1 a2 a3)
+      (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+        out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) := by
+  have hsucc : (256 : Word).toNat = 255 + 1 := by decide
+  have h_icn_toNat : (expTwoMulIterCountNew (256 : Word)).toNat = 255 :=
+    expTwoMulIterCountNew_toNat hsucc
+  have h_icn_ne : expTwoMulIterCountNew (256 : Word) ≠ 0 :=
+    expTwoMulIterCountNew_ne_zero_of_toNat_pos hsucc (by omega)
+  have hLoop :
+      cpsTripleWithin (255 * 189) (base + 28) (base + 264)
+        (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+        (expTwoMulIterLoopPost (expTwoMulIterCountNew (256 : Word))
+          (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+          (expTwoMulSquareW r0 r1 r2 r3)
+          (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) :=
+    exp_loop_from_looppost_induction_general 255
+      (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+      (expTwoMulSquareW r0 r1 r2 r3)
+      (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3)
+      (expTwoMulIterCountNew (256 : Word)) h_icn_ne h_icn_toNat hbase
+      iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3
+      baseWord rest exitCond hExitUniv
+  have hStep :=
+    exp_loop_body_succ_step_general 255 e (256 : Word) v18 sp evmSp vOld
+      r0 r1 r2 r3 preD0 preD1 preD2 preD3 e0 e1 e2 e3 a0 a1 a2 a3
+      iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3
+      base baseWord rest exitCond hbase
+      (exp_loop_exit_vacuous_bridge h_icn_ne) hLoop
+  simpa using hStep
+
 end EvmAsm.Evm64.Exp.Compose

@@ -22,6 +22,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 
@@ -72,88 +75,118 @@ open EvmAsm.Rv64.Program
         2 : input has fewer than `n` fields
     Edge cases:
       * n == 0 → output is `0xc0` (empty list, 1 byte). -/
-def rlpListTruncateToNFieldsFunction : String :=
-  "rlp_list_truncate_to_n_fields:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # input_rlp ptr\n" ++
-  "  mv s1, a1                   # input_rlp len\n" ++
-  "  mv s2, a2                   # n_fields\n" ++
-  "  mv s3, a3                   # output buffer ptr\n" ++
-  "  mv s4, a4                   # out_length ptr\n" ++
-  "  beqz s2, .Lrltn_empty       # n == 0 → emit `0xc0`\n" ++
-  "  # ---- Parse the outer list prefix to get payload_start ----\n" ++
-  "  # NOTE: we cannot use `rlp_list_nth_item(input, 0)` for this:\n" ++
-  "  # K20 returns the *content* offset for byte-string items, which\n" ++
-  "  # drops the field's RLP prefix byte. The truncation needs the\n" ++
-  "  # *item* offset = start of the outer payload = byte after the\n" ++
-  "  # outer list prefix.\n" ++
-  "  beqz s1, .Lrltn_parse_fail\n" ++
-  "  lbu t0, 0(s0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrltn_parse_fail   # not an RLP list\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrltn_short_list\n" ++
-  "  # Long list: payload_start = 1 + (t0 - 0xf7)\n" ++
-  "  addi s5, t0, -0xf7\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lrltn_have_start\n" ++
-  ".Lrltn_short_list:\n" ++
-  "  li s5, 1                          # payload_start = 1\n" ++
-  ".Lrltn_have_start:\n" ++
-  "  # ---- Locate field (n-1) to get end-of-payload ----\n" ++
-  "  addi t0, s2, -1\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, t0\n" ++
-  "  la a3, rltn_offset_hi; la a4, rltn_length_hi\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrltn_too_few\n" ++
-  "  la t0, rltn_offset_hi; ld t1, 0(t0)\n" ++
-  "  la t0, rltn_length_hi; ld t2, 0(t0)\n" ++
-  "  add t1, t1, t2                              # end-of-payload (after item n-1)\n" ++
-  "  sub s6, t1, s5                              # new_payload_len\n" ++
-  "  # ---- Write new outer list prefix ----\n" ++
-  "  mv a0, s6; mv a1, s3\n" ++
-  "  la a2, rltn_prefix_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, rltn_prefix_len; ld t1, 0(t0)        # prefix_len\n" ++
-  "  # ---- Copy payload bytes ----\n" ++
-  "  add t2, s3, t1                              # dst = output + prefix\n" ++
-  "  add t3, s0, s5                              # src = input + payload_start\n" ++
-  "  mv t4, s6                                   # remaining bytes\n" ++
-  ".Lrltn_cploop:\n" ++
-  "  beqz t4, .Lrltn_cpdone\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb t5, 0(t2)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrltn_cploop\n" ++
-  ".Lrltn_cpdone:\n" ++
-  "  add t1, t1, s6                              # out_len = prefix + payload\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrltn_ret\n" ++
-  ".Lrltn_empty:\n" ++
-  "  li t0, 0xc0\n" ++
-  "  sb t0, 0(s3)\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrltn_ret\n" ++
-  ".Lrltn_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lrltn_ret\n" ++
-  ".Lrltn_too_few:\n" ++
-  "  li a0, 2\n" ++
-  ".Lrltn_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def rlpListTruncateToNFields_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x18 .x0 (204 : BitVec 13),
+    .BEQ .x9 .x0 (224 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (212 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (16 : BitVec 13),
+    .ADDI .x21 .x5 (-247 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x21 (1 : Word),
+    .ADDI .x5 .x18 (-1 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x5,
+    .AUIPC .x13 (laHi GuestAddrs.rltn_offset_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rltn_offset_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 116)),
+    .AUIPC .x14 (laHi GuestAddrs.rltn_length_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 124)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rltn_length_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_list_truncate_to_n_fields + 132)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rltn_offset_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rltn_offset_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 140)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rltn_length_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rltn_length_hi (GuestAddrs.rlp_list_truncate_to_n_fields + 152)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .SUB .x22 .x6 .x21,
+    .MV .x10 .x22,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.rltn_prefix_len (GuestAddrs.rlp_list_truncate_to_n_fields + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.rltn_prefix_len (GuestAddrs.rlp_list_truncate_to_n_fields + 180)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.rlp_list_truncate_to_n_fields + 188)),
+    .AUIPC .x5 (laHi GuestAddrs.rltn_prefix_len (GuestAddrs.rlp_list_truncate_to_n_fields + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rltn_prefix_len (GuestAddrs.rlp_list_truncate_to_n_fields + 192)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x19 .x6,
+    .ADD .x28 .x8 .x21,
+    .MV .x29 .x22,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x7 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x22,
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LI .x5 (192 : Word),
+    .SB .x19 .x5 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `rlpListTruncateToNFields_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpListTruncateToNFields_relocs : RelocTable :=
+  [ (29, .la .x13 "rltn_offset_hi"),
+    (31, .la .x14 "rltn_length_hi"),
+    (33, .jal .x1 "rlp_list_nth_item"),
+    (35, .la .x5 "rltn_offset_hi"),
+    (38, .la .x5 "rltn_length_hi"),
+    (45, .la .x12 "rltn_prefix_len"),
+    (47, .jal .x1 "rlp_encode_list_prefix"),
+    (48, .la .x5 "rltn_prefix_len") ]
+
+def rlpListTruncateToNFieldsFunction : String :=
+  "rlp_list_truncate_to_n_fields:\n" ++ emitProgramR rlpListTruncateToNFields_prog rlpListTruncateToNFields_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpListTruncateToNFields_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpListTruncateToNFieldsFunction_eq_prog :
+    rlpListTruncateToNFieldsFunction = "rlp_list_truncate_to_n_fields:\n" ++ emitProgramR rlpListTruncateToNFields_prog rlpListTruncateToNFields_relocs := rfl
+
+#guard rlpListTruncateToNFieldsFunction.startsWith "rlp_list_truncate_to_n_fields:\n"
+#guard rlpListTruncateToNFields_prog.length = 84
 /-- `zisk_rlp_list_truncate_to_n_fields`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : input_rlp_len
@@ -253,56 +286,137 @@ def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
         1 : truncation parse failure / fewer than n fields
 
     Uses two `.data` scratch buffers:
-      * `tsh_buf` (8 KiB) -- holds `[optional type byte] ||
+      * `tsh_buf` (128 KiB) -- holds `[optional type byte] ||
         rlp([first n fields])` immediately before the keccak
         call.
       * `zk3_state` (200 bytes) -- reused from the existing
         keccak bridge. -/
-def txSigningHashFunction : String :=
-  "tx_signing_hash:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # inner_rlp ptr\n" ++
-  "  mv s1, a1                   # inner_rlp len\n" ++
-  "  mv s2, a2                   # n_fields\n" ++
-  "  mv s3, a3                   # type_prefix (low byte)\n" ++
-  "  mv s4, a4                   # output hash ptr (32 B)\n" ++
-  "  # ---- Write optional type prefix at tsh_buf[0] ----\n" ++
-  "  la t0, tsh_buf\n" ++
-  "  beqz s3, .Ltsh_after_prefix\n" ++
-  "  sb s3, 0(t0)\n" ++
-  ".Ltsh_after_prefix:\n" ++
-  "  # ---- Truncate inner_rlp into tsh_buf[1..] ----\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, tsh_buf; addi a3, a3, 1\n" ++
-  "  la a4, tsh_trunc_len\n" ++
-  "  jal ra, rlp_list_truncate_to_n_fields\n" ++
-  "  bnez a0, .Ltsh_fail\n" ++
-  "  la t0, tsh_trunc_len; ld t1, 0(t0)        # trunc_len\n" ++
-  "  # ---- Compute (hash_data_ptr, hash_data_len) ----\n" ++
-  "  beqz s3, .Ltsh_no_prefix\n" ++
-  "  la a0, tsh_buf                            # start at byte 0 (prefix)\n" ++
-  "  addi a1, t1, 1                            # length = trunc_len + 1\n" ++
-  "  j .Ltsh_do_hash\n" ++
-  ".Ltsh_no_prefix:\n" ++
-  "  la a0, tsh_buf; addi a0, a0, 1            # start at byte 1\n" ++
-  "  mv a1, t1                                 # length = trunc_len\n" ++
-  ".Ltsh_do_hash:\n" ++
-  "  mv a2, s4                                 # output ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltsh_ret\n" ++
-  ".Ltsh_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Ltsh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def txSigningHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 56)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 56)),
+    .SB .x5 .x19 (0 : BitVec 12),
+    .BEQ .x9 .x0 (260 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (248 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (16 : BitVec 13),
+    .ADDI .x21 .x5 (-247 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x21 (1 : Word),
+    .LI .x22 (0 : Word),
+    .BEQ .x18 .x0 (76 : BitVec 13),
+    .ADDI .x5 .x18 (-1 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x5,
+    .AUIPC .x13 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 132)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 132)),
+    .ADDI .x13 .x13 (64 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 144)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 144)),
+    .ADDI .x14 .x14 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.tx_signing_hash + 156)),
+    .BNE .x10 .x0 (168 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 164)),
+    .LD .x6 .x5 (64 : BitVec 12),
+    .LD .x7 .x5 (72 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .SUB .x22 .x6 .x21,
+    .MV .x10 .x22,
+    .AUIPC .x11 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 192)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 192)),
+    .ADDI .x11 .x11 (16 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 204)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 204)),
+    .ADDI .x12 .x12 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.tx_signing_hash + 216)),
+    .AUIPC .x5 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 220)),
+    .LD .x29 .x5 (80 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 232)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 232)),
+    .ADDI .x30 .x30 (128 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .BEQ .x19 .x0 (8 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .AUIPC .x31 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 256)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 256)),
+    .SD .x30 .x31 (0 : BitVec 12),
+    .SD .x30 .x5 (8 : BitVec 12),
+    .AUIPC .x31 (laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 272)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 272)),
+    .ADDI .x31 .x31 (16 : BitVec 12),
+    .SD .x30 .x31 (16 : BitVec 12),
+    .SD .x30 .x29 (24 : BitVec 12),
+    .ADD .x31 .x8 .x21,
+    .SD .x30 .x31 (32 : BitVec 12),
+    .SD .x30 .x22 (40 : BitVec 12),
+    .MV .x10 .x30,
+    .LI .x11 (3 : Word),
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256_segments (GuestAddrs.tx_signing_hash + 316)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txSigningHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txSigningHash_relocs : RelocTable :=
+  [ (14, .la .x5 "tsh_buf"),
+    (33, .la .x13 "tsh_buf"),
+    (36, .la .x14 "tsh_buf"),
+    (39, .jal .x1 "rlp_list_nth_item"),
+    (41, .la .x5 "tsh_buf"),
+    (48, .la .x11 "tsh_buf"),
+    (51, .la .x12 "tsh_buf"),
+    (54, .jal .x1 "rlp_encode_list_prefix"),
+    (55, .la .x5 "tsh_buf"),
+    (58, .la .x30 "tsh_buf"),
+    (64, .la .x31 "tsh_buf"),
+    (68, .la .x31 "tsh_buf"),
+    (79, .jal .x1 "zkvm_keccak256_segments") ]
+
+def txSigningHashFunction : String :=
+  "tx_signing_hash:\n" ++ emitProgramR txSigningHash_prog txSigningHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txSigningHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txSigningHashFunction_eq_prog :
+    txSigningHashFunction = "tx_signing_hash:\n" ++ emitProgramR txSigningHash_prog txSigningHash_relocs := rfl
+
+#guard txSigningHashFunction.startsWith "tx_signing_hash:\n"
+#guard txSigningHash_prog.length = 93
 /-- `zisk_tx_signing_hash`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : inner_rlp_len
@@ -329,6 +443,7 @@ def ziskTxSigningHashPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashFunction ++ "\n" ++
   ".Ltsh_pdone:"
 
@@ -338,7 +453,7 @@ def ziskTxSigningHashDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "tsh_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "tsh_trunc_len:\n" ++
   "  .zero 8\n" ++
   -- Scratch labels owned by `rlp_list_truncate_to_n_fields` (K144);
@@ -401,117 +516,165 @@ def ziskTxSigningHashProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : RLP parse failure / fewer than 6 fields -/
-def txSigningHashLegacyEip155Function : String :=
-  "tx_signing_hash_legacy_eip155:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tx_rlp ptr\n" ++
-  "  mv s1, a1                   # tx_rlp len\n" ++
-  "  mv s2, a2                   # chain_id\n" ++
-  "  mv s3, a3                   # output hash ptr\n" ++
-  "  # ---- Parse outer list prefix to get payload_start ----\n" ++
-  "  # NOTE: K20 returns content offsets, not item-start offsets.\n" ++
-  "  # We need the byte right after the outer list prefix.\n" ++
-  "  beqz s1, .Lt155_fail\n" ++
-  "  lbu t0, 0(s0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lt155_fail\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lt155_short_list\n" ++
-  "  addi s4, t0, -0xf7\n" ++
-  "  addi s4, s4, 1                              # payload_start\n" ++
-  "  j .Lt155_have_start\n" ++
-  ".Lt155_short_list:\n" ++
-  "  li s4, 1\n" ++
-  ".Lt155_have_start:\n" ++
-  "  # ---- Locate field 5 to get end-of-body ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, t155_offset_hi; la a4, t155_length_hi\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt155_fail\n" ++
-  "  la t0, t155_offset_hi; ld t1, 0(t0)\n" ++
-  "  la t0, t155_length_hi; ld t2, 0(t0)\n" ++
-  "  add t1, t1, t2                              # end-of-body\n" ++
-  "  sub s5, t1, s4                              # body_len\n" ++
-  "  # ---- Encode chain_id as canonical RLP into t155_chain_be ----\n" ++
-  "  # Write chain_id as 8 BE bytes to t155_chain_be\n" ++
-  "  la t0, t155_chain_be\n" ++
-  "  li t1, 7\n" ++
-  ".Lt155_chain_be_loop:\n" ++
-  "  bltz t1, .Lt155_chain_be_done\n" ++
-  "  slli t2, t1, 3\n" ++
-  "  srl t3, s2, t2\n" ++
-  "  andi t3, t3, 0xff\n" ++
-  "  sb t3, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lt155_chain_be_loop\n" ++
-  ".Lt155_chain_be_done:\n" ++
-  "  la a0, t155_chain_be; li a1, 8\n" ++
-  "  la a2, t155_chain_enc\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  mv t3, a0                                   # chain_id_enc_len\n" ++
-  "  # tail_len = chain_id_enc_len + 2  (two 0x80 bytes for 0, 0)\n" ++
-  "  addi t3, t3, 2\n" ++
-  "  # new_payload_len = body_len + tail_len\n" ++
-  "  add t4, s5, t3                              # new_payload_len\n" ++
-  "  # ---- Write new outer list prefix into t155_buf ----\n" ++
-  "  mv a0, t4; la a1, t155_buf\n" ++
-  "  la a2, t155_prefix_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, t155_prefix_len; ld t5, 0(t0)        # prefix_len\n" ++
-  "  # ---- Copy body bytes after the prefix ----\n" ++
-  "  la t0, t155_buf; add t0, t0, t5             # dst\n" ++
-  "  add t1, s0, s4                              # src = input + payload_start\n" ++
-  "  mv t2, s5                                   # body bytes remaining\n" ++
-  ".Lt155_body_cp:\n" ++
-  "  beqz t2, .Lt155_body_done\n" ++
-  "  lbu t6, 0(t1)\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lt155_body_cp\n" ++
-  ".Lt155_body_done:\n" ++
-  "  # ---- Append encoded chain_id ----\n" ++
-  "  la t1, t155_chain_enc\n" ++
-  "  la t6, t155_prefix_len; ld t6, 0(t6)        # reload prefix_len\n" ++
-  "  # Reload chain_id_enc_len: re-derive from tail_len-2 ... easier to recompute\n" ++
-  "  # Actually we lost t3 above; recompute by saving differently. Use t4 - s5 - 2.\n" ++
-  "  sub t2, t4, s5\n" ++
-  "  addi t2, t2, -2                             # chain_id_enc_len\n" ++
-  ".Lt155_chain_cp:\n" ++
-  "  beqz t2, .Lt155_chain_done\n" ++
-  "  lbu t6, 0(t1)\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lt155_chain_cp\n" ++
-  ".Lt155_chain_done:\n" ++
-  "  # ---- Append two 0x80 bytes for (0, 0) tail ----\n" ++
-  "  li t6, 0x80\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  sb t6, 1(t0)\n" ++
-  "  # ---- Total hash input length = prefix_len + new_payload_len ----\n" ++
-  "  la t0, t155_prefix_len; ld t6, 0(t0)\n" ++
-  "  add a1, t6, t4                              # total length\n" ++
-  "  la a0, t155_buf                             # data ptr\n" ++
-  "  mv a2, s3                                   # output hash ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lt155_ret\n" ++
-  ".Lt155_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lt155_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def txSigningHashLegacyEip155_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .BEQ .x9 .x0 (384 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (372 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (16 : BitVec 13),
+    .ADDI .x20 .x5 (-247 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x20 (1 : Word),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (5 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.t155_offset_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 104)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.t155_offset_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 104)),
+    .AUIPC .x14 (laHi GuestAddrs.t155_length_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 112)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.t155_length_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 112)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.tx_signing_hash_legacy_eip155 + 120)),
+    .BNE .x10 .x0 (312 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.t155_offset_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.t155_offset_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 128)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.t155_length_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.t155_length_hi (GuestAddrs.tx_signing_hash_legacy_eip155 + 140)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .SUB .x21 .x6 .x20,
+    .AUIPC .x5 (laHi GuestAddrs.t155_chain_be (GuestAddrs.tx_signing_hash_legacy_eip155 + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.t155_chain_be (GuestAddrs.tx_signing_hash_legacy_eip155 + 160)),
+    .LI .x6 (7 : Word),
+    .BLT .x6 .x0 (32 : BitVec 13),
+    .SLLI .x7 .x6 (3 : BitVec 6),
+    .SRL .x28 .x18 .x7,
+    .ANDI .x28 .x28 (255 : BitVec 12),
+    .SB .x5 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.t155_chain_be (GuestAddrs.tx_signing_hash_legacy_eip155 + 204)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.t155_chain_be (GuestAddrs.tx_signing_hash_legacy_eip155 + 204)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.t155_chain_enc (GuestAddrs.tx_signing_hash_legacy_eip155 + 216)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.t155_chain_enc (GuestAddrs.tx_signing_hash_legacy_eip155 + 216)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.tx_signing_hash_legacy_eip155 + 224)),
+    .MV .x28 .x10,
+    .ADDI .x28 .x28 (2 : BitVec 12),
+    .ADD .x22 .x21 .x28,
+    .MV .x10 .x22,
+    .AUIPC .x11 (laHi GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 244)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 244)),
+    .AUIPC .x12 (laHi GuestAddrs.t155_prefix_len (GuestAddrs.tx_signing_hash_legacy_eip155 + 252)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.t155_prefix_len (GuestAddrs.tx_signing_hash_legacy_eip155 + 252)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.tx_signing_hash_legacy_eip155 + 260)),
+    .SUB .x7 .x22 .x21,
+    .ADDI .x7 .x7 (-2 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 272)),
+    .ADDI .x5 .x5 (64 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.t155_chain_enc (GuestAddrs.tx_signing_hash_legacy_eip155 + 284)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.t155_chain_enc (GuestAddrs.tx_signing_hash_legacy_eip155 + 284)),
+    .MV .x28 .x7,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x31 .x6 (0 : BitVec 12),
+    .SB .x5 .x31 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x31 (128 : Word),
+    .SB .x5 .x31 (0 : BitVec 12),
+    .SB .x5 .x31 (1 : BitVec 12),
+    .ADDI .x7 .x7 (2 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.t155_prefix_len (GuestAddrs.tx_signing_hash_legacy_eip155 + 340)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.t155_prefix_len (GuestAddrs.tx_signing_hash_legacy_eip155 + 340)),
+    .LD .x29 .x29 (0 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 352)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 352)),
+    .ADDI .x30 .x30 (128 : BitVec 12),
+    .AUIPC .x31 (laHi GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 364)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 364)),
+    .SD .x30 .x31 (0 : BitVec 12),
+    .SD .x30 .x29 (8 : BitVec 12),
+    .ADD .x31 .x8 .x20,
+    .SD .x30 .x31 (16 : BitVec 12),
+    .SD .x30 .x21 (24 : BitVec 12),
+    .AUIPC .x31 (laHi GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 392)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.t155_buf (GuestAddrs.tx_signing_hash_legacy_eip155 + 392)),
+    .ADDI .x31 .x31 (64 : BitVec 12),
+    .SD .x30 .x31 (32 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .MV .x10 .x30,
+    .LI .x11 (3 : Word),
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256_segments (GuestAddrs.tx_signing_hash_legacy_eip155 + 424)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txSigningHashLegacyEip155_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txSigningHashLegacyEip155_relocs : RelocTable :=
+  [ (26, .la .x13 "t155_offset_hi"),
+    (28, .la .x14 "t155_length_hi"),
+    (30, .jal .x1 "rlp_list_nth_item"),
+    (32, .la .x5 "t155_offset_hi"),
+    (35, .la .x5 "t155_length_hi"),
+    (40, .la .x5 "t155_chain_be"),
+    (51, .la .x10 "t155_chain_be"),
+    (54, .la .x12 "t155_chain_enc"),
+    (56, .jal .x1 "rlp_encode_uint_be"),
+    (61, .la .x11 "t155_buf"),
+    (63, .la .x12 "t155_prefix_len"),
+    (65, .jal .x1 "rlp_encode_list_prefix"),
+    (68, .la .x5 "t155_buf"),
+    (71, .la .x6 "t155_chain_enc"),
+    (85, .la .x29 "t155_prefix_len"),
+    (88, .la .x30 "t155_buf"),
+    (91, .la .x31 "t155_buf"),
+    (98, .la .x31 "t155_buf"),
+    (106, .jal .x1 "zkvm_keccak256_segments") ]
+
+def txSigningHashLegacyEip155Function : String :=
+  "tx_signing_hash_legacy_eip155:\n" ++ emitProgramR txSigningHashLegacyEip155_prog txSigningHashLegacyEip155_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txSigningHashLegacyEip155_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txSigningHashLegacyEip155Function_eq_prog :
+    txSigningHashLegacyEip155Function = "tx_signing_hash_legacy_eip155:\n" ++ emitProgramR txSigningHashLegacyEip155_prog txSigningHashLegacyEip155_relocs := rfl
+
+#guard txSigningHashLegacyEip155Function.startsWith "tx_signing_hash_legacy_eip155:\n"
+#guard txSigningHashLegacyEip155_prog.length = 120
 /-- `zisk_tx_signing_hash_legacy_eip155`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx_rlp_len
@@ -535,6 +698,7 @@ def ziskTxSigningHashLegacyEip155Prologue : String :=
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashLegacyEip155Function ++ "\n" ++
   ".Lt155_pdone:"
 
@@ -544,7 +708,7 @@ def ziskTxSigningHashLegacyEip155DataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "t155_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "t155_offset_lo:\n" ++
   "  .zero 8\n" ++
   "t155_length_lo:\n" ++
@@ -604,22 +768,36 @@ def ziskTxSigningHashLegacyEip155ProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : RLP parse failure / fewer than 3 fields -/
-def eip7702AuthorizationSigningHashFunction : String :=
-  "eip7702_authorization_signing_hash:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  # Forward to tx_signing_hash with n=3, type_prefix=0x05.\n" ++
-  "  # a0 = inner_rlp ptr      (unchanged)\n" ++
-  "  # a1 = inner_rlp byte len (unchanged)\n" ++
-  "  # a2 = 32-byte output ptr (move to a4 per K145 ABI)\n" ++
-  "  mv a4, a2\n" ++
-  "  li a2, 3                  # n_fields\n" ++
-  "  li a3, 0x05               # MAGIC type prefix\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def eip7702AuthorizationSigningHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x14 .x12,
+    .LI .x12 (3 : Word),
+    .LI .x13 (5 : Word),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.eip7702_authorization_signing_hash + 20)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702AuthorizationSigningHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702AuthorizationSigningHash_relocs : RelocTable :=
+  [ (5, .jal .x1 "tx_signing_hash") ]
+
+def eip7702AuthorizationSigningHashFunction : String :=
+  "eip7702_authorization_signing_hash:\n" ++ emitProgramR eip7702AuthorizationSigningHash_prog eip7702AuthorizationSigningHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702AuthorizationSigningHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702AuthorizationSigningHashFunction_eq_prog :
+    eip7702AuthorizationSigningHashFunction = "eip7702_authorization_signing_hash:\n" ++ emitProgramR eip7702AuthorizationSigningHash_prog eip7702AuthorizationSigningHash_relocs := rfl
+
+#guard eip7702AuthorizationSigningHashFunction.startsWith "eip7702_authorization_signing_hash:\n"
+#guard eip7702AuthorizationSigningHash_prog.length = 9
 /-- `zisk_eip7702_authorization_signing_hash`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tuple_rlp_len
@@ -641,6 +819,7 @@ def ziskEip7702AuthorizationSigningHashPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashFunction ++ "\n" ++
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   ".Ltash_pdone:"
@@ -653,7 +832,7 @@ def ziskEip7702AuthorizationSigningHashDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "tsh_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "tsh_trunc_len:\n" ++
   "  .zero 8\n" ++
   "rltn_offset_lo:\n" ++

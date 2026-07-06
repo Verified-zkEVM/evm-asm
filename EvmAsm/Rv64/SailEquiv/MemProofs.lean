@@ -32,7 +32,7 @@ namespace EvmAsm.Rv64.SailEquiv
 -- `StateRel` + `BareModeInv` + per-access bundle instead of the vacuous `h_exec`
 -- hypothesis the other (still-deferred) memory lemmas below carry.
 
-theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sd_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8 sSail =
@@ -52,7 +52,7 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- `lw_sail_equiv` / `lwu_sail_equiv` are now DISCHARGED unconditionally in
 -- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
-theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4 sSail =
@@ -72,7 +72,7 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- `lb_sail_equiv` / `lbu_sail_equiv` are now DISCHARGED unconditionally in
 -- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
-theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1 sSail =
@@ -92,7 +92,7 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- `lh_sail_equiv` / `lhu_sail_equiv` are now DISCHARGED unconditionally in
 -- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
-theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sh_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2 sSail =

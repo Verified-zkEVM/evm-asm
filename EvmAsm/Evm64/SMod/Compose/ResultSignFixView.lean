@@ -30,13 +30,13 @@ theorem smodResultSignFixPost_smodResultSign_word
        evmWordIs sp (smodResultSignFixedWord dividendTop limb0 limb1 limb2 limb3)) := by
   dsimp only
   rw [smodResultSignFixPost_unfold, evmWordIs_sp_unfold]
-  unfold smodResultSignFixedWord
+  unfold smodResultSignFixedWord EvmAsm.Evm64.SDiv.Compose.rippleNegWord
   dsimp only
   simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
     EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24,
     EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
     EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3]
-  rw [show (sp + 0 : Word) = sp by bv_decide]
+  rw [show (sp + 0 : Word) = sp by bv_omega]
 
 /-- Postcondition view for the SMOD zero-divisor branch after result-sign
     fixup: conditional negation of the zero modulo result is still zero. -/

@@ -2,7 +2,7 @@
 # codegen-zisk-eip2935-blockhash-lookup-check.sh
 #
 # Resolve BLOCKHASH(target_block_number) via the EIP-2935 history
-# contract: state[HISTORY_STORAGE_ADDRESS].storage[target % 8192].
+# contract: state[HISTORY_STORAGE_ADDRESS].storage[target % 8191].
 #
 # Output (40 bytes):
 #   bytes  0.. 8 : status (0 / 2 / 3 / 4 / 6 / 7)
@@ -38,9 +38,9 @@ REPO_ROOT="$(pwd)"
 # run_case <name> <mode> [args...]
 #
 #   stored <target_n> <stored_n> <stored_hash_hex>
-#     History contract has slot (stored_n % 8192) = stored_hash.
+#     History contract has slot (stored_n % 8191) = stored_hash.
 #     If target_n == stored_n -> expect (0, stored_hash).
-#     Else if (target_n % 8192) == (stored_n % 8192) -> expect (0, stored_hash) too
+#     Else if (target_n % 8191) == (stored_n % 8191) -> expect (0, stored_hash) too
 #     (the contract stores by slot, target may alias).
 #
 #   slot_miss <target_n> <stored_n> <stored_hash_hex>
@@ -119,7 +119,7 @@ EMPTY_CODE = bytes.fromhex('c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfa
 
 # HISTORY_STORAGE_ADDRESS per EIP-2935.
 HISTORY_ADDR = bytes.fromhex('0000F90827F1C53a10cb7A02335B175320002935'.lower())
-HISTORY_SERVE_WINDOW = 8192
+HISTORY_SERVE_WINDOW = 8191
 
 argv = sys.argv[1:]
 mode = '$mode'
@@ -236,8 +236,11 @@ HASH2="1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff"
 FAILED=0
 # Stored block at target = stored.
 run_case "stored_target_eq"          stored 100 100 "$HASH1" || FAILED=1
-# Wrap-around: target_n = stored_n + 8192 -> same slot.
-run_case "stored_wraparound"         stored 8292 100 "$HASH1" || FAILED=1
+# Wrap-around: target_n = stored_n + 8191 -> same slot.
+run_case "stored_wraparound"         stored 8291 100 "$HASH1" || FAILED=1
+# Regression: %8191 != %8192. target=8192 -> slot 1 under MOD 8191,
+# but slot 0 under the old (buggy) AND 0x1fff mask. Must hit slot 1.
+run_case "stored_mod_neq_mask"       stored 8192 8192 "$HASH1" || FAILED=1
 # Different slot in same trie.
 run_case "slot_miss_diff_slot"       slot_miss 100 200 "$HASH2" || FAILED=1
 # History contract absent.

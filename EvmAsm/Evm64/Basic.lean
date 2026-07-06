@@ -6,7 +6,7 @@
 -/
 
 import EvmAsm.Rv64.Basic
-import Std.Tactic.BVDecide
+import EvmAsm.Evm64.EvmWordLimbAttr
 
 namespace EvmAsm.Evm64
 
@@ -36,22 +36,22 @@ def fromLimbs (limbs : Fin 4 → Word) : EvmWord :=
   ((limbs 3).zeroExtend 256 <<< 192)
 
 /-- Bitwise AND distributes over limbs. -/
-theorem getLimb_and {x y : EvmWord} {i : Fin 4} :
+@[evmword_limb, grind =] theorem getLimb_and {x y : EvmWord} {i : Fin 4} :
     (x &&& y).getLimb i = x.getLimb i &&& y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_and]
 
 /-- Bitwise OR distributes over limbs. -/
-theorem getLimb_or {x y : EvmWord} {i : Fin 4} :
+@[evmword_limb, grind =] theorem getLimb_or {x y : EvmWord} {i : Fin 4} :
     (x ||| y).getLimb i = x.getLimb i ||| y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_or]
 
 /-- Bitwise XOR distributes over limbs. -/
-theorem getLimb_xor {x y : EvmWord} {i : Fin 4} :
+@[evmword_limb, grind =] theorem getLimb_xor {x y : EvmWord} {i : Fin 4} :
     (x ^^^ y).getLimb i = x.getLimb i ^^^ y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_xor]
 
 /-- Bitwise NOT distributes over limbs. -/
-theorem getLimb_not {x : EvmWord} {i : Fin 4} :
+@[evmword_limb, grind =] theorem getLimb_not {x : EvmWord} {i : Fin 4} :
     (~~~x).getLimb i = ~~~(x.getLimb i) := by
   simp only [getLimb]
   ext j
@@ -60,40 +60,99 @@ theorem getLimb_not {x : EvmWord} {i : Fin 4} :
   simp [hbound]
 
 /-- Round-trip: fromLimbs ∘ getLimb = id. -/
-theorem fromLimbs_getLimb (v : EvmWord) :
+@[evmword_limb, grind =] theorem fromLimbs_getLimb (v : EvmWord) :
     EvmWord.fromLimbs (v.getLimb) = v := by
-  simp only [fromLimbs, getLimb,
-    fin4_val_0, fin4_val_1,
-    fin4_val_2, fin4_val_3]
-  bv_decide
+  simp only [fromLimbs, getLimb, fin4_val_0, fin4_val_1, fin4_val_2, fin4_val_3]
+  apply BitVec.eq_of_getLsbD_eq
+  intro b hb
+  simp only [BitVec.getLsbD_or, BitVec.getLsbD_setWidth, BitVec.getLsbD_shiftLeft,
+    BitVec.getLsbD_extractLsb']
+  rcases (by omega : b < 64 ∨ 64 ≤ b ∧ b < 128 ∨ 128 ≤ b ∧ b < 192 ∨ 192 ≤ b) with
+    h | ⟨h1, h2⟩ | ⟨h1, h2⟩ | h1
+  · simp only [show (b<256) by omega, show (b<64) by omega, show (b<128) by omega,
+      show (b<192) by omega, show 0*64+b=b by omega, decide_true, Bool.not_true, Bool.true_and,
+      Bool.false_and, Bool.and_false, Bool.or_false]
+  · simp only [show (b<256) by omega, show ¬(b<64) by omega, show (b<128) by omega,
+      show (b<192) by omega, show (b-64<256) by omega, show (b-64<64) by omega,
+      show 64+(b-64)=b by omega, decide_true, decide_false, Bool.not_true,
+      Bool.not_false, Bool.true_and, Bool.false_and,
+      Bool.and_false, Bool.or_false, Bool.false_or]
+  · simp only [show (b<256) by omega, show ¬(b<64) by omega, show ¬(b<128) by omega,
+      show (b<192) by omega, show ¬(b-64<64) by omega,
+      show (b-128<256) by omega, show (b-128<64) by omega, show 128+(b-128)=b by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false, Bool.true_and, Bool.false_and,
+      Bool.and_false, Bool.or_false, Bool.false_or]
+  · simp only [show (b<256) by omega, show ¬(b<64) by omega, show ¬(b<128) by omega,
+      show ¬(b<192) by omega, show ¬(b-64<64) by omega,
+      show ¬(b-128<64) by omega, show (b-192<256) by omega, show (b-192<64) by omega,
+      show 192+(b-192)=b by omega, decide_true, decide_false,
+      Bool.not_false, Bool.true_and, Bool.false_and,
+      Bool.and_false, Bool.or_false, Bool.false_or]
 
 theorem getLimb_fromLimbs_0 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 0 = limbs 0 := by
   simp only [fromLimbs, getLimb, fin4_val_0]
-  generalize limbs 0 = l0; generalize limbs 1 = l1
-  generalize limbs 2 = l2; generalize limbs 3 = l3
-  bv_decide
+  ext j hj
+  simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+    BitVec.getLsbD_shiftLeft]
+  rw [← BitVec.getLsbD_eq_getElem hj]
+  have e : 0*64 + j = j := by omega
+  rw [e]
+  have h2 : j < 256 := by omega
+  have h4 : j < 128 := by omega
+  have h5 : j < 192 := by omega
+  simp [hj, h2, h4, h5]
 theorem getLimb_fromLimbs_1 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 1 = limbs 1 := by
   simp only [fromLimbs, getLimb, fin4_val_1]
-  generalize limbs 0 = l0; generalize limbs 1 = l1
-  generalize limbs 2 = l2; generalize limbs 3 = l3
-  bv_decide
+  ext j hj
+  simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+    BitVec.getLsbD_shiftLeft]
+  rw [BitVec.getLsbD_of_ge (limbs 0) (1*64+j) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+  have e : 1*64 + j - 64 = j := by omega
+  rw [e]
+  have h2 : 1*64+j < 256 := by omega
+  have h3 : ¬(1*64+j < 64) := by omega
+  have h4 : 1*64+j < 128 := by omega
+  have h5 : 1*64+j < 192 := by omega
+  have h6 : j < 256 := by omega
+  simp [h2, h3, h4, h5, h6]
 theorem getLimb_fromLimbs_2 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 2 = limbs 2 := by
   simp only [fromLimbs, getLimb, fin4_val_2]
-  generalize limbs 0 = l0; generalize limbs 1 = l1
-  generalize limbs 2 = l2; generalize limbs 3 = l3
-  bv_decide
+  ext j hj
+  simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+    BitVec.getLsbD_shiftLeft]
+  rw [BitVec.getLsbD_of_ge (limbs 0) (2*64+j) (by omega),
+      BitVec.getLsbD_of_ge (limbs 1) (2*64+j-64) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+  have e : 2*64 + j - 128 = j := by omega
+  rw [e]
+  have h2 : 2*64+j < 256 := by omega
+  have h3 : ¬(2*64+j < 64) := by omega
+  have h3b : ¬(2*64+j < 128) := by omega
+  have h5 : 2*64+j < 192 := by omega
+  have h6 : j < 256 := by omega
+  simp [h2, h3, h3b, h5, h6]
 theorem getLimb_fromLimbs_3 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 3 = limbs 3 := by
   simp only [fromLimbs, getLimb, fin4_val_3]
-  generalize limbs 0 = l0; generalize limbs 1 = l1
-  generalize limbs 2 = l2; generalize limbs 3 = l3
-  bv_decide
+  ext j hj
+  simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+    BitVec.getLsbD_shiftLeft]
+  rw [BitVec.getLsbD_of_ge (limbs 0) (3*64+j) (by omega),
+      BitVec.getLsbD_of_ge (limbs 1) (3*64+j-64) (by omega),
+      BitVec.getLsbD_of_ge (limbs 2) (3*64+j-128) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+  have e : 3*64 + j - 192 = j := by omega
+  rw [e]
+  have h2 : 3*64+j < 256 := by omega
+  have h3 : ¬(3*64+j < 64) := by omega
+  have h3b : ¬(3*64+j < 128) := by omega
+  have h3c : ¬(3*64+j < 192) := by omega
+  have h6 : j < 256 := by omega
+  simp [h2, h3, h3b, h3c, h6]
 
 /-- Round-trip: getLimb ∘ fromLimbs = id. -/
-theorem getLimb_fromLimbs {limbs : Fin 4 → Word} {i : Fin 4} :
+@[evmword_limb, grind =] theorem getLimb_fromLimbs {limbs : Fin 4 → Word} {i : Fin 4} :
     (EvmWord.fromLimbs limbs).getLimb i = limbs i := by
   rcases i with ⟨i, hi⟩
   have : i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 := by omega
@@ -136,11 +195,20 @@ theorem toLimbs_length {v : EvmWord} : v.toLimbs.length = 4 := by
   simp [toLimbs]
 
 private theorem or3_eq_zero_left (a b c : BitVec 64) (h : a ||| b ||| c = 0) : a = 0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  have hh := congrArg (fun w => w.getLsbD i) h
+  simp only [BitVec.getLsbD_or] at hh
+  revert hh; cases a.getLsbD i <;> cases b.getLsbD i <;> cases c.getLsbD i <;> simp
 private theorem or3_eq_zero_mid (a b c : BitVec 64) (h : a ||| b ||| c = 0) : b = 0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  have hh := congrArg (fun w => w.getLsbD i) h
+  simp only [BitVec.getLsbD_or] at hh
+  revert hh; cases a.getLsbD i <;> cases b.getLsbD i <;> cases c.getLsbD i <;> simp
 private theorem or3_eq_zero_right (a b c : BitVec 64) (h : a ||| b ||| c = 0) : c = 0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  have hh := congrArg (fun w => w.getLsbD i) h
+  simp only [BitVec.getLsbD_or] at hh
+  revert hh; cases a.getLsbD i <;> cases b.getLsbD i <;> cases c.getLsbD i <;> simp
 
 /-- When the upper three limbs OR to zero, `v.toNat` equals `(v.getLimb 0).toNat`. -/
 theorem toNat_eq_getLimb0_of_high_zero {v : EvmWord}
@@ -474,7 +542,7 @@ theorem eq_zero_iff_limbs {a : EvmWord} :
     rw [← fromLimbs_getLimb a]
     unfold fromLimbs
     simp only [h0, h1, h2, h3]
-    bv_decide
+    simp
 
 -- ============================================================================
 -- SAR bridge lemmas: getLimb of sshiftRight (arithmetic right shift)
@@ -561,10 +629,63 @@ theorem getLimb_sshiftRight_geq_256 {v : EvmWord} {n : Nat} (h : n ≥ 256) {i :
 theorem getLimb_fromLimbs_const {w : Word} {i : Fin 4} :
     (fromLimbs (fun _ => w)).getLimb i = w := by
   match i with
-  | ⟨0, _⟩ => simp [fromLimbs, getLimb]; bv_decide
-  | ⟨1, _⟩ => simp [fromLimbs, getLimb]; bv_decide
-  | ⟨2, _⟩ => simp [fromLimbs, getLimb]; bv_decide
-  | ⟨3, _⟩ => simp [fromLimbs, getLimb]; bv_decide
+  | ⟨0, _⟩ =>
+    simp only [fromLimbs, getLimb]
+    ext j hj
+    simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+      BitVec.getLsbD_shiftLeft]
+    rw [← BitVec.getLsbD_eq_getElem hj]
+    have e : 0*64 + j = j := by omega
+    rw [e]
+    have h2 : j < 256 := by omega
+    have h4 : j < 128 := by omega
+    have h5 : j < 192 := by omega
+    simp [hj, h2, h4, h5]
+  | ⟨1, _⟩ =>
+    simp only [fromLimbs, getLimb]
+    ext j hj
+    simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+      BitVec.getLsbD_shiftLeft]
+    rw [BitVec.getLsbD_of_ge w (1*64+j) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+    have e : 1*64 + j - 64 = j := by omega
+    rw [e]
+    have h2 : 1*64+j < 256 := by omega
+    have h3 : ¬(1*64+j < 64) := by omega
+    have h4 : 1*64+j < 128 := by omega
+    have h5 : 1*64+j < 192 := by omega
+    have h6 : j < 256 := by omega
+    simp [h2, h3, h4, h5, h6]
+  | ⟨2, _⟩ =>
+    simp only [fromLimbs, getLimb]
+    ext j hj
+    simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+      BitVec.getLsbD_shiftLeft]
+    rw [BitVec.getLsbD_of_ge w (2*64+j) (by omega),
+        BitVec.getLsbD_of_ge w (2*64+j-64) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+    have e : 2*64 + j - 128 = j := by omega
+    rw [e]
+    have h2 : 2*64+j < 256 := by omega
+    have h3 : ¬(2*64+j < 64) := by omega
+    have h3b : ¬(2*64+j < 128) := by omega
+    have h5 : 2*64+j < 192 := by omega
+    have h6 : j < 256 := by omega
+    simp [h2, h3, h3b, h5, h6]
+  | ⟨3, _⟩ =>
+    simp only [fromLimbs, getLimb]
+    ext j hj
+    simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_or, BitVec.getLsbD_setWidth,
+      BitVec.getLsbD_shiftLeft]
+    rw [BitVec.getLsbD_of_ge w (3*64+j) (by omega),
+        BitVec.getLsbD_of_ge w (3*64+j-64) (by omega),
+        BitVec.getLsbD_of_ge w (3*64+j-128) (by omega), ← BitVec.getLsbD_eq_getElem hj]
+    have e : 3*64 + j - 192 = j := by omega
+    rw [e]
+    have h2 : 3*64+j < 256 := by omega
+    have h3 : ¬(3*64+j < 64) := by omega
+    have h3b : ¬(3*64+j < 128) := by omega
+    have h3c : ¬(3*64+j < 192) := by omega
+    have h6 : j < 256 := by omega
+    simp [h2, h3, h3b, h3c, h6]
   | ⟨n+4, h⟩ => exact absurd h (by omega)
 
 theorem getLimbN_fromLimbs_const {w : Word} {k : Nat} :
@@ -596,16 +717,16 @@ theorem getLimbN_fromLimbs_const_3 {w : Word} :
     non-constant limb functions; complements
     `EvmAsm.Evm64.EvmWordArith.DivLimbBridge.getLimbN_fromLimbs_k` which
     bakes a `match`-on-`Fin 4` shape into the limb function. -/
-theorem getLimbN_fromLimbs_gen_0 {limbs : Fin 4 → Word} :
+@[evmword_limb, grind =] theorem getLimbN_fromLimbs_gen_0 {limbs : Fin 4 → Word} :
     (fromLimbs limbs).getLimbN 0 = limbs 0 := by
   rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
-theorem getLimbN_fromLimbs_gen_1 {limbs : Fin 4 → Word} :
+@[evmword_limb, grind =] theorem getLimbN_fromLimbs_gen_1 {limbs : Fin 4 → Word} :
     (fromLimbs limbs).getLimbN 1 = limbs 1 := by
   rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
-theorem getLimbN_fromLimbs_gen_2 {limbs : Fin 4 → Word} :
+@[evmword_limb, grind =] theorem getLimbN_fromLimbs_gen_2 {limbs : Fin 4 → Word} :
     (fromLimbs limbs).getLimbN 2 = limbs 2 := by
   rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
-theorem getLimbN_fromLimbs_gen_3 {limbs : Fin 4 → Word} :
+@[evmword_limb, grind =] theorem getLimbN_fromLimbs_gen_3 {limbs : Fin 4 → Word} :
     (fromLimbs limbs).getLimbN 3 = limbs 3 := by
   rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
 

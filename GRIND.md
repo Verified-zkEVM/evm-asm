@@ -173,6 +173,13 @@ Sets are grouped by **scope**: Rv64-wide sets live under `EvmAsm/Rv64/` and are 
 | `rv64_addr` | `Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) | `signExtend13` / `signExtend21` + `BitVec.add_assoc` address arithmetic | infrastructure landed (~47 atomic facts); `rw [show signExtend1? N …]` migration complete across DivMod / SignExtend / Shift / Byte | GRIND.md Phase 3 |
 | `reg_ops`   | `Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) | infrastructure landed (sanity proofs only, bulk migrations pending) | GRIND.md Phase 5 |
 | `byte_alg`  | `Rv64/ByteAlg.lean` (+ `ByteAlgAttr.lean`) | `extractByte` / `replaceByte` algebra on `Word` | infrastructure landed (seeded with `extractByte_replaceByte_same`; further algebra identities pending) | GRIND.md Phase 4 |
+| `evmword_limb` | `Evm64/Basic.lean` (+ `Evm64/EvmWordLimbAttr.lean`) | `EvmWord` limb algebra: `(fromLimbs f).getLimb i = f i`, `fromLimbs (v.getLimb) = v`, `getLimb` over `&&&`/`\|\|\|`/`^^^`/`~~~`, `getLimbN_fromLimbs_gen_*` | landed (10 lemmas, dual `@[evmword_limb, grind =]`) | bv_decide-purge review |
+
+### Simprocs (not simp/grind *sets*, but related normalization infrastructure)
+
+| Simproc / tactic | File | Reduces / closes | Notes |
+|---|---|---|---|
+| `reduceSignExtend12/13/21` + `signext` tactic | `Rv64/SignExtendSimproc.lean` | `signExtend12/13/21 <lit>` → `Word` constant (incl. negative offsets); `signext` then closes the residual `addr + … = addr + K` with `bv_omega` | `dsimproc_decl` (definitional, kernel-checkable, **not** in default simp — only fires when named, so it never perturbs unrelated `simp`/`rw` normal forms). Use `signext` to discharge concrete address-offset goals; supersedes the per-offset `@[…_addr, grind =]` enumeration for *proving* such facts. |
 
 ### Opcode-specific
 

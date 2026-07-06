@@ -3,7 +3,7 @@
 #
 # Per-header u64 semantic invariants from validate_header():
 #   1. gas_used <= gas_limit
-#   2. number == parent.number + 1
+#   2. number >= 1 and number == parent.number + 1
 #   3. timestamp > parent.timestamp
 #
 # Both inputs are 128-byte extended-header structs as produced
@@ -101,6 +101,7 @@ run_case "fail_gas_overshoot2"  1  100 1000  21000    0          101 2000  21000
 run_case "fail_number_same"     2  100 1000  30000000 0          100 2000  30000000 100        || FAILED=1
 run_case "fail_number_skip"     2  100 1000  30000000 0          102 2000  30000000 100        || FAILED=1
 run_case "fail_number_behind"   2  100 1000  30000000 0          99  2000  30000000 100        || FAILED=1
+run_case "fail_number_zero_wrap" 2  18446744073709551615 1000 30000000 0 0 2000 30000000 100   || FAILED=1
 # fail: timestamp not increasing
 run_case "fail_timestamp_same"  3  100 1000  30000000 0          101 1000  30000000 100        || FAILED=1
 run_case "fail_timestamp_back"  3  100 1000  30000000 0          101 999   30000000 100        || FAILED=1

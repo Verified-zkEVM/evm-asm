@@ -271,7 +271,7 @@ theorem iterWithDoubleAddback_val256_conservation_v3_zero_of_carry2
       mulsubN4_c3_eq_one_v3_zero q v0 v1 v2 u0 u1 u2 u3 (by
         intro hc3_zero
         rw [hc3_zero] at hb
-        bv_decide))
+        simp [BitVec.ult] at hb))
     hcarry2
 
 theorem iterN1_val256_conservation_v3_zero_of_carry2

@@ -30,9 +30,9 @@ lake exe codegen --program zisk_tx_signing_hash_legacy_eip155 --halt linux93 \
 
 REPO_ROOT="$(pwd)"
 
-# run_case <name> <chain_id> <nonce> <to_hex_or_empty>
+# run_case <name> <chain_id> <nonce> <to_hex_or_empty> [data_len]
 run_case() {
-  local name="$1" cid="$2" nonce="$3" to="$4"
+  local name="$1" cid="$2" nonce="$3" to="$4" data_len="${5:-0}"
 
   local in_file="$REPO_ROOT/gen-out/zisk_tx_signing_hash_legacy_eip155_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_tx_signing_hash_legacy_eip155_${name}.output"
@@ -51,16 +51,20 @@ except Exception:
 cid = $cid
 nonce = $nonce
 to_hex = '$to'
+data_len = $data_len
 to = bytes.fromhex(to_hex) if to_hex else b''
+# data of data_len bytes exercises the long-list RLP prefix path (payload >= 56)
+# once data_len pushes the signing payload past 55 bytes.
+data = bytes([0x33] * data_len)
 # EIP-155 form: v = chain_id*2 + 35 (or +36); for the signing hash itself
 # v/r/s are zero, but the full tx contains the real v/r/s. We're using
 # the *full* legacy tx as input and the helper splices out v/r/s.
 v = cid * 2 + 35
 r = int.from_bytes(bytes([0x11]*32), 'big')
 s = int.from_bytes(bytes([0x22]*32), 'big')
-full_tx = [nonce, 10**9, 21000, to, 10**18, b'', v, r, s]
+full_tx = [nonce, 10**9, 21000, to, 10**18, data, v, r, s]
 tx_rlp = rlp.encode(full_tx)
-signing_body = [nonce, 10**9, 21000, to, 10**18, b'', cid, 0, 0]
+signing_body = [nonce, 10**9, 21000, to, 10**18, data, cid, 0, 0]
 expected = keccak256(rlp.encode(signing_body))
 with open(sys.argv[1], 'wb') as f:
     f.write(struct.pack('<Q', len(tx_rlp)))
@@ -108,6 +112,14 @@ run_case "chain_id_256"              256 1       "$ALICE" || FAILED=1
 run_case "chain_id_large"            1099511627775 7 "$ALICE" || FAILED=1
 # Contract-creation (to is empty)
 run_case "creation_tx"               1   3       "" || FAILED=1
+# Long-list RLP prefix regression (payload > 55 bytes -> rlp_encode_list_prefix
+# takes its multi-byte path, which clobbers t4): large-data txs. Before the
+# new_payload_len -> s6 fix these ran past the 5e6-step budget (wrong keccak
+# length) and FAILED; with the fix they hash correctly and complete fast.
+run_case "data_56_boundary"          1   5       "$ALICE" 56  || FAILED=1
+run_case "data_300"                  1   6       "$ALICE" 300 || FAILED=1
+run_case "creation_data_300"         1   7       ""       300 || FAILED=1
+run_case "data_300_large_cid"        11155111 8  "$ALICE" 300 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

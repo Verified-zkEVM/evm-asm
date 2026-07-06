@@ -22,7 +22,7 @@
     extract_parent_header_and_state_root(SSZ_BASE, payload+0 = this.parent_hash)
                                      -> parent header RLP ptr/len, parent state_root
     for each SSZ Withdrawal (44 B): ssz_withdrawal_to_rlp -> descriptor (ptr,len)
-    fill the 12-field step2_verdict params struct and call step2_verdict.
+    fill the 13-field step2_verdict params struct and call step2_verdict.
 
   Body roots fed to block_header_ssz_to_rlp: parent_beacon_block_root is the
   real NPR field (SSZ_BASE+24); transactions_root / withdrawals_root /
@@ -40,6 +40,10 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.SszWithdrawal
@@ -47,79 +51,192 @@ import EvmAsm.Codegen.Programs.SszWitnessState
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
 /-! ## stateless_verdict_from_ssz -- compose the verdict over a real SSZ input.
     No args (reads INPUT). a0 (output) = successful_validation bit (0/1). -/
-def statelessVerdictFromSszFunction : String :=
-  "stateless_verdict_from_ssz:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  li s0, 0x40000000\n" ++
-  "  addi s0, s0, 18             # s0 = SSZ_BASE (INPUT + 16 + 2)\n" ++
-  "  # 1. payload + withdrawals.\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, svf_payload; la a2, svf_wds_ptr; la a3, svf_wds_count\n" ++
-  "  jal ra, extract_payload_and_withdrawals\n" ++
-  "  # 2. pre-state witness section.\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, svf_witness; la a2, svf_witness_len\n" ++
-  "  jal ra, extract_witness_state_section\n" ++
-  "  # 3. parent header + state_root (this.parent_hash = payload + 0).\n" ++
-  "  mv a0, s0\n" ++
-  "  la t0, svf_payload; ld a1, 0(t0)\n" ++
-  "  la a2, svf_parent_rlp; la a3, svf_parent_rlp_len; la a4, svf_parent_sr\n" ++
-  "  jal ra, extract_parent_header_and_state_root\n" ++
-  "  bnez a0, .Lsvf_zero         # parent not found / parse fail\n" ++
-  "  # 4. SSZ withdrawals (44 B each) -> RLP descriptors (ptr,len) 16 B each.\n" ++
-  "  la t0, svf_wds_count; ld s1, 0(t0)    # s1 = count\n" ++
-  "  la t0, svf_wds_ptr;   ld s2, 0(t0)    # s2 = ssz withdrawals base\n" ++
-  "  la s3, svf_descriptors                # s3 = descriptor cursor\n" ++
-  "  la s4, svf_rlp_arena                  # s4 = rlp arena cursor\n" ++
-  "  li s5, 0\n" ++
-  ".Lsvf_wloop:\n" ++
-  "  bge s5, s1, .Lsvf_wdone\n" ++
-  "  mv a0, s2; mv a1, s4; la a2, svf_wd_len\n" ++
-  "  jal ra, ssz_withdrawal_to_rlp\n" ++
-  "  sd s4, 0(s3)\n" ++
-  "  la t0, svf_wd_len; ld t1, 0(t0); sd t1, 8(s3)\n" ++
-  "  addi s2, s2, 44\n" ++
-  "  addi s4, s4, 72\n" ++
-  "  addi s3, s3, 16\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lsvf_wloop\n" ++
-  ".Lsvf_wdone:\n" ++
-  "  # 5. fill the 12-field step2_verdict params struct (sv_params).\n" ++
-  "  la t1, sv_params\n" ++
-  "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)   # payload\n" ++
-  "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)   # parent_rlp ptr\n" ++
-  "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)  # parent_rlp_len\n" ++
-  "  la t0, svf_parent_sr;      sd t0, 24(t1)                # parent_state_root ptr\n" ++
-  "  la t0, svf_zero32;         sd t0, 32(t1)                # tx_root (placeholder)\n" ++
-  "  la t0, svf_zero32;         sd t0, 40(t1)                # wd_root (placeholder)\n" ++
-  "  addi t0, s0, 24;           sd t0, 48(t1)                # parent_beacon_block_root (NPR+8)\n" ++
-  "  la t0, svf_zero32;         sd t0, 56(t1)                # requests_hash (placeholder)\n" ++
-  "  la t0, svf_descriptors;    sd t0, 64(t1)                # wds_descriptors\n" ++
-  "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)  # n_wds\n" ++
-  "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)  # witness\n" ++
-  "  la t0, svf_witness_len;    ld t0, 0(t0); sd t0, 88(t1)  # witness_len\n" ++
-  "  # 6. verdict = step2_verdict(params).\n" ++
-  "  la a0, sv_params\n" ++
-  "  jal ra, step2_verdict\n" ++
-  "  j .Lsvf_ret\n" ++
-  ".Lsvf_zero:\n" ++
-  "  li a0, 0\n" ++
-  ".Lsvf_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def statelessVerdictFromSsz_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .LUI .x8 (262144 : BitVec 20),
+    .ADDI .x8 .x8 (18 : BitVec 12),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 44)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 44)),
+    .AUIPC .x12 (laHi GuestAddrs.svf_wds_ptr (GuestAddrs.stateless_verdict_from_ssz + 52)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.svf_wds_ptr (GuestAddrs.stateless_verdict_from_ssz + 52)),
+    .AUIPC .x13 (laHi GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 60)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 60)),
+    .JAL .x1 (jalOff GuestAddrs.extract_payload_and_withdrawals (GuestAddrs.stateless_verdict_from_ssz + 68)),
+    .BNE .x10 .x0 (384 : BitVec 13),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.svf_witness (GuestAddrs.stateless_verdict_from_ssz + 80)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.svf_witness (GuestAddrs.stateless_verdict_from_ssz + 80)),
+    .AUIPC .x12 (laHi GuestAddrs.svf_witness_len (GuestAddrs.stateless_verdict_from_ssz + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.svf_witness_len (GuestAddrs.stateless_verdict_from_ssz + 88)),
+    .JAL .x1 (jalOff GuestAddrs.extract_witness_state_section (GuestAddrs.stateless_verdict_from_ssz + 96)),
+    .MV .x10 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 104)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.svf_parent_rlp (GuestAddrs.stateless_verdict_from_ssz + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.svf_parent_rlp (GuestAddrs.stateless_verdict_from_ssz + 116)),
+    .AUIPC .x13 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.stateless_verdict_from_ssz + 124)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.stateless_verdict_from_ssz + 124)),
+    .AUIPC .x14 (laHi GuestAddrs.svf_parent_sr (GuestAddrs.stateless_verdict_from_ssz + 132)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.svf_parent_sr (GuestAddrs.stateless_verdict_from_ssz + 132)),
+    .JAL .x1 (jalOff GuestAddrs.extract_parent_header_and_state_root (GuestAddrs.stateless_verdict_from_ssz + 140)),
+    .BNE .x10 .x0 (312 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 148)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 148)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_wds_ptr (GuestAddrs.stateless_verdict_from_ssz + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_wds_ptr (GuestAddrs.stateless_verdict_from_ssz + 160)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x19 (laHi GuestAddrs.svf_descriptors (GuestAddrs.stateless_verdict_from_ssz + 172)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.svf_descriptors (GuestAddrs.stateless_verdict_from_ssz + 172)),
+    .AUIPC .x20 (laHi GuestAddrs.svf_rlp_arena (GuestAddrs.stateless_verdict_from_ssz + 180)),
+    .ADDI .x20 .x20 (laLo GuestAddrs.svf_rlp_arena (GuestAddrs.stateless_verdict_from_ssz + 180)),
+    .LI .x21 (0 : Word),
+    .BGE .x21 .x9 (64 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.svf_wd_len (GuestAddrs.stateless_verdict_from_ssz + 204)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.svf_wd_len (GuestAddrs.stateless_verdict_from_ssz + 204)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_withdrawal_to_rlp (GuestAddrs.stateless_verdict_from_ssz + 212)),
+    .SD .x19 .x20 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_wd_len (GuestAddrs.stateless_verdict_from_ssz + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_wd_len (GuestAddrs.stateless_verdict_from_ssz + 220)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x19 .x6 (8 : BitVec 12),
+    .ADDI .x18 .x18 (44 : BitVec 12),
+    .ADDI .x20 .x20 (72 : BitVec 12),
+    .ADDI .x19 .x19 (16 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .AUIPC .x6 (laHi GuestAddrs.sv_params (GuestAddrs.stateless_verdict_from_ssz + 256)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.sv_params (GuestAddrs.stateless_verdict_from_ssz + 256)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 264)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_payload (GuestAddrs.stateless_verdict_from_ssz + 264)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp (GuestAddrs.stateless_verdict_from_ssz + 280)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp (GuestAddrs.stateless_verdict_from_ssz + 280)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (8 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.stateless_verdict_from_ssz + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.stateless_verdict_from_ssz + 296)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (16 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_sr (GuestAddrs.stateless_verdict_from_ssz + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_sr (GuestAddrs.stateless_verdict_from_ssz + 312)),
+    .SD .x6 .x5 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 324)),
+    .SD .x6 .x5 (32 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 336)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 336)),
+    .SD .x6 .x5 (40 : BitVec 12),
+    .ADDI .x5 .x8 (24 : BitVec 12),
+    .SD .x6 .x5 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 356)),
+    .SD .x6 .x5 (56 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_zero32 (GuestAddrs.stateless_verdict_from_ssz + 368)),
+    .SD .x6 .x5 (96 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_descriptors (GuestAddrs.stateless_verdict_from_ssz + 380)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_descriptors (GuestAddrs.stateless_verdict_from_ssz + 380)),
+    .SD .x6 .x5 (64 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 392)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_wds_count (GuestAddrs.stateless_verdict_from_ssz + 392)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (72 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness (GuestAddrs.stateless_verdict_from_ssz + 408)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness (GuestAddrs.stateless_verdict_from_ssz + 408)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (80 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.stateless_verdict_from_ssz + 424)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.stateless_verdict_from_ssz + 424)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SD .x6 .x5 (88 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.sv_params (GuestAddrs.stateless_verdict_from_ssz + 440)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sv_params (GuestAddrs.stateless_verdict_from_ssz + 440)),
+    .JAL .x1 (jalOff GuestAddrs.step2_verdict (GuestAddrs.stateless_verdict_from_ssz + 448)),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `statelessVerdictFromSsz_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def statelessVerdictFromSsz_relocs : RelocTable :=
+  [ (11, .la .x11 "svf_payload"),
+    (13, .la .x12 "svf_wds_ptr"),
+    (15, .la .x13 "svf_wds_count"),
+    (17, .jal .x1 "extract_payload_and_withdrawals"),
+    (20, .la .x11 "svf_witness"),
+    (22, .la .x12 "svf_witness_len"),
+    (24, .jal .x1 "extract_witness_state_section"),
+    (26, .la .x5 "svf_payload"),
+    (29, .la .x12 "svf_parent_rlp"),
+    (31, .la .x13 "svf_parent_rlp_len"),
+    (33, .la .x14 "svf_parent_sr"),
+    (35, .jal .x1 "extract_parent_header_and_state_root"),
+    (37, .la .x5 "svf_wds_count"),
+    (40, .la .x5 "svf_wds_ptr"),
+    (43, .la .x19 "svf_descriptors"),
+    (45, .la .x20 "svf_rlp_arena"),
+    (51, .la .x12 "svf_wd_len"),
+    (53, .jal .x1 "ssz_withdrawal_to_rlp"),
+    (55, .la .x5 "svf_wd_len"),
+    (64, .la .x6 "sv_params"),
+    (66, .la .x5 "svf_payload"),
+    (70, .la .x5 "svf_parent_rlp"),
+    (74, .la .x5 "svf_parent_rlp_len"),
+    (78, .la .x5 "svf_parent_sr"),
+    (81, .la .x5 "svf_zero32"),
+    (84, .la .x5 "svf_zero32"),
+    (89, .la .x5 "svf_zero32"),
+    (92, .la .x5 "svf_zero32"),
+    (95, .la .x5 "svf_descriptors"),
+    (98, .la .x5 "svf_wds_count"),
+    (102, .la .x5 "svf_witness"),
+    (106, .la .x5 "svf_witness_len"),
+    (110, .la .x10 "sv_params"),
+    (112, .jal .x1 "step2_verdict") ]
+
+def statelessVerdictFromSszFunction : String :=
+  "stateless_verdict_from_ssz:\n" ++ emitProgramR statelessVerdictFromSsz_prog statelessVerdictFromSsz_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `statelessVerdictFromSsz_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem statelessVerdictFromSszFunction_eq_prog :
+    statelessVerdictFromSszFunction = "stateless_verdict_from_ssz:\n" ++ emitProgramR statelessVerdictFromSsz_prog statelessVerdictFromSsz_relocs := rfl
+
+#guard statelessVerdictFromSszFunction.startsWith "stateless_verdict_from_ssz:\n"
+#guard statelessVerdictFromSsz_prog.length = 124
 /-- `zisk_stateless_verdict`: probe. Fed the SAME `-i` input file the EEST
     harness generates for a fixture (SSZ_BASE = 0x40000012). Output:
     OUTPUT+0 = verdict bit (the successful_validation byte the guest sets). -/
@@ -153,6 +270,7 @@ def ziskStatelessVerdictPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   withdrawalToPathDeltaFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
@@ -161,6 +279,7 @@ def ziskStatelessVerdictPrologue : String :=
   mptWalkFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
@@ -170,9 +289,14 @@ def ziskStatelessVerdictPrologue : String :=
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++

@@ -78,7 +78,7 @@ theorem modCall_target_eq_wrapperEndOff (base : Word) :
     (base + modCallOff) + EvmAsm.Rv64.signExtend21 EvmAsm.Evm64.evm_smodCallOff =
       base + wrapperEndOff := by
   show (base + (192 : Word)) + (92 : Word) = base + (284 : Word)
-  bv_decide
+  bv_omega
 
 /-- Under the standard RV PC-alignment invariant, masking bit 0 on the
     result-sign-fixup entry is the identity. -/
@@ -86,7 +86,21 @@ theorem base_add_resultSignFixOff_andn_one
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + resultSignFixOff) &&& ~~~(1 : Word) = base + resultSignFixOff := by
   show (base + (196 : Word)) &&& ~~~(1 : Word) = base + (196 : Word)
-  bv_decide
+  have hb0 : base.getLsbD 0 = false := by
+    have h : (base &&& 1).getLsbD 0 = (0 : Word).getLsbD 0 := by rw [hbase]
+    rw [BitVec.getLsbD_and] at h
+    rw [show BitVec.getLsbD (1 : Word) 0 = true from rfl,
+        show BitVec.getLsbD (0 : Word) 0 = false from rfl, Bool.and_true] at h
+    exact h
+  have hsum0 : (base + 196 : Word).getLsbD 0 = false := by
+    rw [BitVec.getLsbD_add (by omega), hb0, BitVec.carry_zero]; rfl
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  rw [BitVec.getLsbD_and, BitVec.getLsbD_not]
+  by_cases h0 : i = 0
+  · subst h0; rw [hsum0]; simp
+  · have h1 : (1 : Word).getLsbD i = false := by simp [BitVec.getLsbD_one, h0]
+    rw [h1]; simp [hi]
 
 /-- The return address written by the SMOD wrapper's near `modCall` is exactly
     the result-sign-fixup entry, and masking bit 0 for the eventual `JALR`
@@ -97,6 +111,22 @@ theorem modCall_return_andn_one_eq_resultSignFixOff
       base + resultSignFixOff := by
   show (((base + (192 : Word)) + (4 : Word)) &&& ~~~(1 : Word)) =
       base + (196 : Word)
-  bv_decide
+  have hsum : (base + 192 + 4 : Word) = base + 196 := by bv_omega
+  rw [hsum]
+  have hb0 : base.getLsbD 0 = false := by
+    have h : (base &&& 1).getLsbD 0 = (0 : Word).getLsbD 0 := by rw [hbase]
+    rw [BitVec.getLsbD_and] at h
+    rw [show BitVec.getLsbD (1 : Word) 0 = true from rfl,
+        show BitVec.getLsbD (0 : Word) 0 = false from rfl, Bool.and_true] at h
+    exact h
+  have hsum0 : (base + 196 : Word).getLsbD 0 = false := by
+    rw [BitVec.getLsbD_add (by omega), hb0, BitVec.carry_zero]; rfl
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  rw [BitVec.getLsbD_and, BitVec.getLsbD_not]
+  by_cases h0 : i = 0
+  · subst h0; rw [hsum0]; simp
+  · have h1 : (1 : Word).getLsbD i = false := by simp [BitVec.getLsbD_one, h0]
+    rw [h1]; simp [hi]
 
 end EvmAsm.Evm64.SMod.Compose

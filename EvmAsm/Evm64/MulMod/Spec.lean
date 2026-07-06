@@ -13,7 +13,7 @@
   parent task evm-asm-z7qm).
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Base
+import EvmAsm.Evm64.MulMod.Compose.Reducer
 import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Evm64

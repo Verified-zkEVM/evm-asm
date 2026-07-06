@@ -1,0 +1,117 @@
+name: Export metrics (scaffold)
+
+# Monthly export of the project's cost/performance history toward the eventual
+# external home, eth-act/zkevm-benchmark-workload (report R-F3).
+#
+# SCAFFOLD STATUS: this job ALWAYS gathers the histories and uploads them as a
+# build artifact. It only PUSHES to the external repo when the optional repo
+# variables/secrets below are configured — otherwise it no-ops the push (never
+# fails). This lets the plumbing land now and be flipped on by the maintainer
+# without code changes.
+#
+#   vars.METRICS_EXPORT_REPO    — e.g. "eth-act/zkevm-benchmark-workload" (target)
+#   secrets.METRICS_EXPORT_TOKEN — write-capable token for that repo
+#
+# IMPORTANT FRAMING (R-F3 / report §6 non-goals): EthProofs / the external
+# workload measure *performance*, NOT correctness. "proves X% of blocks" is a
+# performance signal and must NEVER be presented as a conformance/verification
+# claim. Conformance lives in the kernel-checked core + EEST gates, not here.
+
+on:
+  schedule:
+    # 07:00 UTC on the 1st of each month (after the weekly benchmark cron).
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: export-metrics
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (main, for cycles-history + scripts)
+        uses: actions/checkout@v4
+
+      - name: Gather benchmark-history + cycles-history into an export bundle
+        id: gather
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p export-bundle
+          ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # 1. benchmark-history orphan branch (wall/RSS + lakeprof + olean sizes).
+          # Always create the file first so manifest.json's contents list is
+          # truthful even when the branch/history is absent (empty bundle entry).
+          : > export-bundle/benchmark-history.jsonl
+          if git ls-remote --exit-code --heads origin benchmark-history >/dev/null 2>&1; then
+            git fetch --depth=1 origin benchmark-history
+            git show FETCH_HEAD:history.jsonl > export-bundle/benchmark-history.jsonl 2>/dev/null \
+              || echo "(benchmark-history has no history.jsonl yet)"
+          else
+            echo "(no benchmark-history branch yet)"
+          fi
+
+          # 2. cycles-history.jsonl (ziskemu cycle datapoints; may be sparse
+          #    until the ziskemu live-parse is wired — R-F1/D8).
+          if [ -f cycles-history.jsonl ]; then
+            cp cycles-history.jsonl export-bundle/cycles-history.jsonl
+          else
+            : > export-bundle/cycles-history.jsonl
+          fi
+
+          # 3. a manifest describing the bundle + the performance!=conformance caveat
+          {
+            echo "{"
+            echo "  \"generated\": \"${ts}\","
+            echo "  \"source_repo\": \"${GITHUB_REPOSITORY}\","
+            echo "  \"source_commit\": \"${GITHUB_SHA}\","
+            echo "  \"contents\": [\"benchmark-history.jsonl\", \"cycles-history.jsonl\"],"
+            echo "  \"note\": \"Performance/cost trend only. NOT a conformance or verification signal (R-F3).\""
+            echo "}"
+          } > export-bundle/manifest.json
+          echo "bundle ready:"; ls -la export-bundle/
+
+      - name: Upload export bundle (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-export-${{ github.run_id }}
+          path: export-bundle/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Push to external workload repo (only if configured)
+        env:
+          EXPORT_REPO: ${{ vars.METRICS_EXPORT_REPO }}
+          EXPORT_TOKEN: ${{ secrets.METRICS_EXPORT_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPORT_REPO:-}" ] || [ -z "${EXPORT_TOKEN:-}" ]; then
+            echo "METRICS_EXPORT_REPO / METRICS_EXPORT_TOKEN not configured — scaffold no-op."
+            echo "Configure both (target e.g. eth-act/zkevm-benchmark-workload) to enable the push."
+            exit 0
+          fi
+          tmpdir="$(mktemp -d)"
+          git -c protocol.version=2 clone --depth=1 \
+            "https://x-access-token:${EXPORT_TOKEN}@github.com/${EXPORT_REPO}.git" \
+            "$tmpdir/dest"
+          dest_dir="$tmpdir/dest/evm-asm-metrics"
+          mkdir -p "$dest_dir"
+          cp export-bundle/*.jsonl export-bundle/manifest.json "$dest_dir/"
+          cd "$tmpdir/dest"
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add evm-asm-metrics
+          if git diff --cached --quiet; then
+            echo "no changes to export."
+          else
+            git commit -m "evm-asm metrics export ${GITHUB_SHA::12} ($(date -u +%Y-%m-%d))"
+            git push origin HEAD
+          fi

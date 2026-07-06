@@ -20,6 +20,14 @@ inductive Precompile where
   | bn254Pairing
   | blake2f
   | pointEvaluation
+  | bls12G1Add
+  | bls12G1Msm
+  | bls12G2Add
+  | bls12G2Msm
+  | bls12Pairing
+  | bls12MapFpToG1
+  | bls12MapFp2ToG2
+  | p256Verify
   deriving DecidableEq, Repr
 
 namespace Precompile
@@ -36,8 +44,20 @@ def address : Precompile → Address
   | bn254Pairing => 0x08
   | blake2f => 0x09
   | pointEvaluation => 0x0a
+  | bls12G1Add => 0x0b
+  | bls12G1Msm => 0x0c
+  | bls12G2Add => 0x0d
+  | bls12G2Msm => 0x0e
+  | bls12Pairing => 0x0f
+  | bls12MapFpToG1 => 0x10
+  | bls12MapFp2ToG2 => 0x11
+  | p256Verify => 0x100
 
-/-- Decode a canonical precompile account address. -/
+/-- Decode a canonical Amsterdam precompile account address.
+
+    Addresses near zero that are not active precompiles must decode to `none`
+    so the CALL-family path can treat them as ordinary absent accounts before
+    precompile dispatch. -/
 def ofAddress? (addr : Address) : Option Precompile :=
   if addr = (0x01 : Address) then some ecrecover
   else if addr = (0x02 : Address) then some sha256
@@ -49,6 +69,14 @@ def ofAddress? (addr : Address) : Option Precompile :=
   else if addr = (0x08 : Address) then some bn254Pairing
   else if addr = (0x09 : Address) then some blake2f
   else if addr = (0x0a : Address) then some pointEvaluation
+  else if addr = (0x0b : Address) then some bls12G1Add
+  else if addr = (0x0c : Address) then some bls12G1Msm
+  else if addr = (0x0d : Address) then some bls12G2Add
+  else if addr = (0x0e : Address) then some bls12G2Msm
+  else if addr = (0x0f : Address) then some bls12Pairing
+  else if addr = (0x10 : Address) then some bls12MapFpToG1
+  else if addr = (0x11 : Address) then some bls12MapFp2ToG2
+  else if addr = (0x100 : Address) then some p256Verify
   else none
 
 /-- Predicate form for CALL-family dispatch. -/
@@ -64,6 +92,7 @@ inductive GasSchedule where
   | pairing (base perPair : Nat)
   | modexp
   | blake2f
+  | payloadDependent
   deriving DecidableEq, Repr
 
 /-- Number of 32-byte EVM words needed to cover an input byte length. -/
@@ -86,6 +115,14 @@ def gasSchedule : Precompile → GasSchedule
   | bn254Pairing => .pairing 45000 34000
   | blake2f => .blake2f
   | pointEvaluation => .fixed 50000
+  | bls12G1Add => .fixed 375
+  | bls12G1Msm => .payloadDependent
+  | bls12G2Add => .fixed 600
+  | bls12G2Msm => .payloadDependent
+  | bls12Pairing => .payloadDependent
+  | bls12MapFpToG1 => .fixed 5500
+  | bls12MapFp2ToG2 => .fixed 23800
+  | p256Verify => .fixed 6900
 
 /-- Byte-length-only gas cost when the precompile schedule can be determined
     without decoding the input payload. -/
@@ -96,6 +133,7 @@ def precompileGasCost? (p : Precompile) (inputLen : Nat) : Option Nat :=
   | .pairing base perPair => some (base + perPair * pairingPairs inputLen)
   | .modexp => none
   | .blake2f => none
+  | .payloadDependent => none
 
 /-- Blake2f gas is parameterized by the rounds field decoded from the payload. -/
 def blake2fGas (rounds : Nat) : Nat :=
@@ -103,15 +141,19 @@ def blake2fGas (rounds : Nat) : Nat :=
 
 theorem ofAddress?_address (p : Precompile) :
     ofAddress? p.address = some p := by
-  cases p <;> native_decide
+  cases p <;> decide
 
 theorem ofAddress?_zero :
     ofAddress? (0 : Address) = none := by
-  native_decide
+  decide
 
-theorem ofAddress?_eleven :
-    ofAddress? (0x0b : Address) = none := by
-  native_decide
+theorem ofAddress?_eighteen :
+    ofAddress? (0x12 : Address) = none := by
+  decide
+
+theorem ofAddress?_oneHundredOne :
+    ofAddress? (0x101 : Address) = none := by
+  decide
 
 theorem isPrecompileAddress_address (p : Precompile) :
     isPrecompileAddress p.address := by
@@ -155,16 +197,21 @@ theorem precompileGasCost?_blake2f_none (inputLen : Nat) :
     precompileGasCost? blake2f inputLen = none := rfl
 
 theorem precompileGasCost?_eq_none_iff (p : Precompile) (inputLen : Nat) :
-    precompileGasCost? p inputLen = none ↔ p = modexp ∨ p = blake2f := by
+    precompileGasCost? p inputLen = none ↔
+      p = modexp ∨ p = blake2f ∨ p = bls12G1Msm ∨ p = bls12G2Msm ∨
+        p = bls12Pairing := by
   cases p <;> simp [precompileGasCost?, gasSchedule]
 
 theorem precompileGasCost?_isSome_iff (p : Precompile) (inputLen : Nat) :
-    (precompileGasCost? p inputLen).isSome ↔ p ≠ modexp ∧ p ≠ blake2f := by
+    (precompileGasCost? p inputLen).isSome ↔
+      p ≠ modexp ∧ p ≠ blake2f ∧ p ≠ bls12G1Msm ∧ p ≠ bls12G2Msm ∧
+        p ≠ bls12Pairing := by
   cases p <;> simp [precompileGasCost?, gasSchedule]
 
 theorem precompileGasCost?_exists_some_iff (p : Precompile) (inputLen : Nat) :
     (∃ cost, precompileGasCost? p inputLen = some cost) ↔
-      p ≠ modexp ∧ p ≠ blake2f := by
+      p ≠ modexp ∧ p ≠ blake2f ∧ p ≠ bls12G1Msm ∧ p ≠ bls12G2Msm ∧
+        p ≠ bls12Pairing := by
   cases p <;> simp [precompileGasCost?, gasSchedule]
 
 theorem blake2fGas_eq_rounds (rounds : Nat) :
@@ -174,6 +221,18 @@ theorem blake2fGas_eq_rounds (rounds : Nat) :
     ¬ isPrecompileAddress (0 : Address) := by
   unfold isPrecompileAddress
   rw [ofAddress?_zero]
+  decide
+
+@[simp] theorem not_isPrecompileAddress_eighteen :
+    ¬ isPrecompileAddress (0x12 : Address) := by
+  unfold isPrecompileAddress
+  rw [ofAddress?_eighteen]
+  decide
+
+@[simp] theorem not_isPrecompileAddress_oneHundredOne :
+    ¬ isPrecompileAddress (0x101 : Address) := by
+  unfold isPrecompileAddress
+  rw [ofAddress?_oneHundredOne]
   decide
 
 end Precompile

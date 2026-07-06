@@ -1,0 +1,53 @@
+name: Stale PR nudge
+
+# Long-running-branch visibility (steering Phase 4, report §3 G2.6 / D6).
+# Labels an idle PR `stale` and posts a single nudge comment after a fixed
+# window so weeks-old stacked branches don't go invisible until they merge.
+#
+# It NEVER closes anything: agents are forbidden from gh pr merge / --approve /
+# issue close (EEST_INSERT_HANDOFF.md), and a deliberately long-lived stacked
+# branch is normal here. days-before-*-close: -1 disables closing entirely.
+#
+# Exempt a branch you intend to keep alive by adding the `long-running` label.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # weekly, Monday 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write   # actions/stale labels/comments via the issues API
+
+concurrency:
+  group: stale-pr-nudge
+  cancel-in-progress: false
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          # PRs only — leave issues/beads to the `bd` tracker.
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          # Nudge after 21 idle days; NEVER auto-close.
+          days-before-pr-stale: 21
+          days-before-pr-close: -1
+          stale-pr-label: stale
+          exempt-pr-labels: 'long-running,pinned,security'
+          exempt-draft-pr: true
+          remove-stale-when-updated: true
+          stale-pr-message: >
+            This PR has had no activity for 21 days. Long-running branches are
+            invisible to the progress metrics until they merge.
+            If it's still active, a rebase or a status note keeps it tracked;
+            if it's a deliberately long-lived stacked branch, add the
+            `long-running` label to exempt it from this nudge. This bot never
+            closes PRs.
+          # Be gentle on a single-maintainer repo: cap per-run operations.
+          operations-per-run: 30
+          ascending: true   # nudge the oldest-idle PRs first

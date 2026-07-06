@@ -33,9 +33,9 @@ lake exe codegen --program zisk_mpt_insert --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in mi_branch_empty mi_empty_trie mi_ext_then_branch \
-            mi_leaf_split mi_leaf_split_m0 mi_depth2 mi_acctkey mi_acctkey_f9; do
-            mi_leaf_split mi_leaf_split_m0 mi_leafsplit_depth1; do
+for name in mi_branch_empty mi_empty_trie mi_ext_then_branch mi_ext_split \
+            mi_leaf_split mi_leaf_split_m0 mi_depth2 mi_leafsplit_depth1 \
+            mi_acctkey mi_acctkey_f9; do
   out="$VDIR/$name.mi.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_insert.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 5000000 >/dev/null 2>&1 </dev/null; then

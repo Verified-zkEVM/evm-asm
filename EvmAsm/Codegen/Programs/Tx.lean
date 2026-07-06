@@ -36,8 +36,12 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -62,47 +66,73 @@ open EvmAsm.Rv64
 
     Composes PR-K20 `rlp_list_nth_item` + per-byte BE decode.
     The output is stored as a native LE u64 at *a3. -/
-def rlpFieldToU64Function : String :=
-  "rlp_field_to_u64:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                  # container ptr\n" ++
-  "  mv s1, a3                  # u64 out ptr\n" ++
-  "  la a3, rfu_offset\n" ++
-  "  la a4, rfu_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrfu_fail\n" ++
-  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lrfu_too_long\n" ++
-  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0                   # accumulator\n" ++
-  ".Lrfu_loop:\n" ++
-  "  beqz t1, .Lrfu_done\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lrfu_loop\n" ++
-  ".Lrfu_done:\n" ++
-  "  sd t2, 0(s1)               # *out = u64 LE\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrfu_ret\n" ++
-  ".Lrfu_too_long:\n" ++
-  "  sd zero, 0(s1)\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lrfu_ret\n" ++
-  ".Lrfu_fail:\n" ++
-  "  sd zero, 0(s1)\n" ++
-  "  li a0, 1\n" ++
-  ".Lrfu_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def rlpFieldToU64_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 24)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 24)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 32)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 32)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u64 + 40)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BLTU .x7 .x6 (64 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 68)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x7 .x7 (8 : BitVec 6),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .OR .x7 .x7 .x29,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SD .x9 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `rlpFieldToU64_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpFieldToU64_relocs : RelocTable :=
+  [ (6, .la .x13 "rfu_offset"),
+    (8, .la .x14 "rfu_length"),
+    (10, .jal .x1 "rlp_list_nth_item"),
+    (12, .la .x5 "rfu_length"),
+    (17, .la .x5 "rfu_offset") ]
+
+def rlpFieldToU64Function : String :=
+  "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpFieldToU64_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpFieldToU64Function_eq_prog :
+    rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs := rfl
+
+#guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
+#guard rlpFieldToU64_prog.length = 42
 /-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes) from host
     input, writes (status, u64) to OUTPUT. -/
@@ -155,47 +185,75 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
 
     Composes PR-K20 `rlp_list_nth_item`; reuses K34's
     `rfu_offset` / `rfu_length` scratch slots. -/
-def rlpFieldToU256BeFunction : String :=
-  "rlp_field_to_u256_be:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                  # container ptr\n" ++
-  "  mv s1, a3                  # u256 BE out ptr\n" ++
-  "  # Zero output up front (also covers fail/too-long paths).\n" ++
-  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  la a3, rfu_offset\n" ++
-  "  la a4, rfu_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrf256_fail\n" ++
-  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lrf256_too_long\n" ++
-  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  sub t2, t2, t1             # 32 - len\n" ++
-  "  add t4, s1, t2             # dst start (right-aligned)\n" ++
-  ".Lrf256_copy:\n" ++
-  "  beqz t1, .Lrf256_done\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lrf256_copy\n" ++
-  ".Lrf256_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrf256_ret\n" ++
-  ".Lrf256_too_long:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lrf256_ret\n" ++
-  ".Lrf256_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lrf256_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def rlpFieldToU256Be_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u256_be + 56)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (64 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .SUB .x7 .x7 .x6,
+    .ADD .x29 .x9 .x7,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `rlpFieldToU256Be_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpFieldToU256Be_relocs : RelocTable :=
+  [ (10, .la .x13 "rfu_offset"),
+    (12, .la .x14 "rfu_length"),
+    (14, .jal .x1 "rlp_list_nth_item"),
+    (16, .la .x5 "rfu_length"),
+    (21, .la .x5 "rfu_offset") ]
+
+def rlpFieldToU256BeFunction : String :=
+  "rlp_field_to_u256_be:\n" ++ emitProgramR rlpFieldToU256Be_prog rlpFieldToU256Be_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpFieldToU256Be_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpFieldToU256BeFunction_eq_prog :
+    rlpFieldToU256BeFunction = "rlp_field_to_u256_be:\n" ++ emitProgramR rlpFieldToU256Be_prog rlpFieldToU256Be_relocs := rfl
+
+#guard rlpFieldToU256BeFunction.startsWith "rlp_field_to_u256_be:\n"
+#guard rlpFieldToU256Be_prog.length = 44
 /-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes), writes
     (status, u256 BE) to OUTPUT. -/
@@ -232,10 +290,12 @@ def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
 /-! ## tx_legacy_decode -- PR-K36 full 9-field decoder
 
     Decode an RLP-encoded legacy Ethereum transaction into a
-    196-byte flat output struct. Composes the field-decoder
-    primitives shipped in PR-K34/K35 plus PR-K20
-    `rlp_list_nth_item` for the variable-length `to` and `data`
-    fields.
+    196-byte flat output struct. Uses the cursor-advancing walker
+    pair (`EvmAsm.Codegen.Programs.RlpWalk`) instead of the
+    index-based `rlp_field_to_*` wrappers, so all 9 fields are
+    decoded in a single left-to-right pass (9 item visits) rather
+    than 0+1+...+8 = 36 re-walks. The (cursor, end) pair is held
+    in callee-saved registers across the chain.
 
     Output struct (196 bytes):
        0..  8  nonce (u64 LE)
@@ -258,36 +318,52 @@ def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
       a0 (output) : 0 success / 1 parse fail -/
 def txLegacyDecodeFunction : String :=
   "tx_legacy_decode:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # tx ptr\n" ++
-  "  mv s1, a1                  # tx_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # tx_rlp ptr (list base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: nonce (u64)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
+  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
+  "  bnez a2, .Ltxd_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
+  "  # Field 0: nonce (u64 at offset 0)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
+  "  mv a1, a2                  # content_len\n" ++
+  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 0(s2)\n" ++
   "  # Field 1: gas_price (u256 BE at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 8\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 2: gas_limit (u64 at offset 40)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  addi a3, s2, 40\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 3: to (0 or 20 bytes at offset 48; to_present at 68)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, txd_offset; la a4, txd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  la t0, txd_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Ltxd_to_creation\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Ltxd_fail\n" ++
-  "  la t0, txd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 40(s2)\n" ++
+  "  # Field 3: to (0 or 20 bytes at offset 48; to_present u64 at 68)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  beqz a2, .Ltxd_to_creation\n" ++
+  "  li t0, 20\n" ++
+  "  bne a2, t0, .Ltxd_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
   "  addi t4, s2, 48\n" ++
   "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
   "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
@@ -301,31 +377,49 @@ def txLegacyDecodeFunction : String :=
   "  sd zero, 68(s2)            # to_present = 0\n" ++
   ".Ltxd_after_to:\n" ++
   "  # Field 4: value (u256 BE at offset 76)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  addi a3, s2, 76\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 76\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 5: data (arbitrary; store offset+length at 108/116)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, txd_offset; la a4, txd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  la t0, txd_offset; ld t1, 0(t0); sd t1, 108(s2)\n" ++
-  "  la t0, txd_length; ld t1, 0(t0); sd t1, 116(s2)\n" ++
+  "  # Field 5: data (offset+length u64 at 108/116)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sd t1, 108(s2)\n" ++
+  "  sd a2, 116(s2)             # content_len\n" ++
   "  # Field 6: v (u64 at offset 124)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  addi a3, s2, 124\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 124(s2)\n" ++
   "  # Field 7: r (u256 BE at offset 132)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  addi a3, s2, 132\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 132\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 8: s (u256 BE at offset 164)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 164\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 164\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Ltxd_ret\n" ++
@@ -333,8 +427,8 @@ def txLegacyDecodeFunction : String :=
   "  li a0, 1\n" ++
   ".Ltxd_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
@@ -362,24 +456,14 @@ def ziskTxLegacyDecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Ltxd_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txLegacyDecodeFunction ++ "\n" ++
   ".Ltxd_pdone:"
 
-def ziskTxLegacyDecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "txd_offset:\n" ++
-  "  .zero 8\n" ++
-  "txd_length:\n" ++
-  "  .zero 8"
+/-- The decoder holds (cursor, end) in callee-saved registers and
+    derives every content pointer arithmetically, so it needs no
+    `.data` scratch. -/
+def ziskTxLegacyDecodeDataSection : String := ""
 
 def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
   body        := NOP
@@ -409,26 +493,35 @@ def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
                     invalid v values just produce wrong
                     chain_id; the signing-hash check catches
                     them later) -/
-def deriveChainIdFromVFunction : String :=
-  "derive_chain_id_from_v:\n" ++
-  "  li t0, 27\n" ++
-  "  beq a0, t0, .Ldcid_pre155\n" ++
-  "  li t0, 28\n" ++
-  "  beq a0, t0, .Ldcid_pre155\n" ++
-  "  # EIP-155: chain_id = (v - 35) / 2\n" ++
-  "  addi t1, a0, -35\n" ++
-  "  srli t1, t1, 1\n" ++
-  "  sd t1, 0(a1)\n" ++
-  "  li t2, 1\n" ++
-  "  sd t2, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ldcid_pre155:\n" ++
-  "  sd zero, 0(a1)\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def deriveChainIdFromV_prog : Program :=
+  [ .LI .x5 (27 : Word),
+    .BEQ .x10 .x5 (40 : BitVec 13),
+    .LI .x5 (28 : Word),
+    .BEQ .x10 .x5 (32 : BitVec 13),
+    .ADDI .x6 .x10 (-35 : BitVec 12),
+    .SRLI .x6 .x6 (1 : BitVec 6),
+    .SD .x11 .x6 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .SD .x12 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x11 .x0 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def deriveChainIdFromVFunction : String :=
+  "derive_chain_id_from_v:\n" ++ emitProgram deriveChainIdFromV_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `deriveChainIdFromV_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem deriveChainIdFromVFunction_eq_prog :
+    deriveChainIdFromVFunction = "derive_chain_id_from_v:\n" ++ emitProgram deriveChainIdFromV_prog := rfl
+
+#guard deriveChainIdFromVFunction.startsWith "derive_chain_id_from_v:\n"
+#guard deriveChainIdFromV_prog.length = 15
 /-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
     (v, padding) from host input, writes (chain_id, is_eip155)
     to OUTPUT. -/
@@ -577,23 +670,31 @@ def ziskBlobGasUsedFromVersionedHashesProbeUnit : BuildUnit := {
 
     Distinct codes let callers pinpoint which check fired
     without re-running individual asserts. -/
-def txValidateAgainstBlockFunction : String :=
-  "tx_validate_against_block:\n" ++
-  "  bne a0, a1, .Ltvab_fail_chain\n" ++
-  "  bgtu a2, a3, .Ltvab_fail_gas\n" ++
-  "  bne a4, a5, .Ltvab_fail_nonce\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_chain:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_gas:\n" ++
-  "  li a0, 2\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_nonce:\n" ++
-  "  li a0, 3\n" ++
-  "  ret"
+def txValidateAgainstBlock_prog : Program :=
+  [ .BNE .x10 .x11 (20 : BitVec 13),
+    .BLTU .x13 .x12 (24 : BitVec 13),
+    .BNE .x14 .x15 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txValidateAgainstBlockFunction : String :=
+  "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txValidateAgainstBlock_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txValidateAgainstBlockFunction_eq_prog :
+    txValidateAgainstBlockFunction = "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog := rfl
+
+#guard txValidateAgainstBlockFunction.startsWith "tx_validate_against_block:\n"
+#guard txValidateAgainstBlock_prog.length = 11
 /-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
     (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
     account_nonce) as 6 u64 LE words from host input, writes
@@ -652,30 +753,38 @@ def ziskTxValidateAgainstBlockProbeUnit : BuildUnit := {
     Pure register arithmetic, no scratch memory, leaf-callable.
     Cannot overflow u64 in practice: even at max gas_limit ~30M,
     data length << 2^59, so 16 * data_len is well within u64. -/
-def intrinsicGasLegacyFunction : String :=
-  "intrinsic_gas_legacy:\n" ++
-  "  li t0, 21000               # base\n" ++
-  "  beqz a2, .Ligl_skip_creation\n" ++
-  "  li t1, 32000\n" ++
-  "  add t0, t0, t1\n" ++
-  ".Ligl_skip_creation:\n" ++
-  "  mv t2, a0                  # data cursor\n" ++
-  "  add t3, a0, a1             # data end\n" ++
-  ".Ligl_loop:\n" ++
-  "  bgeu t2, t3, .Ligl_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  beqz t4, .Ligl_zero\n" ++
-  "  addi t0, t0, 16\n" ++
-  "  j .Ligl_step\n" ++
-  ".Ligl_zero:\n" ++
-  "  addi t0, t0, 4\n" ++
-  ".Ligl_step:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Ligl_loop\n" ++
-  ".Ligl_done:\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+def intrinsicGasLegacy_prog : Program :=
+  [ .LUI .x5 (5 : BitVec 20),
+    .ADDIW .x5 .x5 (520 : BitVec 12),
+    .BEQ .x12 .x0 (16 : BitVec 13),
+    .LUI .x6 (8 : BitVec 20),
+    .ADDIW .x6 .x6 (-768 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .MV .x7 .x10,
+    .ADD .x28 .x10 .x11,
+    .BGEU .x7 .x28 (32 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BEQ .x29 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (16 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x5 .x5 (4 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def intrinsicGasLegacyFunction : String :=
+  "intrinsic_gas_legacy:\n" ++ emitProgram intrinsicGasLegacy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `intrinsicGasLegacy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem intrinsicGasLegacyFunction_eq_prog :
+    intrinsicGasLegacyFunction = "intrinsic_gas_legacy:\n" ++ emitProgram intrinsicGasLegacy_prog := rfl
+
+#guard intrinsicGasLegacyFunction.startsWith "intrinsic_gas_legacy:\n"
+#guard intrinsicGasLegacy_prog.length = 18
 /-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
     (data_len, is_creation, data_bytes) from host input, writes
     the u64 intrinsic gas to OUTPUT. -/

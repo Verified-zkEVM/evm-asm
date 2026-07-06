@@ -1,0 +1,51 @@
+# Path-based PR auto-labeling config for actions/labeler@v5 (steering Phase 4,
+# R-B2 / D4). Tags each PR with its trust boundary so the maintainer can triage
+# verified-core changes apart from the (deliberately unverified) codegen path.
+#
+# Glob semantics: actions/labeler v5 `changed-files` / `any-glob-to-any-file`.
+# A PR gets `area:verified-core` if it touches ANY core/verifier path, and
+# `area:codegen` if it touches the lowering or the ziskemu round-trip scripts.
+# The two are NOT mutually exclusive — a PR can carry both.
+#
+# Keep the verified-core set in lockstep with .github/CODEOWNERS and
+# scripts/check-statement-tamper.sh::is_verifier_config.
+
+area:verified-core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'EvmAsm/Progress.lean'
+          - 'EvmAsm/Progress/**'
+          - 'EvmAsm/Rv64/**'
+          - '**/Spec.lean'
+          - 'EvmAsm/EL/Conformance/**'
+          - 'lakefile.toml'
+          - 'lean-toolchain'
+          - 'scripts/check-*.sh'
+          - 'scripts/axiom-allow.txt'
+          - 'scripts/conformance-baseline.txt'
+          - 'scripts/eest-fixture-tag.txt'
+          - 'scripts/approved-heartbeat-overrides.txt'
+          - 'scripts/duplication-baseline.txt'
+          - 'scripts/jscpd.json'
+          - 'scripts/churn-report.sh'
+          - 'scripts/cycles-append.sh'
+          - 'scripts/codegen-eest-stateless-check.sh'
+          - 'scripts/progress-report.sh'
+          - 'scripts/progress-snapshot.sh'
+          - 'scripts/progress-velocity.sh'
+          - 'scripts/progress-delta.sh'
+          - '.github/workflows/**'
+          - '.github/CODEOWNERS'
+          - '.github/labeler.yml'
+
+area:codegen:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'EvmAsm/Codegen/**'
+          - 'scripts/codegen-*.sh'
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'

@@ -8,6 +8,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
 
@@ -26,34 +29,85 @@ open EvmAsm.Rv64
     The output `(path, account_value)` is the pair needed for a MODIFY change
     descriptor in `mpt_state_root_ins`; an external caller still decides whether
     the account is an insert or modify from the pre-state witness walk. -/
-def balAccountChangeValueFunction : String :=
-  "bal_account_change_value:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # account ptr\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # AccountChanges ptr\n" ++
-  "  mv s3, a3                   # AccountChanges len\n" ++
-  "  mv s4, a4                   # out path ptr\n" ++
-  "  mv s5, a5                   # out account ptr\n" ++
-  "  mv s6, a6                   # out account len ptr\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
-  "  jal ra, bal_account_path\n" ++
-  "  bnez a0, .Lbacv_fail\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s5; mv a5, s6\n" ++
-  "  jal ra, bal_account_apply_post_fields\n" ++
-  "  j .Lbacv_ret\n" ++
-  ".Lbacv_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbacv_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def balAccountChangeValue_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .AUIPC .x5 (laHi GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 64)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_account_path (GuestAddrs.bal_account_change_value + 88)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .MV .x13 .x19,
+    .MV .x14 .x21,
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.bal_account_apply_post_fields (GuestAddrs.bal_account_change_value + 120)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x5 (401 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 136)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 136)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x5 (402 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 160)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bacv_fail_code (GuestAddrs.bal_account_change_value + 160)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountChangeValue_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountChangeValue_relocs : RelocTable :=
+  [ (16, .la .x5 "bacv_fail_code"),
+    (22, .jal .x1 "bal_account_path"),
+    (30, .jal .x1 "bal_account_apply_post_fields"),
+    (34, .la .x6 "bacv_fail_code"),
+    (40, .la .x6 "bacv_fail_code") ]
+
+def balAccountChangeValueFunction : String :=
+  "bal_account_change_value:\n" ++ emitProgramR balAccountChangeValue_prog balAccountChangeValue_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountChangeValue_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountChangeValueFunction_eq_prog :
+    balAccountChangeValueFunction = "bal_account_change_value:\n" ++ emitProgramR balAccountChangeValue_prog balAccountChangeValue_relocs := rfl
+
+#guard balAccountChangeValueFunction.startsWith "bal_account_change_value:\n"
+#guard balAccountChangeValue_prog.length = 54
 /-- `zisk_bal_account_change_value`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account RLP length (u64)
@@ -85,6 +139,7 @@ def ziskBalAccountChangeValuePrologue : String :=
   bytesToNibblesFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
@@ -94,16 +149,18 @@ def ziskBalAccountChangeValuePrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   ".Lbacv_pdone:"
 
 def ziskBalAccountChangeValueDataSection : String :=
-  ziskBalAccountPathDataSection ++ "\n" ++
   ziskBalAccountApplyPostFieldsDataSection ++ "\n" ++
   ".balign 8\n" ++
+  "bacp_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bacv_fail_code:\n  .zero 8\n" ++
   "bacv_out_pad:\n  .zero 8"
-
 def ziskBalAccountChangeValueProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBalAccountChangeValuePrologue

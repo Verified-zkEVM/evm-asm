@@ -5,7 +5,7 @@
   per the file-size hard cap. Hosts:
 
     K38  header_minimal_decode  (parent_hash + state_root + number + timestamp)
-    K39  header_extended_decode (full 15-field header decode)
+    K39  header_extended_decode (full Amsterdam header decode)
     K55  coinbase_extract_from_header (beneficiary getter)
 
   Compose K20 / K34 / K35 (RlpRead + Tx).
@@ -15,7 +15,11 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -37,71 +41,89 @@ open EvmAsm.Rv64.Program
     This decoder reads only the first 12 fields' indices, so
     it works on any post-Berlin header.
 
-    Calling convention:
-      a0 (input)  : header_rlp ptr
-      a1 (input)  : header_rlp byte length
-      a2 (input)  : 96-byte output struct ptr
-      ra (input)  : return
-      a0 (output) : 0 success / 1 parse fail (not an RLP list,
-                    parent_hash or state_root not 32 bytes,
-                    or timestamp > 8 bytes BE).
+     Calling convention:
+       a0 (input)  : header_rlp ptr
+       a1 (input)  : header_rlp byte length
+       a2 (input)  : 96-byte output struct ptr
+       ra (input)  : return
+       a0 (output) : 0 success / 1 parse fail (not an RLP list,
+                     parent_hash or state_root not 32 bytes,
+                     or timestamp > 8 bytes BE).
 
-    Composes PR-K20 `rlp_list_nth_item` + PR-K34
-    `rlp_field_to_u64`. The hash fields are copied via 4 ×
-    8-byte `ld`/`sd` (each 32-byte hash). -/
+     Composes the cursor walker (`rlp_walk_init` +
+     `rlp_walk_next` + `rlp_content_to_u64`). The four wanted
+     fields live at indices {0,3,8,11}; the walker visits the
+     first 12 items once (single O(N) pass), capturing the four
+     wanted fields and skipping the eight in between. The hash
+     fields are copied via 4 x 8-byte `ld`/`sd`. -/
 def headerMinimalDecodeFunction : String :=
   "header_minimal_decode:\n" ++
-  "  addi sp, sp, -32\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr (base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: parent_hash (32 bytes)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, hmd_offset; la a4, hmd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhmd_fail\n" ++
-  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhmd_fail\n" ++
-  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  jal ra, rlp_walk_init      # a0=ptr,a1=len -> cursor,end,status\n" ++
+  "  bnez a2, .Lhmd_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
+  "  # field 0: parent_hash (32 bytes @ struct+0)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  li t0, 32; bne a2, t0, .Lhmd_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr = advanced - len\n" ++
   "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
   "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
   "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
   "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
-  "  # Field 3: state_root (32 bytes at struct + 32)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, hmd_offset; la a4, hmd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhmd_fail\n" ++
-  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhmd_fail\n" ++
-  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  addi t4, s2, 32\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  # Field 8: number (u64 at struct + 64)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 64\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhmd_fail\n" ++
-  "  # Field 11: timestamp (u64 at struct + 72)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  addi a3, s2, 72\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhmd_fail\n" ++
+  "  # fields 1..2: skip (ommers_hash, beneficiary)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  # field 3: state_root (32 bytes @ struct+32)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  li t0, 32; bne a2, t0, .Lhmd_fail\n" ++
+  "  sub t3, a0, a2\n" ++
+  "  ld t4,  0(t3); sd t4, 32(s2)\n" ++
+  "  ld t4,  8(t3); sd t4, 40(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 48(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 56(s2)\n" ++
+  "  # fields 4..7: skip (state_root already read; roots/gas/etc)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  # field 8: number (u64 @ struct+64)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lhmd_fail\n" ++
+  "  sd a0, 64(s2)\n" ++
+  "  # fields 9..10: skip (gas_limit, gas_used)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  # field 11: timestamp (u64 @ struct+72)\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lhmd_fail\n" ++
+  "  sd a0, 72(s2)\n" ++
   "  li a0, 0\n" ++
   "  j .Lhmd_ret\n" ++
   ".Lhmd_fail:\n" ++
   "  li a0, 1\n" ++
   ".Lhmd_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_header_minimal_decode`: probe BuildUnit. Reads
@@ -126,23 +148,13 @@ def ziskHeaderMinimalDecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lhmd_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
   headerMinimalDecodeFunction ++ "\n" ++
   ".Lhmd_pdone:"
 
-def ziskHeaderMinimalDecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "hmd_offset:\n" ++
-  "  .zero 8\n" ++
-  "hmd_length:\n" ++
-  "  .zero 8"
+def ziskHeaderMinimalDecodeDataSection : String := ""
 
 def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
   body        := NOP
@@ -162,6 +174,8 @@ def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
       80..88   gas_limit      (field 9, u64)
       88..96   gas_used       (field 10, u64)
       96..128  base_fee_per_gas (field 15, u256 BE)
+     128..136  blob_gas_used    (field 17, u64)
+     136..144  excess_blob_gas  (field 18, u64)
 
     The base_fee_per_gas field exists from EIP-1559 (London)
     onward. Headers older than London don't have it; this
@@ -170,79 +184,230 @@ def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
     Calling convention:
       a0 (input)  : header_rlp ptr
       a1 (input)  : header byte length
-      a2 (input)  : 128-byte output struct ptr
+      a2 (input)  : 144-byte output struct ptr
       ra (input)  : return
       a0 (output) : 0 success / 1 parse fail. -/
-def headerExtendedDecodeFunction : String :=
-  "header_extended_decode:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_len\n" ++
-  "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: parent_hash\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, hmd_offset; la a4, hmd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhed_fail\n" ++
-  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
-  "  # Field 3: state_root\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, hmd_offset; la a4, hmd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhed_fail\n" ++
-  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  addi t4, s2, 32\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  # Field 8: number\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 64\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  # Field 11: timestamp\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  addi a3, s2, 72\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  # Field 9: gas_limit\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  addi a3, s2, 80\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  # Field 10: gas_used\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  addi a3, s2, 88\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  # Field 15: base_fee_per_gas (u256)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 15\n" ++
-  "  addi a3, s2, 96\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  bnez a0, .Lhed_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhed_ret\n" ++
-  ".Lhed_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lhed_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtendedDecode_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x18 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extended_decode + 32)),
+    .BNE .x12 .x0 (628 : BitVec 13),
+    .MV .x9 .x11,
+    .MV .x19 .x10,
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 56)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (600 : BitVec 13),
+    .LI .x5 (32 : Word),
+    .BNE .x12 .x5 (592 : BitVec 13),
+    .SUB .x28 .x10 .x12,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x18 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x18 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x18 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x18 .x29 (24 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 120)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (536 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 140)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (516 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 160)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (496 : BitVec 13),
+    .LI .x5 (32 : Word),
+    .BNE .x12 .x5 (488 : BitVec 13),
+    .SUB .x28 .x10 .x12,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x18 .x29 (32 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x18 .x29 (40 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x18 .x29 (48 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x18 .x29 (56 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 224)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (432 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 244)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (412 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 264)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (392 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 284)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (372 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 304)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (352 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 324)),
+    .BNE .x11 .x0 (336 : BitVec 13),
+    .SD .x18 .x10 (64 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 344)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (312 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 364)),
+    .BNE .x11 .x0 (296 : BitVec 13),
+    .SD .x18 .x10 (80 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 384)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (272 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 404)),
+    .BNE .x11 .x0 (256 : BitVec 13),
+    .SD .x18 .x10 (88 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 424)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (232 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 444)),
+    .BNE .x11 .x0 (216 : BitVec 13),
+    .SD .x18 .x10 (72 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 464)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (192 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 484)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (172 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 504)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (152 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 524)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (132 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be (GuestAddrs.header_extended_decode + 548)),
+    .BNE .x10 .x0 (112 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 564)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (92 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 584)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (72 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 604)),
+    .BNE .x11 .x0 (56 : BitVec 13),
+    .SD .x18 .x10 (128 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extended_decode + 624)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (32 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 644)),
+    .BNE .x11 .x0 (16 : BitVec 13),
+    .SD .x18 .x10 (136 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtendedDecode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtendedDecode_relocs : RelocTable :=
+  [ (8, .jal .x1 "rlp_walk_init"),
+    (14, .jal .x1 "rlp_walk_next"),
+    (30, .jal .x1 "rlp_walk_next"),
+    (35, .jal .x1 "rlp_walk_next"),
+    (40, .jal .x1 "rlp_walk_next"),
+    (56, .jal .x1 "rlp_walk_next"),
+    (61, .jal .x1 "rlp_walk_next"),
+    (66, .jal .x1 "rlp_walk_next"),
+    (71, .jal .x1 "rlp_walk_next"),
+    (76, .jal .x1 "rlp_walk_next"),
+    (81, .jal .x1 "rlp_content_to_u64"),
+    (86, .jal .x1 "rlp_walk_next"),
+    (91, .jal .x1 "rlp_content_to_u64"),
+    (96, .jal .x1 "rlp_walk_next"),
+    (101, .jal .x1 "rlp_content_to_u64"),
+    (106, .jal .x1 "rlp_walk_next"),
+    (111, .jal .x1 "rlp_content_to_u64"),
+    (116, .jal .x1 "rlp_walk_next"),
+    (121, .jal .x1 "rlp_walk_next"),
+    (126, .jal .x1 "rlp_walk_next"),
+    (131, .jal .x1 "rlp_walk_next"),
+    (137, .jal .x1 "rlp_content_to_u256_be"),
+    (141, .jal .x1 "rlp_walk_next"),
+    (146, .jal .x1 "rlp_walk_next"),
+    (151, .jal .x1 "rlp_content_to_u64"),
+    (156, .jal .x1 "rlp_walk_next"),
+    (161, .jal .x1 "rlp_content_to_u64") ]
+
+def headerExtendedDecodeFunction : String :=
+  "header_extended_decode:\n" ++ emitProgramR headerExtendedDecode_prog headerExtendedDecode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtendedDecode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtendedDecodeFunction_eq_prog :
+    headerExtendedDecodeFunction = "header_extended_decode:\n" ++ emitProgramR headerExtendedDecode_prog headerExtendedDecode_relocs := rfl
+
+#guard headerExtendedDecodeFunction.startsWith "header_extended_decode:\n"
+#guard headerExtendedDecode_prog.length = 174
 /-- `zisk_header_extended_decode`: probe BuildUnit. -/
 def ziskHeaderExtendedDecodePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -250,8 +415,8 @@ def ziskHeaderExtendedDecodePrologue : String :=
   "  ld a1, 8(a3)                # header_len\n" ++
   "  addi a0, a3, 16             # header ptr\n" ++
   "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
-  "  # Pre-zero 128 bytes.\n" ++
-  "  mv t0, a2; li t1, 16\n" ++
+  "  # Pre-zero 144 bytes.\n" ++
+  "  mv t0, a2; li t1, 18\n" ++
   ".Lhed_zinit:\n" ++
   "  beqz t1, .Lhed_zdone\n" ++
   "  sd zero, 0(t0)\n" ++
@@ -263,24 +428,11 @@ def ziskHeaderExtendedDecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lhed_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   ".Lhed_pdone:"
 
-def ziskHeaderExtendedDecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "hmd_offset:\n" ++
-  "  .zero 8\n" ++
-  "hmd_length:\n" ++
-  "  .zero 8"
+def ziskHeaderExtendedDecodeDataSection : String := ""
 
 def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
   body        := NOP

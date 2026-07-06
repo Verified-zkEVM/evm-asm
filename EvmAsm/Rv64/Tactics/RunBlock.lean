@@ -64,6 +64,7 @@ import EvmAsm.Rv64.Tactics.SpecDb
 open Lean Meta Elab Tactic
 
 initialize registerTraceClass `runBlock (inherited := true)
+initialize registerTraceClass `runBlock.leafSynth (inherited := true)
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -787,6 +788,264 @@ private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (L
   let frame := available.filter (·.2) |>.map (·.1) |>.toList
   return postAtoms ++ frame
 
+
+/-- Remove one atom from an array while preserving the order of all other atoms. -/
+private def eraseAtomIdx (atoms : Array Expr) (idx : Nat) : Array Expr := Id.run do
+  let mut result := Array.mkEmpty (atoms.size - 1)
+  for i in [:atoms.size] do
+    if i != idx then
+      result := result.push atoms[i]!
+  return result
+
+/-- Find a matching assertion atom, keeping successful metavariable assignments
+    and rolling back failed candidates.  This is the post-driven counterpart of
+    `findAtomIdx`: spec postconditions contain metavariables that should be
+    instantiated from the requested postcondition. -/
+private def findAtomIdxAssigning (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
+  for i in [:atoms.size] do
+    let saved ← saveState
+    try
+      if ← withReducible (isDefEq target atoms[i]!) then
+        return some i
+      restoreState saved
+    catch _ =>
+      restoreState saved
+  return none
+
+/-- Consume every atom required by a resolved spec postcondition from the
+    current desired postcondition.  The leftovers are the frame that should be
+    preserved while running the instruction backwards. -/
+private def consumePostAtoms (neededAtoms : List Expr) (currentAtoms : List Expr)
+    (ctx : MessageData) : MetaM (List Expr) := do
+  let mut rest := currentAtoms.toArray
+  for needed in neededAtoms do
+    let needed ← instantiateMVars needed
+    let some idx ← findAtomIdxAssigning needed rest
+      | throwError "runBlockFromPost: could not match postcondition atom while resolving {ctx}:\n  {needed}"
+    rest := eraseAtomIdx rest idx
+  return rest.toList
+
+private inductive OwnershipKind where
+  | reg (r : Expr)
+  | mem (addr : Expr)
+
+private def OwnershipKind.ruleConst (single : Bool) : OwnershipKind → Name
+  | .reg _ =>
+      if single then
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn_single
+      else
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn
+  | .mem _ =>
+      if single then
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_memIs_to_memOwn_single
+      else
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_memIs_to_memOwn
+
+private def OwnershipKind.key : OwnershipKind → Expr
+  | .reg r => r
+  | .mem addr => addr
+
+private def OwnershipKind.traceMsg : OwnershipKind → MetaM MessageData
+  | .reg r => return m!"regOwn {← instantiateMVars r}"
+  | .mem addr => return m!"memOwn {← instantiateMVars addr}"
+
+private def isExactMVar (mvarId : MVarId) (e : Expr) : Bool :=
+  let e := e.consumeMData
+  e.isMVar && e.mvarId! == mvarId
+
+private def exprContainsMVar (mvarId : MVarId) (e : Expr) : Bool :=
+  (e.find? fun e => isExactMVar mvarId e).isSome
+
+private def replaceMVar (mvarId : MVarId) (replacement : Expr) (e : Expr) : Expr :=
+  e.replace fun e =>
+    if isExactMVar mvarId e then some replacement else none
+
+private def ownershipKindForOldValueAtom? (mvarId : MVarId) (atom : Expr) : Option OwnershipKind :=
+  if atom.isAppOfArity ``EvmAsm.Rv64.regIs 2 then
+    let r := atom.getAppArgs[0]!
+    let v := atom.getAppArgs[1]!
+    if isExactMVar mvarId v && !exprContainsMVar mvarId r then
+      some (.reg r)
+    else
+      none
+  else if atom.isAppOfArity ``EvmAsm.Rv64.memIs 2 then
+    let addr := atom.getAppArgs[0]!
+    let v := atom.getAppArgs[1]!
+    if isExactMVar mvarId v && !exprContainsMVar mvarId addr then
+      some (.mem addr)
+    else
+      none
+  else
+    none
+
+private def findOwnershipGeneralization? (mvarId : MVarId) (preAtoms : List Expr)
+    (post : Expr) : MetaM (Option (Nat × OwnershipKind)) := do
+  if exprContainsMVar mvarId post then
+    return none
+  let mut found : Option (Nat × OwnershipKind) := none
+  for h : i in [:preAtoms.length] do
+    let atom := preAtoms[i]
+    if let some kind := ownershipKindForOldValueAtom? mvarId atom then
+      if found.isSome then
+        throwError "runBlockFromPost: data parameter occurs as more than one old-value ownership candidate: {← mvarId.getType}"
+      found := some (i, kind)
+    else if exprContainsMVar mvarId atom then
+      return none
+  return found
+
+private def orderPreForOwnership (preAtoms : List Expr) (idx : Nat) : MetaM (Expr × Expr × Bool) := do
+  let oldAtom := preAtoms[idx]!
+  let frameAtoms := eraseAtomIdx preAtoms.toArray idx |>.toList
+  let frame ← buildSepConjChain frameAtoms
+  let orderedPre ←
+    if frameAtoms.isEmpty then
+      Pure.pure oldAtom
+    else
+      Pure.pure (mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) frame oldAtom)
+  return (frame, orderedPre, frameAtoms.isEmpty)
+
+private def reorderPreForOwnership (proof : Expr) (orderedPre : Expr) : MetaM Expr := do
+  let proofType ← instantiateMVars (← inferType proof)
+  let some (nSteps, entry, exit_, cr, pre, post) ← parseCpsTripleWithin? proofType
+    | throwError "runBlockFromPost: internal error - ownership candidate is not a cpsTripleWithin"
+  if ← withoutModifyingState (isDefEq pre orderedPre) then
+    return proof
+  let hpre ← mkPermLambda orderedPre pre
+  let hpost ← mkIdLambda post
+  return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+    #[nSteps, entry, exit_, cr, pre, orderedPre, post, post, hpre, hpost, proof]
+
+private def applyOwnershipGeneralization (proof : Expr) (mvarId : MVarId)
+    (kind : OwnershipKind) (frame : Expr) (single : Bool) : MetaM Expr := do
+  let proofType ← instantiateMVars (← inferType proof)
+  let some (nSteps, entry, exit_, cr, _pre, post) ← parseCpsTripleWithin? proofType
+    | throwError "runBlockFromPost: internal error - ownership candidate is not a cpsTripleWithin"
+  let valueType ← instantiateMVars (← mvarId.getType)
+  withLocalDeclD `vOld valueType fun vOld => do
+    let body := replaceMVar mvarId vOld proof
+    let h ← mkLambdaFVars #[vOld] body
+    let rule := mkConst (kind.ruleConst single)
+    let result :=
+      if single then
+        mkAppN rule #[nSteps, entry, exit_, kind.key, post, cr, h]
+      else
+        mkAppN rule #[nSteps, entry, exit_, kind.key, frame, post, cr, h]
+    instantiateMVars result
+
+private partial def generalizeOwnershipParams (proof : Expr) (params : Array Expr) : MetaM Expr := do
+  let mut result := proof
+  for param in params do
+    if !param.isMVar then continue
+    let mvarId := param.mvarId!
+    if ← mvarId.isAssigned then continue
+    let paramType ← instantiateMVars (← mvarId.getType)
+    if ← isProp paramType then
+      continue
+    let resultType ← instantiateMVars (← inferType result)
+    let some (_, _, _, _, pre, post) ← parseCpsTripleWithin? resultType
+      | throwError "runBlockFromPost: internal error - synthesized spec is not a cpsTripleWithin"
+    let preAtoms ← flattenSepConj pre
+    let some (idx, kind) ← findOwnershipGeneralization? mvarId preAtoms post
+      | throwError "post matched but left data parameter unconstrained: {paramType}
+          Hint: unsupported unresolved data parameters must occur exactly as one old `regIs`/`memIs` value in the precondition and nowhere in the postcondition; otherwise pass an explicit spec."
+    trace[runBlock.leafSynth] "synthesized {← kind.traceMsg} for old-value parameter of type {paramType}"
+    let (frame, orderedPre, single) ← orderPreForOwnership preAtoms idx
+    let reordered ← reorderPreForOwnership result orderedPre
+    result ← applyOwnershipGeneralization reordered mvarId kind frame single
+  return result
+
+/-- Instantiate a registered single-instruction spec by matching its
+    postcondition against the current desired postcondition.  Unlike forward
+    `runBlock`, this starts from the post and turns unconstrained old register
+    or memory values into `regOwn`/`memOwn` preconditions when the spec shape is
+    unambiguous. -/
+private def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : Expr)
+    (currentAtoms : List Expr) : MetaM Expr := do
+  let specConst := mkConst specName
+  let specType ← inferType specConst
+  let (params, _, body) ← forallMetaTelescope specType
+  let some (_, specEntry, _, specCr, _, specPost) ← parseCpsTripleWithin? body
+    | throwError "tryInstantiateSpecFromPost: {specName} is not a cpsTripleWithin"
+  unless ← isDefEq specEntry instrAddr do
+    throwError "address mismatch"
+  let specCrWhnf ← whnfR specCr
+  if specCrWhnf.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
+    let specInstr := specCrWhnf.getAppArgs[1]!
+    unless ← isDefEq specInstr instrExpr do
+      throwError "instruction mismatch in cr"
+  let specAtoms ← flattenSepConj specPost
+  let _ ← consumePostAtoms specAtoms currentAtoms m!"{specName}"
+  for param in params do
+    if !param.isMVar then continue
+    let mvarId := param.mvarId!
+    if ← mvarId.isAssigned then continue
+    let paramType ← instantiateMVars (← mvarId.getType)
+    if ← isProp paramType then
+      let solved ← solveObligation mvarId
+      unless solved do
+        throwError "cannot solve proof obligation: {paramType}
+          Hint: Add the obligation as a hypothesis, or pass an already-instantiated spec."
+  let proof ← instantiateMVars (mkAppN specConst params)
+  let proof ← generalizeOwnershipParams proof params
+  let proof ← instantiateMVars proof
+  if proof.hasExprMVar then
+    throwError "post matched but the instantiated proof still contains metavariables"
+  let proofType ← instantiateMVars (← inferType proof)
+  if proofType.hasExprMVar then
+    throwError "post matched but the instantiated spec type still contains metavariables"
+  return proof
+
+/-- Resolve one instruction by matching registered specs against the current
+    desired postcondition. -/
+private def resolveSpecForInstrFromPost (instrExpr instrAddr : Expr)
+    (currentAtoms : List Expr) : MetaM Expr := do
+  let instrHead := instrExpr.getAppFn
+  let .const instrName _ := instrHead
+    | throwError "runBlockFromPost: instruction is not a constructor application: {instrExpr}\n\
+        Hint: CodeReq entries must contain concrete instructions."
+  let env ← getEnv
+  let specs := findSpecsForInstr env instrName
+  if specs.isEmpty then
+    throwError "runBlockFromPost: no @[spec_gen_rv64] specs registered for `{instrName}`.\n\
+        Hint: import EvmAsm.Rv64.SyscallSpecs, register a spec, or pass an explicit spec."
+  trace[runBlock] "post-driven resolving {instrName} at {instrAddr} - {specs.size} candidate(s)"
+  let mut errors : Array (Name × String) := #[]
+  for entry in specs do
+    let saved ← saveState
+    try
+      let result ← tryInstantiateSpecFromPost entry.specName instrExpr instrAddr currentAtoms
+      trace[runBlock] "  post-driven resolved with {entry.specName}"
+      trace[runBlock.leafSynth] "matched {entry.specName} for {instrName} at {instrAddr}"
+      return result
+    catch e =>
+      restoreState saved
+      let msg := toString (← e.toMessageData.format)
+      errors := errors.push (entry.specName, msg)
+      continue
+  let mut errMsg := m!"runBlockFromPost: no spec could be instantiated backwards for `{instrName}` at {instrAddr}."
+  errMsg := errMsg ++ m!"\n  Tried {errors.size} candidate(s):"
+  for (name, msg) in errors do
+    errMsg := errMsg ++ m!"\n    {name}: {msg}"
+  errMsg := errMsg ++ m!"\n  Hint: strengthen the requested postcondition with the atoms produced by this instruction,\n    use an ownership-style spec for overwritten resources, or pass explicit spec hypotheses."
+  throwError errMsg
+
+/-- Compute the desired predecessor assertion for one already-instantiated spec
+    by replacing the spec's postcondition atoms with its precondition atoms. -/
+private def retreatState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
+  let specType ← instantiateMVars (← inferType specExpr)
+  let some (_, _, _, _, specPre, specPost) ← parseCpsTripleWithin? specType
+    | throwError "retreatState: not a cpsTripleWithin"
+  let postAtoms ← flattenSepConj specPost
+  let frame ← consumePostAtoms postAtoms currentAtoms m!"{specType}"
+  let preAtoms ← flattenSepConj specPre
+  return preAtoms ++ frame
+
+private def synthesizePreFromResolvedSpecs (specsForward : Array Expr) (goalPost : Expr) : MetaM Expr := do
+  let mut currentAtoms ← flattenSepConj goalPost
+  for spec in specsForward.toList.reverse do
+    currentAtoms ← retreatState currentAtoms spec
+  buildSepConjChain currentAtoms
+
 /-- Extract instruction atoms `(addr, instrExpr)` from assertion atoms,
     preserving the order they appear in the precondition. -/
 private def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
@@ -843,6 +1102,143 @@ private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) :
   let cr' ← Lean.Meta.whnfR cr
   if cr' == cr then return []  -- No progress, give up
   extractCrEntries cr'
+
+private def countSingleInstrSpecs? (specs : Array Expr) : MetaM (Option Nat) := do
+  let mut count := 0
+  for spec in specs do
+    let specType ← inferType spec
+    let some (_, _, _, specCr, _, _) ← parseCpsTripleWithin? specType
+      | return none
+    let entries ← extractCrEntries specCr
+    if entries.length != 1 then
+      return none
+    count := count + 1
+  return some count
+
+private structure SingleInstrHint where
+  proof : Expr
+  addr : Expr
+  instr : Expr
+
+private def singleInstrHint? (spec : Expr) : MetaM (Option SingleInstrHint) := do
+  let specType ← instantiateMVars (← inferType spec)
+  let some (_, _, _, specCr, _, _) ← parseCpsTripleWithin? specType
+    | return none
+  match ← extractCrEntries specCr with
+  | [(addr, instr)] => return some { proof := spec, addr := addr, instr := instr }
+  | _ => return none
+
+private def findHintIdxForInstr (hints : Array (SingleInstrHint × Bool))
+    (addr instr : Expr) : MetaM (Option Nat) := do
+  for i in [:hints.size] do
+    if let some entry := hints[i]? then
+      if entry.2 then
+        let hint := entry.1
+        let isMatch ← withoutModifyingState do
+          withReducible do
+            let addrOk ← isDefEq hint.addr addr
+            if !addrOk then
+              return false
+            isDefEq hint.instr instr
+        if isMatch then
+          return some i
+  return none
+
+private def mkSingleInstrHints (specs : Array Expr) : MetaM (Array (SingleInstrHint × Bool)) := do
+  let mut hints := #[]
+  for spec in specs do
+    let some hint ← singleInstrHint? spec
+      | throwError "runBlockFromPost: partial-hint mode only accepts single-instruction specs.
+          Hint: pass a complete explicit spec list/composite spec, or give only single-instruction hints and let auto mode resolve the rest."
+    hints := hints.push (hint, true)
+  return hints
+
+private def synthesizeSpecsAndPreFromPostWithHints
+    (goalPost goalCr : Expr) (hintSpecs : Array Expr) : MetaM (Array Expr × Expr) := do
+  let instrAtoms ← extractCrEntries goalCr
+  if instrAtoms.isEmpty then
+    throwError "runBlockFromPost: no instructions found in the goal's CodeReq.
+        The CodeReq must contain CodeReq.singleton/union/ofProg entries."
+  let mut hints ← mkSingleInstrHints hintSpecs
+  let mut currentAtoms ← flattenSepConj goalPost
+  let mut specsForward : List Expr := []
+  let mut resolvedCount : Nat := 0
+  let totalCount := instrAtoms.length
+  for (addr, instr) in instrAtoms.reverse do
+    try
+      let spec ←
+        match ← findHintIdxForInstr hints addr instr with
+        | some hintIdx =>
+            let some entry := hints[hintIdx]?
+              | throwError "runBlockFromPost: internal error - selected hint index is out of bounds"
+            let hint := entry.1
+            hints := hints.set! hintIdx (hint, false)
+            trace[runBlock] "post-driven using explicit hint for {instr} at {addr}"
+            Pure.pure hint.proof
+        | none =>
+            resolveSpecForInstrFromPost instr addr currentAtoms
+      currentAtoms ← retreatState currentAtoms spec
+      specsForward := spec :: specsForward
+      resolvedCount := resolvedCount + 1
+    catch e =>
+      let eMsg ← e.toMessageData.format
+      throwError "{eMsg}
+  Progress: resolved {resolvedCount} of {totalCount} bounded instruction spec(s) backwards before failure."
+  for i in [:hints.size] do
+    if let some entry := hints[i]? then
+      if entry.2 then
+        let hint := entry.1
+        throwError "runBlockFromPost: explicit single-instruction hint was not used.
+          Hint CodeReq entry: {hint.addr} ↦ {hint.instr}
+          Hint: make sure the hint's address/instruction appears in the goal CodeReq, or use a complete manual spec list."
+  let pre ← buildSepConjChain currentAtoms
+  trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
+  return (specsForward.toArray, pre)
+
+private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
+  let instrAtoms ← extractCrEntries goalCr
+  if instrAtoms.isEmpty then
+    throwError "runBlockFromPost: no instructions found in the goal's CodeReq.\n\
+        The CodeReq must contain CodeReq.singleton/union/ofProg entries."
+  let mut currentAtoms ← flattenSepConj goalPost
+  let mut specsForward : List Expr := []
+  let mut resolvedCount : Nat := 0
+  let totalCount := instrAtoms.length
+  for (addr, instr) in instrAtoms.reverse do
+    try
+      let spec ← resolveSpecForInstrFromPost instr addr currentAtoms
+      currentAtoms ← retreatState currentAtoms spec
+      specsForward := spec :: specsForward
+      resolvedCount := resolvedCount + 1
+    catch e =>
+      let eMsg ← e.toMessageData.format
+      throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} bounded instruction spec(s) backwards before failure."
+  let pre ← buildSepConjChain currentAtoms
+  trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
+  return (specsForward.toArray, pre)
+
+private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) : MetaM Expr := do
+  let (resolvedSpecs, synthPre) ←
+    if specs.isEmpty then
+      synthesizeSpecsAndPreFromPost goalPost goalCr
+    else do
+      let processedSpecs ← specs.mapM fun spec => do
+        try normalizeSpecWithinAddresses spec
+        catch _ => Pure.pure spec
+      let goalEntries ← extractCrEntries goalCr
+      if goalEntries.isEmpty then
+        let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+        Pure.pure (processedSpecs, synthPre)
+      else if let some singleInstrCount ← countSingleInstrSpecs? processedSpecs then
+        if singleInstrCount == goalEntries.length then
+          let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+          Pure.pure (processedSpecs, synthPre)
+        else
+          synthesizeSpecsAndPreFromPostWithHints goalPost goalCr processedSpecs
+      else
+        let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+        Pure.pure (processedSpecs, synthPre)
+  runBlockWithinCore resolvedSpecs synthPre (goalCr := some goalCr)
 
 private def autoResolveAndComposeWithin (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf (fun _ => return m!"autoResolveAndComposeWithin") do
@@ -951,6 +1347,64 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
     let permuted := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
       #[gSteps, gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, finalResult]
     workingGoal.assign permuted
+    replaceMainGoal []
+
+/-- Verify a straight-line leaf block by working backwards from the requested
+    postcondition.  With no arguments, the tactic resolves registered
+    `@[spec_gen_rv64]` instruction specs from the goal's `CodeReq`. With a full
+    explicit spec list, it uses those specs in forward execution order. With a
+    shorter list of single-instruction specs, it treats them as hints and
+    resolves the remaining instructions automatically. The goal may leave the
+    precondition and step bound as metavariables, which lets `WP.CFG.leaf`
+    expose the synthesized precondition as `cfg.pre`. -/
+elab "runBlockFromPost" specs:ident* : tactic => withMainContext do
+  withTraceNode `runBlock.perf (fun _ => return m!"runBlockFromPost") do
+    let mvarGoal ← getMainGoal
+    let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
+    let some (gSteps, gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTripleWithin? goalType
+      | throwError "runBlockFromPost: goal is not a `cpsTripleWithin`.\n\
+          Expected a goal such as `cpsTripleWithin ?n entry exit cr ?pre post`."
+    let specExprs ← specs.mapM fun s => elabTerm s none
+    let composed ← runBlockFromPostCore specExprs goalPost gCr
+    let finalResult ← normalizeWithinToGoal composed goalType
+    let resultType ← instantiateMVars (← inferType finalResult)
+    let some (rSteps, _, _, _, rPre, resultPost) ← parseCpsTripleWithin? resultType
+      | throwError "runBlockFromPost: internal error - synthesized result is not a cpsTripleWithin"
+    let finalResult ←
+      if gSteps.isMVar && !(← gSteps.mvarId!.isAssigned) then
+        gSteps.mvarId!.assign rSteps
+        Pure.pure finalResult
+      else if ← isDefEq rSteps gSteps then
+        Pure.pure finalResult
+      else
+        let hleType ← mkAppM ``LE.le #[rSteps, gSteps]
+        let hle ← mkFreshExprMVar hleType
+        let stx ← `(tactic| omega)
+        runTacticSilent hle.mvarId! stx
+        Pure.pure (mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_mono_nSteps)
+          #[rSteps, gSteps, gEntry, gExit, gCr, rPre, resultPost, (← instantiateMVars hle), finalResult])
+    let resultType ← instantiateMVars (← inferType finalResult)
+    let some (rSteps, _, _, _, rPre, resultPost) ← parseCpsTripleWithin? resultType
+      | throwError "runBlockFromPost: internal error - step-adjusted result is not a cpsTripleWithin"
+    let prePerm ← do
+      if gPre.isMVar && !(← gPre.mvarId!.isAssigned) then
+        gPre.mvarId!.assign rPre
+        mkIdLambda rPre
+      else
+        let saved ← saveState
+        if ← isDefEq gPre rPre then
+          let goalPre ← instantiateMVars gPre
+          mkIdLambda goalPre
+        else
+          restoreState saved
+          let goalPre ← instantiateMVars gPre
+          mkPermLambda goalPre rPre
+    let goalPre ← instantiateMVars gPre
+    let postPerm ← mkPermLambda resultPost goalPost
+    let permuted := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+      #[rSteps, gEntry, gExit, gCr, rPre, goalPre, resultPost, goalPost,
+        prePerm, postPerm, finalResult]
+    mvarGoal.assign permuted
     replaceMainGoal []
 
 end EvmAsm.Rv64.Tactics

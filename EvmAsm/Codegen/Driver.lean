@@ -66,10 +66,8 @@ def writeAsmFile (asmPath : System.FilePath) (text : String) : IO Unit := do
     Returns the produced `(objPath, elfPath)`.
 
     Memory layout: `.text` at `0x80000000` (Zisk's default entry point),
-    `.data` at `0xa0000000` (Zisk requires writable sections to live in RAM
-    at `0xa0000000-0xc0000000`; placing `.data` adjacent to `.text` makes
-    the loader refuse the ELF with "writable data section ... outside RAM
-    bounds"). -/
+    `.data` at `0xa3000000` (high RAM, clear of fixed stateless working-memory
+    anchors and `OUTPUT_ADDR = 0xa0010000`). -/
 def assembleAndLink (asmPath : System.FilePath) :
     IO (System.FilePath × System.FilePath) := do
   let asProgram ← resolveTool "RISCV_AS" asCandidates
@@ -79,13 +77,11 @@ def assembleAndLink (asmPath : System.FilePath) :
   runOrFail asProgram
     #["-march=rv64imac", "-mno-relax", "-o", objPath.toString, asmPath.toString]
   runOrFail ldProgram
-    -- `.sszscratch` is the stateless guest's large NOBITS merkleization
-    -- work region (EvmAsm/Stateless/MemoryLayout.lean: SSZ_SCRATCH_BASE).
-    -- Placing it at a high RAM VMA keeps the multi-MiB buffers clear of
-    -- `.data`/OUTPUT/stack. The flag is harmless for programs that do not
-    -- emit the section (GNU ld only relocates the section when present).
-    #["-Ttext=0x80000000", "-Tdata=0xa0000000",
-      "--section-start=.sszscratch=0xa2000000",
+    -- `.sszscratch` is the stateless guest's large NOBITS merkleization work
+    -- region. Keep it above `.data`; GNU ld only relocates the section when
+    -- present, so the flag is harmless for programs that do not emit it.
+    #["-Ttext=0x80000000", "-Tdata=0xa3000000",
+      "--section-start=.sszscratch=0xbf500000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)

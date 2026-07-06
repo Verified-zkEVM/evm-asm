@@ -14,16 +14,17 @@
 #                    Omit to run forever.
 #   --seed=N       : fixed PRNG seed for reproducibility; default: $RANDOM.
 #   --timeout=SECS : wall-clock seconds per case before declaring TIMEOUT
-#                    (default: 10). The known x6 bug causes an infinite loop
-#                    in ziskemu for most inputs — timeout == bug detected.
+#                    (default: 10). Timeouts are treated as runtime
+#                    regressions.
 #
 # Exit:
 #   0 — every tested case matched expected (only possible with --count=N)
 #   1 — at least one case failed / timed out, or the build step errored
 #
-# Note: the current EXP implementation has a known bug — mul_callable
-# clobbers x6 which the EXP loop uses as its per-limb bit counter. Most
-# random inputs will produce wrong results; this script exposes that.
+# Note: this script originally exposed the x6 counter-clobber regression in
+# the EXP loop. The current `_fixed_fixed` body keeps the bit counter in x22;
+# keep this property test around as the regression gate before promoting EXP
+# into required runtime frontier coverage.
 
 set -euo pipefail
 

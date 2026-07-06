@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kucherenko/jscpd/master/packages/jscpd/schema.json",
+  "//": "Duplication-watch config for scripts/check-duplication.sh (report R-C6).",
+  "//rule-of-three": "We TOLERATE deliberate per-opcode / per-fixture boilerplate (the ~516 codegen-*.sh, per-opcode .lean trees). Dedup pressure applies only to convergent proof tactics/lemmas, so the heavy boilerplate is excluded below. Advisory until a budget calibrates.",
+  "minTokens": 80,
+  "minLines": 12,
+  "mode": "strict",
+  "absolute": true,
+  "gitignore": true,
+  "//tokenizer-note": "jscpd has no native Lean lexer, so .lean is mapped to the python tokenizer — an APPROXIMATION. The duplication % is an advisory leading indicator, not an exact figure; do not over-trust the precise number.",
+  "formatsExts": {
+    "python": ["lean"]
+  },
+  "ignore": [
+    "**/scripts/codegen-*.sh",
+    "**/EvmAsm/**/Program.lean",
+    "**/EvmAsm/**/Programs.lean",
+    "**/EvmAsm/**/Programs/**",
+    "**/EvmAsm/Codegen/RoundTripTests.lean",
+    "**/EvmAsm/Examples/**",
+    "**/.lake/**"
+  ],
+  "reporters": ["json", "console"],
+  "output": "./.jscpd-report"
+}

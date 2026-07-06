@@ -11,6 +11,7 @@
   composing.
 -/
 
+import EvmAsm.Rv64.BitAux
 import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.AddrNorm
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
@@ -26,21 +27,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-/-- Wrapper sub-region inside `sdivCode`. -/
-theorem sdivCode_wrapper_sub {base : Word} :
-    ∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_sdiv_wrapper) a = some i →
-      (sdivCode base) a = some i := by
-  unfold sdivCode
-  exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base base evm_sdiv_legacy evm_sdiv_wrapper 0
-    (EvmAsm.Evm64.SDiv.AddrNorm.wrapperStart_addr base)
-    (by unfold evm_sdiv_legacy; simp only [EvmAsm.Rv64.seq, EvmAsm.Rv64.Program]; rfl)
-    (by
-      rw [evm_sdiv_legacy_length, evm_sdiv_wrapper_length]
-      norm_num)
-    (by
-      rw [evm_sdiv_legacy_length]
-      norm_num)
-
 /-- Wrapper sub-region inside `sdivCodeV4`. -/
 theorem sdivCodeV4_wrapper_sub {base : Word} :
     ∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_sdiv_wrapper) a = some i →
@@ -55,32 +41,6 @@ theorem sdivCodeV4_wrapper_sub {base : Word} :
     (by
       rw [evm_sdiv_v4_length]
       norm_num)
-
-/-- The appended legacy v1 unsigned DIV callable sub-region inside `sdivCode`. -/
-theorem sdivCode_div_callable_v1_sub {base : Word} :
-    ∀ a i, (evm_div_callable_code_v1 (base + 284)) a = some i →
-      (sdivCode base) a = some i := by
-  intro a i h
-  rw [evm_div_callable_code_v1_eq_ofProg (base + 284)] at h
-  unfold sdivCode
-  exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + 284)
-    evm_sdiv_legacy evm_div_callable_v1 71
-    (EvmAsm.Evm64.SDiv.AddrNorm.divCallableStart_addr base)
-    (by
-      unfold evm_sdiv_legacy EvmAsm.Rv64.seq
-      rw [← evm_sdiv_wrapper_length]
-      have h_drop :
-          List.drop evm_sdiv_wrapper.length
-              (evm_sdiv_wrapper ++ evm_div_callable_v1) =
-            evm_div_callable_v1 := by
-        exact List.drop_append_length
-      rw [h_drop]
-      simp only [List.take_length])
-    (by native_decide)
-    (by
-      rw [evm_sdiv_legacy_length]
-      norm_num)
-    a i h
 
 /-- The appended v4 unsigned DIV callable sub-region inside `sdivCodeV4`. -/
 theorem sdivCodeV4_div_callable_sub {base : Word} :
@@ -102,20 +62,11 @@ theorem sdivCodeV4_div_callable_sub {base : Word} :
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
-    (by native_decide)
+    (by rw [evm_div_callable_v4_length, evm_sdiv_v4_length])
     (by
       rw [evm_sdiv_v4_length]
       norm_num)
     a i h
-
-/-- Bundled top-level SDIV code subsumptions for the wrapper and appended
-    unsigned DIV callable. -/
-theorem sdivCode_top_level_subs {base : Word} :
-    (∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_sdiv_wrapper) a = some i →
-      (sdivCode base) a = some i) ∧
-    (∀ a i, (evm_div_callable_code_v1 (base + 284)) a = some i →
-      (sdivCode base) a = some i) := by
-  exact ⟨sdivCode_wrapper_sub, sdivCode_div_callable_v1_sub⟩
 
 /-- Bundled top-level SDIV v4 code subsumptions for the wrapper and appended
     v4 unsigned DIV callable. -/
@@ -134,7 +85,7 @@ theorem divCall_target_eq_wrapperEndOff (base : Word) :
     (base + divCallOff) + EvmAsm.Rv64.signExtend21 EvmAsm.Evm64.evm_sdivCallOff =
       base + wrapperEndOff := by
   show (base + (192 : Word)) + (92 : Word) = base + (284 : Word)
-  bv_decide
+  bv_omega
 
 /-- Under the standard RV PC-alignment invariant (`base` has its low bit
     clear), the JALR low-bit mask `&&& ~~~1` on the post-`divCall` return
@@ -146,7 +97,7 @@ theorem base_add_resultSignFixOff_andn_one
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + resultSignFixOff) &&& ~~~(1 : Word) = base + resultSignFixOff := by
   show (base + (196 : Word)) &&& ~~~(1 : Word) = base + (196 : Word)
-  bv_decide
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase (by decide)
 
 /-- The return address written by the SDIV wrapper's near `divCall` is exactly
     the result-sign-fixup entry, and masking bit 0 for the eventual `JALR`
@@ -158,6 +109,8 @@ theorem divCall_return_andn_one_eq_resultSignFixOff
       base + resultSignFixOff := by
   show (((base + (192 : Word)) + (4 : Word)) &&& ~~~(1 : Word)) =
       base + (196 : Word)
-  bv_decide
+  have hsum : (base + 192 + 4 : Word) = base + 196 := by bv_omega
+  rw [hsum]
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase (by decide)
 
 end EvmAsm.Evm64.SDiv.Compose

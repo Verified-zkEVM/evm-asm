@@ -10,8 +10,6 @@
     K211  header_extract_gas_limit
     K212  block_validate_block_hash_pair
     K213  block_hash_and_extract_number
-    K214  header_compute_summary_struct
-
   Compose K172 `block_hash_from_header` (Header.lean), K201
   `header_extract_state_root` (HeaderFields.lean), K20 / K34 from
   RlpRead + Tx, and `zkvm_keccak256` from HashBridge.
@@ -21,12 +19,16 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeaderGasExtract
 
 namespace EvmAsm.Codegen
 
@@ -113,111 +115,6 @@ def ziskBlockHashMatchesProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBlockHashMatchesPrologue
   dataAsm     := ziskBlockHashMatchesDataSection
-}
-
-/-! ## header_extract_gas_used / header_extract_gas_limit -- PR-K210 / K211
-
-    Two more u64 header-field extractors, completing the
-    `header_extract_*` u64 family alongside K198
-    (base_fee_per_gas):
-
-      K210  header_extract_gas_used   (field 10)
-      K211  header_extract_gas_limit  (field 9)
-
-    Each thin-wraps `rlp_field_to_u64` for the specific field
-    index. Useful for chain monitoring / fee-market analysis.
-
-    Calling convention (both):
-      a0 (input)  : header_rlp ptr
-      a1 (input)  : header_rlp byte length
-      a2 (input)  : u64 out ptr
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure / field missing
-        2 : field exceeds 8 bytes BE -/
-def headerExtractGasUsedFunction : String :=
-  "header_extract_gas_used:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 10\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
-
-def ziskHeaderExtractGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_gas_used\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhegu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractGasUsedFunction ++ "\n" ++
-  ".Lhegu_pdone:"
-
-def ziskHeaderExtractGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-def ziskHeaderExtractGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractGasUsedPrologue
-  dataAsm     := ziskHeaderExtractGasUsedDataSection
-}
-
-def headerExtractGasLimitFunction : String :=
-  "header_extract_gas_limit:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 9\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
-
-def ziskHeaderExtractGasLimitPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_gas_limit\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhegl_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractGasLimitFunction ++ "\n" ++
-  ".Lhegl_pdone:"
-
-def ziskHeaderExtractGasLimitDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-def ziskHeaderExtractGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractGasLimitPrologue
-  dataAsm     := ziskHeaderExtractGasLimitDataSection
 }
 
 /-! ## block_validate_block_hash_pair -- PR-K212
@@ -417,131 +314,6 @@ def ziskBlockHashAndExtractNumberProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockHashAndExtractNumberDataSection
 }
 
-/-! ## header_compute_summary_struct -- PR-K214
-
-    Extract a 96-byte block summary struct from a header:
-
-      bytes  0.. 32 : block_hash         (keccak256 of header RLP)
-      bytes 32.. 64 : state_root         (field 3)
-      bytes 64.. 72 : number             (field 8, u64)
-      bytes 72.. 80 : timestamp          (field 11, u64)
-      bytes 80.. 88 : gas_used           (field 10, u64)
-      bytes 88.. 96 : base_fee_per_gas   (field 15, u64; pre-
-                                          London headers fail
-                                          and the field stays 0)
-
-    Useful as a chain-indexing primitive: stores the canonical
-    "what is this block" tuple in one shot, ready to dump as a
-    fixed-size record.
-
-    Composes K172 (block_hash) + K201 (state_root) +
-    rlp_field_to_u64 ×4. The integer fields use the same shape
-    as K198 / K210 / K211 / K38; the state_root copy uses the
-    same 4 × 8B pattern as K201.
-
-    Calling convention:
-      a0 (input)  : header_rlp ptr
-      a1 (input)  : header_rlp byte length
-      a2 (input)  : 96-byte output ptr
-      ra (input)  : return
-      a0 (output) :
-        0 : success (all 6 fields written)
-        1 : RLP parse failure / required field missing
-        2 : some integer field exceeds 8 bytes BE / state_root != 32 -/
-def headerComputeSummaryStructFunction : String :=
-  "header_compute_summary_struct:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1                # header\n" ++
-  "  mv s2, a2                            # output struct\n" ++
-  "  # 1. block_hash -> out[0..32]\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  # 2. state_root -> out[32..64]\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  addi a2, s2, 32\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  bnez a0, .Lhcss_propagate_size\n" ++
-  "  # 3. number -> out[64..72] (field 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 64\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhcss_propagate_int\n" ++
-  "  # 4. timestamp -> out[72..80] (field 11)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  addi a3, s2, 72\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhcss_propagate_int\n" ++
-  "  # 5. gas_used -> out[80..88] (field 10)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  addi a3, s2, 80\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhcss_propagate_int\n" ++
-  "  # 6. base_fee_per_gas -> out[88..96] (field 15)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 15\n" ++
-  "  addi a3, s2, 88\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lhcss_propagate_int\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhcss_ret\n" ++
-  ".Lhcss_propagate_size:\n" ++
-  "  # state_root status: 1=parse, 2=size. Pass through unchanged.\n" ++
-  "  j .Lhcss_ret\n" ++
-  ".Lhcss_propagate_int:\n" ++
-  "  # rlp_field_to_u64 returns 1=parse, 2=too_long. Map both to\n" ++
-  "  # the same code as the upper-level status.\n" ++
-  ".Lhcss_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
-
-/-- `zisk_header_compute_summary_struct`: probe BuildUnit.
-    Input layout:
-      bytes 0..8 : header_rlp_len
-      bytes 8..  : header_rlp
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..104: 96-byte summary struct -/
-def ziskHeaderComputeSummaryStructPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_compute_summary_struct\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhcss_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  blockHashFromHeaderFunction ++ "\n" ++
-  headerExtractStateRootFunction ++ "\n" ++
-  headerComputeSummaryStructFunction ++ "\n" ++
-  ".Lhcss_pdone:"
-
-def ziskHeaderComputeSummaryStructDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "hesr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hesr_length:\n" ++
-  "  .zero 8"
-
-def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderComputeSummaryStructPrologue
-  dataAsm     := ziskHeaderComputeSummaryStructDataSection
-}
-
 /-! ## blockhash_from_witness_headers
 
     BLOCKHASH-opcode semantics over a stateless witness: given a
@@ -569,82 +341,107 @@ def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
         1 miss
         2 RLP parse failure on some header along the way
 -/
-def blockhashFromWitnessHeadersFunction : String :=
-  "blockhash_from_witness_headers:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s7, a0                  # target block number\n" ++
-  "  mv s0, a1                  # section ptr\n" ++
-  "  mv s1, a2                  # section_len\n" ++
-  "  mv s2, a3                  # block hash output ptr\n" ++
-  "  mv s3, a4                  # offset out ptr\n" ++
-  "  mv s4, a5                  # length out ptr\n" ++
-  "  beqz s1, .Lbhfwh_miss      # empty section ⇒ miss\n" ++
-  "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
-  "  srli s5, t0, 2             # s5 = N\n" ++
-  "  li s6, 0                   # s6 = i\n" ++
-  ".Lbhfwh_loop:\n" ++
-  "  beq s6, s5, .Lbhfwh_miss\n" ++
-  "  # Compute element i bounds.\n" ++
-  "  slli t0, s6, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lbhfwh_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lbhfwh_have_end\n" ++
-  ".Lbhfwh_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lbhfwh_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  la a2, bhfwh_number_buf\n" ++
-  "  jal ra, header_extract_number\n" ++
-  "  beqz a0, .Lbhfwh_compare\n" ++
-  "  li a0, 2                   # any header that fails to parse number ⇒ status 2\n" ++
-  "  j .Lbhfwh_ret\n" ++
-  ".Lbhfwh_compare:\n" ++
-  "  la t0, bhfwh_number_buf; ld t1, 0(t0)\n" ++
-  "  beq t1, s7, .Lbhfwh_match\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lbhfwh_loop\n" ++
-  ".Lbhfwh_match:\n" ++
-  "  # Recompute (offset, length) since they were clobbered.\n" ++
-  "  slli t0, s6, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)\n" ++
-  "  add a0, s0, t2             # el_start\n" ++
-  "  sd t2, 0(s3)               # *out_offset\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lbhfwh_last\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  sub t4, t4, t2             # length\n" ++
-  "  j .Lbhfwh_store_len\n" ++
-  ".Lbhfwh_last:\n" ++
-  "  sub t4, s1, t2\n" ++
-  ".Lbhfwh_store_len:\n" ++
-  "  sd t4, 0(s4)               # *out_length\n" ++
-  "  mv a1, t4                  # length argument for keccak\n" ++
-  "  mv a2, s2                  # block hash out ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbhfwh_ret\n" ++
-  ".Lbhfwh_miss:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbhfwh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def blockhashFromWitnessHeaders_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x23 .x10,
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .BEQ .x9 .x0 (196 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (180 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .AUIPC .x12 (laHi GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 136)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 136)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_number (GuestAddrs.blockhash_from_witness_headers + 144)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (108 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 160)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x23 (12 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-100 : BitVec 21),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .SD .x19 .x7 (0 : BitVec 12),
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .SUB .x29 .x29 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x29 .x9 .x7,
+    .SD .x20 .x29 (0 : BitVec 12),
+    .MV .x11 .x29,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.blockhash_from_witness_headers + 248)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockhashFromWitnessHeaders_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockhashFromWitnessHeaders_relocs : RelocTable :=
+  [ (34, .la .x12 "bhfwh_number_buf"),
+    (36, .jal .x1 "header_extract_number"),
+    (40, .la .x5 "bhfwh_number_buf"),
+    (62, .jal .x1 "zkvm_keccak256") ]
+
+def blockhashFromWitnessHeadersFunction : String :=
+  "blockhash_from_witness_headers:\n" ++ emitProgramR blockhashFromWitnessHeaders_prog blockhashFromWitnessHeaders_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockhashFromWitnessHeaders_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockhashFromWitnessHeadersFunction_eq_prog :
+    blockhashFromWitnessHeadersFunction = "blockhash_from_witness_headers:\n" ++ emitProgramR blockhashFromWitnessHeaders_prog blockhashFromWitnessHeaders_relocs := rfl
+
+#guard blockhashFromWitnessHeadersFunction.startsWith "blockhash_from_witness_headers:\n"
+#guard blockhashFromWitnessHeaders_prog.length = 77
 /-- `zisk_blockhash_from_witness_headers`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -907,67 +704,77 @@ def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
         0 = success (is_match holds 0 or 1)
         1 = witness.headers section is empty (is_match = 0)
 -/
-def parentHeaderMatchesWitnessFirstFunction : String :=
-  "parent_header_matches_witness_first:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # parent_header_rlp ptr\n" ++
-  "  mv s1, a1                  # parent_header_rlp_len\n" ++
-  "  mv s2, a2                  # section ptr\n" ++
-  "  mv s3, a3                  # section_len\n" ++
-  "  mv s4, a4                  # is_match out ptr\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  beqz s3, .Lphmw_empty       # empty section -> status 1\n" ++
-  "  # Compute element 0 bounds (SSZ list).\n" ++
-  "  lwu t0, 0(s2)\n" ++
-  "  srli t0, t0, 2              # N = first_offset / 4\n" ++
-  "  beqz t0, .Lphmw_empty      # zero entries\n" ++
-  "  lwu t1, 0(s2)               # el_0 inner offset (= 4 * N)\n" ++
-  "  add s5, s2, t1              # el_0 start\n" ++
-  "  # el_0 end: if N > 1, read offset[1] (4 bytes at offset 4); else use section_end.\n" ++
-  "  li t2, 1\n" ++
-  "  bgtu t0, t2, .Lphmw_have_next\n" ++
-  "  add s6, s2, s3              # el_0_end = section_end\n" ++
-  "  j .Lphmw_compare\n" ++
-  ".Lphmw_have_next:\n" ++
-  "  lwu t2, 4(s2)\n" ++
-  "  add s6, s2, t2              # el_0_end = section + inner_off[1]\n" ++
-  ".Lphmw_compare:\n" ++
-  "  sub t0, s6, s5              # el_0 length\n" ++
-  "  # Length must match parent_header_rlp_len.\n" ++
-  "  bne t0, s1, .Lphmw_no_match_success\n" ++
-  "  # Byte-compare s0..s0+s1 against s5..s6.\n" ++
-  "  mv t1, s0\n" ++
-  "  mv t2, s5\n" ++
-  "  mv t3, s1\n" ++
-  ".Lphmw_loop:\n" ++
-  "  beqz t3, .Lphmw_match\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  bne t4, t5, .Lphmw_no_match_success\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lphmw_loop\n" ++
-  ".Lphmw_match:\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lphmw_ret\n" ++
-  ".Lphmw_no_match_success:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lphmw_ret\n" ++
-  ".Lphmw_empty:\n" ++
-  "  li a0, 1\n" ++
-  ".Lphmw_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def parentHeaderMatchesWitnessFirst_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .SD .x20 .x0 (0 : BitVec 12),
+    .BEQ .x19 .x0 (124 : BitVec 13),
+    .LWU .x5 .x18 (0 : BitVec 12),
+    .SRLI .x5 .x5 (2 : BitVec 6),
+    .BEQ .x5 .x0 (112 : BitVec 13),
+    .LWU .x6 .x18 (0 : BitVec 12),
+    .ADD .x21 .x18 .x6,
+    .LI .x7 (1 : Word),
+    .BLTU .x7 .x5 (12 : BitVec 13),
+    .ADD .x22 .x18 .x19,
+    .JAL .x0 (12 : BitVec 21),
+    .LWU .x7 .x18 (4 : BitVec 12),
+    .ADD .x22 .x18 .x7,
+    .SUB .x5 .x22 .x21,
+    .BNE .x5 .x9 (64 : BitVec 13),
+    .MV .x6 .x8,
+    .MV .x7 .x21,
+    .MV .x28 .x9,
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (36 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x6 (1 : Word),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def parentHeaderMatchesWitnessFirstFunction : String :=
+  "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `parentHeaderMatchesWitnessFirst_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem parentHeaderMatchesWitnessFirstFunction_eq_prog :
+    parentHeaderMatchesWitnessFirstFunction = "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog := rfl
+
+#guard parentHeaderMatchesWitnessFirstFunction.startsWith "parent_header_matches_witness_first:\n"
+#guard parentHeaderMatchesWitnessFirst_prog.length = 57
 /-- `zisk_parent_header_matches_witness_first`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -1143,329 +950,6 @@ def ziskWitnessHeadersMinBlockNumberProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskWitnessHeadersMinBlockNumberPrologue
   dataAsm     := ziskWitnessHeadersMinBlockNumberDataSection
-}
-
-/-! ## blockhash_opcode_windowed
-
-    Full witness-side implementation of the EVM `BLOCKHASH(n)`
-    opcode -- with the spec-mandated 256-block window check.
-
-    Distinct from PR #7147 `blockhash_from_witness_headers`,
-    which is just the raw lookup (caller already knows the
-    target is in range). This primitive does the WHOLE opcode:
-
-      1. Extract the executing block's number `cur` from the
-         caller-supplied current header RLP.
-      2. Apply the EVM window check:
-           - target >= cur          -> return 0
-             (BLOCKHASH(self/future) is undefined)
-           - cur > 0 and target + 256 < cur
-             (equivalently target < cur - 256)
-             -> return 0           (older than the window)
-           - else: in-window; continue.
-      3. Look up the matching header in witness.headers by
-         number (reuses the iteration from PR #7147).
-      4. Return keccak256(matched_header).
-
-    Returning 0 for out-of-window queries (rather than failing)
-    is the spec-defining edge case. A naive
-    `blockhash_from_witness_headers` would happily return 0 for
-    those simply because the witness doesn't contain `cur` or
-    far-past blocks, but that masks the real bug -- the EVM
-    spec says BLOCKHASH must return 0 even when the witness
-    HAPPENS to contain the relevant header (e.g. BLOCKHASH(self)
-    returns 0 even with the current header in witness).
-
-    Calling convention:
-      a0 (input)  : current header_rlp ptr
-      a1 (input)  : current header_rlp_len
-      a2 (input)  : target block number (u64)
-      a3 (input)  : witness.headers section ptr
-      a4 (input)  : witness.headers section_len
-      a5 (input)  : 32-byte output ptr (block hash)
-      ra (input)  : return
-
-      a0 (output) :
-        0 = success (output filled per BLOCKHASH semantic;
-            may be all zeros for out-of-window queries)
-        4 = current header parse / number extract fail
-        5 = in-window but target not found in witness.headers
-            (witness integrity violation)
-
-    The BLOCKHASH window is hard-coded to 256 blocks here. For
-    EIP-2935's larger window in Amsterdam+, callers wrap this
-    primitive with the configured cap.
--/
-def blockhashOpcodeWindowedFunction : String :=
-  "blockhash_opcode_windowed:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # current header_rlp ptr\n" ++
-  "  mv s1, a1                  # current header_rlp_len\n" ++
-  "  mv s2, a2                  # target block number\n" ++
-  "  mv s3, a3                  # witness.headers ptr\n" ++
-  "  mv s4, a4                  # witness.headers len\n" ++
-  "  mv s5, a5                  # 32-byte output ptr\n" ++
-  "  # Pre-zero output (covers all return-zero paths).\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  # Step 1: extract current block number.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, bhow_cur_num\n" ++
-  "  jal ra, header_extract_number\n" ++
-  "  beqz a0, .Lbhow_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lbhow_ret\n" ++
-  ".Lbhow_step2:\n" ++
-  "  la t0, bhow_cur_num\n" ++
-  "  ld s6, 0(t0)                # s6 = cur\n" ++
-  "  # Step 2a: if target >= cur -> return 0.\n" ++
-  "  bgeu s2, s6, .Lbhow_zero_success\n" ++
-  "  # Step 2b: if cur - target > 256 -> return 0.\n" ++
-  "  sub s7, s6, s2              # s7 = cur - target (> 0 here)\n" ++
-  "  li t0, 256\n" ++
-  "  bgtu s7, t0, .Lbhow_zero_success\n" ++
-  "  # Step 3: in-window. Look up target in witness.headers.\n" ++
-  "  mv a0, s2                   # target block number\n" ++
-  "  mv a1, s3                   # witness.headers ptr\n" ++
-  "  mv a2, s4                   # witness.headers len\n" ++
-  "  mv a3, s5                   # block hash output\n" ++
-  "  la a4, bhow_match_offset\n" ++
-  "  la a5, bhow_match_length\n" ++
-  "  jal ra, blockhash_from_witness_headers\n" ++
-  "  beqz a0, .Lbhow_ret         # hit -> output filled, status 0\n" ++
-  "  # 1 = miss (in-window but absent) -> status 5\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Lbhow_integrity\n" ++
-  "  # 2 = parse fail -> status 5 (witness has bad header in window)\n" ++
-  "  li a0, 5\n" ++
-  "  # Re-zero output in case blockhash_from_witness_headers wrote partial.\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  j .Lbhow_ret\n" ++
-  ".Lbhow_integrity:\n" ++
-  "  li a0, 5\n" ++
-  "  j .Lbhow_ret\n" ++
-  ".Lbhow_zero_success:\n" ++
-  "  # Out-of-window queries return 0 per spec, status 0.\n" ++
-  "  li a0, 0\n" ++
-  ".Lbhow_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
-
-/-! ## witness_headers_max_block_number
-
-    Walk an SSZ `witness.headers` list section and compute the
-    maximum `block.number` across all entries. Returns the
-    maximum as a u64, or 0 on an empty section.
-
-    Companion to `witness_headers_min_block_number` (BLOCKHASH
-    window lower bound): the max tells stateless guests the
-    most-recent block in the witness, typically the parent of
-    the executing block.
-
-    Spec-side rationale: a stateless guest verifying a
-    `BLOCKHASH(n)` opcode needs to know two things:
-      * The lower bound `min(headers[i].number)` -- the oldest
-        block resolvable through the witness (see PR sibling).
-      * The upper bound `max(headers[i].number)` (this PR) --
-        often `parent_header.number`, which is the largest
-        block number any BLOCKHASH(n) inside the current frame
-        can target (BLOCKHASH(current) is undefined).
-
-    Together those two values define the resolvable window
-    `[min, max]` of block heights; any BLOCKHASH(n) outside it
-    must return 0 by spec.
-
-    Sentinel choice contrasts with the min variant. For the min
-    primitive an empty section returns MAX_U64 (the "no value"
-    sentinel mathematically meaningful as an identity for `min`);
-    for max we return 0, the identity for `max`. Callers should
-    rely on the n_processed output to disambiguate "max is 0
-    because section was empty" from "max is 0 because the only
-    header is genesis".
-
-    Calling convention:
-      a0 (input)  : witness.headers section ptr
-      a1 (input)  : section_len (0 ⇒ empty)
-      a2 (input)  : u64 out ptr (max block number; 0 on empty
-                    section or parse fail)
-      a3 (input)  : u64 out ptr (n_processed; total header
-                    count on success, or the index of the
-                    failing header on a parse fail)
-      ra (input)  : return
-      a0 (output) :
-        0 = success
-        2 = some header failed `header_extract_number`
--/
-def witnessHeadersMaxBlockNumberFunction : String :=
-  "witness_headers_max_block_number:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # max_out ptr\n" ++
-  "  mv s3, a3                  # n_processed out ptr\n" ++
-  "  li s7, 0                   # s7 = running max (init to 0)\n" ++
-  "  sd s7, 0(s2)\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  beqz s1, .Lwhmax_ok          # empty section ⇒ max = 0\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s4, t0, 2               # s4 = N\n" ++
-  "  li s5, 0                     # s5 = i\n" ++
-  ".Lwhmax_loop:\n" ++
-  "  beq s5, s4, .Lwhmax_ok\n" ++
-  "  slli t0, s5, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)\n" ++
-  "  add a0, s0, t2               # el_i_start\n" ++
-  "  addi t3, s5, 1\n" ++
-  "  beq t3, s4, .Lwhmax_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4\n" ++
-  "  j .Lwhmax_have_end\n" ++
-  ".Lwhmax_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lwhmax_have_end:\n" ++
-  "  sub a1, t4, a0               # el_i_len\n" ++
-  "  la a2, whmax_num_buf\n" ++
-  "  jal ra, header_extract_number\n" ++
-  "  bnez a0, .Lwhmax_parse_fail\n" ++
-  "  la t0, whmax_num_buf\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  bleu t1, s7, .Lwhmax_skip   # current <= running max\n" ++
-  "  mv s7, t1\n" ++
-  ".Lwhmax_skip:\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lwhmax_loop\n" ++
-  ".Lwhmax_parse_fail:\n" ++
-  "  sd s5, 0(s3)\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lwhmax_ret\n" ++
-  ".Lwhmax_ok:\n" ++
-  "  sd s7, 0(s2)                 # write max\n" ++
-  "  sd s4, 0(s3)                 # n_processed = N (= 0 for empty)\n" ++
-  "  li a0, 0\n" ++
-  ".Lwhmax_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
-
-/-- `zisk_blockhash_opcode_windowed`: probe BuildUnit.
-    Input layout (at INPUT_ADDR):
-      bytes  0.. 8 : (ziskemu metadata)
-      bytes  8..16 : current_header_rlp_len (u64 LE)
-      bytes 16..24 : witness_headers_len    (u64 LE)
-      bytes 24..32 : target_block_number    (u64 LE)
-      bytes 32..32+H              : current header_rlp
-      bytes 32+H..32+H+WH         : witness.headers section
-    Output layout:
-      bytes  0.. 8 : status (0 / 4 / 5)
-      bytes  8..40 : block hash (32 bytes; zeros for out-of-window
-                     OR window-OK miss / error) -/
-def ziskBlockhashOpcodeWindowedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # cur_header_len\n" ++
-  "  ld t3, 16(t1)               # witness_headers_len\n" ++
-  "  ld a2, 24(t1)               # target block number\n" ++
-  "  addi a0, t1, 32             # cur_header ptr\n" ++
-  "  mv a1, t2\n" ++
-  "  add a3, a0, t2              # witness.headers ptr\n" ++
-  "  mv a4, t3                   # witness_headers_len\n" ++
-  "  li a5, 0xa0010008           # 32 B output\n" ++
-  "  jal ra, blockhash_opcode_windowed\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lbhow_pdone\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractNumberFunction ++ "\n" ++
-  blockhashFromWitnessHeadersFunction ++ "\n" ++
-  blockhashOpcodeWindowedFunction ++ "\n" ++
-  ".Lbhow_pdone:"
-
-def ziskBlockhashOpcodeWindowedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 32\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "bhfwh_number_buf:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "bhow_cur_num:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "bhow_match_offset:\n" ++
-  "  .zero 8\n" ++
-  "bhow_match_length:\n" ++
-  "  .zero 8"
-
-def ziskBlockhashOpcodeWindowedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockhashOpcodeWindowedPrologue
-  dataAsm     := ziskBlockhashOpcodeWindowedDataSection
-}
-
-/-- `zisk_witness_headers_max_block_number`: probe BuildUnit.
-    Input layout (at INPUT_ADDR):
-      bytes  0.. 8 : (ziskemu metadata)
-      bytes  8..16 : section_len (u64 LE)
-      bytes 16..   : witness.headers section
-    Output layout:
-      bytes  0.. 8 : status (0 ok / 2 parse fail)
-      bytes  8..16 : max_block_number (0 on empty section)
-      bytes 16..24 : n_processed (= N on success;
-                     failing index on fail) -/
-def ziskWitnessHeadersMaxBlockNumberPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # section_len\n" ++
-  "  addi a0, a5, 16             # section ptr\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, witness_headers_max_block_number\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lwhmax_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractNumberFunction ++ "\n" ++
-  witnessHeadersMaxBlockNumberFunction ++ "\n" ++
-  ".Lwhmax_pdone:"
-
-def ziskWitnessHeadersMaxBlockNumberDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "whmax_num_buf:\n" ++
-  "  .zero 8"
-
-def ziskWitnessHeadersMaxBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersMaxBlockNumberPrologue
-  dataAsm     := ziskWitnessHeadersMaxBlockNumberDataSection
 }
 
 end EvmAsm.Codegen

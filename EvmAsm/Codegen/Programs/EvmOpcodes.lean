@@ -20,11 +20,15 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.EvmNonce
 
 namespace EvmAsm.Codegen
 
@@ -74,79 +78,120 @@ open EvmAsm.Rv64.Program
     `account_at_address` + 4 u64 compares against the
     pre-baked EMPTY_CODE_HASH constant.
 -/
-def extcodehashAtHeaderStateRootFunction : String :=
-  "extcodehash_at_header_state_root:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # 32-byte output ptr\n" ++
-  "  # Pre-zero output (covers the EIP-1052 zero cases).\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  # Step 1: header.state_root -> eahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, eahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Leahsr_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_step2:\n" ++
-  "  # Step 2: account_at_address -> eahsr_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, eahsr_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s6, eahsr_acct_struct\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Leahsr_check_empty\n" ++
-  "  # status 1 (not in trie) -> EIP-1052 returns 0 (output already zero).\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Leahsr_success_zero\n" ++
-  "  # status 2/3 -> propagate.\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_success_zero:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_check_empty:\n" ++
-  "  # nonce == 0 ?\n" ++
-  "  ld t1, 0(s6)\n" ++
-  "  bnez t1, .Leahsr_write_code_hash\n" ++
-  "  # balance == 0 ?  (4 x u64 at struct+8..40; zero-check is endian-blind)\n" ++
-  "  ld t1,  8(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 16(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 24(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 32(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  # code_hash == EMPTY_CODE_HASH ?\n" ++
-  "  la t0, eahsr_empty_code_hash\n" ++
-  "  ld t1,  0(t0); ld t2, 72(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1,  8(t0); ld t2, 80(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 16(t0); ld t2, 88(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 24(t0); ld t2, 96(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  # All three empty-conditions hold; output stays zero, return 0.\n" ++
-  "  li a0, 0\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_write_code_hash:\n" ++
-  "  # Account is non-empty; copy code_hash to output.\n" ++
-  "  ld t1, 72(s6); sd t1,  0(s5)\n" ++
-  "  ld t1, 80(s6); sd t1,  8(s5)\n" ++
-  "  ld t1, 88(s6); sd t1, 16(s5)\n" ++
-  "  ld t1, 96(s6); sd t1, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  ".Leahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def extcodehashAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 84)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 84)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extcodehash_at_header_state_root + 92)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (208 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 116)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x22 (laHi GuestAddrs.eahsr_acct_struct (GuestAddrs.extcodehash_at_header_state_root + 132)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.eahsr_acct_struct (GuestAddrs.extcodehash_at_header_state_root + 132)),
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.extcodehash_at_header_state_root + 144)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (152 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (144 : BitVec 21),
+    .LD .x6 .x22 (0 : BitVec 12),
+    .BNE .x6 .x0 (100 : BitVec 13),
+    .LD .x6 .x22 (8 : BitVec 12),
+    .BNE .x6 .x0 (92 : BitVec 13),
+    .LD .x6 .x22 (16 : BitVec 12),
+    .BNE .x6 .x0 (84 : BitVec 13),
+    .LD .x6 .x22 (24 : BitVec 12),
+    .BNE .x6 .x0 (76 : BitVec 13),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .BNE .x6 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.eahsr_empty_code_hash (GuestAddrs.extcodehash_at_header_state_root + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.eahsr_empty_code_hash (GuestAddrs.extcodehash_at_header_state_root + 212)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x22 (72 : BitVec 12),
+    .BNE .x6 .x7 (48 : BitVec 13),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LD .x7 .x22 (80 : BitVec 12),
+    .BNE .x6 .x7 (36 : BitVec 13),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LD .x7 .x22 (88 : BitVec 12),
+    .BNE .x6 .x7 (24 : BitVec 13),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .LD .x7 .x22 (96 : BitVec 12),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LD .x6 .x22 (72 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (80 : BitVec 12),
+    .SD .x21 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (88 : BitVec 12),
+    .SD .x21 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (96 : BitVec 12),
+    .SD .x21 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `extcodehashAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extcodehashAtHeaderStateRoot_relocs : RelocTable :=
+  [ (21, .la .x12 "eahsr_state_root"),
+    (23, .jal .x1 "header_extract_state_root"),
+    (29, .la .x12 "eahsr_state_root"),
+    (33, .la .x22 "eahsr_acct_struct"),
+    (36, .jal .x1 "account_at_address"),
+    (53, .la .x5 "eahsr_empty_code_hash") ]
+
+def extcodehashAtHeaderStateRootFunction : String :=
+  "extcodehash_at_header_state_root:\n" ++ emitProgramR extcodehashAtHeaderStateRoot_prog extcodehashAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extcodehashAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem extcodehashAtHeaderStateRootFunction_eq_prog :
+    extcodehashAtHeaderStateRootFunction = "extcodehash_at_header_state_root:\n" ++ emitProgramR extcodehashAtHeaderStateRoot_prog extcodehashAtHeaderStateRoot_relocs := rfl
+
+#guard extcodehashAtHeaderStateRootFunction.startsWith "extcodehash_at_header_state_root:\n"
+#guard extcodehashAtHeaderStateRoot_prog.length = 88
 /-- `zisk_extcodehash_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -334,6 +379,19 @@ def balanceAtHeaderStateRootFunction : String :=
   "  mv s5, a5                  # 32-byte u256 BE output ptr\n" ++
   "  # Pre-zero output -- BALANCE default value.\n" ++
   "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
+  -- yisv8 .spine.2: prefer the LIVE balance -- the latest non-storage effect post_balance for this
+  -- addr (a value transfer's result) -- so BALANCE reflects mid-execution credits/debits, not just
+  -- the pre-state. Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the effect
+  -- record's zero-padded addr@0; on a hit s5 holds post_balance and we return success.
+  "  la t0, bal_addr_padded; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  mv t1, s2; mv t2, t0; li t3, 20\n" ++
+  ".Lbal_padcp:\n" ++
+  "  beqz t3, .Lbal_padcp_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbal_padcp\n" ++
+  ".Lbal_padcp_d:\n" ++
+  "  la a0, bal_addr_padded; mv a1, s5; jal ra, nonstorage_effect_latest_balance\n" ++
+  "  beqz a0, .Lbal_live_miss     # no live effect -> fall through to the pre-state path\n" ++
+  "  li a0, 0; j .Lbal_ret        # live hit: s5 = post_balance -> success\n" ++
+  ".Lbal_live_miss:\n" ++
   "  # Step 1: header.state_root -> bal_state_root.\n" ++
   "  mv a0, s0\n" ++
   "  mv a1, s1\n" ++
@@ -495,7 +553,10 @@ def ziskBalanceAtHeaderStateRootDataSection : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
-  "  .zero 104"
+  "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n" ++   -- yisv8 .spine.2: 32B padded query addr (20B BE + 12B zero) for the live-balance scan
+  "  .zero 32"
 
 def ziskBalanceAtHeaderStateRootProbeUnit : BuildUnit := {
   body        := NOP
@@ -771,216 +832,5 @@ def ziskSloadAtHeaderStateRootProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskSloadAtHeaderStateRootPrologue
   dataAsm     := ziskSloadAtHeaderStateRootDataSection
-}
-
-/-! ## nonce_at_header_state_root
-
-    Witness-side getter for `account.nonce` as a u64. Same
-    "absent → 0" flattening as BALANCE and SLOAD. Useful for:
-      * CREATE/CREATE2 address derivation
-        (`keccak(rlp([sender, sender.nonce]))[12:]`)
-      * EIP-684 collision checks (`nonce > 0` arm)
-      * Nonce monotonicity checks on EOAs
-
-    Distinct from `account_at_header_state_root` (which surfaces
-    missing accounts as status 1): NONCE flattens absence to
-    `(status=0, nonce=0)` per the spec's "uninitialised accounts
-    have nonce 0" rule.
-
-    Calling convention:
-      a0 (input)  : header_rlp ptr
-      a1 (input)  : header_rlp_len
-      a2 (input)  : address ptr (20 bytes)
-      a3 (input)  : witness.state ptr
-      a4 (input)  : witness.state len
-      a5 (input)  : u64 out ptr
-      ra (input)  : return
-
-      a0 (output) :
-        0 = success (nonce written to output; 0 for absent)
-        2 = state-trie mpt parse error
-        3 = account_decode failure
-        4 = header parse / state_root size fail
-
-      (Code 1 is intentionally absent: missing accounts map to
-      `status=0, nonce=0` per the spec.)
--/
-def nonceAtHeaderStateRootFunction : String :=
-  "nonce_at_header_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # u64 out ptr\n" ++
-  "  # Pre-zero output -- NONCE default value.\n" ++
-  "  sd zero, 0(s5)\n" ++
-  "  # Step 1: header.state_root -> nonce_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, nonce_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lnonce_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lnonce_ret\n" ++
-  ".Lnonce_step2:\n" ++
-  "  # Step 2: account_at_address -> nonce_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, nonce_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s6, nonce_acct_struct\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lnonce_copy\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Lnonce_absent\n" ++
-  "  j .Lnonce_ret\n" ++
-  ".Lnonce_absent:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lnonce_ret\n" ++
-  ".Lnonce_copy:\n" ++
-  "  # Copy nonce (struct + 0 .. + 8) to output.\n" ++
-  "  ld t1, 0(s6); sd t1, 0(s5)\n" ++
-  "  li a0, 0\n" ++
-  ".Lnonce_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
-
-/-- `zisk_nonce_at_header_state_root`: probe BuildUnit.
-
-    Input layout (at INPUT_ADDR):
-      bytes  0.. 8 : (ziskemu metadata)
-      bytes  8..16 : header_rlp_len    (u64 LE)
-      bytes 16..24 : witness_state_len (u64 LE)
-      bytes 24..44 : address (20 bytes)
-      bytes 44..44+H              : header_rlp
-      bytes 44+H..44+H+WS         : witness.state
-    Output layout:
-      bytes  0.. 8 : status (0 / 2 / 3 / 4)
-      bytes  8..16 : nonce (u64 LE; 0 on absent) -/
-def ziskNonceAtHeaderStateRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  addi a2, t1, 24             # address ptr\n" ++
-  "  addi a0, t1, 44             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a3, a0, t2              # witness.state ptr\n" ++
-  "  mv a4, t3                   # witness_state_len\n" ++
-  "  li a5, 0xa0010008           # u64 output\n" ++
-  "  jal ra, nonce_at_header_state_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lnonce_pdone\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  witnessLookupByHashFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  mptNodeKindFunction ++ "\n" ++
-  mptBranchChildFunction ++ "\n" ++
-  hpDecodeNibblesFunction ++ "\n" ++
-  bytesToNibblesFunction ++ "\n" ++
-  mptWalkFunction ++ "\n" ++
-  mptLookupByKeyFunction ++ "\n" ++
-  accountDecodeFunction ++ "\n" ++
-  accountAtAddressFunction ++ "\n" ++
-  headerExtractStateRootFunction ++ "\n" ++
-  nonceAtHeaderStateRootFunction ++ "\n" ++
-  ".Lnonce_pdone:"
-
-def ziskNonceAtHeaderStateRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 32\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  ".balign 32\n" ++
-  "wlh_scratch_hash:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "mnk_dummy_offset:\n" ++
-  "  .zero 8\n" ++
-  "mnk_dummy_length:\n" ++
-  "  .zero 8\n" ++
-  "mnk_path_offset:\n" ++
-  "  .zero 8\n" ++
-  "mnk_path_length:\n" ++
-  "  .zero 8\n" ++
-  "mbc_offset:\n" ++
-  "  .zero 8\n" ++
-  "mbc_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "mw_lookup_hash:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "mw_lookup_offset:\n" ++
-  "  .zero 8\n" ++
-  "mw_lookup_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "mw_child_buf:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "mw_path_offset:\n" ++
-  "  .zero 8\n" ++
-  "mw_path_length:\n" ++
-  "  .zero 8\n" ++
-  "mw_child_offset:\n" ++
-  "  .zero 8\n" ++
-  "mw_child_length:\n" ++
-  "  .zero 8\n" ++
-  "mw_value_offset:\n" ++
-  "  .zero 8\n" ++
-  "mw_value_length:\n" ++
-  "  .zero 8\n" ++
-  "mw_nibble_count:\n" ++
-  "  .zero 8\n" ++
-  "mw_is_leaf:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "mw_nibble_buf:\n" ++
-  "  .zero 128\n" ++
-  ".balign 32\n" ++
-  "mlk_keccak_buf:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "mlk_nibble_buf:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "ad_offset:\n" ++
-  "  .zero 8\n" ++
-  "ad_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "aa_value_len:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "aa_value_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "hesr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hesr_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "nonce_state_root:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "nonce_acct_struct:\n" ++
-  "  .zero 104"
-
-def ziskNonceAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNonceAtHeaderStateRootPrologue
-  dataAsm     := ziskNonceAtHeaderStateRootDataSection
 }
 end EvmAsm.Codegen

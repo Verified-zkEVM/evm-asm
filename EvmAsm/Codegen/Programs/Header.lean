@@ -16,6 +16,7 @@
     K43  validate_header_basic
     K72  check_gas_limit
     K63  calc_excess_blob_gas
+         amsterdam_blob_gas_price
     K67  header_validate_post_merge
     K68  header_validate_extra_data_length
 
@@ -35,6 +36,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -411,7 +415,7 @@ def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
     `forks/amsterdam/fork.py`):
 
       1. gas_used <= gas_limit
-      2. number == parent.number + 1
+      2. number >= 1 and number == parent.number + 1
       3. timestamp > parent.timestamp
 
     Both inputs are 128-byte extended-header structs as produced
@@ -428,34 +432,43 @@ def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
       ra (input)  : return
       a0 (output) : 0 ok
                     1 gas_used > gas_limit
-                    2 number != parent.number + 1
+                    2 number < 1 or number != parent.number + 1
                     3 timestamp <= parent.timestamp
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def validateHeaderBasicFunction : String :=
-  "validate_header_basic:\n" ++
-  "  ld t0, 88(a0)              # this.gas_used\n" ++
-  "  ld t1, 80(a0)              # this.gas_limit\n" ++
-  "  bgtu t0, t1, .Lvhb_fail_gas\n" ++
-  "  ld t0, 64(a0)              # this.number\n" ++
-  "  ld t1, 64(a1)              # parent.number\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  bne t0, t1, .Lvhb_fail_number\n" ++
-  "  ld t0, 72(a0)              # this.timestamp\n" ++
-  "  ld t1, 72(a1)              # parent.timestamp\n" ++
-  "  bgeu t1, t0, .Lvhb_fail_timestamp  # parent_ts >= this_ts → fail\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_gas:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_number:\n" ++
-  "  li a0, 2\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_timestamp:\n" ++
-  "  li a0, 3\n" ++
-  "  ret"
+def validateHeaderBasic_prog : Program :=
+  [ .LD .x5 .x10 (88 : BitVec 12),
+    .LD .x6 .x10 (80 : BitVec 12),
+    .BLTU .x6 .x5 (44 : BitVec 13),
+    .LD .x5 .x10 (64 : BitVec 12),
+    .BEQ .x5 .x0 (44 : BitVec 13),
+    .LD .x6 .x11 (64 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .BNE .x5 .x6 (32 : BitVec 13),
+    .LD .x5 .x10 (72 : BitVec 12),
+    .LD .x6 .x11 (72 : BitVec 12),
+    .BGEU .x6 .x5 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def validateHeaderBasicFunction : String :=
+  "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `validateHeaderBasic_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem validateHeaderBasicFunction_eq_prog :
+    validateHeaderBasicFunction = "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog := rfl
+
+#guard validateHeaderBasicFunction.startsWith "validate_header_basic:\n"
+#guard validateHeaderBasic_prog.length = 19
 /-- `zisk_validate_header_basic`: probe BuildUnit. Reads two
     128-byte extended-header structs from host input (after an
     8-byte tag) and writes the 8-byte status to OUTPUT. -/
@@ -507,29 +520,35 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
         0  : all checks pass
         1  : new.gas_limit < GAS_LIMIT_MINIMUM (5000)
         2  : |new - parent| >= parent / 1024 (jumped too far) -/
-def checkGasLimitFunction : String :=
-  "check_gas_limit:\n" ++
-  "  li t0, 5000                 # GAS_LIMIT_MINIMUM\n" ++
-  "  bltu a0, t0, .Lcgl_fail_min\n" ++
-  "  # max_adjustment_delta = parent_gas_limit >> 10  (== /1024)\n" ++
-  "  srli t1, a1, 10\n" ++
-  "  # abs_diff = |new - parent|\n" ++
-  "  bgtu a0, a1, .Lcgl_pos\n" ++
-  "  sub t2, a1, a0\n" ++
-  "  j .Lcgl_check\n" ++
-  ".Lcgl_pos:\n" ++
-  "  sub t2, a0, a1\n" ++
-  ".Lcgl_check:\n" ++
-  "  bgeu t2, t1, .Lcgl_fail_jump\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lcgl_fail_min:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lcgl_fail_jump:\n" ++
-  "  li a0, 2\n" ++
-  "  ret"
+def checkGasLimit_prog : Program :=
+  [ .LUI .x5 (1 : BitVec 20),
+    .ADDIW .x5 .x5 (904 : BitVec 12),
+    .BLTU .x10 .x5 (36 : BitVec 13),
+    .SRLI .x6 .x11 (10 : BitVec 6),
+    .BLTU .x11 .x10 (12 : BitVec 13),
+    .SUB .x7 .x11 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x7 .x10 .x11,
+    .BGEU .x7 .x6 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def checkGasLimitFunction : String :=
+  "check_gas_limit:\n" ++ emitProgram checkGasLimit_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `checkGasLimit_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem checkGasLimitFunction_eq_prog :
+    checkGasLimitFunction = "check_gas_limit:\n" ++ emitProgram checkGasLimit_prog := rfl
+
+#guard checkGasLimitFunction.startsWith "check_gas_limit:\n"
+#guard checkGasLimit_prog.length = 15
 /-- `zisk_check_gas_limit`: probe BuildUnit. Reads (new_limit,
     parent_limit) as 2 u64s from host input, writes 8-byte
     status to OUTPUT. -/
@@ -599,16 +618,26 @@ def ziskCheckGasLimitProbeUnit : BuildUnit := {
       a0 (output) : excess_blob_gas for this header (u64).
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def calcExcessBlobGasFunction : String :=
-  "calc_excess_blob_gas:\n" ++
-  "  add t0, a0, a1              # parent_excess + parent_used\n" ++
-  "  bgeu t0, a2, .Lcebg_pos     # >= target → return diff\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lcebg_pos:\n" ++
-  "  sub a0, t0, a2\n" ++
-  "  ret"
+def calcExcessBlobGas_prog : Program :=
+  [ .ADD .x5 .x10 .x11,
+    .BGEU .x5 .x12 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SUB .x10 .x5 .x12,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def calcExcessBlobGasFunction : String :=
+  "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `calcExcessBlobGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem calcExcessBlobGasFunction_eq_prog :
+    calcExcessBlobGasFunction = "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog := rfl
+
+#guard calcExcessBlobGasFunction.startsWith "calc_excess_blob_gas:\n"
+#guard calcExcessBlobGas_prog.length = 6
 /-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
     (parent_excess, parent_used, target) from host input, writes
     the u64 result to OUTPUT. -/
@@ -634,6 +663,247 @@ def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskCalcExcessBlobGasPrologue
   dataAsm     := ziskCalcExcessBlobGasDataSection
+}
+
+/-! ## amsterdam_blob_gas_price -- Amsterdam blob fee fake exponential
+
+    Compute the Amsterdam `calculate_blob_gas_price` helper:
+
+      taylor_exponential(1, excess_blob_gas, 11684671)
+
+    from `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`.
+    The generic `taylor_exponential` helper in
+    `execution-specs/src/ethereum/utils/numeric.py` uses an accumulator
+    scaled by the denominator:
+
+      i = 1
+      output = 0
+      numerator_accumulated = denominator
+      while numerator_accumulated > 0:
+          output += numerator_accumulated
+          numerator_accumulated =
+              (numerator_accumulated * excess_blob_gas) // (denominator * i)
+          i += 1
+      return output // denominator
+
+    This RV64 implementation is an exact u64 implementation for the
+    EEST-relevant range where every intermediate product and sum fits
+    in u64. It returns status=1 rather than wrapping if the helper's
+    u64 envelope is exceeded; callers that need arbitrary-precision
+    blob prices should extend this helper to the u256 toolkit.
+
+    Calling convention:
+      a0 (input)  : excess_blob_gas (u64)
+      ra (input)  : return
+      a0 (output) : status, 0 ok / 1 u64 overflow
+      a1 (output) : blob gas price (u64; 0 on overflow).
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def amsterdamBlobGasPrice_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x19 (24 : BitVec 12),
+    .SD .x2 .x20 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .LUI .x9 (2853 : BitVec 20),
+    .ADDIW .x9 .x9 (-1217 : BitVec 12),
+    .LI .x18 (1 : Word),
+    .LI .x19 (0 : Word),
+    .MV .x20 .x9,
+    .BEQ .x20 .x0 (124 : BitVec 13),
+    .ADD .x5 .x19 .x20,
+    .BLTU .x5 .x19 (128 : BitVec 13),
+    .MV .x19 .x5,
+    .MULHU .x28 .x20 .x8,
+    .MUL .x29 .x20 .x8,
+    .MULHU .x5 .x9 .x18,
+    .BNE .x5 .x0 (108 : BitVec 13),
+    .MUL .x7 .x9 .x18,
+    .BEQ .x7 .x0 (100 : BitVec 13),
+    .BGEU .x28 .x7 (96 : BitVec 13),
+    .MV .x30 .x28,
+    .LI .x31 (0 : Word),
+    .LI .x6 (64 : Word),
+    .SRLI .x5 .x29 (63 : BitVec 6),
+    .SRLI .x28 .x30 (63 : BitVec 6),
+    .SLLI .x30 .x30 (1 : BitVec 6),
+    .OR .x30 .x30 .x5,
+    .SLLI .x29 .x29 (1 : BitVec 6),
+    .SLLI .x31 .x31 (1 : BitVec 6),
+    .BNE .x28 .x0 (8 : BitVec 13),
+    .BLTU .x30 .x7 (12 : BitVec 13),
+    .SUB .x30 .x30 .x7,
+    .ORI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-44 : BitVec 13),
+    .MV .x20 .x31,
+    .ADDI .x5 .x18 (1 : BitVec 12),
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .MV .x18 .x5,
+    .JAL .x0 (-120 : BitVec 21),
+    .DIVU .x11 .x19 .x9,
+    .LI .x10 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x19 .x2 (24 : BitVec 12),
+    .LD .x20 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def amsterdamBlobGasPriceFunction : String :=
+  "amsterdam_blob_gas_price:\n" ++ emitProgram amsterdamBlobGasPrice_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `amsterdamBlobGasPrice_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem amsterdamBlobGasPriceFunction_eq_prog :
+    amsterdamBlobGasPriceFunction = "amsterdam_blob_gas_price:\n" ++ emitProgram amsterdamBlobGasPrice_prog := rfl
+
+#guard amsterdamBlobGasPriceFunction.startsWith "amsterdam_blob_gas_price:\n"
+#guard amsterdamBlobGasPrice_prog.length = 55
+/-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
+
+    Same `taylor_exponential(1, excess_blob_gas, 11684671)` as
+    `amsterdam_blob_gas_price`, but accumulates in 256-bit precision and
+    returns the price as a 32-byte big-endian u256. The u64 helper saturates
+    to a `status=1` overflow once the (denominator-scaled) accumulator leaves
+    the u64 envelope (around excess ≈ 328M), which is well below the EIP-4844
+    consensus-reachable range: e.g. `excess_blob_gas = 564,002,816` yields a
+    blob gas price ≈ e^48 ≈ 9.4e20 (~70 bits). The spec's `taylor_exponential`
+    is arbitrary precision, so a u64-overflowing helper false-rejects valid
+    headers in `header_validate_excess_blob_gas` (the EIP-7918 reserve-price
+    comparison `BLOB_BASE_COST * base_fee > PER_BLOB * blob_gas_price`). This
+    256-bit variant handles the full reachable range; it only reports overflow
+    if the price itself would exceed 2^256 (unreachable for valid blocks).
+
+    Calling convention:
+      a0 (input)  : excess_blob_gas (u64)
+      a1 (input)  : output price ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : status, 0 ok / 1 u256 overflow (output left undefined).
+
+    Uses 64 bytes of stack scratch for the two u256 accumulators plus the
+    `u256_mul_u64_be` `.data` scratch (`u256m_acc`). Composes u256_from_u64_be,
+    u256_is_zero, u256_add_be, u256_mul_u64_be, u256_div_u64_be. -/
+def amsterdamBlobGasPriceU256_prog : Program :=
+  [ .ADDI .x2 .x2 (-128 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x21 .x11,
+    .LUI .x9 (2853 : BitVec 20),
+    .ADDIW .x9 .x9 (-1217 : BitVec 12),
+    .LI .x18 (1 : Word),
+    .ADDI .x19 .x2 (64 : BitVec 12),
+    .ADDI .x20 .x2 (96 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_from_u64_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 68)),
+    .LI .x10 (0 : Word),
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.u256_from_u64_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 80)),
+    .MV .x10 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.amsterdam_blob_gas_price_u256 + 88)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .MV .x10 .x20,
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 108)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x8,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 128)),
+    .BNE .x10 .x0 (72 : BitVec 13),
+    .MULHU .x5 .x9 .x18,
+    .BNE .x5 .x0 (64 : BitVec 13),
+    .MUL .x6 .x9 .x18,
+    .SRLI .x5 .x6 (56 : BitVec 6),
+    .BNE .x5 .x0 (52 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x6,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 168)),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .JAL .x0 (-92 : BitVec 21),
+    .MV .x10 .x20,
+    .MV .x11 .x9,
+    .MV .x12 .x21,
+    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.amsterdam_blob_gas_price_u256 + 192)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (128 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `amsterdamBlobGasPriceU256_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def amsterdamBlobGasPriceU256_relocs : RelocTable :=
+  [ (17, .jal .x1 "u256_from_u64_be"),
+    (20, .jal .x1 "u256_from_u64_be"),
+    (22, .jal .x1 "u256_is_zero"),
+    (27, .jal .x1 "u256_add_be"),
+    (32, .jal .x1 "u256_mul_u64_be"),
+    (42, .jal .x1 "u256_div_u64_be"),
+    (48, .jal .x1 "u256_div_u64_be") ]
+
+def amsterdamBlobGasPriceU256Function : String :=
+  "amsterdam_blob_gas_price_u256:\n" ++ emitProgramR amsterdamBlobGasPriceU256_prog amsterdamBlobGasPriceU256_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `amsterdamBlobGasPriceU256_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem amsterdamBlobGasPriceU256Function_eq_prog :
+    amsterdamBlobGasPriceU256Function = "amsterdam_blob_gas_price_u256:\n" ++ emitProgramR amsterdamBlobGasPriceU256_prog amsterdamBlobGasPriceU256_relocs := rfl
+
+#guard amsterdamBlobGasPriceU256Function.startsWith "amsterdam_blob_gas_price_u256:\n"
+#guard amsterdamBlobGasPriceU256_prog.length = 61
+/-- `zisk_amsterdam_blob_gas_price`: probe BuildUnit. Reads
+    `excess_blob_gas` from host input, writes `(status, price)` to
+    OUTPUT. -/
+def ziskAmsterdamBlobGasPricePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  ld a0, 8(a2)                # excess_blob_gas\n" ++
+  "  jal ra, amsterdam_blob_gas_price\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  sd a1, 8(t0)                # blob gas price\n" ++
+  "  j .Labgp_pdone\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
+  ".Labgp_pdone:"
+
+def ziskAmsterdamBlobGasPriceDataSection : String :=
+  ".section .data\n" ++
+  "abgp_pad:\n" ++
+  "  .zero 8"
+
+def ziskAmsterdamBlobGasPriceProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAmsterdamBlobGasPricePrologue
+  dataAsm     := ziskAmsterdamBlobGasPriceDataSection
 }
 
 /-! ## header_validate_post_merge -- PR-K67
@@ -670,64 +940,126 @@ def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
 
     Uses 40 bytes of `.data` scratch (`hvpm_off`, `hvpm_len`
     + 32-byte `empty_ommers_hash` constant). -/
-def headerValidatePostMergeFunction : String :=
-  "header_validate_post_merge:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                   # header ptr\n" ++
-  "  mv s1, a1                   # header_len\n" ++
-  "  # Check 1: field 1 (ommers_hash) == EMPTY_OMMERS_HASH.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhvpm_fail_parse\n" ++
-  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhvpm_fail_oh\n" ++
-  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  la t4, empty_ommers_hash\n" ++
-  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
-  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
-  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
-  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
-  "  # Check 2: field 7 (difficulty) is canonical-zero (len 0).\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhvpm_fail_parse\n" ++
-  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lhvpm_fail_diff\n" ++
-  "  # Check 3: field 14 (nonce) is 8 zero bytes.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
-  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhvpm_fail_parse\n" ++
-  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bne t1, t2, .Lhvpm_fail_nonce\n" ++
-  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  ld t5, 0(t3)\n" ++
-  "  bnez t5, .Lhvpm_fail_nonce\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhvpm_ret\n" ++
-  ".Lhvpm_fail_oh:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhvpm_ret\n" ++
-  ".Lhvpm_fail_diff:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lhvpm_ret\n" ++
-  ".Lhvpm_fail_nonce:\n" ++
-  "  li a0, 3\n" ++
-  "  j .Lhvpm_ret\n" ++
-  ".Lhvpm_fail_parse:\n" ++
-  "  li a0, 4\n" ++
-  ".Lhvpm_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+def headerValidatePostMerge_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 36)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 36)),
+    .AUIPC .x14 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 44)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 44)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_validate_post_merge + 52)),
+    .BNE .x10 .x0 (260 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 60)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 60)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (216 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 80)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .AUIPC .x29 (laHi GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 96)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 96)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .LD .x31 .x29 (0 : BitVec 12),
+    .BNE .x30 .x31 (180 : BitVec 13),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .LD .x31 .x29 (8 : BitVec 12),
+    .BNE .x30 .x31 (168 : BitVec 13),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .LD .x31 .x29 (16 : BitVec 12),
+    .BNE .x30 .x31 (156 : BitVec 13),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .LD .x31 .x29 (24 : BitVec 12),
+    .BNE .x30 .x31 (144 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (7 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 164)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 164)),
+    .AUIPC .x14 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 172)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 172)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_validate_post_merge + 180)),
+    .BNE .x10 .x0 (132 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 188)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (100 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (14 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 216)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 216)),
+    .AUIPC .x14 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 224)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 224)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_validate_post_merge + 232)),
+    .BNE .x10 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvpm_len (GuestAddrs.header_validate_post_merge + 240)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BNE .x6 .x7 (52 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvpm_off (GuestAddrs.header_validate_post_merge + 260)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LD .x30 .x28 (0 : BitVec 12),
+    .BNE .x30 .x0 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (4 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerValidatePostMerge_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidatePostMerge_relocs : RelocTable :=
+  [ (9, .la .x13 "hvpm_off"),
+    (11, .la .x14 "hvpm_len"),
+    (13, .jal .x1 "rlp_list_nth_item"),
+    (15, .la .x5 "hvpm_len"),
+    (20, .la .x5 "hvpm_off"),
+    (24, .la .x29 "empty_ommers_hash"),
+    (41, .la .x13 "hvpm_off"),
+    (43, .la .x14 "hvpm_len"),
+    (45, .jal .x1 "rlp_list_nth_item"),
+    (47, .la .x5 "hvpm_len"),
+    (54, .la .x13 "hvpm_off"),
+    (56, .la .x14 "hvpm_len"),
+    (58, .jal .x1 "rlp_list_nth_item"),
+    (60, .la .x5 "hvpm_len"),
+    (65, .la .x5 "hvpm_off") ]
+
+def headerValidatePostMergeFunction : String :=
+  "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidatePostMerge_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidatePostMergeFunction_eq_prog :
+    headerValidatePostMergeFunction = "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs := rfl
+
+#guard headerValidatePostMergeFunction.startsWith "header_validate_post_merge:\n"
+#guard headerValidatePostMerge_prog.length = 85
 /-- `zisk_header_validate_post_merge`: probe BuildUnit. Reads
     (header_len, header_bytes) from host input, writes 8-byte
     status to OUTPUT. -/
@@ -788,30 +1120,52 @@ def ziskHeaderValidatePostMergeProbeUnit : BuildUnit := {
 
     Uses two 8-byte `.data` scratch slots (`hved_off`,
     `hved_len`). -/
-def headerValidateExtraDataLengthFunction : String :=
-  "header_validate_extra_data_length:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  li a2, 12\n" ++
-  "  la a3, hved_off\n" ++
-  "  la a4, hved_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhved_parse_fail\n" ++
-  "  la t0, hved_len; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lhved_too_long\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhved_ret\n" ++
-  ".Lhved_too_long:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhved_ret\n" ++
-  ".Lhved_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhved_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerValidateExtraDataLength_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .LI .x12 (12 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hved_off (GuestAddrs.header_validate_extra_data_length + 12)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hved_off (GuestAddrs.header_validate_extra_data_length + 12)),
+    .AUIPC .x14 (laHi GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 20)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 20)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_validate_extra_data_length + 28)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 36)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerValidateExtraDataLength_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidateExtraDataLength_relocs : RelocTable :=
+  [ (3, .la .x13 "hved_off"),
+    (5, .la .x14 "hved_len"),
+    (7, .jal .x1 "rlp_list_nth_item"),
+    (9, .la .x5 "hved_len") ]
+
+def headerValidateExtraDataLengthFunction : String :=
+  "header_validate_extra_data_length:\n" ++ emitProgramR headerValidateExtraDataLength_prog headerValidateExtraDataLength_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidateExtraDataLength_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidateExtraDataLengthFunction_eq_prog :
+    headerValidateExtraDataLengthFunction = "header_validate_extra_data_length:\n" ++ emitProgramR headerValidateExtraDataLength_prog headerValidateExtraDataLength_relocs := rfl
+
+#guard headerValidateExtraDataLengthFunction.startsWith "header_validate_extra_data_length:\n"
+#guard headerValidateExtraDataLength_prog.length = 22
 /-- `zisk_header_validate_extra_data_length`: probe BuildUnit.
     Reads (header_len, header_bytes), writes 8-byte status. -/
 def ziskHeaderValidateExtraDataLengthPrologue : String :=
@@ -871,16 +1225,33 @@ def ziskHeaderValidateExtraDataLengthProbeUnit : BuildUnit := {
       a2 (input)  : 32-byte output ptr (block_hash lands here)
       ra (input)  : return
       (no output register; result is in memory at `a2`) -/
-def blockHashFromHeaderFunction : String :=
-  "block_hash_from_header:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  # zkvm_keccak256(a0=header, a1=len, a2=out)\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blockHashFromHeader_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.block_hash_from_header + 8)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockHashFromHeader_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockHashFromHeader_relocs : RelocTable :=
+  [ (2, .jal .x1 "zkvm_keccak256") ]
+
+def blockHashFromHeaderFunction : String :=
+  "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockHashFromHeader_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockHashFromHeaderFunction_eq_prog :
+    blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs := rfl
+
+#guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
+#guard blockHashFromHeader_prog.length = 6
 /-- `zisk_block_hash_from_header`: probe BuildUnit.
     Input layout:
       bytes 0..8  : header_rlp byte length

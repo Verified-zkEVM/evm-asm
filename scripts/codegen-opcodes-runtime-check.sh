@@ -38,6 +38,8 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   exit 1
 fi
 
+OPCODE_RUNTIME_STEP_LIMIT="${OPCODE_RUNTIME_STEP_LIMIT:-5000000}"
+
 mkdir -p gen-out
 
 echo "==> lake build codegen"
@@ -46,10 +48,10 @@ lake build codegen
 echo "==> emit + link runtime_dispatcher.elf (once)"
 lake exe codegen --program runtime_dispatcher --halt linux93 -o gen-out/runtime_dispatcher
 
-# `--list-test-cases` is a 5-column TSV:
-#   <name> <expected_hex> <bytecode_csv> <calldata> <storage>
-# (M21: 4th column = calldata, empty = no calldata, back-compat.)
-# (M22: 5th column = storage preload, empty = no preload.)
+# `--list-test-cases` is an optional-field TSV:
+#   <name> <expected_hex> <bytecode_csv> <calldata> <storage> ...
+# M21 adds calldata; M22 adds storage preload; later columns carry
+# optional output-surface assertions.
 # Single source of truth lives in `EvmAsm/Codegen/Tests/Cases.lean`.
 LIST_FILE="gen-out/.opcodes-list"
 lake exe codegen --list-test-cases >"$LIST_FILE"
@@ -70,18 +72,31 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 9-column TSV
-  # (M23 added col 6; M24 added cols 7 and 8 for the log-length
-  # assertions; M25 added col 9 for the post-state slot dump).
+  # explicitly. Order matches `--list-test-cases` 21-column TSV
+  # (M23 added halt-kind; M24 added log lengths; M25 added post-state
+  # slot dumps; M26 added receipt event-log capture; M31 added the
+  # extended RETURN/REVERT returndata surface).
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   bytecode_csv=$(printf '%s' "$line" | cut -f3)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
-  expected_halt_kind=$(printf '%s' "$line" | cut -f6)
-  expected_persistent_log_length=$(printf '%s' "$line" | cut -f7)
-  expected_transient_log_length=$(printf '%s' "$line" | cut -f8)
-  expected_post_storage=$(printf '%s' "$line" | cut -f9)
+  blob_base_fee=$(printf '%s' "$line" | cut -f6)
+  blob_hashes=$(printf '%s' "$line" | cut -f7)
+  block_number=$(printf '%s' "$line" | cut -f8)
+  block_hashes=$(printf '%s' "$line" | cut -f9)
+  env=$(printf '%s' "$line" | cut -f10)
+  expected_halt_kind=$(printf '%s' "$line" | cut -f11)
+  expected_persistent_log_length=$(printf '%s' "$line" | cut -f12)
+  expected_transient_log_length=$(printf '%s' "$line" | cut -f13)
+  expected_post_storage=$(printf '%s' "$line" | cut -f14)
+  expected_event_log_count=$(printf '%s' "$line" | cut -f15)
+  expected_event_log_first=$(printf '%s' "$line" | cut -f16)
+  gas_limit=$(printf '%s' "$line" | cut -f17)
+  expected_return_data_copied=$(printf '%s' "$line" | cut -f18)
+  expected_return_data_length=$(printf '%s' "$line" | cut -f19)
+  expected_return_data_hex=$(printf '%s' "$line" | cut -f20)
+  expected_selfdestruct_beneficiary=$(printf '%s' "$line" | cut -f21)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -104,23 +119,54 @@ while IFS= read -r line; do
   if [[ -n "${storage:-}" ]]; then
     pack_args+=(--storage "$storage")
   fi
+  if [[ -n "${blob_base_fee:-}" ]]; then
+    pack_args+=(--blob-base-fee "$blob_base_fee")
+  fi
+  if [[ -n "${blob_hashes:-}" ]]; then
+    pack_args+=(--blob-hashes "$blob_hashes")
+  fi
+  if [[ -n "${block_number:-}" ]]; then
+    pack_args+=(--block-number "$block_number")
+  fi
+  if [[ -n "${block_hashes:-}" ]]; then
+    pack_args+=(--block-hashes "$block_hashes")
+  fi
+  if [[ -n "${env:-}" ]]; then
+    pack_args+=(--env "$env")
+  fi
+  if [[ -n "${gas_limit:-}" ]]; then
+    pack_args+=(--gas "$gas_limit")
+  fi
   "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 
   echo "==> ziskemu -e runtime_dispatcher.elf -i gen-out/$name.input"
+  : >"gen-out/$name.output"
+  set +e
   "$ZISKEMU" -e gen-out/runtime_dispatcher.elf -i "gen-out/$name.input" \
-    -o "gen-out/$name.output" -n 500000 \
+    -o "gen-out/$name.output" -n "$OPCODE_RUNTIME_STEP_LIMIT" \
     >"gen-out/$name.emu.log" 2>&1
+  emu_status=$?
+  set -e
 
-  actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
+  case_failed=""
+  if [[ "$emu_status" -ne 0 ]]; then
+    case_failed="emulator_exit_$emu_status"
+  fi
+
+  if [[ -f "gen-out/$name.output" ]]; then
+    actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
+  else
+    actual=""
+    case_failed="${case_failed:+$case_failed,}output_missing"
+  fi
 
   echo "expected:"
   echo "  $expected"
   echo "actual:"
   echo "  $actual"
 
-  case_failed=""
   if [[ "$actual" != "$expected" ]]; then
-    case_failed="output"
+    case_failed="${case_failed:+$case_failed,}output"
   fi
 
   # M23: if the case asserts on halt-kind, read OUTPUT_ADDR + 32..40
@@ -172,6 +218,85 @@ while IFS= read -r line; do
     echo "  $actual_post_storage"
     if [[ "$actual_post_storage" != "$expected_post_storage" ]]; then
       case_failed="${case_failed:+$case_failed,}post_storage"
+    fi
+  fi
+
+  # M26: receipt event LOG count at OUTPUT+56. This shares the M25
+  # storage diagnostic window; cases should assert one or the other.
+  if [[ -n "${expected_event_log_count:-}" ]]; then
+    actual_event_log_count="$(xxd -p -c 64 -s 56 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected event_log_count:"
+    echo "  $expected_event_log_count"
+    echo "actual event_log_count:"
+    echo "  $actual_event_log_count"
+    if [[ "$actual_event_log_count" != "$expected_event_log_count" ]]; then
+      case_failed="${case_failed:+$case_failed,}event_log_count"
+    fi
+  fi
+
+  # M26: first event descriptor prefix at OUTPUT+64. Field length is
+  # variable so each case can assert just the meaningful prefix.
+  if [[ -n "${expected_event_log_first:-}" ]]; then
+    event_first_len_bytes=$(( ${#expected_event_log_first} / 2 ))
+    actual_event_log_first="$(xxd -p -c 512 -s 64 -l "$event_first_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected event_log_first:"
+    echo "  $expected_event_log_first"
+    echo "actual event_log_first:"
+    echo "  $actual_event_log_first"
+    if [[ "$actual_event_log_first" != "$expected_event_log_first" ]]; then
+      case_failed="${case_failed:+$case_failed,}event_log_first"
+    fi
+  fi
+
+  # M31: extended RETURN/REVERT returndata diagnostics. The legacy
+  # OUTPUT[0..32] prefix and halt_kind at OUTPUT+32 remain unchanged;
+  # these fields assert the wider 256-byte ziskemu output surface.
+  if [[ -n "${expected_return_data_copied:-}" ]]; then
+    actual_return_data_copied="$(xxd -p -c 64 -s 248 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_copied:"
+    echo "  $expected_return_data_copied"
+    echo "actual return_data_copied:"
+    echo "  $actual_return_data_copied"
+    if [[ "$actual_return_data_copied" != "$expected_return_data_copied" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_copied"
+    fi
+  fi
+
+  if [[ -n "${expected_return_data_length:-}" ]]; then
+    actual_return_data_length="$(xxd -p -c 64 -s 64 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_length:"
+    echo "  $expected_return_data_length"
+    echo "actual return_data_length:"
+    echo "  $actual_return_data_length"
+    if [[ "$actual_return_data_length" != "$expected_return_data_length" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_length"
+    fi
+  fi
+
+  if [[ -n "${expected_return_data_hex:-}" ]]; then
+    return_data_len_bytes=$(( ${#expected_return_data_hex} / 2 ))
+    actual_return_data_hex="$(xxd -p -c 512 -s 72 -l "$return_data_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_hex:"
+    echo "  $expected_return_data_hex"
+    echo "actual return_data_hex:"
+    echo "  $actual_return_data_hex"
+    if [[ "$actual_return_data_hex" != "$expected_return_data_hex" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_hex"
+    fi
+  fi
+
+  # SELFDESTRUCT staged-beneficiary diagnostic at OUTPUT+56. This shares the
+  # storage/event diagnostic window, so only SELFDESTRUCT staging cases should
+  # set this field.
+  if [[ -n "${expected_selfdestruct_beneficiary:-}" ]]; then
+    selfdestruct_beneficiary_len_bytes=$(( ${#expected_selfdestruct_beneficiary} / 2 ))
+    actual_selfdestruct_beneficiary="$(xxd -p -c 64 -s 56 -l "$selfdestruct_beneficiary_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected selfdestruct_beneficiary:"
+    echo "  $expected_selfdestruct_beneficiary"
+    echo "actual selfdestruct_beneficiary:"
+    echo "  $actual_selfdestruct_beneficiary"
+    if [[ "$actual_selfdestruct_beneficiary" != "$expected_selfdestruct_beneficiary" ]]; then
+      case_failed="${case_failed:+$case_failed,}selfdestruct_beneficiary"
     fi
   fi
 

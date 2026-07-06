@@ -20,8 +20,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.MptInsert
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
+
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
 namespace EvmAsm.Codegen
 
@@ -30,274 +35,955 @@ open EvmAsm.Rv64
 /-! ## mpt_insert_acc -- DB-aware insert; appends new nodes to the DB.
     ABI matches mpt_insert (a0=root_hash, a1=witness, a2=witness_len, a3=path,
     a4=path_len, a5=value, a6=value_len, a7=out_root -> a0 = 0/1/2). -/
-def mptInsertAccFunction : String :=
-  "mpt_insert_acc:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
-  "  mv s0, a1                   # witness ptr\n" ++
-  "  mv s1, a3                   # path ptr\n" ++
-  "  mv s2, a4                   # path_len\n" ++
-  "  mv s3, a5                   # value ptr\n" ++
-  "  mv s4, a6                   # value_len\n" ++
-  "  mv s5, a7                   # out_root\n" ++
-  "  la t0, ins_wl; sd a2, 0(t0)\n" ++
-  "  mv a1, s0\n" ++
-  "  la t0, ins_wl; ld a2, 0(t0)\n" ++
-  "  mv a3, s1\n" ++
-  "  mv a4, s2\n" ++
-  "  la a5, ins_stack\n" ++
-  "  la a6, ins_meta\n" ++
-  "  jal ra, mpt_insert_walk_db\n" ++
-  "  bnez a0, .Lacc_ret\n" ++
-  "  la t0, ins_meta\n" ++
-  "  ld s6, 0(t0)                # depth\n" ++
-  "  ld s8, 8(t0)                # consumed\n" ++
-  "  ld t1, 16(t0)               # case\n" ++
-  "  li t2, 3; beq t1, t2, .Lacc_empty\n" ++
-  "  li t2, 0; beq t1, t2, .Lacc_branch_empty\n" ++
-  "  li t2, 1; beq t1, t2, .Lacc_leaf_split\n" ++
-  "  li t2, 2; beq t1, t2, .Lacc_ext_split\n" ++
-  "  li a0, 1; j .Lacc_ret       # exists / branch-value: conservative\n" ++
-  ".Lacc_empty:\n" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0); mv a2, s5\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0; j .Lacc_ret\n" ++
-  ".Lacc_leaf_split:\n" ++
-  "  la t0, ins_meta; ld a0, 24(t0)        # terminal leaf ptr ABSOLUTE\n" ++
-  "  la t0, ins_meta; ld a1, 32(t0)\n" ++
-  "  la a2, ins_k; la a3, ins_kcount; la a4, ins_lv_ptr; la a5, ins_lv_len\n" ++
-  "  jal ra, mpt_leaf_extract\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la t0, ins_meta; ld t1, 40(t0); la t2, ins_m; sd t1, 0(t2)\n" ++
-  "  la t2, ins_k; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_niba; sd t3, 0(t4)\n" ++
-  "  add t2, s1, s8; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_nibb; sd t3, 0(t4)\n" ++
-  "  la t0, ins_kcount; ld t1, 0(t0); la t2, ins_m; ld t3, 0(t2)\n" ++
-  "  la a0, ins_k; add a0, a0, t3; addi a0, a0, 1\n" ++
-  "  sub a1, t1, t3; addi a1, a1, -1\n" ++
-  "  la t0, ins_lv_ptr; ld a2, 0(t0); la t0, ins_lv_len; ld a3, 0(t0)\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  la t2, ins_m; ld t3, 0(t2)\n" ++
-  "  add a0, s1, s8; add a0, a0, t3; addi a0, a0, 1\n" ++
-  "  sub a1, s2, s8; sub a1, a1, t3; addi a1, a1, -1\n" ++
-  "  mv a2, s3; mv a3, s4\n" ++
-  "  la a4, ins_node2; la a5, ins_node2_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref2; la a3, ins_ref2_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  la a0, ins_empty_branch; li a1, 18\n" ++
-  "  la t0, ins_niba; ld a2, 0(t0)\n" ++
-  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node; la a6, ins_node_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la t0, ins_nibb; ld a2, 0(t0)\n" ++
-  "  la a3, ins_ref2; la t0, ins_ref2_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node2; la a6, ins_node2_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  la t0, ins_node2_len; ld t1, 0(t0); la t2, ins_node_len; sd t1, 0(t2)\n" ++
-  "  la a0, ins_node; la a1, ins_node2; mv a2, t1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  la t0, ins_m; ld t1, 0(t0); beqz t1, .Lacc_ls_bubble\n" ++
-  "  la a0, ins_k; mv a1, t1\n" ++
-  "  la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_extension_node_encode\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  ".Lacc_ls_bubble:\n" ++
-  "  mv s7, s6\n" ++
-  "  j .Lacc_bubble\n" ++
-  ".Lacc_ext_split:\n" ++
-  "  # Split the terminal extension. Rebuild its remainder under a branch,\n" ++
-  "  # add the new leaf on the divergent nibble, optionally wrap the shared\n" ++
-  "  # prefix in a new extension, then bubble through ancestors.\n" ++
-  "  la t0, ins_meta; ld s9, 24(t0)        # terminal extension ptr ABSOLUTE\n" ++
-  "  la t0, ins_meta; ld a1, 32(t0)        # terminal extension len\n" ++
-  "  mv a0, s9; li a2, 0; la a3, mle_path_off; la a4, mle_path_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la t0, mle_path_off; ld t0, 0(t0); add a0, s9, t0\n" ++
-  "  la t0, mle_path_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_k; la a3, ins_kcount; la a4, ins_niba\n" ++
-  "  jal ra, hp_decode_nibbles\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la t0, ins_niba; ld t0, 0(t0); bnez t0, .Lacc_fail\n" ++
-  "  # child_ref from extension item 1. For hash refs, rlp_list_nth_item strips\n" ++
-  "  # the 0xa0 byte, so re-wrap 32-byte refs before feeding extension encode.\n" ++
-  "  la t0, ins_meta; ld a1, 32(t0); mv a0, s9; li a2, 1; la a3, mle_path_off; la a4, ins_lv_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la t0, mle_path_off; ld t0, 0(t0); add t0, s9, t0; la t1, ins_lv_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, ins_lv_len; ld t2, 0(t1); li t3, 32; bne t2, t3, .Lacc_ext_child_inline\n" ++
-  "  la t4, ins_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
-  ".Lacc_ext_child_hash_cp:\n" ++
-  "  beqz t5, .Lacc_ext_child_hash_done\n" ++
-  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lacc_ext_child_hash_cp\n" ++
-  ".Lacc_ext_child_hash_done:\n" ++
-  "  li t5, 33; la t4, ins_ref_len; sd t5, 0(t4); j .Lacc_ext_child_ready\n" ++
-  ".Lacc_ext_child_inline:\n" ++
-  "  la t4, ins_ref; mv t5, t2\n" ++
-  ".Lacc_ext_child_inline_cp:\n" ++
-  "  beqz t5, .Lacc_ext_child_inline_done\n" ++
-  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lacc_ext_child_inline_cp\n" ++
-  ".Lacc_ext_child_inline_done:\n" ++
-  "  la t4, ins_ref_len; sd t2, 0(t4)\n" ++
-  ".Lacc_ext_child_ready:\n" ++
-  "  la t0, ins_meta; ld t1, 40(t0); la t2, ins_m; sd t1, 0(t2)\n" ++
-  "  la t2, ins_k; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_niba; sd t3, 0(t4)\n" ++
-  "  add t2, s1, s8; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_nibb; sd t3, 0(t4)\n" ++
-  "  # old side: if extension remainder after the divergent nibble is non-empty,\n" ++
-  "  # wrap the existing child_ref in a shorter extension; otherwise use it as-is.\n" ++
-  "  la t0, ins_kcount; ld t1, 0(t0); la t2, ins_m; ld t3, 0(t2)\n" ++
-  "  sub t4, t1, t3; addi t4, t4, -1\n" ++
-  "  beqz t4, .Lacc_ext_old_ready\n" ++
-  "  la a0, ins_k; add a0, a0, t3; addi a0, a0, 1\n" ++
-  "  mv a1, t4; la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_extension_node_encode\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  ".Lacc_ext_old_ready:\n" ++
-  "  # new side leaf = leaf(path[consumed+m+1..], value).\n" ++
-  "  la t2, ins_m; ld t3, 0(t2)\n" ++
-  "  add a0, s1, s8; add a0, a0, t3; addi a0, a0, 1\n" ++
-  "  sub a1, s2, s8; sub a1, a1, t3; addi a1, a1, -1\n" ++
-  "  mv a2, s3; mv a3, s4\n" ++
-  "  la a4, ins_node2; la a5, ins_node2_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref2; la a3, ins_ref2_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  # branch with old and new children.\n" ++
-  "  la a0, ins_empty_branch; li a1, 18\n" ++
-  "  la t0, ins_niba; ld a2, 0(t0)\n" ++
-  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node; la a6, ins_node_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la t0, ins_nibb; ld a2, 0(t0)\n" ++
-  "  la a3, ins_ref2; la t0, ins_ref2_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node2; la a6, ins_node2_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  la t0, ins_node2_len; ld t1, 0(t0); la t2, ins_node_len; sd t1, 0(t2)\n" ++
-  "  la a0, ins_node; la a1, ins_node2; mv a2, t1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  la t0, ins_m; ld t1, 0(t0); beqz t1, .Lacc_ext_bubble\n" ++
-  "  la a0, ins_k; mv a1, t1\n" ++
-  "  la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_extension_node_encode\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  ".Lacc_ext_bubble:\n" ++
-  "  mv s7, s6\n" ++
-  "  j .Lacc_bubble\n" ++
-  ".Lacc_branch_empty:\n" ++
-  "  add a0, s1, s8; addi a0, a0, 1\n" ++
-  "  sub a1, s2, s8; addi a1, a1, -1\n" ++
-  "  mv a2, s3; mv a3, s4\n" ++
-  "  la a4, ins_node; la a5, ins_node_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  la t0, ins_meta; ld a0, 24(t0)        # terminal branch ptr ABSOLUTE\n" ++
-  "  la t0, ins_meta; ld a1, 32(t0)\n" ++
-  "  add t2, s1, s8; lbu a2, 0(t2)         # nibble = path[consumed]\n" ++
-  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node; la a6, ins_node_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  mv s7, s6\n" ++
-  ".Lacc_bubble:\n" ++
-  "  beqz s7, .Lacc_root\n" ++
-  "  addi s7, s7, -1\n" ++
-  "  la t0, ins_stack\n" ++
-  "  slli t1, s7, 5; add t0, t0, t1\n" ++
-  "  ld t2, 0(t0)                # node_ptr ABSOLUTE\n" ++
-  "  ld t3, 8(t0)\n" ++
-  "  ld t4, 16(t0)\n" ++
-  "  ld t5, 24(t0)\n" ++
-  "  mv a0, t2; mv a1, t3        # ABSOLUTE src ptr\n" ++
-  "  beqz t4, .Lacc_k_branch\n" ++
-  "  li a2, 1; j .Lacc_k_done\n" ++
-  ".Lacc_k_branch:\n" ++
-  "  mv a2, t5\n" ++
-  ".Lacc_k_done:\n" ++
-  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
-  "  la a5, ins_node; la a6, ins_node_len\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  bnez a0, .Lacc_fail\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  jal ra, node_db_append\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
-  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
-  "  jal ra, mpt_node_slot_encode\n" ++
-  "  j .Lacc_bubble\n" ++
-  ".Lacc_root:\n" ++
-  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0); mv a2, s5\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  ".Lacc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret\n" ++
-  ".Lacc_fail:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lacc_ret"
+def mptInsertAcc_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .MV .x19 .x15,
+    .MV .x20 .x16,
+    .MV .x21 .x17,
+    .AUIPC .x5 (laHi GuestAddrs.ins_wl (GuestAddrs.mpt_insert_acc + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_wl (GuestAddrs.mpt_insert_acc + 72)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .MV .x11 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.ins_wl (GuestAddrs.mpt_insert_acc + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_wl (GuestAddrs.mpt_insert_acc + 88)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x13 .x9,
+    .MV .x14 .x18,
+    .AUIPC .x15 (laHi GuestAddrs.ins_stack (GuestAddrs.mpt_insert_acc + 108)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_stack (GuestAddrs.mpt_insert_acc + 108)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 116)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 116)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_insert_walk_db (GuestAddrs.mpt_insert_acc + 124)),
+    .BNE .x10 .x0 (2568 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 132)),
+    .LD .x22 .x5 (0 : BitVec 12),
+    .LD .x24 .x5 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LI .x7 (3 : Word),
+    .BEQ .x6 .x7 (36 : BitVec 13),
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x7 (2068 : BitVec 13),
+    .LI .x7 (1 : Word),
+    .BEQ .x6 .x7 (120 : BitVec 13),
+    .LI .x7 (2 : Word),
+    .BEQ .x6 .x7 (940 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (2508 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x12 .x19,
+    .MV .x13 .x20,
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 208)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 208)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 216)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 216)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_insert_acc + 224)),
+    .BNE .x10 .x0 (2520 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 232)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 232)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 240)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 252)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 256)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 256)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 264)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 264)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x21,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_insert_acc + 280)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (2408 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 292)),
+    .LD .x10 .x5 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 304)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 304)),
+    .LD .x11 .x5 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 316)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 316)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 324)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 324)),
+    .AUIPC .x14 (laHi GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 332)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 332)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 340)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 340)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_extract (GuestAddrs.mpt_insert_acc + 348)),
+    .BNE .x10 .x0 (2396 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 356)),
+    .LD .x6 .x5 (40 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 368)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 368)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 380)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 380)),
+    .ADD .x7 .x7 .x6,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 396)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 396)),
+    .SD .x29 .x28 (0 : BitVec 12),
+    .ADD .x7 .x9 .x24,
+    .ADD .x7 .x7 .x6,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 420)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 420)),
+    .SD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 432)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 432)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 444)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 444)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 456)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 456)),
+    .ADD .x10 .x10 .x28,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .SUB .x11 .x6 .x28,
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 480)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 480)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 492)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 492)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 504)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 504)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 512)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 512)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_insert_acc + 520)),
+    .BNE .x10 .x0 (2224 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 528)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 528)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 536)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 536)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 548)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 552)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 552)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 560)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 560)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 572)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 572)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 580)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 580)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 588)),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 592)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 592)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x10 .x9 .x24,
+    .ADD .x10 .x10 .x28,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .SUB .x11 .x18 .x24,
+    .SUB .x11 .x11 .x28,
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .MV .x12 .x19,
+    .MV .x13 .x20,
+    .AUIPC .x14 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 636)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 636)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 644)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 644)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_insert_acc + 652)),
+    .BNE .x10 .x0 (2092 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 660)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 660)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 668)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 668)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 680)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 684)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 684)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 692)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 692)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 704)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 704)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 712)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 712)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 720)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_empty_branch (GuestAddrs.mpt_insert_acc + 724)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_empty_branch (GuestAddrs.mpt_insert_acc + 724)),
+    .LI .x11 (18 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 736)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 736)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 748)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 748)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 756)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 756)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 768)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 768)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 776)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 776)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 784)),
+    .BNE .x10 .x0 (1960 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 792)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 792)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 800)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 800)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 812)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 812)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 824)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 824)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 832)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 832)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 844)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 844)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 852)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 852)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 860)),
+    .BNE .x10 .x0 (1884 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 868)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 868)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 876)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 876)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 888)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 892)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 892)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 900)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 900)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 912)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 912)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 920)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 920)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 928)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 932)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 932)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 944)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 944)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 956)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 956)),
+    .AUIPC .x11 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 964)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 964)),
+    .MV .x12 .x6,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.mpt_insert_acc + 976)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 980)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 980)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (120 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 996)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 996)),
+    .MV .x11 .x6,
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1008)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1008)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1016)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1016)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1028)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1028)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1036)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1036)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_extension_node_encode (GuestAddrs.mpt_insert_acc + 1044)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1048)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1048)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1056)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1056)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 1068)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1072)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1072)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1080)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1080)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1092)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1092)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1100)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1100)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 1108)),
+    .MV .x23 .x22,
+    .JAL .x0 (1372 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1120)),
+    .LD .x25 .x5 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1132)),
+    .LD .x11 .x5 (32 : BitVec 12),
+    .MV .x10 .x25,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1152)),
+    .AUIPC .x14 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_insert_acc + 1160)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_insert_acc + 1160)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_insert_acc + 1168)),
+    .BNE .x10 .x0 (1576 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1176)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x10 .x25 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_insert_acc + 1192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_insert_acc + 1192)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1204)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1204)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 1212)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 1212)),
+    .AUIPC .x14 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1220)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1220)),
+    .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (GuestAddrs.mpt_insert_acc + 1228)),
+    .BNE .x10 .x0 (1516 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1236)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (1500 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1252)),
+    .LD .x11 .x5 (32 : BitVec 12),
+    .MV .x10 .x25,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1272)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1272)),
+    .AUIPC .x14 (laHi GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 1280)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 1280)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_insert_acc + 1288)),
+    .BNE .x10 .x0 (1456 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_insert_acc + 1296)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x5 .x25 .x5,
+    .AUIPC .x6 (laHi GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 1312)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ins_lv_ptr (GuestAddrs.mpt_insert_acc + 1312)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 1324)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ins_lv_len (GuestAddrs.mpt_insert_acc + 1324)),
+    .LD .x7 .x6 (0 : BitVec 12),
+    .LI .x28 (32 : Word),
+    .BNE .x7 .x28 (76 : BitVec 13),
+    .AUIPC .x29 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1344)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1344)),
+    .LI .x30 (160 : Word),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .LI .x30 (32 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x5 (0 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x30 (33 : Word),
+    .AUIPC .x29 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1400)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1400)),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .JAL .x0 (56 : BitVec 21),
+    .AUIPC .x29 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1416)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1416)),
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x5 (0 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x29 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1456)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1456)),
+    .SD .x29 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1468)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 1468)),
+    .LD .x6 .x5 (40 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1480)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1480)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1492)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1492)),
+    .ADD .x7 .x7 .x6,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1508)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1508)),
+    .SD .x29 .x28 (0 : BitVec 12),
+    .ADD .x7 .x9 .x24,
+    .ADD .x7 .x7 .x6,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 1532)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 1532)),
+    .SD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 1544)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_kcount (GuestAddrs.mpt_insert_acc + 1544)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1556)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1556)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .SUB .x29 .x6 .x28,
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BEQ .x29 .x0 (128 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1580)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 1580)),
+    .ADD .x10 .x10 .x28,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .MV .x11 .x29,
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1600)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1600)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1608)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1608)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1620)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1620)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1628)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1628)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_extension_node_encode (GuestAddrs.mpt_insert_acc + 1636)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1640)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1640)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1648)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1648)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 1660)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1664)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1664)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1672)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1672)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1684)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1684)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1692)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1692)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 1700)),
+    .AUIPC .x7 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1704)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 1704)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x10 .x9 .x24,
+    .ADD .x10 .x10 .x28,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .SUB .x11 .x18 .x24,
+    .SUB .x11 .x11 .x28,
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .MV .x12 .x19,
+    .MV .x13 .x20,
+    .AUIPC .x14 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1748)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1748)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1756)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1756)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_insert_acc + 1764)),
+    .BNE .x10 .x0 (980 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1772)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1772)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1780)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1780)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 1792)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1796)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1796)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1804)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1804)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 1816)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 1816)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 1824)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 1824)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 1832)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_empty_branch (GuestAddrs.mpt_insert_acc + 1836)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_empty_branch (GuestAddrs.mpt_insert_acc + 1836)),
+    .LI .x11 (18 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1848)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_niba (GuestAddrs.mpt_insert_acc + 1848)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1860)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 1860)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1868)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 1868)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1880)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1880)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1888)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1888)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 1896)),
+    .BNE .x10 .x0 (848 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1904)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 1904)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1912)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 1912)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 1924)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_nibb (GuestAddrs.mpt_insert_acc + 1924)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 1936)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref2 (GuestAddrs.mpt_insert_acc + 1936)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 1944)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref2_len (GuestAddrs.mpt_insert_acc + 1944)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1956)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1956)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1964)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1964)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 1972)),
+    .BNE .x10 .x0 (772 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1980)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 1980)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1988)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 1988)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 2000)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 2004)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 2004)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 2012)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 2012)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2024)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2024)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2032)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2032)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 2040)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 2044)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node2_len (GuestAddrs.mpt_insert_acc + 2044)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2056)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2056)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2068)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2068)),
+    .AUIPC .x11 (laHi GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 2076)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.ins_node2 (GuestAddrs.mpt_insert_acc + 2076)),
+    .MV .x12 .x6,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.mpt_insert_acc + 2088)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 2092)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_m (GuestAddrs.mpt_insert_acc + 2092)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (120 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 2108)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_k (GuestAddrs.mpt_insert_acc + 2108)),
+    .MV .x11 .x6,
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2120)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2120)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2128)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2140)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2140)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2148)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2148)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_extension_node_encode (GuestAddrs.mpt_insert_acc + 2156)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2160)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2168)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 2180)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2184)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2184)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2192)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2204)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2204)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2212)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2212)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 2220)),
+    .MV .x23 .x22,
+    .JAL .x0 (260 : BitVec 21),
+    .ADD .x10 .x9 .x24,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .SUB .x11 .x18 .x24,
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .MV .x12 .x19,
+    .MV .x13 .x20,
+    .AUIPC .x14 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2256)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2256)),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2264)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2264)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_insert_acc + 2272)),
+    .BNE .x10 .x0 (472 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2280)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2280)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2288)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2288)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 2300)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2304)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2304)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2312)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2324)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2324)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2332)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2332)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 2340)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 2344)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 2344)),
+    .LD .x10 .x5 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 2356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_meta (GuestAddrs.mpt_insert_acc + 2356)),
+    .LD .x11 .x5 (32 : BitVec 12),
+    .ADD .x7 .x9 .x24,
+    .LBU .x12 .x7 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2376)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2376)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2384)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2396)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2396)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2404)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2404)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 2412)),
+    .BNE .x10 .x0 (332 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2420)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2420)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2428)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 2440)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2444)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2444)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2452)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2452)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2464)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2464)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2472)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2472)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 2480)),
+    .MV .x23 .x22,
+    .BEQ .x23 .x0 (176 : BitVec 13),
+    .ADDI .x23 .x23 (-1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ins_stack (GuestAddrs.mpt_insert_acc + 2496)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_stack (GuestAddrs.mpt_insert_acc + 2496)),
+    .SLLI .x6 .x23 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x5 (8 : BitVec 12),
+    .LD .x29 .x5 (16 : BitVec 12),
+    .LD .x30 .x5 (24 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x28,
+    .BEQ .x29 .x0 (12 : BitVec 13),
+    .LI .x12 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x12 .x30,
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2552)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2552)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2560)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2560)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2572)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2572)),
+    .AUIPC .x16 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2580)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2580)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.mpt_insert_acc + 2588)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2596)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2596)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2604)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2604)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.node_db_append (GuestAddrs.mpt_insert_acc + 2616)),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2620)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2620)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2628)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2628)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2640)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ins_ref (GuestAddrs.mpt_insert_acc + 2640)),
+    .AUIPC .x13 (laHi GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2648)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ins_ref_len (GuestAddrs.mpt_insert_acc + 2648)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_slot_encode (GuestAddrs.mpt_insert_acc + 2656)),
+    .JAL .x0 (-172 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2664)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ins_node (GuestAddrs.mpt_insert_acc + 2664)),
+    .AUIPC .x5 (laHi GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2672)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ins_node_len (GuestAddrs.mpt_insert_acc + 2672)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x21,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_insert_acc + 2688)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (-56 : BitVec 21) ]
 
+/-- Reloc side-table for `mptInsertAcc_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptInsertAcc_relocs : RelocTable :=
+  [ (18, .la .x5 "ins_wl"),
+    (22, .la .x5 "ins_wl"),
+    (27, .la .x15 "ins_stack"),
+    (29, .la .x16 "ins_meta"),
+    (31, .jal .x1 "mpt_insert_walk_db"),
+    (33, .la .x5 "ins_meta"),
+    (52, .la .x14 "ins_node"),
+    (54, .la .x15 "ins_node_len"),
+    (56, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (58, .la .x10 "ins_node"),
+    (60, .la .x5 "ins_node_len"),
+    (63, .jal .x1 "node_db_append"),
+    (64, .la .x10 "ins_node"),
+    (66, .la .x5 "ins_node_len"),
+    (70, .jal .x1 "zkvm_keccak256"),
+    (73, .la .x5 "ins_meta"),
+    (76, .la .x5 "ins_meta"),
+    (79, .la .x12 "ins_k"),
+    (81, .la .x13 "ins_kcount"),
+    (83, .la .x14 "ins_lv_ptr"),
+    (85, .la .x15 "ins_lv_len"),
+    (87, .jal .x1 "mpt_leaf_extract"),
+    (89, .la .x5 "ins_meta"),
+    (92, .la .x7 "ins_m"),
+    (95, .la .x7 "ins_k"),
+    (99, .la .x29 "ins_niba"),
+    (105, .la .x29 "ins_nibb"),
+    (108, .la .x5 "ins_kcount"),
+    (111, .la .x7 "ins_m"),
+    (114, .la .x10 "ins_k"),
+    (120, .la .x5 "ins_lv_ptr"),
+    (123, .la .x5 "ins_lv_len"),
+    (126, .la .x14 "ins_node"),
+    (128, .la .x15 "ins_node_len"),
+    (130, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (132, .la .x10 "ins_node"),
+    (134, .la .x5 "ins_node_len"),
+    (137, .jal .x1 "node_db_append"),
+    (138, .la .x10 "ins_node"),
+    (140, .la .x5 "ins_node_len"),
+    (143, .la .x12 "ins_ref"),
+    (145, .la .x13 "ins_ref_len"),
+    (147, .jal .x1 "mpt_node_slot_encode"),
+    (148, .la .x7 "ins_m"),
+    (159, .la .x14 "ins_node2"),
+    (161, .la .x15 "ins_node2_len"),
+    (163, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (165, .la .x10 "ins_node2"),
+    (167, .la .x5 "ins_node2_len"),
+    (170, .jal .x1 "node_db_append"),
+    (171, .la .x10 "ins_node2"),
+    (173, .la .x5 "ins_node2_len"),
+    (176, .la .x12 "ins_ref2"),
+    (178, .la .x13 "ins_ref2_len"),
+    (180, .jal .x1 "mpt_node_slot_encode"),
+    (181, .la .x10 "ins_empty_branch"),
+    (184, .la .x5 "ins_niba"),
+    (187, .la .x13 "ins_ref"),
+    (189, .la .x5 "ins_ref_len"),
+    (192, .la .x15 "ins_node"),
+    (194, .la .x16 "ins_node_len"),
+    (196, .jal .x1 "mpt_splice_slot"),
+    (198, .la .x10 "ins_node"),
+    (200, .la .x5 "ins_node_len"),
+    (203, .la .x5 "ins_nibb"),
+    (206, .la .x13 "ins_ref2"),
+    (208, .la .x5 "ins_ref2_len"),
+    (211, .la .x15 "ins_node2"),
+    (213, .la .x16 "ins_node2_len"),
+    (215, .jal .x1 "mpt_splice_slot"),
+    (217, .la .x10 "ins_node2"),
+    (219, .la .x5 "ins_node2_len"),
+    (222, .jal .x1 "node_db_append"),
+    (223, .la .x10 "ins_node2"),
+    (225, .la .x5 "ins_node2_len"),
+    (228, .la .x12 "ins_ref"),
+    (230, .la .x13 "ins_ref_len"),
+    (232, .jal .x1 "mpt_node_slot_encode"),
+    (233, .la .x5 "ins_node2_len"),
+    (236, .la .x7 "ins_node_len"),
+    (239, .la .x10 "ins_node"),
+    (241, .la .x11 "ins_node2"),
+    (244, .jal .x1 "mset_memcpy"),
+    (245, .la .x5 "ins_m"),
+    (249, .la .x10 "ins_k"),
+    (252, .la .x12 "ins_ref"),
+    (254, .la .x5 "ins_ref_len"),
+    (257, .la .x14 "ins_node"),
+    (259, .la .x15 "ins_node_len"),
+    (261, .jal .x1 "mpt_extension_node_encode"),
+    (262, .la .x10 "ins_node"),
+    (264, .la .x5 "ins_node_len"),
+    (267, .jal .x1 "node_db_append"),
+    (268, .la .x10 "ins_node"),
+    (270, .la .x5 "ins_node_len"),
+    (273, .la .x12 "ins_ref"),
+    (275, .la .x13 "ins_ref_len"),
+    (277, .jal .x1 "mpt_node_slot_encode"),
+    (280, .la .x5 "ins_meta"),
+    (283, .la .x5 "ins_meta"),
+    (288, .la .x13 "mle_path_off"),
+    (290, .la .x14 "mle_path_len"),
+    (292, .jal .x1 "rlp_list_nth_item"),
+    (294, .la .x5 "mle_path_off"),
+    (298, .la .x5 "mle_path_len"),
+    (301, .la .x12 "ins_k"),
+    (303, .la .x13 "ins_kcount"),
+    (305, .la .x14 "ins_niba"),
+    (307, .jal .x1 "hp_decode_nibbles"),
+    (309, .la .x5 "ins_niba"),
+    (313, .la .x5 "ins_meta"),
+    (318, .la .x13 "mle_path_off"),
+    (320, .la .x14 "ins_lv_len"),
+    (322, .jal .x1 "rlp_list_nth_item"),
+    (324, .la .x5 "mle_path_off"),
+    (328, .la .x6 "ins_lv_ptr"),
+    (331, .la .x6 "ins_lv_len"),
+    (336, .la .x29 "ins_ref"),
+    (350, .la .x29 "ins_ref_len"),
+    (354, .la .x29 "ins_ref"),
+    (364, .la .x29 "ins_ref_len"),
+    (367, .la .x5 "ins_meta"),
+    (370, .la .x7 "ins_m"),
+    (373, .la .x7 "ins_k"),
+    (377, .la .x29 "ins_niba"),
+    (383, .la .x29 "ins_nibb"),
+    (386, .la .x5 "ins_kcount"),
+    (389, .la .x7 "ins_m"),
+    (395, .la .x10 "ins_k"),
+    (400, .la .x12 "ins_ref"),
+    (402, .la .x5 "ins_ref_len"),
+    (405, .la .x14 "ins_node"),
+    (407, .la .x15 "ins_node_len"),
+    (409, .jal .x1 "mpt_extension_node_encode"),
+    (410, .la .x10 "ins_node"),
+    (412, .la .x5 "ins_node_len"),
+    (415, .jal .x1 "node_db_append"),
+    (416, .la .x10 "ins_node"),
+    (418, .la .x5 "ins_node_len"),
+    (421, .la .x12 "ins_ref"),
+    (423, .la .x13 "ins_ref_len"),
+    (425, .jal .x1 "mpt_node_slot_encode"),
+    (426, .la .x7 "ins_m"),
+    (437, .la .x14 "ins_node2"),
+    (439, .la .x15 "ins_node2_len"),
+    (441, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (443, .la .x10 "ins_node2"),
+    (445, .la .x5 "ins_node2_len"),
+    (448, .jal .x1 "node_db_append"),
+    (449, .la .x10 "ins_node2"),
+    (451, .la .x5 "ins_node2_len"),
+    (454, .la .x12 "ins_ref2"),
+    (456, .la .x13 "ins_ref2_len"),
+    (458, .jal .x1 "mpt_node_slot_encode"),
+    (459, .la .x10 "ins_empty_branch"),
+    (462, .la .x5 "ins_niba"),
+    (465, .la .x13 "ins_ref"),
+    (467, .la .x5 "ins_ref_len"),
+    (470, .la .x15 "ins_node"),
+    (472, .la .x16 "ins_node_len"),
+    (474, .jal .x1 "mpt_splice_slot"),
+    (476, .la .x10 "ins_node"),
+    (478, .la .x5 "ins_node_len"),
+    (481, .la .x5 "ins_nibb"),
+    (484, .la .x13 "ins_ref2"),
+    (486, .la .x5 "ins_ref2_len"),
+    (489, .la .x15 "ins_node2"),
+    (491, .la .x16 "ins_node2_len"),
+    (493, .jal .x1 "mpt_splice_slot"),
+    (495, .la .x10 "ins_node2"),
+    (497, .la .x5 "ins_node2_len"),
+    (500, .jal .x1 "node_db_append"),
+    (501, .la .x10 "ins_node2"),
+    (503, .la .x5 "ins_node2_len"),
+    (506, .la .x12 "ins_ref"),
+    (508, .la .x13 "ins_ref_len"),
+    (510, .jal .x1 "mpt_node_slot_encode"),
+    (511, .la .x5 "ins_node2_len"),
+    (514, .la .x7 "ins_node_len"),
+    (517, .la .x10 "ins_node"),
+    (519, .la .x11 "ins_node2"),
+    (522, .jal .x1 "mset_memcpy"),
+    (523, .la .x5 "ins_m"),
+    (527, .la .x10 "ins_k"),
+    (530, .la .x12 "ins_ref"),
+    (532, .la .x5 "ins_ref_len"),
+    (535, .la .x14 "ins_node"),
+    (537, .la .x15 "ins_node_len"),
+    (539, .jal .x1 "mpt_extension_node_encode"),
+    (540, .la .x10 "ins_node"),
+    (542, .la .x5 "ins_node_len"),
+    (545, .jal .x1 "node_db_append"),
+    (546, .la .x10 "ins_node"),
+    (548, .la .x5 "ins_node_len"),
+    (551, .la .x12 "ins_ref"),
+    (553, .la .x13 "ins_ref_len"),
+    (555, .jal .x1 "mpt_node_slot_encode"),
+    (564, .la .x14 "ins_node"),
+    (566, .la .x15 "ins_node_len"),
+    (568, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (570, .la .x10 "ins_node"),
+    (572, .la .x5 "ins_node_len"),
+    (575, .jal .x1 "node_db_append"),
+    (576, .la .x10 "ins_node"),
+    (578, .la .x5 "ins_node_len"),
+    (581, .la .x12 "ins_ref"),
+    (583, .la .x13 "ins_ref_len"),
+    (585, .jal .x1 "mpt_node_slot_encode"),
+    (586, .la .x5 "ins_meta"),
+    (589, .la .x5 "ins_meta"),
+    (594, .la .x13 "ins_ref"),
+    (596, .la .x5 "ins_ref_len"),
+    (599, .la .x15 "ins_node"),
+    (601, .la .x16 "ins_node_len"),
+    (603, .jal .x1 "mpt_splice_slot"),
+    (605, .la .x10 "ins_node"),
+    (607, .la .x5 "ins_node_len"),
+    (610, .jal .x1 "node_db_append"),
+    (611, .la .x10 "ins_node"),
+    (613, .la .x5 "ins_node_len"),
+    (616, .la .x12 "ins_ref"),
+    (618, .la .x13 "ins_ref_len"),
+    (620, .jal .x1 "mpt_node_slot_encode"),
+    (624, .la .x5 "ins_stack"),
+    (638, .la .x13 "ins_ref"),
+    (640, .la .x5 "ins_ref_len"),
+    (643, .la .x15 "ins_node"),
+    (645, .la .x16 "ins_node_len"),
+    (647, .jal .x1 "mpt_splice_slot"),
+    (649, .la .x10 "ins_node"),
+    (651, .la .x5 "ins_node_len"),
+    (654, .jal .x1 "node_db_append"),
+    (655, .la .x10 "ins_node"),
+    (657, .la .x5 "ins_node_len"),
+    (660, .la .x12 "ins_ref"),
+    (662, .la .x13 "ins_ref_len"),
+    (664, .jal .x1 "mpt_node_slot_encode"),
+    (666, .la .x10 "ins_node"),
+    (668, .la .x5 "ins_node_len"),
+    (672, .jal .x1 "zkvm_keccak256") ]
+
+def mptInsertAccFunction : String :=
+  "mpt_insert_acc:\n" ++ emitProgramR mptInsertAcc_prog mptInsertAcc_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptInsertAcc_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptInsertAccFunction_eq_prog :
+    mptInsertAccFunction = "mpt_insert_acc:\n" ++ emitProgramR mptInsertAcc_prog mptInsertAcc_relocs := rfl
+
+#guard mptInsertAccFunction.startsWith "mpt_insert_acc:\n"
+#guard mptInsertAcc_prog.length = 689
 /-- `zisk_mpt_insert_acc`: probe. Resets the node DB, then a SINGLE insert
     (same input layout as zisk_mpt_insert). With the DB empty every node is
     resolved from the witness, so the new root equals the witness-only
@@ -308,6 +994,7 @@ def ziskMptInsertAccPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  li t0, 0x40000000\n" ++
   "  ld a2, 8(t0)                # witness_len\n" ++
   "  ld a4, 16(t0)               # path_len\n" ++
@@ -328,6 +1015,7 @@ def ziskMptInsertAccPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
@@ -364,8 +1052,9 @@ def ziskMptInsertAccDataSection : String :=
   "mset_db_top:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "mset_db_hash:\n  .zero 32\n" ++
+  mptResolveCacheDataSection ++ "\n" ++
   ".balign 8\n" ++
-  "mset_db_data:\n  .zero 65536"
+  "mset_db_data:\n  .zero 8388608"
 
 def ziskMptInsertAccProbeUnit : BuildUnit := {
   body        := NOP

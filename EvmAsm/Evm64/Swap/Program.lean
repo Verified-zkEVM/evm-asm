@@ -49,4 +49,8 @@ abbrev evm_swap_code (base : Word) (n : Nat) : CodeReq :=
   |>.union (CodeReq.singleton (base + 56) (.SD .x12 .x6 (BitVec.ofNat 12 24)))
   |>.union (CodeReq.singleton (base + 60) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))))
 
+/-- Concrete instruction length of `evm_swap` (n-independent). -/
+theorem evm_swap_length (n : Nat) : (evm_swap n).length = 16 := by
+  simp [evm_swap, swap_one_limb, LD, SD, single, seq, Program.length_append]
+
 end EvmAsm.Evm64

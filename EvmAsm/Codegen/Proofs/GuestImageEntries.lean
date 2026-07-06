@@ -1,0 +1,524 @@
+/-
+  EvmAsm.Codegen.Proofs.GuestImageEntries
+
+  GENERATED — do not edit by hand.
+  `python3 scripts/guest_image_coverage.py --emit-lean` regenerates
+  this from scripts/asm-fixtures/MANIFEST.tsv +
+  scripts/asm-fixtures/symbol-addresses.tsv (bead evm-asm-4ch8f.63).
+
+  One row per converted `_prog` that is LINKED into the
+  `stateless_guest` image: (entry address BY NAME via `GuestAddrs`,
+  the verification-view `Program`), sorted by entry address.
+  Conversions whose entry symbol is absent from the linker-facts
+  table (converted but not linked) are excluded — the image
+  `CodeReq` must reflect the emitted ELF, nothing more.
+  Consumer: `guestImageCodeReq` (EvmAsm/Codegen/Proofs/GuestImage.lean).
+-/
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountApplyStorage
+import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.AccountFieldExtract
+import EvmAsm.Codegen.Programs.AccountFieldGetters
+import EvmAsm.Codegen.Programs.AccountFields
+import EvmAsm.Codegen.Programs.Address
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
+import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
+import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
+import EvmAsm.Codegen.Programs.BalAccountChangeValue
+import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
+import EvmAsm.Codegen.Programs.BalAccountHasStateChange
+import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
+import EvmAsm.Codegen.Programs.BalAccountPath
+import EvmAsm.Codegen.Programs.BalAccountPostFields
+import EvmAsm.Codegen.Programs.BalAccountRecordArray
+import EvmAsm.Codegen.Programs.BalAllAccountsCode
+import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
+import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
+import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BalModeledSystem
+import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
+import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.BlockAccessListHash
+import EvmAsm.Codegen.Programs.BlockGasRemaining
+import EvmAsm.Codegen.Programs.BlockHashPredicates
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
+import EvmAsm.Codegen.Programs.BlockRlpSize
+import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.BlockVerdictSysChange
+import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
+import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
+import EvmAsm.Codegen.Programs.Bloom
+import EvmAsm.Codegen.Programs.BloomAddValue
+import EvmAsm.Codegen.Programs.BloomBlock
+import EvmAsm.Codegen.Programs.Bls12Field
+import EvmAsm.Codegen.Programs.Bls12Fq12
+import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Codegen.Programs.Bls12G2
+import EvmAsm.Codegen.Programs.Bls12Kzg
+import EvmAsm.Codegen.Programs.Bls12Map
+import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bn254Curve
+import EvmAsm.Codegen.Programs.Bn254Field
+import EvmAsm.Codegen.Programs.Bn254Fp2
+import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.Programs.Bn254Pairing
+import EvmAsm.Codegen.Programs.CallFrameBase
+import EvmAsm.Codegen.Programs.CallFrameDescend
+import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.ChainValidate
+import EvmAsm.Codegen.Programs.ChainValidateBlob
+import EvmAsm.Codegen.Programs.ChainValidatePostMerge
+import EvmAsm.Codegen.Programs.ChainValidateProgs
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
+import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
+import EvmAsm.Codegen.Programs.Eip7702Authority
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.EvmCodes
+import EvmAsm.Codegen.Programs.EvmNonce
+import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.ExecLogLatestValue
+import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.HeaderChain
+import EvmAsm.Codegen.Programs.HeaderDecode
+import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.IntrinsicGas
+import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptDeleteAcc
+import EvmAsm.Codegen.Programs.MptDeleteWalkDb
+import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
+import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptInsertWalkDb
+import EvmAsm.Codegen.Programs.MptInternal
+import EvmAsm.Codegen.Programs.MptSet
+import EvmAsm.Codegen.Programs.MptSetAcc
+import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.NonstorageEffectLog
+import EvmAsm.Codegen.Programs.P256Verify
+import EvmAsm.Codegen.Programs.Receipt
+import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
+import EvmAsm.Codegen.Programs.Secp256k1Curve
+import EvmAsm.Codegen.Programs.Secp256k1Field
+import EvmAsm.Codegen.Programs.Secp256k1Recover
+import EvmAsm.Codegen.Programs.SeedTxAccessList
+import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
+import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
+import EvmAsm.Codegen.Programs.Ssz
+import EvmAsm.Codegen.Programs.SszParentHeader
+import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
+import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.Programs.SszWitnessState
+import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.StatelessVerdict
+import EvmAsm.Codegen.Programs.Step2Verdict
+import EvmAsm.Codegen.Programs.StorageWrite
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.SystemWrites
+import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.TxDecode1559
+import EvmAsm.Codegen.Programs.TxDecode2930
+import EvmAsm.Codegen.Programs.TxDecode4844
+import EvmAsm.Codegen.Programs.TxDecode7702
+import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.TxRoot
+import EvmAsm.Codegen.Programs.TxSigningHash
+import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256GasPricing
+import EvmAsm.Codegen.Programs.ValidateHeaderPair
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
+import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Codegen.Programs.WithdrawalPath
+import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64 in
+/-- The linked converted functions of the guest image, ascending by
+    entry address: `(GuestAddrs.<entry>, <entry>_prog)`. -/
+def guestImageEntries : List (Nat × Program) := [
+  (GuestAddrs.zkvm_sha256, zkvmSha256_prog),
+  (GuestAddrs.ssz_pack_bytes, sszPackBytes_prog),
+  (GuestAddrs.ssz_merkleize_pow2, sszMerkleizePow2_prog),
+  (GuestAddrs.ssz_merkleize, sszMerkleize_prog),
+  (GuestAddrs.ssz_hash_tree_root_bytes, sszHashTreeRootBytes_prog),
+  (GuestAddrs.ssz_hash_tree_root_list_bytelist, sszHashTreeRootListBytelist_prog),
+  (GuestAddrs.rlp_list_nth_item, rlpListNthItem_prog),
+  (GuestAddrs.rlp_field_to_u64, rlpFieldToU64_prog),
+  (GuestAddrs.validate_parent_hash_link, validateParentHashLink_prog),
+  (GuestAddrs.chain_validate_post_merge_full, chainValidatePostMergeFull_prog),
+  (GuestAddrs.chain_validate_extra_data_length, chainValidateExtraDataLength_prog),
+  (GuestAddrs.chain_validate_gas_used_under_limit, chainValidateGasUsedUnderLimit_prog),
+  (GuestAddrs.chain_validate_blob_gas_used_multiple, chainValidateBlobGasUsedMultiple_prog),
+  (GuestAddrs.chain_validate_blob_gas_used_under_max, chainValidateBlobGasUsedUnderMax_prog),
+  (GuestAddrs.chain_validate_increasing_timestamps, chainValidateIncreasingTimestamps_prog),
+  (GuestAddrs.chain_validate_consecutive_numbers, chainValidateConsecutiveNumbers_prog),
+  (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
+  (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
+  (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
+  (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
+  (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
+  (GuestAddrs.hp_decode_nibbles, hpDecodeNibbles_prog),
+  (GuestAddrs.hp_encode_nibbles, hpEncodeNibbles_prog),
+  (GuestAddrs.rlp_encode_bytes, rlpEncodeBytes_prog),
+  (GuestAddrs.rlp_encode_uint_be, rlpEncodeUintBe_prog),
+  (GuestAddrs.rlp_encode_list_prefix, rlpEncodeListPrefix_prog),
+  (GuestAddrs.mpt_node_slot_encode, mptNodeSlotEncode_prog),
+  (GuestAddrs.bytes_to_nibbles, bytesToNibbles_prog),
+  (GuestAddrs.u256_from_u64_be, u256FromU64Be_prog),
+  (GuestAddrs.u256_mul_u64_be, u256MulU64Be_prog),
+  (GuestAddrs.u256_div_u64_be, u256DivU64Be_prog),
+  (GuestAddrs.u256_is_zero, u256IsZero_prog),
+  (GuestAddrs.u256_add_be, u256AddBe_prog),
+  (GuestAddrs.u256_sub_be, u256SubBe_prog),
+  (GuestAddrs.u256_eq, u256Eq_prog),
+  (GuestAddrs.u256_lt_be, u256LtBe_prog),
+  (GuestAddrs.withdrawal_decode, withdrawalDecode_prog),
+  (GuestAddrs.withdrawal_to_path_delta, withdrawalToPathDelta_prog),
+  (GuestAddrs.mset_memcpy, msetMemcpy_prog),
+  (GuestAddrs.mpt_splice_slot, mptSpliceSlot_prog),
+  (GuestAddrs.account_add_balance, accountAddBalance_prog),
+  (GuestAddrs.mpt_walk, mptWalk_prog),
+  (GuestAddrs.mpt_lookup_by_key, mptLookupByKey_prog),
+  (GuestAddrs.account_decode, accountDecode_prog),
+  (GuestAddrs.account_at_address, accountAtAddress_prog),
+  (GuestAddrs.extcodesize_at_header_state_root, extcodesizeAtHeaderStateRoot_prog),
+  (GuestAddrs.node_db_append, nodeDbAppend_prog),
+  (GuestAddrs.node_db_lookup, nodeDbLookup_prog),
+  (GuestAddrs.mpt_resolve_cache_reset, mptResolveCacheReset_prog),
+  (GuestAddrs.mpt_node_resolve, mptNodeResolve_prog),
+  (GuestAddrs.mpt_set_record_walk_db, mptSetRecordWalkDb_prog),
+  (GuestAddrs.mpt_set_acc, mptSetAcc_prog),
+  (GuestAddrs.mpt_delete_walk_db, mptDeleteWalkDb_prog),
+  (GuestAddrs.mpt_extension_extract, mptExtensionExtract_prog),
+  (GuestAddrs.mpt_delete_acc, mptDeleteAcc_prog),
+  (GuestAddrs.mpt_state_root, mptStateRoot_prog),
+  (GuestAddrs.mpt_leaf_extract, mptLeafExtract_prog),
+  (GuestAddrs.mpt_extension_node_encode, mptExtensionNodeEncode_prog),
+  (GuestAddrs.mpt_insert_walk_db, mptInsertWalkDb_prog),
+  (GuestAddrs.mpt_insert_acc, mptInsertAcc_prog),
+  (GuestAddrs.mpt_state_root_ins, mptStateRootIns_prog),
+  (GuestAddrs.mpt_one_leaf_root_indexed, mptOneLeafRootIndexed_prog),
+  (GuestAddrs.withdrawals_state_root, withdrawalsStateRoot_prog),
+  (GuestAddrs.mpt_indexed_large_leaf_hash, mptIndexedLargeLeafHash_prog),
+  (GuestAddrs.mpt_indexed_trie_root_large, mptIndexedTrieRootLarge_prog),
+  (GuestAddrs.mpt_indexed_trie_root_small, mptIndexedTrieRootSmall_prog),
+  (GuestAddrs.header_extract_withdrawals_root, headerExtractWithdrawalsRoot_prog),
+  (GuestAddrs.block_validate_withdrawals_root_indexed, blockValidateWithdrawalsRootIndexed_prog),
+  (GuestAddrs.validate_header_basic, validateHeaderBasic_prog),
+  (GuestAddrs.check_gas_limit, checkGasLimit_prog),
+  (GuestAddrs.header_validate_post_merge, headerValidatePostMerge_prog),
+  (GuestAddrs.header_validate_extra_data_length, headerValidateExtraDataLength_prog),
+  (GuestAddrs.amsterdam_blob_gas_price, amsterdamBlobGasPrice_prog),
+  (GuestAddrs.amsterdam_blob_gas_price_u256, amsterdamBlobGasPriceU256_prog),
+  (GuestAddrs.eip1559_calc_base_fee_per_gas, eip1559CalcBaseFeePerGas_prog),
+  (GuestAddrs.header_validate_base_fee, headerValidateBaseFee_prog),
+  (GuestAddrs.header_validate_excess_blob_gas, headerValidateExcessBlobGas_prog),
+  (GuestAddrs.validate_header_full, validateHeaderFull_prog),
+  (GuestAddrs.header_extended_decode, headerExtendedDecode_prog),
+  (GuestAddrs.headers_parent_hash, headersParentHash_prog),
+  (GuestAddrs.header_validate_parent_hash, headerValidateParentHash_prog),
+  (GuestAddrs.validate_header_rlp_pair, validateHeaderRlpPair_prog),
+  (GuestAddrs.bhr_rev_le_be, bhrRevLeBe_prog),
+  (GuestAddrs.rlp_bytes_encoded_size, rlpBytesEncodedSize_prog),
+  (GuestAddrs.rlp_list_encoded_size, rlpListEncodedSize_prog),
+  (GuestAddrs.block_rlp_rebuilt_size, blockRlpRebuiltSize_prog),
+  (GuestAddrs.bah_u32le, bahU32le_prog),
+  (GuestAddrs.block_access_list_hash, blockAccessListHash_prog),
+  (GuestAddrs.block_hash_from_header, blockHashFromHeader_prog),
+  (GuestAddrs.step2_verdict, step2Verdict_prog),
+  (GuestAddrs.header_extract_state_root, headerExtractStateRoot_prog),
+  (GuestAddrs.eph_u32le, ephU32le_prog),
+  (GuestAddrs.extract_parent_header_and_state_root, extractParentHeaderAndStateRoot_prog),
+  (GuestAddrs.spw_u32le, spwU32le_prog),
+  (GuestAddrs.extract_payload_and_withdrawals, extractPayloadAndWithdrawals_prog),
+  (GuestAddrs.sws_u32le, swsU32le_prog),
+  (GuestAddrs.extract_witness_state_section, extractWitnessStateSection_prog),
+  (GuestAddrs.swr_rev_le_be, swrRevLeBe_prog),
+  (GuestAddrs.ssz_withdrawal_to_rlp, sszWithdrawalToRlp_prog),
+  (GuestAddrs.stateless_verdict_from_ssz, statelessVerdictFromSsz_prog),
+  (GuestAddrs.single_leaf_trie_root, singleLeafTrieRoot_prog),
+  (GuestAddrs.storage_root_single_slot, storageRootSingleSlot_prog),
+  (GuestAddrs.account_set_storage_root, accountSetStorageRoot_prog),
+  (GuestAddrs.account_apply_storage_slot, accountApplyStorageSlot_prog),
+  (GuestAddrs.account_apply_storage_slot_acc, accountApplyStorageSlotAcc_prog),
+  (GuestAddrs.swd_read_u64le, swdReadU64le_prog),
+  (GuestAddrs.swd_write_be32_u64, swdWriteBe32U64_prog),
+  (GuestAddrs.swd_write_be8, swdWriteBe8_prog),
+  (GuestAddrs.swd_minimal_copy, swdMinimalCopy_prog),
+  (GuestAddrs.system_write_descriptors, systemWriteDescriptors_prog),
+  (GuestAddrs.account_set_uint_field, accountSetUintField_prog),
+  (GuestAddrs.account_is_eip161_empty, accountIsEip161Empty_prog),
+  (GuestAddrs.bal_account_has_state_change, balAccountHasStateChange_prog),
+  (GuestAddrs.bal_account_path, balAccountPath_prog),
+  (GuestAddrs.bal_account_post_fields, balAccountPostFields_prog),
+  (GuestAddrs.baap_delete_single_leaf_storage, baapDeleteSingleLeafStorage_prog),
+  (GuestAddrs.bal_account_change_value, balAccountChangeValue_prog),
+  (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
+  (GuestAddrs.bal_account_access_outcome_descriptors, balAccountAccessOutcomeDescriptors_prog),
+  (GuestAddrs.bal_storage_access_outcome_descriptors, balStorageAccessOutcomeDescriptors_prog),
+  (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
+  (GuestAddrs.bal_account_is_modeled_system, balAccountIsModeledSystem_prog),
+  (GuestAddrs.bsr_sys_change, bsrSysChange_prog),
+  (GuestAddrs.bsr_beacon_change, bsrBeaconChange_prog),
+  (GuestAddrs.bsr_apply_modeled_system_post_fields, bsrApplyModeledSystemPostFields_prog),
+  (GuestAddrs.codes_blockhash_required_headers, codesBlockhashRequiredHeaders_prog),
+  (GuestAddrs.bloom_add_value, bloomAddValue_prog),
+  (GuestAddrs.log_bloom_add, logBloomAdd_prog),
+  (GuestAddrs.logs_list_bloom_add, logsListBloomAdd_prog),
+  (GuestAddrs.header_extract_receipts_root, headerExtractReceiptsRoot_prog),
+  (GuestAddrs.block_validate_receipts_root_indexed, blockValidateReceiptsRootIndexed_prog),
+  (GuestAddrs.rlp_encode_u64, rlpEncodeU64_prog),
+  (GuestAddrs.receipt_encode, receiptEncode_prog),
+  (GuestAddrs.block_validate_logs_bloom, blockValidateLogsBloom_prog),
+  (GuestAddrs.receipt_extract_logs_bloom, receiptExtractLogsBloom_prog),
+  (GuestAddrs.bloom_or_into, bloomOrInto_prog),
+  (GuestAddrs.block_logs_bloom_from_receipts_list, blockLogsBloomFromReceiptsList_prog),
+  (GuestAddrs.header_extract_logs_bloom, headerExtractLogsBloom_prog),
+  (GuestAddrs.bloom_eq, bloomEq_prog),
+  (GuestAddrs.rlp_list_count_items, rlpListCountItems_prog),
+  (GuestAddrs.tx_type_dispatch, txTypeDispatch_prog),
+  (GuestAddrs.tx_eip4844_decode, txEip4844Decode_prog),
+  (GuestAddrs.tx_eip4844_validate_blob_hashes, txEip4844ValidateBlobHashes_prog),
+  (GuestAddrs.ssz_tx_list_versioned_hashes_match, sszTxListVersionedHashesMatch_prog),
+  (GuestAddrs.bgv_u32le, bgvU32le_prog),
+  (GuestAddrs.bgv_u64le, bgvU64le_prog),
+  (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
+  (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
+  (GuestAddrs.bal_section_info, balSectionInfo_prog),
+  (GuestAddrs.bal_gas_valid, balGasValid_prog),
+  (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
+  (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
+  (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
+  (GuestAddrs.account_extract_nonce, accountExtractNonce_prog),
+  (GuestAddrs.tx_gas_sender_bal_lookup, txGasSenderBalLookup_prog),
+  (GuestAddrs.simple_transfer_tx_context, simpleTransferTxContext_prog),
+  (GuestAddrs.slot_decode_u256, slotDecodeU256_prog),
+  (GuestAddrs.slot_at_index, slotAtIndex_prog),
+  (GuestAddrs.slot_at_header_state_root, slotAtHeaderStateRoot_prog),
+  (GuestAddrs.code_at_header_state_root, codeAtHeaderStateRoot_prog),
+  (GuestAddrs.bal_find_account_by_address, balFindAccountByAddress_prog),
+  (GuestAddrs.tx_access_list_span, txAccessListSpan_prog),
+  (GuestAddrs.tx_eip2930_decode, txEip2930Decode_prog),
+  (GuestAddrs.tx_eip1559_decode, txEip1559Decode_prog),
+  (GuestAddrs.tx_eip7702_decode, txEip7702Decode_prog),
+  (GuestAddrs.secf_copy32, secfCopy32_prog),
+  (GuestAddrs.secf_zero32, secfZero32_prog),
+  (GuestAddrs.secf_be_to_le, secfBeToLe_prog),
+  (GuestAddrs.secf_le_to_be, secfLeToBe_prog),
+  (GuestAddrs.secf_get_bit_lsb, secfGetBitLsb_prog),
+  (GuestAddrs.secf_is_zero32, secfIsZero32_prog),
+  (GuestAddrs.secf_eq32, secfEq32_prog),
+  (GuestAddrs.secf_cmp_p, secfCmpP_prog),
+  (GuestAddrs.secf_reduce_once, secfReduceOnce_prog),
+  (GuestAddrs.secf_add_mod_p, secfAddModP_prog),
+  (GuestAddrs.secf_sub_mod_p, secfSubModP_prog),
+  (GuestAddrs.secf_mul_mod_p, secfMulModP_prog),
+  (GuestAddrs.secf_square_mod_p, secfSquareModP_prog),
+  (GuestAddrs.secf_pow_mod_p, secfPowModP_prog),
+  (GuestAddrs.secf_inv_mod_p, secfInvModP_prog),
+  (GuestAddrs.secf_sqrt_mod_p, secfSqrtModP_prog),
+  (GuestAddrs.secf_reduce_once_n, secfReduceOnceN_prog),
+  (GuestAddrs.secf_add_mod_n, secfAddModN_prog),
+  (GuestAddrs.secf_mul_mod_n, secfMulModN_prog),
+  (GuestAddrs.secf_square_mod_n, secfSquareModN_prog),
+  (GuestAddrs.secf_pow_mod_n, secfPowModN_prog),
+  (GuestAddrs.secf_inv_mod_n, secfInvModN_prog),
+  (GuestAddrs.secp256k1_point_double, secp256k1PointDouble_prog),
+  (GuestAddrs.secp256k1_point_copy64, secp256k1PointCopy64_prog),
+  (GuestAddrs.secp256k1_point_zero64, secp256k1PointZero64_prog),
+  (GuestAddrs.secp256k1_scalar_mul, secp256k1ScalarMul_prog),
+  (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
+  (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
+  (GuestAddrs.exec_log_latest_value, execLogLatestValue_prog),
+  (GuestAddrs.bv_mtx_committed_snapshot_upsert, bvMtxCommittedSnapshotUpsert_prog),
+  (GuestAddrs.bv_mtx_committed_latest_value, bvMtxCommittedLatestValue_prog),
+  (GuestAddrs.bv_mtx_committed_chunked_snapshot_upsert, bvMtxCommittedChunkedSnapshotUpsert_prog),
+  (GuestAddrs.bv_mtx_committed_chunked_latest_value, bvMtxCommittedChunkedLatestValue_prog),
+  (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
+  (GuestAddrs.bal_all_accounts_code_covers, balAllAccountsCodeCovers_prog),
+  (GuestAddrs.bal_all_accounts_code_consistent, balAllAccountsCodeConsistent_prog),
+  (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
+  (GuestAddrs.header_extract_number, headerExtractNumber_prog),
+  (GuestAddrs.bal_account_code_consistent, balAccountCodeConsistent_prog),
+  (GuestAddrs.bal_account_nonstorage_consistent, balAccountNonstorageConsistent_prog),
+  (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
+  (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
+  (GuestAddrs.bti_scan_storage_changes, btiScanStorageChanges_prog),
+  (GuestAddrs.block_verdict_tx_state_gas_array, blockVerdictTxStateGasArray_prog),
+  (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
+  (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
+  (GuestAddrs.u256_min, u256Min_prog),
+  (GuestAddrs.priority_fee_per_gas_eip1559, priorityFeePerGasEip1559_prog),
+  (GuestAddrs.tx_effective_gas_pricing, txEffectiveGasPricing_prog),
+  (GuestAddrs.account_charge_gas_pre_exec, accountChargeGasPreExec_prog),
+  (GuestAddrs.tx_upfront_precharge, txUpfrontPrecharge_prog),
+  (GuestAddrs.bv_sum_withdrawals_to_address, bvSumWithdrawalsToAddress_prog),
+  (GuestAddrs.access_list_count, accessListCount_prog),
+  (GuestAddrs.intrinsic_gas_amsterdam_counts, intrinsicGasAmsterdamCounts_prog),
+  (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
+  (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
+  (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
+  (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
+  (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
+  (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
+  (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array, blockVerdictEip7702AuthNonstorageEffectsArray_prog),
+  (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
+  (GuestAddrs.b1_sender_table_find, b1SenderTableFind_prog),
+  (GuestAddrs.address_from_pubkey, addressFromPubkey_prog),
+  (GuestAddrs.address_compute_create, addressComputeCreate_prog),
+  (GuestAddrs.address_compute_create2, addressComputeCreate2_prog),
+  (GuestAddrs.enrg_u32le, enrgU32le_prog),
+  (GuestAddrs.eip7702_nonce_reuse_guard, eip7702NonceReuseGuard_prog),
+  (GuestAddrs.dispatcher_capture_exec_state_gas, dispatcherCaptureExecStateGas_prog),
+  (GuestAddrs.rlp_list_truncate_to_n_fields, rlpListTruncateToNFields_prog),
+  (GuestAddrs.tx_signing_hash, txSigningHash_prog),
+  (GuestAddrs.tx_signing_hash_legacy_eip155, txSigningHashLegacyEip155_prog),
+  (GuestAddrs.tx_pubkey_signature_material, txPubkeySignatureMaterial_prog),
+  (GuestAddrs.tx_pubkey_ecrecover_stage_material, txPubkeyEcrecoverStageMaterial_prog),
+  (GuestAddrs.tx_pubkey_recover_raw, txPubkeyRecoverRaw_prog),
+  (GuestAddrs.tx_pubkey_public_key_matches, txPubkeyPublicKeyMatches_prog),
+  (GuestAddrs.verify_public_keys_match_senders, verifyPublicKeysMatchSenders_prog),
+  (GuestAddrs.nonce_at_header_state_root, nonceAtHeaderStateRoot_prog),
+  (GuestAddrs.account_exists_at_header_state_root, accountExistsAtHeaderStateRoot_prog),
+  (GuestAddrs.account_is_empty_at_header_state_root, accountIsEmptyAtHeaderStateRoot_prog),
+  (GuestAddrs.extcodehash_at_header_state_root, extcodehashAtHeaderStateRoot_prog),
+  (GuestAddrs.extcodecopy_at_header_state_root, extcodecopyAtHeaderStateRoot_prog),
+  (GuestAddrs.runtime_same_block_delegation_code, runtimeSameBlockDelegationCode_prog),
+  (GuestAddrs.has_code_or_nonce_at_header_state_root, hasCodeOrNonceAtHeaderStateRoot_prog),
+  (GuestAddrs.create_stage_initcode_frame, createStageInitcodeFrame_prog),
+  (GuestAddrs.create_execute_initcode_frame, createExecuteInitcodeFrame_prog),
+  (GuestAddrs.find_code_effect_by_address, findCodeEffectByAddress_prog),
+  (GuestAddrs.dispatcher_tx_gas_settle, dispatcherTxGasSettle_prog),
+  (GuestAddrs.selfdestruct_balance_transfer, selfdestructBalanceTransfer_prog),
+  (GuestAddrs.blsf_copy_quads, blsfCopyQuads_prog),
+  (GuestAddrs.blsg_be_to_le, blsgBeToLe_prog),
+  (GuestAddrs.blsg_le_to_be, blsgLeToBe_prog),
+  (GuestAddrs.blsg_is_zero_n, blsgIsZeroN_prog),
+  (GuestAddrs.blsg_eq48, blsgEq48_prog),
+  (GuestAddrs.blsg_lt_p, blsgLtP_prog),
+  (GuestAddrs.blsg_copy96, blsgCopy96_prog),
+  (GuestAddrs.blsg_zero96, blsgZero96_prog),
+  (GuestAddrs.blsg_mul_mod_p, blsgMulModP_prog),
+  (GuestAddrs.blsg_add_mod_p, blsgAddModP_prog),
+  (GuestAddrs.blsg_point_dbl, blsgPointDbl_prog),
+  (GuestAddrs.blsg_point_add, blsgPointAdd_prog),
+  (GuestAddrs.blsg_le_dbl, blsgLeDbl_prog),
+  (GuestAddrs.blsg_le_add, blsgLeAdd_prog),
+  (GuestAddrs.blsg_on_curve, blsgOnCurve_prog),
+  (GuestAddrs.blsg_subgroup_g1, blsgSubgroupG1_prog),
+  (GuestAddrs.bnf_be_to_le, bnfBeToLe_prog),
+  (GuestAddrs.bnf_le_to_be, bnfLeToBe_prog),
+  (GuestAddrs.bnf_is_zero32, bnfIsZero32_prog),
+  (GuestAddrs.bnf_eq32, bnfEq32_prog),
+  (GuestAddrs.bnf_lt_p, bnfLtP_prog),
+  (GuestAddrs.bnf_mul_mod_p, bnfMulModP_prog),
+  (GuestAddrs.bnf_add_mod_p, bnfAddModP_prog),
+  (GuestAddrs.bnc_copy64, bncCopy64_prog),
+  (GuestAddrs.bnc_zero64, bncZero64_prog),
+  (GuestAddrs.bnc_is_inf64, bncIsInf64_prog),
+  (GuestAddrs.bnc_point_dbl, bncPointDbl_prog),
+  (GuestAddrs.bnc_point_add, bncPointAdd_prog),
+  (GuestAddrs.bnc_on_curve, bncOnCurve_prog),
+  (GuestAddrs.bnc_validate_g1, bncValidateG1_prog),
+  (GuestAddrs.bnc_scalar_mul, bncScalarMul_prog),
+  (GuestAddrs.bn254_call_allotment, bn254CallAllotment_prog),
+  (GuestAddrs.bnp_fp2_add, bnpFp2Add_prog),
+  (GuestAddrs.bnp_fp2_sub, bnpFp2Sub_prog),
+  (GuestAddrs.bnp_fp2_mul, bnpFp2Mul_prog),
+  (GuestAddrs.bnp_fp2_copy, bnpFp2Copy_prog),
+  (GuestAddrs.bnp_fp2_zero, bnpFp2Zero_prog),
+  (GuestAddrs.bnp_fp2_eq, bnpFp2Eq_prog),
+  (GuestAddrs.bnp_fp2_is_zero, bnpFp2IsZero_prog),
+  (GuestAddrs.bnp_fp_mul, bnpFpMul_prog),
+  (GuestAddrs.bnp_fp_add, bnpFpAdd_prog),
+  (GuestAddrs.bnp_fp_pow, bnpFpPow_prog),
+  (GuestAddrs.bnp_fp2_inv, bnpFp2Inv_prog),
+  (GuestAddrs.bnq_smul, bnqSmul_prog),
+  (GuestAddrs.bnq_copy, bnqCopy_prog),
+  (GuestAddrs.bnq_zero, bnqZero_prog),
+  (GuestAddrs.bnq_set_one, bnqSetOne_prog),
+  (GuestAddrs.bnq_eq, bnqEq_prog),
+  (GuestAddrs.bnq_is_zero, bnqIsZero_prog),
+  (GuestAddrs.bnq_pow, bnqPow_prog),
+  (GuestAddrs.bnq_pt_copy, bnqPtCopy_prog),
+  (GuestAddrs.blk2_ld_le64, blk2LdLe64_prog),
+  (GuestAddrs.blk2_st_le64, blk2StLe64_prog),
+  (GuestAddrs.blsk_fp_pow_q14, blskFpPowQ14_prog),
+  (GuestAddrs.blsk_lt_be, blskLtBe_prog),
+  (GuestAddrs.blsk_neg_scalar, blskNegScalar_prog),
+  (GuestAddrs.blsk_g1_wire, blskG1Wire_prog),
+  (GuestAddrs.blsk_g2_wire, blskG2Wire_prog),
+  (GuestAddrs.p256_copy_n, p256CopyN_prog),
+  (GuestAddrs.p256_is_zero_n, p256IsZeroN_prog),
+  (GuestAddrs.p256_eq32, p256Eq32_prog),
+  (GuestAddrs.p256_lt_be, p256LtBe_prog),
+  (GuestAddrs.p256_be_to_le, p256BeToLe_prog),
+  (GuestAddrs.p256_le_to_be, p256LeToBe_prog),
+  (GuestAddrs.p256_op_with, p256OpWith_prog),
+  (GuestAddrs.p256_pow, p256Pow_prog),
+  (GuestAddrs.p256_chord_tail, p256ChordTail_prog),
+  (GuestAddrs.p256_point_dbl, p256PointDbl_prog),
+  (GuestAddrs.p256_point_add, p256PointAdd_prog),
+  (GuestAddrs.p256_scalar_mul, p256ScalarMul_prog),
+  (GuestAddrs.blsg2_fp_mul, blsg2FpMul_prog),
+  (GuestAddrs.blsg2_fp_add, blsg2FpAdd_prog),
+  (GuestAddrs.blsg2_fp_inv, blsg2FpInv_prog),
+  (GuestAddrs.blsg2_fp2_add, blsg2Fp2Add_prog),
+  (GuestAddrs.blsg2_fp2_sub, blsg2Fp2Sub_prog),
+  (GuestAddrs.blsg2_fp2_mul, blsg2Fp2Mul_prog),
+  (GuestAddrs.blsg2_fp2_inv, blsg2Fp2Inv_prog),
+  (GuestAddrs.blsg2_copy192, blsg2Copy192_prog),
+  (GuestAddrs.blsg2_zero192, blsg2Zero192_prog),
+  (GuestAddrs.blsg2_eq_n, blsg2EqN_prog),
+  (GuestAddrs.blsg2_chord_tail, blsg2ChordTail_prog),
+  (GuestAddrs.blsg2_scalar_mul, blsg2ScalarMul_prog),
+  (GuestAddrs.blsg2_subgroup_g2, blsg2SubgroupG2_prog),
+  (GuestAddrs.blsg2_encode, blsg2Encode_prog),
+  (GuestAddrs.blq_smul, blqSmul_prog),
+  (GuestAddrs.blq_copy, blqCopy_prog),
+  (GuestAddrs.blq_zero, blqZero_prog),
+  (GuestAddrs.blq_set_one, blqSetOne_prog),
+  (GuestAddrs.blq_eq, blqEq_prog),
+  (GuestAddrs.blq_is_zero, blqIsZero_prog),
+  (GuestAddrs.blq_pow, blqPow_prog),
+  (GuestAddrs.blq_pt_copy, blqPtCopy_prog),
+  (GuestAddrs.blm_fp_pow, blmFpPow_prog),
+  (GuestAddrs.blm_fp2_pow, blmFp2Pow_prog),
+  (GuestAddrs.frame_base, frameBase_prog),
+  (GuestAddrs.frame_depth_push, frameDepthPush_prog),
+  (GuestAddrs.frame_depth_pop, frameDepthPop_prog),
+  (GuestAddrs.frame_save_regs, frameSaveRegs_prog),
+  (GuestAddrs.frame_load_regs, frameLoadRegs_prog),
+  (GuestAddrs.call_frame_set_calldata, callFrameSetCalldata_prog),
+  (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
+  (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
+  (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
+  (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
+
+#guard guestImageEntries.length = 358
+
+end EvmAsm.Codegen

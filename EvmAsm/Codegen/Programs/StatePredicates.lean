@@ -21,6 +21,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -75,60 +78,87 @@ open EvmAsm.Rv64.Program
 
     The probe BuildUnit copies `aex_predicate` to OUTPUT + 8.
 -/
-def accountExistsAtHeaderStateRootFunction : String :=
-  "account_exists_at_header_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  # Pre-zero predicate.\n" ++
-  "  la t0, aex_predicate\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  # Step 1: header.state_root -> aex_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, aex_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Laex_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Laex_ret\n" ++
-  ".Laex_step2:\n" ++
-  "  # Step 2: account_at_address.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, aex_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s5, aex_acct_struct\n" ++
-  "  mv a5, s5\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Laex_found\n" ++
-  "  # status 1 (not in trie) -> predicate 0, return 0.\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Laex_absent\n" ++
-  "  # status 2/3 -> propagate.\n" ++
-  "  j .Laex_ret\n" ++
-  ".Laex_absent:\n" ++
-  "  # predicate already 0.\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laex_ret\n" ++
-  ".Laex_found:\n" ++
-  "  la t0, aex_predicate\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  li a0, 0\n" ++
-  ".Laex_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def accountExistsAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.aex_predicate (GuestAddrs.account_exists_at_header_state_root + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aex_predicate (GuestAddrs.account_exists_at_header_state_root + 52)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aex_state_root (GuestAddrs.account_exists_at_header_state_root + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aex_state_root (GuestAddrs.account_exists_at_header_state_root + 72)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.account_exists_at_header_state_root + 80)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (88 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.aex_state_root (GuestAddrs.account_exists_at_header_state_root + 104)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aex_state_root (GuestAddrs.account_exists_at_header_state_root + 104)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x21 (laHi GuestAddrs.aex_acct_struct (GuestAddrs.account_exists_at_header_state_root + 120)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.aex_acct_struct (GuestAddrs.account_exists_at_header_state_root + 120)),
+    .MV .x15 .x21,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.account_exists_at_header_state_root + 132)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aex_predicate (GuestAddrs.account_exists_at_header_state_root + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aex_predicate (GuestAddrs.account_exists_at_header_state_root + 160)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountExistsAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountExistsAtHeaderStateRoot_relocs : RelocTable :=
+  [ (13, .la .x5 "aex_predicate"),
+    (18, .la .x12 "aex_state_root"),
+    (20, .jal .x1 "header_extract_state_root"),
+    (26, .la .x12 "aex_state_root"),
+    (30, .la .x21 "aex_acct_struct"),
+    (33, .jal .x1 "account_at_address"),
+    (40, .la .x5 "aex_predicate") ]
+
+def accountExistsAtHeaderStateRootFunction : String :=
+  "account_exists_at_header_state_root:\n" ++ emitProgramR accountExistsAtHeaderStateRoot_prog accountExistsAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountExistsAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountExistsAtHeaderStateRootFunction_eq_prog :
+    accountExistsAtHeaderStateRootFunction = "account_exists_at_header_state_root:\n" ++ emitProgramR accountExistsAtHeaderStateRoot_prog accountExistsAtHeaderStateRoot_relocs := rfl
+
+#guard accountExistsAtHeaderStateRootFunction.startsWith "account_exists_at_header_state_root:\n"
+#guard accountExistsAtHeaderStateRoot_prog.length = 54
 /-- `zisk_account_exists_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -320,77 +350,114 @@ def ziskAccountExistsAtHeaderStateRootProbeUnit : BuildUnit := {
     record). The probe BuildUnit copies `aie_predicate` to
     OUTPUT + 8.
 -/
-def accountIsEmptyAtHeaderStateRootFunction : String :=
-  "account_is_empty_at_header_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  # Pre-zero predicate.\n" ++
-  "  la t0, aie_predicate\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  # Step 1: header.state_root -> aie_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, aie_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Laie_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_step2:\n" ++
-  "  # Step 2: account_at_address.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, aie_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s5, aie_acct_struct\n" ++
-  "  mv a5, s5\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Laie_check\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Laie_absent\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_absent:\n" ++
-  "  # absent -> predicate 0 (already zero).\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_check:\n" ++
-  "  # nonce == 0 ?\n" ++
-  "  ld t1, 0(s5)\n" ++
-  "  bnez t1, .Laie_non_empty\n" ++
-  "  # balance == 0 ?\n" ++
-  "  ld t1,  8(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 16(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 24(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 32(s5); bnez t1, .Laie_non_empty\n" ++
-  "  # code_hash == EMPTY_CODE_HASH ?\n" ++
-  "  la t0, aie_empty_code_hash\n" ++
-  "  ld t1,  0(t0); ld t2, 72(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1,  8(t0); ld t2, 80(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1, 16(t0); ld t2, 88(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1, 24(t0); ld t2, 96(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  # All three empty-conditions hold; predicate := 1.\n" ++
-  "  la t0, aie_predicate\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_non_empty:\n" ++
-  "  # Predicate stays 0.\n" ++
-  "  li a0, 0\n" ++
-  ".Laie_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def accountIsEmptyAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.aie_predicate (GuestAddrs.account_is_empty_at_header_state_root + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_predicate (GuestAddrs.account_is_empty_at_header_state_root + 52)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aie_state_root (GuestAddrs.account_is_empty_at_header_state_root + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aie_state_root (GuestAddrs.account_is_empty_at_header_state_root + 72)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.account_is_empty_at_header_state_root + 80)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (192 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.aie_state_root (GuestAddrs.account_is_empty_at_header_state_root + 104)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aie_state_root (GuestAddrs.account_is_empty_at_header_state_root + 104)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x21 (laHi GuestAddrs.aie_acct_struct (GuestAddrs.account_is_empty_at_header_state_root + 120)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.aie_acct_struct (GuestAddrs.account_is_empty_at_header_state_root + 120)),
+    .MV .x15 .x21,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.account_is_empty_at_header_state_root + 132)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (136 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (128 : BitVec 21),
+    .LD .x6 .x21 (0 : BitVec 12),
+    .BNE .x6 .x0 (116 : BitVec 13),
+    .LD .x6 .x21 (8 : BitVec 12),
+    .BNE .x6 .x0 (108 : BitVec 13),
+    .LD .x6 .x21 (16 : BitVec 12),
+    .BNE .x6 .x0 (100 : BitVec 13),
+    .LD .x6 .x21 (24 : BitVec 12),
+    .BNE .x6 .x0 (92 : BitVec 13),
+    .LD .x6 .x21 (32 : BitVec 12),
+    .BNE .x6 .x0 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_is_empty_at_header_state_root + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_is_empty_at_header_state_root + 200)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x21 (72 : BitVec 12),
+    .BNE .x6 .x7 (64 : BitVec 13),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LD .x7 .x21 (80 : BitVec 12),
+    .BNE .x6 .x7 (52 : BitVec 13),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LD .x7 .x21 (88 : BitVec 12),
+    .BNE .x6 .x7 (40 : BitVec 13),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .LD .x7 .x21 (96 : BitVec 12),
+    .BNE .x6 .x7 (28 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_predicate (GuestAddrs.account_is_empty_at_header_state_root + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_predicate (GuestAddrs.account_is_empty_at_header_state_root + 256)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountIsEmptyAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountIsEmptyAtHeaderStateRoot_relocs : RelocTable :=
+  [ (13, .la .x5 "aie_predicate"),
+    (18, .la .x12 "aie_state_root"),
+    (20, .jal .x1 "header_extract_state_root"),
+    (26, .la .x12 "aie_state_root"),
+    (30, .la .x21 "aie_acct_struct"),
+    (33, .jal .x1 "account_at_address"),
+    (50, .la .x5 "aie_empty_code_hash"),
+    (64, .la .x5 "aie_predicate") ]
+
+def accountIsEmptyAtHeaderStateRootFunction : String :=
+  "account_is_empty_at_header_state_root:\n" ++ emitProgramR accountIsEmptyAtHeaderStateRoot_prog accountIsEmptyAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountIsEmptyAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountIsEmptyAtHeaderStateRootFunction_eq_prog :
+    accountIsEmptyAtHeaderStateRootFunction = "account_is_empty_at_header_state_root:\n" ++ emitProgramR accountIsEmptyAtHeaderStateRoot_prog accountIsEmptyAtHeaderStateRoot_relocs := rfl
+
+#guard accountIsEmptyAtHeaderStateRootFunction.startsWith "account_is_empty_at_header_state_root:\n"
+#guard accountIsEmptyAtHeaderStateRoot_prog.length = 80
 /-- `zisk_account_is_empty_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -416,7 +483,7 @@ def ziskAccountIsEmptyAtHeaderStateRootPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  la t1, aie_predicate; ld t2, 0(t1); sd t2, 8(t0)\n" ++
-  "  j .Laie_pdone\n" ++
+  "  j .Laiehsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -430,7 +497,7 @@ def ziskAccountIsEmptyAtHeaderStateRootPrologue : String :=
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
-  ".Laie_pdone:"
+  ".Laiehsr_pdone:"
 
 def ziskAccountIsEmptyAtHeaderStateRootDataSection : String :=
   ".section .data\n" ++

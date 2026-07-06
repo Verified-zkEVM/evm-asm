@@ -139,7 +139,8 @@ theorem rlp_phase3_long_list_lenOfLen_of_class_spec_within
   have h_add_sub :
       pfx.zeroExtend 64 + signExtend12 (-(0xF7 : BitVec 12)) =
         pfx.zeroExtend 64 - (0xF7 : Word) := by
-    native_decide +revert
+    have hs : signExtend12 (-(0xF7 : BitVec 12)) = -(0xF7 : Word) := by decide
+    rw [hs, BitVec.sub_eq_add_neg]
   have h_len :=
     EvmAsm.EL.RLP.rlpPrefixLongListLenOfLen_toWord_of_class pfx h_class
   have h_add :

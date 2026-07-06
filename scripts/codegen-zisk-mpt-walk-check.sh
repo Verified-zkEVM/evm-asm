@@ -225,6 +225,10 @@ APPLE10_HEX=$(python3 -c "print((b'apple' * 10).hex())")
 BANANA10_HEX=$(python3 -c "print((b'banana' * 10).hex())")
 run_case "branch_hash3"  "030a0b" "$ROOT4_HEX" "$WITNESS4_HEX" 0 "$APPLE10_HEX"  || FAILED=1
 run_case "branch_hash7"  "070c0d" "$ROOT4_HEX" "$WITNESS4_HEX" 0 "$BANANA10_HEX" || FAILED=1
+# If a branch points to a hashed child, that child must be present in the
+# witness. This is a malformed proof, not a valid absence proof.
+WITNESS4_MISSING_CHILD_HEX=$(build_ssz_section "$BRANCH4_HEX")
+run_case "branch_hash_missing_child" "030a0b" "$ROOT4_HEX" "$WITNESS4_MISSING_CHILD_HEX" 2 "" || FAILED=1
 
 # Fixture 5: 3-level MPT with extension. Path: [1,2,3,4,5,6,7]
 # Extension at root with path [1,2,3], child = branch

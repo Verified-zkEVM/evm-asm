@@ -83,6 +83,14 @@ namespace EvmAsm.Rv64
   generic_2reg_rd_eq_rs1_spec_within (.OR rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+@[spec_gen_rv64] theorem or_spec_gen_rd_eq_rs2_within (rd rs1 : Reg) (v1 v2 : Word)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.OR rd rs1 rd))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 ||| v2))) :=
+  generic_2reg_spec_within (.OR rd rs1 rd) rs1 rd v1 v2 (v1 ||| v2) addr hrd_ne_x0
+    (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 @[spec_gen_rv64] theorem xor_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.XOR rd rd rs2))

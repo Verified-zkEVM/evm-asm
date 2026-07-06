@@ -41,6 +41,22 @@ def evm_mod_callable_v1 : Program :=
   cc_ret ;;
   divK_div128
 
+theorem evm_div_callable_v1_length : evm_div_callable_v1.length = 319 := by
+  unfold evm_div_callable_v1
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_len]
+
+theorem evm_mod_callable_v1_length : evm_mod_callable_v1.length = 319 := by
+  unfold evm_mod_callable_v1
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_len]
+
 /-- Legacy v1 CodeReq layout for `evm_div_callable_v1`. -/
 abbrev evm_div_callable_code_v1 (base : Word) : CodeReq :=
   CodeReq.unionAll [
@@ -773,6 +789,39 @@ theorem evm_mod_callable_v1_spec_from_noNop (sp base raVal : Word)
   have hRetFramed :=
     cpsTripleWithin_frameL (modStackDispatchPost sp a b) hpcFreePost hRet
   exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
+
+/-- Legacy v1 MOD callable wrapper with exact `x1` and no `x9` frame.
+
+This is the return/`cc_ret` adapter only: callers supply a v1 no-NOP stack
+proof already shaped for `divModStackDispatchPreCallable`. -/
+theorem evm_mod_callable_v1_spec_from_noNop_preserving_x1_noX9
+    (sp base raVal : Word)
+    (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop base)
+        (divModStackDispatchPreCallable sp a b
+          raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal))) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code_v1 base)
+      (divModStackDispatchPreCallable sp a b
+        raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) := by
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPostCallable sp a b)
+      (modStackDispatchPostCallable_pcFree sp a b) hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 /-- Legacy v1 zero-divisor MOD callable wrapper with exact `x1` and no `x9` frame. -/
 theorem evm_mod_callable_bzero_v1_preserving_x1_noX9_spec (sp base raVal : Word)

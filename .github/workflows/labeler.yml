@@ -1,0 +1,87 @@
+name: PR Labeler
+
+# Path + size auto-labeling for triage (steering Phase 4, R-B2 / D4).
+#   * Path labels: area:verified-core / area:codegen / area:docs, from
+#     .github/labeler.yml — separates the trust-core diff from the
+#     (deliberately unverified) codegen path so the maintainer can triage.
+#   * Size label: size/XS..XL, computed from the PR's per-file line counts
+#     EXCLUDING scripts/codegen-*.sh — a bulk ~500-script ziskemu regen is not
+#     a "large risky diff" and must not be mislabeled XL. The XL boundary
+#     (1000 lines) matches the risk-scorecard XL threshold in
+#     scripts/progress-delta.sh so the two signals agree.
+#
+# pull_request_target so the default GITHUB_TOKEN can write labels on PRs from
+# forks. This job reads PR *metadata* only (file paths + line counts via the
+# API / labeler globs) — it never checks out or executes PR head code, so the
+# usual pull_request_target code-execution risk does not apply.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write   # `gh label create` (repo-level labels) needs the Issues scope;
+                  # without it the first use of a new size/* label 403s and the
+                  # subsequent --add-label fails the step.
+
+jobs:
+  path-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply path labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true   # remove a label when its paths no longer match
+
+  size-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute size (excluding bulk codegen-*.sh) and label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Per-file additions+deletions from the API, dropping bulk ziskemu
+          # round-trip scripts so a script regen is not mislabeled XL. Mirrors
+          # the CHANGED_LINES exclusion in scripts/progress-delta.sh.
+          #
+          # NB: `gh api --paginate --jq` applies the jq filter PER PAGE, so a
+          # >100-file PR emits one number per page. Sum them in awk rather than
+          # feeding a multi-line string into bash arithmetic (which would error).
+          total="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" \
+            --jq '[.[] | select((.filename | test("^scripts/codegen-.*\\.sh$")) | not) | .changes] | add // 0' \
+            | awk '{ s += $1 } END { print s + 0 }')"
+          echo "Changed lines (excl. codegen-*.sh): ${total}"
+
+          # Buckets — XL boundary (1000) matches the scorecard risk threshold.
+          if   (( total <= 10 ));   then size="size/XS"
+          elif (( total <= 100 ));  then size="size/S"
+          elif (( total <= 300 ));  then size="size/M"
+          elif (( total <= 1000 )); then size="size/L"
+          else                           size="size/XL"
+          fi
+          echo "Size label: ${size}"
+
+          # Ensure the label exists (idempotent), then swap it in: drop any
+          # other size/* label this PR already carries, add the computed one.
+          gh label create "$size" --repo "$REPO" --color ededed \
+            --description "Auto: PR change size (excl. codegen-*.sh)" 2>/dev/null || true
+
+          existing="$(gh pr view "$PR" --repo "$REPO" --json labels \
+            --jq '.labels[].name | select(startswith("size/"))' || true)"
+          for l in $existing; do
+            if [[ "$l" != "$size" ]]; then
+              gh pr edit "$PR" --repo "$REPO" --remove-label "$l" || true
+            fi
+          done
+          gh pr edit "$PR" --repo "$REPO" --add-label "$size"

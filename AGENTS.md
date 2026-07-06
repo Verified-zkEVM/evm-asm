@@ -1,77 +1,129 @@
 # AI Agent Guide for EvmAsm
 
-This document provides guidance for AI agents working on the EvmAsm project.
+Guidance for AI agents working on the EvmAsm project. This page is the compact
+router: non-negotiable rules + where to find everything else. Deep material is
+in `docs/agents/` — load a deep page only when its trigger applies.
 
-## Project Overview
+## What this project is (and where it's going)
 
-EvmAsm is a verified macro assembler for RISC-V in Lean 4, inspired by "Coq: The world's best macro assembler?" (Kennedy et al., PPDP 2013). The project demonstrates using Lean 4 as both a macro language and verification framework for assembly code.
+EvmAsm is a **verified macro assembler for RISC-V in Lean 4** (in the lineage of
+"Coq: The world's best macro assembler?", Kennedy et al., PPDP 2013), applied to
+one goal: a **formally verified zkEVM stateless guest**. The guest
+(`stateless_guest`, run under the ZisK zkVM / `ziskemu`) validates an Ethereum
+execution payload against a witness; the north-star theorem is
+`run_stateless_guest_spec` (`EvmAsm/Stateless/EntrySpec.lean`) — the emitted
+guest's output is correct per the `SpecRef` port of
+`execution-specs`' `run_stateless_guest`.
+
+Two layers, with a CI-enforced boundary (`check-layering.sh`):
+
+- **The verified core** (`EvmAsm/` except `Codegen/`/`Tests/`/`Examples/`):
+  machine model, separation logic, proofs, the executable spec ports. The core
+  must NEVER import `Codegen`.
+- **`EvmAsm/Codegen/`**: the *unverified-but-emitted* guest (asm strings,
+  emission, region maps, probes) that the verification is progressively
+  replacing routine-by-routine. Verified ↔ emitted correspondence is tied by
+  byte-identity `_eq_prog` drift guards or full re-emit gates (EEST A/B) — see
+  `docs/agents/verified-replacement-strategy.md`.
+
+**The center of gravity is the `evm-asm-4ch8f` epic** ("replace every guest
+routine with a verified triple"). The per-opcode Evm64 track that built this
+substrate is largely complete (52 opcodes, kernel-checked registry in
+`EvmAsm/Progress.lean`); most new work is porting guest routines, in
+callee-first order, against the separation-logic state-assertion vocabulary.
+
+## Start here
+
+1. **What to work on**: the in-repo sources are `PLAN.md` (roadmap; see
+   `CLAUDE.md` for its maintenance protocol) and
+   `docs/agents/top-theorem-ledger.md` (what remains for the north star).
+   Work items are coordinated in an external issue tracker ("beads", ids like
+   `evm-asm-4ch8f.75.1`) that most agents do NOT have access to — treat bead
+   ids appearing in docs/PRs as opaque work-item references; if your session
+   does have the tracker, use it, otherwise your task assignment supersedes.
+2. Starting any 4ch8f bead → `docs/agents/roadmap-4ch8f.md` (layer DAG,
+   pick-next rules, recipe table).
+3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
+   `docs/agents/verified-replacement-strategy.md` (what to prove, spec shape,
+   what to do when a callee doesn't expose enough).
+4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
+5. Reviewing a PR → `docs/agents/review-playbook.md`.
 
 ## Build System
 
-- **Build tool**: Lake (Lean 4's build system)
-- **Toolchain**: Lean `leanprover/lean4:v4.30.0-rc1` (specified in `lean-toolchain`)
-- **Build command**: `lake build`
-- **Clean build**: `lake clean && lake build`
-
-### Important Lake Configuration Notes
-
-- The `lakefile.toml` uses Lake 5.0 format (root-level package fields, no `[package]` section)
-- `defaultTargets = ["EvmAsm"]` is required for `lake build` to work
-- The library name is `EvmAsm` and sources are in `EvmAsm/` directory
+- **Build tool**: Lake; **toolchain** pinned in `lean-toolchain`.
+- `lake build` (library `EvmAsm`, sources under `EvmAsm/`); heartbeat/recursion
+  limits are configured globally in `lakefile.toml` — never per-file.
 
 ## Project Structure
 
 ```
 EvmAsm/
-  Rv64/                -- RV64IM machine model + infrastructure
-    Basic.lean         -- Machine state: registers, memory, PC
-    Instructions.lean  -- RV64IM instruction semantics (incl. ECALL)
-    Program.lean       -- Programs as instruction lists, sequential composition
-    Execution.lean     -- Step execution, code memory, ECALL dispatch
-    SepLogic.lean      -- Separation logic assertions and combinators
-    CPSSpec.lean       -- CPS-style Hoare triples, branch specs, structural rules
-    GenericSpecs.lean  -- Generic instruction spec templates
-    InstructionSpecs.lean -- Concrete instruction specs
-    SyscallSpecs.lean  -- Spec database (@[spec_gen_rv64])
-    ControlFlow.lean   -- if_eq macro, symbolic proofs
-    ByteOps.lean       -- Byte-level: extractByte algebra, LBU/SB specs
-    Tactics/           -- Automation: xperm, runBlock, liftSpec, etc.
-  Evm64/               -- 256-bit EVM opcodes on RV64IM (4×64-bit limbs)
-    Basic.lean         -- EvmWord (BitVec 256), getLimb/fromLimbs
-    Stack.lean         -- evmWordIs, evmStackIs assertions
-    Add/, Sub/, ...    -- Individual opcode implementations (30+ files)
-  EL/                  -- Pure Ethereum Execution Layer specs
-    RLP/               -- RLP encoding/decoding (no RISC-V dependency)
-      Basic.lean       -- RLPItem type, encode
-      Decode.lean      -- decode with canonical enforcement
-      Properties.lean  -- Round-trip proofs (native_decide)
-EvmAsm.lean            -- Root module: imports Rv64, Evm64, EL
+  Rv64/                -- RV64IM machine model + proof infrastructure
+    Basic/Instructions/Program/Execution -- machine state, semantics, step fn
+    SepLogic.lean      -- Assertions, sepConj, pure embedding (assertPure)
+    CPSSpec.lean       -- cpsTripleWithin Hoare triples + structural rules
+    MemRegion.lean     -- bytesRegion byte-region primitive
+    ByteOps.lean       -- extractByte/packBytes algebra, LBU/SB specs
+    SAsm/              -- structured assembly: Fn/Stmt combinators (while,
+                       --   doWhile, whileBreak, call/callReg), vcgen,
+                       --   PhaseSplit (anyBytes/aliased-arena views)
+    Tactics/           -- xperm, runBlock, seqFrame, WP, extract_pure, ...
+  Evm64/               -- 256-bit EVM opcodes on RV64 (4×64-bit LE limbs)
+    Basic.lean, Stack.lean            -- EvmWord; evmWordIs/evmStackIs
+    StateAssertions.lean, StorageAssertions.lean, MptAssertions.lean,
+      WitnessAssertions.lean          -- the state-assertion vocabulary
+    Add/, MLoad/, ...                 -- per-opcode subtrees (proven specs)
+    EvmState.lean, InterpreterLoop*   -- executable interpreter models
+  EL/                  -- pure Ethereum EL specs (RLP, WorldState; no RISC-V)
+  Stateless/           -- the stateless-guest port: SpecRef/ (executable port
+                       --   of execution-specs), EntrySpec.lean (top theorem),
+                       --   SSZ/, Witness/, State/ (incl. AccountAssertions)
+  Codegen/             -- UNVERIFIED emitted guest: Programs/ (asm strings),
+                       --   Dispatch, RegionMap/CallFrameLayout/CallFramePhase,
+                       --   Proofs/ (handler specs, guest image), emitters
+  Progress.lean        -- kernel-checked opcode registry + witness abbrevs
+                       --   (check-axioms.sh audits every @-ref'd witness)
+EvmAsm.lean            -- root umbrella (see Common Pitfalls: new files must
+                       --   be reachable from here)
 ```
-
-## Key Lean 4 API Compatibility Notes
-
-When working with this codebase, be aware of these Lean 4 nightly API changes:
-
-1. **Logic lemmas**: Use lowercase names (`and_assoc`, `and_comm` instead of `And.assoc`, `And.comm`)
-2. **Doc comments**: Cannot place `/-- ... -/` doc comments immediately before `#eval` commands (use regular `--` comments)
-3. **Proof tactics**: `simp` may need explicit lemma lists or `rw` for manual rewriting
-4. **Namespace**: Most theorems are in `namespace MachineState`, so use full names like `MachineState.getReg_setPC`
 
 ## Verification Workflow
 
-When adding or modifying proofs:
+1. **Build first** (`lake build`) to see the current error state; iterate
+   incrementally (helper lemmas before the main theorem).
+2. If the lean-lsp MCP server is available, `lean_goal` /
+   `lean_diagnostic_messages` beat rebuild loops for inspecting proof states.
+3. **Test concretely** with `decide` before generalizing (NOT
+   `native_decide`/`bv_decide` — both forbidden and CI-gated; the kernel's
+   GMP-backed `Nat` makes `decide` fast even on concrete 256-bit `BitVec`
+   goals).
+4. When stuck, route by symptom: `docs/sasm-howto.md` §8 →
+   `docs/agents/proof-patterns.md` → `GRIND.md`.
 
-1. **Build first**: Always run `lake build` to see current errors
-2. **Use MCP tools**: The lean-lsp MCP server provides:
-   - `lean_goal`: Check proof state at a position
-   - `lean_diagnostic_messages`: Get compiler errors
-   - `lean_hover_info`: Get type information
-   - `lean_completions`: Get IDE completions
-   - `lean_local_search`: Search for declarations locally
-   - `lean_leansearch`: Natural language search in mathlib
-   - `lean_loogle`: Type-based search in mathlib
-3. **Test concretely**: Verify specific cases with `native_decide` before generalizing
-4. **Incremental development**: Prove helper lemmas before the main theorem
+### Proof-tier rubric (`EvmAsm/Progress.lean`)
+
+The kernel-checked progress registry classifies each opcode by a `ProofTier`.
+Pick the tier honestly — the registry distinguishes a *complete spec on a
+restricted domain* from *half-built work*, and conflating the two is exactly
+the statement-vacuity blind spot the dashboard exists to catch:
+
+| Tier | Meaning | Test to apply |
+|---|---|---|
+| `proven` | A complete top-level stack-level Hoare triple (`evm_<op>_stack_spec_within`) whose conclusion fully specifies the opcode's effect, with **no input-domain precondition**. | Is there a single triple covering *all* operand values? |
+| `conditional` | A **complete** top-level triple exists, but it is **gated by a nonvacuous input-domain precondition** that excludes a real region of inputs (e.g. DIV/MOD require `b.getLimbN 3 = 0`, so the full `n=4` divisor path is uncovered; SDIV carries an `hStack` hypothesis). Distinct from `proven` (no restriction) and from `partly` (no complete triple). | Does a complete triple exist, but only under a hypothesis restricting operand values? |
+| `partly` | **No** complete top-level triple yet — only an `EvmWord.<op>_correct` arithmetic lemma, a preamble/partial-effect spec, or a sub-component. | Is there real verification work but *no* full triple (not even a restricted one)? |
+| `execSpec` | Pure executable-spec / handler / bridge semantics only; no RV64 subroutine produces the EVM result. | — |
+| `notStarted` | Not represented in `EvmOpcode` yet (e.g. unimplemented EIPs). | — |
+
+Do **not** mark an opcode `conditional` when the restriction is a single
+degenerate point (e.g. ADDMOD's `b=0`-only triple, PUSH2..32's zero-slot-only
+triple) — those stay `partly` until a broader triple lands. A `conditional`
+entry should, where possible, also name a `…_precondition_reachable` cover
+lemma in its `coverRef` slot, proving the gating antecedent is *satisfiable* on
+representative real inputs (the anti-near-vacuity check). Per-opcode cycle
+bounds live in the typed `cycleBound` field (not free-text `notes`), so a
+silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ## Critical Rules
 
@@ -80,6 +132,8 @@ When adding or modifying proofs:
   - **snake_case** for *hypothesis* names — proof bindings introduced by `have h_… : Prop`, `obtain ⟨h_lt, h_eq⟩`, `intro h_pos`, etc. Mathlib keeps these snake_case (e.g. `h_pos`, `h_le`, `h_zero`, `h_eq`). Do **NOT** rename `h_*`-style hypothesis names to camelCase as part of #189 cleanup — that's the wrong direction. PR #1497 made this mistake.
   - When in doubt: if it names a `Prop`-typed term used in a proof, leave snake_case; if it names data (a `Nat`, `Word`, `BitVec`, etc.), use camelCase.
 
+- **Spec design — keep preconditions static; put outcomes in the postcondition.** A subroutine spec's Lean arguments and hypotheses (preconditions) must contain only information that is **statically known or available before the program runs** — base/pointers, lengths, the input bytes, alignment, memory-validity, and size bounds. Whether the run succeeds or fails, and the value it decodes/produces, must **not** appear in the precondition: no hypothesis that pre-decides which branch is taken (e.g. `content[0] ≠ 0`, `len > 32`, `success`), and no precondition phrased as "if the outcome is X then …". Instead, a **unified** spec states every outcome in the **postcondition as a disjunction** — one disjunct per outcome, each carrying its own guard (a static condition like `32 < len`), status code, and result/output assertion. Use a single static upper bound for the step count: `cpsTripleWithin` means "within N steps" (`∃ k ≤ nSteps`), so pick a bound covering all cases and lift each branch's exact count with `cpsTripleWithin_mono_nSteps`. This keeps the theorem easy to apply — a caller supplies only static facts and reads the case analysis back out. Per-outcome sub-specs (one Hoare triple per branch) are fine as building blocks, but the top-level unified theorem must follow this shape. (Example: `EvmAsm/Rv64/RLP/ContentToU256Be.lean`.)
+
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
 - **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
 - If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
@@ -87,29 +141,11 @@ When adding or modifying proofs:
   1. Splitting the proof into smaller named lemmas.
   2. Marking expensive intermediate definitions `@[irreducible]` and proving a small set of lemmas about them, so later proofs unfold via those lemmas instead of re-reducing the body each time.
   3. Breaking up large `have`s into separate lemmas so the core composition step has fewer atoms to permute.
-- **When DivMod postconditions explode under `xperm` or kernel `whnf`:** fold the postcondition before trying harder tactics. Put the final register/memory assertion spine behind a small `@[irreducible]` helper such as `...PostCore`, parameterized by the final values that the branch proof should expose. If the public post has a deep body let-chain, add a second folded helper such as `...PostFromBody` that takes already-computed intermediates; the public `...Post` should compute the lets and delegate to the helper. In branch bridge proofs, use `change` to refold the expanded target to the helper with local names, simplify only the relevant `if_pos`/`if_neg`, then unfold only the small core immediately before `xperm_hyp`. Split repeated bridge obligations into named lemmas for fresh heartbeat budgets. Use `lean_goal` at the failing line to confirm the target is folded; if it prints a huge `BitVec.toNat 32` or nested-let/nested-if term, fold first instead of running `xperm` on the expanded goal.
-- **When extracting framed pure facts in bridge posts:** inspect the shape with `lean_goal` before repeatedly applying `drop_pure` or `extract_pure`. Framed pures may remain behind an extra `sepConj` layer, so remove one layer at a time with small local rewrites (`rw [sepConj_assoc']`, `simp only [sepConj_pure_mid_left]`) and `obtain` the pure fact you need. Broad `simp` or blind repeated extraction can expand the folded post again or destruct useful `sepConj` structure.
-- **When `extract_pure`, `drop_pure`, or `xperm_pure` struggle on a folded framed post:** avoid broad pure-extraction tactics on the whole post if they expand the folded helper, trigger kernel `whnf`, leave `xperm` atom-count mismatches, or report an expected-type/free-variable error. First extract only the outer pure fact you need, then rewrite the specific remaining pure assertion to `empAssertion` with a local extensional proof and simplify the emp frame before calling `xperm_hyp`. Shape:
-
-  ```lean
-  extract_pure hp
-  obtain ⟨hp, h_pure⟩ := hp
-  rw [show (⌜P⌝ : Assertion) = empAssertion by
-    funext h
-    unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
-    apply propext
-    constructor
-    · intro h_p
-      exact h_p.1
-    · intro h_empty
-      exact ⟨h_empty, h_pure⟩] at hp
-  simp only [the relevant sepConj_emp lemma] at hp
-  xperm_hyp hp
-  ```
-
-  Keep `EvmAsm.Rv64.pure` qualified in the unfold so Lean does not choose an unrelated `pure`, and keep the target folded until the final local rewrite. Tracking issue: https://github.com/Verified-zkEVM/evm-asm/issues/7174.
-- **Exception for Shift composition files**: `set_option maxHeartbeats` up to 6400000 is acceptable for body/path composition proofs (Section 4+) which are bottlenecked by `xperm_hyp` permutation on large atom chains. Subsumption lemmas (Section 2) should NOT need heartbeat overrides — they use structural `unionAll` reasoning.
-
+- **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
+  posts, `extract_pure`/`drop_pure` struggles): fold posts behind
+  `@[irreducible]` helpers and extract pures one layer at a time — full
+  recipes moved to `docs/agents/proof-patterns.md`
+  §"Folded framed posts" (tracking issue #7174).
 - **All memory accesses must be aligned.** The verified RV64 operational semantics in `EvmAsm/Rv64/Basic.lean` defines `isValidDwordAccess = isValidMemAddr && isAligned8` and `isValidMemAccess = isValidMemAddr && isAligned4` — i.e. an `LD`/`SD` has no semantics unless its address is a multiple of 8, and `LW`/`LWU`/`SW` likewise need a multiple of 4. Per-width requirements:
 
   | Op            | Width | Required alignment |
@@ -141,43 +177,63 @@ When adding or modifying proofs:
 
 ## Testing
 
-All concrete examples should pass with no sorries:
-
-```bash
-lake build  # Should succeed with 0 errors and 0 sorries
-```
-
-The project includes concrete test cases using `native_decide`:
-- Multiply by constants: 0, 1, 3, 6, 10, 255
-- Swap macro correctness
-- Zero and triple macros
-- ECALL/halt termination examples
-- COMMIT-then-halt examples
+All examples and `#guard`s must pass with zero sorries/warnings: `lake build`.
 
 ### Codegen & ziskemu round-trips
 
-Verified `Program`s can be emitted to executable RV64 ELFs and run on
-`ziskemu` — see [`CODEGEN.md`](CODEGEN.md) for the roadmap. Three
-shell scripts under `scripts/` codify the per-milestone end-to-end
-regression:
+Verified `Program`s are emitted to RV64 ELFs and run on `ziskemu` — roadmap in
+[`CODEGEN.md`](CODEGEN.md). Per-milestone end-to-end regressions live in
+`scripts/codegen-*.sh` (toolchain smoke, `evm_add` from `.data` and from
+`ziskemu -i`); they need `riscv64-elf-binutils` + `ziskemu` on the host.
+`EvmAsm/Codegen/RoundTripTests.lean` (`#guard` per `Instr` constructor → GNU-as
+line) is the build-time gate for `emitInstr` drift. The conformance harness for
+guest changes is `scripts/codegen-eest-stateless-check.sh` (EEST A/B).
 
-- `scripts/codegen-smoke.sh` — synthetic `LI/ADD/halt` toolchain check.
-- `scripts/codegen-evm_add-check.sh` — verified 256-bit `evm_add` with
-  operands baked into `.data`.
-- `scripts/codegen-evm_add-from-input-check.sh` — same `evm_add`, but
-  operands loaded at runtime from `ziskemu -i <file>`.
+## Architecture fitness functions (`scripts/check-*.sh`)
 
-Each script builds via `lake exe codegen`, assembles via
-`riscv64-elf-as -march=rv64imac`, links with
-`-Ttext=0x80000000 -Tdata=0xa0000000`, runs `ziskemu`, and diffs the
-public output against the expected value. They require
-`riscv64-elf-binutils` and `ziskemu` on the host; use `--asm-only` on
-the codegen invocation to skip assembly/link/run.
+The `scripts/check-*.sh` suite **is** a set of *architecture fitness
+functions* in the Ford/Parsons sense (*Building Evolutionary Architectures*):
+each script is an automated, objective test of a structural property the
+kernel cannot see, run in CI so that drift fails the build instead of
+accumulating silently. The kernel proves each theorem; these gates protect
+the *shape* of the codebase around the proofs. When a prose convention starts
+to matter, the move is to **promote it to a check here** rather than restate it
+in docs an agent can ignore.
 
-`EvmAsm/Codegen/RoundTripTests.lean` houses ~60 `#guard` assertions
-covering every `Instr` constructor → GNU-as line; failures abort
-`lake build`. Treat this as the build-time correctness gate for
-`emitInstr` drift.
+Two tiers, by design (see `docs/agent-progress-steering-review.md` §6 — do not
+hard-gate noisy heuristics):
+
+**Blocking gates** (fail the build; wired in `.github/workflows/build.yml`):
+
+| Gate | Invariant enforced |
+|------|--------------------|
+| `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
+| `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
+| `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
+| `check-conformance-floor.sh` | conformance-vector count never silently drops |
+| `check-roundtrip-coverage.sh` | every `Instr` constructor has a round-trip `#guard` |
+| `check-file-size.sh` | per-file line caps (Evm64 1200/1500; Codegen/Programs 1500, mirroring the `FileSizeGuard.lean` `#eval` that a warm `.lake` cache otherwise skips) |
+| `check-unimported.sh` | zero-orphan module graph |
+| `check-no-warnings.sh` | clean build log |
+| **`check-heartbeats-approved.sh`** | EVERY mention of `heartbeats` (overrides *and* prose) in `.lean`/lakefiles is sanctioned in `scripts/approved-heartbeat-overrides.txt` at its exact value — a dumb substring scan (no lexer to bypass); a ceiling + audit log, never a license to inflate |
+| **`check-layering.sh`** | the verified core (core-by-default: all `EvmAsm/` except Codegen/Tests/Examples) never imports the unverified `Codegen` layer (L1), the progress registry (L2), or the Tests/Examples escape hatches (L3) |
+| **`check-opcode-structure.sh`** | `AddrNorm.lean`/`AddrNormAttr.lean` co-occur per opcode dir (Lean forbids `register_simp_attr` in its declaring file) |
+
+**Advisory gates** (CI output / review nudges; always exit 0 — promoted to
+blocking only after thresholds calibrate, never prematurely):
+
+| Gate | Signal surfaced |
+|------|-----------------|
+| `check-statement-tamper.sh` | weakened theorem statements / verifier-config edits (advisory in `build.yml`; blocks only with `--strict`, which CI does not pass) |
+| **`check-naming.sh`** | camelCase proof hypotheses newly added in a PR (prefer `h_snake_case`; the PR #1497 regression class) |
+| **`check-opcode-structure.sh`** (checklist part) | new *complex* opcode dirs missing template essentials (FullPath, `@[irreducible]` Post, `Offsets.lean`) |
+| **`churn-report.sh`** | top-churn files + short-lived churn (AI copy-paste sprawl) |
+| **`jscpd`** (`scripts/jscpd.json`) | duplication % reported weekly (advisory); `check-duplication.sh --gate` *would* fail on new sprawl past the calibrated budget once promoted, `codegen-*.sh` excluded (Rule of Three) |
+
+When you add a `.lean` file or a new convention, ask whether a fitness function
+should fence it — and whether it belongs in the blocking or advisory tier. Seed
+new advisory gates green on the current tree; a gate that red-lights day one is
+the false-positive friction the steering review warns against.
 
 ## Import Hygiene (`lake exe shake`)
 
@@ -216,46 +272,6 @@ Pitfalls:
   `fix(shr): address canonicalization in sign-fill path`). The PR summary bot
   flags titles that don't match this format.
 
-## Bead closure rules (`bd close`)
-
-The beads tracker is the source of truth for outstanding work. Closing a bead
-incorrectly hides unfinished obligations and bumping its priority later does
-nothing because the bead is no longer in the queue. Before running
-`bd close <id>`, satisfy **all** of the following:
-
-1. **The named deliverable must exist on `origin/main`.** If the bead title
-   says "prove `foo_spec_within`", "define `evm_foo`", or "lift X to Y", that
-   exact declaration has to be present on `origin/main` — not on a feature
-   branch, not in an unmerged stacked PR. Verify with:
-   `git fetch origin && git grep -n '<decl name>' origin/main -- '<expected path>'`.
-   If the grep is empty, **do not close the bead**.
-
-2. **A "related" PR merging is not the same as the deliverable shipping.** A
-   PR titled similarly, or that adds scaffolding, wrappers, or preparation
-   lemmas around the deliverable, does not satisfy the bead. If the named
-   theorem is still a `placeholder`, `sorry`, or absent, the bead stays open.
-
-3. **Stacked PRs into feature branches don't count.** A PR merged into
-   `feat/foo` instead of `main` has not landed. Wait for the bottom of the
-   stack to merge into `main`, then verify per (1) before closing the
-   dependent beads.
-
-4. **`close_reason` must be truthful.** `"shipped in PR #N"` is only valid
-   when PR #N's merge commit is an ancestor of `origin/main` *and* the named
-   deliverable is grep-visible there. Otherwise use
-   `"superseded by <bead-id>"` or `"duplicate of <bead-id>"`. Never close as
-   "shipped" against a PR that merged into a feature branch.
-
-5. **If you finished real work but the named theorem isn't done yet**,
-   prefer adding a `bd comment` with status, or filing a follow-up bead, or
-   updating the existing bead's description — instead of closing the wrong
-   thing.
-
-Recent violations to learn from: `evm-asm-01uh` (SDIV), `evm-asm-6snn` and
-`evm-asm-w5mk` (EXP) — all closed as "shipped in PR #…" while the named
-theorem was still a placeholder on `main` (and in the EXP cases the PR was
-merged into a feature branch, not `main`). All three had to be reopened.
-
 ## References
 
 - **Accelerator C ABI (source of truth)**:
@@ -293,70 +309,74 @@ merged into a feature branch, not `main`). All three had to be reopened.
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/roadmap-4ch8f.md`](docs/agents/roadmap-4ch8f.md) — the epic's master map:
+  layer DAG + pick-next rules, recipe-by-routine-shape table, the gate matrix (what CI runs
+  vs what you must run per change type), non-negotiable conventions, the family-bead
+  decomposition pattern, and the session-knowledge index ("where the bodies are buried").
+  **Load when:** starting ANY 4ch8f bead, or unsure what to pick up next.
+- [`docs/agents/review-playbook.md`](docs/agents/review-playbook.md) — how to review a PR
+  here: per-PR-type gate checklists (the ones CI does NOT run), the adversarial
+  statement-reading checklist, and the known-hole catalog (every entry was a real defect
+  caught in review). **Load when:** reviewing any PR.
+- [`docs/agents/port-playbook.md`](docs/agents/port-playbook.md) — THE entry point for
+  verifying one guest routine end-to-end: class decision table → exemplar → recipe →
+  acceptance (`scripts/port-check.sh`, `scripts/gen-port-kit.py` scaffolds).
+  **Load when:** working any `port: verify …` bead or any 4ch8f routine-family bead.
+- [`docs/agents/verified-replacement-strategy.md`](docs/agents/verified-replacement-strategy.md) —
+  the strategy layer above the port playbook: the drop-in principle (functional
+  drop-in, NOT byte equality — and the two byte-tie strategies with their gates),
+  how to formulate a routine's specification (vocabulary altitude, value-carrying
+  assertions, honest domains, outcome disjunctions), and the escalation ladder for
+  when a verified callee doesn't expose enough (bridging lemma → variant theorem →
+  reframe → strengthen → re-emit → STOP-and-file-bug).
+  **Load when:** replacing an unverified routine with a verified one, deciding what
+  a routine's spec should say, or blocked on a callee's spec shape.
+- [`docs/agents/top-theorem-ledger.md`](docs/agents/top-theorem-ledger.md) — the obligation
+  ledger decomposing `run_stateless_guest_spec` (statement: `EvmAsm/Stateless/EntrySpec.lean`)
+  into leaf work, with per-row status and exemplars.
+  **Load when:** deciding what stateless-guest proof work to pick up, or closing a port bead
+  (update the row).
 - [`docs/agents/tactics-deep.md`](docs/agents/tactics-deep.md) — Frame-automation tactics,
   separation-conjunction permutation (`xperm`), LP64 calling convention, three-level opcode
   proof architecture, Compose file splitting, file-size guardrail, benchmark-history branch.
   **Load when:** writing/restructuring `runBlock`/`seqFrame`/`xperm`/`xcancel`, designing a
   callable shim, working on a new opcode's three-level proof, or interpreting benchmark history.
+- [`docs/agents/wp-framework.md`](docs/agents/wp-framework.md) — Rv64 weakest-precondition
+  certificates, CFG composition, branch/join/loop patterns, and automation attributes.
+  **Load when:** composing Rv64 assembly proofs with `WP.CFG`, adding WP automation, using
+  generated control-flow descriptions, or proving top-level disjunctive decoder specs.
 - [`docs/agents/proof-patterns.md`](docs/agents/proof-patterns.md) — Bundling postconditions
   with `let` + `@[irreducible]`, adapter signatures with deep let-chains, `linarith` vs
   `omega`, pure-Nat sub-lemmas for `maxRecDepth` avoidance, end-to-end composition with
   existentials, `xperm` scaling, double-addback (`_da`) postcondition pattern.
   **Load when:** a specific proof symptom matches a section heading (use the index at the top
   of that file). Do not read top-to-bottom — these are deep recipes for narrow situations.
+- [`docs/agents/eest-static-layout.md`](docs/agents/eest-static-layout.md) — Lessons for
+  EEST stateless static memory layouts: derive capacities from execution-specs protocol/test
+  limits, handle BAL's gas-derived item budget, and reject layout-incompatible fixtures before
+  launching the guest.
+  **Load when:** changing `stateless_guest`, `block_state_root`, BAL replay, EEST manifest
+  conversion, or static `.data` arenas used by EEST codegen programs.
+- [`docs/agents/stateless-input-contract.md`](docs/agents/stateless-input-contract.md) —
+  Byte-level contract for keeping the zkVM stateless guest input content equivalent to
+  execution-specs `run_stateless_guest`, including the ziskemu length wrapper boundary and
+  rules for derived manifest fields.
+  **Load when:** changing `stateless_guest`, EEST fixture conversion, stateless input schema
+  offsets, block RLP-size validation, BAL/request/witness decoding, or any runtime data flow into
+  the guest.
 
 Companion files (already separate, unchanged):
 - [`TACTICS.md`](TACTICS.md) — user-facing tactic reference.
 - [`GRIND.md`](GRIND.md) — domain-specific grindset definitions.
-- [`PLAN.md`](PLAN.md) — roadmap.
-- [`docs/OPCODE_TEMPLATE.md`](docs/OPCODE_TEMPLATE.md) — new-opcode conventions (referenced below).
 
-## Roadmap (PLAN.md)
+## Conventions with their own pages
 
-The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
-maintenance protocol (when and how to update it).
-
-## Scratchpad Layout (#334)
-
-Routines that need `sp`-relative internal scratch cells (DivMod today, EXP /
-Multiply with internal scratch later) must take their scratchpad layout as a
-**parameter**, not bake offsets into the spec. Hardcoding offsets like
-`sp + signExtend12 4056` makes the routine impossible to compose from a
-non-trivial caller frame and forces every call site to use the same fixed
-placement.
-
-Convention (per `docs/scratchpad-layout-design.md`):
-
-- One `XxxScratchpadLayout` structure per routine, with named fields for
-  each scratch cell (e.g. `dividendNorm`, `divisorNorm`, `quotientHi`).
-- A companion `XxxScratchpadLayout.Valid (L : XxxScratchpadLayout) : Prop`
-  bundling per-cell validity (`isValidDwordAccess`) plus disjointness from
-  the caller frame and from each other.
-- A `canonicalXxxScratchpadLayout : XxxScratchpadLayout` matching today's
-  hardcoded offsets, and a `canonicalXxxScratchpadLayout_valid` instance.
-- Specs take `(L : XxxScratchpadLayout) (hL : L.Valid)` as parameters and
-  reference `L.fieldName` instead of `sp + signExtend12 N` literals.
-- The routine's existing fixed-offset spec stays as a thin shim that
-  instantiates the canonical layout, so existing call sites keep compiling.
-
-The naming convention is fixed: `EvmAsm/Evm64/<Routine>/Layout.lean`,
-`<Routine>ScratchpadLayout`, `.Valid`, `canonical<Routine>ScratchpadLayout`,
-`canonical<Routine>ScratchpadLayout_valid`. Slice 3 (`EvmAsm/Evm64/Multiply/Layout.lean`)
-is the canonical empty-layout pilot — copy its file shape when adding scratch
-to a new routine.
-
-When introducing a new opcode subtree that will carry internal scratch
-(EXP-class routines, future precompiles), define the layout struct from day
-one — even if it starts empty — to avoid the retrofit tax. See `docs/scratchpad-layout-design.md`
-for the full design and `docs/scratchpad-layout-survey.md` for the
-hardcoded-offset inventory that motivated the change.
-
-## New opcode conventions (OPCODE_TEMPLATE.md)
-
-Before starting a new opcode subtree (SDIV, SMOD, ADDMOD, MULMOD, EXP, …),
-read **[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md)**.
-It codifies the directory layout, unified-dispatch-first rule, named offset
-constants, address grindset, validity bundling, and review checklist
-distilled from the DivMod retrofit work. Landing a new opcode on this
-substrate from day one avoids the retrofit tax documented in issues
-#262 / #263 / #264 / #265 / #266 / #283 / #301 / #312.
+- **Roadmap**: `PLAN.md` (maintenance protocol in `CLAUDE.md`).
+- **New opcode subtrees** (rare now): read
+  [`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) first —
+  directory layout, unified-dispatch-first, named offsets, review checklist.
+- **Scratchpad layouts**: routines with `sp`-relative internal scratch take a
+  `<Routine>ScratchpadLayout` structure parameter (+ `.Valid`, canonical
+  instance) instead of hardcoded offsets — full convention in
+  [`docs/scratchpad-layout-design.md`](docs/scratchpad-layout-design.md);
+  pilot: `EvmAsm/Evm64/Multiply/Layout.lean`.

@@ -15,12 +15,13 @@
       `sg_kpr_valid`, `sg_kpr_bad_index`).
     * Shared K-PR scratch (`zk3_state`, `rfu_offset`,
       `rfu_length`) plus per-K-PR locals.
-    * SSZ sub-tree constants used by the
-      `compute_new_payload_request_root` computation at
-      `.Lsg_hash`: `npr_node_0_15`, `npr_node_16_17`,
-      `npr_versioned_hashes_root`, `npr_exec_requests_root`, and
-      legacy `npr_left_subtree` / `empty_npr_root` (currently
-      unreferenced but kept for context).
+    * Live SSZ sub-tree constants plus historical reference bytes for the
+      `compute_new_payload_request_root` computation at `.Lsg_hash`.
+      Current live roots are mostly derived into `npr_*_scratch` or
+      `npr_*_dyn` buffers from the SSZ input; legacy labels such as
+      `empty_npr_root`, `npr_left_subtree`, `npr_node_0_15`, and
+      `npr_node_16_17` are retained only as reference bytes unless a
+      later comment says a label is read by the epilogue.
     * Two scratch buffers `npr_sha_input` (64 bytes) and
       `npr_sha_subtree` (32 bytes) plus `npr_exec_payload_root`
       / `npr_left_subtree_scratch` (32 bytes each) for the
@@ -147,6 +148,14 @@ def statelessGuestDataSection : String :=
   "  .zero 8\n" ++
   "sg_kpr_bad_index:\n" ++
   "  .zero 8\n" ++
+  -- 9lw0m: parent_hash contiguity scratch (validate_parent_hash_link + loop verdict)
+  ".balign 8\n" ++
+  "sg_contig_valid:\n  .zero 8\n" ++
+  "vphl_offset:\n  .zero 8\n" ++
+  "vphl_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "vphl_claimed:\n  .zero 32\n" ++
+  "vphl_computed:\n  .zero 32\n" ++
   -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
   -- rlp_list_nth_item + rlp_field_to_u64). Now provided by the appended Step-2
   -- verdict data section (statelessGuestUnit.dataAsm), so NOT declared here to
@@ -217,12 +226,11 @@ def statelessGuestDataSection : String :=
   "  .zero 8\n" ++
   "cvcn_iter_prev:\n" ++
   "  .zero 8\n" ++
-  -- compute_new_payload_request_root(empty_input) -- the spec
-  -- hash for an empty `SszNewPayloadRequest`, independent of
-  -- chain_id. Was previously stamped at OUTPUT[0..32) by the
-  -- epilogue; now derived dynamically via the
-  -- exec_payload + NPR merkle computation in `.Lsg_hash`. Kept
-  -- here as a reference value for diff context.
+  -- compute_new_payload_request_root(empty_input) -- historical reference
+  -- bytes for the spec hash of an empty `SszNewPayloadRequest`,
+  -- independent of chain_id. The epilogue no longer stamps this
+  -- constant at OUTPUT[0..32); it recomputes the NPR root dynamically
+  -- from the live SSZ input in `.Lsg_hash`.
   -- (Verified against
   --  `execution-specs/.../stateless.compute_new_payload_request_root`
   --  on d7fe16ab8.)
@@ -233,26 +241,25 @@ def statelessGuestDataSection : String :=
   "  .byte 0xba, 0xdf, 0xfc, 0x45, 0x3d, 0xee, 0x6a, 0x58\n" ++
   "  .byte 0x2c, 0xa2, 0xa5, 0xc7, 0xcc, 0x51, 0x2f, 0x71\n" ++
   -- SSZ field roots / merkle sub-trees for the NPR computation
-  -- at `.Lsg_hash`. Under the currently-supported NPR class
-  -- (default execution_payload modulo slot_number; default
-  -- versioned_hashes; default execution_requests):
+  -- at `.Lsg_hash`. Several old whole-subtree constants remain below
+  -- as historical reference bytes, but the live epilogue now recomputes
+  -- the top-level NPR from `npr_exec_payload_root`,
+  -- `npr_versioned_hashes_dyn`, parent_beacon_block_root, and
+  -- `npr_exec_requests_dyn`.
   --
-  --   `npr_left_subtree` is sha256(field_root[execution_payload]
-  --     || field_root[versioned_hashes]) for the empty case --
-  --     LEGACY (was the precomputed left half before the
-  --     dynamic exec_payload merkle path landed). Kept as
-  --     unreferenced constant for context.
-  --   `npr_versioned_hashes_root` is field_root[versioned_hashes]
-  --     for the empty list; used as the right input to
-  --     `left_subtree = sha256(exec_payload_root || vh_root)`.
-  --   `npr_exec_requests_root` is field_root[execution_requests]
-  --     for the empty case; used as the right input to
-  --     `right_subtree = sha256(pbr || exec_requests_root)`.
-  --   `npr_node_0_15` is the merkle root over the 16 left
-  --     leaves of the default exec_payload Container (padded
-  --     to 32 leaves).
-  --   `npr_node_16_17` is sha256(leaf_16=ssz_zero_hash[0] ||
-  --     leaf_17=block_access_list_root_for_empty).
+  --   `npr_left_subtree` is legacy: it was the precomputed
+  --     sha256(field_root[execution_payload] || field_root[versioned_hashes])
+  --     for the empty case before the dynamic exec_payload and
+  --     versioned_hashes paths landed. The live epilogue writes
+  --     `npr_left_subtree_scratch` instead.
+  --   `npr_exec_requests_root` is legacy for the empty execution_requests
+  --     case; the live epilogue uses `npr_exec_requests_dyn`.
+  --   `npr_node_0_15` and `npr_node_16_17` are legacy default
+  --     exec_payload subtree roots; the live epilogue uses
+  --     `npr_node_0_15_scratch` and `npr_node_16_17_scratch`.
+  --   `npr_versioned_hashes_root` is retained as the empty-list
+  --     reference value; the live epilogue consumes
+  --     `npr_versioned_hashes_dyn`.
   ".balign 8\n" ++
   "npr_left_subtree:\n" ++
   "  .byte 0x50, 0x57, 0xc2, 0x29, 0xce, 0xf7, 0x0b, 0x3d\n" ++
@@ -265,6 +272,15 @@ def statelessGuestDataSection : String :=
   "  .byte 0x75, 0x6b, 0xe0, 0x43, 0xea, 0x69, 0x49, 0xe4\n" ++
   "  .byte 0x9a, 0x07, 0xe7, 0x56, 0xde, 0xef, 0x72, 0xb3\n" ++
   "  .byte 0x58, 0x8a, 0x4b, 0x05, 0x36, 0x22, 0x06, 0xb5\n" ++
+  ".balign 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: save area for the 105-byte SszStatelessValidationResult
+  -- (npr_root[0:32] + tail[33:105]) across the stateless_verdict_v2 call. The verdict's
+  -- contract dispatch lets real RETURN/REVERT handlers write OUTPUT_ADDR (0xa0010000),
+  -- clobbering the epilogue's already-computed result on revert blocks; the epilogue
+  -- saves OUTPUT here before the verdict and restores it after (the verdict reads its
+  -- results from env/rdg arrays, never its own OUTPUT, so discarding those writes is safe).
+  "npr_saved_output:\n" ++
+  "  .zero 112\n" ++
   ".balign 8\n" ++
   "npr_sha_input:\n" ++
   "  .zero 64\n" ++
@@ -407,21 +423,23 @@ def statelessGuestDataSection : String :=
   ".balign 8\n" ++
   "npr_node_2_3_scratch:\n" ++
   "  .zero 32\n" ++
-  -- `npr_node_10_11_scratch` holds dynamic
-  -- sha256(leaf_10=extra_data_default_root || leaf_11=base_fee_per_gas).
+  -- `npr_leaf_10_extra_data_scratch` holds dynamic
+  -- hash_tree_root(extra_data), and `npr_node_10_11_scratch` holds
+  -- dynamic sha256(leaf_10=extra_data_root || leaf_11=base_fee_per_gas).
   -- Replaces the previously-static `npr_node_10_11` constant when
-  -- combined with node_8_9 to form node_8_11. Opens up leaf_11
-  -- (base_fee_per_gas) for non-default values; leaf_10
-  -- (extra_data) still uses its empty-list default root
-  -- (= ssz_zero_hash[1]) loaded from the existing
-  -- ssz_zero_hashes table.
+  -- combined with node_8_9 to form node_8_11. Opens up leaf_10
+  -- (extra_data) and leaf_11 (base_fee_per_gas) for non-default values.
+  ".balign 8\n" ++
+  "npr_leaf_10_extra_data_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "npr_node_10_11_scratch:\n" ++
   "  .zero 32\n" ++
   -- Constants for the dynamic node_12_15 path supporting
   -- leaf_12 = block_hash:
-  --   `npr_leaf_13_transactions_root` = SSZ hash_tree_root of
-  --     the default empty `transactions` list.
+  --   `npr_leaf_13_transactions_root` is the historical SSZ hash_tree_root
+  --     of the default empty `transactions` list; the live path reads
+  --     `npr_dynamic_tx_root`.
   --   `npr_node_14_15` = sha256(leaf_14=withdrawals_default_root
   --     || leaf_15=blob_gas_used_default=zero). Stays static
   --     until leaf 14 or 15 is opened up in a follow-up PR.
@@ -441,6 +459,9 @@ def statelessGuestDataSection : String :=
   "  .byte 0x92, 0xe5, 0x53, 0xe3, 0x5e, 0xcb, 0x4a, 0x33\n" ++
   "  .byte 0x7a, 0x1b, 0x1c, 0x0e, 0x4a, 0xfe, 0x1e, 0x0e\n" ++
   ".balign 8\n" ++
+  "npr_saved_mtvec:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
   "npr_node_12_13_scratch:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
@@ -448,8 +469,9 @@ def statelessGuestDataSection : String :=
   "  .zero 32\n" ++
   -- New constant + scratch for the dynamic node_14_15 path
   -- supporting leaf_15 = blob_gas_used:
-  --   `npr_leaf_14_withdrawals_root` = SSZ hash_tree_root of
-  --     the default empty `withdrawals` list.
+  --   `npr_leaf_14_withdrawals_root` is the historical SSZ hash_tree_root
+  --     of the default empty `withdrawals` list; the live path reads
+  --     `npr_dynamic_wd_root`.
   --   `npr_node_14_15_scratch` holds dynamic
   --     sha256(npr_leaf_14_withdrawals_root || blob_gas_used).
   -- The prior static `npr_node_14_15` constant becomes
@@ -482,11 +504,10 @@ def statelessGuestDataSection : String :=
   "npr_logs_bloom_node_2_3_scratch:\n" ++
   "  .zero 32\n" ++
   -- ===== .sszscratch: large NOBITS SSZ-merkleization work region =====
-  -- Relocated here (out of .data, which is pinned just below OUTPUT at
-  -- 0xa0010000) and enlarged so hash_tree_root of a large element fits:
+  -- Relocated here (out of .data) and enlarged so hash_tree_root of a large element fits:
   -- the largest EEST transaction element is ~1 MiB and block_access_list
-  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xa2000000 by the linker's
-  -- --section-start=.sszscratch=0xa2000000 (see Driver.lean). @nobits =>
+  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xbf500000 by the linker's
+  -- --section-start=.sszscratch=0xbf500000 (see Driver.lean). @nobits =>
   -- the multi-MiB reservation never lands in the ELF file. Inside the
   -- verified RAM zone (0xa0000000..0xc0000000), so isValidMemAddr already
   -- accepts it. Same labels as before => every `la <buf>` resolves here.

@@ -24,7 +24,7 @@ theorem fullDivN2_preloop_loop_unified_exact_x1_scratch_v5_noNop_selectedCarry
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
-    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In x2In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
@@ -310,8 +310,8 @@ theorem fullDivN2_preloop_loop_unified_exact_x1_scratch_v5_noNop_selectedCarry
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 702) base (base + denormOff)
       (divCode_noNop_v5 base)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ x2In) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -352,7 +352,7 @@ theorem fullDivN2_preloop_loop_unified_exact_x1_scratch_v5_noNop_selectedCarry
   have hPre := evm_div_n2_to_loopSetup_spec_within_v5_noNop_exact_x1_scratch_frame
     sp base a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In x2In
     hbnz hb3z hb2z hb1nz hshift_nz
   have hLoop := evm_div_n2_loop_unified_inst_noNop_exact_x1_v5_selectedCarry
     bltu_2 bltu_1 bltu_0 sp base

@@ -11,8 +11,8 @@
   concatenated in big-endian order (b7 in the high 8 bits, b0 in the
   low 8 bits).
 
-  This file exposes that identity as `bytePack8_eq`, decided by
-  `bv_decide`. Standalone — no dependence on machine state, separation
+  This file exposes that identity as `bytePack8_eq`, proved kernel-checkably
+  via per-bit `getLsbD` reasoning. Standalone — no dependence on machine state, separation
   logic, or the Program. Consumed by sub-slice 3d
   (`mload_one_limb_spec_within`) when bridging the runtime
   shift-OR accumulator to the static 64-bit value asserted by the
@@ -21,7 +21,6 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 import EvmAsm.Rv64.Basic
-import Std.Tactic.BVDecide
 
 namespace EvmAsm.Evm64.MLoad
 
@@ -47,7 +46,115 @@ theorem bytePack8_eq (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) :
         <<< (8 : Nat)) ||| b1.zeroExtend 64)
         <<< (8 : Nat)) ||| b0.zeroExtend 64)
       = b7 ++ b6 ++ b5 ++ b4 ++ b3 ++ b2 ++ b1 ++ b0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth,
+    BitVec.getLsbD_append]
+  rcases (by omega : i < 8 ∨ (8 ≤ i ∧ i < 16) ∨ (16 ≤ i ∧ i < 24) ∨
+      (24 ≤ i ∧ i < 32) ∨ (32 ≤ i ∧ i < 40) ∨ (40 ≤ i ∧ i < 48) ∨
+      (48 ≤ i ∧ i < 56) ∨ 56 ≤ i) with
+    h | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | h1
+  · -- i ∈ [0, 8): both sides = b0.getLsbD i
+    simp only [show i < 64 from by omega, show i < 8 from h,
+      decide_true, Bool.not_true,
+      Bool.true_and, Bool.false_and, Bool.and_false,
+      Bool.false_or, if_true]
+  · -- i ∈ [8, 16): both sides = b1.getLsbD (i - 8)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show i - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i)]
+  · -- i ∈ [16, 24): both sides = b2.getLsbD (i - 16)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show i - 8 - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8)]
+  · -- i ∈ [24, 32): both sides = b3.getLsbD (i - 24)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 < 64 from by omega, show i - 8 - 8 - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
+      BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8)]
+  · -- i ∈ [32, 40): both sides = b4.getLsbD (i - 32)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 < 64 from by omega, show i - 8 - 8 - 8 - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
+      BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
+      BitVec.getLsbD_of_ge b3 (i - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8)]
+  · -- i ∈ [40, 48): both sides = b5.getLsbD (i - 40)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 < 64 from by omega, show i - 8 - 8 - 8 - 8 - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
+      BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
+      BitVec.getLsbD_of_ge b3 (i - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b4 (i - 8 - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8 - 8)]
+  · -- i ∈ [48, 56): both sides = b6.getLsbD (i - 48)
+    simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
+      show ¬(i - 8 - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 - 8 < 8 from by omega,
+      decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, Bool.false_or, if_true, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
+      BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
+      BitVec.getLsbD_of_ge b3 (i - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b4 (i - 8 - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b5 (i - 8 - 8 - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8 - 8 - 8)]
+  · -- i ∈ [56, 64): both sides = b7.getLsbD (i - 56)
+    simp only [show i < 64 from hi, show ¬(i < 8) from by omega,
+      show i - 8 < 64 from by omega, show ¬(i - 8 < 8) from by omega,
+      show i - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 < 64 from by omega, show ¬(i - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
+      show ¬(i - 8 - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
+      show ¬(i - 8 - 8 - 8 - 8 - 8 - 8 < 8) from by omega,
+      show i - 8 - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
+      decide_true, decide_false, Bool.not_false,
+      Bool.true_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, if_false,
+      BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
+      BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
+      BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
+      BitVec.getLsbD_of_ge b3 (i - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b4 (i - 8 - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b5 (i - 8 - 8 - 8 - 8 - 8) (by omega : 8 ≤ i - 8 - 8 - 8 - 8 - 8),
+      BitVec.getLsbD_of_ge b6 (i - 8 - 8 - 8 - 8 - 8 - 8)
+        (by omega : 8 ≤ i - 8 - 8 - 8 - 8 - 8 - 8)]
 
 /--
   Variant of `bytePack8_eq` that explicitly threads the initial
@@ -67,6 +174,13 @@ theorem bytePack8_eq_zero_seed (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) :
         <<< (8 : Nat)) ||| b1.zeroExtend 64)
         <<< (8 : Nat)) ||| b0.zeroExtend 64)
       = b7 ++ b6 ++ b5 ++ b4 ++ b3 ++ b2 ++ b1 ++ b0 := by
-  bv_decide
+  have seed : ((0 : Word) <<< (8 : Nat)) ||| b7.zeroExtend 64 = b7.zeroExtend 64 := by
+    have : (0 : Word) <<< (8 : Nat) = 0 := by
+      apply BitVec.eq_of_getLsbD_eq
+      intro i hi
+      simp [BitVec.getLsbD_zero]
+    simp
+  rw [seed]
+  exact bytePack8_eq b0 b1 b2 b3 b4 b5 b6 b7
 
 end EvmAsm.Evm64.MLoad

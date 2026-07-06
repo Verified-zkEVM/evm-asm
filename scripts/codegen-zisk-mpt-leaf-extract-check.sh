@@ -38,7 +38,7 @@ run_case() {
 
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys, rlp
-from ethereum.forks.amsterdam.trie import nibble_list_to_compact
+from ethereum.merkle_patricia_trie import nibble_list_to_compact
 kind = '$kind'
 nibs_csv = '$nibbles_csv'
 nibs = [int(n) for n in nibs_csv.split(',') if n.strip()] if nibs_csv else []

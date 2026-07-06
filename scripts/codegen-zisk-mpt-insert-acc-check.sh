@@ -33,7 +33,7 @@ lake exe codegen --program zisk_mpt_insert_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in mi_branch_empty mi_empty_trie mi_ext_then_branch \
+for name in mi_branch_empty mi_empty_trie mi_ext_then_branch mi_ext_split \
             mi_leaf_split mi_leaf_split_m0; do
   out="$VDIR/$name.miacc.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_insert_acc.elf" \

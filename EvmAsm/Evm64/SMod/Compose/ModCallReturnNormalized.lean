@@ -56,7 +56,7 @@ theorem saveRaAbsThenModCall_then_return_named_post_normalized_from_noNop_spec_i
         EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) =
         (vRa &&& ~~~(1 : Word)) := by
     rw [EvmAsm.Rv64.signExtend12_0]
-    bv_decide
+    simp [BitVec.add_zero]
   rw [← hExit]
   exact saveRaAbsThenModCall_then_return_named_post_from_noNop_spec_in_smodCodeV4
     vRa sp base

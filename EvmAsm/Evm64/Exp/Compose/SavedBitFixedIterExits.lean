@@ -26,6 +26,7 @@ abbrev expTwoMulFixedIterMergedLoopPost
     (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)
   let skipCondFrame : Assertion :=
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+    (.x20 ↦ᵣ c6New) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
   let skipRest : Assertion :=
@@ -37,6 +38,7 @@ abbrev expTwoMulFixedIterMergedLoopPost
     memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
     (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+    (.x20 ↦ᵣ c6New) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
   let skipCondRest : Assertion :=
@@ -53,6 +55,7 @@ abbrev expTwoMulFixedIterMergedLoopPost
     (.x1 ↦ᵣ (((base + 44) + 140) + 68))
   let reloadCondFrame : Assertion :=
     (.x19 ↦ᵣ nextLimb) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New = 0⌝ **
     (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -67,6 +70,7 @@ abbrev expTwoMulFixedIterMergedLoopPost
     memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
     (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
     (.x19 ↦ᵣ nextLimb) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New = 0⌝ **
     (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -104,6 +108,7 @@ abbrev expTwoMulFixedIterMergedExitPost
     (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)
   let skipCondFrame : Assertion :=
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+    (.x20 ↦ᵣ c6New) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
   let skipRest : Assertion :=
@@ -115,6 +120,7 @@ abbrev expTwoMulFixedIterMergedExitPost
     memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
     (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+    (.x20 ↦ᵣ c6New) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
   let skipCondRest : Assertion :=
@@ -131,6 +137,7 @@ abbrev expTwoMulFixedIterMergedExitPost
     (.x1 ↦ᵣ (((base + 44) + 140) + 68))
   let reloadCondFrame : Assertion :=
     (.x19 ↦ᵣ nextLimb) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New = 0⌝ **
     (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -145,6 +152,7 @@ abbrev expTwoMulFixedIterMergedExitPost
     memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
     (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
     (.x19 ↦ᵣ nextLimb) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
     (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
     ⌜c6New = 0⌝ **
     (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -1091,6 +1099,79 @@ theorem exp_msb_bit_test_fixed_full_iter_merged_named_branch_bounded_evmExpMsbSa
         r0 r1 r2 r3 a0 a1 a2 a3 base) :=
   cpsBranchWithin_mono_nSteps hBound
     (exp_msb_bit_test_fixed_full_iter_merged_named_branch_closed_bound_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+      e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 base hbase)
+
+
+/-- Body-only-code-req twins of the named-exits / closed-bound / bounded merged-iter specs (path A, bug fjivz). -/
+theorem exp_msb_bit_test_fixed_full_iter_merged_named_exits_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsNBranchWithin
+      expTwoMulFixedReloadIterStepBound
+      (base + 44)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11)
+      (expTwoMulFixedIterMergedExits e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) := by
+  simpa [expTwoMulFixedIterMergedExits, expTwoMulFixedIterMergedLoopPost,
+    expTwoMulFixedIterMergedExitPost]
+    using
+      exp_msb_bit_test_fixed_full_iter_merged_exit_nbranch_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+        e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+        r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11 base hbase
+
+/-- Closed-form bound variant of the named-exit-list fixed x19 merged
+    full-iteration spec. -/
+theorem exp_msb_bit_test_fixed_full_iter_merged_named_exits_closed_bound_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsNBranchWithin
+      193
+      (base + 44)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11)
+      (expTwoMulFixedIterMergedExits e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) := by
+  rw [← expTwoMulFixedReloadIterStepBound_eq]
+  exact
+    exp_msb_bit_test_fixed_full_iter_merged_named_exits_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+      e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 base hbase
+
+/-- Bounded variant of the named-exit-list fixed x19 merged full-iteration
+    spec. -/
+theorem exp_msb_bit_test_fixed_full_iter_merged_named_exits_bounded_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    {nBound : Nat} (hBound : 193 ≤ nBound) :
+    cpsNBranchWithin
+      nBound
+      (base + 44)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11)
+      (expTwoMulFixedIterMergedExits e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) :=
+  cpsNBranchWithin_mono_nSteps hBound
+    (exp_msb_bit_test_fixed_full_iter_merged_named_exits_closed_bound_expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
       e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
       v7 v11 base hbase)

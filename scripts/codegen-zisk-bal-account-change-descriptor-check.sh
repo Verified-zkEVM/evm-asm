@@ -12,12 +12,16 @@ if [[ -z "$ZISKEMU" ]]; then
 fi
 
 VDIR="$REPO_ROOT/gen-out/mpt-set"
+STEPS="${BAACD_STEPS:-${ZISK_STEPS:-20000000}}"
 echo "==> generate BAL account descriptor vectors"
 uv run --directory execution-specs --quiet python3 - "$VDIR" <<'PYGEN'
 import os
 import struct
 import sys
 from ethereum.crypto.hash import keccak256
+from ethereum.merkle_patricia_trie import Trie, root, trie_set
+from ethereum_types.bytes import Bytes32
+from ethereum_types.numeric import U256
 
 outdir = sys.argv[1]
 os.makedirs(outdir, exist_ok=True)
@@ -53,20 +57,38 @@ def rlp_int(n: int) -> bytes:
     return rlp_bytes(minimal_be(n))
 
 
-def account_rlp(nonce: int, balance: int) -> bytes:
-    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(EMPTY_ROOT), rlp_bytes(EMPTY_CODE_HASH)])
+def account_rlp(
+    nonce: int,
+    balance: int,
+    storage_root: bytes = EMPTY_ROOT,
+    code_hash: bytes = EMPTY_CODE_HASH,
+) -> bytes:
+    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(code_hash)])
+
+
+def storage_root(slots: dict[int, int]) -> bytes:
+    trie = Trie(secured=True, default=U256(0))
+    for slot, value in slots.items():
+        trie_set(trie, Bytes32(slot.to_bytes(32, "big")), U256(value))
+    return bytes(root(trie))
 
 
 def change_pair(index: int, value: bytes) -> bytes:
     return rlp_list([rlp_int(index), value])
 
 
-def bal_account_change_rlp(address: bytes, balance_changes=None, nonce_changes=None):
+def storage_change(slot: int, changes) -> bytes:
+    return rlp_list([rlp_int(slot), rlp_list([change_pair(i, rlp_int(v)) for i, v in changes])])
+
+
+def bal_account_change_rlp(address: bytes, storage_changes=None, balance_changes=None, nonce_changes=None):
+    storage_changes = storage_changes or []
     balance_changes = balance_changes or []
     nonce_changes = nonce_changes or []
+    sc = [storage_change(slot, changes) for slot, changes in storage_changes]
     bc = [change_pair(i, rlp_int(v)) for i, v in balance_changes]
     nc = [change_pair(i, rlp_int(v)) for i, v in nonce_changes]
-    return rlp_list([rlp_bytes(address), rlp_list([]), rlp_list([]),
+    return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
                      rlp_list(bc), rlp_list(nc), rlp_list([])])
 
 
@@ -90,24 +112,31 @@ def build_input(account: bytes, account_change: bytes, is_insert: int) -> bytes:
 
 
 base = account_rlp(1, 5)
+nonempty_storage = account_rlp(1, 5, storage_root({1: 7}))
 cases = [
     ("baacd_modify", bytes.fromhex("c0f6dc9e5836f54caadbf59cc69346c508e1992b"), base,
-     dict(balance_changes=[(1, 10 ** 10)]), account_rlp(1, 10 ** 10), 0),
+     dict(balance_changes=[(1, 10 ** 10)]), account_rlp(1, 10 ** 10), 0, 0),
     ("baacd_insert", bytes.fromhex("0000000000000000000000000000000000000002"), base,
-     dict(balance_changes=[(1, 9)], nonce_changes=[(1, 7)]), account_rlp(7, 9), 1),
+     dict(balance_changes=[(1, 9)], nonce_changes=[(1, 7)]), account_rlp(7, 9), 1, 1),
+    # Legacy caller flag 4 is now only normalized to MODIFY. It must not clear
+    # the account's pre-existing storage root when storage_changes are absent.
+    ("baacd_flag4_preserve_storage", bytes.fromhex("cccccccccccccccccccccccccccccccccccccccc"), nonempty_storage,
+     dict(balance_changes=[(4, 6)]), account_rlp(1, 6, storage_root({1: 7})), 4, 0),
 ]
 
-for name, addr, account, kwargs, expected_value, is_insert in cases:
-    account_change = bal_account_change_rlp(addr, **kwargs)
-    with open(f"{outdir}/{name}.input", "wb") as f:
-        f.write(build_input(account, account_change, is_insert))
-    with open(f"{outdir}/{name}.path", "w") as f:
-        f.write(account_path(addr).hex())
-    with open(f"{outdir}/{name}.value", "w") as f:
-        f.write(expected_value.hex())
-    with open(f"{outdir}/{name}.flag", "w") as f:
-        f.write(str(is_insert))
-    print(f"{name:14} path={account_path(addr).hex()[:16]}.. value_len={len(expected_value)} is_insert={is_insert}")
+with open(f"{outdir}/baacd_cases.txt", "w") as case_file:
+    for name, addr, account, kwargs, expected_value, input_flag, expected_flag in cases:
+        account_change = bal_account_change_rlp(addr, **kwargs)
+        with open(f"{outdir}/{name}.input", "wb") as f:
+            f.write(build_input(account, account_change, input_flag))
+        with open(f"{outdir}/{name}.path", "w") as f:
+            f.write(account_path(addr).hex())
+        with open(f"{outdir}/{name}.value", "w") as f:
+            f.write(expected_value.hex())
+        with open(f"{outdir}/{name}.flag", "w") as f:
+            f.write(str(expected_flag))
+        case_file.write(f"{name}\n")
+        print(f"{name:20} path={account_path(addr).hex()[:16]}.. value_len={len(expected_value)} input_flag={input_flag} expected_flag={expected_flag}")
 PYGEN
 
 echo "==> lake build codegen"
@@ -118,10 +147,11 @@ lake exe codegen --program zisk_bal_account_change_descriptor --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_change_descriptor"
 
 fail=0
-for name in baacd_modify baacd_insert; do
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_change_descriptor.elf" \
-    -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
+    -i "$VDIR/$name.input" -o "$out" -n "$STEPS" >/dev/null 2>&1 </dev/null \
     || { echo "  ERROR  $name"; fail=1; continue; }
   status="$(od -An -tu8 -j 0 -N 8 "$out" | tr -d ' \n')"
   path_ptr="$(od -An -tu8 -j 8 -N 8 "$out" | tr -d ' \n')"
@@ -144,6 +174,6 @@ for name in baacd_modify baacd_insert; do
     echo "    actual   path=$actual_path value=$actual_value"
     fail=1
   fi
-done
+done < "$VDIR/baacd_cases.txt"
 [[ "$fail" -eq 0 ]] && echo "==> PASS: bal_account_change_descriptor matches reference" \
   || { echo "==> FAIL"; exit 1; }

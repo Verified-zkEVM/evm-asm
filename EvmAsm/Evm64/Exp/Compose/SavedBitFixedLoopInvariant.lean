@@ -48,7 +48,8 @@ theorem expTwoMulFixedAccumulatorTarget_zero
 
 theorem expResultWord_one_zero_zero_zero :
     expResultWord 1 0 0 0 = (1 : EvmWord) := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  decide
 
 /-- The next exponent bit consumed by iteration `k`, as a Bool.
 

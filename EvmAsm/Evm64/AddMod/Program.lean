@@ -27,6 +27,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.EvmWordArith.AddMod
 
 namespace EvmAsm.Evm64
 
@@ -214,6 +215,174 @@ theorem evm_addmod_phase2_reduce_byte_length (modOff : BitVec 21) :
     4 * (evm_addmod_phase2_reduce modOff).length = 4 := by
   rw [evm_addmod_phase2_reduce_length]
 
+-- ============================================================================
+-- pow256ModN runtime helper blocks
+-- ============================================================================
+
+/-- Dividend scratch base for the `2^256 mod N` helper.
+
+    After `evm_addmod_prologue`, `x12 = sp + 32`, the truncated sum `r` is at
+    `x12 + 0..24`, and the modulus `N` is at `x12 + 32..56`. The helper uses
+    a temporary callable-MOD work window after these live cells:
+
+      * `x12 + 64..88`: callable MOD dividend
+      * `x12 + 96..120`: callable MOD divisor, then callable MOD remainder
+
+    Entering `evm_mod_callable` with `x12 = x12 + 64` returns with `x12` at
+    the divisor/remainder base (`old x12 + 96`), so the caller restores the
+    ADDMOD frame pointer with `ADDI x12, x12, -96` (immediate 4000). -/
+def addmodPow256WorkDividendBase : BitVec 12 := 64
+
+/-- Divisor/result scratch base for the `2^256 mod N` helper. -/
+def addmodPow256WorkModulusBase : BitVec 12 := 96
+
+/-- Prepare the first MOD call for `(-1) mod N`.
+
+    The algebraic identity used by the total ADDMOD runtime is
+    `2^256 mod N = (((2^256 - 1) mod N) + 1) mod N` for `N != 0`.
+    This block materializes the four-limb all-ones dividend at
+    `x12 + 64..88` and copies the live modulus from `x12 + 32..56` to the
+    callable divisor slots at `x12 + 96..120`.
+
+    It does not move `x12`; the call wrapper does that.
+
+    13 instructions. -/
+def evm_addmod_pow256_prepare_minus_one_mod_args : Program :=
+  ADDI .x5 .x0 4095 ;;
+  SD .x12 .x5 64 ;;
+  SD .x12 .x5 72 ;;
+  SD .x12 .x5 80 ;;
+  SD .x12 .x5 88 ;;
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 96 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 104 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 112 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 120
+
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_length :
+    evm_addmod_pow256_prepare_minus_one_mod_args.length = 13 := by decide
+
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_byte_length :
+    4 * evm_addmod_pow256_prepare_minus_one_mod_args.length = 52 := by
+  rw [evm_addmod_pow256_prepare_minus_one_mod_args_length]
+
+/-- Call `evm_mod_callable` on the pow256 helper work window.
+
+    Precondition: dividend at `x12 + 64..88`, divisor at `x12 + 96..120`.
+    The block shifts `x12` to the dividend, performs the near call, then
+    restores `x12` to the ADDMOD frame. The remainder is left at
+    `x12 + 96..120`.
+
+    3 instructions. -/
+def evm_addmod_pow256_call_mod (modOff : BitVec 21) : Program :=
+  ADDI .x12 .x12 64 ;;
+  JAL .x1 modOff ;;
+  ADDI .x12 .x12 4000
+
+theorem evm_addmod_pow256_call_mod_length (modOff : BitVec 21) :
+    (evm_addmod_pow256_call_mod modOff).length = 3 := by
+  show (((ADDI .x12 .x12 64 ;; JAL .x1 modOff) ;;
+          ADDI .x12 .x12 4000) : Program).length = 3
+  simp only [seq, Program.length_append]
+  rfl
+
+theorem evm_addmod_pow256_call_mod_byte_length (modOff : BitVec 21) :
+    4 * (evm_addmod_pow256_call_mod modOff).length = 12 := by
+  rw [evm_addmod_pow256_call_mod_length]
+
+/-- Prepare the second MOD call for `(((-1 mod N) + 1) mod N)`.
+
+    Entry: the first MOD remainder `(-1 mod N)` is at `x12 + 96..120`, and
+    the original modulus is still at `x12 + 32..56`. This block adds one to
+    the four-limb remainder, propagating carry across all limbs, writes the
+    result into the callable dividend slots `x12 + 64..88`, and refreshes the
+    callable divisor slots with `N`.
+
+    The add-one carry detection is total for all inputs: limb 0 uses
+    `SLTIU x7, x6, 1`, which is true exactly when `x5 + 1` wrapped to zero;
+    higher limbs use `SLTU x7, x6, x7`, which propagates a one-bit carry and
+    yields zero when the incoming carry was zero.
+
+    24 instructions. -/
+def evm_addmod_pow256_prepare_plus_one_mod_args : Program :=
+  LD .x5 .x12 96 ;;
+  ADDI .x6 .x5 1 ;;
+  SLTIU .x7 .x6 1 ;;
+  SD .x12 .x6 64 ;;
+  LD .x5 .x12 104 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 72 ;;
+  LD .x5 .x12 112 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 80 ;;
+  LD .x5 .x12 120 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 88 ;;
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 96 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 104 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 112 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 120
+
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_length :
+    evm_addmod_pow256_prepare_plus_one_mod_args.length = 24 := by decide
+
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_byte_length :
+    4 * evm_addmod_pow256_prepare_plus_one_mod_args.length = 96 := by
+  rw [evm_addmod_pow256_prepare_plus_one_mod_args_length]
+
+/-- Materialize `2^256 mod N` in the pow256 helper result slots.
+
+    For the nonzero-`N` path, this helper computes the runtime value used by
+    total ADDMOD's carry contribution:
+
+      1. `(-1) mod N`
+      2. `(((-1 mod N) + 1) mod N) = 2^256 mod N`
+
+    Exit: `x12` is restored to the ADDMOD frame, and `x12 + 96..120` contains
+    `EvmWord.pow256ModN N` for `N != 0`. The top-level ADDMOD assembly keeps
+    the `N = 0` bypass outside this helper.
+
+    43 instructions. -/
+def evm_addmod_pow256_mod_n (modOff : BitVec 21) : Program :=
+  evm_addmod_pow256_prepare_minus_one_mod_args ;;
+  evm_addmod_pow256_call_mod modOff ;;
+  evm_addmod_pow256_prepare_plus_one_mod_args ;;
+  evm_addmod_pow256_call_mod modOff
+
+theorem evm_addmod_pow256_mod_n_length (modOff : BitVec 21) :
+    (evm_addmod_pow256_mod_n modOff).length = 43 := by
+  unfold evm_addmod_pow256_mod_n
+  simp only [seq, Program.length_append,
+    evm_addmod_pow256_prepare_minus_one_mod_args_length,
+    evm_addmod_pow256_call_mod_length,
+    evm_addmod_pow256_prepare_plus_one_mod_args_length]
+
+theorem evm_addmod_pow256_mod_n_byte_length (modOff : BitVec 21) :
+    4 * (evm_addmod_pow256_mod_n modOff).length = 172 := by
+  rw [evm_addmod_pow256_mod_n_length]
+
+-- Concrete pure-oracle checks for the value these runtime blocks materialize.
+
+example : (EvmWord.pow256ModN (0 : EvmWord)).toNat = 0 := by decide
+
+example : (EvmWord.pow256ModN (1 : EvmWord)).toNat = 0 := by decide
+
+example : (EvmWord.pow256ModN (7 : EvmWord)).toNat = 2 := by decide
+
+example :
+    (EvmWord.pow256ModN (BitVec.ofNat 256 (2 ^ 128 + 1))).toNat = 1 := by
+  decide
+
 /-- Phase 2 — zero-store path (taken when `N = 0`).
 
     On entry: `x12 = sp + 32`, the result cell is at `x12 + 32 .. 56`
@@ -340,6 +509,436 @@ example : (evm_addmod 0).length =
     evm_addmod_phase1_carry.length +
     (evm_addmod_phase2_reduce 0).length +
     evm_addmod_epilogue.length := by
-  native_decide
+  decide
+
+-- ============================================================================
+-- Total ADDMOD assembly (`evm_addmod_total`) — carry-out branch included
+-- ============================================================================
+--
+-- Per `docs/addmod-total-runtime-plan.md`, the total runtime branches on `N`
+-- and the 257th carry bit `x7` after phase 1:
+--
+--   1. `N = 0`          → store zero, advance 64 bytes total.
+--   2. `N ≠ 0, x7 = 0`  → reduce the truncated sum: one MOD call.
+--   3. `N ≠ 0, x7 = 1`  → `(2^256 + r) mod N` via
+--        `rMod := r mod N`, `m := 2^256 mod N = ((2^256−1) mod N + 1) mod N`,
+--        `result := (m + rMod) mod N` (both operands pre-reduced, so the
+--        final step is one 257-bit add plus one conditional subtract of `N`).
+--
+-- Layout invariants (deliberate, proof-facing):
+--
+--   * **Every MOD call uses the same frame base `F = sp + 32`** (the post-
+--     prologue `x12`): dividend at `F + 0..24`, divisor at `F + 32..56`,
+--     remainder returned at `F + 32..56` with `x12` advanced to `F + 32`.
+--     A single frame base means a single div-scratch band
+--     (`divScratchOwnCallNoX1 (sp + 32)`) — the same term the existing
+--     partial ADDMOD frames already own. Each call is followed by
+--     `ADDI x12, x12, -32` restoring `x12 = F`.
+--   * **Parking scratch lives BELOW `sp`** (the MULMOD precedent: the push-
+--     direction slack is dead space, so the live deeper EVM stack at
+--     `sp + 96..` is never touched, unlike a tail-window layout), and below
+--     the callable's own scratch band: the MOD callable scribbles over
+--     `F − 160 .. F − 8` (the 19 `divScratchOwnCallNoX1` dwords at
+--     `F + signExtend12 3944..4088` plus the extra cell at
+--     `F + signExtend12 3936`), i.e. `sp − 128 .. sp + 24`. The parking
+--     cells sit strictly below that band:
+--       S1 = `F − 192..−168` (sp − 160, offs 3904..3928)  saved `N`
+--       S2 = `F − 224..−200` (sp − 192, offs 3872..3896)  saved `r`
+--       S3 = `F − 256..−232` (sp − 224, offs 3840..3864)  parked `m`
+--   * The final modular add reuses `evm_add` verbatim (m at `F + 0`, rMod at
+--     `F + 32` → sum at `F + 32 = sp + 64`, the ADDMOD result cell, with
+--     `x12` advanced to `sp + 64` and the carry-out bit in `x5`), followed by
+--     a **branch-free conditional subtract** of `N`.
+--   * Scratch registers stay within the owned set {x5, x6, x7, x10, x11};
+--     `x7` (the parked ADDMOD carry bit) is only clobbered inside the carry
+--     branch, where its value (`1`) has already been consumed by the branch.
+
+/-- Carry path — park the two live operands below the callable's scratch
+    band before the frame at `F + 0..56` is reused for the helper MOD calls:
+    `N` (at `F + 32..56`) → S1 (`F − 192..−168`), and the truncated sum `r`
+    (at `F + 0..24`) → S2 (`F − 224..−200`).
+
+    16 instructions. -/
+def evm_addmod_carry_save_operands : Program :=
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 3904 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 3912 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 3920 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 3928 ;;
+  LD .x5 .x12 0 ;;
+  SD .x12 .x5 3872 ;;
+  LD .x5 .x12 8 ;;
+  SD .x12 .x5 3880 ;;
+  LD .x5 .x12 16 ;;
+  SD .x12 .x5 3888 ;;
+  LD .x5 .x12 24 ;;
+  SD .x12 .x5 3896
+
+theorem evm_addmod_carry_save_operands_length :
+    evm_addmod_carry_save_operands.length = 16 := by decide
+
+theorem evm_addmod_carry_save_operands_byte_length :
+    4 * evm_addmod_carry_save_operands.length = 64 := by
+  rw [evm_addmod_carry_save_operands_length]
+
+/-- Carry path — materialize the all-ones dividend `2^256 − 1` in the MOD
+    frame dividend slots `F + 0..24` for the first helper call
+    `(2^256 − 1) mod N`. The divisor slots `F + 32..56` still hold the live
+    `N` at this point, so no divisor copy is needed.
+
+    5 instructions. -/
+def evm_addmod_carry_minus_one_args : Program :=
+  ADDI .x5 .x0 4095 ;;
+  SD .x12 .x5 0 ;;
+  SD .x12 .x5 8 ;;
+  SD .x12 .x5 16 ;;
+  SD .x12 .x5 24
+
+theorem evm_addmod_carry_minus_one_args_length :
+    evm_addmod_carry_minus_one_args.length = 5 := by decide
+
+theorem evm_addmod_carry_minus_one_args_byte_length :
+    4 * evm_addmod_carry_minus_one_args.length = 20 := by
+  rw [evm_addmod_carry_minus_one_args_length]
+
+/-- Carry path — one helper MOD call on the `F = sp + 32` frame: near-call
+    `evm_mod_callable` (dividend `F + 0..24`, divisor `F + 32..56`), then
+    restore `x12` from the callable's exit value `F + 32` back to `F`
+    (`ADDI x12, x12, -32`, immediate 4064). The remainder is left at
+    `F + 32..56`.
+
+    2 instructions. -/
+def evm_addmod_carry_call_mod (modOff : BitVec 21) : Program :=
+  JAL .x1 modOff ;;
+  ADDI .x12 .x12 4064
+
+theorem evm_addmod_carry_call_mod_length (modOff : BitVec 21) :
+    (evm_addmod_carry_call_mod modOff).length = 2 := by
+  show ((JAL .x1 modOff ;; ADDI .x12 .x12 4064) : Program).length = 2
+  simp only [seq, Program.length_append]
+  rfl
+
+theorem evm_addmod_carry_call_mod_byte_length (modOff : BitVec 21) :
+    4 * (evm_addmod_carry_call_mod modOff).length = 8 := by
+  rw [evm_addmod_carry_call_mod_length]
+
+/-- Carry path — prepare the second helper call
+    `((2^256 − 1) mod N + 1) mod N`: add one to the four-limb remainder at
+    `F + 32..56` (total carry chain: limb 0 detects wrap via `SLTIU`, higher
+    limbs propagate via `SLTU`), writing the incremented value into the
+    dividend slots `F + 0..24`, then reload `N` from S1 into the divisor
+    slots `F + 32..56`.
+
+    `x7` is used as the carry register — safe here because the carry branch
+    has already consumed the parked ADDMOD carry bit.
+
+    24 instructions. -/
+def evm_addmod_carry_plus_one_args : Program :=
+  LD .x5 .x12 32 ;;
+  ADDI .x6 .x5 1 ;;
+  SLTIU .x7 .x6 1 ;;
+  SD .x12 .x6 0 ;;
+  LD .x5 .x12 40 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 8 ;;
+  LD .x5 .x12 48 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 16 ;;
+  LD .x5 .x12 56 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 24 ;;
+  LD .x5 .x12 3904 ;;
+  SD .x12 .x5 32 ;;
+  LD .x5 .x12 3912 ;;
+  SD .x12 .x5 40 ;;
+  LD .x5 .x12 3920 ;;
+  SD .x12 .x5 48 ;;
+  LD .x5 .x12 3928 ;;
+  SD .x12 .x5 56
+
+theorem evm_addmod_carry_plus_one_args_length :
+    evm_addmod_carry_plus_one_args.length = 24 := by decide
+
+theorem evm_addmod_carry_plus_one_args_byte_length :
+    4 * evm_addmod_carry_plus_one_args.length = 96 := by
+  rw [evm_addmod_carry_plus_one_args_length]
+
+/-- Carry path — stage the low-sum reduction `r mod N`: park the freshly
+    computed `m = 2^256 mod N` (at `F + 32..56`) into S3 (`F − 256..−232`),
+    reload the truncated sum `r` from S2 into the dividend slots `F + 0..24`,
+    and reload `N` from S1 into the divisor slots `F + 32..56`.
+
+    24 instructions. -/
+def evm_addmod_carry_stage_low_args : Program :=
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 3840 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 3848 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 3856 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 3864 ;;
+  LD .x5 .x12 3872 ;;
+  SD .x12 .x5 0 ;;
+  LD .x5 .x12 3880 ;;
+  SD .x12 .x5 8 ;;
+  LD .x5 .x12 3888 ;;
+  SD .x12 .x5 16 ;;
+  LD .x5 .x12 3896 ;;
+  SD .x12 .x5 24 ;;
+  LD .x5 .x12 3904 ;;
+  SD .x12 .x5 32 ;;
+  LD .x5 .x12 3912 ;;
+  SD .x12 .x5 40 ;;
+  LD .x5 .x12 3920 ;;
+  SD .x12 .x5 48 ;;
+  LD .x5 .x12 3928 ;;
+  SD .x12 .x5 56
+
+theorem evm_addmod_carry_stage_low_args_length :
+    evm_addmod_carry_stage_low_args.length = 24 := by decide
+
+theorem evm_addmod_carry_stage_low_args_byte_length :
+    4 * evm_addmod_carry_stage_low_args.length = 96 := by
+  rw [evm_addmod_carry_stage_low_args_length]
+
+/-- Carry path — stage the final modular add: copy `m` from S3 back into the
+    dividend slots `F + 0..24`. The third MOD call has just left
+    `rMod = r mod N` at `F + 32..56`, so after this block the frame holds
+    exactly the two pre-reduced `evm_add` operands (`m` at `x12 + 0..24`,
+    `rMod` at `x12 + 32..56`).
+
+    8 instructions. -/
+def evm_addmod_carry_mod_add_stage : Program :=
+  LD .x5 .x12 3840 ;;
+  SD .x12 .x5 0 ;;
+  LD .x5 .x12 3848 ;;
+  SD .x12 .x5 8 ;;
+  LD .x5 .x12 3856 ;;
+  SD .x12 .x5 16 ;;
+  LD .x5 .x12 3864 ;;
+  SD .x12 .x5 24
+
+theorem evm_addmod_carry_mod_add_stage_length :
+    evm_addmod_carry_mod_add_stage.length = 8 := by decide
+
+theorem evm_addmod_carry_mod_add_stage_byte_length :
+    4 * evm_addmod_carry_mod_add_stage.length = 32 := by
+  rw [evm_addmod_carry_mod_add_stage_length]
+
+/-- Carry path — branch-free conditional subtract closing the pre-reduced
+    modular add `(m + rMod) mod N`.
+
+    On entry (immediately after the embedded `evm_add`): `x12 = sp + 64`,
+    the truncated sum `s = (m + rMod) mod 2^256` is at `x12 + 0..24`, the
+    `evm_add` carry-out bit is in `x5`, and `N` is parked at S1
+    (`F − 192..−168` = `x12 − 224..−200`, offs 3872..3896 from the new
+    `x12`).
+
+    Since `m, rMod < N`, the true sum `σ = carry·2^256 + s < 2N`, so
+    `σ mod N = σ − N` exactly when `carry = 1 ∨ s ≥ N` (and the 256-bit
+    wrap of `s − N` equals `σ − N` in the carry case). The block computes
+
+      1. pass 1: the borrow-out `B` of `s − N` (4-limb `SUB`/`SLTU`/`OR`
+         chain, diffs discarded) — `B = 1 ↔ s < N`;
+      2. `take = carry ∨ ¬B`, `mask = 0 − take` (all-ones or zero);
+      3. pass 2: `s := s − (N &&& mask)` in place at `x12 + 0..24`
+         (4-limb borrow chain).
+
+    The `evm_add` carry-out is parked in `x10` first because pass 1 uses
+    `x5` as its borrow scratch. Borrow propagation uses the verified
+    `evm_sub` idiom — the incoming-borrow test `SLTU (d, b_in)` runs
+    **before** the borrow is subtracted (the post-subtraction variant used
+    by the legacy runtime handler inverts the borrow on the `d ∈ {0, 1}`
+    boundary). After this block the ADDMOD result sits in the final result
+    cell `sp + 64..88` with `x12 = sp + 64` — no epilogue.
+
+    55 instructions. -/
+def evm_addmod_carry_cond_sub : Program :=
+  ADDI .x10 .x5 0 ;;
+  LD .x6 .x12 0 ;;
+  LD .x7 .x12 3872 ;;
+  SLTU .x11 .x6 .x7 ;;
+  LD .x6 .x12 8 ;;
+  LD .x7 .x12 3880 ;;
+  SLTU .x5 .x6 .x7 ;;
+  SUB .x6 .x6 .x7 ;;
+  SLTU .x7 .x6 .x11 ;;
+  OR' .x11 .x5 .x7 ;;
+  LD .x6 .x12 16 ;;
+  LD .x7 .x12 3888 ;;
+  SLTU .x5 .x6 .x7 ;;
+  SUB .x6 .x6 .x7 ;;
+  SLTU .x7 .x6 .x11 ;;
+  OR' .x11 .x5 .x7 ;;
+  LD .x6 .x12 24 ;;
+  LD .x7 .x12 3896 ;;
+  SLTU .x5 .x6 .x7 ;;
+  SUB .x6 .x6 .x7 ;;
+  SLTU .x7 .x6 .x11 ;;
+  OR' .x11 .x5 .x7 ;;
+  XORI .x11 .x11 1 ;;
+  OR' .x11 .x10 .x11 ;;
+  SUB .x11 .x0 .x11 ;;
+  LD .x6 .x12 0 ;;
+  LD .x7 .x12 3872 ;;
+  AND' .x7 .x7 .x11 ;;
+  SLTU .x10 .x6 .x7 ;;
+  SUB .x5 .x6 .x7 ;;
+  SD .x12 .x5 0 ;;
+  LD .x6 .x12 8 ;;
+  LD .x7 .x12 3880 ;;
+  AND' .x7 .x7 .x11 ;;
+  SLTU .x5 .x6 .x7 ;;
+  SUB .x6 .x6 .x7 ;;
+  SLTU .x7 .x6 .x10 ;;
+  SUB .x6 .x6 .x10 ;;
+  OR' .x10 .x5 .x7 ;;
+  SD .x12 .x6 8 ;;
+  LD .x6 .x12 16 ;;
+  LD .x7 .x12 3888 ;;
+  AND' .x7 .x7 .x11 ;;
+  SLTU .x5 .x6 .x7 ;;
+  SUB .x6 .x6 .x7 ;;
+  SLTU .x7 .x6 .x10 ;;
+  SUB .x6 .x6 .x10 ;;
+  OR' .x10 .x5 .x7 ;;
+  SD .x12 .x6 16 ;;
+  LD .x6 .x12 24 ;;
+  LD .x7 .x12 3896 ;;
+  AND' .x7 .x7 .x11 ;;
+  SUB .x6 .x6 .x7 ;;
+  SUB .x6 .x6 .x10 ;;
+  SD .x12 .x6 24
+
+theorem evm_addmod_carry_cond_sub_length :
+    evm_addmod_carry_cond_sub.length = 55 := by decide
+
+theorem evm_addmod_carry_cond_sub_byte_length :
+    4 * evm_addmod_carry_cond_sub.length = 220 := by
+  rw [evm_addmod_carry_cond_sub_length]
+
+/-- **Total ADDMOD program** — all three runtime branches.
+
+    Block layout (instruction index → byte offset):
+
+      prologue             : instr   0..29   bytes   0..119
+      phase1_carry         : instr  30       byte  120
+      n_zero_test (→ zero) : instr  31..38   bytes 124..155  (BEQ @ 152, +704)
+      BEQ x7 (→ no-carry)  : instr  39       byte  156       (+692)
+      carry: save_operands : instr  40..55   bytes 160..223
+      carry: minus_one     : instr  56..60   bytes 224..243
+      carry: call 1        : instr  61..62   bytes 244..251  (JAL @ 244)
+      carry: plus_one      : instr  63..86   bytes 252..347
+      carry: call 2        : instr  87..88   bytes 348..355  (JAL @ 348)
+      carry: stage_low     : instr  89..112  bytes 356..451
+      carry: call 3        : instr 113..114  bytes 452..459  (JAL @ 452)
+      carry: mod_add_stage : instr 115..122  bytes 460..491
+      carry: evm_add       : instr 123..152  bytes 492..611
+      carry: cond_sub      : instr 153..207  bytes 612..831
+      carry: JAL → end     : instr 208       byte  832       (+32)
+      no-carry: JAL x1 mod : instr 209       byte  836
+      no-carry: JAL → end  : instr 210       byte  840       (+24)
+      zero: zero_path      : instr 211..214  bytes 844..859
+      zero: epilogue       : instr 215       byte  860
+      end                  : instr 216       byte  864
+
+    The internal branch offsets (692, 680, 32, 24) are hardwired to this
+    layout; the offset drift-check examples below pin them against the block
+    length lemmas. The four `JAL x1` MOD-call offsets are parameters pinned
+    by the surrounding dispatcher frame (for the canonical layout — the
+    `evm_mod_callable` variant appended at `end + 4` behind a skip-JAL — they
+    are 624 / 520 / 416 / 32).
+
+    Exit state on every branch: `x12 = sp + 64` with the ADDMOD result in
+    the cell at `sp + 64..88` (the zero path via the shared epilogue; the
+    MOD-call paths via the callable's own `x12` advance; the carry path via
+    the embedded `evm_add`'s advance). The zero path falls through to `end`.
+
+    216 instructions. -/
+def evm_addmod_total
+    (modOff1 modOff2 modOff3 modOffNC : BitVec 21) : Program :=
+  evm_addmod_prologue ;;
+  evm_addmod_phase1_carry ;;
+  evm_addmod_phase2_n_zero_test 692 ;;
+  BEQ .x7 .x0 680 ;;
+  evm_addmod_carry_save_operands ;;
+  evm_addmod_carry_minus_one_args ;;
+  evm_addmod_carry_call_mod modOff1 ;;
+  evm_addmod_carry_plus_one_args ;;
+  evm_addmod_carry_call_mod modOff2 ;;
+  evm_addmod_carry_stage_low_args ;;
+  evm_addmod_carry_call_mod modOff3 ;;
+  evm_addmod_carry_mod_add_stage ;;
+  evm_add ;;
+  evm_addmod_carry_cond_sub ;;
+  JAL .x0 32 ;;
+  evm_addmod_phase2_mod_call modOffNC ;;
+  JAL .x0 24 ;;
+  evm_addmod_phase2_zero_path ;;
+  evm_addmod_epilogue
+
+theorem evm_addmod_total_length
+    (modOff1 modOff2 modOff3 modOffNC : BitVec 21) :
+    (evm_addmod_total modOff1 modOff2 modOff3 modOffNC).length = 216 := by
+  unfold evm_addmod_total
+  simp only [seq, Program.length_append,
+    evm_addmod_prologue_length, evm_addmod_phase1_carry_length,
+    evm_addmod_phase2_n_zero_test_length,
+    evm_addmod_carry_save_operands_length,
+    evm_addmod_carry_minus_one_args_length,
+    evm_addmod_carry_call_mod_length,
+    evm_addmod_carry_plus_one_args_length,
+    evm_addmod_carry_stage_low_args_length,
+    evm_addmod_carry_mod_add_stage_length,
+    evm_addmod_carry_cond_sub_length,
+    evm_addmod_phase2_mod_call_length,
+    evm_addmod_phase2_zero_path_length,
+    evm_addmod_epilogue_length]
+  decide
+
+theorem evm_addmod_total_byte_length
+    (modOff1 modOff2 modOff3 modOffNC : BitVec 21) :
+    4 * (evm_addmod_total modOff1 modOff2 modOff3 modOffNC).length = 864 := by
+  rw [evm_addmod_total_length]
+
+-- Offset drift checks: pin the hardwired internal branch distances against
+-- the block length lemmas, so a block edit that shifts the layout fails the
+-- build here instead of silently retargeting a branch.
+
+/-- The `n_zero_test` BEQ (instr 38, byte 152) reaches the zero path
+    (instr 211, byte 844): offset 692. -/
+example : 4 * (30 + 1 + 8 - 1) + 692 = 4 * 211 := by decide
+
+/-- The carry-test BEQ (instr 39, byte 156) reaches the no-carry path
+    (instr 209, byte 836): offset 680. -/
+example : 4 * (30 + 1 + 8) + 680 = 4 * 209 := by decide
+
+/-- The carry-path exit JAL (instr 208, byte 832) reaches `end`
+    (instr 216, byte 864): offset 32. -/
+example : 4 * 208 + 32 = 4 * 216 := by decide
+
+/-- The no-carry-path exit JAL (instr 210, byte 840) reaches `end`
+    (instr 216, byte 864): offset 24. -/
+example : 4 * 210 + 24 = 4 * 216 := by decide
+
+/-- Sub-block instruction indices quoted in the layout table stay in sync
+    with the block length lemmas. -/
+example :
+    (30 + 1 + 8 + 1 = 40) ∧                     -- carry path entry
+    (40 + 16 + 5 = 61) ∧                        -- call-1 JAL site
+    (61 + 2 + 24 = 87) ∧                        -- call-2 JAL site
+    (87 + 2 + 24 = 113) ∧                       -- call-3 JAL site
+    (113 + 2 + 8 = 123) ∧                       -- embedded evm_add entry
+    (123 + 30 = 153) ∧                          -- cond_sub entry
+    (153 + 55 = 208) ∧                          -- carry exit JAL
+    (208 + 1 = 209) ∧ (209 + 1 + 1 = 211) ∧     -- no-carry / zero entries
+    (211 + 4 + 1 = 216) := by decide            -- end
 
 end EvmAsm.Evm64

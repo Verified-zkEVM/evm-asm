@@ -8,7 +8,7 @@
   Step-2 verdict (.2.4) can set successful_validation.
 
   Given two RLP headers (this, parent) it:
-    1. header_extended_decode (K39) each into a 128-byte field struct;
+    1. header_extended_decode (K39) each into a 144-byte field struct;
     2. validate_header_full (K75) — post-merge + extra_data + gas/number/
        timestamp + gas-limit drift + EIP-1559 base-fee, all against the
        parent struct;
@@ -19,8 +19,8 @@
   an invalid block. Status (so callers can see which gate failed):
     0          valid child
     1          this-header parse fail        2  parent-header parse fail
-    100..502   validate_header_full failure  (K75's decade encoding)
-    601..602   parent-hash failure           (K94 sub-status + 600)
+    100..602   validate_header_full failure  (K75's decade encoding)
+    701..702   parent-hash failure           (K94 sub-status + 700)
 
   Bundles only existing, tested functions; their scratch is the union of the
   K75 / K39 / K94 probe data sections (all label-disjoint) plus two 128-byte
@@ -29,8 +29,12 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeadersKeccak
@@ -44,45 +48,80 @@ open EvmAsm.Rv64
     a0 = this header RLP ptr     a1 = this header RLP length
     a2 = parent header RLP ptr   a3 = parent header RLP length
     a0 (output) = status (see module doc). -/
-def validateHeaderRlpPairFunction : String :=
-  "validate_header_rlp_pair:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # this rlp\n" ++
-  "  mv s1, a1                   # this len\n" ++
-  "  mv s2, a2                   # parent rlp\n" ++
-  "  mv s3, a3                   # parent len\n" ++
-  "  # decode this header -> vhrp_this_struct (128 B).\n" ++
-  "  la a2, vhrp_this_struct\n" ++
-  "  jal ra, header_extended_decode\n" ++
-  "  bnez a0, .Lvhrp_this_parse\n" ++
-  "  # decode parent header -> vhrp_parent_struct.\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, vhrp_parent_struct\n" ++
-  "  jal ra, header_extended_decode\n" ++
-  "  bnez a0, .Lvhrp_parent_parse\n" ++
-  "  # full field validation (this vs parent).\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, vhrp_this_struct; la a3, vhrp_parent_struct\n" ++
-  "  jal ra, validate_header_full\n" ++
-  "  bnez a0, .Lvhrp_ret         # already >=100, decade-encoded\n" ++
-  "  # parent_hash linkage: this.parent_hash == keccak256(parent_rlp).\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3\n" ++
-  "  jal ra, header_validate_parent_hash\n" ++
-  "  beqz a0, .Lvhrp_ret         # 0 = valid\n" ++
-  "  addi a0, a0, 600            # 601 parse / 602 mismatch\n" ++
-  "  j .Lvhrp_ret\n" ++
-  ".Lvhrp_this_parse:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lvhrp_ret\n" ++
-  ".Lvhrp_parent_parse:\n" ++
-  "  li a0, 2\n" ++
-  ".Lvhrp_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def validateHeaderRlpPair_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 40)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 40)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 48)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 64)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 64)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 72)),
+    .BNE .x10 .x0 (76 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 88)),
+    .AUIPC .x13 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 96)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 96)),
+    .JAL .x1 (jalOff GuestAddrs.validate_header_full (GuestAddrs.validate_header_rlp_pair + 104)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .MV .x13 .x19,
+    .JAL .x1 (jalOff GuestAddrs.header_validate_parent_hash (GuestAddrs.validate_header_rlp_pair + 128)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .ADDI .x10 .x10 (700 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `validateHeaderRlpPair_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def validateHeaderRlpPair_relocs : RelocTable :=
+  [ (10, .la .x12 "vhrp_this_struct"),
+    (12, .jal .x1 "header_extended_decode"),
+    (16, .la .x12 "vhrp_parent_struct"),
+    (18, .jal .x1 "header_extended_decode"),
+    (22, .la .x12 "vhrp_this_struct"),
+    (24, .la .x13 "vhrp_parent_struct"),
+    (26, .jal .x1 "validate_header_full"),
+    (32, .jal .x1 "header_validate_parent_hash") ]
+
+def validateHeaderRlpPairFunction : String :=
+  "validate_header_rlp_pair:\n" ++ emitProgramR validateHeaderRlpPair_prog validateHeaderRlpPair_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `validateHeaderRlpPair_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem validateHeaderRlpPairFunction_eq_prog :
+    validateHeaderRlpPairFunction = "validate_header_rlp_pair:\n" ++ emitProgramR validateHeaderRlpPair_prog validateHeaderRlpPair_relocs := rfl
+
+#guard validateHeaderRlpPairFunction.startsWith "validate_header_rlp_pair:\n"
+#guard validateHeaderRlpPair_prog.length = 46
 /-- `zisk_validate_header_rlp_pair`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  this header RLP length (u64)
@@ -109,13 +148,19 @@ def ziskValidateHeaderRlpPairPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
@@ -135,6 +180,8 @@ def ziskValidateHeaderRlpPairDataSection : String :=
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
   ".balign 32\n" ++
   "hvbf_expected:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "u256m_acc:\n  .zero 40\n" ++
   "hvpm_off:\n  .zero 8\n" ++
@@ -152,9 +199,9 @@ def ziskValidateHeaderRlpPairDataSection : String :=
   ".balign 32\n" ++
   "hvph_computed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "vhrp_this_struct:\n  .zero 128\n" ++
+  "vhrp_this_struct:\n  .zero 144\n" ++
   ".balign 8\n" ++
-  "vhrp_parent_struct:\n  .zero 128"
+  "vhrp_parent_struct:\n  .zero 144"
 
 def ziskValidateHeaderRlpPairProbeUnit : BuildUnit := {
   body        := NOP

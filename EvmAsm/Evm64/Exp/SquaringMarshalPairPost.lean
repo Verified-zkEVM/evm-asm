@@ -46,21 +46,21 @@ theorem exp_squaring_marshal_pair_post_evmWordIs
       evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
   -- Canonicalize all immediate offsets to their literal Word values.
   have h0  : (evmSp + EvmAsm.Rv64.signExtend12 (0  : BitVec 12) : Word) = evmSp       := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h8  : (evmSp + EvmAsm.Rv64.signExtend12 (8  : BitVec 12) : Word) = evmSp + 8   := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h16 : (evmSp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12) : Word) = evmSp + 16  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h24 : (evmSp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12) : Word) = evmSp + 24  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h32 : (evmSp + EvmAsm.Rv64.signExtend12 (32 : BitVec 12) : Word) = evmSp + 32  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h40 : (evmSp + EvmAsm.Rv64.signExtend12 (40 : BitVec 12) : Word) = evmSp + 40  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h48 : (evmSp + EvmAsm.Rv64.signExtend12 (48 : BitVec 12) : Word) = evmSp + 48  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h56 : (evmSp + EvmAsm.Rv64.signExtend12 (56 : BitVec 12) : Word) = evmSp + 56  := by
-    unfold EvmAsm.Rv64.signExtend12; bv_decide
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   rw [h0, h8, h16, h24, h32, h40, h48, h56]
   -- Now the LHS is the eight literal-offset atoms. Re-associate so that the
   -- first four atoms (factor-1 slot) and the last four (factor-2 slot) form

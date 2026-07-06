@@ -89,6 +89,9 @@ run_case "pass_full_block"        0 "$EXP_FULL_BLOCK" 30000000 30000000 "$PBF50"
 EXP_HALF_EMPTY=$(python_calc_expected 30000000 7500000 "$PBF50")
 run_case "pass_half_empty"        0 "$EXP_HALF_EMPTY" 30000000 7500000  "$PBF50" || FAILED=1
 
+EXP_HUGE_ZERO_USED=$(python_calc_expected 9223372036854775807 0 11)
+run_case "pass_huge_zero_used"    0 "$EXP_HUGE_ZERO_USED" 9223372036854775807 0 11 || FAILED=1
+
 EXP_AT_TARGET=$(python_calc_expected 30000000 15000000 "$PBF50")
 run_case "pass_at_target"         0 "$EXP_AT_TARGET" 30000000 15000000 "$PBF50" || FAILED=1
 

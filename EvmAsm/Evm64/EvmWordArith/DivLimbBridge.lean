@@ -95,10 +95,16 @@ theorem fromLimbs_ne_zero_of_or {b0 b1 b2 b3 : Word}
 -- ============================================================================
 
 theorem or_eq_zero_imp_left {a b : Word} (h : a ||| b = 0) : a = 0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  have := congr_arg (BitVec.getLsbD · i) h
+  simp only [BitVec.getLsbD_or] at this
+  cases ha : a.getLsbD i <;> cases hb : b.getLsbD i <;> simp_all
 
 theorem or_eq_zero_imp_right {a b : Word} (h : a ||| b = 0) : b = 0 := by
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  have := congr_arg (BitVec.getLsbD · i) h
+  simp only [BitVec.getLsbD_or] at this
+  cases ha : a.getLsbD i <;> cases hb : b.getLsbD i <;> simp_all
 
 /-- An EvmWord is nonzero iff the OR of its four limbs is nonzero.
     Forward direction: needed to bridge `b ≠ 0` (EvmWord-level) to the

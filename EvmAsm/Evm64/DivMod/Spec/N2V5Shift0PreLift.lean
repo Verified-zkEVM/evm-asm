@@ -17,7 +17,7 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
 theorem n2_shift0_dispatchPre_to_pathEntry (sp : Word) (a b : EvmWord)
-    (a0 a1 a2 a3 b0 b1 raVal v5 v6 v7 v10 v11Old : Word)
+    (a0 a1 a2 a3 b0 b1 raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
@@ -26,14 +26,14 @@ theorem n2_shift0_dispatchPre_to_pathEntry (sp : Word) (a b : EvmWord)
     (hb2z : b.getLimbN 2 = 0) (hb3z : b.getLimbN 3 = 0) :
     ∀ h,
       (divModStackDispatchPreNoX1 sp a b
-        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
-        ((clzResult b1).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x9In) raVal
+        x2In v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem)) h →
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ ((clzResult b1).2 >>> (63 : Nat))) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ x2In) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **

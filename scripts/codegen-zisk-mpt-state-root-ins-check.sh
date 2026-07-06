@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # codegen-zisk-mpt-state-root-ins-check.sh -- verify mpt_state_root_ins (bead
 # evm-asm-fhsxz.2.4.2.6.3): the insert-aware multi-change driver. The vector is
-# a MODIFY of an existing key followed by an INSERT into an empty branch slot;
-# the insert must resolve the modified root from the appendable node DB. This
-# also validates mpt_insert_acc's DB-resolve path end-to-end.
+# a MODIFY of an existing key followed by an INSERT into an empty branch slot,
+# plus a focused no-op/modify/delete descriptor-mode case. The insert/delete
+# paths must resolve modified roots from the appendable node DB.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
@@ -22,9 +22,7 @@ lake exe codegen --program zisk_mpt_state_root_ins --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_mpt_state_root_ins"
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 fail=0
-for name in state_root_ins state_root_ins_longkey state_root_ins_large_branch; do
-for name in state_root_ins; do
-for name in state_root_ins state_root_ins_deep state_root_ins_dbchild; do
+for name in state_root_ins state_root_ins_deep state_root_ins_dbchild state_root_ins_delete_noop; do
   out="$VDIR/$name.sri.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_state_root_ins.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 8000000 >/dev/null 2>&1 </dev/null; then
@@ -34,7 +32,7 @@ for name in state_root_ins state_root_ins_deep state_root_ins_dbchild; do
   act="$(od -An -tx1 -j 0 -N 32 "$out" | tr -d ' \n')"
   exp="$(cat "$VDIR/$name.expected")"
   if [[ "$st" == "0" && "$act" == "$exp" ]]; then
-    echo "  PASS   $name  root=${act:0:16}.. (modify+insert via DB)"
+    echo "  PASS   $name  root=${act:0:16}.."
   else
     echo "  FAIL   $name  status=$st"; echo "    exp $exp"; echo "    got $act"; fail=1
   fi

@@ -5,6 +5,11 @@
 -/
 -- `Decode` transitively imports `Basic`.
 import EvmAsm.EL.RLP.Decode
+import EvmAsm.EL.RLP.PrefixDecode
+import EvmAsm.EL.RLP.ReadLength
+import EvmAsm.EL.RLP.FullDecode
+import Mathlib.Data.List.Induction
+import Mathlib.Tactic.Positivity
 
 namespace EvmAsm.EL.RLP
 
@@ -15,6 +20,121 @@ theorem Nat.toBytesBE_zero : Nat.toBytesBE 0 = [] := by
 
 theorem Nat.fromBytesBE_nil : Nat.fromBytesBE [] = 0 := by
   simp [Nat.fromBytesBE]
+
+/-- The big-endian decode of `bs` is bounded by `256 ^ bs.length`: each byte is
+    `< 256`, so an `n`-byte sequence decodes to a value `< 256 ^ n`. -/
+theorem Nat.fromBytesBE_lt (bs : List Byte) :
+    Nat.fromBytesBE bs < 256 ^ bs.length := by
+  induction bs with
+  | nil => simp [Nat.fromBytesBE]
+  | cons b bs ih =>
+    have hb : b.toNat < 256 := by have := b.isLt; omega
+    have e : Nat.fromBytesBE (b :: bs)
+        = b.toNat * 256 ^ bs.length + Nat.fromBytesBE bs := rfl
+    have hsucc : b.toNat * 256 ^ bs.length + 256 ^ bs.length
+        = (b.toNat + 1) * 256 ^ bs.length := (Nat.succ_mul _ _).symm
+    have hle : (b.toNat + 1) * 256 ^ bs.length ≤ 256 * 256 ^ bs.length :=
+      Nat.mul_le_mul (by omega) (Nat.le_refl _)
+    have hpow : 256 * 256 ^ bs.length = 256 ^ (b :: bs).length := by
+      rw [List.length_cons, Nat.pow_succ, Nat.mul_comm]
+    -- `ih : fromBytesBE bs < 256 ^ bs.length`, with the linear facts above,
+    -- omega chains: fromBytesBE (b::bs) < (b+1)·256^L ≤ 256·256^L = 256^(L+1).
+    omega
+
+/-- One-step unfold of `Nat.toBytesBE` at a successor: the low byte is appended
+    last (least significant), with the higher digits encoded recursively. -/
+theorem Nat.toBytesBE_succ (n : Nat) :
+    Nat.toBytesBE (n + 1)
+      = Nat.toBytesBE ((n + 1) / 256) ++ [BitVec.ofNat 8 ((n + 1) % 256)] := by
+  rw [Nat.toBytesBE]
+
+/-- Big-endian decode of a snoc list: appending a low-order byte `b` shifts the
+    decoded value up by one base-256 digit. `fromBytesBE` recurses on the head,
+    so this is proved by induction on the prefix `xs`. -/
+theorem Nat.fromBytesBE_snoc (xs : List Byte) (b : Byte) :
+    Nat.fromBytesBE (xs ++ [b]) = Nat.fromBytesBE xs * 256 + b.toNat := by
+  induction xs with
+  | nil => simp [Nat.fromBytesBE]
+  | cons c cs ih =>
+    have hlen : (cs ++ [b]).length = cs.length + 1 := by simp
+    have key : Nat.fromBytesBE ((c :: cs) ++ [b])
+        = c.toNat * 256 ^ (cs ++ [b]).length + Nat.fromBytesBE (cs ++ [b]) := rfl
+    have hcons : Nat.fromBytesBE (c :: cs)
+        = c.toNat * 256 ^ cs.length + Nat.fromBytesBE cs := rfl
+    have hassoc : c.toNat * (256 ^ cs.length * 256)
+        = c.toNat * 256 ^ cs.length * 256 := (Nat.mul_assoc _ _ _).symm
+    rw [key, ih, hlen, Nat.pow_succ, hcons, Nat.add_mul, hassoc]
+    omega
+
+/-- Big-endian round-trip: decoding the minimal big-endian encoding of `n`
+    recovers `n`. Induction follows `toBytesBE`'s own division recursion
+    (`Nat.toBytesBE.induct`), using `fromBytesBE_snoc` for the appended low byte
+    and `Nat.div_add_mod` (via `omega`) to reassemble `n`. -/
+theorem Nat.fromBytesBE_toBytesBE (n : Nat) :
+    Nat.fromBytesBE (Nat.toBytesBE n) = n := by
+  induction n using Nat.toBytesBE.induct with
+  | case1 => simp [Nat.toBytesBE, Nat.fromBytesBE]
+  | case2 m _hlt ih =>
+    rw [Nat.toBytesBE_succ, Nat.fromBytesBE_snoc, ih]
+    have hr : (BitVec.ofNat 8 ((m + 1) % 256)).toNat = (m + 1) % 256 := by
+      simp only [BitVec.toNat_ofNat]; omega
+    rw [hr]
+    omega
+
+/-- 8-bit `ofNat ∘ toNat` is the identity. -/
+private theorem ofNat8_toNat (b : Byte) : BitVec.ofNat 8 b.toNat = b := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt b.isLt]
+
+/-- The big-endian decode of a list with a nonzero leading byte is positive. -/
+theorem Nat.fromBytesBE_pos_of_head_ne_zero (b : Byte) (tl : List Byte)
+    (hb : b ≠ 0) : 0 < Nat.fromBytesBE (b :: tl) := by
+  have hbn : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exact absurd (by apply BitVec.eq_of_toNat_eq; simpa using h) hb
+    · exact h
+  have hmul : 0 < b.toNat * 256 ^ tl.length := Nat.mul_pos hbn (by positivity)
+  have he : Nat.fromBytesBE (b :: tl)
+      = b.toNat * 256 ^ tl.length + Nat.fromBytesBE tl := rfl
+  omega
+
+/-- Canonical inverse of the big-endian bijection: a byte list with a nonzero
+    leading byte (no leading zeros) is recovered by `toBytesBE ∘ fromBytesBE`.
+    `headD 1` makes `[]` vacuously canonical (`toBytesBE (fromBytesBE []) = []`).
+    Reverse (snoc) induction (`List.reverseRecOn`) matches `toBytesBE`'s
+    low-byte-last recursion. -/
+theorem Nat.toBytesBE_fromBytesBE_of_canonical :
+    ∀ (bs : List Byte), bs.headD 1 ≠ 0 → Nat.toBytesBE (Nat.fromBytesBE bs) = bs := by
+  intro bs
+  induction bs using List.reverseRecOn with
+  | nil => intro _; simp [Nat.fromBytesBE, Nat.toBytesBE]
+  | append_singleton xs b ih =>
+    intro h
+    have hxs : xs.headD 1 ≠ 0 := by
+      cases xs with
+      | nil => simp
+      | cons y ys => simpa using h
+    have ihxs := ih hxs
+    have hblt : b.toNat < 256 := by simpa using b.isLt
+    rw [Nat.fromBytesBE_snoc]
+    have hk0 : Nat.fromBytesBE xs * 256 + b.toNat ≠ 0 := by
+      cases xs with
+      | nil =>
+        simp only [List.nil_append] at h
+        have hb0 : b.toNat ≠ 0 := fun hh =>
+          h (BitVec.eq_of_toNat_eq (by simpa using hh))
+        simp only [Nat.fromBytesBE]; omega
+      | cons y ys =>
+        have hy : y ≠ 0 := by simpa using h
+        have := Nat.fromBytesBE_pos_of_head_ne_zero y ys hy
+        omega
+    obtain ⟨k', hk'⟩ : ∃ k', Nat.fromBytesBE xs * 256 + b.toNat = k' + 1 :=
+      ⟨Nat.fromBytesBE xs * 256 + b.toNat - 1, by omega⟩
+    rw [hk', Nat.toBytesBE_succ, ← hk']
+    have hdiv : (Nat.fromBytesBE xs * 256 + b.toNat) / 256
+        = Nat.fromBytesBE xs := by omega
+    have hmod : (Nat.fromBytesBE xs * 256 + b.toNat) % 256 = b.toNat := by omega
+    rw [hdiv, hmod, ihxs, ofNat8_toNat]
 
 /-! ## takeBytes properties -/
 
@@ -33,6 +153,19 @@ theorem takeBytes_length_ge {bs : List Byte} {n : Nat} (h : n ≤ bs.length) :
     takeBytes bs n = some (bs.take n, bs.drop n) := by
   simp [takeBytes, h]
 
+/-- A successful `takeBytes` splits the input into the consumed prefix (of the
+    requested length) and the remainder. -/
+theorem takeBytes_eq_some_imp {xs a b : List Byte} {k : Nat}
+    (h : takeBytes xs k = some (a, b)) : xs = a ++ b ∧ a.length = k := by
+  unfold takeBytes at h
+  split at h
+  · rename_i hk
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨ha, hb⟩ := h
+    subst ha; subst hb
+    exact ⟨(List.take_append_drop k xs).symm, by rw [List.length_take]; omega⟩
+  · exact absurd h (by simp)
+
 /-! ## readLength properties -/
 
 /-- Reading zero length-bytes always succeeds with length 0 and the input
@@ -45,6 +178,50 @@ theorem readLength_zero (bs : List Byte) :
 theorem readLength_length_lt {bs : List Byte} {n : Nat} (h : bs.length < n) :
     readLength bs n = none := by
   simp [readLength, takeBytes, Nat.not_le_of_lt h]
+
+/-- A successful `readLength` exposes the canonical length field it consumed:
+    the `k` length bytes form a prefix that big-endian-decodes to `v`, and (for
+    `v > 0`) re-encodes to exactly those bytes (no leading zeros). -/
+theorem readLength_eq_some_imp {xs r : List Byte} {k v : Nat}
+    (h : readLength xs k = some (v, r)) :
+    ∃ lenBytes, xs = lenBytes ++ r ∧ lenBytes.length = k
+      ∧ Nat.fromBytesBE lenBytes = v ∧ (0 < v → Nat.toBytesBE v = lenBytes) := by
+  cases htk : takeBytes xs k with
+  | none => rw [readLength_none_of_takeBytes_none htk] at h; exact absurd h (by simp)
+  | some pair =>
+    obtain ⟨lenBytes, rest⟩ := pair
+    obtain ⟨hsplit, hlen⟩ := takeBytes_eq_some_imp htk
+    rw [readLength_eq_of_takeBytes htk] at h
+    cases lenBytes with
+    | nil =>
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨hv, hr⟩ := h
+      subst hr; subst hv
+      exact ⟨[], hsplit, hlen, rfl, fun hpos => absurd hpos (by simp)⟩
+    | cons b tl =>
+      simp only at h
+      by_cases hc : ((b :: tl).length > 1 && b == 0) = true
+      · rw [if_pos hc] at h; exact absurd h (by simp)
+      · rw [if_neg hc] at h
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hv, hr⟩ := h
+        subst hr
+        refine ⟨b :: tl, hsplit, hlen, hv, ?_⟩
+        intro hpos
+        have hbne : b ≠ 0 := by
+          intro hb0
+          subst hb0
+          simp only [beq_self_eq_true, Bool.and_true, decide_eq_true_eq] at hc
+          have htl : tl = [] := by
+            rcases tl with _ | ⟨c, cs⟩
+            · rfl
+            · simp [List.length_cons] at hc
+          subst htl
+          rw [← hv] at hpos
+          simp [Nat.fromBytesBE] at hpos
+        have hcanon := Nat.toBytesBE_fromBytesBE_of_canonical (b :: tl) (by simpa using hbne)
+        rw [hv] at hcanon
+        exact hcanon
 
 /-! ## decodeAux trivial cases -/
 
@@ -1877,6 +2054,786 @@ theorem decode_encode_bytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
     encodeBytes_single_large b h]
   simp [decode, decodeAux, takeBytes, h]
 
+/-- 8-bit truncation round-trips for values `< 256`. -/
+private theorem toNat_ofNat8_of_lt {x : Nat} (h : x < 256) :
+    (BitVec.ofNat 8 x).toNat = x := by
+  simp only [BitVec.toNat_ofNat]; omega
+
+/-- Round-trip for a non-singleton short byte string (`length ≤ 55` and `≠ 1`,
+    so `[]` and length `≥ 2`): the encoder emits `[0x80 + len] ++ data`, which
+    classifies as `shortBytes` with payload length `len`; `takeBytes` consumes
+    exactly `data`, and the non-singleton match branch returns `.bytes data`. -/
+theorem decode_encode_bytes_short_general (data : List Byte)
+    (hne1 : data.length ≠ 1) (hlen : data.length ≤ 55) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  have hlt : 0x80 + data.length < 256 := by omega
+  have henc : encode (.bytes data)
+      = BitVec.ofNat 8 (0x80 + data.length) :: data := by
+    show encodeBytes data = _
+    rw [encodeBytes_short_of_length_ne_one data hlen hne1]; rfl
+  have htoNat : (BitVec.ofNat 8 (0x80 + data.length)).toNat = 0x80 + data.length :=
+    toNat_ofNat8_of_lt hlt
+  have hclass : classifyPrefix (BitVec.ofNat 8 (0x80 + data.length)) = .shortBytes := by
+    rw [classifyPrefix_shortBytes_iff, htoNat]; omega
+  have hpl : rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 (0x80 + data.length))
+      = data.length := by
+    rw [rlpPrefixShortBytesPayloadLen, htoNat]; omega
+  rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hpl,
+      takeBytes_length_ge (Nat.le_refl data.length)]
+  simp only [List.take_length, List.drop_length, Option.bind_eq_bind, Option.bind_some]
+  rcases data with _ | ⟨x, _ | ⟨y, t⟩⟩
+  · rfl
+  · simp at hne1
+  · rfl
+
+/-- General short byte-string round-trip (`length ≤ 55`): dispatches on the
+    encoder's structure — the two singleton special cases plus the non-singleton
+    `decode_encode_bytes_short_general`. -/
+theorem decode_encode_bytes_short (data : List Byte) (hlen : data.length ≤ 55) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  rcases data with _ | ⟨b, _ | ⟨c, t⟩⟩
+  · exact decode_encode_bytes_short_general [] (by simp) hlen
+  · by_cases hb : b.toNat < 0x80
+    · exact decode_encode_bytes_single_small b hb
+    · exact decode_encode_bytes_single_large b hb
+  · exact decode_encode_bytes_short_general (b :: c :: t) (by simp) hlen
+
+/-! ### Long byte-string round-trip (`length > 55`)
+
+The long form encodes the payload length as a big-endian length field. The
+round-trip needs three `toBytesBE` facts — the encoded length fits in `≤ 8`
+bytes (matching the decoder's length-of-length range `[1,8]`), is nonempty, and
+has a nonzero leading byte (so `readLength`'s leading-zero canonicity check
+passes) — together with the `fromBytesBE`/`toBytesBE` round-trip. -/
+
+/-- The minimal big-endian encoding of a value `< 256 ^ k` uses at most `k`
+    bytes. Induction follows `toBytesBE`'s division recursion. -/
+theorem Nat.toBytesBE_length_le :
+    ∀ (len k : Nat), len < 256 ^ k → (Nat.toBytesBE len).length ≤ k := by
+  intro len
+  induction len using Nat.toBytesBE.induct with
+  | case1 => intro k _; simp [Nat.toBytesBE]
+  | case2 m _hlt ih =>
+    intro k h
+    rw [Nat.toBytesBE_succ, List.length_append, List.length_cons, List.length_nil]
+    cases k with
+    | zero => rw [Nat.pow_zero] at h; omega
+    | succ k' =>
+      have hpow : 256 ^ (k' + 1) = 256 ^ k' * 256 := by rw [Nat.pow_succ]
+      have hk : (m + 1) / 256 < 256 ^ k' := by omega
+      have := ih k' hk
+      omega
+
+/-- The minimal big-endian encoding of a positive value is a nonempty list whose
+    leading (most-significant) byte is nonzero — the canonical no-leading-zero
+    shape. Induction follows `toBytesBE`'s division recursion. -/
+theorem Nat.toBytesBE_eq_cons_of_pos :
+    ∀ (n : Nat), 0 < n →
+      ∃ b tl, Nat.toBytesBE n = b :: tl ∧ b ≠ (0 : Byte) := by
+  intro n
+  induction n using Nat.toBytesBE.induct with
+  | case1 => intro h; omega
+  | case2 m _hlt ih =>
+    intro _h
+    rw [Nat.toBytesBE_succ]
+    by_cases hq : (m + 1) / 256 = 0
+    · rw [hq, Nat.toBytesBE_zero, List.nil_append]
+      refine ⟨BitVec.ofNat 8 ((m + 1) % 256), [], rfl, ?_⟩
+      have hlt : m + 1 < 256 := by omega
+      have hmod : (m + 1) % 256 = m + 1 := Nat.mod_eq_of_lt hlt
+      rw [hmod]
+      intro hcontra
+      have h0 : (BitVec.ofNat 8 (m + 1)).toNat = 0 := by rw [hcontra]; rfl
+      rw [toNat_ofNat8_of_lt hlt] at h0
+      omega
+    · obtain ⟨b, tl, hbtl, hb⟩ := ih (Nat.pos_of_ne_zero hq)
+      rw [hbtl, List.cons_append]
+      exact ⟨b, tl ++ [BitVec.ofNat 8 ((m + 1) % 256)], rfl, hb⟩
+
+/-- `readLength` recovers the length from a canonical big-endian length field:
+    reading `(toBytesBE len).length` bytes off `toBytesBE len ++ rest` returns
+    `len` (via the `fromBytesBE` round-trip) and the remaining `rest`. The
+    leading-zero check passes because `toBytesBE`'s leading byte is nonzero. -/
+theorem readLength_toBytesBE_append (len : Nat) (rest : List Byte) (hpos : 0 < len) :
+    readLength (Nat.toBytesBE len ++ rest) (Nat.toBytesBE len).length
+      = some (len, rest) := by
+  obtain ⟨b, tl, hbtl, hb⟩ := Nat.toBytesBE_eq_cons_of_pos len hpos
+  have htake : takeBytes (Nat.toBytesBE len ++ rest) (Nat.toBytesBE len).length
+      = some (b :: tl, rest) := by
+    rw [takeBytes_length_ge (by rw [List.length_append]; omega),
+        List.take_left, List.drop_left, hbtl]
+  rw [readLength_some_of_takeBytes_nonzero htake hb, ← hbtl,
+      Nat.fromBytesBE_toBytesBE]
+
+/-- Long-form byte-string encoding (`length > 55`): the encoder emits the
+    `0xB7 + lenOfLen` prefix, the big-endian length field, then the payload. -/
+theorem encodeBytes_long_of_length (data : List Byte) (hlen : 55 < data.length) :
+    encodeBytes data
+      = [BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)]
+          ++ Nat.toBytesBE data.length ++ data := by
+  cases data with
+  | nil => simp at hlen
+  | cons a tl =>
+    cases tl with
+    | nil => simp at hlen
+    | cons b t =>
+      have hnle : ¬ t.length ≤ 53 := by
+        simp only [List.length_cons] at hlen; omega
+      simp [encodeBytes, hnle]
+
+/-- Long byte-string round-trip (`55 < length < 256 ^ 8`): the encoded prefix
+    classifies as `longBytes` with length-of-length `(toBytesBE len).length ∈
+    [1,8]`; `readLength` recovers `len`, the `> 55` check passes, and `takeBytes`
+    consumes exactly the payload. -/
+theorem decode_encode_bytes_long (data : List Byte)
+    (hlong : 55 < data.length) (hlen : data.length < 256 ^ 8) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  obtain ⟨b0, tl0, hcons, _hb0⟩ := Nat.toBytesBE_eq_cons_of_pos data.length (by omega)
+  have hL1 : 1 ≤ (Nat.toBytesBE data.length).length := by rw [hcons]; simp
+  have hL8 : (Nat.toBytesBE data.length).length ≤ 8 := Nat.toBytesBE_length_le _ _ hlen
+  have hpfxlt : 0xB7 + (Nat.toBytesBE data.length).length < 256 := by omega
+  have htoNat : (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)).toNat
+      = 0xB7 + (Nat.toBytesBE data.length).length := toNat_ofNat8_of_lt hpfxlt
+  have henc : encode (.bytes data)
+      = BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)
+          :: (Nat.toBytesBE data.length ++ data) := by
+    show encodeBytes data = _
+    rw [encodeBytes_long_of_length data hlong]; rfl
+  have hclass : classifyPrefix (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
+      = .longBytes := by
+    rw [classifyPrefix_longBytes_iff, htoNat]; omega
+  have hlol : rlpPrefixLongBytesLenOfLen
+      (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
+      = (Nat.toBytesBE data.length).length := by
+    rw [rlpPrefixLongBytesLenOfLen, htoNat]; omega
+  rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hlol,
+      readLength_toBytesBE_append data.length data (by omega)]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [if_neg (by omega : ¬ data.length ≤ 55),
+      takeBytes_length_ge (Nat.le_refl data.length)]
+  simp only [Option.bind_some, List.take_length, List.drop_length]
+
+/-- General byte-string round-trip: any byte payload short enough for the
+    8-byte length field (`length < 256 ^ 8`, i.e. every length the decoder
+    supports) re-decodes to itself. Combines the short (`≤ 55`) and long
+    (`> 55`) cases. -/
+theorem decode_encode_bytes (data : List Byte) (hlen : data.length < 256 ^ 8) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  by_cases hshort : data.length ≤ 55
+  · exact decode_encode_bytes_short data hshort
+  · exact decode_encode_bytes_long data (by omega) hlen
+
+/-- Generality cross-check: a 100-byte payload (long form) round-trips via the
+    general theorem instantly — `decide` on the recursive decoder would be far
+    more expensive at this size. -/
+example : decode (encode (.bytes (List.replicate 100 (0x61 : Byte))))
+    = some (.bytes (List.replicate 100 (0x61 : Byte)), []) := by
+  apply decode_encode_bytes
+  rw [List.length_replicate]; decide
+
+/-! ### Fuel-parametric, append-general byte round-trip
+
+For the mutual list round-trip, the byte case must hold for `decodeAux (m+1)` at
+arbitrary fuel and with an arbitrary trailing `rest` (a sibling item's encoding).
+This re-expresses the byte round-trip on the `decodeAux (nDepth+1)` bridges. -/
+
+/-- Splitting off a known-length prefix from an append. -/
+theorem takeBytes_append_length (xs ys : List Byte) :
+    takeBytes (xs ++ ys) xs.length = some (xs, ys) := by
+  rw [takeBytes_length_ge (by rw [List.length_append]; omega),
+      List.take_left, List.drop_left]
+
+/-- Parametric non-singleton short byte round-trip (`length ≠ 1`, `≤ 55`). -/
+theorem decodeAux_succ_encodeBytes_short_append (m : Nat) (data rest : List Byte)
+    (hne1 : data.length ≠ 1) (hsh : data.length ≤ 55) :
+    decodeAux (m + 1) (encodeBytes data ++ rest) = some (.bytes data, rest) := by
+  have hlt : 0x80 + data.length < 256 := by omega
+  have htoNat : (BitVec.ofNat 8 (0x80 + data.length)).toNat = 0x80 + data.length :=
+    toNat_ofNat8_of_lt hlt
+  have hclass : classifyPrefix (BitVec.ofNat 8 (0x80 + data.length)) = .shortBytes := by
+    rw [classifyPrefix_shortBytes_iff, htoNat]; omega
+  have hpl : rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 (0x80 + data.length))
+      = data.length := by
+    rw [rlpPrefixShortBytesPayloadLen, htoNat]; omega
+  have henc : encodeBytes data = BitVec.ofNat 8 (0x80 + data.length) :: data := by
+    rw [encodeBytes_short_of_length_ne_one data hsh hne1]; rfl
+  rw [henc]
+  show decodeAux (m + 1) (BitVec.ofNat 8 (0x80 + data.length) :: (data ++ rest))
+      = some (.bytes data, rest)
+  rw [decodeAux_cons_shortBytes_of_classifyPrefix m _ (data ++ rest) hclass, hpl,
+      takeBytes_append_length data rest]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rcases data with _ | ⟨x, _ | ⟨y, t⟩⟩
+  · rfl
+  · simp at hne1
+  · rfl
+
+/-- The byte case of the round-trip in the fuel-parametric, append-general form
+    the mutual induction needs. Mirrors `decode_encode_bytes` but targets
+    `decodeAux (m+1) (… ++ rest)` via the `decodeAux_cons_*_of_classifyPrefix`
+    bridges. -/
+theorem decodeAux_succ_encodeBytes_append (m : Nat) (data rest : List Byte)
+    (hlen : data.length < 256 ^ 8) :
+    decodeAux (m + 1) (encodeBytes data ++ rest) = some (.bytes data, rest) := by
+  by_cases h1 : data.length = 1
+  · obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp h1
+    by_cases hb : b.toNat < 0x80
+    · rw [encodeBytes_single_small b hb]
+      show decodeAux (m + 1) (b :: rest) = some (.bytes [b], rest)
+      exact decodeAux_cons_singleByte_of_classifyPrefix m b rest
+        ((classifyPrefix_singleByte_iff b).mpr hb)
+    · rw [encodeBytes_single_large b hb]
+      have hcl : classifyPrefix (BitVec.ofNat 8 0x81) = .shortBytes := by
+        rw [classifyPrefix_shortBytes_iff]; decide
+      show decodeAux (m + 1) (BitVec.ofNat 8 0x81 :: (b :: rest)) = some (.bytes [b], rest)
+      rw [decodeAux_cons_shortBytes_of_classifyPrefix m _ (b :: rest) hcl,
+          show rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 0x81) = 1 from by decide,
+          show takeBytes (b :: rest) 1 = some ([b], rest) from by simp [takeBytes]]
+      simp only [Option.bind_eq_bind, Option.bind_some]
+      rw [if_neg hb]
+  · by_cases hsh : data.length ≤ 55
+    · exact decodeAux_succ_encodeBytes_short_append m data rest h1 hsh
+    · have hlong : 55 < data.length := by omega
+      rw [encodeBytes_long_of_length data hlong]
+      show decodeAux (m + 1)
+          (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)
+            :: ((Nat.toBytesBE data.length ++ data) ++ rest)) = some (.bytes data, rest)
+      rw [List.append_assoc]
+      have hL1 : 1 ≤ (Nat.toBytesBE data.length).length := by
+        obtain ⟨b, tl, hcons, _⟩ := Nat.toBytesBE_eq_cons_of_pos data.length (by omega)
+        rw [hcons]; simp
+      have hL8 : (Nat.toBytesBE data.length).length ≤ 8 :=
+        Nat.toBytesBE_length_le _ _ hlen
+      have hpfxlt : 0xB7 + (Nat.toBytesBE data.length).length < 256 := by omega
+      have htoNat : (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)).toNat
+          = 0xB7 + (Nat.toBytesBE data.length).length := toNat_ofNat8_of_lt hpfxlt
+      have hcl : classifyPrefix
+          (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)) = .longBytes := by
+        rw [classifyPrefix_longBytes_iff, htoNat]; omega
+      have hlol : rlpPrefixLongBytesLenOfLen
+          (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
+          = (Nat.toBytesBE data.length).length := by
+        rw [rlpPrefixLongBytesLenOfLen, htoNat]; omega
+      rw [decodeAux_cons_longBytes_of_classifyPrefix m _
+            (Nat.toBytesBE data.length ++ (data ++ rest)) hcl, hlol,
+          readLength_toBytesBE_append data.length (data ++ rest) (by omega)]
+      simp only [Option.bind_eq_bind, Option.bind_some]
+      rw [if_neg (by omega : ¬ data.length ≤ 55), takeBytes_append_length data rest]
+      simp only [Option.bind_some]
+
+/-! ### Full round-trip via mutual fuel induction
+
+`decodeAux`/`decodeItems` recurse structurally on the fuel `nDepth`, so a single
+step induction on `nDepth` (proving an `decodeAux`-on-`encode` statement together
+with a `decodeItems`-on-`encodeItems` statement) yields the mutual structure
+without any induction on `RLPItem` itself. -/
+
+/-- Short-list encoder shape (`payload ≤ 55`). -/
+theorem encode_list_short (items : List RLPItem)
+    (h : (encode.encodeItems items).length ≤ 55) :
+    encode (.list items)
+      = BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)
+          :: encode.encodeItems items := by
+  rw [encode]
+  simp only [h, if_true, List.singleton_append]
+
+/-- Long-list encoder shape (`payload > 55`). -/
+theorem encode_list_long (items : List RLPItem)
+    (h : 55 < (encode.encodeItems items).length) :
+    encode (.list items)
+      = BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length)
+          :: (Nat.toBytesBE (encode.encodeItems items).length ++ encode.encodeItems items) := by
+  rw [encode]
+  rw [if_neg (by omega)]
+  rfl
+
+/-- A byte string never shrinks under encoding (used to push the `< 256^8`
+    size bound from an encoding down to its payload). -/
+theorem le_encodeBytes_length (data : List Byte) :
+    data.length ≤ (encodeBytes data).length := by
+  rcases data with _ | ⟨b, _ | ⟨c, t⟩⟩
+  · simp [encodeBytes]
+  · by_cases hb : b.toNat < 0x80 <;> simp [encodeBytes, hb]
+  · by_cases hsh : (b :: c :: t).length ≤ 55
+    · rw [encodeBytes_short_of_length_ne_one (b :: c :: t) hsh (by simp)]
+      simp
+    · rw [encodeBytes_long_of_length (b :: c :: t) (by simp only [List.length_cons] at hsh ⊢; omega)]
+      simp only [List.length_append, List.length_cons]; omega
+
+/-- `decodeItems` one-step unfold on a nonempty input. -/
+theorem decodeItems_succ_of_ne_nil (m : Nat) (bs : List Byte) (h : bs ≠ []) :
+    decodeItems (m + 1) bs =
+      (do let (item, rest) ← decodeAux m bs
+          let (items, rest') ← decodeItems m rest
+          some (item :: items, rest')) := by
+  obtain ⟨b, bs', rfl⟩ := List.exists_cons_of_ne_nil h
+  rfl
+
+/-- The encode→decode round-trip, in mutual fuel-parametric form. Step induction
+    on the fuel `nDepth` proves the single-item statement (`decodeAux` on
+    `encode item ++ rest`) together with the item-sequence statement
+    (`decodeItems` on `encode.encodeItems items`); each level's `.list`/cons case
+    is supplied by the IH at `nDepth-1`. -/
+theorem decode_encode_mutual : ∀ (nDepth : Nat),
+    (∀ (item : RLPItem) (rest : List Byte),
+        (encode item).length < 256 ^ 8 →
+        2 * (encode item).length ≤ nDepth →
+        decodeAux nDepth (encode item ++ rest) = some (item, rest))
+    ∧ (∀ (items : List RLPItem),
+        (encode.encodeItems items).length < 256 ^ 8 →
+        2 * (encode.encodeItems items).length < nDepth →
+        decodeItems nDepth (encode.encodeItems items) = some (items, [])) := by
+  intro nDepth
+  induction nDepth with
+  | zero =>
+    refine ⟨?_, ?_⟩
+    · intro item rest _ hfuel
+      have := encode_nonempty item; omega
+    · intro items _ hfuel; omega
+  | succ m ih =>
+    obtain ⟨ihA, ihB⟩ := ih
+    refine ⟨?_, ?_⟩
+    · -- A (m+1)
+      intro item rest hbound hfuel
+      cases item with
+      | bytes data =>
+        have hdata : data.length < 256 ^ 8 :=
+          Nat.lt_of_le_of_lt (le_encodeBytes_length data) hbound
+        exact decodeAux_succ_encodeBytes_append m data rest hdata
+      | list items =>
+        by_cases hL55 : (encode.encodeItems items).length ≤ 55
+        · -- short list
+          have henc : encode (.list items)
+              = BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)
+                  :: encode.encodeItems items := encode_list_short items hL55
+          rw [henc] at hbound hfuel
+          simp only [List.length_cons] at hbound hfuel
+          rw [henc]
+          show decodeAux (m + 1)
+              (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)
+                :: (encode.encodeItems items ++ rest)) = some (.list items, rest)
+          have hpfxlt : 0xC0 + (encode.encodeItems items).length < 256 := by omega
+          have htoNat : (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)).toNat
+              = 0xC0 + (encode.encodeItems items).length := toNat_ofNat8_of_lt hpfxlt
+          have hcl : classifyPrefix
+              (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)) = .shortList := by
+            rw [classifyPrefix_shortList_iff, htoNat]; omega
+          have hpl : rlpPrefixShortListPayloadLen
+              (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length))
+              = (encode.encodeItems items).length := by
+            rw [rlpPrefixShortListPayloadLen, htoNat]; omega
+          have hitems : decodeItems m (encode.encodeItems items) = some (items, []) :=
+            ihB items (by omega) (by omega)
+          rw [decodeAux_cons_shortList_of_classifyPrefix m _
+                (encode.encodeItems items ++ rest) hcl, hpl,
+              takeBytes_append_length (encode.encodeItems items) rest]
+          simp only [Option.bind_eq_bind, Option.bind_some, hitems, List.isEmpty_nil, if_true]
+        · -- long list
+          have hlong : 55 < (encode.encodeItems items).length := by omega
+          obtain ⟨b0, tl0, hcons, _⟩ :=
+            Nat.toBytesBE_eq_cons_of_pos (encode.encodeItems items).length (by omega)
+          have hL1 : 1 ≤ (Nat.toBytesBE (encode.encodeItems items).length).length := by
+            rw [hcons]; simp
+          have henc : encode (.list items)
+              = BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length)
+                  :: (Nat.toBytesBE (encode.encodeItems items).length
+                        ++ encode.encodeItems items) := encode_list_long items hlong
+          rw [henc] at hbound hfuel
+          simp only [List.length_cons, List.length_append] at hbound hfuel
+          have hL8 : (Nat.toBytesBE (encode.encodeItems items).length).length ≤ 8 :=
+            Nat.toBytesBE_length_le _ _ (by omega)
+          rw [henc]
+          show decodeAux (m + 1)
+              (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length)
+                :: ((Nat.toBytesBE (encode.encodeItems items).length
+                      ++ encode.encodeItems items) ++ rest)) = some (.list items, rest)
+          rw [List.append_assoc]
+          have hpfxlt : 0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length < 256 := by
+            omega
+          have htoNat :
+              (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length)).toNat
+              = 0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length :=
+            toNat_ofNat8_of_lt hpfxlt
+          have hcl : classifyPrefix
+              (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length))
+              = .longList := by
+            rw [classifyPrefix_longList_iff, htoNat]; omega
+          have hlol : rlpPrefixLongListLenOfLen
+              (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length))
+              = (Nat.toBytesBE (encode.encodeItems items).length).length := by
+            rw [rlpPrefixLongListLenOfLen, htoNat]; omega
+          have hitems : decodeItems m (encode.encodeItems items) = some (items, []) :=
+            ihB items (by omega) (by omega)
+          rw [decodeAux_cons_longList_of_classifyPrefix m _
+                (Nat.toBytesBE (encode.encodeItems items).length
+                  ++ (encode.encodeItems items ++ rest)) hcl, hlol,
+              readLength_toBytesBE_append (encode.encodeItems items).length
+                (encode.encodeItems items ++ rest) (by omega)]
+          simp only [Option.bind_eq_bind, Option.bind_some]
+          rw [if_neg (by omega : ¬ (encode.encodeItems items).length ≤ 55),
+              takeBytes_append_length (encode.encodeItems items) rest]
+          simp only [Option.bind_some, hitems, List.isEmpty_nil, if_true]
+    · -- B (m+1)
+      intro items hbound hfuel
+      cases items with
+      | nil => rfl
+      | cons i is =>
+        have henc : encode.encodeItems (i :: is)
+            = encode i ++ encode.encodeItems is := rfl
+        have hpi := encode_nonempty i
+        rw [henc] at hbound hfuel
+        simp only [List.length_append] at hbound hfuel
+        have hne : encode i ++ encode.encodeItems is ≠ [] := by
+          intro hcontra
+          rw [List.append_eq_nil_iff] at hcontra
+          rw [hcontra.1] at hpi; simp at hpi
+        have hAi : decodeAux m (encode i ++ encode.encodeItems is)
+            = some (i, encode.encodeItems is) := ihA i _ (by omega) (by omega)
+        have hBis : decodeItems m (encode.encodeItems is) = some (is, []) :=
+          ihB is (by omega) (by omega)
+        rw [henc, decodeItems_succ_of_ne_nil m _ hne, hAi]
+        simp only [Option.bind_eq_bind, Option.bind_some, hBis]
+
+/-- **Round-trip correctness (full).** Every RLP item whose encoding fits the
+    decoder's 8-byte length field (`(encode item).length < 256^8` — implying the
+    same bound for all nested payloads, since each sub-encoding is no longer than
+    the whole) re-decodes to itself with no leftover. Specializes
+    `decode_encode_mutual` at the `decode` fuel `2 * (encode item).length`. -/
+theorem decode_encode (item : RLPItem) (h : (encode item).length < 256 ^ 8) :
+    decode (encode item) = some (item, []) := by
+  have hA := (decode_encode_mutual (2 * (encode item).length)).1 item [] h (Nat.le_refl _)
+  rw [List.append_nil] at hA
+  rw [decode_eq_decodeAux_length]
+  exact hA
+
+/-- Discharges the round-trip hypothesis of
+    `decodeFully_encode_of_decode_encode`: full decode of any encoded item
+    (within the length bound) returns exactly that item. -/
+theorem decodeFully_encode (item : RLPItem) (h : (encode item).length < 256 ^ 8) :
+    decodeFully (encode item) = some item :=
+  decodeFully_encode_of_decode_encode (decode_encode item h)
+
+/-- **Injectivity of `encode`** over items the decoder supports
+    (`(encode i₁).length < 256^8`): distinct items never share an encoding. A
+    direct corollary of the round-trip — both sides re-decode to themselves, so
+    equal encodings force equal items. -/
+theorem encode_injective {i₁ i₂ : RLPItem} (h : (encode i₁).length < 256 ^ 8)
+    (heq : encode i₁ = encode i₂) : i₁ = i₂ := by
+  have h₁ := decode_encode i₁ h
+  have h₂ := decode_encode i₂ (heq ▸ h)
+  rw [heq, h₂] at h₁
+  simp only [Option.some.injEq, Prod.mk.injEq] at h₁
+  exact h₁.1.symm
+
+/-- Cross-check: two distinct items have distinct encodings (contrapositive of
+    `encode_injective`). -/
+example : encode (.bytes [0x01]) ≠ encode (.list [.bytes [0x01]]) := by decide
+
+/-- Generality cross-check: a nested list round-trips via the general theorem
+    (the bound is discharged by `decide`). -/
+example :
+    decodeFully (encode (.list [.list [], .bytes [0x01], .list [.bytes [0x02]]]))
+      = some (.list [.list [], .bytes [0x01], .list [.bytes [0x02]]]) := by
+  apply decodeFully_encode
+  decide
+
+/-! ### Right inverse (decodability): a decoded item re-encodes to the bytes
+    consumed. The three byte classes are non-recursive standalone lemmas; the two
+    list classes are handled inline in `decode_right_inverse_mutual`. -/
+
+/-- Right inverse, single-byte class. -/
+theorem decodeAux_singleByte_right_inv (m : Nat) (pfx : Byte) (rest0 : List Byte)
+    (item : RLPItem) (rest : List Byte) (hcl : classifyPrefix pfx = .singleByte)
+    (h : decodeAux (m + 1) (pfx :: rest0) = some (item, rest)) :
+    pfx :: rest0 = encode item ++ rest := by
+  rw [decodeAux_cons_singleByte_of_classifyPrefix m pfx rest0 hcl] at h
+  simp only [Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+  show pfx :: rest0 = encodeBytes [pfx] ++ rest0
+  rw [encodeBytes_single_small pfx ((classifyPrefix_singleByte_iff pfx).mp hcl)]; simp
+
+/-- Right inverse, short-byte-string class. -/
+theorem decodeAux_shortBytes_right_inv (m : Nat) (pfx : Byte) (rest0 : List Byte)
+    (item : RLPItem) (rest : List Byte) (hcl : classifyPrefix pfx = .shortBytes)
+    (h : decodeAux (m + 1) (pfx :: rest0) = some (item, rest)) :
+    pfx :: rest0 = encode item ++ rest := by
+  rw [decodeAux_cons_shortBytes_of_classifyPrefix m pfx rest0 hcl] at h
+  have hrange := (classifyPrefix_shortBytes_iff pfx).mp hcl
+  cases htk : takeBytes rest0 (rlpPrefixShortBytesPayloadLen pfx) with
+  | none => rw [htk] at h; simp at h
+  | some pair =>
+    obtain ⟨data, rest'⟩ := pair
+    obtain ⟨hsp, hpl⟩ := takeBytes_eq_some_imp htk
+    rw [htk] at h
+    simp only [Option.bind_eq_bind, Option.bind_some] at h
+    have hpfx : pfx = BitVec.ofNat 8 (0x80 + data.length) := by
+      rw [hpl, rlpPrefixShortBytesPayloadLen,
+          show 0x80 + (pfx.toNat - 0x80) = pfx.toNat from by omega, ofNat8_toNat]
+    have h55 : data.length ≤ 55 := by rw [hpl, rlpPrefixShortBytesPayloadLen]; omega
+    rcases data with _ | ⟨b, _ | ⟨c, t⟩⟩
+    · -- []  (non-singleton)
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+      show pfx :: rest0 = encodeBytes [] ++ rest'
+      rw [encodeBytes_short_of_length_ne_one [] (by simp) (by simp), hsp, hpfx]; simp
+    · -- [b]  (singleton)
+      replace h : (if b.toNat < 0x80 then none
+          else some (RLPItem.bytes [b], rest')) = some (item, rest) := h
+      by_cases hb : b.toNat < 0x80
+      · rw [if_pos hb] at h; exact absurd h (by simp)
+      · rw [if_neg hb] at h
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+        show pfx :: rest0 = encodeBytes [b] ++ rest'
+        rw [encodeBytes_single_large b hb, hsp, hpfx]; simp
+    · -- b :: c :: t  (non-singleton)
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+      show pfx :: rest0 = encodeBytes (b :: c :: t) ++ rest'
+      rw [encodeBytes_short_of_length_ne_one (b :: c :: t) h55 (by simp), hsp, hpfx]; simp
+
+/-- Right inverse, long-byte-string class. -/
+theorem decodeAux_longBytes_right_inv (m : Nat) (pfx : Byte) (rest0 : List Byte)
+    (item : RLPItem) (rest : List Byte) (hcl : classifyPrefix pfx = .longBytes)
+    (h : decodeAux (m + 1) (pfx :: rest0) = some (item, rest)) :
+    pfx :: rest0 = encode item ++ rest := by
+  rw [decodeAux_cons_longBytes_of_classifyPrefix m pfx rest0 hcl] at h
+  have hrange := (classifyPrefix_longBytes_iff pfx).mp hcl
+  cases hrd : readLength rest0 (rlpPrefixLongBytesLenOfLen pfx) with
+  | none => rw [hrd] at h; simp at h
+  | some pair =>
+    obtain ⟨lenVal, rest'⟩ := pair
+    rw [hrd] at h
+    simp only [Option.bind_eq_bind, Option.bind_some] at h
+    by_cases hle : lenVal ≤ 55
+    · rw [if_pos hle] at h; simp at h
+    · rw [if_neg hle] at h
+      cases htk : takeBytes rest' lenVal with
+      | none => rw [htk] at h; simp at h
+      | some pair2 =>
+        obtain ⟨data, rest''⟩ := pair2
+        rw [htk] at h
+        simp only [Option.bind_some, Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+        obtain ⟨lenBytes, hsp_rl, hlb_len, _hfb, himp⟩ := readLength_eq_some_imp hrd
+        obtain ⟨hsp_tk, hdl⟩ := takeBytes_eq_some_imp htk
+        have htobe : Nat.toBytesBE lenVal = lenBytes := himp (by omega)
+        have hpfx : pfx = BitVec.ofNat 8 (0xB7 + lenBytes.length) := by
+          rw [hlb_len, rlpPrefixLongBytesLenOfLen,
+              show 0xB7 + (pfx.toNat - 0xB7) = pfx.toNat from by omega, ofNat8_toNat]
+        show pfx :: rest0 = encodeBytes data ++ rest''
+        rw [encodeBytes_long_of_length data (by rw [hdl]; omega), hdl, htobe, hpfx,
+            hsp_rl, hsp_tk]
+        simp [List.append_assoc]
+
+/-- **Right inverse (decodability), mutual fuel form.** Whatever `decodeAux` /
+    `decodeItems` accept re-encodes to exactly the consumed bytes. Step induction
+    on the fuel `nDepth`: byte classes delegate to the standalone lemmas above;
+    list classes recurse through `ihB`. -/
+theorem decode_right_inverse_mutual : ∀ (n : Nat),
+    (∀ (bs : List Byte) (item : RLPItem) (rest : List Byte),
+        decodeAux n bs = some (item, rest) → bs = encode item ++ rest)
+    ∧ (∀ (bs : List Byte) (items : List RLPItem) (rest : List Byte),
+        decodeItems n bs = some (items, rest)
+          → bs = encode.encodeItems items ++ rest) := by
+  intro n
+  induction n with
+  | zero =>
+    refine ⟨?_, ?_⟩
+    · intro bs item rest h; simp [decodeAux] at h
+    · intro bs items rest h
+      cases bs with
+      | nil =>
+        rw [show decodeItems 0 [] = some ([], []) from rfl] at h
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hi, hr⟩ := h; subst hi; subst hr; rfl
+      | cons a as => simp [decodeItems] at h
+  | succ m ih =>
+    obtain ⟨ihA, ihB⟩ := ih
+    refine ⟨?_, ?_⟩
+    · -- A (m+1)
+      intro bs item rest h
+      cases bs with
+      | nil => simp [decodeAux] at h
+      | cons pfx rest0 =>
+        cases hcl : classifyPrefix pfx with
+        | singleByte => exact decodeAux_singleByte_right_inv m pfx rest0 item rest hcl h
+        | shortBytes => exact decodeAux_shortBytes_right_inv m pfx rest0 item rest hcl h
+        | longBytes => exact decodeAux_longBytes_right_inv m pfx rest0 item rest hcl h
+        | shortList =>
+          rw [decodeAux_cons_shortList_of_classifyPrefix m pfx rest0 hcl] at h
+          have hrange := (classifyPrefix_shortList_iff pfx).mp hcl
+          cases htk : takeBytes rest0 (rlpPrefixShortListPayloadLen pfx) with
+          | none => rw [htk] at h; simp at h
+          | some pair =>
+            obtain ⟨payload, rest'⟩ := pair
+            obtain ⟨hsp, hpl⟩ := takeBytes_eq_some_imp htk
+            rw [htk] at h
+            simp only [Option.bind_eq_bind, Option.bind_some] at h
+            cases hdi : decodeItems m payload with
+            | none => rw [hdi] at h; simp at h
+            | some pair2 =>
+              obtain ⟨items, leftover⟩ := pair2
+              rw [hdi] at h
+              simp only [Option.bind_some] at h
+              cases leftover with
+              | cons x xs => simp at h
+              | nil =>
+                simp only [List.isEmpty_nil, if_true, Option.some.injEq,
+                  Prod.mk.injEq] at h
+                obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+                have hib := ihB payload items [] hdi
+                rw [List.append_nil] at hib
+                have hpfx : pfx = BitVec.ofNat 8 (0xC0 + payload.length) := by
+                  rw [hpl, rlpPrefixShortListPayloadLen,
+                      show 0xC0 + (pfx.toNat - 0xC0) = pfx.toNat from by omega, ofNat8_toNat]
+                have h55 : (encode.encodeItems items).length ≤ 55 := by
+                  rw [← hib, hpl, rlpPrefixShortListPayloadLen]; omega
+                show pfx :: rest0 = encode (.list items) ++ rest'
+                rw [encode_list_short items h55, ← hib, hsp, hpfx]; simp
+        | longList =>
+          rw [decodeAux_cons_longList_of_classifyPrefix m pfx rest0 hcl] at h
+          have hrange := (classifyPrefix_longList_iff pfx).mp hcl
+          cases hrd : readLength rest0 (rlpPrefixLongListLenOfLen pfx) with
+          | none => rw [hrd] at h; simp at h
+          | some pair =>
+            obtain ⟨lenVal, rest'⟩ := pair
+            rw [hrd] at h
+            simp only [Option.bind_eq_bind, Option.bind_some] at h
+            by_cases hle : lenVal ≤ 55
+            · rw [if_pos hle] at h; simp at h
+            · rw [if_neg hle] at h
+              cases htk : takeBytes rest' lenVal with
+              | none => rw [htk] at h; simp at h
+              | some pair2 =>
+                obtain ⟨payload, rest''⟩ := pair2
+                rw [htk] at h
+                simp only [Option.bind_some] at h
+                cases hdi : decodeItems m payload with
+                | none => rw [hdi] at h; simp at h
+                | some pair3 =>
+                  obtain ⟨items, leftover⟩ := pair3
+                  rw [hdi] at h
+                  simp only [Option.bind_some] at h
+                  cases leftover with
+                  | cons x xs => simp at h
+                  | nil =>
+                    simp only [List.isEmpty_nil, if_true, Option.some.injEq,
+                      Prod.mk.injEq] at h
+                    obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+                    have hib := ihB payload items [] hdi
+                    rw [List.append_nil] at hib
+                    obtain ⟨lenBytes, hsp_rl, hlb_len, _hfb, himp⟩ :=
+                      readLength_eq_some_imp hrd
+                    obtain ⟨hsp_tk, hdl⟩ := takeBytes_eq_some_imp htk
+                    have htobe : Nat.toBytesBE lenVal = lenBytes := himp (by omega)
+                    have hpfx : pfx = BitVec.ofNat 8 (0xF7 + lenBytes.length) := by
+                      rw [hlb_len, rlpPrefixLongListLenOfLen,
+                          show 0xF7 + (pfx.toNat - 0xF7) = pfx.toNat from by omega,
+                          ofNat8_toNat]
+                    have hlonglen : 55 < (encode.encodeItems items).length := by
+                      rw [← hib, hdl]; omega
+                    show pfx :: rest0 = encode (.list items) ++ rest''
+                    rw [encode_list_long items hlonglen, ← hib, hdl, htobe, hpfx,
+                        hsp_rl, hsp_tk]
+                    simp [List.append_assoc]
+    · -- B (m+1)
+      intro bs items rest h
+      cases bs with
+      | nil =>
+        rw [show decodeItems (m + 1) [] = some ([], []) from rfl] at h
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hi, hr⟩ := h; subst hi; subst hr; rfl
+      | cons a as =>
+        rw [decodeItems_succ_of_ne_nil m (a :: as) (by simp)] at h
+        cases hda : decodeAux m (a :: as) with
+        | none => rw [hda] at h; simp at h
+        | some pair =>
+          obtain ⟨item, r⟩ := pair
+          rw [hda] at h
+          simp only [Option.bind_eq_bind, Option.bind_some] at h
+          cases hdi : decodeItems m r with
+          | none => rw [hdi] at h; simp at h
+          | some pair2 =>
+            obtain ⟨items', r'⟩ := pair2
+            rw [hdi] at h
+            simp only [Option.bind_some, Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨hi, hr⟩ := h; subst hi; subst hr
+            have hA := ihA (a :: as) item r hda
+            have hB := ihB r items' r' hdi
+            show a :: as = encode.encodeItems (item :: items') ++ r'
+            rw [show encode.encodeItems (item :: items')
+                  = encode item ++ encode.encodeItems items' from rfl, hA, hB]
+            simp [List.append_assoc]
+
+/-- **Right inverse of `decode`.** Whatever `decode` accepts re-encodes to exactly
+    the bytes it consumed — so the decoder accepts only canonical encodings. The
+    ACL2 `rlp-encode-tree-of-rlp-parse-tree` analogue. -/
+theorem decode_eq_some_imp_encode (bs : List Byte) (item : RLPItem) (rest : List Byte)
+    (h : decode bs = some (item, rest)) : bs = encode item ++ rest := by
+  rw [decode_eq_decodeAux_length] at h
+  exact (decode_right_inverse_mutual (2 * bs.length)).1 bs item rest h
+
+/-- **Decodability capstone.** Full decode is exactly the inverse of `encode`:
+    `decodeFully bs = some item ↔ bs = encode item` (for items within the
+    decoder's 8-byte length-field bound — astronomically permissive). Combines
+    the left inverse (`decodeFully_encode`) and the right inverse. -/
+theorem decodeFully_eq_encode (bs : List Byte) (item : RLPItem)
+    (hbound : (encode item).length < 256 ^ 8) :
+    decodeFully bs = some item ↔ bs = encode item := by
+  constructor
+  · intro hd
+    have hdec := (decodeFully_eq_some_iff bs item).mp hd
+    simpa using decode_eq_some_imp_encode bs item [] hdec
+  · intro hb; subst hb; exact decodeFully_encode item hbound
+
+/-- Right-inverse cross-check: the bytes `0xC2 [0x01, 0x02]` decode to a list, and
+    are exactly that list's encoding. -/
+example : decode [0xC2, 0x01, 0x02] = some (.list [.bytes [0x01], .bytes [0x02]], []) := by
+  decide
+example : ([0xC2, 0x01, 0x02] : List Byte)
+    = encode (.list [.bytes [0x01], .bytes [0x02]]) ++ [] := by decide
+
+/-- Capstone cross-check (both directions on a nested list). -/
+example : decodeFully (encode (.list [.bytes [0x07], .list []]))
+    = some (.list [.bytes [0x07], .list []]) :=
+  (decodeFully_eq_encode _ _ (by decide)).mpr rfl
+
+/-! ### Self-delimiting encoding / prefix-unambiguity (ACL2 `rlp-encode-tree-unamb-prefix`)
+
+An RLP encoding determines exactly where it ends, so no valid encoding is a
+proper prefix of another. This follows directly from the two inverses: an
+encoding followed by *any* trailing bytes decodes back to the item and the exact
+trailer. -/
+
+/-- Left inverse with an arbitrary trailer (generalizes `decode_encode`). -/
+theorem decode_encode_append (item : RLPItem) (rest : List Byte)
+    (h : (encode item).length < 256 ^ 8) :
+    decode (encode item ++ rest) = some (item, rest) := by
+  rw [decode_eq_decodeAux_length]
+  exact (decode_encode_mutual (2 * (encode item ++ rest).length)).1 item rest h
+    (by rw [List.length_append]; omega)
+
+/-- Encodings are left-cancellable against an arbitrary trailer: `encode` is
+    self-delimiting, so the split point is unique. -/
+theorem encode_append_cancel {i₁ i₂ : RLPItem} {r₁ r₂ : List Byte}
+    (h₁ : (encode i₁).length < 256 ^ 8) (h₂ : (encode i₂).length < 256 ^ 8)
+    (heq : encode i₁ ++ r₁ = encode i₂ ++ r₂) : i₁ = i₂ ∧ r₁ = r₂ := by
+  have d₁ := decode_encode_append i₁ r₁ h₁
+  have d₂ := decode_encode_append i₂ r₂ h₂
+  rw [heq, d₂] at d₁
+  simp only [Option.some.injEq, Prod.mk.injEq] at d₁
+  exact ⟨d₁.1.symm, d₁.2.symm⟩
+
+/-- **Prefix-unambiguity.** No valid encoding is a proper prefix of another: if
+    `encode i₁` is a prefix of `encode i₂` then the items are equal. -/
+theorem encode_prefix_unambiguous {i₁ i₂ : RLPItem}
+    (h₁ : (encode i₁).length < 256 ^ 8) (h₂ : (encode i₂).length < 256 ^ 8)
+    (hpre : encode i₁ <+: encode i₂) : i₁ = i₂ := by
+  obtain ⟨t, ht⟩ := hpre
+  exact (encode_append_cancel h₁ h₂ (r₁ := t) (r₂ := [])
+    (by rw [List.append_nil]; exact ht)).1
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
@@ -1929,4 +2886,44 @@ example : decode [0x81, 0x0F] = none := by decide
 example : decode [0x81, 0x7F] = none := by decide
 example : decode [0x81, 0x00] = none := by decide
 
+/-! ## Quasi-encoding rejection (ACL2 §4.2.1)
+
+Coglio's ACL2 RLP development (arXiv:2009.13769) emphasizes that a correct
+decoder must **reject** the five families of non-canonical "quasi-encodings" —
+byte sequences that *could* be parsed but are not in the image of `encode`.
+Accepting them (as some implementations did) breaks the right-inverse /
+decodability property and the database-key consensus rule. Our decoder rejects
+all five; the parametric rejections are named lemmas, with concrete `decide`
+cross-checks below.
+
+1. Redundant singleton `[0x81, x]` with `x < 0x80` — must use the single-byte
+   form `[x]`. Rejected by `decode_canonical_rejection_single`.
+2. Long byte-string with a leading-zero length field — rejected because
+   `readLength` enforces no leading zeros
+   (`readLength_none_of_takeBytes_leading_zero`).
+3. Long byte-string form used for a `≤ 55` payload — rejected by the
+   `lenVal ≤ 55` guard (`decodeAux_long_bytes_short_length_rejected`).
+4. Long list with a leading-zero length field — as (2).
+5. Long list form used for a `≤ 55` payload — as (3),
+   `decodeAux_long_list_short_length_rejected`. -/
+
+-- (1) redundant singleton (parametric form already proven)
+example (b : Byte) (h : b.toNat < 0x80) : decode [(0x81 : Byte), b] = none :=
+  decode_canonical_rejection_single b h
+
+-- (2) long byte-string, leading-zero length field (prefix 0xB9 ⇒ 2 length bytes)
+example : decode [0xB9, 0x00, 0x40] = none := by decide
+-- (3) long byte-string form for a short (≤55) payload (prefix 0xB8, len 5)
+example : decode [0xB8, 0x05] = none := by decide
+-- (4) long list, leading-zero length field (prefix 0xF9 ⇒ 2 length bytes)
+example : decode [0xF9, 0x00, 0x40] = none := by decide
+-- (5) long list form for a short (≤55) payload (prefix 0xF8, len 5)
+example : decode [0xF8, 0x05] = none := by decide
+
 end EvmAsm.EL.RLP
+
+
+
+
+
+

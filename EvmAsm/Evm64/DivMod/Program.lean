@@ -888,6 +888,86 @@ def evm_mod : Program :=
   ADDI .x0 .x0 0 ;;  -- NOP: separates exit PC from subroutine
   divK_div128_v4
 
+/-- 256-bit EVM DIV using the v5 128/64-bit division subroutine. This
+    executable surface is intentionally separate from `evm_div` so existing
+    v4 proof/codegen consumers remain stable. -/
+def evm_div_v5 : Program :=
+  divK_phaseA 1020 ;;
+  divK_phaseB ;;
+  divK_clz ;;
+  divK_phaseC2 172 ;;
+  divK_normB ;;
+  divK_normA 40 ;;
+  divK_copyAU ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
+  divK_denorm ;;
+  divK_div_epilogue 24 ;;
+  divK_zeroPath ;;
+  ADDI .x0 .x0 0 ;;  -- NOP: separates exit PC from subroutine
+  divK_div128_v5
+
+/-- 256-bit EVM MOD using the v5 128/64-bit division subroutine. -/
+def evm_mod_v5 : Program :=
+  divK_phaseA 1020 ;;
+  divK_phaseB ;;
+  divK_clz ;;
+  divK_phaseC2 172 ;;
+  divK_normB ;;
+  divK_normA 40 ;;
+  divK_copyAU ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
+  divK_denorm ;;
+  divK_mod_epilogue 24 ;;
+  divK_zeroPath ;;
+  ADDI .x0 .x0 0 ;;  -- NOP: separates exit PC from subroutine
+  divK_div128_v5
+
+theorem evm_div_v5_length : evm_div_v5.length = 353 := by
+  have h_phaseA : (divK_phaseA 1020).length = 8 := by rfl
+  have h_phaseB : divK_phaseB.length = 21 := by rfl
+  have h_clz : divK_clz.length = 24 := by rfl
+  have h_phaseC2 : (divK_phaseC2 172).length = 4 := by rfl
+  have h_normB : divK_normB.length = 21 := by rfl
+  have h_normA : (divK_normA 40).length = 21 := by rfl
+  have h_copyAU : divK_copyAU.length = 9 := by rfl
+  have h_loopSetup : (divK_loopSetup 464).length = 4 := by rfl
+  have h_loopBody : (divK_loopBody 560 7736).length = 115 := by rfl
+  have h_denorm : divK_denorm.length = 25 := by rfl
+  have h_epilogue : (divK_div_epilogue 24).length = 10 := by rfl
+  have h_zeroPath : divK_zeroPath.length = 5 := by rfl
+  have h_nop : (ADDI .x0 .x0 0).length = 1 := by rfl
+  have h_div128 : divK_div128_v5.length = 85 := by
+    unfold divK_div128_v5
+    rfl
+  unfold evm_div_v5
+  simp only [seq, Program.length_append, h_phaseA, h_phaseB, h_clz, h_phaseC2,
+    h_normB, h_normA, h_copyAU, h_loopSetup, h_loopBody, h_denorm, h_epilogue,
+    h_zeroPath, h_nop, h_div128]
+
+theorem evm_mod_v5_length : evm_mod_v5.length = 353 := by
+  have h_phaseA : (divK_phaseA 1020).length = 8 := by rfl
+  have h_phaseB : divK_phaseB.length = 21 := by rfl
+  have h_clz : divK_clz.length = 24 := by rfl
+  have h_phaseC2 : (divK_phaseC2 172).length = 4 := by rfl
+  have h_normB : divK_normB.length = 21 := by rfl
+  have h_normA : (divK_normA 40).length = 21 := by rfl
+  have h_copyAU : divK_copyAU.length = 9 := by rfl
+  have h_loopSetup : (divK_loopSetup 464).length = 4 := by rfl
+  have h_loopBody : (divK_loopBody 560 7736).length = 115 := by rfl
+  have h_denorm : divK_denorm.length = 25 := by rfl
+  have h_epilogue : (divK_mod_epilogue 24).length = 10 := by rfl
+  have h_zeroPath : divK_zeroPath.length = 5 := by rfl
+  have h_nop : (ADDI .x0 .x0 0).length = 1 := by rfl
+  have h_div128 : divK_div128_v5.length = 85 := by
+    unfold divK_div128_v5
+    rfl
+  unfold evm_mod_v5
+  simp only [seq, Program.length_append, h_phaseA, h_phaseB, h_clz, h_phaseC2,
+    h_normB, h_normA, h_copyAU, h_loopSetup, h_loopBody, h_denorm, h_epilogue,
+    h_zeroPath, h_nop, h_div128]
+
 -- ============================================================================
 -- Instruction count verification
 -- ============================================================================

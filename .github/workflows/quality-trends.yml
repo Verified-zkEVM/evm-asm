@@ -1,0 +1,60 @@
+name: Quality trends (advisory)
+
+# Weekly ADVISORY leading-indicator report: code churn (R-C6) + duplication
+# watch (R-C6). Neither gates a PR — both are noisy heuristics that surface in
+# the job summary for a human read (report §6: do not hard-gate noisy
+# heuristics prematurely). Promote to a gate only after thresholds calibrate.
+#
+# Kept OFF the per-PR build.yml path on purpose: churn-report needs full git
+# history (build.yml uses a shallow checkout) and the jscpd .lean sweep is too
+# slow for per-PR (>300s over ~2000 files). This workflow does the heavier,
+# full-history work on a cadence instead.
+
+on:
+  schedule:
+    # Mondays 05:30 UTC (before the benchmark cron).
+    - cron: '30 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: quality-trends
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trends:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (full history for churn analysis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Churn / hotspot report (advisory)
+        run: |
+          {
+            echo '## Churn / hotspot report (advisory)'
+            echo
+            echo '```'
+            scripts/churn-report.sh --days 90 --top 25
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node (for jscpd)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Duplication watch (advisory; full scripts/ + EvmAsm/ sweep)
+        run: |
+          {
+            echo '## Duplication watch (advisory)'
+            echo
+            echo '```'
+            # full sweep on the cadence path; advisory (never --gate here)
+            scripts/check-duplication.sh scripts/ EvmAsm/ || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

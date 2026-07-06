@@ -68,7 +68,7 @@ theorem runDecodeFully_longBytes :
     runDecodeFully
       { bytes := (0xb8 : Byte) :: 0x38 :: List.replicate 56 (0x7f : Byte) } =
       some (.bytes (List.replicate 56 (0x7f : Byte))) := by
-  native_decide
+  rfl
 
 theorem rlpNestedListDecodeVector_passed :
     checkVector? runDecodeFully rlpNestedListDecodeVector = .passed :=

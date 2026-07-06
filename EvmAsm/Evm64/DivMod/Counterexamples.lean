@@ -162,16 +162,15 @@ theorem div128Quot_v4_counterexampleA_floor_of_un21_lt_vTop :
     (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat =
       (ceA_u4.toNat * 2^64 + ceA_u3.toNat) / ceA_b3Norm.toNat ∧
     (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat = ceA_qTrue + 1 := by
-  constructor
-  · native_decide
-  constructor
-  · native_decide
-  constructor
+  refine ⟨by decide, by decide, ?_, ?_, by decide, by decide⟩
   · unfold isCallTrialN4
-    native_decide
-  constructor
-  · native_decide
-  constructor <;> native_decide
+    decide
+  · rw [← BitVec.lt_def]
+    simp only [ceA_u4, ceA_u3, ceA_b3Norm, ceA_b3, ceA_b2, ceA_a3,
+      divKTrialCallV4Un21, divKTrialCallV4Un1, divKTrialCallV4Q1dd,
+      divKTrialCallV4Rhatdd, divKTrialCallV4DLo, divKTrialCallV4DHi,
+      rv64_divu, signExtend12]
+    decide
 
 theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
     n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
@@ -186,21 +185,38 @@ theorem ceA_runtime_only_premises :
     isCallTrialN4Evm ceA_a ceA_b ∧
     isAddbackBorrowN4CallV4Evm ceA_a ceA_b ∧
     isAddbackCarry2NzN4CallV4Evm ceA_a ceA_b := by
-  constructor
-  · native_decide
-  constructor
-  · native_decide
-  constructor
+  refine ⟨by decide, by decide, ?_, ?_, ?_⟩
   · rw [isCallTrialN4Evm_def]
     unfold isCallTrialN4
-    native_decide
-  constructor
-  · rw [isAddbackBorrowN4CallV4Evm_def]
-    unfold isAddbackBorrowN4CallV4Ab loopBodyN4CallAddbackBorrowV4
-    native_decide
-  · rw [isAddbackCarry2NzN4CallV4Evm_def]
-    unfold isAddbackCarry2NzN4CallV4Ab loopBodyN4CallAddbackCarry2NzV4
-    native_decide
+    decide
+  · rw [isAddbackBorrowN4CallV4Evm_def,
+        show ceA_a.getLimbN 0 = 0 from rfl, show ceA_a.getLimbN 1 = 0 from rfl,
+        show ceA_a.getLimbN 2 = 0 from rfl,
+        show ceA_a.getLimbN 3 = BitVec.ofNat 64 9223372045444710400 from rfl,
+        show ceA_b.getLimbN 0 = 0 from rfl, show ceA_b.getLimbN 1 = 0 from rfl,
+        show ceA_b.getLimbN 2 = BitVec.ofNat 64 8589934591 from rfl,
+        show ceA_b.getLimbN 3 = 1 from rfl]
+    simp only [isAddbackBorrowN4CallV4Ab, show (clzResult (1 : Word)).1 = 63#64 from by decide,
+      signExtend12, loopBodyN4CallAddbackBorrowV4, divKTrialCallV4QHat, divKTrialCallV4Q1dd,
+      divKTrialCallV4Q0dd, divKTrialCallV4Q0d, divKTrialCallV4Q0c, divKTrialCallV4Rhatdd,
+      divKTrialCallV4Rhat2d, divKTrialCallV4Rhat2c, divKTrialCallV4Un21, divKTrialCallV4Un1,
+      divKTrialCallV4Un0, divKTrialCallV4DHi, divKTrialCallV4DLo, div128Quot_phase2b_q0',
+      mulsubN4_c3, mulsubN4, rv64_divu, rv64_mulhu]
+    decide
+  · rw [isAddbackCarry2NzN4CallV4Evm_def,
+        show ceA_a.getLimbN 0 = 0 from rfl, show ceA_a.getLimbN 1 = 0 from rfl,
+        show ceA_a.getLimbN 2 = 0 from rfl,
+        show ceA_a.getLimbN 3 = BitVec.ofNat 64 9223372045444710400 from rfl,
+        show ceA_b.getLimbN 0 = 0 from rfl, show ceA_b.getLimbN 1 = 0 from rfl,
+        show ceA_b.getLimbN 2 = BitVec.ofNat 64 8589934591 from rfl,
+        show ceA_b.getLimbN 3 = 1 from rfl]
+    simp only [isAddbackCarry2NzN4CallV4Ab, show (clzResult (1 : Word)).1 = 63#64 from by decide,
+      signExtend12, loopBodyN4CallAddbackCarry2NzV4, divKTrialCallV4QHat, divKTrialCallV4Q1dd,
+      divKTrialCallV4Q0dd, divKTrialCallV4Q0d, divKTrialCallV4Q0c, divKTrialCallV4Rhatdd,
+      divKTrialCallV4Rhat2d, divKTrialCallV4Rhat2c, divKTrialCallV4Un21, divKTrialCallV4Un1,
+      divKTrialCallV4Un0, divKTrialCallV4DHi, divKTrialCallV4DLo, div128Quot_phase2b_q0',
+      mulsubN4, addbackN4_carry, addbackN4, rv64_divu, rv64_mulhu]
+    decide
 
 /-- Counterexample A also satisfies the repaired semantic marker. This keeps the
     runtime-only target honest: the remaining work is proving the semantic
@@ -208,14 +224,14 @@ theorem ceA_runtime_only_premises :
 theorem ceA_n4CallAddbackBeqSemanticHoldsV4 :
     n4CallAddbackBeqSemanticHoldsV4 ceA_a ceA_b := by
   rw [n4CallAddbackBeqSemanticHoldsV4]
-  native_decide
+  decide
 
 /-- Counterexample A satisfies the corrected-remainder half of the compact
     runtime-bounds package. -/
 theorem ceA_n4CallAddbackBeqIterRNormVal_lt :
     n4CallAddbackBeqIterRNormVal ceA_a ceA_b < n4CallAddbackBeqBNormVal ceA_b := by
   rw [n4CallAddbackBeqIterRNormVal, n4CallAddbackBeqBNormVal]
-  native_decide
+  decide
 
 /-- Counterexample A fails the compact qhat upper-bound conjunct. This is the
     precise part of the old runtime-bounds package that the repaired semantic
@@ -224,7 +240,7 @@ theorem ceA_n4CallAddbackBeqQHat_compact_bound_false :
     ¬ ((n4CallAddbackBeqQHatV4 ceA_a ceA_b).toNat ≤
         n4CallAddbackBeqULoNormVal ceA_a ceA_b / n4CallAddbackBeqBNormVal ceA_b + 1) := by
   rw [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal]
-  native_decide
+  decide
 
 /-- Counterexample A does not satisfy the current compact runtime-bounds package.
     Therefore the final runtime-only discharger cannot soundly close by deriving
@@ -232,7 +248,7 @@ theorem ceA_n4CallAddbackBeqQHat_compact_bound_false :
 theorem ceA_n4CallAddbackBeqRuntimeBounds_false :
     ¬ n4CallAddbackBeqRuntimeBounds ceA_a ceA_b := by
   rw [n4CallAddbackBeqRuntimeBounds]
-  native_decide
+  decide
 
 /-- The runtime-only premise shape alone is not enough to recover the compact
     runtime-bounds package used by older semantic bridges. -/
@@ -365,17 +381,17 @@ abbrev ceN1CarryAb :=
 
 theorem ceN1Carry_norm_eq :
     ceN1CarryNormB0 = BitVec.ofNat 64 (2^64 - 2) := by
-  native_decide
+  decide
 
 theorem ceN1Carry_first_carry_zero :
     addbackN4_carry ceN1CarryMs.1 ceN1CarryMs.2.1 ceN1CarryMs.2.2.1
       ceN1CarryMs.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
-  native_decide
+  decide
 
 theorem ceN1Carry_second_carry_zero :
     addbackN4_carry ceN1CarryAb.1 ceN1CarryAb.2.1 ceN1CarryAb.2.2.1
       ceN1CarryAb.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
-  native_decide
+  decide
 
 theorem ceN1Carry_isAddbackCarry2Nz_false :
     ¬ isAddbackCarry2Nz ceN1CarryMaxWord ceN1CarryNormB0 0 0 0
@@ -407,20 +423,32 @@ abbrev ceN23CarryNormV2 : Word := BitVec.ofNat 64 (2^63)
 theorem ceN2Carry_norm_eq :
     fullDivN2NormV ceN23CarryB0 ceN23CarryBTop 0 0 =
       (ceN23CarryNormV0, ceN23CarryNormV1, 0, 0) := by
-  native_decide
+  have hs : (fullDivN2Shift ceN23CarryBTop).toNat % 64 = 1 := by
+    rw [fullDivN2Shift_unfold]; decide
+  have ha : (fullDivN2AntiShift ceN23CarryBTop).toNat % 64 = 63 := by
+    rw [fullDivN2AntiShift_unfold, fullDivN2Shift_unfold]; decide
+  simp only [fullDivN2NormV, ceN23CarryB0, ceN23CarryBTop, ceN23CarryNormV0,
+    ceN23CarryNormV1, hs, ha, Prod.mk.injEq]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
 
 theorem ceN3Carry_norm_eq :
     fullDivN3NormV ceN23CarryB0 ceN23CarryBTop ceN23CarryBTop 0 =
       (ceN23CarryNormV0, ceN23CarryNormV1, ceN23CarryNormV2, 0) := by
-  native_decide
+  have hs : (fullDivN3Shift ceN23CarryBTop).toNat % 64 = 1 := by
+    rw [fullDivN3Shift_unfold]; decide
+  have ha : (fullDivN3AntiShift ceN23CarryBTop).toNat % 64 = 63 := by
+    rw [fullDivN3AntiShift_unfold, fullDivN3Shift_unfold]; decide
+  simp only [fullDivN3NormV, ceN23CarryB0, ceN23CarryBTop, ceN23CarryNormV0,
+    ceN23CarryNormV1, ceN23CarryNormV2, hs, ha, Prod.mk.injEq]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
 
 theorem ceN2Carry_isAddbackCarry2Nz_false :
     ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1 0 0
       ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
   intro h
   rw [isAddbackCarry2Nz] at h
-  have h_second_ne := h (by native_decide)
-  exact h_second_ne (by native_decide)
+  have h_second_ne := h (by decide)
+  exact h_second_ne (by decide)
 
 theorem ceN3Carry_isAddbackCarry2Nz_false :
     ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1
@@ -428,8 +456,8 @@ theorem ceN3Carry_isAddbackCarry2Nz_false :
       ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
   intro h
   rw [isAddbackCarry2Nz] at h
-  have h_second_ne := h (by native_decide)
-  exact h_second_ne (by native_decide)
+  have h_second_ne := h (by decide)
+  exact h_second_ne (by decide)
 
 theorem ceN2Carry_fullDivN2Carry2NzV4_false :
     ¬ fullDivN2Carry2NzV4 ceN23CarryB0 ceN23CarryBTop 0 0 := by
@@ -467,21 +495,21 @@ abbrev ceN1MaxLocalMs :=
 
 theorem ceN1MaxLocal_v0_normalized :
     2^63 ≤ ceN1MaxLocalV0.toNat := by
-  native_decide
+  decide
 
 theorem ceN1MaxLocal_not_ult :
     ¬ BitVec.ult ceN1MaxLocalU1 ceN1MaxLocalV0 := by
-  native_decide
+  decide
 
 theorem ceN1MaxLocal_first_carry_zero :
     addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
       ceN1MaxLocalMs.2.2.1 ceN1MaxLocalMs.2.2.2.1
       ceN1MaxLocalV0 0 0 0 = 0 := by
-  native_decide
+  decide
 
 theorem ceN1MaxLocal_mulsub_c3_zero :
     ceN1MaxLocalMs.2.2.2.2 = 0 := by
-  native_decide
+  decide
 
 theorem ceN1MaxLocal_c3_one_of_carry_zero_false :
     ¬ (addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
@@ -507,13 +535,87 @@ abbrev ceN1ShapeQuot : EvmWord :=
 
 theorem ceN1Shape_semantic_div_eq_one :
     EvmWord.div ceN1ShapeA ceN1ShapeB = ceN1ShapeQuot := by
-  native_decide
+  decide
+
+/-- Pinned normalized divisor limbs for the N1 reachable shape.
+    `ceN1CarryB0 = 2^63 - 1` normalizes by a shift of 1 to `2^64 - 2`. -/
+theorem ceN1Shape_fullDivN1NormV_eq :
+    fullDivN1NormV ceN1CarryB0 0 0 0 = (BitVec.ofNat 64 (2 ^ 64 - 2), 0, 0, 0) := by
+  have hs : (fullDivN1Shift ceN1CarryB0).toNat % 64 = 1 := by
+    rw [fullDivN1Shift_unfold]; decide
+  have ha : (fullDivN1AntiShift ceN1CarryB0).toNat % 64 = 63 := by
+    unfold fullDivN1AntiShift; rw [fullDivN1Shift_unfold]; decide
+  simp only [fullDivN1NormV, ceN1CarryB0, hs, ha, Prod.mk.injEq]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
+
+/-- Pinned normalized dividend limbs for the N1 reachable shape. -/
+theorem ceN1Shape_fullDivN1NormU_eq :
+    fullDivN1NormU ceN1CarryB0 0 0 0 ceN1CarryB0 =
+      (BitVec.ofNat 64 (2 ^ 64 - 2), 0, 0, 0, 0) := by
+  have hs : (fullDivN1Shift ceN1CarryB0).toNat % 64 = 1 := by
+    rw [fullDivN1Shift_unfold]; decide
+  have ha : (fullDivN1AntiShift ceN1CarryB0).toNat % 64 = 63 := by
+    unfold fullDivN1AntiShift; rw [fullDivN1Shift_unfold]; decide
+  simp only [fullDivN1NormU, ceN1CarryB0, hs, ha, Prod.mk.injEq]
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> decide
+
+-- Each iteration of the N1 unified loop is pinned to its concrete six-tuple by
+-- substituting the previously pinned tuples (`NormV`, `NormU`, and the prior
+-- `Ri`) and unfolding exactly ONE iteration's arithmetic onto concrete
+-- literals.  This keeps every `decide` small: only one division / mulsub /
+-- addback step is symbolic at a time.  The unfold of the otherwise
+-- `@[irreducible]` `iterN1Call` succeeds because it is named explicitly.
+
+/-- Iteration 3 (top limb) of the N1 loop is zero on the reachable shape. -/
+theorem ceN1Shape_fullDivN1R3_eq :
+    fullDivN1R3 true ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 = (0, 0, 0, 0, 0, 0) := by
+  unfold fullDivN1R3
+  rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq]
+  unfold iterN1 iterN1Call iterWithDoubleAddback
+  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
+    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
+
+/-- Iteration 2 of the N1 loop is zero on the reachable shape. -/
+theorem ceN1Shape_fullDivN1R2_eq :
+    fullDivN1R2 true true ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 = (0, 0, 0, 0, 0, 0) := by
+  unfold fullDivN1R2
+  rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R3_eq]
+  unfold iterN1 iterN1Call iterWithDoubleAddback
+  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
+    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
+
+/-- Iteration 1 of the N1 loop is zero on the reachable shape. -/
+theorem ceN1Shape_fullDivN1R1_eq :
+    fullDivN1R1 true true true ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 = (0, 0, 0, 0, 0, 0) := by
+  unfold fullDivN1R1
+  rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R2_eq]
+  unfold iterN1 iterN1Call iterWithDoubleAddback
+  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
+    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
+
+/-- Iteration 0 (low limb) of the N1 loop yields quotient limb 1. -/
+theorem ceN1Shape_fullDivN1R0_eq :
+    fullDivN1R0 true true true true ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
+      (1, 0, 0, 0, 0, 0) := by
+  unfold fullDivN1R0
+  rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R1_eq]
+  unfold iterN1 iterN1Call iterWithDoubleAddback
+  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
+    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
 
 theorem ceN1Shape_fullDivN1QuotientWord_eq_semantic_div :
     fullDivN1QuotientWord true true true true
       ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
     EvmWord.div ceN1ShapeA ceN1ShapeB := by
-  native_decide
+  rw [ceN1Shape_semantic_div_eq_one]
+  unfold fullDivN1QuotientWord
+  rw [ceN1Shape_fullDivN1R0_eq, ceN1Shape_fullDivN1R1_eq, ceN1Shape_fullDivN1R2_eq,
+    ceN1Shape_fullDivN1R3_eq]
+  decide
 
 theorem evm_div_ceN1Shape_v4_semantic_regression_pin :
     evm_div =

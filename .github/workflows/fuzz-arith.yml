@@ -1,0 +1,86 @@
+name: Fuzz (arithmetic differential)
+
+# Nightly boundary-biased differential fuzz of the six EVM arithmetic
+# opcodes (div, mod, sdiv, smod, mulmod, addmod) against the execution-specs
+# *amsterdam* oracle — Phase 3 / R-E1, the DIV-class defense.
+#
+# This is the HEAVY tier (report 6 build-budget non-goal): it checks out the
+# pinned execution-specs submodule, installs its Python deps via `uv`, and
+# runs tens of thousands of operands through both evm-asm and the spec. It
+# runs nightly + on merge_group, NOT as a serial per-PR gate (the cheap
+# Nat-reference fast-path runs on every PR in build.yml).
+#
+# On a divergence the run fails AND scripts/fuzz-arith-diff.sh appends the
+# offending operand (with the oracle's verdict) to
+# tests/fuzz-corpus/arith/corpus.jsonl; this workflow surfaces that diff in
+# the job summary so a maintainer can commit the new regression pin.
+
+on:
+  schedule:
+    # Daily 04:00 UTC (off-peak; before the weekly benchmark on Mondays).
+    - cron: '0 4 * * *'
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      n_random:
+        description: 'random operands per op'
+        default: '5000'
+      n_bias:
+        description: 'add-back-biased operands per op'
+        default: '2000'
+      seed:
+        description: 'LCG seed'
+        default: '42'
+
+concurrency:
+  group: fuzz-arith-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz-arith:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout (with execution-specs submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          lake-package-directory: .
+          build: "false"
+
+      - name: Install uv (execution-specs oracle runtime)
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build the fuzz exe
+        run: lake build arith-diff-check
+
+      - name: Differential fuzz vs execution-specs (amsterdam)
+        run: |
+          set -o pipefail
+          scripts/fuzz-arith-diff.sh --python \
+            "${{ github.event.inputs.n_random || '5000' }}" \
+            "${{ github.event.inputs.n_bias || '2000' }}" \
+            "${{ github.event.inputs.seed || '42' }}" 2>&1 | tee fuzz.log
+
+      - name: Surface any newly-appended corpus regressions
+        if: always()
+        run: |
+          if ! git diff --quiet -- tests/fuzz-corpus/arith/corpus.jsonl; then
+            {
+              echo "### New DIV-class divergence(s) appended to the corpus"
+              echo ""
+              echo "The differential found inputs where evm-asm and the"
+              echo "execution-specs oracle disagree. New corpus pins:"
+              echo '```'
+              git diff -- tests/fuzz-corpus/arith/corpus.jsonl
+              echo '```'
+              echo "Investigate the divergence, fix the lowering/spec, then"
+              echo "commit the appended corpus line(s)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

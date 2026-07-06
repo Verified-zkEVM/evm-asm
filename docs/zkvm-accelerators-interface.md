@@ -84,6 +84,116 @@ The table is intentionally path-based: if a bridge module is renamed or split,
 this table should be updated in the same PR so downstream readers can trace
 from the C symbol to the Lean payload and ECALL surface.
 
+## Installed ziskemu backend notes
+
+The zkvm-standards rows above describe the desired ABI surface, not proof that
+the locally installed `ziskemu` has a concrete backend for every symbol. As of
+the 2026-06-02 local installation used for EEST work:
+
+- `zkvm_sha256` is implemented in this repo as a guest wrapper around
+  ziskemu's SHA-256 compression intrinsic at CSR `0x805`; see
+  `EvmAsm/Codegen/Programs/HashBridge.lean` and
+  `scripts/codegen-zisk-zkvm-sha256-check.sh`.
+- `zkvm_keccak256` is similarly implemented as a guest sponge wrapper around
+  ziskemu's Keccak-f[1600] primitive.
+- No named RIPEMD160 backend is present in the local zisk sources. Searches for
+  `ripemd`, `RIPEMD`, `zkvm_ripemd`, and `ripemd160` under
+  `/home/zksecurity/.zisk/zisk` and `/home/zksecurity/zisk` find no callable
+  symbol or implementation file.
+- ziskemu's `emulator-asm` tree does contain a "precompile results" stream/cache
+  facility, but that path replays externally supplied result words. It is not a
+  RIPEMD160 computation backend and is not exposed by the `ziskemu` CLI used by
+  the current codegen/EEST scripts.
+
+Therefore, RIPEMD160 dispatch should not be wired as if a backend already
+exists. The next implementation slice must either add/prove a concrete zisk
+RIPEMD160 backend path, or explicitly implement RIPEMD160 in the guest and test
+it against Ethereum's `hashlib.new("ripemd160", data)` behavior.
+
+RIPEMD160 has two byte-level boundaries. The computation boundary produces the
+raw 20-byte digest. The EVM precompile output boundary is 32 bytes: 12 leading
+zero bytes followed by that digest, matching execution-specs
+`left_pad_zero_bytes(hash_bytes, 32)`. The Lean bridge records this as
+`Ripemd160ResultBridge.evmOutputBytesFromHash`; dispatch code should copy those
+32 bytes as returndata, while stack-word views may decode the raw 20-byte
+digest as a big-endian word because the high 12 bytes are then zero.
+
+ECRECOVER is only partially supported at the zisk layer:
+
+- ziskemu has secp256k1 point-add and point-double primitives
+  (`_opcode_secp256k1_add`, `_opcode_secp256k1_dbl`) in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/emu.c`. However, the
+  reproducible backend probe
+  `scripts/codegen-zisk-secp256k1-add-dbl-backend-probe-check.sh` classifies
+  both the documented `syscall_secp256k1_add`/`syscall_secp256k1_dbl` and the
+  emulator-private `_opcode_secp256k1_add`/`_opcode_secp256k1_dbl` symbol
+  families as NOT READY: neither links from a bare codegen ELF on the installed
+  ziskemu 0.16.0 (undefined reference at link time, since the normal codegen
+  path links with `riscv64-elf-ld -nostdlib` and does not pull in zisk's host C
+  library — same limitation as the BLS12 family below). The affine point
+  helpers in `EvmAsm/Codegen/Programs/Secp256k1Curve.lean`
+  (`secp256k1_point_add`, `secp256k1_point_double`) therefore use the
+  **software route** built on the verified `secf_*` field arithmetic, with no
+  accelerator-backed fallback wired. The software route is exercised by
+  `scripts/codegen-zisk-secp256k1-curve-check.sh`, which verifies `double(G)`
+  and `add(G,G)` against the precomputed `2G` constant. Until the backend probe
+  reports ready, keep the software route active rather than calling the
+  undefined `_opcode_secp256k1_*`/`syscall_secp256k1_*` symbols.
+- zisk's C library has `secp256k1_ecdsa_verify` in
+  `/home/zksecurity/.zisk/zisk/lib-c/c/src/ec/ec.cpp`. This computes the
+  ECDSA verification point from a known public key. It is not public-key
+  recovery from `(msg_hash, v, r, s)`.
+- The precompile-results hint parser in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/client.c` defines
+  `HINTS_TYPE_ECRECOVER`, but its switch case is commented out and explicitly
+  says it is not implemented.
+
+Therefore, EVM precompile address `0x01` should not be wired as if
+`zkvm_secp256k1_ecrecover` is already available. The next backend slice must
+either add/prove a concrete ziskos hint-backed ECRECOVER path, or implement the
+missing recovery wrapper on top of lower-level secp256k1 operations and then
+probe it with valid and invalid vectors from
+`execution-specs/tests/frontier/precompiles/test_ecrecover.py`.
+
+BLS12-381 is in a similar "ABI exists, backend path not yet exposed" state for
+the runtime opcode harness:
+
+- The zkvm-standards C ABI declares the BLS12 entry points
+  `zkvm_bls12_g1_add`, `zkvm_bls12_g1_msm`, `zkvm_bls12_g2_add`,
+  `zkvm_bls12_g2_msm`, `zkvm_bls12_pairing`,
+  `zkvm_bls12_map_fp_to_g1`, and `zkvm_bls12_map_fp2_to_g2`.
+- The normal codegen path emits one bare assembly file and links it with
+  `riscv64-elf-ld -nostdlib`; see
+  `EvmAsm/Codegen/Driver.lean`. It does not link zisk's host C library, so a
+  direct call to `zkvm_bls12_g1_add` from `runtime_dispatcher.elf` currently
+  fails as an undefined symbol.
+- The checked zisk source tree has BLS12 field/curve routines under
+  `lib-c/c/src/bls12_381` and has precompile-result stream/cache plumbing in
+  `emulator-asm/src/client.c`, `server.c`, and `emu.c`. The relevant CLI hooks
+  are gated by `ASM_PRECOMPILE_CACHE` in
+  `emulator-asm/src/configuration.c`.
+- The installed `ziskemu` used by the current codegen scripts does not expose
+  the precompile-result replay flags needed by that path.
+
+Run the reproducible readiness probe with:
+
+```bash
+scripts/codegen-zisk-bls12-precompile-replay-probe.sh
+```
+
+The bare-RV64 wrapper family probe links every BLS12 accelerator selector used
+by EIP-2537 runtime bodies and classifies the installed backend route:
+
+```bash
+scripts/codegen-zisk-bls12-backend-probes-check.sh
+```
+
+Use `--require-ready` when a downstream BLS runtime-body test genuinely needs
+the replay path and should fail if the installed `ziskemu` cannot provide it.
+Until this probe reports ready, BLS12 CALL/STATICCALL runtime bodies should
+preserve explicit unsupported/backend-blocked behavior rather than calling
+undefined `zkvm_bls12_*` symbols.
+
 ## Calling convention
 
 The guest follows LP64 as documented in

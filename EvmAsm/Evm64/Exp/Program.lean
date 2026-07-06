@@ -12,7 +12,6 @@
 -/
 
 import EvmAsm.Rv64.Program
-import Std.Tactic.BVDecide
 
 namespace EvmAsm.Evm64
 
@@ -938,6 +937,83 @@ theorem exp_loop_pointer_restore_byte_length :
   rw [exp_loop_pointer_restore_length]
 
 -- ----------------------------------------------------------------------------
+-- EVM-stack caller-slot SAVE / RESTORE (bug evm-asm-fjivz)
+-- ----------------------------------------------------------------------------
+--
+-- The 256-iteration loop uses the EVM stack window `x12_loop + 0 .. + 56`
+-- (= `sp_evm0 + 64 .. + 120`, the two caller stack words below the EXP
+-- operands) as transient MUL marshalling scratch and never restores it.
+-- For EXP to honour the standard stack contract (pop base+exp, push the
+-- result, preserve the rest of the caller stack), those two words must be
+-- preserved across the loop. We copy them, once, into the free headroom
+-- below the live EVM stack top (`sp_evm0 - 64 .. - 8`, inside the 512-byte
+-- slack guaranteed around the EVM stack) before the loop, and copy them
+-- back afterwards. Both blocks run with `x12 = sp_evm0` (the SAVE block is
+-- emitted between the prologue and `exp_loop_pointer_advance`; the RESTORE
+-- block between `exp_loop_pointer_restore` and `exp_epilogue`). They use
+-- `x6` as the copy temporary, which is `regOwn` (don't-care) at loop entry
+-- and is freely clobbered by the loop body, so no live value is disturbed.
+
+/-- Save the two caller EVM-stack words at `x12 + 64 .. + 120` (the eight
+    8-byte limbs the loop overwrites as MUL scratch) into the free headroom
+    at `x12 - 64 .. - 8`. Runs with `x12 = sp_evm0`. 16 instructions. -/
+def exp_loop_stack_save : Program :=
+  LD .x6 .x12 64 ;; SD .x12 .x6 (-64) ;;
+  LD .x6 .x12 72 ;; SD .x12 .x6 (-56) ;;
+  LD .x6 .x12 80 ;; SD .x12 .x6 (-48) ;;
+  LD .x6 .x12 88 ;; SD .x12 .x6 (-40) ;;
+  LD .x6 .x12 96 ;; SD .x12 .x6 (-32) ;;
+  LD .x6 .x12 104 ;; SD .x12 .x6 (-24) ;;
+  LD .x6 .x12 112 ;; SD .x12 .x6 (-16) ;;
+  LD .x6 .x12 120 ;; SD .x12 .x6 (-8)
+
+theorem exp_loop_stack_save_length : exp_loop_stack_save.length = 16 := by decide
+
+theorem exp_loop_stack_save_byte_length :
+    4 * exp_loop_stack_save.length = 64 := by
+  rw [exp_loop_stack_save_length]
+
+/-- Architecture-B operand copy: copy the two live EVM-stack operands
+    `base` (`x12 + 0 .. + 24`) and `exponent` (`x12 + 32 .. + 56`) into the
+    headroom loop frame below the live stack, at `base → x12 - 128 .. - 104`
+    and `exponent → x12 - 96 .. - 72`. Runs with `x12 = sp_evm0` (the live
+    stack top), before `exp_loop_pointer_advance` sets `x12 := sp_evm0 - 64`
+    (= the headroom `evmSp_iter`, with `base` at `evmSp_iter - 64` and
+    `exponent` at `evmSp_iter - 32`). The loop then runs entirely in the
+    headroom slack, leaving the live stack untouched. 16 instructions. -/
+def exp_loop_operand_copy : Program :=
+  LD .x6 .x12 0 ;; SD .x12 .x6 (-128) ;;
+  LD .x6 .x12 8 ;; SD .x12 .x6 (-120) ;;
+  LD .x6 .x12 16 ;; SD .x12 .x6 (-112) ;;
+  LD .x6 .x12 24 ;; SD .x12 .x6 (-104) ;;
+  LD .x6 .x12 32 ;; SD .x12 .x6 (-96) ;;
+  LD .x6 .x12 40 ;; SD .x12 .x6 (-88) ;;
+  LD .x6 .x12 48 ;; SD .x12 .x6 (-80) ;;
+  LD .x6 .x12 56 ;; SD .x12 .x6 (-72)
+
+theorem exp_loop_operand_copy_length : exp_loop_operand_copy.length = 16 := by decide
+
+/-- Restore the two caller EVM-stack words saved by `exp_loop_stack_save`
+    from the headroom at `x12 - 64 .. - 8` back to `x12 + 64 .. + 120`.
+    Runs with `x12 = sp_evm0` (after `exp_loop_pointer_restore`, before
+    `exp_epilogue` writes the result to `x12 + 32 .. + 56`). 16 instructions. -/
+def exp_loop_stack_restore : Program :=
+  LD .x6 .x12 (-64) ;; SD .x12 .x6 64 ;;
+  LD .x6 .x12 (-56) ;; SD .x12 .x6 72 ;;
+  LD .x6 .x12 (-48) ;; SD .x12 .x6 80 ;;
+  LD .x6 .x12 (-40) ;; SD .x12 .x6 88 ;;
+  LD .x6 .x12 (-32) ;; SD .x12 .x6 96 ;;
+  LD .x6 .x12 (-24) ;; SD .x12 .x6 104 ;;
+  LD .x6 .x12 (-16) ;; SD .x12 .x6 112 ;;
+  LD .x6 .x12 (-8) ;; SD .x12 .x6 120
+
+theorem exp_loop_stack_restore_length : exp_loop_stack_restore.length = 16 := by decide
+
+theorem exp_loop_stack_restore_byte_length :
+    4 * exp_loop_stack_restore.length = 64 := by
+  rw [exp_loop_stack_restore_length]
+
+-- ----------------------------------------------------------------------------
 -- Top-level `evm_exp` Program assembly (#92 slice 3, beads evm-asm-ahaz /
 -- evm-asm-3pil2)
 -- ----------------------------------------------------------------------------
@@ -1262,7 +1338,10 @@ theorem evm_exp_msb_saved_bit_two_mul_canonical_byte_length
 -- FIX DESIGN:
 -- - Use x19 (callee-saved, preserved across mul_callable) as the
 --   exponent cursor, initialized to exponentWord.getLimbN 3.
--- - Use x6 as per-limb counter (counts down from 64 to 0).
+-- - Use x20 (callee-saved, preserved across mul_callable) as the per-limb
+--   counter (counts down from 64 to 0). NOTE: x6 (caller-saved t1) is in
+--   mul_callable's footprint and is clobbered by the squaring/cond-mul JALs,
+--   so the counter must live in a callee-saved register like the x19 cursor.
 -- - Use x16 as limb pointer (starts at &exponent.limb3, advances by -8
 --   after each 64-bit limb is exhausted).
 -- - Fixed prologue: load x19=exponent.limb3, x6=64, x16=&exponent.limb2.
@@ -1273,7 +1352,7 @@ theorem evm_exp_msb_saved_bit_two_mul_canonical_byte_length
 -- ============================================================================
 
 /-- Fixed EXP prologue: initialize accumulator to 1, master counter x9=256,
-    per-limb counter x6=64, exponent cursor x19=exponent.getLimbN 3
+    per-limb counter x20=64, exponent cursor x19=exponent.getLimbN 3
     (loaded from x12+56 = evmSp+56 since x12=evmSp before pointer_advance),
     and limb pointer x16 pointing at the NEXT limb to reload (evmSp+48).
     10 instructions, 40 bytes. -/
@@ -1284,7 +1363,7 @@ def exp_prologue_fixed : Program :=
   SD .x2 .x0 8 ;;
   SD .x2 .x0 16 ;;
   SD .x2 .x0 24 ;;
-  ADDI .x6 .x0 64 ;;
+  ADDI .x20 .x0 64 ;;
   ADDI .x16 .x12 56 ;;
   LD .x19 .x16 0 ;;
   ADDI .x16 .x16 (-8)
@@ -1295,18 +1374,18 @@ theorem exp_prologue_fixed_byte_length : 4 * exp_prologue_fixed.length = 40 := b
   rw [exp_prologue_fixed_length]
 
 /-- Fixed MSB-first bit-test block: extract MSB of x19 (exponent cursor),
-    advance cursor (SLLI x19 x19 1), decrement per-limb counter x6.
-    When x6 = 0 (limb exhausted), reload x19 from x16 and advance x16 by -8.
+    advance cursor (SLLI x19 x19 1), decrement per-limb counter x20.
+    When x20 = 0 (limb exhausted), reload x19 from x16 and advance x16 by -8.
     7 instructions (3 core + 4 reload). The reload branch skips 4 instructions
     (= 16 bytes) when x6 ≠ 0 after decrement. -/
 def exp_msb_bit_test_block_fixed : Program :=
   SRLI .x10 .x19 63 ;;
   SLLI .x19 .x19 1 ;;
-  ADDI .x6 .x6 (-1) ;;
-  single (.BNE .x6 .x0 16) ;;
+  ADDI .x20 .x20 (-1) ;;
+  single (.BNE .x20 .x0 16) ;;
   LD .x19 .x16 0 ;;
   ADDI .x16 .x16 (-8) ;;
-  ADDI .x6 .x0 64
+  ADDI .x20 .x0 64
 
 theorem exp_msb_bit_test_block_fixed_length :
     exp_msb_bit_test_block_fixed.length = 7 := by decide
@@ -1404,6 +1483,124 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_byte_length
       squaringMulOff condMulOff skipOff backOff).length = 336 := by
   rw [evm_exp_msb_saved_bit_two_mul_fixed_length]
 
+/-- Corrected EXP program that SAVES the two caller EVM-stack words below the
+    operands (`x12 + 64 .. + 120`, transiently clobbered by the loop's MUL
+    factor marshalling) into the headroom slack (`x12 - 64 .. - 8`) before the
+    loop and RESTORES them afterwards, so the caller stack tail is preserved.
+    Fixes the stack-corruption bug `evm-asm-fjivz`:
+
+        exp_prologue_fixed          -- 10 instr (init counter + accumulator)
+        exp_loop_stack_save         -- 16 instr (back up slots [2],[3] to headroom)
+        exp_loop_pointer_advance    --  1 instr (ADDI x12 +64)
+        exp_iter_body_full_…_fixed  -- 63 instr (one square+cond-mul iter + BNE)
+        exp_loop_pointer_restore    --  1 instr (ADDI x12 -64)
+        exp_loop_stack_restore      -- 16 instr (restore slots [2],[3] from headroom)
+        exp_epilogue                --  9 instr (writeback result + ADDI x12 +32)
+
+    116 instructions, 464 bytes. The loop body now sits at byte offset +108
+    (vs +44 without save), shifting all downstream code offsets by +64. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed ;;
+  exp_loop_stack_save ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_restore ;;
+  exp_loop_stack_restore ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+      squaringMulOff condMulOff skipOff backOff).length = 116 := by
+  show ((((((exp_prologue_fixed ;;
+            exp_loop_stack_save) ;;
+           exp_loop_pointer_advance) ;;
+          exp_iter_body_full_msb_saved_bit_two_mul_fixed
+            squaringMulOff condMulOff skipOff backOff) ;;
+         exp_loop_pointer_restore) ;;
+        exp_loop_stack_restore) ;;
+       exp_epilogue).length = 116
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_length,
+    exp_loop_stack_save_length,
+    exp_loop_pointer_advance_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
+    exp_loop_pointer_restore_length,
+    exp_loop_stack_restore_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+      squaringMulOff condMulOff skipOff backOff).length = 464 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_saverestore_length]
+
+/-- Corrected EXP program (architecture B) that runs the squaring loop entirely
+    in the headroom slack so the live EVM stack is never clobbered. The prologue
+    COPIES the two operands (`base`@`x12+0..24`, `exp`@`x12+32..56`) down into the
+    headroom frame (`x12-128..-72`), the loop body then squares there (its MUL
+    workspace at `x12_loop+0..56` lands in the slack, x12_loop = x12-64), and the
+    epilogue writes the result back to the standard live slot `x12+32`. No
+    save/restore block is needed (the live stack is framed through untouched), so
+    `mul_callable` stays appended after the epilogue with no collision. Fixes
+    `evm-asm-fjivz`:
+
+        exp_prologue_fixed          -- 10 instr (init counter + accumulator, x12=evmSp)
+        exp_loop_operand_copy       -- 16 instr (copy operands -> headroom)
+        exp_loop_pointer_restore    --  1 instr (ADDI x12 -64 : the advance into headroom)
+        exp_iter_body_full_…_fixed  -- 63 instr (square+cond-mul iter + BNE)
+        exp_loop_pointer_advance    --  1 instr (ADDI x12 +64 : back to evmSp)
+        exp_epilogue                --  9 instr (writeback result + ADDI x12 +32)
+
+    100 instructions, 400 bytes; loop body at byte +108, exit (= mul_callable
+    address) at +400. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_headroom
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_loop_operand_copy ;;
+  exp_loop_pointer_restore ;;
+  exp_loop_pointer_restore ;;
+  exp_prologue_fixed ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_advance ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 102 := by
+  show (((((((exp_loop_operand_copy ;;
+           exp_loop_pointer_restore) ;;
+          exp_loop_pointer_restore) ;;
+         exp_prologue_fixed) ;;
+        exp_loop_pointer_advance) ;;
+       exp_iter_body_full_msb_saved_bit_two_mul_fixed
+         squaringMulOff condMulOff skipOff backOff) ;;
+      exp_loop_pointer_advance) ;;
+     exp_epilogue).length = 102
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_length,
+    exp_loop_operand_copy_length,
+    exp_loop_pointer_restore_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 408 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
+
 theorem evm_exp_msb_saved_bit_two_mul_fixed_loop_entry_byte_offset :
     4 * (exp_prologue_fixed.length + exp_loop_pointer_advance.length) = 44 := by
   rw [exp_prologue_fixed_length, exp_loop_pointer_advance_length]
@@ -1427,5 +1624,236 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_epilogue_byte_offset
   rw [exp_prologue_fixed_length, exp_loop_pointer_advance_length,
     exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
     exp_loop_pointer_restore_length]
+
+-- ============================================================================
+-- DOUBLE-FIXED EXP (x6 → x22): the per-limb counter clobber repair
+--
+-- The `_fixed` family above moved the exponent *cursor* to callee-saved x19,
+-- but left the per-limb *counter* in x6. `mul_callable` (= `evm_mul ;; cc_ret`)
+-- clobbers x6 ~51× per call, and the squaring / conditional-multiply blocks
+-- call `mul_callable` MID-ITERATION — before the next `exp_msb_bit_test_block`
+-- decrements/tests x6. So x6 is garbage on re-entry, producing wrong results
+-- or an infinite reload loop (see `scripts/codegen-evm_exp-property-check.sh`).
+--
+-- This `_fixed_fixed` family is a pure register substitution x6 → x22 (s6) in
+-- the prologue and bit-test block. x22 is callee-saved, untouched by
+-- `evm_mul`/`cc_ret`, untouched by every other EXP block, and not reserved by
+-- the codegen dispatcher (which reserves x10/x12/x13/x20/x21). Because it is a
+-- pure substitution, all instruction counts and byte offsets are identical to
+-- the `_fixed` family, so the canonical branch/MUL offsets carry over verbatim.
+-- ============================================================================
+
+/-- Double-fixed EXP prologue: identical to `exp_prologue_fixed` but the
+    per-limb counter lives in callee-saved x22 (s6) instead of x6, which
+    `mul_callable` clobbers. 10 instructions, 40 bytes. -/
+def exp_prologue_fixed_fixed : Program :=
+  ADDI .x9 .x0 256 ;;
+  ADDI .x5 .x0 1 ;;
+  SD .x2 .x5 0 ;;
+  SD .x2 .x0 8 ;;
+  SD .x2 .x0 16 ;;
+  SD .x2 .x0 24 ;;
+  ADDI .x22 .x0 64 ;;
+  ADDI .x16 .x12 56 ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8)
+
+theorem exp_prologue_fixed_fixed_length :
+    exp_prologue_fixed_fixed.length = 10 := by decide
+
+theorem exp_prologue_fixed_fixed_byte_length :
+    4 * exp_prologue_fixed_fixed.length = 40 := by
+  rw [exp_prologue_fixed_fixed_length]
+
+/-- Double-fixed MSB-first bit-test block: identical to
+    `exp_msb_bit_test_block_fixed` but the per-limb counter is x22 (s6),
+    which survives `mul_callable` calls. 7 instructions, 28 bytes. -/
+def exp_msb_bit_test_block_fixed_fixed : Program :=
+  SRLI .x10 .x19 63 ;;
+  SLLI .x19 .x19 1 ;;
+  ADDI .x22 .x22 (-1) ;;
+  single (.BNE .x22 .x0 16) ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8) ;;
+  ADDI .x22 .x0 64
+
+theorem exp_msb_bit_test_block_fixed_fixed_length :
+    exp_msb_bit_test_block_fixed_fixed.length = 7 := by decide
+
+theorem exp_msb_bit_test_block_fixed_fixed_byte_length :
+    4 * exp_msb_bit_test_block_fixed_fixed.length = 28 := by
+  rw [exp_msb_bit_test_block_fixed_fixed_length]
+
+/-- Double-fixed MSB-first saved-bit full iteration body using the corrected
+    counter register. All other blocks are unchanged: x16/x18/x19/x22 are all
+    callee-saved (or untouched by `evm_mul`) and survive `mul_callable` calls. -/
+def exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_msb_bit_test_block_fixed_fixed ;;
+  exp_save_bit_block ;;
+  exp_squaring_call_block squaringMulOff ;;
+  exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff ;;
+  exp_loop_back backOff
+
+theorem exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 63 := by
+  show (((((exp_msb_bit_test_block_fixed_fixed ;;
+            exp_save_bit_block) ;;
+           exp_squaring_call_block squaringMulOff) ;;
+          exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff) ;;
+         exp_loop_back backOff)).length = 63
+  simp only [seq, Program.length_append,
+    exp_msb_bit_test_block_fixed_fixed_length,
+    exp_save_bit_block_length,
+    exp_squaring_call_block_length,
+    exp_cond_mul_call_with_saved_bit_skip_block_length,
+    exp_loop_back_length]
+
+theorem exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 252 := by
+  rw [exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length]
+
+/-- Double-fixed EXP program: corrected prologue + bit-test block (x6 → x22).
+    Byte-identical in layout to `evm_exp_msb_saved_bit_two_mul_fixed`, so the
+    canonical branch/MUL offsets are reused unchanged. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed_fixed ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_restore ;;
+  exp_epilogue
+
+/-- Double-fixed EXP with canonical internal branch offsets and separate
+    external MUL-call offsets for the two JAL sites. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
+    (squaringMulOff condMulOff : BitVec 21) : Program :=
+  evm_exp_msb_saved_bit_two_mul_fixed_fixed squaringMulOff condMulOff
+    canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical_eq
+    (squaringMulOff condMulOff : BitVec 21) :
+    evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical squaringMulOff condMulOff =
+      evm_exp_msb_saved_bit_two_mul_fixed_fixed squaringMulOff condMulOff
+        canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff := rfl
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 84 := by
+  show ((((exp_prologue_fixed_fixed ;;
+           exp_loop_pointer_advance) ;;
+          exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+            squaringMulOff condMulOff skipOff backOff) ;;
+         exp_loop_pointer_restore) ;;
+        exp_epilogue).length = 84
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length,
+    exp_loop_pointer_restore_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 336 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_fixed_length]
+
+/-- Double-fixed (`x6 → x22`) EXP program in the architecture-B **headroom**
+    layout — the dispatcher-safe combination of *both* EXP bug fixes.
+
+    `evm_exp_msb_saved_bit_two_mul_fixed_headroom` fixes the stack-corruption
+    bug `evm-asm-fjivz` (the loop's MUL scratch is marshalled into the headroom
+    slack *below* the live stack instead of caller stack words [2]/[3]), but it
+    is built from the `_fixed` blocks whose per-limb counter lives in `x20` — a
+    register the codegen dispatcher reserves (`x20` = `evm_env` base, seeded
+    once in `_start` and read on every dispatch iteration). Wiring that body
+    into the dispatcher would clobber `x20` and corrupt dispatch state.
+
+    This variant is byte-identical to `_headroom` (the `x20 → x22` counter
+    substitution preserves every instruction count and offset) but keeps the
+    counter in callee-saved `x22`, which `evm_mul`/`cc_ret` never touch and the
+    dispatcher does not reserve. It is the body wired into `evmExpComposed`:
+
+        exp_loop_operand_copy        -- 16 instr (copy operands -> headroom)
+        exp_loop_pointer_restore     --  1 instr (ADDI x12 -64)
+        exp_loop_pointer_restore     --  1 instr (ADDI x12 -64 : into headroom)
+        exp_prologue_fixed_fixed     -- 10 instr (init counter x22 + accumulator)
+        exp_loop_pointer_advance     --  1 instr (ADDI x12 +64 : loop frame)
+        exp_iter_body_..._fixed_fixed -- 63 instr (square+cond-mul iter + BNE)
+        exp_loop_pointer_advance     --  1 instr (ADDI x12 +64 : back to live)
+        exp_epilogue                 --  9 instr (writeback result + ADDI x12 +32)
+
+    102 instructions, 408 bytes; loop body at byte +116. The two interior
+    MUL-call JAL sites and (once a skip-JAL + appended `mul_callable` follow)
+    `mul_callable` itself both shift +72 bytes vs the non-headroom
+    `_fixed_fixed` layout, so the canonical 200/92 call offsets used by
+    `evmExpComposed` carry over unchanged. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_loop_operand_copy ;;
+  exp_loop_pointer_restore ;;
+  exp_loop_pointer_restore ;;
+  exp_prologue_fixed_fixed ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_advance ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 102 := by
+  show (((((((exp_loop_operand_copy ;;
+           exp_loop_pointer_restore) ;;
+          exp_loop_pointer_restore) ;;
+         exp_prologue_fixed_fixed) ;;
+        exp_loop_pointer_advance) ;;
+       exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+         squaringMulOff condMulOff skipOff backOff) ;;
+      exp_loop_pointer_advance) ;;
+     exp_epilogue).length = 102
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_fixed_length,
+    exp_loop_operand_copy_length,
+    exp_loop_pointer_restore_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 408 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_length]
+
+/-- Double-fixed headroom EXP with canonical internal branch offsets and
+    separate external MUL-call offsets for the two JAL sites. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_canonical
+    (squaringMulOff condMulOff : BitVec 21) : Program :=
+  evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom squaringMulOff condMulOff
+    canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_canonical_eq
+    (squaringMulOff condMulOff : BitVec 21) :
+    evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_canonical squaringMulOff condMulOff =
+      evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom squaringMulOff condMulOff
+        canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff := rfl
 
 end EvmAsm.Evm64

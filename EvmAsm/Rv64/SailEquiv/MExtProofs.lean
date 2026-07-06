@@ -241,13 +241,15 @@ theorem mulhsu_high_equiv (a b : BitVec 64) :
 -- ============================================================================
 
 theorem mulh_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_MUL (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd)
         { result_part := VectorHalf.High, signed_rs1 := Signedness.Signed,
           signed_rs2 := Signedness.Signed }) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.MULH rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.MULH rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
@@ -257,17 +259,20 @@ theorem mulh_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 theorem mulhsu_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_MUL (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd)
         { result_part := VectorHalf.High, signed_rs1 := Signedness.Signed,
           signed_rs2 := Signedness.Unsigned }) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.MULHSU rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.MULHSU rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
@@ -277,8 +282,9 @@ theorem mulhsu_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 /-- MULHU value: SAIL's mult_to_bits_half Unsigned Unsigned High = rv64_mulhu. -/
 theorem mulhu_high_equiv (a b : BitVec 64) :
@@ -292,13 +298,15 @@ theorem mulhu_high_equiv (a b : BitVec 64) :
   omega
 
 theorem mulhu_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_MUL (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd)
         { result_part := VectorHalf.High, signed_rs1 := Signedness.Unsigned,
           signed_rs2 := Signedness.Unsigned }) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.MULHU rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.MULHU rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
@@ -308,15 +316,18 @@ theorem mulhu_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_DIV (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd) false) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.DIV rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.DIV rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     Out.Functions.not,
@@ -326,15 +337,18 @@ theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 theorem divu_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_DIV (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd) true) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.DIVU rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.DIVU rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     Out.Functions.xlen, Out.Functions.not,
@@ -344,15 +358,18 @@ theorem divu_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 theorem rem_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_REM (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd) false) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.REM rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.REM rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_REM
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     Bool.false_eq_true, ite_false]
@@ -361,15 +378,18 @@ theorem rem_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 theorem remu_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
+    (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4)) (rd rs1 rs2 : Reg) :
     ∃ sSail',
       runSail (execute_REM (regToRegidx rs2) (regToRegidx rs1) (regToRegidx rd) true) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.REMU rd rs1 rs2)) sSail' := by
+      StateRel (execInstrBr sRv (.REMU rd rs1 rs2)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_REM
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ite_true]
   conv in to_bits_truncate _ => rw [remu_full_equiv]
@@ -377,7 +397,8 @@ theorem remu_sail_equiv (sRv : MachineState) (sSail : SailState)
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
                  using reg_agree_after_insert sSail sRv hrel rd _ r,
-    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-                 using hrel.mem_agree a⟩⟩
+    fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a ha⟩,
+    by simp [h_nextpc]⟩
 
 end EvmAsm.Rv64.SailEquiv

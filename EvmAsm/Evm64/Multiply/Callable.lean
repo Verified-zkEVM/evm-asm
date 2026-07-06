@@ -45,7 +45,7 @@ def mul_callable : Program := evm_mul ;; cc_ret
 theorem mul_callable_length : mul_callable.length = 64 := by decide
 
 theorem mul_callable_ret_byte_off : 4 * (evm_mul).length = 252 := by
-  native_decide
+  decide
 
 theorem mul_callable_byte_length : 4 * mul_callable.length = 256 := by
   rw [mul_callable_length]

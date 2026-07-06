@@ -19,52 +19,41 @@ theorem byteOffset_lt_8 {addr : Word} : byteOffset addr < 8 := by
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
 /-- Aligning a byte address down to its containing doubleword gives byte
-    offset zero.  (`(addr &&& ~~~7) &&& 7 = addr &&& (~~~7 &&& 7) = addr &&& 0 = 0`.) -/
+    offset zero. -/
 theorem alignToDword_byteOffset_zero (addr : Word) :
     byteOffset (alignToDword addr) = 0 := by
   unfold byteOffset alignToDword
-  rw [BitVec.and_assoc, show (~~~7#64 &&& 7#64) = 0#64 from by decide, BitVec.and_zero]
-  rfl
+  have h : (addr &&& ~~~(7 : Word)) &&& (7 : Word) = 0 := by
+    apply BitVec.eq_of_getLsbD_eq; intro i _hi
+    simp only [BitVec.getLsbD_and, BitVec.getLsbD_not]
+    cases ha : (7 : Word).getLsbD i <;> simp
+  have h' : ((addr &&& ~~~(7 : Word)) &&& (7 : Word)).toNat = 0 := by rw [h]; rfl
+  exact h'
 
-/-- Aligning an already dword-aligned address is idempotent
-    (`(addr &&& ~~~7) &&& ~~~7 = addr &&& (~~~7 &&& ~~~7) = addr &&& ~~~7`). -/
+/-- Aligning an already dword-aligned address is idempotent. -/
 theorem alignToDword_idempotent (addr : Word) :
     alignToDword (alignToDword addr) = alignToDword addr := by
   unfold alignToDword
   rw [BitVec.and_assoc, BitVec.and_self]
 
-/-- The aligned base plus the byte offset reconstructs the original address, in `Nat` form.
-    Disjoint-bit decomposition (proved WITHOUT `bv_decide`): the aligned base holds the high
-    bits (`addr.toNat / 8 * 8`), the byte offset the low 3 bits (`addr.toNat % 8`). -/
-theorem alignToDword_add_byteOffset_toNat (addr : Word) :
-    (alignToDword addr).toNat + byteOffset addr = addr.toNat := by
-  unfold alignToDword byteOffset
-  simp only [BitVec.toNat_and, BitVec.toNat_not, BitVec.toNat_ofNat,
-             show (7 : Nat) % 2 ^ 64 = 7 from rfl]
-  have hlo : addr.toNat &&& 7 = addr.toNat % 8 := by
-    have h := Nat.and_two_pow_sub_one_eq_mod addr.toNat 3
-    simpa using h
-  have hhi_mod : (addr.toNat &&& (2 ^ 64 - 1 - 7)) % 8 = 0 := by
-    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_mod_two_pow,
-        show (2 ^ 64 - 1 - 7 : Nat) % 2 ^ 3 = 0 from by decide]
-    simp
-  have hhi_div : (addr.toNat &&& (2 ^ 64 - 1 - 7)) / 8 = addr.toNat / 8 := by
-    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_div_two_pow,
-        show (2 ^ 64 - 1 - 7 : Nat) / 2 ^ 3 = 2 ^ 61 - 1 from by decide]
-    exact Nat.and_two_pow_sub_one_of_lt_two_pow (by have := addr.isLt; omega)
-  have hhi : addr.toNat &&& (2 ^ 64 - 1 - 7) = addr.toNat / 8 * 8 := by
-    have heucl := Nat.div_add_mod (addr.toNat &&& (2 ^ 64 - 1 - 7)) 8
-    omega
-  rw [hlo, hhi]; omega
-
-/-- The aligned base plus the byte offset reconstructs the original address (BitVec form),
-    derived from the `Nat` decomposition above — no `bv_decide`. -/
+/-- The aligned base plus the byte offset reconstructs the original address. -/
 theorem alignToDword_add_byteOffset (addr : Word) :
     alignToDword addr + BitVec.ofNat 64 (byteOffset addr) = addr := by
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_add, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt (show byteOffset addr < 2 ^ 64 from by have := byteOffset_lt_8 (addr := addr); omega),
-      alignToDword_add_byteOffset_toNat addr, Nat.mod_eq_of_lt addr.isLt]
+  unfold alignToDword byteOffset
+  rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  -- Goal: (addr &&& ~~~7#64) + (addr &&& 7#64) = addr
+  -- Prove using or-factorization: the parts are disjoint
+  have hdisj : (addr &&& ~~~7#64) &&& (addr &&& 7#64) = 0 := by
+    ext i
+    simp only [BitVec.getElem_and, BitVec.getElem_not]
+    rcases Bool.eq_false_or_eq_true ((7#64)[i]) with h7 | h7 <;> simp [h7]
+  have hor : (addr &&& ~~~7#64) ||| (addr &&& 7#64) = addr := by
+    ext i
+    simp only [BitVec.getElem_or, BitVec.getElem_and, BitVec.getElem_not]
+    rcases Bool.eq_false_or_eq_true (addr[i]) with ha | ha <;>
+    rcases Bool.eq_false_or_eq_true ((7#64)[i]) with h7 | h7 <;>
+    simp [ha, h7]
+  rw [BitVec.add_eq_or_of_and_eq_zero _ _ hdisj, hor]
 
 /-! ## extractByte / replaceByte algebra
 
@@ -248,6 +237,68 @@ theorem generic_sb_spec_within (rs1 rs2 : Reg) (v_addr v_data : Word)
     have h4 := holdsFor_sepConj_pull_second.mpr h3
     have h5 := holdsFor_sepConj_pull_second.mpr h4
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h5
+
+/-! ## Byte packing — reconstruct 64-bit words from byte lists
+
+These are pure byte-level operations (relocated here from `Evm64.CodeRegion`,
+their natural home): `packBytes` packs a byte list little-endian into a dword,
+and `extractByte_packBytes` reads byte `k` back out. Used by the EVM code-region
+model and the RV64 byte-region model. -/
+
+/-- Pack 8 bytes (little-endian) into a 64-bit word.
+    Byte 0 at bits [0,8), byte 1 at bits [8,16), ..., byte 7 at bits [56,64). -/
+def packDword (f : Fin 8 → BitVec 8) : Word :=
+  (f 0).zeroExtend 64 |||
+  ((f 1).zeroExtend 64 <<< 8) |||
+  ((f 2).zeroExtend 64 <<< 16) |||
+  ((f 3).zeroExtend 64 <<< 24) |||
+  ((f 4).zeroExtend 64 <<< 32) |||
+  ((f 5).zeroExtend 64 <<< 40) |||
+  ((f 6).zeroExtend 64 <<< 48) |||
+  ((f 7).zeroExtend 64 <<< 56)
+
+/-- Index into a byte list with zero-padding for out-of-range. -/
+def getByteAt (bytes : List (BitVec 8)) (k : Nat) : BitVec 8 :=
+  if h : k < bytes.length then bytes[k] else 0
+
+/-- Pack a list of bytes into a 64-bit word (little-endian).
+    Uses the first 8 bytes; pads with zeros if fewer than 8 are provided. -/
+def packBytes (bytes : List (BitVec 8)) : Word :=
+  packDword (fun i => getByteAt bytes i.val)
+
+private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
+    let w := b0.zeroExtend 64 |||
+       (b1.zeroExtend 64 <<< 8) |||
+       (b2.zeroExtend 64 <<< 16) |||
+       (b3.zeroExtend 64 <<< 24) |||
+       (b4.zeroExtend 64 <<< 32) |||
+       (b5.zeroExtend 64 <<< 40) |||
+       (b6.zeroExtend 64 <<< 48) |||
+       (b7.zeroExtend 64 <<< 56)
+    (w >>> (k.val * 8)).truncate 8 =
+    (match k with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+                  | 4 => b4 | 5 => b5 | 6 => b6 | 7 => b7) := by
+  fin_cases k <;> simp only [] <;>
+  apply BitVec.eq_of_getLsbD_eq <;>
+  intro i hi <;>
+  interval_cases i <;>
+  simp
+
+theorem extractByte_packDword {f : Fin 8 → BitVec 8} {i : Fin 8} :
+    extractByte (packDword f) i.val = f i := by
+  show (packDword f >>> (i.val * 8)).truncate 8 = f i
+  unfold packDword
+  have := epd_core (f 0) (f 1) (f 2) (f 3) (f 4) (f 5) (f 6) (f 7) i
+  simp only [] at this
+  convert this using 1
+  fin_cases i <;> rfl
+
+theorem extractByte_packBytes (bytes : List (BitVec 8)) (k : Nat)
+    (hk : k < 8) (hlen : k < bytes.length) :
+    extractByte (packBytes bytes) k = bytes[k] := by
+  conv_lhs => rw [show k = (⟨k, hk⟩ : Fin 8).val from rfl]
+  rw [packBytes, extractByte_packDword]
+  simp [getByteAt, hlen]
 
 /-! ## Compatibility wrappers -/
 end EvmAsm.Rv64

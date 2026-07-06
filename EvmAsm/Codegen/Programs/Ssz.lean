@@ -11,6 +11,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.HashBridge
 
@@ -209,72 +212,86 @@ def ziskSszZeroHashesProbeUnit : BuildUnit := {
     Clobbers t0..t6, a0..a2. Saves/restores s0..s6 and ra via
     its own 64-byte stack frame. Requires `sp` to point at
     writable RAM. -/
-def sszMerkleizePow2Function : String :=
-  "ssz_merkleize_pow2:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp)\n" ++
-  "  sd s6, 56(sp)\n" ++
-  "  # s0 = n (current chunk count); s5 = scratch base; s6 = caller out ptr\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s6, a2\n" ++
-  "  la s5, ssz_merkleize_scratch\n" ++
-  "  # copy n*32 input bytes into scratch (in 8-byte units)\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, s5\n" ++
-  "  slli t2, s0, 5             # t2 = n * 32 bytes to copy\n" ++
-  ".Lmrk_copy:\n" ++
-  "  beqz t2, .Lmrk_iter\n" ++
-  "  ld t3, 0(t0)\n" ++
-  "  sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, -8\n" ++
-  "  j .Lmrk_copy\n" ++
-  ".Lmrk_iter:\n" ++
-  "  # if n == 1: root is at scratch[0..32]\n" ++
-  "  li t0, 1\n" ++
-  "  beq s0, t0, .Lmrk_done\n" ++
-  "  # pair-hash adjacent chunks into the lower half of scratch\n" ++
-  "  srli s1, s0, 1             # s1 = n/2 = pair count\n" ++
-  "  mv s2, s5                  # s2 = src pair ptr (64-byte step)\n" ++
-  "  mv s3, s5                  # s3 = dst slot ptr (32-byte step)\n" ++
-  ".Lmrk_pair:\n" ++
-  "  beqz s1, .Lmrk_advance\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a2, s3\n" ++
-  "  li a1, 64\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  "  addi s2, s2, 64\n" ++
-  "  addi s3, s3, 32\n" ++
-  "  addi s1, s1, -1\n" ++
-  "  j .Lmrk_pair\n" ++
-  ".Lmrk_advance:\n" ++
-  "  srli s0, s0, 1             # n /= 2\n" ++
-  "  j .Lmrk_iter\n" ++
-  ".Lmrk_done:\n" ++
-  "  # copy 32 bytes scratch[0..32] -> caller out ptr (s6)\n" ++
-  "  ld t0,  0(s5);  sd t0,  0(s6)\n" ++
-  "  ld t0,  8(s5);  sd t0,  8(s6)\n" ++
-  "  ld t0, 16(s5);  sd t0, 16(s6)\n" ++
-  "  ld t0, 24(s5);  sd t0, 24(s6)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp)\n" ++
-  "  ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def sszMerkleizePow2_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x22 .x12,
+    .AUIPC .x21 (laHi GuestAddrs.ssz_merkleize_scratch (GuestAddrs.ssz_merkleize_pow2 + 44)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.ssz_merkleize_scratch (GuestAddrs.ssz_merkleize_pow2 + 44)),
+    .MV .x5 .x10,
+    .MV .x6 .x21,
+    .SLLI .x7 .x8 (5 : BitVec 6),
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-8 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .BEQ .x8 .x5 (60 : BitVec 13),
+    .SRLI .x9 .x8 (1 : BitVec 6),
+    .MV .x18 .x21,
+    .MV .x19 .x21,
+    .BEQ .x9 .x0 (36 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x12 .x19,
+    .LI .x11 (64 : Word),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_merkleize_pow2 + 128)),
+    .ADDI .x18 .x18 (64 : BitVec 12),
+    .ADDI .x19 .x19 (32 : BitVec 12),
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SRLI .x8 .x8 (1 : BitVec 6),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x21 (0 : BitVec 12),
+    .SD .x22 .x5 (0 : BitVec 12),
+    .LD .x5 .x21 (8 : BitVec 12),
+    .SD .x22 .x5 (8 : BitVec 12),
+    .LD .x5 .x21 (16 : BitVec 12),
+    .SD .x22 .x5 (16 : BitVec 12),
+    .LD .x5 .x21 (24 : BitVec 12),
+    .SD .x22 .x5 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszMerkleizePow2_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszMerkleizePow2_relocs : RelocTable :=
+  [ (11, .la .x21 "ssz_merkleize_scratch"),
+    (32, .jal .x1 "zkvm_sha256") ]
+
+def sszMerkleizePow2Function : String :=
+  "ssz_merkleize_pow2:\n" ++ emitProgramR sszMerkleizePow2_prog sszMerkleizePow2_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszMerkleizePow2_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszMerkleizePow2Function_eq_prog :
+    sszMerkleizePow2Function = "ssz_merkleize_pow2:\n" ++ emitProgramR sszMerkleizePow2_prog sszMerkleizePow2_relocs := rfl
+
+#guard sszMerkleizePow2Function.startsWith "ssz_merkleize_pow2:\n"
+#guard sszMerkleizePow2_prog.length = 58
 /-- `zisk_ssz_merkleize_pow2`: probe BuildUnit that reads `n`
     from `INPUT_ADDR + 8` (u64 LE) and `n * 32` chunk bytes
     starting at `INPUT_ADDR + 16`, then calls `ssz_merkleize_pow2`
@@ -358,111 +375,141 @@ def ziskSszMerkleizePow2ProbeUnit : BuildUnit := {
 
     Clobbers t0..t6, a0..a3. Saves/restores s0..s6 and ra via
     a 64-byte stack frame. -/
-def sszMerkleizeFunction : String :=
-  "ssz_merkleize:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp)\n" ++
-  "  sd s6, 56(sp)\n" ++
-  "  # s5 = chunks_in ptr; s0 = n; s1 = limit_log2 L; s6 = out ptr\n" ++
-  "  mv s5, a0\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  mv s6, a3\n" ++
-  "  # n == 0 → root is Z_L (look up directly)\n" ++
-  "  beqz s0, .Lszm_zero_path\n" ++
-  "  # phase 1: compute M = next_pow2(n) and depth_M = log2(M)\n" ++
-  "  li t0, 1                    # candidate M\n" ++
-  "  li s4, 0                    # candidate depth\n" ++
-  ".Lszm_pow2_scan:\n" ++
-  "  bge t0, s0, .Lszm_have_M\n" ++
-  "  slli t0, t0, 1\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lszm_pow2_scan\n" ++
-  ".Lszm_have_M:\n" ++
-  "  mv s3, t0                   # s3 = M; s4 = depth_M = log2(M)\n" ++
-  "  # copy n*32 input bytes into ssz_merkleize_padded, zero-pad the rest\n" ++
-  "  la t0, ssz_merkleize_padded\n" ++
-  "  slli t1, s0, 5              # t1 = n*32 bytes to copy\n" ++
-  "  mv t2, s5                   # src\n" ++
-  "  mv t3, t0                   # dst\n" ++
-  ".Lszm_cp:\n" ++
-  "  beqz t1, .Lszm_pad\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  sd t4, 0(t3)\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t1, t1, -8\n" ++
-  "  j .Lszm_cp\n" ++
-  ".Lszm_pad:\n" ++
-  "  sub t1, s3, s0              # t1 = M - n (slots to zero)\n" ++
-  "  slli t1, t1, 5              # t1 = (M-n)*32 bytes\n" ++
-  ".Lszm_zr:\n" ++
-  "  beqz t1, .Lszm_call_pow2\n" ++
-  "  sd zero, 0(t3)\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t1, t1, -8\n" ++
-  "  j .Lszm_zr\n" ++
-  ".Lszm_call_pow2:\n" ++
-  "  # call ssz_merkleize_pow2(padded, M, ssz_merkleize_partial)\n" ++
-  "  la a0, ssz_merkleize_padded\n" ++
-  "  mv a1, s3\n" ++
-  "  la a2, ssz_merkleize_partial\n" ++
-  "  jal ra, ssz_merkleize_pow2\n" ++
-  "  # phase 2: mix in Z_d for d in [depth_M, L)\n" ++
-  ".Lszm_mix:\n" ++
-  "  beq s4, s1, .Lszm_copy_out\n" ++
-  "  # ssz_merkleize_partial[0..32]   = current root (input L)\n" ++
-  "  # ssz_merkleize_partial[32..64]  = Z_{s4}        (input R)\n" ++
-  "  la t0, ssz_zero_hashes\n" ++
-  "  slli t1, s4, 5              # offset = s4*32\n" ++
-  "  add t0, t0, t1              # &Z_{s4}\n" ++
-  "  la t2, ssz_merkleize_partial\n" ++
-  "  addi t2, t2, 32             # &partial[32..]\n" ++
-  "  ld t3,  0(t0); sd t3,  0(t2)\n" ++
-  "  ld t3,  8(t0); sd t3,  8(t2)\n" ++
-  "  ld t3, 16(t0); sd t3, 16(t2)\n" ++
-  "  ld t3, 24(t0); sd t3, 24(t2)\n" ++
-  "  la a0, ssz_merkleize_partial\n" ++
-  "  li a1, 64\n" ++
-  "  la a2, ssz_merkleize_partial\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lszm_mix\n" ++
-  ".Lszm_copy_out:\n" ++
-  "  la t0, ssz_merkleize_partial\n" ++
-  "  ld t1,  0(t0); sd t1,  0(s6)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(s6)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s6)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s6)\n" ++
-  "  j .Lszm_ret\n" ++
-  ".Lszm_zero_path:\n" ++
-  "  # root = Z_L (n == 0 case)\n" ++
-  "  la t0, ssz_zero_hashes\n" ++
-  "  slli t1, s1, 5\n" ++
-  "  add t0, t0, t1\n" ++
-  "  ld t1,  0(t0); sd t1,  0(s6)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(s6)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s6)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s6)\n" ++
-  ".Lszm_ret:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp)\n" ++
-  "  ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def sszMerkleize_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x21 .x10,
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x22 .x13,
+    .BEQ .x8 .x0 (272 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .LI .x20 (0 : Word),
+    .BGE .x5 .x8 (16 : BitVec 13),
+    .SLLI .x5 .x5 (1 : BitVec 6),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-12 : BitVec 21),
+    .MV .x19 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.ssz_merkleize_padded (GuestAddrs.ssz_merkleize + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_merkleize_padded (GuestAddrs.ssz_merkleize + 84)),
+    .SLLI .x6 .x8 (5 : BitVec 6),
+    .MV .x7 .x21,
+    .MV .x28 .x5,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-8 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SUB .x6 .x19 .x8,
+    .SLLI .x6 .x6 (5 : BitVec 6),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-8 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_merkleize_padded (GuestAddrs.ssz_merkleize + 160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_merkleize_padded (GuestAddrs.ssz_merkleize + 160)),
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 172)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_merkleize_pow2 (GuestAddrs.ssz_merkleize + 180)),
+    .BEQ .x20 .x9 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_merkleize + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_merkleize + 188)),
+    .SLLI .x6 .x20 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 204)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 204)),
+    .ADDI .x7 .x7 (32 : BitVec 12),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .LD .x28 .x5 (8 : BitVec 12),
+    .SD .x7 .x28 (8 : BitVec 12),
+    .LD .x28 .x5 (16 : BitVec 12),
+    .SD .x7 .x28 (16 : BitVec 12),
+    .LD .x28 .x5 (24 : BitVec 12),
+    .SD .x7 .x28 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 248)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 248)),
+    .LI .x11 (64 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 260)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 260)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_merkleize + 268)),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-92 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 280)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_merkleize_partial (GuestAddrs.ssz_merkleize + 280)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x22 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x22 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x22 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x22 .x6 (24 : BitVec 12),
+    .JAL .x0 (52 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_merkleize + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_merkleize + 324)),
+    .SLLI .x6 .x9 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x22 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x22 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x22 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x22 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszMerkleize_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszMerkleize_relocs : RelocTable :=
+  [ (21, .la .x5 "ssz_merkleize_padded"),
+    (40, .la .x10 "ssz_merkleize_padded"),
+    (43, .la .x12 "ssz_merkleize_partial"),
+    (45, .jal .x1 "ssz_merkleize_pow2"),
+    (47, .la .x5 "ssz_zero_hashes"),
+    (51, .la .x7 "ssz_merkleize_partial"),
+    (62, .la .x10 "ssz_merkleize_partial"),
+    (65, .la .x12 "ssz_merkleize_partial"),
+    (67, .jal .x1 "zkvm_sha256"),
+    (70, .la .x5 "ssz_merkleize_partial"),
+    (81, .la .x5 "ssz_zero_hashes") ]
+
+def sszMerkleizeFunction : String :=
+  "ssz_merkleize:\n" ++ emitProgramR sszMerkleize_prog sszMerkleize_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszMerkleize_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszMerkleizeFunction_eq_prog :
+    sszMerkleizeFunction = "ssz_merkleize:\n" ++ emitProgramR sszMerkleize_prog sszMerkleize_relocs := rfl
+
+#guard sszMerkleizeFunction.startsWith "ssz_merkleize:\n"
+#guard sszMerkleize_prog.length = 104
 /-- `zisk_ssz_merkleize`: probe BuildUnit that reads
     `(limit_log2 : u64, n : u64, chunks : n * 32 bytes)` from
     the host input region and writes the SSZ root to OUTPUT.
@@ -538,39 +585,42 @@ def ziskSszMerkleizeProbeUnit : BuildUnit := {
     Byte-at-a-time copy (slow path, ~L instructions). Acceptable
     for bring-up; a future PR can specialise to 8-byte units
     when alignment is known. -/
-def sszPackBytesFunction : String :=
-  "ssz_pack_bytes:\n" ++
-  "  # a0 = src, a1 = L, a2 = dst.\n" ++
-  "  # First copy L bytes from src to dst (byte-wise).\n" ++
-  "  mv t0, a0                  # t0 = src cursor\n" ++
-  "  mv t1, a2                  # t1 = dst cursor\n" ++
-  "  mv t2, a1                  # t2 = remaining bytes\n" ++
-  ".Lszpb_copy:\n" ++
-  "  beqz t2, .Lszpb_check_pad\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb  t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lszpb_copy\n" ++
-  ".Lszpb_check_pad:\n" ++
-  "  # remainder = L & 31; if zero, skip pad. else pad = 32 - remainder.\n" ++
-  "  andi t2, a1, 31\n" ++
-  "  beqz t2, .Lszpb_count\n" ++
-  "  li t3, 32\n" ++
-  "  sub t2, t3, t2             # t2 = pad bytes\n" ++
-  ".Lszpb_pad:\n" ++
-  "  beqz t2, .Lszpb_count\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lszpb_pad\n" ++
-  ".Lszpb_count:\n" ++
-  "  # chunks = ceil(L / 32) = (L + 31) >> 5\n" ++
-  "  addi t0, a1, 31\n" ++
-  "  srli a0, t0, 5\n" ++
-  "  ret"
+def sszPackBytes_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x12,
+    .MV .x7 .x11,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ANDI .x7 .x11 (31 : BitVec 12),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LI .x28 (32 : Word),
+    .SUB .x7 .x28 .x7,
+    .BEQ .x7 .x0 (20 : BitVec 13),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .ADDI .x5 .x11 (31 : BitVec 12),
+    .SRLI .x10 .x5 (5 : BitVec 6),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def sszPackBytesFunction : String :=
+  "ssz_pack_bytes:\n" ++ emitProgram sszPackBytes_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `sszPackBytes_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem sszPackBytesFunction_eq_prog :
+    sszPackBytesFunction = "ssz_pack_bytes:\n" ++ emitProgram sszPackBytes_prog := rfl
+
+#guard sszPackBytesFunction.startsWith "ssz_pack_bytes:\n"
+#guard sszPackBytes_prog.length = 22
 /-- `zisk_ssz_pack_bytes`: probe BuildUnit that reads
     `(L : u64, data : L bytes)` from the host input region,
     calls `ssz_pack_bytes`, and writes the result to OUTPUT in
@@ -619,71 +669,100 @@ def ziskSszPackBytesProbeUnit : BuildUnit := {
 
     Calling convention:
       a0 (input)  : src bytes ptr
-      a1 (input)  : L (0 ≤ L ≤ 1024)
+      a1 (input)  : L (bounded by the linked `ssz_hb_chunks` scratch)
       a2 (input)  : limit_log2_chunks (0 ≤ L_log2 ≤ 31)
       a3 (input)  : 32-byte output ptr
       ra (input)  : return
       a0 (output) : 0 (ZKVM_EOK)
 
     Uses three scratches in `.data`:
-      ssz_hb_chunks  (1024 B) -- packed chunks before merkleize
+      ssz_hb_chunks           -- packed chunks before merkleize
       ssz_hb_partial (32 B)   -- partial root from merkleize
       ssz_hb_mix     (64 B)   -- (partial || length) buffer
                                  for the final sha256 -/
-def sszHashTreeRootBytesFunction : String :=
-  "ssz_hash_tree_root_bytes:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  # s0 = src; s1 = L; s2 = limit_log2; s3 = out ptr\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  mv s3, a3\n" ++
-  "  # Step 1: pack(src, L) -> ssz_hb_chunks. Returns chunk count in a0.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, ssz_hb_chunks\n" ++
-  "  jal ra, ssz_pack_bytes\n" ++
-  "  mv s4, a0                  # s4 = chunks count\n" ++
-  "  # Step 2: merkleize(ssz_hb_chunks, s4, s2, ssz_hb_partial)\n" ++
-  "  la a0, ssz_hb_chunks\n" ++
-  "  mv a1, s4\n" ++
-  "  mv a2, s2\n" ++
-  "  la a3, ssz_hb_partial\n" ++
-  "  jal ra, ssz_merkleize\n" ++
-  "  # Step 3: write length chunk (u256 LE of L) at ssz_hb_mix + 32..64\n" ++
-  "  # Copy partial root into ssz_hb_mix[0..32]\n" ++
-  "  la t0, ssz_hb_partial\n" ++
-  "  la t1, ssz_hb_mix\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  # Length chunk at ssz_hb_mix + 32..64: u64 LE of L, then 24 zero bytes.\n" ++
-  "  sd s1, 32(t1)               # low 8 bytes = L (LE)\n" ++
-  "  sd zero, 40(t1)\n" ++
-  "  sd zero, 48(t1)\n" ++
-  "  sd zero, 56(t1)\n" ++
-  "  # Step 4: sha256(ssz_hb_mix, 64) -> caller's out ptr (s3)\n" ++
-  "  la a0, ssz_hb_mix\n" ++
-  "  li a1, 64\n" ++
-  "  mv a2, s3\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def sszHashTreeRootBytes_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.ssz_hb_chunks (GuestAddrs.ssz_hash_tree_root_bytes + 52)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ssz_hb_chunks (GuestAddrs.ssz_hash_tree_root_bytes + 52)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_pack_bytes (GuestAddrs.ssz_hash_tree_root_bytes + 60)),
+    .MV .x20 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.ssz_hb_chunks (GuestAddrs.ssz_hash_tree_root_bytes + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_hb_chunks (GuestAddrs.ssz_hash_tree_root_bytes + 68)),
+    .MV .x11 .x20,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.ssz_hb_partial (GuestAddrs.ssz_hash_tree_root_bytes + 84)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ssz_hb_partial (GuestAddrs.ssz_hash_tree_root_bytes + 84)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_merkleize (GuestAddrs.ssz_hash_tree_root_bytes + 92)),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_hb_partial (GuestAddrs.ssz_hash_tree_root_bytes + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_hb_partial (GuestAddrs.ssz_hash_tree_root_bytes + 96)),
+    .AUIPC .x6 (laHi GuestAddrs.ssz_hb_mix (GuestAddrs.ssz_hash_tree_root_bytes + 104)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssz_hb_mix (GuestAddrs.ssz_hash_tree_root_bytes + 104)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x9 (32 : BitVec 12),
+    .SD .x6 .x0 (40 : BitVec 12),
+    .SD .x6 .x0 (48 : BitVec 12),
+    .SD .x6 .x0 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_hb_mix (GuestAddrs.ssz_hash_tree_root_bytes + 160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_hb_mix (GuestAddrs.ssz_hash_tree_root_bytes + 160)),
+    .LI .x11 (64 : Word),
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_hash_tree_root_bytes + 176)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszHashTreeRootBytes_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszHashTreeRootBytes_relocs : RelocTable :=
+  [ (13, .la .x12 "ssz_hb_chunks"),
+    (15, .jal .x1 "ssz_pack_bytes"),
+    (17, .la .x10 "ssz_hb_chunks"),
+    (21, .la .x13 "ssz_hb_partial"),
+    (23, .jal .x1 "ssz_merkleize"),
+    (24, .la .x5 "ssz_hb_partial"),
+    (26, .la .x6 "ssz_hb_mix"),
+    (40, .la .x10 "ssz_hb_mix"),
+    (44, .jal .x1 "zkvm_sha256") ]
+
+def sszHashTreeRootBytesFunction : String :=
+  "ssz_hash_tree_root_bytes:\n" ++ emitProgramR sszHashTreeRootBytes_prog sszHashTreeRootBytes_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszHashTreeRootBytes_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszHashTreeRootBytesFunction_eq_prog :
+    sszHashTreeRootBytesFunction = "ssz_hash_tree_root_bytes:\n" ++ emitProgramR sszHashTreeRootBytes_prog sszHashTreeRootBytes_relocs := rfl
+
+#guard sszHashTreeRootBytesFunction.startsWith "ssz_hash_tree_root_bytes:\n"
+#guard sszHashTreeRootBytes_prog.length = 54
 /-- `zisk_ssz_hash_tree_root_bytes`: probe BuildUnit that reads
     `(L, limit_log2, data)` from host input, calls the wrapper,
     writes the 32-byte SSZ root to OUTPUT_ADDR.
@@ -769,104 +848,200 @@ def ziskSszHashTreeRootBytesProbeUnit : BuildUnit := {
       a3 (input)  : list count_limit_log2 (capacity = 2^a3)
       a4 (input)  : 32-byte output ptr
       ra (input)  : return
-      a0 (output) : 0 (ZKVM_EOK)
+      a0 (output) : 0 (ZKVM_EOK), 1 if the section exceeds this helper's
+                    scratch-supported bounds
 
-    PR-S11 caps N (element count) at 32, matching the inner
-    merkleize cap. Output is byte-identical to
+    PR-S11 caps N (element count) at 4096, matching the enlarged stateless
+    scratch, and each ByteList element at 2 MiB, matching the current
+    `ssz_hash_tree_root_bytes` stateless scratch. Output is byte-identical to
     `SszList[ByteList[B], M](...).hash_tree_root()` from
-    `remerkleable` for any compliant input. -/
-def sszHashTreeRootListByteListFunction : String :=
-  "ssz_hash_tree_root_list_bytelist:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # s0 = section ptr\n" ++
-  "  mv s1, a1                  # s1 = section_len\n" ++
-  "  mv s2, a2                  # s2 = byte_log2\n" ++
-  "  mv s3, a3                  # s3 = count_log2\n" ++
-  "  mv s4, a4                  # s4 = out ptr\n" ++
-  "  beqz s1, .Lszls_N0          # empty section ⇒ N = 0\n" ++
-  "  lbu t0, 0(s0)              # offset_0 = 4*N (LBU-packed: section ptr may be unaligned)\n" ++
-  "  lbu t5, 1(s0); slli t5, t5, 8;  or t0, t0, t5\n" ++
-  "  lbu t5, 2(s0); slli t5, t5, 16; or t0, t0, t5\n" ++
-  "  lbu t5, 3(s0); slli t5, t5, 24; or t0, t0, t5\n" ++
-  "  srli s5, t0, 2             # s5 = N (element count)\n" ++
-  "  li s6, 0                   # s6 = i (loop counter)\n" ++
-  ".Lszls_loop:\n" ++
-  "  beq s6, s5, .Lszls_done_loop\n" ++
-  "  slli t0, s6, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lbu t2, 0(t1)              # inner_off_i (LBU-packed)\n" ++
-  "  lbu t5, 1(t1); slli t5, t5, 8;  or t2, t2, t5\n" ++
-  "  lbu t5, 2(t1); slli t5, t5, 16; or t2, t2, t5\n" ++
-  "  lbu t5, 3(t1); slli t5, t5, 24; or t2, t2, t5\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lszls_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lbu t4, 0(t3)              # inner_off_{i+1} (LBU-packed)\n" ++
-  "  lbu t5, 1(t3); slli t5, t5, 8;  or t4, t4, t5\n" ++
-  "  lbu t5, 2(t3); slli t5, t5, 16; or t4, t4, t5\n" ++
-  "  lbu t5, 3(t3); slli t5, t5, 24; or t4, t4, t5\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lszls_have_end\n" ++
-  ".Lszls_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lszls_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  mv a2, s2                  # byte_log2\n" ++
-  "  la a3, ssz_ltb_child_roots\n" ++
-  "  slli t0, s6, 5             # 32*i\n" ++
-  "  add a3, a3, t0             # &child_roots[i]\n" ++
-  "  jal ra, ssz_hash_tree_root_bytes\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lszls_loop\n" ++
-  ".Lszls_done_loop:\n" ++
-  "  la a0, ssz_ltb_child_roots\n" ++
-  "  mv a1, s5                  # N\n" ++
-  "  mv a2, s3                  # count_log2\n" ++
-  "  la a3, ssz_ltb_partial\n" ++
-  "  jal ra, ssz_merkleize\n" ++
-  "  la t0, ssz_ltb_partial\n" ++
-  "  la t1, ssz_ltb_mix\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  sd s5, 32(t1)              # length = N (u64 LE)\n" ++
-  "  sd zero, 40(t1)\n" ++
-  "  sd zero, 48(t1)\n" ++
-  "  sd zero, 56(t1)\n" ++
-  "  la a0, ssz_ltb_mix\n" ++
-  "  li a1, 64\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  "  j .Lszls_ret\n" ++
-  ".Lszls_N0:\n" ++
-  "  la t0, ssz_zero_hashes\n" ++
-  "  slli t1, s3, 5\n" ++
-  "  add t0, t0, t1             # &Z_{count_log2}\n" ++
-  "  la t1, ssz_ltb_mix\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  sd zero, 32(t1); sd zero, 40(t1)\n" ++
-  "  sd zero, 48(t1); sd zero, 56(t1)\n" ++
-  "  la a0, ssz_ltb_mix\n" ++
-  "  li a1, 64\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  ".Lszls_ret:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+    `remerkleable` for any input within those helper bounds. -/
+def sszHashTreeRootListBytelist_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x9 .x0 (396 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LBU .x30 .x8 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .LBU .x30 .x8 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .LBU .x30 .x8 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .ANDI .x30 .x5 (3 : BitVec 12),
+    .BNE .x30 .x0 (448 : BitVec 13),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .BEQ .x21 .x0 (440 : BitVec 13),
+    .LUI .x30 (1 : BitVec 20),
+    .BLTU .x30 .x21 (432 : BitVec 13),
+    .BLTU .x9 .x5 (428 : BitVec 13),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (204 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .LBU .x30 .x6 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .LBU .x30 .x6 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .LBU .x30 .x6 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .SLLI .x28 .x21 (2 : BitVec 6),
+    .BLTU .x7 .x28 (364 : BitVec 13),
+    .BLTU .x9 .x7 (360 : BitVec 13),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (68 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .LBU .x30 .x28 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .LBU .x30 .x28 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .LBU .x30 .x28 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .BLTU .x29 .x7 (296 : BitVec 13),
+    .BLTU .x9 .x29 (292 : BitVec 13),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .LI .x6 (32 : Word),
+    .SLL .x6 .x6 .x18,
+    .BLTU .x6 .x11 (264 : BitVec 13),
+    .LUI .x5 (512 : BitVec 20),
+    .BLTU .x5 .x11 (256 : BitVec 13),
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 304)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 304)),
+    .SLLI .x5 .x22 (5 : BitVec 6),
+    .ADD .x13 .x13 .x5,
+    .JAL .x1 (jalOff GuestAddrs.ssz_hash_tree_root_bytes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 320)),
+    .BNE .x10 .x0 (228 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-200 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 336)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 336)),
+    .MV .x11 .x21,
+    .MV .x12 .x19,
+    .AUIPC .x13 (laHi GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 352)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 352)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_merkleize (GuestAddrs.ssz_hash_tree_root_list_bytelist + 360)),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 364)),
+    .AUIPC .x6 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 372)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 372)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x21 (32 : BitVec 12),
+    .SD .x6 .x0 (40 : BitVec 12),
+    .SD .x6 .x0 (48 : BitVec 12),
+    .SD .x6 .x0 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 428)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 428)),
+    .LI .x11 (64 : Word),
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_hash_tree_root_list_bytelist + 444)),
+    .JAL .x0 (96 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 452)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 452)),
+    .SLLI .x6 .x19 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 468)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 468)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x0 (32 : BitVec 12),
+    .SD .x6 .x0 (40 : BitVec 12),
+    .SD .x6 .x0 (48 : BitVec 12),
+    .SD .x6 .x0 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 524)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 524)),
+    .LI .x11 (64 : Word),
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_hash_tree_root_list_bytelist + 540)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .SD .x20 .x0 (8 : BitVec 12),
+    .SD .x20 .x0 (16 : BitVec 12),
+    .SD .x20 .x0 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszHashTreeRootListBytelist_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszHashTreeRootListBytelist_relocs : RelocTable :=
+  [ (76, .la .x13 "ssz_ltb_child_roots"),
+    (80, .jal .x1 "ssz_hash_tree_root_bytes"),
+    (84, .la .x10 "ssz_ltb_child_roots"),
+    (88, .la .x13 "ssz_ltb_partial"),
+    (90, .jal .x1 "ssz_merkleize"),
+    (91, .la .x5 "ssz_ltb_partial"),
+    (93, .la .x6 "ssz_ltb_mix"),
+    (107, .la .x10 "ssz_ltb_mix"),
+    (111, .jal .x1 "zkvm_sha256"),
+    (113, .la .x5 "ssz_zero_hashes"),
+    (117, .la .x6 "ssz_ltb_mix"),
+    (131, .la .x10 "ssz_ltb_mix"),
+    (135, .jal .x1 "zkvm_sha256") ]
+
+def sszHashTreeRootListByteListFunction : String :=
+  "ssz_hash_tree_root_list_bytelist:\n" ++ emitProgramR sszHashTreeRootListBytelist_prog sszHashTreeRootListBytelist_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszHashTreeRootListBytelist_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszHashTreeRootListByteListFunction_eq_prog :
+    sszHashTreeRootListByteListFunction = "ssz_hash_tree_root_list_bytelist:\n" ++ emitProgramR sszHashTreeRootListBytelist_prog sszHashTreeRootListBytelist_relocs := rfl
+
+#guard sszHashTreeRootListByteListFunction.startsWith "ssz_hash_tree_root_list_bytelist:\n"
+#guard sszHashTreeRootListBytelist_prog.length = 153
 /-- `zisk_ssz_hash_tree_root_list_bytelist`: probe BuildUnit
     that reads the SSZ-encoded list section from host input and
     writes the SSZ root to OUTPUT.
@@ -884,6 +1059,8 @@ def ziskSszHashTreeRootListByteListPrologue : String :=
   "  addi a0, a5, 32             # section ptr\n" ++
   "  li a4, 0xa0010000           # OUTPUT_ADDR\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
   "  j .Lzs11_done\n" ++
   zkvmSha256Function ++ "\n" ++
   sszPackBytesFunction ++ "\n" ++
@@ -965,7 +1142,7 @@ def ziskSszHashTreeRootListByteListProbeUnit : BuildUnit := {
       a1 (input)  : section_len
       a2 (input)  : 32-byte output ptr
       ra (input)  : return
-      a0 (output) : 0 (ZKVM_EOK)
+      a0 (output) : 0 (ZKVM_EOK), nonzero if a nested list exceeds helper bounds
 
     Per-field caps inherited from PR-S11: each list's N ≤ 32.
     Test fixtures stay well below; production-sized witnesses
@@ -991,6 +1168,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  li a3, 20\n" ++
   "  la a4, ssz_ew_field_roots\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Field 1: codes (List[ByteList[2^24], 2^16]; byte_log2=19, count_log2=16)\n" ++
   "  add a0, s0, s4              # codes_start\n" ++
   "  add t0, s0, s5              # codes_end\n" ++
@@ -1000,6 +1178,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  la a4, ssz_ew_field_roots\n" ++
   "  addi a4, a4, 32\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Field 2: headers (List[ByteList[2^10], 2^8]; byte_log2=5, count_log2=8)\n" ++
   "  add a0, s0, s5              # headers_start\n" ++
   "  sub a1, s6, a0\n" ++
@@ -1008,6 +1187,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  la a4, ssz_ew_field_roots\n" ++
   "  addi a4, a4, 64\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Merkleize 3 field roots, capacity = 4 slots (limit_log2 = 2)\n" ++
   "  la a0, ssz_ew_field_roots\n" ++
   "  li a1, 3\n" ++
@@ -1015,6 +1195,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  mv a3, s2\n" ++
   "  jal ra, ssz_merkleize\n" ++
   "  li a0, 0\n" ++
+  ".Lszew_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
@@ -1034,6 +1215,8 @@ def ziskSszHashTreeRootExecutionWitnessPrologue : String :=
   "  addi a0, a3, 16             # section ptr\n" ++
   "  li a2, 0xa0010000           # OUTPUT_ADDR\n" ++
   "  jal ra, ssz_hash_tree_root_execution_witness\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
   "  j .Lzs12_done\n" ++
   zkvmSha256Function ++ "\n" ++
   sszPackBytesFunction ++ "\n" ++

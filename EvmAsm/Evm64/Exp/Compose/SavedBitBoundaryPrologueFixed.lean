@@ -38,7 +38,7 @@ def expTwoMulLoopEntryPostFixed
     (rest : List EvmWord) : Assertion :=
   (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
-      (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
       (.x16 ↦ᵣ (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))) **
       (.x19 ↦ᵣ exponentWord.getLimbN 3) **
       evmWordIs sp (1 : EvmWord)) **
@@ -52,7 +52,7 @@ theorem expTwoMulLoopEntryPostFixed_unfold
     expTwoMulLoopEntryPostFixed sp evmSp vOld v18 baseWord exponentWord rest =
       (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
           (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
-          (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+          (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
           (.x16 ↦ᵣ (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))) **
           (.x19 ↦ᵣ exponentWord.getLimbN 3) **
           evmWordIs sp (1 : EvmWord)) **
@@ -67,7 +67,7 @@ theorem expTwoMulLoopEntryPostFixed_unfold_scratch
     expTwoMulLoopEntryPostFixed sp evmSp vOld v18 baseWord exponentWord rest =
       (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
           (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
-          (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+          (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
           (.x16 ↦ᵣ (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))) **
           (.x19 ↦ᵣ exponentWord.getLimbN 3) **
           evmWordIs sp (1 : EvmWord)) **
@@ -87,7 +87,7 @@ theorem expTwoMulLoopEntryPostFixed_unfold_rest2
         baseWord exponentWord (dWord :: eWord :: rest) =
       (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
           (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
-          (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+          (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
           (.x16 ↦ᵣ (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))) **
           (.x19 ↦ᵣ exponentWord.getLimbN 3) **
           evmWordIs sp (1 : EvmWord)) **
@@ -112,7 +112,7 @@ theorem expTwoMulLoopEntryPostFixed_unfold_rest2_offsets
         baseWord exponentWord (dWord :: eWord :: rest) =
       (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
           (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
-          (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+          (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
           (.x16 ↦ᵣ (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))) **
           (.x19 ↦ᵣ exponentWord.getLimbN 3) **
           evmWordIs sp (1 : EvmWord)) **
@@ -294,7 +294,7 @@ private theorem exp_prologue_fixed_in_fixed_code_spec_within
       (expMsbSavedBitTwoMulFixedCode base squaringMulOff condMulOff skipOff backOff)
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -304,7 +304,7 @@ private theorem exp_prologue_fixed_in_fixed_code_spec_within
        (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
        (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
        (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
        (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
        (.x19 ↦ᵣ expLimb3) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
@@ -373,7 +373,7 @@ theorem exp_prologue_fixed_then_pointer_advance_spec_within
       (expMsbSavedBitTwoMulFixedCode base squaringMulOff condMulOff skipOff backOff)
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -383,7 +383,7 @@ theorem exp_prologue_fixed_then_pointer_advance_spec_within
       (((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
         (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
-        (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+        (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
         (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
         (.x19 ↦ᵣ expLimb3) **
         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
@@ -404,7 +404,7 @@ theorem exp_prologue_fixed_then_pointer_advance_spec_within
   have hAdvanceF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
      (.x9 ↦ᵣ 0 + signExtend12 256) ** (.x5 ↦ᵣ 0 + signExtend12 1) **
-     (.x6 ↦ᵣ 0 + signExtend12 64) **
+     (.x20 ↦ᵣ 0 + signExtend12 64) **
      (.x16 ↦ᵣ evmSp + signExtend12 56 + signExtend12 (-8:BitVec 12)) **
      (.x19 ↦ᵣ expLimb3) **
      ((sp + signExtend12 0) ↦ₘ 0 + signExtend12 1) **
@@ -437,7 +437,7 @@ theorem exp_prologue_fixed_then_pointer_advance_full_stack_spec_within
       (expMsbSavedBitTwoMulFixedCode base squaringMulOff condMulOff skipOff backOff)
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -447,7 +447,7 @@ theorem exp_prologue_fixed_then_pointer_advance_full_stack_spec_within
       (expTwoMulLoopEntryPostFixed sp evmSp vOld v18 baseWord exponentWord rest) := by
   -- Address identity: evmSp + signExtend12 56 = (evmSp+32) + 24
   have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) =
-             (evmSp + 32) + 24 := by unfold signExtend12; bv_decide
+             (evmSp + 32) + 24 := by rw [EvmAsm.Rv64.signExtend12_56]; bv_omega
   -- Frame the raw spec with remaining stack atoms (base word, exp limbs 0-2, rest)
   let expLimb3 := exponentWord.getLimbN 3
   have hRaw_framed := cpsTripleWithin_frameR
@@ -467,8 +467,10 @@ theorem exp_prologue_fixed_then_pointer_advance_full_stack_spec_within
   have h64 : (evmSp + 32 + 32 : Word) = evmSp + 64 := by bv_addr
   have h32_0 : ((evmSp + 32) + 0 : Word) = evmSp + 32 := by bv_addr
   -- Register value normalizations needed for POST-weaken
-  have hx9 : (0:Word) + signExtend12 (256:BitVec 12) = (256:Word) := by unfold signExtend12; bv_decide
-  have hx5 : (0:Word) + signExtend12 (1:BitVec 12) = (1:Word) := by unfold signExtend12; bv_decide
+  have hx9 : (0:Word) + signExtend12 (256:BitVec 12) = (256:Word) := by
+    rw [EvmAsm.Evm64.Exp.AddrNorm.exp_se12_256]; bv_omega
+  have hx5 : (0:Word) + signExtend12 (1:BitVec 12) = (1:Word) := by
+    rw [EvmAsm.Rv64.signExtend12_1]; bv_omega
   -- Weaken: PRE uses evmStackIs, POST uses expTwoMulLoopEntryPostFixed
   exact cpsTripleWithin_weaken
     -- PRE-weaken: expand evmStackIs/evmWordIs → match hRaw_framed.PRE atoms

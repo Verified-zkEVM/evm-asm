@@ -175,5 +175,30 @@ theorem evm_dup_stack_spec_within (nsp base : Word)
     (fun _ hq => by rw [hsplit]; xperm_hyp hq)
     h_main
 
+-- ============================================================================
+-- Code bridge: union-of-singletons `evm_dup_code` = `ofProg` form
+-- ============================================================================
+
+/-- The hand-built union-of-singletons `evm_dup_code` equals the `ofProg`
+    form of the `evm_dup` program. `evm_dup_code` is written as an explicit
+    union chain because the symbolic `n` blocks `ofProg` definitional
+    reduction; this lemma re-establishes the equality via per-instruction
+    peeling (mirrors `exp_prologue_code_eq_ofProg`). Enables lifting the
+    DUPn body spec to a handler-level `cpsTriple` via `cleanRetHandlerSpec`. -/
+theorem evm_dup_code_eq_ofProg (base : Word) (n : Nat) :
+    evm_dup_code base n = CodeReq.ofProg base (evm_dup n) := by
+  unfold evm_dup_code evm_dup dup_one_limb ADDI LD SD single seq
+  change _ = CodeReq.ofProg base
+    [.ADDI .x12 .x12 (-32),
+     .LD .x7 .x12 (BitVec.ofNat 12 (n * 32)),      .SD .x12 .x7 (BitVec.ofNat 12 0),
+     .LD .x7 .x12 (BitVec.ofNat 12 (n * 32 + 8)),  .SD .x12 .x7 (BitVec.ofNat 12 8),
+     .LD .x7 .x12 (BitVec.ofNat 12 (n * 32 + 16)), .SD .x12 .x7 (BitVec.ofNat 12 16),
+     .LD .x7 .x12 (BitVec.ofNat 12 (n * 32 + 24)), .SD .x12 .x7 (BitVec.ofNat 12 24)]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  simp only [← CodeReq.union_assoc]
+  bv_addr
+
 
 end EvmAsm.Evm64

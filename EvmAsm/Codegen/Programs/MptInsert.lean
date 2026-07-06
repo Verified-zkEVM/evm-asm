@@ -16,12 +16,14 @@
     case 0 BRANCH_EMPTY_SLOT : fill the terminal branch's empty slot
                                path[consumed] with leaf(path[consumed+1..],
                                value); bubble up the ancestor stack.
+    case 1 LEAF_SPLIT        : split terminal leaf into a new branch, optionally
+                               wrapped by an extension.
+    case 2 EXTENSION_SPLIT   : split terminal extension into a new branch,
+                               optionally wrapped by the shared prefix.
 
   Conservative (returns status 1, caller -> conservative MISS, never a false
-  positive) on:
-    case 1 LEAF_SPLIT / case 2 EXTENSION_SPLIT : need a new branch (+ optional
-      extension); deferred to a follow-up. case 4 EXISTS / 5 BRANCH_VALUE : not
-      on the withdrawal-insert path.
+  positive) on case 4 EXISTS / 5 BRANCH_VALUE, which are not on the
+  withdrawal-insert path.
 
   Reuses mpt_set's leaf encoder / node-slot encoder / splice helpers verbatim.
   All scratch is 8-aligned; the no-misaligned invariant holds (nibbles read
@@ -34,6 +36,8 @@ import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptInsertWalk
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptEncode
+
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
 namespace EvmAsm.Codegen
 
@@ -82,12 +86,14 @@ def mptInsertFunction : String :=
   "  li t2, 3; beq t1, t2, .Lins_empty\n" ++
   "  li t2, 0; beq t1, t2, .Lins_branch_empty\n" ++
   "  li t2, 1; beq t1, t2, .Lins_leaf_split\n" ++
-  "  li a0, 1; j .Lins_ret       # ext-split / exists / branch-value: conservative\n" ++
+  "  li t2, 2; beq t1, t2, .Lins_ext_split\n" ++
+  "  li a0, 1; j .Lins_ret       # exists / branch-value: conservative\n" ++
   ".Lins_empty:\n" ++
   "  # root := keccak(leaf(full path, value)).\n" ++
   "  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0); mv a2, s5\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  li a0, 0; j .Lins_ret\n" ++
@@ -110,6 +116,7 @@ def mptInsertFunction : String :=
   "  la t0, ins_lv_ptr; ld a2, 0(t0); la t0, ins_lv_len; ld a3, 0(t0)\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
   "  la a2, ins_ref; la a3, ins_ref_len\n" ++
   "  jal ra, mpt_node_slot_encode\n" ++
@@ -120,6 +127,7 @@ def mptInsertFunction : String :=
   "  mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node2; la a5, ins_node2_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
   "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
   "  la a2, ins_ref2; la a3, ins_ref2_len\n" ++
   "  jal ra, mpt_node_slot_encode\n" ++
@@ -156,6 +164,98 @@ def mptInsertFunction : String :=
   ".Lins_ls_bubble:\n" ++
   "  mv s7, s6\n" ++
   "  j .Lins_bubble\n" ++
+  ".Lins_ext_split:\n" ++
+  "  # split the terminal extension: old child/ref on K[m], new leaf on P[m],\n" ++
+  "  # with the shared prefix wrapped back into an extension when m > 0.\n" ++
+  "  la t0, ins_meta; ld t1, 24(t0); add s9, s0, t1     # terminal extension ptr\n" ++
+  "  la t0, ins_meta; ld a1, 32(t0)                      # terminal len\n" ++
+  "  mv a0, s9; li a2, 0; la a3, mle_path_off; la a4, mle_path_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la t0, mle_path_off; ld t0, 0(t0); add a0, s9, t0\n" ++
+  "  la t0, mle_path_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_k; la a3, ins_kcount; la a4, ins_niba\n" ++
+  "  jal ra, hp_decode_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la t0, ins_niba; ld t0, 0(t0); bnez t0, .Lins_fail\n" ++
+  "  # child_ref from extension item 1. rlp_list_nth_item strips the 0xa0 byte\n" ++
+  "  # for hash refs, so re-wrap 32-byte refs before extension encoding.\n" ++
+  "  la t0, ins_meta; ld a1, 32(t0); mv a0, s9; li a2, 1; la a3, mle_path_off; la a4, ins_lv_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la t0, mle_path_off; ld t0, 0(t0); add t0, s9, t0; la t1, ins_lv_ptr; sd t0, 0(t1)\n" ++
+  "  la t1, ins_lv_len; ld t2, 0(t1); li t3, 32; bne t2, t3, .Lins_ext_child_inline\n" ++
+  "  la t4, ins_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
+  ".Lins_ext_child_hash_cp:\n" ++
+  "  beqz t5, .Lins_ext_child_hash_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lins_ext_child_hash_cp\n" ++
+  ".Lins_ext_child_hash_done:\n" ++
+  "  li t5, 33; la t4, ins_ref_len; sd t5, 0(t4); j .Lins_ext_child_ready\n" ++
+  ".Lins_ext_child_inline:\n" ++
+  "  la t4, ins_ref; mv t5, t2\n" ++
+  ".Lins_ext_child_inline_cp:\n" ++
+  "  beqz t5, .Lins_ext_child_inline_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lins_ext_child_inline_cp\n" ++
+  ".Lins_ext_child_inline_done:\n" ++
+  "  la t4, ins_ref_len; sd t2, 0(t4)\n" ++
+  ".Lins_ext_child_ready:\n" ++
+  "  la t0, ins_meta; ld t1, 40(t0); la t2, ins_m; sd t1, 0(t2)\n" ++
+  "  la t2, ins_k; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_niba; sd t3, 0(t4)\n" ++
+  "  add t2, s1, s8; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_nibb; sd t3, 0(t4)\n" ++
+  "  # old side: wrap the extension remainder after the divergent nibble when\n" ++
+  "  # it is non-empty, otherwise reuse the existing child ref directly.\n" ++
+  "  la t0, ins_kcount; ld t1, 0(t0); la t2, ins_m; ld t3, 0(t2)\n" ++
+  "  sub t4, t1, t3; addi t4, t4, -1\n" ++
+  "  beqz t4, .Lins_ext_old_ready\n" ++
+  "  la a0, ins_k; add a0, a0, t3; addi a0, a0, 1\n" ++
+  "  mv a1, t4; la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, ins_node; la a5, ins_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  ".Lins_ext_old_ready:\n" ++
+  "  # new side leaf = leaf(path[consumed+m+1..], value).\n" ++
+  "  la t2, ins_m; ld t3, 0(t2)\n" ++
+  "  add a0, s1, s8; add a0, a0, t3; addi a0, a0, 1\n" ++
+  "  sub a1, s2, s8; sub a1, a1, t3; addi a1, a1, -1\n" ++
+  "  mv a2, s3; mv a3, s4\n" ++
+  "  la a4, ins_node2; la a5, ins_node2_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref2; la a3, ins_ref2_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # branch with old and new children.\n" ++
+  "  la a0, ins_empty_branch; li a1, 18\n" ++
+  "  la t0, ins_niba; ld a2, 0(t0)\n" ++
+  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
+  "  la a5, ins_node; la a6, ins_node_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la t0, ins_nibb; ld a2, 0(t0)\n" ++
+  "  la a3, ins_ref2; la t0, ins_ref2_len; ld a4, 0(t0)\n" ++
+  "  la a5, ins_node2; la a6, ins_node2_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  la t0, ins_node2_len; ld t1, 0(t0); la t2, ins_node_len; sd t1, 0(t2)\n" ++
+  "  la a0, ins_node; la a1, ins_node2; mv a2, t1\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  la t0, ins_m; ld t1, 0(t0); beqz t1, .Lins_ext_bubble\n" ++
+  "  la a0, ins_k; mv a1, t1\n" ++
+  "  la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, ins_node; la a5, ins_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  ".Lins_ext_bubble:\n" ++
+  "  mv s7, s6\n" ++
+  "  j .Lins_bubble\n" ++
   ".Lins_branch_empty:\n" ++
   "  # leaf = leaf(path[consumed+1..], value).\n" ++
   "  add a0, s1, s8; addi a0, a0, 1\n" ++
@@ -163,6 +263,7 @@ def mptInsertFunction : String :=
   "  mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lins_fail\n" ++
   "  # leaf_ref = node_slot_encode(leaf).\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
   "  la a2, ins_ref; la a3, ins_ref_len\n" ++

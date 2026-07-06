@@ -27,6 +27,7 @@ def CALLDATACOPY : Nat := 0x37
 def BLOCKHASH : Nat := 0x40
 def BLOBHASH : Nat := 0x49
 def BLOBBASEFEE : Nat := 0x4a
+def SLOTNUM : Nat := 0x4b
 def POP : Nat := 0x50
 def MLOAD : Nat := 0x51
 def MSTORE : Nat := 0x52
@@ -59,6 +60,7 @@ def execSpecBlockBlobByte : EvmOpcode.BlockBlobKind → Nat
   | .blockhash => Ops.BLOCKHASH
   | .blobhash => Ops.BLOBHASH
   | .blobbasefee => Ops.BLOBBASEFEE
+  | .slotnum => Ops.SLOTNUM
 
 /-- Executable-spec byte for the CALL-family opcode classifier. -/
 def execSpecCallByte : CallArgs.Kind → Nat

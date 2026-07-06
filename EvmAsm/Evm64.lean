@@ -108,6 +108,7 @@ import EvmAsm.Evm64.StorageAccess
 import EvmAsm.Evm64.StorageAccessWarm
 import EvmAsm.Evm64.StorageAccessOutcome
 import EvmAsm.Evm64.StorageArgs
+import EvmAsm.Evm64.StorageAssertions
 
 -- Opcode dispatch surface (#106)
 import EvmAsm.Evm64.Dispatch
@@ -165,6 +166,9 @@ import EvmAsm.Evm64.PrecompileDispatch
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.StateAssertions
+import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MemoryGas
 import EvmAsm.Evm64.KeccakArgs
 import EvmAsm.Evm64.KeccakArgsStackDecode
@@ -186,10 +190,20 @@ import EvmAsm.Evm64.Calldata.Size
 import EvmAsm.Evm64.Calldata.SizeProgram
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.LoadProgram
+import EvmAsm.Evm64.Calldata.LoadFullProgram
 import EvmAsm.Evm64.Calldata.LoadStackCode
+import EvmAsm.Evm64.Calldata.LoadWindowWord
+import EvmAsm.Evm64.Calldata.LoadDispatch
+import EvmAsm.Evm64.Calldata.Region
+import EvmAsm.Evm64.Calldata.LoadWindowArm
+import EvmAsm.Evm64.Calldata.LoadSpec
+import EvmAsm.Evm64.Calldata.StageWindow
+import EvmAsm.Evm64.Calldata.StageProgram
+import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopyArgs
 import EvmAsm.Evm64.Calldata.CopyArgsStackDecode
 import EvmAsm.Evm64.Calldata.CopyExec
 import EvmAsm.Evm64.Calldata.CopyMemory
 import EvmAsm.Evm64.Calldata.CopyProgram
 import EvmAsm.Evm64.Calldata.CopySpec
+import EvmAsm.Evm64.Calldata.CopyLoopSpec

@@ -21,14 +21,13 @@
                           opcodes already in `Evm64/{Pop, Push,
                           Dup, Swap}`; this file binds them into
                           a frame).
-  - `Precompiles.lean`  — dispatch for precompile addresses
-                          0x01..0x14. **Every call routes to
-                          `unimplemented_exit` with reason code
-                          `REASON_PRECOMPILE + precompile_id`**
-                          per the project scope (precompiles are
-                          out of scope for the first STF wire-up;
-                          tests that trigger a precompile call
-                          deliberately exit with that reason).
+  - `Precompiles.lean`  — dispatch/framing surface for precompile
+                          addresses 0x01..0x14 plus P256VERIFY
+                          at 0x100. Unsupported calls still route
+                          to `unimplemented_exit`; implemented
+                          slices expose pure return-data framing
+                          before they are wired into the concrete
+                          CALL/STATICCALL path.
   - `Spec.lean`         — cpsTriple placeholders.
 
   All sub-files are scaffolds in PR-K12.

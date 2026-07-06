@@ -10,45 +10,6 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallReturnComposition
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-/-- Zero-divisor SDIV path through result-sign-fix and the saved-RA return,
-    specialized from the sidecar bzero callable handoff. -/
-theorem saveRa_signs_abs_signXor_then_divCall_bzero_then_return_normalized_named_post_from_handoff_spec_in_sdivCode
-    (vRa vSavedOld sp sDividendOld sDivisorOld
-      dividendMaskOld dividendValueOld dividendCarryOld
-      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
-      v2 v5 v6 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
-    (base : Word) (hbase : base &&& 1 = 0)
-    (hbz : sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop = 0) :
-    EvmAsm.Rv64.cpsTripleWithin (((49 + (EvmAsm.Evm64.unifiedDivBound + 1)) + 21) + 1)
-      base (vRa &&& ~~~(1 : Word)) (sdivCode base)
-      (saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
-        dividendMaskOld dividendValueOld dividendCarryOld
-        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
-       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (saveRaDivCallCallableReturnPost vRa sp base
-        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) := by
-  exact
-    saveRa_signs_abs_signXor_then_divCall_then_return_normalized_named_post_of_callable_post_spec_in_sdivCode
-      vRa vSavedOld sp sDividendOld sDivisorOld
-      dividendMaskOld dividendValueOld dividendCarryOld
-      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
-      v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      shiftMem nMem jMem retMem dMem dloMem scratchUn0 base
-      (saveRaDivCallDispatchReadyPost_bzero_callable_spec_in_sdivCode
-        vRa sp base
-        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
-        v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        shiftMem nMem jMem retMem dMem dloMem scratchUn0 hbase hbz)
-
 /-- v4 zero-divisor SDIV path through result-sign-fix and the saved-RA return,
     exposed from the sidecar bzero callable handoff layer. -/
 theorem saveRa_signs_abs_signXor_then_divCall_bzero_then_return_normalized_from_handoff_spec_in_sdivCodeV4

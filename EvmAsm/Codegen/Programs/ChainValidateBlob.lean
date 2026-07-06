@@ -21,6 +21,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 
@@ -295,11 +298,10 @@ def ziskChainValidateExcessBlobGasNonIncreasingProbeUnit : BuildUnit := {
 /-! ## chain_validate_blob_gas_used_under_max -- PR-K277
 
     Per-header invariant: `blob_gas_used <= MAX_BLOB_GAS_PER_BLOCK`
-    (field 17, Cancun+). The EIP-4844 cap is
-    `MAX_BLOB_GAS_PER_BLOCK = 6 * GAS_PER_BLOB = 6 * 131072 = 786432`
-    (Cancun's `target = 393216`, `max = 786432`). Prague raised
-    this to 9 * GAS_PER_BLOB = 1179648; we use the Cancun value
-    here as a conservative lower bound that holds in both forks.
+    (field 17, Cancun+). The Amsterdam EEST frontier carries the
+    blob schedule in the stateless chain config and currently uses
+    `BLOB_SCHEDULE_MAX = 21`, so
+    `MAX_BLOB_GAS_PER_BLOCK = 21 * GAS_PER_BLOB = 21 * 131072 = 2752512`.
 
     Useful as a per-block sanity check on RLP-decoded blob_gas_used
     values. A failure signals corrupted header data or a future
@@ -320,55 +322,99 @@ def ziskChainValidateExcessBlobGasNonIncreasingProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure on some header
         2 : blob_gas_used field > 8 bytes BE on some header -/
-def chainValidateBlobGasUsedUnderMaxFunction : String :=
-  "chain_validate_blob_gas_used_under_max:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvbgum_loop:\n" ++
-  "  beq s5, s0, .Lcvbgum_done\n" ++
-  "  la t0, cvbgum_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvbgum_iter_i;   sd s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 17\n" ++
-  "  la a3, cvbgum_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvbgum_propagate\n" ++
-  "  la t0, cvbgum_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvbgum_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvbgum_field;    ld t1, 0(t0)\n" ++
-  "  li t2, 786432             # Cancun MAX_BLOB_GAS_PER_BLOCK\n" ++
-  "  bgtu t1, t2, .Lcvbgum_violation\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvbgum_loop\n" ++
-  ".Lcvbgum_violation:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvbgum_ret\n" ++
-  ".Lcvbgum_propagate:\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  j .Lcvbgum_ret\n" ++
-  ".Lcvbgum_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvbgum_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidateBlobGasUsedUnderMax_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (156 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_i (GuestAddrs.chain_validate_blob_gas_used_under_max + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_i (GuestAddrs.chain_validate_blob_gas_used_under_max + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (17 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 132)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_i (GuestAddrs.chain_validate_blob_gas_used_under_max + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_i (GuestAddrs.chain_validate_blob_gas_used_under_max + 144)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (672 : BitVec 20),
+    .BLTU .x7 .x6 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-128 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidateBlobGasUsedUnderMax_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateBlobGasUsedUnderMax_relocs : RelocTable :=
+  [ (18, .la .x5 "cvbgum_iter_ptr"),
+    (21, .la .x5 "cvbgum_iter_i"),
+    (29, .la .x13 "cvbgum_field"),
+    (31, .jal .x1 "rlp_field_to_u64"),
+    (33, .la .x5 "cvbgum_iter_ptr"),
+    (36, .la .x5 "cvbgum_iter_i"),
+    (39, .la .x5 "cvbgum_field") ]
+
+def chainValidateBlobGasUsedUnderMaxFunction : String :=
+  "chain_validate_blob_gas_used_under_max:\n" ++ emitProgramR chainValidateBlobGasUsedUnderMax_prog chainValidateBlobGasUsedUnderMax_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateBlobGasUsedUnderMax_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateBlobGasUsedUnderMaxFunction_eq_prog :
+    chainValidateBlobGasUsedUnderMaxFunction = "chain_validate_blob_gas_used_under_max:\n" ++ emitProgramR chainValidateBlobGasUsedUnderMax_prog chainValidateBlobGasUsedUnderMax_relocs := rfl
+
+#guard chainValidateBlobGasUsedUnderMaxFunction.startsWith "chain_validate_blob_gas_used_under_max:\n"
+#guard chainValidateBlobGasUsedUnderMax_prog.length = 66
 def ziskChainValidateBlobGasUsedUnderMaxPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -435,56 +481,101 @@ def ziskChainValidateBlobGasUsedUnderMaxProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure on some header
         2 : blob_gas_used field > 8 bytes BE on some header -/
-def chainValidateBlobGasUsedMultipleFunction : String :=
-  "chain_validate_blob_gas_used_multiple:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvbgm_loop:\n" ++
-  "  beq s5, s0, .Lcvbgm_done\n" ++
-  "  la t0, cvbgm_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvbgm_iter_i;   sd s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 17\n" ++
-  "  la a3, cvbgm_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvbgm_propagate\n" ++
-  "  la t0, cvbgm_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvbgm_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvbgm_field;    ld t1, 0(t0)\n" ++
-  "  li t2, 0x1ffff            # GAS_PER_BLOB - 1 = 131071\n" ++
-  "  and t5, t1, t2\n" ++
-  "  bnez t5, .Lcvbgm_violation\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvbgm_loop\n" ++
-  ".Lcvbgm_violation:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvbgm_ret\n" ++
-  ".Lcvbgm_propagate:\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  j .Lcvbgm_ret\n" ++
-  ".Lcvbgm_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvbgm_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidateBlobGasUsedMultiple_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (164 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_i (GuestAddrs.chain_validate_blob_gas_used_multiple + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_i (GuestAddrs.chain_validate_blob_gas_used_multiple + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (17 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_blob_gas_used_multiple + 124)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 132)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_i (GuestAddrs.chain_validate_blob_gas_used_multiple + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_i (GuestAddrs.chain_validate_blob_gas_used_multiple + 144)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (32 : BitVec 20),
+    .ADDIW .x7 .x7 (-1 : BitVec 12),
+    .AND .x30 .x6 .x7,
+    .BNE .x30 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-136 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidateBlobGasUsedMultiple_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateBlobGasUsedMultiple_relocs : RelocTable :=
+  [ (18, .la .x5 "cvbgm_iter_ptr"),
+    (21, .la .x5 "cvbgm_iter_i"),
+    (29, .la .x13 "cvbgm_field"),
+    (31, .jal .x1 "rlp_field_to_u64"),
+    (33, .la .x5 "cvbgm_iter_ptr"),
+    (36, .la .x5 "cvbgm_iter_i"),
+    (39, .la .x5 "cvbgm_field") ]
+
+def chainValidateBlobGasUsedMultipleFunction : String :=
+  "chain_validate_blob_gas_used_multiple:\n" ++ emitProgramR chainValidateBlobGasUsedMultiple_prog chainValidateBlobGasUsedMultiple_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateBlobGasUsedMultiple_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateBlobGasUsedMultipleFunction_eq_prog :
+    chainValidateBlobGasUsedMultipleFunction = "chain_validate_blob_gas_used_multiple:\n" ++ emitProgramR chainValidateBlobGasUsedMultiple_prog chainValidateBlobGasUsedMultiple_relocs := rfl
+
+#guard chainValidateBlobGasUsedMultipleFunction.startsWith "chain_validate_blob_gas_used_multiple:\n"
+#guard chainValidateBlobGasUsedMultiple_prog.length = 68
 def ziskChainValidateBlobGasUsedMultiplePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

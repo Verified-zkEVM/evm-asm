@@ -117,7 +117,7 @@ theorem runCreateStackVector?_create :
         gas := (321 : EvmWord)
         stackState := { stack := [(7 : EvmWord), 1, 2, 99] } } =
       some { stack := [(deployedAddress.zeroExtend 256 : EvmWord), 99] } := by
-  native_decide
+  rfl
 
 theorem createStackVector_passed :
     checkVector? runCreateStackVector? createStackVector = .passed :=
@@ -139,7 +139,7 @@ theorem runCreateStackVector?_create2 :
         gas := (654 : EvmWord)
         stackState := { stack := [(11 : EvmWord), 1, 2, 0x55, 88] } } =
       some { stack := [(create2DeployedAddress.zeroExtend 256 : EvmWord), 88] } := by
-  native_decide
+  rfl
 
 theorem create2StackConformanceVector_passed :
     checkVector? runCreateStackVector? create2StackConformanceVector = .passed :=

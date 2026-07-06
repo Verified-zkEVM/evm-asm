@@ -5,3 +5,16 @@ rust-u256-asm/
 gen-out/
 .claude/
 __pycache__/
+
+# jscpd duplication-watch output (scripts/check-duplication.sh)
+.jscpd-report/
+
+# ziskemu cycle datapoints appended by scripts/cycles-append.sh (D8; persistence
+# to an orphan branch is deferred with the ziskemu live-parse — see the script)
+cycles-history.jsonl
+
+# Local/uncommitted per-phase agent hand-off scratch (steering rollout) — never
+# committed; only need to exist in the working tree to start the next session.
+docs/agents/phase*-bootstrap.md
+docs/agents/rollout-complete.md
+build.log

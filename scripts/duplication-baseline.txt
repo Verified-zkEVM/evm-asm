@@ -1,0 +1,16 @@
+# duplication-baseline.txt — the jscpd duplicated-line % budget consumed by
+# scripts/check-duplication.sh --gate (over the DEFAULT scope, scripts/).
+#
+# Advisory until calibrated: the gate currently only reports. Promote to
+# blocking (--gate in build.yml) once this budget has held steady for a few
+# weeks. Bump deliberately in its own commit — this file is verifier config
+# (CODEOWNERS-gated).
+#
+# SCOPE: this number is the percentage over the DEFAULT scope (scripts/) only —
+# the scope `--gate` uses. The weekly quality-trends.yml run sweeps the larger
+# `scripts/ EvmAsm/` set but is ADVISORY (no --gate), so it never compares
+# against this baseline. Before flipping --gate on over a DIFFERENT scope, you
+# MUST re-run `scripts/check-duplication.sh --update <that scope>` so the budget
+# matches what is measured — otherwise the gate fires on first activation for
+# the wrong reason.
+2.93

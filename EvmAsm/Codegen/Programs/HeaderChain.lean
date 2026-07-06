@@ -20,6 +20,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -61,63 +64,116 @@ open EvmAsm.Rv64.Program
         0 : success -- predicate written
         1 : child RLP parse failure / field 0 missing
         2 : child.parent_hash length != 32 -/
-def validateParentHashLinkFunction : String :=
-  "validate_parent_hash_link:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # parent_rlp ptr\n" ++
-  "  mv s1, a1                   # parent_rlp len\n" ++
-  "  mv s2, a2                   # child_rlp ptr\n" ++
-  "  mv s3, a3                   # child_rlp len\n" ++
-  "  mv s4, a4                   # is_valid out\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  # ---- Extract child.parent_hash (field 0) ----\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 0\n" ++
-  "  la a3, vphl_offset; la a4, vphl_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lvphl_parse_fail\n" ++
-  "  la t0, vphl_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lvphl_size_fail\n" ++
-  "  # Copy claimed parent_hash into vphl_claimed\n" ++
-  "  la t0, vphl_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s2, t1                              # &child[off]\n" ++
-  "  la t4, vphl_claimed\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  # ---- Compute keccak256(parent_rlp) ----\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, vphl_computed\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  # ---- 32-byte compare ----\n" ++
-  "  la t0, vphl_claimed\n" ++
-  "  la t1, vphl_computed\n" ++
-  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_neq:\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lvphl_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def validateParentHashLink_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .SD .x20 .x0 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64)),
+    .AUIPC .x14 (laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.validate_parent_hash_link + 80)),
+    .BNE .x10 .x0 (192 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (180 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x18 .x6,
+    .AUIPC .x29 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .SD .x29 .x30 (16 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .SD .x29 .x30 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)),
+    .JAL .x1 (jalOff GuestAddrs.block_hash_from_header (GuestAddrs.validate_parent_hash_link + 180)),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)),
+    .AUIPC .x6 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (56 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (44 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (32 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `validateParentHashLink_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def validateParentHashLink_relocs : RelocTable :=
+  [ (16, .la .x13 "vphl_offset"),
+    (18, .la .x14 "vphl_length"),
+    (20, .jal .x1 "rlp_list_nth_item"),
+    (22, .la .x5 "vphl_length"),
+    (27, .la .x5 "vphl_offset"),
+    (31, .la .x29 "vphl_claimed"),
+    (43, .la .x12 "vphl_computed"),
+    (45, .jal .x1 "block_hash_from_header"),
+    (46, .la .x5 "vphl_claimed"),
+    (48, .la .x6 "vphl_computed") ]
+
+def validateParentHashLinkFunction : String :=
+  "validate_parent_hash_link:\n" ++ emitProgramR validateParentHashLink_prog validateParentHashLink_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `validateParentHashLink_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem validateParentHashLinkFunction_eq_prog :
+    validateParentHashLinkFunction = "validate_parent_hash_link:\n" ++ emitProgramR validateParentHashLink_prog validateParentHashLink_relocs := rfl
+
+#guard validateParentHashLinkFunction.startsWith "validate_parent_hash_link:\n"
+#guard validateParentHashLink_prog.length = 80
 /-- `zisk_validate_parent_hash_link`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : parent_rlp_len
@@ -896,340 +952,6 @@ def ziskValidateBlockHashChainMatchProbeUnit : BuildUnit := {
   prologueAsm := ziskValidateBlockHashChainMatchPrologue
   dataAsm     := ziskValidateBlockHashChainMatchDataSection
 }
-
-
-/-! ## validate_header_post_merge_zeros -- PR-K220
-
-    Composite post-merge predicate: verify all three EIP-3675
-    "must be the zero value" invariants in one call:
-
-      H1. ommers_hash    == EMPTY_OMMERS_HASH    (K179)
-      H2. difficulty     == 0                     (K219)
-      H3. nonce          == 8 zero bytes          (K218)
-
-    Returns `is_valid = 1` iff all three hold.
-
-    Per-check status codes let the caller distinguish *which*
-    invariant broke vs a hard parse failure.
-
-    Calling convention:
-      a0 (input)  : header_rlp ptr
-      a1 (input)  : header_rlp byte length
-      a2 (input)  : u64 out (is_valid)
-      ra (input)  : return
-      a0 (output) :
-        0 : success -- predicate written
-        1 : RLP parse failure / required field missing
-        2 : size mismatch on ommers_hash (!= 32) or nonce (!= 8) -/
-def validateHeaderPostMergeZerosFunction : String :=
-  "validate_header_post_merge_zeros:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1                # header\n" ++
-  "  mv s2, a2                            # is_valid out\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  # 1. ommers_hash == EMPTY_OMMERS_HASH\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lvhpmz_parse\n" ++
-  "  la t0, vhpmz_length; ld t1, 0(t0); li t2, 32\n" ++
-  "  bne t1, t2, .Lvhpmz_size\n" ++
-  "  la t0, vhpmz_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1\n" ++
-  "  la t4, vhpmz_empty_ommers\n" ++
-  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
-  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
-  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
-  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
-  "  # 2. difficulty == 0  (field 7 has length 0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lvhpmz_parse\n" ++
-  "  la t0, vhpmz_length; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lvhpmz_pred_false\n" ++
-  "  # 3. nonce == 8 zero bytes (field 14, len == 8, all zero)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
-  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lvhpmz_parse\n" ++
-  "  la t0, vhpmz_length; ld t1, 0(t0); li t2, 8\n" ++
-  "  bne t1, t2, .Lvhpmz_size\n" ++
-  "  la t0, vhpmz_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  bnez t4, .Lvhpmz_pred_false\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s2)\n" ++
-  ".Lvhpmz_pred_false:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvhpmz_ret\n" ++
-  ".Lvhpmz_parse:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lvhpmz_ret\n" ++
-  ".Lvhpmz_size:\n" ++
-  "  li a0, 2\n" ++
-  ".Lvhpmz_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
-
-def ziskValidateHeaderPostMergeZerosPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, validate_header_post_merge_zeros\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lvhpmz_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  validateHeaderPostMergeZerosFunction ++ "\n" ++
-  ".Lvhpmz_pdone:"
-
-def ziskValidateHeaderPostMergeZerosDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "vhpmz_offset:\n" ++
-  "  .zero 8\n" ++
-  "vhpmz_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "vhpmz_empty_ommers:\n" ++
-  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
-  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
-  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
-  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
-
-def ziskValidateHeaderPostMergeZerosProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderPostMergeZerosPrologue
-  dataAsm     := ziskValidateHeaderPostMergeZerosDataSection
-}
-
-/-! ## chain_validate_post_merge_zeros -- PR-K221
-
-    Iterate `validate_header_post_merge_zeros` (K220) over an
-    N-element header chain and verify each header carries the
-    three EIP-3675 zero invariants (`ommers_hash`,
-    `difficulty`, `nonce`). Reports the first failing index.
-
-    No parent-hash link is checked here -- this is a pure
-    per-header iteration. Combine with K175 / K184 for full
-    chain validation.
-
-    Vacuous-true on N == 0.
-
-    Calling convention:
-      a0 (input)  : N (header count)
-      a1 (input)  : header_lengths ptr (u64[N])
-      a2 (input)  : headers ptr (concatenated)
-      a3 (input)  : u64 out (is_valid)
-      a4 (input)  : u64 out (first_bad_index)
-      ra (input)  : return
-      a0 (output) :
-        0 : success -- predicate written
-        nonzero : propagated status from K220 for the failing
-                  header (1 parse / 2 size mismatch) -/
-def chainValidatePostMergeZerosFunction : String :=
-  "chain_validate_post_merge_zeros:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # N\n" ++
-  "  mv s1, a1                   # header_lengths\n" ++
-  "  mv s2, a2                   # headers ptr\n" ++
-  "  mv s3, a3                   # is_valid out\n" ++
-  "  mv s4, a4                   # first_bad_index out\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3)\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  beqz s0, .Lcvpmz_done\n" ++
-  "  mv s5, s2                   # current header ptr\n" ++
-  "  li s6, 0                    # i\n" ++
-  ".Lcvpmz_loop:\n" ++
-  "  beq s6, s0, .Lcvpmz_done\n" ++
-  "  slli t0, s6, 3\n" ++
-  "  add t0, s1, t0\n" ++
-  "  ld a1, 0(t0)\n" ++
-  "  mv a0, s5\n" ++
-  "  la a2, cvpmz_per_valid\n" ++
-  "  jal ra, validate_header_post_merge_zeros\n" ++
-  "  bnez a0, .Lcvpmz_status_fail\n" ++
-  "  la t0, cvpmz_per_valid; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lcvpmz_pred_false\n" ++
-  "  slli t0, s6, 3\n" ++
-  "  add t0, s1, t0\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  add s5, s5, t1\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lcvpmz_loop\n" ++
-  ".Lcvpmz_pred_false:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s6, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvpmz_ret\n" ++
-  ".Lcvpmz_status_fail:\n" ++
-  "  sd s6, 0(s4)\n" ++
-  "  j .Lcvpmz_ret\n" ++
-  ".Lcvpmz_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvpmz_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
-
-def ziskChainValidatePostMergeZerosPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_validate_post_merge_zeros\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcvpmz_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  validateHeaderPostMergeZerosFunction ++ "\n" ++
-  chainValidatePostMergeZerosFunction ++ "\n" ++
-  ".Lcvpmz_pdone:"
-
-def ziskChainValidatePostMergeZerosDataSection : String :=
-  ziskValidateHeaderPostMergeZerosDataSection ++ "\n" ++
-  "cvpmz_per_valid:\n" ++
-  "  .zero 8"
-
-def ziskChainValidatePostMergeZerosProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidatePostMergeZerosPrologue
-  dataAsm     := ziskChainValidatePostMergeZerosDataSection
-}
-
-/-! ## chain_validate_full -- PR-K222
-
-    Composite chain-level validator combining:
-
-      1. K221 `chain_validate_post_merge_zeros` -- verify each
-         header in the chain has the three EIP-3675 zero
-         invariants (ommers_hash, difficulty, nonce).
-      2. K175 `validate_header_chain` -- verify each consecutive
-         pair has matching parent_hash + number+1 + timestamp +
-         gas_limit ratio.
-
-    Returns `is_valid = 1` iff both pass. On any failure,
-    `first_bad_index` reports the first failing index from
-    EITHER stage. Stage 1 runs first (per-header), then stage 2
-    (pairs), so a header failure shadows a chain-link failure
-    at the same position.
-
-    Calling convention:
-      a0 (input)  : N (header count)
-      a1 (input)  : header_lengths ptr
-      a2 (input)  : headers ptr
-      a3 (input)  : u64 out (is_valid)
-      a4 (input)  : u64 out (first_bad_index)
-      ra (input)  : return
-      a0 (output) :
-        0   : success
-        nz  : propagated K220/K174 status (1=parse, 2..4=size/
-              field-fail variants from the inner predicates) -/
-def chainValidateFullFunction : String :=
-  "chain_validate_full:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  sd zero, 0(s3); sd zero, 0(s4)\n" ++
-  "  # Stage 1: per-header post-merge-zeros\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4\n" ++
-  "  jal ra, chain_validate_post_merge_zeros\n" ++
-  "  bnez a0, .Lcvf_ret             # propagate hard fail\n" ++
-  "  ld t0, 0(s3); beqz t0, .Lcvf_ret  # zeros stage rejected\n" ++
-  "  # Stage 2: chain pair invariants\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4\n" ++
-  "  jal ra, validate_header_chain\n" ++
-  ".Lcvf_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
-
-def ziskChainValidateFullPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_validate_full\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcvf_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  blockHashFromHeaderFunction ++ "\n" ++
-  validateParentHashLinkFunction ++ "\n" ++
-  checkGasLimitFunction ++ "\n" ++
-  validateHeaderPairFunction ++ "\n" ++
-  validateHeaderChainFunction ++ "\n" ++
-  validateHeaderPostMergeZerosFunction ++ "\n" ++
-  chainValidatePostMergeZerosFunction ++ "\n" ++
-  chainValidateFullFunction ++ "\n" ++
-  ".Lcvf_pdone:"
-
-def ziskChainValidateFullDataSection : String :=
-  ziskChainValidatePostMergeZerosDataSection ++ "\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "vphl_offset:\n" ++
-  "  .zero 8\n" ++
-  "vphl_length:\n" ++
-  "  .zero 8\n" ++
-  "vphl_claimed:\n" ++
-  "  .zero 32\n" ++
-  "vphl_computed:\n" ++
-  "  .zero 32\n" ++
-  "vhp_link_valid:\n" ++
-  "  .zero 8\n" ++
-  "vhp_parent_number:\n" ++
-  "  .zero 8\n" ++
-  "vhp_parent_timestamp:\n" ++
-  "  .zero 8\n" ++
-  "vhp_parent_gas_limit:\n" ++
-  "  .zero 8\n" ++
-  "vhp_child_number:\n" ++
-  "  .zero 8\n" ++
-  "vhp_child_timestamp:\n" ++
-  "  .zero 8\n" ++
-  "vhp_child_gas_limit:\n" ++
-  "  .zero 8\n" ++
-  "vhc_pair_valid:\n" ++
-  "  .zero 8"
-
-def ziskChainValidateFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateFullPrologue
-  dataAsm     := ziskChainValidateFullDataSection
-}
-
 
 
 end EvmAsm.Codegen

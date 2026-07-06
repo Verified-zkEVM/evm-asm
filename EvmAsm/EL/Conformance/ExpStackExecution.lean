@@ -267,7 +267,21 @@ theorem runExpStack?_value :
               dynamicGas := 50
               totalGas := 60 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  change EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?
+      { stack := [(2 : EvmWord), (8 : EvmWord), (99 : EvmWord)] } =
+    some
+      { effects :=
+          { stackWords := [(256 : EvmWord)]
+            dynamicGas := 50
+            totalGas := 60 }
+        stack := [(99 : EvmWord)] }
+  rw [EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_cons]
+  simp only [EvmAsm.Evm64.ExpArgs.expResultFromArgs, EvmAsm.Evm64.ExpArgs.expArgs,
+    EvmAsm.Evm64.ExpArgs.expDynamicCostFromArgs, EvmAsm.Evm64.ExpArgs.expTotalGasFromArgs]
+  rw [show EvmAsm.Evm64.EvmWord.exp (2 : EvmWord) (8 : EvmWord) = (256 : EvmWord) from by
+    apply BitVec.eq_of_toNat_eq; rw [EvmAsm.Evm64.EvmWord.exp_correct]; decide]
+  rw [EvmAsm.Evm64.ExpGas.expDynamicCostFromExponent_of_pos_lt_256 (by decide) (by decide)]
+  rw [EvmAsm.Evm64.ExpGas.expTotalGasFromExponent_of_pos_lt_256 (by decide) (by decide)]
 
 theorem runExpStack?_zero_zero :
     runExpStack? { stack := [(0 : EvmWord), (0 : EvmWord), (99 : EvmWord)] } =
@@ -277,7 +291,8 @@ theorem runExpStack?_zero_zero :
               dynamicGas := 0
               totalGas := 10 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_zero_zero
+    [(99 : EvmWord)]
 
 theorem runExpStack?_max_zero_exponent :
     runExpStack?
@@ -307,7 +322,8 @@ theorem runExpStack?_one_exponent :
               dynamicGas := 50
               totalGas := 60 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_one_exponent 7
+    [(99 : EvmWord)]
 
 theorem runExpStack?_two_256 :
     runExpStack? { stack := [(2 : EvmWord), (256 : EvmWord), (99 : EvmWord)] } =
@@ -371,7 +387,7 @@ theorem runExpStack?_two_128 :
               dynamicGas := 50
               totalGas := 60 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_two_128 [(99 : EvmWord)]
 
 theorem runExpStack?_max_one_exponent :
     runExpStack?
@@ -401,7 +417,7 @@ theorem runExpStack?_two_64 :
               dynamicGas := 50
               totalGas := 60 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_two_64 [(99 : EvmWord)]
 
 theorem runExpStack?_two_255 :
     runExpStack? { stack := [(2 : EvmWord), (255 : EvmWord), (99 : EvmWord)] } =
@@ -411,7 +427,7 @@ theorem runExpStack?_two_255 :
               dynamicGas := 50
               totalGas := 60 }
           stack := [(99 : EvmWord)] } := by
-  native_decide
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_two_255 [(99 : EvmWord)]
 
 theorem runExpStack?_underflow :
     runExpStack? { stack := [(2 : EvmWord)] } = none := rfl

@@ -19,68 +19,9 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
--- ============================================================================
--- packDword / packBytes: reconstruct 64-bit words from byte lists
--- ============================================================================
-
-/-- Pack 8 bytes (little-endian) into a 64-bit word.
-    Byte 0 at bits [0,8), byte 1 at bits [8,16), ..., byte 7 at bits [56,64). -/
-def packDword (f : Fin 8 → BitVec 8) : Word :=
-  (f 0).zeroExtend 64 |||
-  ((f 1).zeroExtend 64 <<< 8) |||
-  ((f 2).zeroExtend 64 <<< 16) |||
-  ((f 3).zeroExtend 64 <<< 24) |||
-  ((f 4).zeroExtend 64 <<< 32) |||
-  ((f 5).zeroExtend 64 <<< 40) |||
-  ((f 6).zeroExtend 64 <<< 48) |||
-  ((f 7).zeroExtend 64 <<< 56)
-
-/-- Index into a byte list with zero-padding for out-of-range. -/
-def getByteAt (bytes : List (BitVec 8)) (k : Nat) : BitVec 8 :=
-  if h : k < bytes.length then bytes[k] else 0
-
-/-- Pack a list of bytes into a 64-bit word (little-endian).
-    Uses the first 8 bytes; pads with zeros if fewer than 8 are provided. -/
-def packBytes (bytes : List (BitVec 8)) : Word :=
-  packDword (fun i => getByteAt bytes i.val)
-
--- ============================================================================
--- extractByte_packDword: the critical bridge lemma
--- ============================================================================
-
-private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
-    let w := b0.zeroExtend 64 |||
-       (b1.zeroExtend 64 <<< 8) |||
-       (b2.zeroExtend 64 <<< 16) |||
-       (b3.zeroExtend 64 <<< 24) |||
-       (b4.zeroExtend 64 <<< 32) |||
-       (b5.zeroExtend 64 <<< 40) |||
-       (b6.zeroExtend 64 <<< 48) |||
-       (b7.zeroExtend 64 <<< 56)
-    (w >>> (k.val * 8)).truncate 8 =
-    (match k with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
-                  | 4 => b4 | 5 => b5 | 6 => b6 | 7 => b7) := by
-  fin_cases k <;> simp only [] <;> bv_decide
-
-theorem extractByte_packDword {f : Fin 8 → BitVec 8} {i : Fin 8} :
-    extractByte (packDword f) i.val = f i := by
-  show (packDword f >>> (i.val * 8)).truncate 8 = f i
-  unfold packDword
-  have := epd_core (f 0) (f 1) (f 2) (f 3) (f 4) (f 5) (f 6) (f 7) i
-  simp only [] at this
-  convert this using 1
-  fin_cases i <;> rfl
-
--- ============================================================================
--- extractByte_packBytes: list-level extraction
--- ============================================================================
-
-theorem extractByte_packBytes (bytes : List (BitVec 8)) (k : Nat)
-    (hk : k < 8) (hlen : k < bytes.length) :
-    extractByte (packBytes bytes) k = bytes[k] := by
-  conv_lhs => rw [show k = (⟨k, hk⟩ : Fin 8).val from rfl]
-  rw [packBytes, extractByte_packDword]
-  simp [getByteAt, hlen]
+-- `packDword`/`getByteAt`/`packBytes`/`extractByte_packBytes` were relocated to
+-- `Rv64.ByteOps` (their natural byte-ops home) and are in scope via `open
+-- EvmAsm.Rv64` below.
 
 -- ============================================================================
 -- evmCodeIs: EVM bytecode as a byte array in memory

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # codegen-zisk-block-header-ssz-to-rlp-check.sh -- verify block_header_ssz_to_rlp
 # (bead evm-asm-fhsxz.2.4.1): re-encode an Amsterdam block header from its SSZ
-# ExecutionPayload (+ 4 roots not in the payload) into the canonical RLP whose
-# keccak256 is the block hash.
+# ExecutionPayload (+ 5 commitments not in the fixed payload) into the canonical
+# RLP whose keccak256 is the block hash.
 #
-# Python builds a canonical SSZ ExecutionPayload blob + the 21-field Amsterdam
+# Python builds a canonical SSZ ExecutionPayload blob + the 23-field Amsterdam
 # header RLP from the same field values; the probe reads the blob + roots and
 # emits the header RLP; we diff the RLP byte-for-byte AND check keccak(out)
 # equals keccak(expected) (the block hash).
@@ -54,9 +54,12 @@ tx_root        = b"\xaa" * 32
 wd_root        = b"\xbb" * 32
 parent_beacon  = b"\xcc" * 32
 requests_hash  = b"\xdd" * 32
+block_access_list = rlp.encode([])
+block_access_list_hash = k(block_access_list)
+slot_number = 12_345
 
-# ---- canonical SSZ ExecutionPayload (fixed 528 B + variable tail) ----
-fixed = bytearray(528)
+# ---- canonical SSZ ExecutionPayload (fixed 540 B + variable tail) ----
+fixed = bytearray(540)
 fixed[0:32]    = parent_hash
 fixed[32:52]   = coinbase
 fixed[52:84]   = state_root
@@ -71,24 +74,29 @@ fixed[440:472] = base_fee.to_bytes(32, "little")
 fixed[472:504] = block_hash_f
 fixed[512:520] = blob_gas.to_bytes(8, "little")
 fixed[520:528] = excess_blob.to_bytes(8, "little")
-extra_off = 528
+fixed[532:540] = slot_number.to_bytes(8, "little")
+extra_off = 540
 tx_off    = extra_off + len(extra_data)
 wd_off    = tx_off                       # transactions empty
+bal_off   = wd_off                       # withdrawals empty
 fixed[436:440] = extra_off.to_bytes(4, "little")
 fixed[504:508] = tx_off.to_bytes(4, "little")
 fixed[508:512] = wd_off.to_bytes(4, "little")
-payload = bytes(fixed) + extra_data       # transactions + withdrawals empty
+fixed[528:532] = bal_off.to_bytes(4, "little")
+payload = bytes(fixed) + extra_data + block_access_list
 
-# ---- canonical Amsterdam header RLP (21 fields) ----
+# ---- canonical Amsterdam header RLP (23 fields) ----
 def ri(x):
     return b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big")
 header = [parent_hash, EMPTY_OMMER, coinbase, state_root, tx_root, receipts,
          bloom, ri(0), ri(number), ri(gas_limit), ri(gas_used), ri(timestamp),
          extra_data, prev_randao, b"\x00" * 8, ri(base_fee), wd_root,
-         ri(blob_gas), ri(excess_blob), parent_beacon, requests_hash]
+         ri(blob_gas), ri(excess_blob), parent_beacon, requests_hash,
+         block_access_list_hash, ri(slot_number)]
 expected = rlp.encode(header)
 
-body = struct.pack("<Q", len(payload)) + tx_root + wd_root + parent_beacon + requests_hash + payload
+body = (struct.pack("<Q", len(payload)) + tx_root + wd_root + parent_beacon
+        + requests_hash + block_access_list_hash + payload)
 body += b"\x00" * ((-len(body)) % 8)
 with open(os.path.join(VDIR, "hdr.input"), "wb") as f:
     f.write(body)

@@ -473,6 +473,41 @@ def vec_account_set_uint_field():
     return [dict(name=name, account=acct, field_index=field, value=value, expected=expected)
             for name, acct, field, value, expected in cases]
 
+
+def build_selfdestruct_balance_input(origin: bytes, beneficiary: bytes,
+                                     same_address: int, created_in_tx: int) -> bytes:
+    """ziskemu `-i` body for zisk_selfdestruct_balance_transfer:
+      +8 origin_len | +16 beneficiary_len | +24 same flag | +32 created flag
+      +40 origin account RLP fixed 512-byte slot | +552 beneficiary account RLP."""
+    if len(origin) > 512 or len(beneficiary) > 512:
+        raise ValueError("account fixture exceeds fixed probe slot")
+    body = (struct.pack("<Q", len(origin)) + struct.pack("<Q", len(beneficiary)) +
+            struct.pack("<Q", same_address) + struct.pack("<Q", created_in_tx) +
+            origin + b"\x00" * (512 - len(origin)) + beneficiary)
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_selfdestruct_balance_transfer():
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    origin = account_encode(3, 123456789, sroot, chash)
+    beneficiary = account_encode(4, 9, b"\x33" * 32, b"\x44" * 32)
+    same = account_encode(5, 777, sroot, chash)
+    cases = [
+        ("sdbt_diff", origin, beneficiary, 0, 0,
+         account_encode(3, 0, sroot, chash),
+         account_encode(4, 123456798, b"\x33" * 32, b"\x44" * 32)),
+        ("sdbt_same_keep", same, same, 1, 0, same, same),
+        ("sdbt_same_burn", same, same, 1, 1,
+         account_encode(5, 0, sroot, chash),
+         account_encode(5, 0, sroot, chash)),
+    ]
+    return [dict(name=name, origin=src, beneficiary=dst,
+                 same_address=same_flag, created_in_tx=created_flag,
+                 expected_origin=expected_src, expected_beneficiary=expected_dst)
+            for name, src, dst, same_flag, created_flag, expected_src, expected_dst in cases]
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
@@ -704,6 +739,31 @@ def vec_mi_ext_then_branch():
                 expected=trie_root(new_root))
 
 
+def vec_mi_ext_split():
+    """Root = extension prefix [5,6] -> branch. Insert path [5,9,0,0]
+    diverges inside the extension at m=1, so the old child stays directly at
+    branch slot 6, the new leaf goes under slot 9, and the shared prefix [5]
+    wraps the new branch."""
+    la = leaf_node([0xa, 0xb], b"x" * 32)
+    lb = leaf_node([0xc, 0xd], b"y" * 32)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    slots[2] = node_ref(lb)
+    branch = branch_node(slots)
+    root = extension_node([0x5, 0x6], node_ref(branch))
+    val = b"ext-new"
+
+    new_leaf = leaf_node([0x0, 0x0], val)
+    slots2 = [b"\x80"] * 16
+    slots2[0x6] = node_ref(branch)
+    slots2[0x9] = node_ref(new_leaf)
+    split_branch = branch_node(slots2)
+    new_root = extension_node([0x5], node_ref(split_branch))
+    return dict(name="mi_ext_split", witness=[root], root=trie_root(root),
+                path=[0x5, 0x9, 0x0, 0x0], value=val,
+                expected=trie_root(new_root))
+
+
 def vec_mi_leaf_split():
     """Root = leaf key [1,2,3,4]. Insert path [1,2,9,9] (shared prefix [1,2],
     m=2): split into a branch (old leaf' at nibble 3, new leaf at nibble 9)
@@ -748,13 +808,6 @@ def vec_mi_depth2():
     c = branch_node(slots_c)
     slots_b = [b"\x80"] * 16
     slots_b[0x7] = node_ref(c)
-def vec_mi_leafsplit_depth1():
-    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
-    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
-    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
-    was depth 0; this exercises the leaf-split terminal under ancestors."""
-    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
-    slots_b[0x7] = node_ref(la)
     b = branch_node(slots_b)
     slots_r = [b"\x80"] * 16
     slots_r[0x5] = node_ref(b)
@@ -766,6 +819,26 @@ def vec_mi_leafsplit_depth1():
     c2 = branch_node(slots_c2)
     slots_b2 = list(slots_b)
     slots_b2[0x7] = node_ref(c2)
+    b2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(b2)
+    root2 = branch_node(slots_r2)
+    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
+                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+
+
+def vec_mi_leafsplit_depth1():
+    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
+    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
+    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
+    was depth 0; this exercises the leaf-split terminal under ancestors."""
+    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
+    slots_b = [b"\x80"] * 16
+    slots_b[0x7] = node_ref(la)
+    b = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(b)
+    root = branch_node(slots_r)
     val = b"newdeep"
     old2 = leaf_node([0xb], b"L" * 40)          # LA[m+1..]=[b]
     new2 = leaf_node([0xc], val)                # P[m+1..]=[c]
@@ -773,13 +846,15 @@ def vec_mi_leafsplit_depth1():
     spl[0xa] = node_ref(old2)
     spl[0x9] = node_ref(new2)
     split_branch = branch_node(spl)
+    slots_b2 = list(slots_b)
     slots_b2[0x7] = node_ref(split_branch)
     b2 = branch_node(slots_b2)
     slots_r2 = list(slots_r)
     slots_r2[0x5] = node_ref(b2)
     root2 = branch_node(slots_r2)
-    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
-                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
+                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
+                expected=trie_root(root2))
 
 
 def vec_mi_acctkey():
@@ -819,8 +894,8 @@ def vec_mi_acctkey_f9():
 
 
 MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
-              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
-              vec_mi_acctkey, vec_mi_acctkey_f9]
+              vec_mi_ext_split, vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
+              vec_mi_leafsplit_depth1, vec_mi_acctkey, vec_mi_acctkey_f9]
 
 
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
@@ -911,25 +986,29 @@ def vec_state_root_ins_longkey():
     return dict(name="state_root_ins_longkey", witness=[root, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
-    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
-                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
-                expected=trie_root(root2))
-              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_leafsplit_depth1]
-
-
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
+def state_root_ins_mode(mode) -> int:
+    if isinstance(mode, bool):
+        return 1 if mode else 0
+    return int(mode)
+
+
 def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
     """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):
       +8 witness_len | +16 n_changes | +24 root_hash(32B)
-      +56 table: N x (path_len:u64, value_len:u64, is_insert:u64)
-      then blobs path0,value0,... (each 8-aligned) | then witness."""
+      +56 table: N x (path_len:u64, value_len:u64, mode:u64)
+      then blobs path0,value0,... (each 8-aligned) | then witness.
+
+    Mode values mirror mpt_state_root_ins descriptors: 0=modify, 1=insert,
+    2=delete, 3=noop. Historical callers still pass booleans.
+    """
     body = bytearray()
     body += struct.pack("<Q", len(witness_section))
     body += struct.pack("<Q", len(changes))
     body += root_hash
-    for (path, value, isins) in changes:
-        body += struct.pack("<QQQ", len(path), len(value), 1 if isins else 0)
-    for (path, value, isins) in changes:
+    for (path, value, mode) in changes:
+        body += struct.pack("<QQQ", len(path), len(value), state_root_ins_mode(mode))
+    for (path, value, mode) in changes:
         body += bytes(path)
         while len(body) % 8 != 0:
             body += b"\x00"
@@ -1025,6 +1104,28 @@ def vec_state_root_ins_dbchild():
                 expected=trie_root(root2))
 
 
+def vec_state_root_ins_delete_noop():
+    """Descriptor mode coverage for the post-state trie driver. change0 is a
+    no-op, change1 modifies leaf A and places the new root in the DB, and
+    change2 deletes leaf B from that DB-resident root. This exercises modes
+    3 and 2 in one sequential descriptor run."""
+    a_old, b_old, a_new = b"A" * 32, b"B" * 32, b"a-after-noop" * 3
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    leaf_b = leaf_node([0xc, 0xd], b_old)
+    slots = [b"\x80"] * 16
+    slots[0x1] = node_ref(leaf_a)
+    slots[0x2] = node_ref(leaf_b)
+    root = branch_node(slots)
+    root2 = leaf_node([0x1, 0xa, 0xb], a_new)
+    changes = [
+        ([0x1, 0xa, 0xb], b"ignored-noop-value", 3),
+        ([0x1, 0xa, 0xb], a_new, 0),
+        ([0x2, 0xc, 0xd], b"", 2),
+    ]
+    return dict(name="state_root_ins_delete_noop", witness=[root, leaf_a, leaf_b],
+                root=trie_root(root), changes=changes, expected=trie_root(root2))
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -1043,6 +1144,18 @@ if __name__ == "__main__":
             f.write(v["expected"].hex())
         print(f"{v['name']:12} field={v['field_index']} value={v['value']} "
               f"new_account={v['expected'].hex()}")
+    for v in vec_selfdestruct_balance_transfer():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_selfdestruct_balance_input(v["origin"], v["beneficiary"],
+                                                     v["same_address"],
+                                                     v["created_in_tx"]))
+        with open(f"{outdir}/{v['name']}.origin.expected", "w") as f:
+            f.write(v["expected_origin"].hex())
+        with open(f"{outdir}/{v['name']}.beneficiary.expected", "w") as f:
+            f.write(v["expected_beneficiary"].hex())
+        print(f"{v['name']:12} same={v['same_address']} created={v['created_in_tx']} "
+              f"origin={v['expected_origin'].hex()} "
+              f"beneficiary={v['expected_beneficiary'].hex()}")
     for v in vec_bal_account_path():
         with open(f"{outdir}/{v['name']}.input", "wb") as f:
             f.write(build_bacp_input(v["account_change"]))
@@ -1168,3 +1281,11 @@ if __name__ == "__main__":
         f.write(sridc["expected"].hex())
     print(f"{'sri_dbchild':12} root={sridc['root'].hex()[:16]}.. "
           f"final_root={sridc['expected'].hex()} (insert via DB-modified child)")
+    sridn = vec_state_root_ins_delete_noop()
+    sec = ssz_section(sridn["witness"])
+    with open(f"{outdir}/state_root_ins_delete_noop.input", "wb") as f:
+        f.write(build_state_root_ins_input(sridn["root"], sridn["changes"], sec))
+    with open(f"{outdir}/state_root_ins_delete_noop.expected", "w") as f:
+        f.write(sridn["expected"].hex())
+    print(f"{'sri_del_noop':12} root={sridn['root'].hex()[:16]}.. "
+          f"final_root={sridn['expected'].hex()} (noop+modify+delete)")

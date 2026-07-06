@@ -8,14 +8,28 @@ import EvmAsm.Evm64.SMod.Compose.CodeHandles
 
 namespace EvmAsm.Evm64.SMod.Compose
 
+/-- Structural slice helper: if dropping `idx` instructions off `full` exposes
+    `b` as a prefix, then taking `b.length` recovers `b`. Kernel-checkable
+    replacement for the `h_slice` argument of `CodeReq.ofProg_mono_sub`. -/
+theorem smod_slice_of_drop (full b : List EvmAsm.Rv64.Instr) (idx : Nat)
+    (hdrop : full.drop idx = b ++ full.drop (idx + b.length)) :
+    (full.drop idx).take b.length = b := by
+  rw [hdrop, List.take_append_length]
+
 theorem smodCode_saveRa_sub {base : Word} :
     ∀ a i, (saveRaCode base) a = some i → (smodCode base) a = some i := by
   unfold saveRaCode smodCode
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + saveRaOff)
     EvmAsm.Evm64.evm_smod_legacy (EvmAsm.Evm64.evm_smod_save_ra_block .x18) 0
     (by simp [saveRaOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_smod_save_ra_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_smod_save_ra_block_length, EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_dividendSign_sub {base : Word} :
@@ -26,8 +40,14 @@ theorem smodCode_dividendSign_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block .x12 .x8
       EvmAsm.Evm64.evm_smodDividendTopLimbOff) 1
     (by simp [dividendSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length, EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_preserveDividendSign_sub {base : Word} :
@@ -36,8 +56,14 @@ theorem smodCode_preserveDividendSign_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + preserveDividendSignOff)
     EvmAsm.Evm64.evm_smod_legacy (EvmAsm.Rv64.ADDI .x13 .x8 0) 3
     (by simp [preserveDividendSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+        EvmAsm.Rv64.ADDI EvmAsm.Rv64.single
+      simp only [EvmAsm.Rv64.seq, List.length_cons, List.length_nil]; rfl)
+    (by
+      unfold EvmAsm.Rv64.ADDI EvmAsm.Rv64.single
+      rw [EvmAsm.Evm64.evm_smod_legacy_length]; simp)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_divisorSign_sub {base : Word} :
@@ -48,8 +74,14 @@ theorem smodCode_divisorSign_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block .x12 .x9
       EvmAsm.Evm64.evm_smodDivisorTopLimbOff) 4
     (by simp [divisorSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length, EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_dividendAbs_sub {base : Word} :
@@ -60,8 +92,15 @@ theorem smodCode_dividendAbs_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x8 .x10 .x7 .x11
       0 8 16 24) 6
     (by simp [dividendAbsOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length,
+        EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_divisorAbs_sub {base : Word} :
@@ -72,8 +111,15 @@ theorem smodCode_divisorAbs_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x9 .x10 .x7 .x11
       32 40 48 56) 27
     (by simp [divisorAbsOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length,
+        EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_modCall_sub {base : Word} :
@@ -83,8 +129,14 @@ theorem smodCode_modCall_sub {base : Word} :
     EvmAsm.Evm64.evm_smod_legacy
     (EvmAsm.Evm64.evm_sdiv_div_call_block EvmAsm.Evm64.evm_smodCallOff) 48
     (by simp [modCallOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_div_call_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_div_call_block_length, EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_resultSignFix_sub {base : Word} :
@@ -95,8 +147,15 @@ theorem smodCode_resultSignFix_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x13 .x10 .x7 .x11
       0 8 16 24) 49
     (by simp [resultSignFixOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length,
+        EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_savedRaRet_sub {base : Word} :
@@ -105,8 +164,15 @@ theorem smodCode_savedRaRet_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + savedRaRetOff)
     EvmAsm.Evm64.evm_smod_legacy (EvmAsm.Evm64.evm_smod_saved_ra_ret_block .x18) 70
     (by simp [savedRaRetOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_smod_saved_ra_ret_block_length]
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_smod_saved_ra_ret_block_length,
+        EvmAsm.Evm64.evm_smod_legacy_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCode_modCallable_sub {base : Word} :
@@ -115,8 +181,17 @@ theorem smodCode_modCallable_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + wrapperEndOff)
     EvmAsm.Evm64.evm_smod_legacy EvmAsm.Evm64.evm_mod_callable_v1 71
     (by simp [wrapperEndOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      unfold EvmAsm.Evm64.evm_smod_legacy EvmAsm.Rv64.seq
+      rw [← EvmAsm.Evm64.evm_smod_wrapper_length]
+      have h_drop :
+          List.drop EvmAsm.Evm64.evm_smod_wrapper.length
+              (EvmAsm.Evm64.evm_smod_wrapper ++ EvmAsm.Evm64.evm_mod_callable_v1) =
+            EvmAsm.Evm64.evm_mod_callable_v1 := List.drop_append_length
+      rw [h_drop]
+      simp only [List.take_length])
+    (by
+      rw [EvmAsm.Evm64.evm_mod_callable_v1_length, EvmAsm.Evm64.evm_smod_legacy_length])
     (by rw [EvmAsm.Evm64.evm_smod_legacy_length]; norm_num)
 
 theorem smodCodeV4_saveRa_sub {base : Word} :
@@ -125,8 +200,14 @@ theorem smodCodeV4_saveRa_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + saveRaOff)
     EvmAsm.Evm64.evm_smod (EvmAsm.Evm64.evm_smod_save_ra_block .x18) 0
     (by simp [saveRaOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_smod_save_ra_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_smod_save_ra_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_dividendSign_sub {base : Word} :
@@ -137,8 +218,14 @@ theorem smodCodeV4_dividendSign_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block .x12 .x8
       EvmAsm.Evm64.evm_smodDividendTopLimbOff) 1
     (by simp [dividendSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_preserveDividendSign_sub {base : Word} :
@@ -147,8 +234,14 @@ theorem smodCodeV4_preserveDividendSign_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + preserveDividendSignOff)
     EvmAsm.Evm64.evm_smod (EvmAsm.Rv64.ADDI .x13 .x8 0) 3
     (by simp [preserveDividendSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+        EvmAsm.Rv64.ADDI EvmAsm.Rv64.single
+      simp only [EvmAsm.Rv64.seq, List.length_cons, List.length_nil]; rfl)
+    (by
+      unfold EvmAsm.Rv64.ADDI EvmAsm.Rv64.single
+      rw [EvmAsm.Evm64.evm_smod_length]; simp)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_divisorSign_sub {base : Word} :
@@ -159,8 +252,14 @@ theorem smodCodeV4_divisorSign_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block .x12 .x9
       EvmAsm.Evm64.evm_smodDivisorTopLimbOff) 4
     (by simp [divisorSignOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_sign_bit_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_dividendAbs_sub {base : Word} :
@@ -171,8 +270,14 @@ theorem smodCodeV4_dividendAbs_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x8 .x10 .x7 .x11
       0 8 16 24) 6
     (by simp [dividendAbsOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_divisorAbs_sub {base : Word} :
@@ -183,8 +288,14 @@ theorem smodCodeV4_divisorAbs_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x9 .x10 .x7 .x11
       32 40 48 56) 27
     (by simp [divisorAbsOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_modCall_sub {base : Word} :
@@ -194,8 +305,14 @@ theorem smodCodeV4_modCall_sub {base : Word} :
     EvmAsm.Evm64.evm_smod
     (EvmAsm.Evm64.evm_sdiv_div_call_block EvmAsm.Evm64.evm_smodCallOff) 48
     (by simp [modCallOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_div_call_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_div_call_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_resultSignFix_sub {base : Word} :
@@ -206,8 +323,14 @@ theorem smodCodeV4_resultSignFix_sub {base : Word} :
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x13 .x10 .x7 .x11
       0 8 16 24) 49
     (by simp [resultSignFixOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_savedRaRet_sub {base : Word} :
@@ -216,8 +339,14 @@ theorem smodCodeV4_savedRaRet_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + savedRaRetOff)
     EvmAsm.Evm64.evm_smod (EvmAsm.Evm64.evm_smod_saved_ra_ret_block .x18) 70
     (by simp [savedRaRetOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      apply EvmAsm.Evm64.SMod.Compose.smod_slice_of_drop
+      rw [EvmAsm.Evm64.evm_smod_saved_ra_ret_block_length]
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_smod_wrapper
+      simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [EvmAsm.Evm64.evm_smod_saved_ra_ret_block_length, EvmAsm.Evm64.evm_smod_length]
+      omega)
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCodeV4_modCallable_sub {base : Word} :
@@ -226,8 +355,17 @@ theorem smodCodeV4_modCallable_sub {base : Word} :
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + wrapperEndOff)
     EvmAsm.Evm64.evm_smod EvmAsm.Evm64.evm_mod_callable_v4 71
     (by simp [wrapperEndOff])
-    (by native_decide)
-    (by native_decide)
+    (by
+      unfold EvmAsm.Evm64.evm_smod EvmAsm.Rv64.seq
+      rw [← EvmAsm.Evm64.evm_smod_wrapper_length]
+      have h_drop :
+          List.drop EvmAsm.Evm64.evm_smod_wrapper.length
+              (EvmAsm.Evm64.evm_smod_wrapper ++ EvmAsm.Evm64.evm_mod_callable_v4) =
+            EvmAsm.Evm64.evm_mod_callable_v4 := List.drop_append_length
+      rw [h_drop]
+      simp only [List.take_length])
+    (by
+      rw [EvmAsm.Evm64.evm_mod_callable_v4_length, EvmAsm.Evm64.evm_smod_length])
     (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
 
 theorem smodCode_block_subs {base : Word} :

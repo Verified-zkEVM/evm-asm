@@ -1,0 +1,87 @@
+# CODEOWNERS — enforced trust boundary for the verified core (steering Phase 4, R-C5).
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The Lean kernel is a non-gameable correctness oracle, but it cannot catch a
+# *weakened* theorem statement, a loosened verifier config, or a regressed
+# conformance floor (see docs/agent-progress-steering-review.md §3 G1.1/G2.3).
+# Those edits live in a well-defined set of files. CODEOWNERS designates a
+# human owner for exactly that set so the change cannot merge without a
+# maintainer's eyes on it.
+#
+# CODEOWNERS ALONE IS ADVISORY. It only *requests* review from the listed
+# owner. It becomes an enforced merge gate only when paired with a branch
+# protection / repository **ruleset** that turns on "Require review from Code
+# Owners". The companion ruleset is a repo *setting* (not a file in the repo)
+# and must be configured by the maintainer in the GitHub UI / API. The Phase 4
+# PR body lists the proposed ruleset and the open question on approval counts.
+#
+# INTENDED RULESET (proposed — see Phase 4 PR open questions)
+# -----------------------------------------------------------
+#   * Verified core (the paths below): require Code Owner review.
+#       2 approvals once there is >1 maintainer; 1 approval today
+#       (single-maintainer repo). Tracks report R-C5 / open question #1.
+#   * Codegen + everything else: deliberately NOT owned here, so it carries
+#       the lighter bar (no Code-Owner gate). The RISC-V lowering / ziskemu
+#       path is unverified by design (report §6) — it is fenced by conformance
+#       + fuzz + dual-path checks, not by the kernel, so a Code-Owner review
+#       requirement buys less there and would just bottleneck the maintainer.
+#
+# Last matching pattern wins (gitignore semantics). Order matters.
+
+# ----------------------------------------------------------------------------
+# Progress registry — the kernel-checked source of truth for every tier count,
+# obligation, and witness abbrev. A silent tier flip or a vacuous witness here
+# is the highest-signal drift in the repo.
+# ----------------------------------------------------------------------------
+/EvmAsm/Progress.lean              @pirapira
+/EvmAsm/Progress/                  @pirapira
+
+# ----------------------------------------------------------------------------
+# RV64 model — the trusted machine semantics every codegen proof reduces to.
+# A change to Instr semantics in Rv64/Basic.lean re-bases the whole proof core.
+# ----------------------------------------------------------------------------
+/EvmAsm/Rv64/                      @pirapira
+
+# ----------------------------------------------------------------------------
+# Spec / statement files — the Hoare-triple statements the kernel proves. The
+# kernel guarantees the proof is valid; it cannot guarantee the *statement*
+# says what we claim. Editing a Spec.lean is editing what "proven" means.
+# ----------------------------------------------------------------------------
+**/Spec.lean                       @pirapira
+
+# ----------------------------------------------------------------------------
+# Conformance vectors — the kernel-checked EVM-semantics ground truth. Silent
+# vector deletion lowers the floor; check-conformance-floor.sh ratchets it, but
+# the statements themselves are trust-core.
+# ----------------------------------------------------------------------------
+/EvmAsm/EL/Conformance/            @pirapira
+
+# ----------------------------------------------------------------------------
+# Verifier configuration — files that change what "passing" *means*: the CI
+# gate scripts, the conformance/axiom/EEST-tag registries, the EEST harness,
+# the build toolchain. (Mirrors the set in scripts/check-statement-tamper.sh.)
+# ----------------------------------------------------------------------------
+/lakefile.toml                     @pirapira
+/lean-toolchain                    @pirapira
+/scripts/check-*.sh                @pirapira
+/scripts/axiom-allow.txt           @pirapira
+/scripts/conformance-baseline.txt  @pirapira
+/scripts/eest-fixture-tag.txt      @pirapira
+/scripts/approved-heartbeat-overrides.txt @pirapira
+/scripts/duplication-baseline.txt  @pirapira
+/scripts/jscpd.json                @pirapira
+/scripts/churn-report.sh           @pirapira
+/scripts/cycles-append.sh          @pirapira
+/scripts/codegen-eest-stateless-check.sh @pirapira
+/scripts/progress-report.sh        @pirapira
+/scripts/progress-snapshot.sh      @pirapira
+/scripts/progress-velocity.sh      @pirapira
+/scripts/progress-delta.sh         @pirapira
+
+# ----------------------------------------------------------------------------
+# CI workflows — a loosened workflow can disable a gate. Treat as trust-core.
+# ----------------------------------------------------------------------------
+/.github/workflows/                @pirapira
+/.github/CODEOWNERS                @pirapira
+/.github/labeler.yml               @pirapira
