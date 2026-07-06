@@ -106,6 +106,13 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       ∧ rf' = (execBlock reg (rf.get p) rf win is).1
       ∧ A'' = (bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2
           ** rest)
+  | readAt _ p roR is, reach => fun rf' ws' A'' => ∃ rf ws A robytes rest,
+      ws.length = rw.len ∧ reach rf ws A
+      ∧ (∃ hp, (bytesRegion (rf.get p) robytes ** rest) hp)
+      ∧ roR rf ws A robytes rest
+      ∧ rf' = (execBlock ⟨rf.get p, robytes⟩ rw.base rf ws is).1
+      ∧ ws' = (execBlock ⟨rf.get p, robytes⟩ rw.base rf ws is).2
+      ∧ A'' = (bytesRegion (rf.get p) robytes ** rest)
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | «whileS» _ c fuel inv _, reach =>
@@ -156,6 +163,19 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
             reach rf ws A → winR rf ws A win rest →
             (∃ hp, (bytesRegion (rf.get p) win ** rest) hp) →
             blockVCs reg (rf.get p) rf win is⟩]
+      else [])
+  | readAt lbl p roR is, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
+      ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A → A.pcFree →
+          ∀ hp, A hp →
+          ∃ robytes rest, roR rf ws A robytes rest
+            ∧ (bytesRegion (rf.get p) robytes ** rest) hp
+            ∧ rest.pcFree ∧ Region.wf ⟨rf.get p, robytes⟩⟩ ::
+      (if hasLoad is then
+        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A robytes rest, ws.length = rw.len →
+            reach rf ws A → roR rf ws A robytes rest →
+            (∃ hp, (bytesRegion (rf.get p) robytes ** rest) hp) →
+            blockVCs ⟨rf.get p, robytes⟩ rw.base rf ws is⟩]
       else [])
   | «while» lbl c fuel inv b, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
@@ -238,6 +258,7 @@ def steps : Stmt → Nat
   | assert _ _ => 0
   | ghost _ _ => 0
   | blockAt _ _ _ is => is.length
+  | readAt _ _ _ is => is.length
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | «whileS» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | «whileBreak» _ _ fuel _ _ bb _ ba =>
@@ -274,6 +295,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | blockAt lbl p winR is =>
       rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hR, hrf, hA⟩
       exact ⟨rf, A, win, rest, hlen, h rf ws' A hr, hsat, hR, hrf, hA⟩
+  | readAt lbl p roR is =>
+      rintro rf' ws' A'' ⟨rf, ws, A, robytes, rest, hlen, hr, hsat, hR, hrf, hws, hA⟩
+      exact ⟨rf, ws, A, robytes, rest, hlen, h rf ws A hr, hsat, hR, hrf, hws, hA⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | «whileS» lbl c fuel inv b ihb =>
@@ -377,6 +401,26 @@ theorem sp_blockAt_split (reg : Region) (rw : RwRegion) {lbl : String}
   rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hwinR, rfl, rfl⟩
   exact h rf ws' A win rest hlen hr hsat hwinR
 
+/-- Eliminate a `.readAt`: prove `P` of the engine result over the focused
+    read-only region at every reachable entry state.  The primary writable
+    window is threaded (stores land there); the ambient assertion becomes
+    the region decomposition (the focused region is read-only, so unchanged). -/
+theorem sp_readAt_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {p : Reg}
+    {roR : RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop}
+    {is : List Instr} {reach : Reach} {P : Reach}
+    (h : ∀ rf ws A robytes rest, ws.length = rw.len → reach rf ws A →
+      (∃ hp, (bytesRegion (rf.get p) robytes ** rest) hp) →
+      roR rf ws A robytes rest →
+      P (execBlock ⟨rf.get p, robytes⟩ rw.base rf ws is).1
+        (execBlock ⟨rf.get p, robytes⟩ rw.base rf ws is).2
+        (bytesRegion (rf.get p) robytes ** rest)) :
+    ∀ rf' ws' A'', sp reg rw (.readAt lbl p roR is) reach rf' ws' A'' →
+      P rf' ws' A'' := by
+  rintro rf' ws' A'' ⟨rf, ws, A, robytes, rest, hlen, hr, hsat, hroR, rfl, rfl, rfl⟩
+  exact h rf ws A robytes rest hlen hr hsat hroR
+
 /-- Eliminate a `.ghost`. -/
 theorem sp_ghost_split (reg : Region) (rw : RwRegion) {lbl : String}
     {R : RegFile → List (BitVec 8) → Assertion → Assertion → Prop}
@@ -420,6 +464,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | block lbl is => exact nomatch h
   | «when» lbl c b ih => exact nomatch h
   | blockAt lbl p winR is => exact nomatch h
+  | readAt lbl p roR is => exact nomatch h
   | ghost lbl R => exact nomatch h
   | «while» lbl c fuel inv b ih => exact nomatch h
   | «whileS» lbl c fuel inv b ih => exact nomatch h
@@ -507,6 +552,32 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
             hvcs.tail.tail.head rf ws A win rest hlen (h rf ws A hr) hR hsat
         · rw [if_neg hl] at hvc
           exact absurd hvc (List.not_mem_nil)
+  | readAt lbl p roR is =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | rfl | hvc
+      · exact hvcs.head
+      · exact fun rf ws A hr => hvcs.tail.head rf ws A (h rf ws A hr)
+      · by_cases hl : hasLoad is
+        · rw [if_pos hl] at hvc
+          rw [show vcs reg rw (.readAt lbl p roR is) pfx r₂
+              = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
+                ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, r₂ rf ws A → A.pcFree →
+                    ∀ hp, A hp →
+                    ∃ robytes rest, roR rf ws A robytes rest
+                      ∧ (bytesRegion (rf.get p) robytes ** rest) hp
+                      ∧ rest.pcFree ∧ Region.wf ⟨rf.get p, robytes⟩⟩ ::
+                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A robytes rest, ws.length = rw.len →
+                    r₂ rf ws A → roR rf ws A robytes rest →
+                    (∃ hp, (bytesRegion (rf.get p) robytes ** rest) hp) →
+                    blockVCs ⟨rf.get p, robytes⟩ rw.base rf ws is⟩]
+            from by simp [vcs, hl]] at hvcs
+          simp only [List.mem_singleton] at hvc
+          subst hvc
+          exact fun rf ws A robytes rest hlen hr hR hsat =>
+            hvcs.tail.tail.head rf ws A robytes rest hlen (h rf ws A hr) hR hsat
+        · rw [if_neg hl] at hvc
+          exact absurd hvc (List.not_mem_nil)
   | «while» lbl c fuel inv b ihb =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
@@ -591,6 +662,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | assert _ _ => True
   | ghost _ _ => True
   | blockAt _ _ _ _ => True
+  | readAt _ _ _ _ => True
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
   | «whileS» _ _ _ _ b => b.CalleesIn reg rw cr
   | «whileBreak» _ _ _ _ _ bb _ ba =>

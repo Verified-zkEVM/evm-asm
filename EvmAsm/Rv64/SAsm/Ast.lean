@@ -128,6 +128,25 @@ inductive Stmt where
             (winR : RegFile → List (BitVec 8) → Assertion →
               List (BitVec 8) → Assertion → Prop)
             (instrs : List Instr)
+  /-- Read-focus block (the read-side mirror of `blockAt`): a straight-line
+      block whose *read-only source* is a `bytesRegion` at the address held
+      in register `ptr`, opened out of the ambient assertion for the block's
+      duration.  The annotation `roR` *relates* the entry state to the
+      decomposition (region bytes, remainder assertion) — relational so it
+      can name existentially-quantified ghosts from the ambient invariant.
+      The generator emits a `.focus` VC demanding a related decomposition
+      exist with `A = bytesRegion (rf.get ptr) robytes ** rest`.  Inside the
+      block, loads that miss the function's writable window read the focused
+      region's bytes; the primary read-only region is framed — inaccessible.
+      The writable window and the ambient assertion are untouched (the
+      focused region is read-only, so its bytes never change).  This is how
+      a multi-input routine reads from one of several independent external
+      buffers (each an ambient `bytesRegion`) while still writing its result
+      through the function's writable window (`bnfMulModP`/`secfMulModP`). -/
+  | readAt (label : String) (ptr : Reg)
+           (roR : RegFile → List (BitVec 8) → Assertion →
+              List (BitVec 8) → Assertion → Prop)
+           (instrs : List Instr)
   /-- Ghost step: emits no code; replaces the ambient assertion `A` by an
       `R`-related `A'`, justified by one VC producing such an `A'` with a
       pointwise entailment (and pc-freedom).  Relational rather than
@@ -240,6 +259,7 @@ def size : Stmt → Nat
   | assert _ _        => 0
   | ghost _ _         => 0
   | blockAt _ _ _ is  => is.length
+  | readAt _ _ _ is   => is.length
   | «while» _ _ _ _ b   => b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
@@ -263,6 +283,7 @@ def callFree : Stmt → Bool
   | assert _ _        => true
   | ghost _ _         => true
   | blockAt _ _ _ _   => true
+  | readAt _ _ _ _    => true
   | «while» _ _ _ _ b => b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree

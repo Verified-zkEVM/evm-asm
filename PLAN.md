@@ -2731,7 +2731,29 @@ block/blockAt leaves flattens contiguously). Artifacts: focus_rwAtom
 pointer demo (copy ro→primary-rw dst + count dword at cnt via blockAt),
 post pins BOTH regions as functions of the input, kernel-clean
 (classical-3). Recipe: howto §6 "Multiple writable regions"; design
-§3.6.1 item 2 updated. Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
+§3.6.1 item 2 updated. Multiple READ-ONLY regions landed
+(`SAsm/MultiRead.lean`, unblocks `bnfMulModP`/`secfMulModP` — the
+multi-external-input class): the read-side mirror of `blockAt`, a NEW
+`Stmt.readAt ptr roR is` focus node whose read-only SOURCE is a
+bytesRegion at the register-held `ptr`, opened out of the ambient `A`
+for the block while the primary `rw` stays fixed (blockAt swaps the
+writable window keeping `region`; readAt swaps `region` keeping `rw`).
+Because a read-only region's bytes are immutable, the ambient assertion
+is threaded UNCHANGED (simpler than blockAt's write-back); soundness is
+the exact mirror — `Stmt.sound`'s `readAt` case runs
+`execBlock_sound ⟨rf.get p, robytes⟩ rw …`, framing the primary
+`region` atom, so an in-focus load that misses `rw` reads the ambient
+region's bytes and nothing else (no path reads arbitrary heap as the
+region). VCs: .ok, .focus (decomposition eq + remainder pcFree + focused
+`Region.wf`), .mem (region-routed blockVCs). Additive to the sound core
+(all existing `execInstrRF`/`blockVCs`/`Stmt.sound`/`blockAt` consumers
+unchanged, corpus green = backward-compat); `Stmt.sound`, `Stmt.soundR`,
+`multiReadFn_spec` all classical-3. Demo `multiReadFn`/`multiReadFn_spec`:
+reads a dword from EACH of two independent ambient buffers `a0`, `a1`
+(NO `a0 ≠ a1` hypothesis — squaring `a0=a1` and product `a0≠a1` both
+work), sums them, writes through the writable window `dst`; the exact
+`be→le(a0); be→le(a1); arithMod; le→be(dst)` shape GLM + the crypto
+session clone for their `MulModP` proofs. Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
 (slotCell/keyCell, mutual treeAtS/treeFrom, ctxS slot-zipper with
 ctxS_zip_fold + ctxS_push_left/right, the 3-dword bytesRegion split,
 setBytes_junk_node) plus treeInsertFn + treeInsertFn_spec: the full BST
