@@ -725,6 +725,51 @@ theorem stageNormW_copyBytes (data : List (BitVec 8)) (offsetWord : EvmWord)
       rw [callDataByte_of_ge (by omega : data.length ≤ lenW.toNat + j),
           callDataByte_of_ge (by omega : data.length ≤ offsetWord.toNat + j)]
 
+/-- The finalize store [26] (`base+104 → base+108`): `SD x12 x0 0` zeroes the
+    low operand cell so the window prologue reads `offLo = 0` from the buffer. -/
+theorem evm_calldataload_stage_finalize_spec_within (base sp gL0 : Word) :
+    cpsTripleWithin 1 (base + 104) (base + 108) (evm_calldataload_staged_code base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (sp ↦ₘ gL0))
+      (((.x12 : Reg) ↦ᵣ sp) ** (sp ↦ₘ (0 : Word))) := by
+  have h := sd_x0_spec_gen_within .x12 sp gL0 (0 : BitVec 12) (base + 104)
+  rw [show sp + signExtend12 (0 : BitVec 12) = sp from by rw [signExtend12_0]; bv_omega,
+      show (base + 104 : Word) + 4 = base + 108 from by bv_omega] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base evm_calldataload_staged 26
+      (base + 104) (by rw [evm_calldataload_staged_length]; norm_num)
+      (by rw [evm_calldataload_staged_length]; norm_num) (by rfl))) h
+
+/-- The window ladder [27..120] (`base+108 → base+484`) transported onto the
+    staged program code: re-run the verified in-bounds window arm over the
+    staging buffer `buf` at offset 0. -/
+theorem stage_window_spec_within
+    (base sp buf offOld addrOld byteOld accOld l1 l2 l3 : Word)
+    (windowBytes : List (BitVec 8))
+    (h_wf : CalldataRegionWf buf windowBytes)
+    (h_off : (0 : Word).toNat < windowBytes.length) :
+    cpsTripleWithin 94 (base + 108) (base + 484)
+      (evm_calldataload_staged_code base)
+      (calldataloadWindowArmPre .x15 .x16 .x17 .x18 .x14
+        sp buf 0 offOld addrOld byteOld accOld l1 l2 l3 windowBytes)
+      (calldataloadWindowArmPost .x15 .x16 .x17 .x18 .x14
+        sp buf 0 windowBytes) := by
+  have h_core := calldataload_window_arm_core_spec_within
+    .x15 .x16 .x17 .x18 .x14 sp buf 0 offOld addrOld byteOld accOld l1 l2 l3
+    windowBytes (base + 108) (by decide) (by decide) (by decide) (by decide)
+    h_wf h_off
+  have hmono : ∀ a i,
+      evm_calldataload_window_code .x15 .x16 .x17 .x18 .x14 (base + 108) a = some i →
+      evm_calldataload_staged_code base a = some i :=
+    CodeReq.ofProg_mono_sub base (base + 108) evm_calldataload_staged
+      (evm_calldataload_window .x15 .x16 .x17 .x18 .x14) 27
+      (by bv_omega)
+      (by rfl)
+      (by rw [evm_calldataload_staged_length,
+              evm_calldataload_window_program_length])
+      (by rw [evm_calldataload_staged_length]; decide)
+  have h_staged := cpsTripleWithin_extend_code hmono h_core
+  rwa [show (base + 108 : Word) + 376 = base + 484 from by bv_omega] at h_staged
+
 
 end Calldata
 end EvmAsm.Evm64
