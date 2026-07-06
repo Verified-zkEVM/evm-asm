@@ -569,6 +569,12 @@ def blockVerdictReceiptsTail : String :=
   -- be a deposit event. Reject through the requests_hash class instead of trusting an
   -- incomplete derived deposit body.
   "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
+  -- bv_calldata_overflow: a CALL descend could not fit its padded calldata
+  -- copy in bv_calldata_arena, so that child ran with EMPTY calldata — the
+  -- execution (receipts, gas, state) is untrustworthy. Reject conservatively
+  -- through the same class rather than risk attesting a wrong verdict (the
+  -- flag is .zero-init per guest run; set-only across the block's txs).
+  "  la t2, bv_calldata_overflow; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
   -- 8uld3.4: derive EIP-6110 deposit requests from EXECUTION-produced logs and
   -- verify the final requests_hash against the value that the early header-hash
   -- check already committed to (`erh_requests_hash`). This stops trusting the

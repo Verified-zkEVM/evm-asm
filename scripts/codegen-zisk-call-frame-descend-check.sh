@@ -57,7 +57,7 @@ checks = [
     ('child env.ADDRESS (to)',          0xbb),
     ('child env.CALLER (parent addr)',  0xaa),
     ('child env.CALLVALUE (value)',     0x7),
-    ('child env.callDataPtr - &pmem',   0x40),
+    ('child env.callDataPtr - &arena',  0),
     ('child env.callDataLen',           0x20),
     ('child env.gasRemaining (EIP-150)',3300),
     ('child env.codeSize',              0x33),
@@ -75,6 +75,9 @@ checks = [
     ('child env warmth_count snapshot',   5),
     ('running bloom checkpoint[0]',       0x1111222233334444),
     ('running bloom checkpoint[31]',      0xaaaabbbbccccdddd),
+    # Padded-calldata copy (bv_calldata_arena bump allocation).
+    ('copied calldata byte [0]',          0x5a),
+    ('calldata zero-tail byte [len]',     0),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
