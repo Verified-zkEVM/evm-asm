@@ -67,13 +67,59 @@ theorem copyWordGasFn_spec (len : Word) (base : Word) :
       not_false_eq_true, hx10, se12_31,
       show (5 : BitVec 6).toNat = 5 from by decide]
 
+/-! ## keccak256_word_gas
+
+    `a0 = size_bytes → a0 = OPCODE_KECCAK256_BASE(30)
+    + OPCODE_KECCAK256_PER_WORD(6) * ceil32(size) // 32`.
+    Pure register arithmetic: `ADDI;SRLI;LI;MUL;ADDI`, ret. -/
+
+/-- Verified port of `keccak256_word_gas`:
+    `a0 := ((len + 31) >>> 5) * 6 + 30`. -/
+def keccak256WordGasFn (len : Word) : Fn where
+  name := "keccak256WordGas"
+  region := Region.empty
+  rw := RwRegion.empty
+  pre  := fun rf _ A => rf.get .x10 = len ∧ A = empAssertion
+  post := fun rf _ A =>
+    rf.get .x10 = ((len + 31) >>> 5) * 6 + 30 ∧ A = empAssertion
+  body := .block "body"
+    [ .ADDI .x5 .x10 (31 : BitVec 12),
+      .SRLI .x5 .x5 (5 : BitVec 6),
+      .LI .x6 (6 : Word),
+      .MUL .x5 .x5 .x6,
+      .ADDI .x10 .x5 (30 : BitVec 12) ]
+
+/-- The five body instructions match the emitted routine (excluding the
+    shared `ret` epilogue). -/
+theorem keccak256WordGas_byte_tie :
+    (keccak256WordGasFn 0).body.flatten 0
+      ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)] = keccak256WordGas_prog := rfl
+
+#guard ((keccak256WordGasFn 0).body.flatten 0).length = 5
+
+private theorem se12_30 : signExtend12 (30 : BitVec 12) = (30 : Word) := by decide
+
+/-- Specification: at every entry state with `a0 = len` and an empty
+    ambient assertion, the body leaves `a0 = ((len + 31) >>> 5) * 6 + 30`
+    and the ambient assertion empty. -/
+theorem keccak256WordGasFn_spec (len : Word) (base : Word) :
+    (keccak256WordGasFn len).Spec base := by
+  vcgen
+  case keccak256WordGas.post =>
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, hpre, rfl, rfl⟩
+    obtain ⟨hx10, hA⟩ := hpre
+    obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
+    refine ⟨?_, hA⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true, hx10, se12_31, se12_30,
+      show (5 : BitVec 6).toNat = 5 from by decide]
+
 /-! ## log_data_gas
 
     `a0 = num_topics, a1 = data_bytes → a0 = OPCODE_LOG_BASE(375)
     + OPCODE_LOG_TOPIC(375)*num_topics + OPCODE_LOG_DATA_PER_BYTE(8)*data_bytes`.
-    Pure register arithmetic: `LI;MUL;ADD;LI;MUL;ADD`, ret. -/
-
-/-- Verified port of `log_data_gas`:
+    Pure register arithmetic: `LI;MUL;ADD;LI;MUL;ADD`, ret. -//-- Verified port of `log_data_gas`:
     `a0 := (topics * 375 + 375) + (dataBytes * 8)`. -/
 def logDataGasFn (topics dataBytes : Word) : Fn where
   name := "logDataGas"
