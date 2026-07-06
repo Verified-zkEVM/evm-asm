@@ -71,6 +71,7 @@ import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.CopySpec
+import EvmAsm.Evm64.Calldata.LoadSpec
 
 namespace EvmAsm.Progress
 
@@ -225,8 +226,24 @@ def registry : List OpcodeEntry := [
   entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within"),
   entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
   entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
-  entry "CALLDATALOAD" .execSpec none
-      "program in Calldata/LoadProgram.lean; no stack spec yet",
+  entry "CALLDATALOAD" .proven
+      (some "Calldata.evm_calldataload_stack_spec_within")
+      ("unconditional CALLDATALOAD stack spec over the 111-instruction " ++
+       "bounds-checked evm_calldataload (the shipped codegen — h_CALLDATALOAD " ++
+       "dispatches the verified program directly; the padded-arena setup " ++
+       "establishes the region contract at every frame) (dispatch OR-reduces " ++
+       "offset limbs 1-3 " ++
+       "+ SLTU low-limb bound, BNE to a 4xSD zero arm; in-bounds arm reuses " ++
+       "the MLOAD-transported 32-byte window ladder): evmStackIs sp " ++
+       "(offsetWord :: rest) -> evmStackIs sp (callDataLoadWord data " ++
+       "offsetWord.toNat :: rest). Calldata modeled by calldataRegionIs — " ++
+       "bytes at env.callDataPtr with a 32-zero-byte tail pad, so the " ++
+       "straddle window (offset < len < offset+32) is covered with no case " ++
+       "split; every 256-bit offset handled (in-bounds, straddle, low-limb " ++
+       "OOB, >= 2^64). Only static resource-shape hypotheses (h_len, " ++
+       "CalldataRegionWf).  (was: program in Calldata/LoadProgram.lean; no " ++
+       "stack spec yet)")
+      (cycleBound := some 107),
   entry "CALLDATASIZE" .proven
       (some "Calldata.evm_calldatasize_stack_spec_within"),
   entry "CALLDATACOPY" .partly
@@ -318,10 +335,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 49 := by decide
+theorem provenCount_eq      : provenCount      = 50 := by decide
 theorem partialCount_eq     : partialCount     = 1  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 31 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -352,10 +369,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 109 := by decide
+theorem provenBytes_eq      : provenBytes      = 110 := by decide
 theorem partialBytes_eq     : partialBytes     = 1   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 35  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -410,6 +427,8 @@ private noncomputable abbrev _gaslimit_witness   := @EvmAsm.Evm64.Env.evm_gaslim
 private noncomputable abbrev _chainid_witness    := @EvmAsm.Evm64.Env.evm_chainid_stack_spec_within
 private noncomputable abbrev _selfbalance_witness := @EvmAsm.Evm64.Env.evm_selfbalance_stack_spec_within
 private noncomputable abbrev _basefee_witness    := @EvmAsm.Evm64.Env.evm_basefee_stack_spec_within
+private noncomputable abbrev _calldataload_witness :=
+  @EvmAsm.Evm64.Calldata.evm_calldataload_stack_spec_within
 private noncomputable abbrev _calldatasize_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
 private noncomputable abbrev _calldatacopy_witness :=
