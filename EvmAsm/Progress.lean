@@ -72,6 +72,7 @@ import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
+import EvmAsm.Evm64.Calldata.CopyLoopSpec
 
 namespace EvmAsm.Progress
 
@@ -230,9 +231,8 @@ def registry : List OpcodeEntry := [
       (some "Calldata.evm_calldataload_staged_stack_spec_within"),
   entry "CALLDATASIZE" .proven
       (some "Calldata.evm_calldatasize_stack_spec_within"),
-  entry "CALLDATACOPY" .partly
-      (some "Calldata.evm_calldatacopy_preamble_stack_spec_within")
-      "preamble + partial memory effect; full loop pending",
+  entry "CALLDATACOPY" .proven
+      (some "Calldata.evm_calldatacopy_stack_spec_within"),
   entry "CODESIZE" .execSpec none "env read in Code/Basic.lean",
   entry "CODECOPY" .execSpec none "Code/CopyExec.lean + CopyMemory.lean",
   entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within"),
@@ -319,8 +319,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 50 := by decide
-theorem partialCount_eq     : partialCount     = 1  := by decide
+theorem provenCount_eq      : provenCount      = 51 := by decide
+theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 31 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -353,8 +353,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 110 := by decide
-theorem partialBytes_eq     : partialBytes     = 1   := by decide
+theorem provenBytes_eq      : provenBytes      = 111 := by decide
+theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 35  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -416,7 +416,7 @@ private noncomputable abbrev _calldataload_witness :=
 private noncomputable abbrev _calldatasize_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
 private noncomputable abbrev _calldatacopy_witness :=
-  @EvmAsm.Evm64.Calldata.evm_calldatacopy_preamble_stack_spec_within
+  @EvmAsm.Evm64.Calldata.evm_calldatacopy_stack_spec_within
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
