@@ -229,7 +229,10 @@ def registry : List OpcodeEntry := [
   entry "CALLDATALOAD" .proven
       (some "Calldata.evm_calldataload_stack_spec_within")
       ("unconditional CALLDATALOAD stack spec over the 111-instruction " ++
-       "bounds-checked evm_calldataload (dispatch OR-reduces offset limbs 1-3 " ++
+       "bounds-checked evm_calldataload (the shipped codegen — h_CALLDATALOAD " ++
+       "dispatches the verified program directly; the padded-arena setup " ++
+       "establishes the region contract at every frame) (dispatch OR-reduces " ++
+       "offset limbs 1-3 " ++
        "+ SLTU low-limb bound, BNE to a 4xSD zero arm; in-bounds arm reuses " ++
        "the MLOAD-transported 32-byte window ladder): evmStackIs sp " ++
        "(offsetWord :: rest) -> evmStackIs sp (callDataLoadWord data " ++
