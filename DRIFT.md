@@ -58,7 +58,7 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `CALLDATACOPY` | preamble + partial memory effect; full loop pending |
+
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 

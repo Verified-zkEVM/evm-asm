@@ -206,3 +206,4 @@ import EvmAsm.Evm64.Calldata.CopyExec
 import EvmAsm.Evm64.Calldata.CopyMemory
 import EvmAsm.Evm64.Calldata.CopyProgram
 import EvmAsm.Evm64.Calldata.CopySpec
+import EvmAsm.Evm64.Calldata.CopyLoopSpec
