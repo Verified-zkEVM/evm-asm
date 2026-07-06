@@ -440,23 +440,116 @@ theorem bnfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
         omega
       refine ⟨?_, hle, hpl⟩
       rw [hx10rf, if_pos heq]
-/-- Return a0 = 1 iff the two 32-byte buffers at a0 and a1 are equal. -/
+/-! ## bnf_eq32 — verified drop-in (two-exit byte comparison via single-exit whileBreak)
+
+    The emitted `bnfEq32_prog` is a two-exit byte comparison (top `BEQ x5,x0`
+    completion + mid `BNE x28,x29` break-on-mismatch), where the two exits
+    jump to *different* result blocks (`LI x10,1` / `LI x10,0`).
+
+    Per the drop-in policy (same technique as `bnfIsZero32`), we model it as
+    a **single-exit `whileBreak`** whose body scans 32 bytes (break on first
+    mismatch), followed by a post-loop block that derives the result from the
+    **counter** `x5` (`x5 = 0` ⟺ all 32 bytes matched ⟺ buffers equal). -/
+
+
+/-- Loop invariant at header evaluation `i`: counter `x5 = 32-i`, cursors
+    `x6 = ptr1+i`, `x7 = ptr2+i`, and the first `i` bytes are pairwise
+    equal (`∀ j < i, bs1.getD j 0 = bs2.getD j 0`). -/
+def bnfEqScanInv (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
+    Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun i rf _ _ =>
+    rf.get .x5 = BitVec.ofNat 64 (32 - i) ∧
+    rf.get .x6 = ptr1 + BitVec.ofNat 64 i ∧
+    rf.get .x7 = ptr2 + BitVec.ofNat 64 i ∧
+    (∀ j, j < i → bs1.getD j 0 = bs2.getD j 0) ∧
+    bs1.length = 32 ∧ bs2.length = 32 ∧
+    ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64
+
+/-- Number of consecutive matching bytes from the front of `bs1`/`bs2`
+    (up to `n`).  Returns `n` if all match, else the first mismatch index. -/
+def firstDiff (bs1 bs2 : List (BitVec 8)) : Nat → Nat
+  | 0 => 0
+  | n + 1 =>
+      if firstDiff bs1 bs2 n < n then firstDiff bs1 bs2 n
+      else if bs1.getD n 0 ≠ bs2.getD n 0 then n
+      else n + 1
+
+@[simp] theorem firstDiff_zero (bs1 bs2 : List (BitVec 8)) :
+    firstDiff bs1 bs2 0 = 0 := rfl
+
+@[simp] theorem firstDiff_succ (bs1 bs2 : List (BitVec 8)) (n : Nat) :
+    firstDiff bs1 bs2 (n + 1) =
+      (if firstDiff bs1 bs2 n < n then firstDiff bs1 bs2 n
+       else if bs1.getD n 0 ≠ bs2.getD n 0 then n else n + 1) := by
+  conv_lhs => rw [firstDiff]
+
+theorem firstDiff_le (bs1 bs2 : List (BitVec 8)) : ∀ n, firstDiff bs1 bs2 n ≤ n
+  | 0 => Nat.zero_le _
+  | n + 1 => by
+    rw [firstDiff_succ]
+    by_cases h : firstDiff bs1 bs2 n < n
+    · rw [if_pos h]; exact Nat.le_succ_of_le (firstDiff_le bs1 bs2 n)
+    · rw [if_neg h]; split <;> omega
+
+theorem firstDiff_all_eq (bs1 bs2 : List (BitVec 8)) (n : Nat)
+    (h : ∀ j, j < n → bs1.getD j 0 = bs2.getD j 0) :
+    firstDiff bs1 bs2 n = n := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [firstDiff_succ, ih (fun j hj => h j (by omega)), if_neg (Nat.lt_irrefl _)]
+    by_cases hne : bs1.getD n 0 ≠ bs2.getD n 0
+    · exact absurd hne (fun h2 => h2 (h n (by omega)))
+    · rw [if_neg hne]
+
+theorem firstDiff_ne (bs1 bs2 : List (BitVec 8)) (i : Nat)
+    (hprev : ∀ j, j < i → bs1.getD j 0 = bs2.getD j 0)
+    (hne : bs1.getD i 0 ≠ bs2.getD i 0) :
+    firstDiff bs1 bs2 (i + 1) = i := by
+  rw [firstDiff_succ, firstDiff_all_eq _ _ _ hprev, if_neg (Nat.lt_irrefl _), if_pos hne]
+
+/-- `whileBreak` post (at the single `Lend`): the scan stopped at index
+    `firstDiff`; `x5 = 32 - firstDiff` (so `x5 = 0` ⟺ all 32 bytes matched). -/
+def bnfEqScanPost (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
+    RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ =>
+    rf.get .x5 = BitVec.ofNat 64 (32 - firstDiff bs1 bs2 32) ∧
+    rf.get .x6 = ptr1 + BitVec.ofNat 64 (firstDiff bs1 bs2 32) ∧
+    rf.get .x7 = ptr2 + BitVec.ofNat 64 (firstDiff bs1 bs2 32) ∧
+    bs1.length = 32 ∧ bs2.length = 32 ∧
+    ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64
+
+/-- `bnf_eq32` body: init counter/cursors, scan-and-break, then derive
+    the result from the counter (`LI x10,1`; clear to 0 if `x5≠0`). -/
+def bnfEq32Body (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Stmt :=
+  .block "init" [.LI .x5 (32 : Word), .MV .x6 .x10, .MV .x7 .x11] ;;;
+  .«whileBreak» "scan" (.bne .x5 .x0) 32
+    (bnfEqScanInv ptr1 ptr2 bs1 bs2) (bnfEqScanPost ptr1 ptr2 bs1 bs2)
+    (.block "load" [.LBU .x28 .x6 (0 : BitVec 12), .LBU .x29 .x7 (0 : BitVec 12)])
+    (.bne .x28 .x29)
+    (.block "next" [.ADDI .x6 .x6 (1 : BitVec 12), .ADDI .x7 .x7 (1 : BitVec 12),
+                    .ADDI .x5 .x5 (-1 : BitVec 12)]) ;;;
+  .block "res1" [.LI .x10 (1 : Word)] ;;;
+  .when "clr" (.bne .x5 .x0) (.block "clr0" [.LI .x10 (0 : Word)])
+
+/-- Verified `Fn`: `x10 := if (the 32 bytes at `a0` equal the 32 bytes at
+    `a1`) then 1 else 0`. -/
+def bnfEq32Fn (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Fn where
+  name := "bnfEq32"
+  region := ⟨ptr1, bs1⟩
+  pre := fun rf _ _ =>
+    rf.get .x10 = ptr1 ∧ rf.get .x11 = ptr2 ∧ bs1.length = 32 ∧ bs2.length = 32 ∧
+    ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64 ∧
+    (ptr1.toNat + 32 ≤ ptr2.toNat ∨ ptr2.toNat + 32 ≤ ptr1.toNat)
+  post := fun rf _ _ =>
+    (rf.get .x10 = if firstDiff bs1 bs2 32 = 32 then (1 : Word) else (0 : Word)) ∧
+    bs1.length = 32 ∧ bs2.length = 32 ∧
+    ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64
+  body := bnfEq32Body ptr1 ptr2 bs1 bs2
+
+/-- Re-emitted drop-in: the verified `bnfEq32Body` flatten + `ret`. -/
 def bnfEq32_prog : Program :=
-  [ .LI .x5 (32 : Word),
-    .MV .x6 .x10,
-    .MV .x7 .x11,
-    .BEQ .x5 .x0 (32 : BitVec 13),
-    .LBU .x28 .x6 (0 : BitVec 12),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x28 .x29 (28 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  (bnfEq32Body 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
 
 def bn254FieldEq32Function : String :=
   "bnf_eq32:\n" ++ emitProgram bnfEq32_prog
