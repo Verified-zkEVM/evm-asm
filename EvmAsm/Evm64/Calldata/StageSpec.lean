@@ -690,5 +690,41 @@ theorem evm_calldataload_stage_setup_spec_within
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) s2
 
+/-- The normalized copy content equals the CALLDATALOAD window content at the
+    true 256-bit offset: in bounds `normW = offLo = offsetWord.toNat`; on the
+    skip path both sides are all-zero (offset past the calldata end). -/
+theorem stageNormW_copyBytes (data : List (BitVec 8)) (offsetWord : EvmWord)
+    (lenW : Word) (h_len : data.length = lenW.toNat) :
+    callDataCopyBytes data (stageNormW offsetWord lenW).toNat 32
+      = stagedWindowBytes data offsetWord.toNat := by
+  rw [stagedWindowBytes]
+  apply List.ext_getElem
+  · simp only [callDataCopyBytes_length]
+  · intro j hj1 _
+    have hj : j < 32 := by simpa [callDataCopyBytes_length] using hj1
+    rw [callDataCopyBytes_get hj, callDataCopyBytes_get hj]
+    unfold stageNormW
+    by_cases hflag : calldataload_oobFlag offsetWord lenW = 0
+    · rw [if_pos hflag, calldataload_oobFlag] at *
+      obtain ⟨h_upper, _⟩ := calldataload_oobFlagW_eq_zero_iff.mp hflag
+      rw [toNat_eq_getLimbN0_toNat_of_upper_or_zero h_upper]
+    · rw [if_neg hflag]
+      have h_off_ge : data.length ≤ offsetWord.toNat := by
+        by_cases h_up : offsetWord.getLimbN 1 ||| offsetWord.getLimbN 2 |||
+            offsetWord.getLimbN 3 = 0
+        · rw [toNat_eq_getLimbN0_toNat_of_upper_or_zero h_up, h_len]
+          have hoob : calldataload_oobBit (offsetWord.getLimbN 0) lenW ≠ 0 := by
+            intro hb
+            exact hflag (by rw [calldataload_oobFlag, calldataload_oobFlagW, h_up, hb]; decide)
+          have hnlt : ¬ (offsetWord.getLimbN 0 < lenW) := fun h =>
+            hoob (calldataload_oobBit_eq_zero_iff.mpr h)
+          rw [BitVec.lt_def] at hnlt; omega
+        · have h2 := two_pow_64_le_toNat_of_upper_or_ne_zero h_up
+          have hl := lenW.isLt
+          omega
+      rw [callDataByte_of_ge (by omega : data.length ≤ lenW.toNat + j),
+          callDataByte_of_ge (by omega : data.length ≤ offsetWord.toNat + j)]
+
+
 end Calldata
 end EvmAsm.Evm64
