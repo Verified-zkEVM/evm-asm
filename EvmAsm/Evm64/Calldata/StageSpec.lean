@@ -770,6 +770,230 @@ theorem stage_window_spec_within
   have h_staged := cpsTripleWithin_extend_code hmono h_core
   rwa [show (base + 108 : Word) + 376 = base + 484 from by bv_omega] at h_staged
 
+/-- Shed the eleven scratch registers (`x5 x6 x7 x28 x29 x30 x31` and the
+    window scratch `x15 x16 x17 x18`) from ownership at the tail of the
+    staged-core postcondition. -/
+private theorem staged_shed_scratch
+    (sp envAddr buf cdp lenW memBase : Word) (out : EvmWord)
+    (windowBytes memBytes : List (BitVec 8))
+    (v5 v6 v7 v29 v30 v31 v15 v16 v17 v18 : Word) :
+    ∀ ps,
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       (sp ↦ₘ out.getLimbN 0) ** ((sp + 8) ↦ₘ out.getLimbN 1) **
+       ((sp + 16) ↦ₘ out.getLimbN 2) ** ((sp + 24) ↦ₘ out.getLimbN 3) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       calldataRegionIs buf windowBytes ** bytesRegion memBase memBytes **
+       regOwn .x28 **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+       ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x15 : Reg) ↦ᵣ v15) ** ((.x16 : Reg) ↦ᵣ v16) **
+       ((.x17 : Reg) ↦ᵣ v17) ** ((.x18 : Reg) ↦ᵣ v18)) ps →
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       (sp ↦ₘ out.getLimbN 0) ** ((sp + 8) ↦ₘ out.getLimbN 1) **
+       ((sp + 16) ↦ₘ out.getLimbN 2) ** ((sp + 24) ↦ₘ out.getLimbN 3) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       calldataRegionIs buf windowBytes ** bytesRegion memBase memBytes **
+       regOwn .x28 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x15 **
+       regOwn .x16 ** regOwn .x17 ** regOwn .x18) ps := by
+  iterate 13 apply sepConj_mono_right
+  iterate 9 apply sepConj_mono (regIs_implies_regOwn _)
+  exact regIs_implies_regOwn _
+
+/-- **The staged CALLDATALOAD core spec** (`base → base + 484`, 401 steps):
+    setup preamble ; ≤32-byte copy loop ; finalize store ; window ladder.
+    The calldata is modeled via the aligned parent-memory region
+    (`bytesRegion memBase memBytes`, `cdp = memBase + cdByteOff`, Option-1);
+    the output word `callDataLoadWord data offsetWord.toNat` lands in the four
+    operand stack cells, and every scratch register is shed to ownership. -/
+theorem evm_calldataload_staged_core_spec_within
+    (base envAddr sp buf memBase : Word) (cdByteOff len : Nat)
+    (offsetWord : EvmWord) (lenW : Word)
+    (data memBytes origBuf : List (BitVec 8))
+    (x5o x6o x7o x28o x29o x30o x31o offOld byteOld accOld addrOld : Word)
+    (h_len : data.length = lenW.toNat)
+    (h_len_def : len = lenW.toNat)
+    (h_data : data = (memBytes.drop cdByteOff).take len)
+    (h_mem_align : memBase.toNat % 8 = 0)
+    (h_buf_align : buf.toNat % 8 = 0)
+    (h_fits : cdByteOff + len ≤ memBytes.length)
+    (h_mem_over : memBase.toNat + memBytes.length + 32 ≤ 2 ^ 64)
+    (h_mem_valid : ∀ k, k < memBytes.length →
+      isValidByteAccess (memBase + BitVec.ofNat 64 k) = true)
+    (h_buf_over : buf.toNat + 64 < 2 ^ 64)
+    (h_buf_valid : ∀ k, k < 64 → isValidByteAccess (buf + BitVec.ofNat 64 k) = true)
+    (h_origBuf_len : origBuf.length = 64)
+    (h_origBuf_tail : origBuf.drop 32 = List.replicate 32 0) :
+    cpsTripleWithin 401 base (base + 484) (evm_calldataload_staged_code base)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ x5o) ** ((.x6 : Reg) ↦ᵣ x6o) ** ((.x7 : Reg) ↦ᵣ x7o) **
+       ((.x28 : Reg) ↦ᵣ x28o) ** ((.x29 : Reg) ↦ᵣ x29o) **
+       ((.x30 : Reg) ↦ᵣ x30o) ** ((.x31 : Reg) ↦ᵣ x31o) **
+       ((.x15 : Reg) ↦ᵣ offOld) ** ((.x16 : Reg) ↦ᵣ byteOld) **
+       ((.x17 : Reg) ↦ᵣ accOld) ** ((.x18 : Reg) ↦ᵣ addrOld) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ
+          (memBase + BitVec.ofNat 64 cdByteOff)) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       (sp ↦ₘ offsetWord.getLimbN 0) ** ((sp + 8) ↦ₘ offsetWord.getLimbN 1) **
+       ((sp + 16) ↦ₘ offsetWord.getLimbN 2) ** ((sp + 24) ↦ₘ offsetWord.getLimbN 3) **
+       bytesRegion buf origBuf ** bytesRegion memBase memBytes)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       (sp ↦ₘ (callDataLoadWord data offsetWord.toNat).getLimbN 0) **
+       ((sp + 8) ↦ₘ (callDataLoadWord data offsetWord.toNat).getLimbN 1) **
+       ((sp + 16) ↦ₘ (callDataLoadWord data offsetWord.toNat).getLimbN 2) **
+       ((sp + 24) ↦ₘ (callDataLoadWord data offsetWord.toNat).getLimbN 3) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ
+          (memBase + BitVec.ofNat 64 cdByteOff)) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       calldataRegionIs buf (stagedWindowBytes data offsetWord.toNat) **
+       bytesRegion memBase memBytes **
+       regOwn .x28 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x15 **
+       regOwn .x16 ** regOwn .x17 ** regOwn .x18) := by
+  set cdp := memBase + BitVec.ofNat 64 cdByteOff with hcdp
+  set normW := stageNormW offsetWord lenW with hnw
+  set flag := calldataload_oobFlag offsetWord lenW with hfl
+  set windowBytes := stagedWindowBytes data offsetWord.toNat with hwb
+  set out := callDataLoadWord data offsetWord.toNat with hout
+  set gl0 := offsetWord.getLimbN 0 with hgl0
+  set gl1 := offsetWord.getLimbN 1 with hgl1
+  set gl2 := offsetWord.getLimbN 2 with hgl2
+  set gl3 := offsetWord.getLimbN 3 with hgl3
+  -- Normalized offset is within `len`.
+  have h_normOff_le : normW.toNat ≤ len := by
+    rw [hnw]; unfold stageNormW
+    by_cases hf : calldataload_oobFlag offsetWord lenW = 0
+    · rw [if_pos hf]
+      obtain ⟨_, h_lt⟩ := calldataload_oobFlagW_eq_zero_iff.mp hf
+      rw [h_len_def]; exact le_of_lt (BitVec.lt_def.mp h_lt)
+    · rw [if_neg hf, h_len_def]
+  -- copyBytes = windowBytes.
+  have h_cb : callDataCopyBytes data normW.toNat 32 = windowBytes := by
+    rw [hwb, hnw]; exact stageNormW_copyBytes data offsetWord lenW h_len
+  -- Threading equalities between the setup post and the loop entry (i = 0).
+  have e30 : cdp + normW = memBase + BitVec.ofNat 64 (cdByteOff + normW.toNat + 0) := by
+    rw [hcdp]; bv_omega
+  have e6 : cdp + lenW = memBase + BitVec.ofNat 64 (cdByteOff + len) := by
+    rw [hcdp, h_len_def]; bv_omega
+  have e31 : buf = buf + BitVec.ofNat 64 0 := by bv_omega
+  have h_sb0 : stageBufContent (callDataCopyBytes data normW.toNat 32) origBuf 0 = origBuf := by
+    simp [stageBufContent]
+  -- The buffer-region ↔ calldataRegionIs bridge at the loop exit (i = 32).
+  have h_region : bytesRegion buf
+        (stageBufContent (callDataCopyBytes data normW.toNat 32) origBuf 32)
+      = calldataRegionIs buf windowBytes := by
+    rw [calldataRegionIs, paddedCallData, stageBufContent, h_cb,
+        show (windowBytes.take 32) = windowBytes from by
+          rw [List.take_of_length_le (by rw [hwb, stagedWindowBytes_length])],
+        h_origBuf_tail]
+  -- Output limbs land as the four `callDataLoadWord` limbs.
+  have hc0 : calldataloadOutputLimb windowBytes 0 24 = out.getLimbN 0 := by
+    rw [hwb, calldataloadOutputLimb_stagedWindow data offsetWord.toNat 24 (by norm_num),
+        hout, callDataLoadWord_getLimbN_0]
+  have hc1 : calldataloadOutputLimb windowBytes 0 16 = out.getLimbN 1 := by
+    rw [hwb, calldataloadOutputLimb_stagedWindow data offsetWord.toNat 16 (by norm_num),
+        hout, callDataLoadWord_getLimbN_1]
+  have hc2 : calldataloadOutputLimb windowBytes 0 8 = out.getLimbN 2 := by
+    rw [hwb, calldataloadOutputLimb_stagedWindow data offsetWord.toNat 8 (by norm_num),
+        hout, callDataLoadWord_getLimbN_2]
+  have hc3 : calldataloadOutputLimb windowBytes 0 0 = out.getLimbN 3 := by
+    rw [hwb, calldataloadOutputLimb_stagedWindow data offsetWord.toNat 0 (by norm_num),
+        hout, callDataLoadWord_getLimbN_3]
+  -- Static resource facts for the staging buffer as a calldata region.
+  have h_wf : CalldataRegionWf buf windowBytes := by
+    refine ⟨h_buf_align, ?_, ?_⟩
+    · rw [hwb, stagedWindowBytes_length]; omega
+    · intro i hi; rw [hwb, stagedWindowBytes_length] at hi
+      exact h_buf_valid i (by omega)
+  have h_off0 : (0 : Word).toNat < windowBytes.length := by
+    rw [hwb, stagedWindowBytes_length]; decide
+  ---------------------------------------------------------------------------
+  -- Phase specs, each framed with the atoms it does not touch.
+  ---------------------------------------------------------------------------
+  -- Setup: base → base+68.
+  have h_setup := evm_calldataload_stage_setup_spec_within base envAddr sp cdp lenW
+    buf offsetWord x5o x6o x7o x28o x29o x30o x31o
+  have h_setupf := cpsTripleWithin_frameR
+    (((.x15 : Reg) ↦ᵣ offOld) ** ((.x16 : Reg) ↦ᵣ byteOld) **
+     ((.x17 : Reg) ↦ᵣ accOld) ** ((.x18 : Reg) ↦ᵣ addrOld) **
+     bytesRegion buf origBuf ** bytesRegion memBase memBytes) (by pcFreeR) h_setup
+  -- Loop: base+68 → base+104.
+  have h_loop := stage_copy_loop_spec_within base memBase buf cdByteOff normW.toNat len
+    data memBytes origBuf 32 0 flag (by omega) h_mem_align h_buf_align h_fits h_data
+    h_normOff_le h_mem_over h_mem_valid h_buf_over h_buf_valid h_origBuf_len
+  have h_loopf := cpsTripleWithin_frameR
+    (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) ** ((.x14 : Reg) ↦ᵣ buf) **
+     ((.x5 : Reg) ↦ᵣ cdp) ** ((.x7 : Reg) ↦ᵣ normW) **
+     ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+     ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+     (sp ↦ₘ gl0) ** ((sp + 8) ↦ₘ gl1) ** ((sp + 16) ↦ₘ gl2) ** ((sp + 24) ↦ₘ gl3) **
+     ((.x15 : Reg) ↦ᵣ offOld) ** ((.x16 : Reg) ↦ᵣ byteOld) **
+     ((.x17 : Reg) ↦ᵣ accOld) ** ((.x18 : Reg) ↦ᵣ addrOld)) (by pcFreeR) h_loop
+  -- Finalize: base+104 → base+108.
+  have h_fin := evm_calldataload_stage_finalize_spec_within base sp gl0
+  have h_finf := cpsTripleWithin_frameR
+    (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x14 : Reg) ↦ᵣ buf) ** ((.x5 : Reg) ↦ᵣ cdp) **
+     ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+     ((.x7 : Reg) ↦ᵣ normW) **
+     ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normW.toNat + 32))) **
+     ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 32)) ** regOwn .x28 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+     ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+     ((sp + 8) ↦ₘ gl1) ** ((sp + 16) ↦ₘ gl2) ** ((sp + 24) ↦ₘ gl3) **
+     calldataRegionIs buf windowBytes ** bytesRegion memBase memBytes **
+     ((.x15 : Reg) ↦ᵣ offOld) ** ((.x16 : Reg) ↦ᵣ byteOld) **
+     ((.x17 : Reg) ↦ᵣ accOld) ** ((.x18 : Reg) ↦ᵣ addrOld)) (by pcFreeR) h_fin
+  -- Window: base+108 → base+484.
+  have h_win := stage_window_spec_within base sp buf offOld addrOld byteOld accOld
+    gl1 gl2 gl3 windowBytes h_wf h_off0
+  have h_winf := cpsTripleWithin_frameR
+    (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x5 : Reg) ↦ᵣ cdp) **
+     ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+     ((.x7 : Reg) ↦ᵣ normW) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normW.toNat + 32))) **
+     ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 32)) ** regOwn .x28 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+     ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+     bytesRegion memBase memBytes) (by pcFreeR) h_win
+  ---------------------------------------------------------------------------
+  -- Compose setup ; loop ; finalize ; window.
+  ---------------------------------------------------------------------------
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      rw [← e30, ← e6, ← e31, h_sb0]
+      simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp) h_setupf h_loopf
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      rw [h_region] at hp
+      simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp) s1 h_finf
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      rw [calldataloadWindowArmPre_unfold]
+      simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp) s2 h_winf
+  ---------------------------------------------------------------------------
+  -- Reshape the endpoints.
+  ---------------------------------------------------------------------------
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) s3
+  · simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp
+  · rw [calldataloadWindowArmPost_unfold, calldataloadArmMid_unfold] at hq
+    simp only [show ((0 : Word).toNat) = 0 from by decide, Nat.zero_add] at hq
+    rw [hc0, hc1, hc2, hc3, show (buf + (0 : Word)) = buf from by bv_omega] at hq
+    refine staged_shed_scratch sp envAddr buf cdp lenW memBase out windowBytes
+      memBytes cdp (memBase + BitVec.ofNat 64 (cdByteOff + len)) normW (0 : Word)
+      (memBase + BitVec.ofNat 64 (cdByteOff + normW.toNat + 32))
+      (buf + BitVec.ofNat 64 32) (0 : Word)
+      (BitVec.zeroExtend 64 (callDataByte windowBytes 7)) (out.getLimbN 3) buf _ ?_
+    simp only [sepConj_assoc'] at hq ⊢; xperm_chunked hq
+
 
 end Calldata
 end EvmAsm.Evm64
