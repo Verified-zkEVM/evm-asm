@@ -1118,6 +1118,19 @@ bundle). Tracked by issue #313.
 
 #### 6.3 CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
 - Load from calldata region in environment.
+- **t1iqb (2026-07): the 16 MiB `bv_calldata_arena` is ELIMINATED.** The #9871
+  per-frame padded-copy arena could conservatively false-reject a legal
+  deep-call/large-args block (worst case ~80-90 MiB live under the 63/64 rule).
+  Phase A (done, branch `fix/t1iqb-eliminate-calldata-arena`) reverted the
+  arena + handler-swap + proven-flip to baseline `f53336814`: copy-free
+  `call_frame_set_calldata` alias + read-time zero-pad staging into
+  `bv_cdl_stage` + raw `evm_calldataload_window` at offset 0. CALLDATALOAD is
+  back to `execSpec` (reviewed staging). **Phase B (TODO):** verify an
+  arena-free staged program in the `cpsTripleWithin` world (64-byte padded
+  buffer, ≤32B copy-with-zero-fill loop modeled on `cu64_loop_spec_within`,
+  reusing `calldataload_window_arm_core_spec_within` at offset 0) and re-flip
+  CALLDATALOAD to `.proven` with a **no-pad** precondition (`bytesRegion cdp
+  data`).
 
 ---
 
