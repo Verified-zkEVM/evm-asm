@@ -181,13 +181,13 @@ def schemeAAnchors : List GuestRegion :=
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
     (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x59448
+def textSizeBytes : Nat := 0x59318
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195156b0`). Link-layout-dependent. Grew by `0x4010000`
     (~64 MiB) when the `.71` reconciliation raised `frameStride` `0x29000→0x39000`
     (the `call_frame_arena` trailing pad = `frameArrayBytes - unionChildren`). -/
-def dataSizeBytes : Nat := 0x1a5176b0
+def dataSizeBytes : Nat := 0x195156b0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

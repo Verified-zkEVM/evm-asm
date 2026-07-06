@@ -231,17 +231,6 @@ def frameReturnFunction : String :=
   -- Pop the depth: child d -> parent d-1.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
-  -- Free the child's padded-calldata allocation: restore the bump cursor to
-  -- cd_alloc_base[d] (everything the child chain allocated at depth >= d is
-  -- dead past this single unwind point, incl. exceptional child halts).
-  "  la t3, cd_alloc_base\n" ++
-  "  slli t4, t1, 3                 # d * 8\n" ++
-  "  add t3, t3, t4\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  beqz t4, .Lfr_cd_cursor_done   # unset (no set_calldata ran): leave cursor\n" ++
-  "  la t3, bv_calldata_cursor\n" ++
-  "  sd t4, 0(t3)\n" ++
-  ".Lfr_cd_cursor_done:\n" ++
   "  la t3, frame_parent_bases\n" ++
   "  slli t4, t1, 4                 # d * 16\n" ++
   "  add t3, t3, t4\n" ++
