@@ -250,7 +250,7 @@ theorem evm_calldatacopy_body_spec_within
          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
          bytesRegion memBase (copyDestContent memBytes copied destByteOff i) **
          bytesRegion srcBase srcBytes) (by pcFreeR) hjale
-      simp only [sepConj_assoc', sepConj_emp_left', sepConj_emp_right'] at hntf hlbuf hjalf
+      simp only [sepConj_assoc', sepConj_emp_left'] at hntf hlbuf hjalf
       have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hntf hlbuf
       have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hjalf
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
