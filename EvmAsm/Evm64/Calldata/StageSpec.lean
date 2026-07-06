@@ -19,6 +19,7 @@
 
 import EvmAsm.Evm64.Calldata.StageProgram
 import EvmAsm.Evm64.Calldata.StageWindow
+import EvmAsm.Evm64.Calldata.LoadDispatch
 import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
@@ -31,6 +32,7 @@ namespace EvmAsm.Evm64
 namespace Calldata
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.EvmEnv (callDataPtrOff callDataLenOff)
 
 /-- `pcFree` extended to close `bytesRegion _.pcFree` leaves (the base `pcFree`
     tactic handles only register atoms). -/
@@ -529,6 +531,164 @@ theorem stage_copy_loop_spec_within
     refine cpsTripleWithin_mono_nSteps (by omega)
       (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
         (fun _ hp => by xperm_chunked hp) s3)
+
+
+/-- The normalized source offset: `offLo` in bounds, `len` (all-OOB) on the
+    skip path. -/
+def stageNormW (offsetWord : EvmWord) (lenW : Word) : Word :=
+  if calldataload_oobFlag offsetWord lenW = 0 then offsetWord.getLimbN 0 else lenW
+
+/-- The staging setup preamble ([0..16], `base → base+68`). -/
+theorem evm_calldataload_stage_setup_spec_within
+    (base envAddr sp cdp lenW buf : Word) (offsetWord : EvmWord)
+    (x5o x6o x7o x28o x29o x30o x31o : Word) :
+    cpsTripleWithin 17 base (base + 68) (evm_calldataload_staged_code base)
+      (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) ** ((.x14 : Reg) ↦ᵣ buf) **
+       ((.x5 : Reg) ↦ᵣ x5o) ** ((.x6 : Reg) ↦ᵣ x6o) ** ((.x7 : Reg) ↦ᵣ x7o) **
+       ((.x28 : Reg) ↦ᵣ x28o) ** ((.x29 : Reg) ↦ᵣ x29o) ** ((.x30 : Reg) ↦ᵣ x30o) **
+       ((.x31 : Reg) ↦ᵣ x31o) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       (sp ↦ₘ offsetWord.getLimbN 0) ** ((sp + 8) ↦ₘ offsetWord.getLimbN 1) **
+       ((sp + 16) ↦ₘ offsetWord.getLimbN 2) ** ((sp + 24) ↦ₘ offsetWord.getLimbN 3))
+      (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) ** ((.x14 : Reg) ↦ᵣ buf) **
+       ((.x5 : Reg) ↦ᵣ cdp) ** ((.x6 : Reg) ↦ᵣ (cdp + lenW)) **
+       ((.x7 : Reg) ↦ᵣ stageNormW offsetWord lenW) **
+       ((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) **
+       ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 32) **
+       ((.x30 : Reg) ↦ᵣ (cdp + stageNormW offsetWord lenW)) **
+       ((.x31 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       (sp ↦ₘ offsetWord.getLimbN 0) ** ((sp + 8) ↦ₘ offsetWord.getLimbN 1) **
+       ((sp + 16) ↦ₘ offsetWord.getLimbN 2) ** ((sp + 24) ↦ₘ offsetWord.getLimbN 3)) := by
+  set l0 := offsetWord.getLimbN 0 with hl0
+  set l1 := offsetWord.getLimbN 1 with hl1
+  set l2 := offsetWord.getLimbN 2 with hl2
+  set l3 := offsetWord.getLimbN 3 with hl3
+  -- Straight prefix [0..10]: base → base+44.
+  have hpre : cpsTripleWithin 11 base (base + 44) (evm_calldataload_staged_code base)
+      (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((.x5 : Reg) ↦ᵣ x5o) ** ((.x6 : Reg) ↦ᵣ x6o) ** ((.x7 : Reg) ↦ᵣ x7o) **
+       ((.x28 : Reg) ↦ᵣ x28o) ** ((.x30 : Reg) ↦ᵣ x30o) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       (sp ↦ₘ l0) ** ((sp + 8) ↦ₘ l1) ** ((sp + 16) ↦ₘ l2) ** ((sp + 24) ↦ₘ l3))
+      (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((.x5 : Reg) ↦ᵣ cdp) ** ((.x6 : Reg) ↦ᵣ lenW) ** ((.x7 : Reg) ↦ᵣ l0) **
+       ((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) **
+       ((.x30 : Reg) ↦ᵣ calldataload_oobBit l0 lenW) **
+       ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) **
+       ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) **
+       (sp ↦ₘ l0) ** ((sp + 8) ↦ₘ l1) ** ((sp + 16) ↦ₘ l2) ** ((sp + 24) ↦ₘ l3)) := by
+    have h0 := ld_spec_gen_within .x5 .x20 envAddr x5o cdp (BitVec.ofNat 12 callDataPtrOff) base (by decide)
+    simp only [signExtend12_callDataPtrOff] at h0
+    have h1 := ld_spec_gen_within .x6 .x20 envAddr x6o lenW (BitVec.ofNat 12 callDataLenOff) (base + 4) (by decide)
+    simp only [signExtend12_callDataLenOff] at h1
+    have h2 := ld_spec_gen_within .x7 .x12 sp x7o l0 (0 : BitVec 12) (base + 8) (by decide)
+    simp only [signExtend12_0] at h2
+    have h3 := ld_spec_gen_within .x28 .x12 sp x28o l1 (8 : BitVec 12) (base + 12) (by decide)
+    simp only [signExtend12_8] at h3
+    have h4 := ld_spec_gen_within .x30 .x12 sp x30o l2 (16 : BitVec 12) (base + 16) (by decide)
+    simp only [signExtend12_16] at h4
+    have h5 := or_spec_gen_rd_eq_rs1_within .x28 .x30 l1 l2 (base + 20) (by decide)
+    have h6 := ld_spec_gen_within .x30 .x12 sp l2 l3 (24 : BitVec 12) (base + 24) (by decide)
+    simp only [signExtend12_24] at h6
+    have h7 := or_spec_gen_rd_eq_rs1_within .x28 .x30 (l1 ||| l2) l3 (base + 28) (by decide)
+    have h8 := sltu_spec_gen_within .x30 .x7 .x6 l3 l0 lenW (base + 32) (by decide)
+    have h9 := sltiu_spec_gen_same_within .x30
+      (if BitVec.ult l0 lenW then (1 : Word) else 0) (1 : BitVec 12) (base + 36) (by decide)
+    rw [calldataload_sltiu_seqz_eq l0 lenW] at h9
+    have h10 := or_spec_gen_rd_eq_rs1_within .x28 .x30 ((l1 ||| l2) ||| l3)
+      (calldataload_oobBit l0 lenW) (base + 40) (by decide)
+    rw [show ((l1 ||| l2) ||| l3) ||| calldataload_oobBit l0 lenW
+        = calldataload_oobFlag offsetWord lenW from by
+      unfold calldataload_oobFlag calldataload_oobFlagW
+      rw [← hl0, ← hl1, ← hl2, ← hl3, BitVec.or_assoc]] at h10
+    runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
+  have hmono11 : ∀ a i, CodeReq.singleton (base + 44) (.BEQ .x28 .x0 (8 : BitVec 13)) a = some i
+      → evm_calldataload_staged_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base evm_calldataload_staged 11
+      (base + 44) (by rw [evm_calldataload_staged_length]; norm_num)
+      (by rw [evm_calldataload_staged_length]; norm_num) (by rfl))
+  -- Normalize branch [11][12]: base+44 → base+52, x7 := stageNormW.
+  have hbr : cpsTripleWithin 2 (base + 44) (base + 52) (evm_calldataload_staged_code base)
+      (((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x7 : Reg) ↦ᵣ l0) ** ((.x6 : Reg) ↦ᵣ lenW))
+      (((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x7 : Reg) ↦ᵣ stageNormW offsetWord lenW) ** ((.x6 : Reg) ↦ᵣ lenW)) := by
+    have hbeq := beq_spec_gen_within .x28 .x0 (8 : BitVec 13)
+      (calldataload_oobFlag offsetWord lenW) (0 : Word) (base + 44)
+    rw [show (base + 44) + signExtend13 (8 : BitVec 13) = base + 52 from by
+          rw [show signExtend13 (8 : BitVec 13) = (8 : Word) from by decide]; bv_omega,
+        show (base + 44 : Word) + 4 = base + 48 from by bv_omega] at hbeq
+    have hbeqe := cpsBranchWithin_extend_code hmono11 hbeq
+    by_cases hflag : calldataload_oobFlag offsetWord lenW = 0
+    · -- taken: x7 stays l0 = stageNormW.
+      have ht := cpsBranchWithin_takenStripPure2 hbeqe (fun hp hQf => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+        exact ((sepConj_pure_right _).1 hQ).2 hflag)
+      have htf := cpsTripleWithin_frameR (((.x7 : Reg) ↦ᵣ l0) ** ((.x6 : Reg) ↦ᵣ lenW))
+        (by pcFreeR) ht
+      rw [show stageNormW offsetWord lenW = l0 from by
+        unfold stageNormW; rw [if_pos hflag, ← hl0]]
+      refine cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+          (fun _ hp => by xperm_chunked hp) htf)
+    · -- not taken: [12] sets x7 := lenW = stageNormW.
+      have hnt := cpsBranchWithin_ntakenStripPure2 hbeqe (fun hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact hflag ((sepConj_pure_right _).1 hQ).2)
+      have hntf := cpsTripleWithin_frameR (((.x7 : Reg) ↦ᵣ l0) ** ((.x6 : Reg) ↦ᵣ lenW))
+        (by pcFreeR) hnt
+      have h12 := addi_spec_gen_within .x7 .x6 l0 lenW (0 : BitVec 12) (base + 48) (by decide)
+      rw [show lenW + signExtend12 (0 : BitVec 12) = lenW from by
+            rw [signExtend12_0]; bv_omega,
+          show (base + 48 : Word) + 4 = base + 52 from by bv_omega] at h12
+      have h12e := cpsTripleWithin_extend_code
+        (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base evm_calldataload_staged 12
+          (base + 48) (by rw [evm_calldataload_staged_length]; norm_num)
+          (by rw [evm_calldataload_staged_length]; norm_num) (by rfl))) h12
+      rw [show stageNormW offsetWord lenW = lenW from by
+        unfold stageNormW; rw [if_neg hflag]]
+      have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hntf
+        (cpsTripleWithin_frameR (((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcFreeR) h12e)
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+        (fun _ hp => by xperm_chunked hp) hseq
+  -- Pointer setup [13..16]: base+52 → base+68.
+  have hp3 : cpsTripleWithin 4 (base + 52) (base + 68) (evm_calldataload_staged_code base)
+      (((.x5 : Reg) ↦ᵣ cdp) ** ((.x7 : Reg) ↦ᵣ stageNormW offsetWord lenW) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ lenW) **
+       ((.x30 : Reg) ↦ᵣ calldataload_oobBit l0 lenW) ** ((.x31 : Reg) ↦ᵣ x31o) **
+       ((.x29 : Reg) ↦ᵣ x29o))
+      (((.x5 : Reg) ↦ᵣ cdp) ** ((.x7 : Reg) ↦ᵣ stageNormW offsetWord lenW) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ (cdp + lenW)) **
+       ((.x30 : Reg) ↦ᵣ (cdp + stageNormW offsetWord lenW)) ** ((.x31 : Reg) ↦ᵣ buf) **
+       ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 32)) := by
+    have h13 := add_spec_gen_within .x30 .x5 .x7 cdp (stageNormW offsetWord lenW)
+      (calldataload_oobBit l0 lenW) (base + 52) (by decide)
+    have h14 := add_spec_gen_rd_eq_rs2_within .x6 .x5 cdp lenW (base + 56) (by decide)
+    have h15 := addi_spec_gen_within .x31 .x14 x31o buf (0 : BitVec 12) (base + 60) (by decide)
+    rw [show buf + signExtend12 (0 : BitVec 12) = buf from by rw [signExtend12_0]; bv_omega] at h15
+    have h16 := addi_spec_gen_within .x29 .x0 x29o (0 : Word) (BitVec.ofNat 12 32) (base + 64) (by decide)
+    rw [show (0 : Word) + signExtend12 (BitVec.ofNat 12 32) = BitVec.ofNat 64 32 from by
+      rw [signExtend12_ofNat_small (by decide)]; bv_omega] at h16
+    runBlock h13 h14 h15 h16
+  -- Compose hpre ; hbr ; hp3.
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    (cpsTripleWithin_frameR (((.x14 : Reg) ↦ᵣ buf) ** ((.x29 : Reg) ↦ᵣ x29o) **
+      ((.x31 : Reg) ↦ᵣ x31o) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcFreeR) hpre)
+    (cpsTripleWithin_frameR (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) **
+      ((.x5 : Reg) ↦ᵣ cdp) ** ((.x14 : Reg) ↦ᵣ buf) ** ((.x29 : Reg) ↦ᵣ x29o) **
+      ((.x30 : Reg) ↦ᵣ calldataload_oobBit l0 lenW) ** ((.x31 : Reg) ↦ᵣ x31o) **
+      ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) ** ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) ** (sp ↦ₘ l0) ** ((sp + 8) ↦ₘ l1) ** ((sp + 16) ↦ₘ l2) ** ((sp + 24) ↦ₘ l3)) (by pcFreeR) hbr)
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1
+    (cpsTripleWithin_frameR (((.x20 : Reg) ↦ᵣ envAddr) ** ((.x12 : Reg) ↦ᵣ sp) **
+      ((.x28 : Reg) ↦ᵣ calldataload_oobFlag offsetWord lenW) ** ((envAddr + BitVec.ofNat 64 callDataPtrOff) ↦ₘ cdp) ** ((envAddr + BitVec.ofNat 64 callDataLenOff) ↦ₘ lenW) ** (sp ↦ₘ l0) ** ((sp + 8) ↦ₘ l1) ** ((sp + 16) ↦ₘ l2) ** ((sp + 24) ↦ₘ l3))
+      (by pcFreeR) hp3)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s2
 
 end Calldata
 end EvmAsm.Evm64
