@@ -513,12 +513,14 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.frame_depth_pop, frameDepthPop_prog),
   (GuestAddrs.frame_save_regs, frameSaveRegs_prog),
   (GuestAddrs.frame_load_regs, frameLoadRegs_prog),
-  (GuestAddrs.call_frame_set_calldata, callFrameSetCalldata_prog),
+  -- call_frame_set_calldata retired its Program form with the padded-calldata
+  -- copy rewrite (bv_calldata_arena bump allocation; raw-asm loop like its
+  -- call_frame_enter sibling). Follow-up bead: SAsm-verify + re-pin.
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 358
+#guard guestImageEntries.length = 357
 
 end EvmAsm.Codegen
