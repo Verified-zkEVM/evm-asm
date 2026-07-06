@@ -165,6 +165,10 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
         (Stmt.sound reg rw (.blockAt lbl p winR is) base pfx reach hreg hrw rfl hofs hsz
           hcode hvcs)
+  | readAt lbl p roR is =>
+      exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
+        (Stmt.sound reg rw (.readAt lbl p roR is) base pfx reach hreg hrw rfl hofs hsz
+          hcode hvcs)
   | seq a b iha ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
       simp only [Stmt.size] at hsz
