@@ -74,7 +74,6 @@ set_option hygiene false in
 local macro "no_sim" : tactic =>
   `(tactic| exact absurd huncond (by simp only [Instr.simulableUncond]; decide))
 
-set_option maxHeartbeats 800000 in
 /-- **Consolidated step-simulation theorem (unconditional tier).**
 
     For every `Instr` whose equivalence holds from `StateRel` alone, executing the
