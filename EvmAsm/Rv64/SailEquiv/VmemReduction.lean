@@ -757,7 +757,12 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvr := vmem_read_load_bare (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1) sSail
     bm region b0 b1 b2 b3 b4 b5 b6 b7 h_rs h_valign h_match h_read h_palign hclint hsig hhtif
     hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7
-  have hdata := hrel.mem_agree (sRv.getReg rs1 + signExtend12 offset)
+  have halign8 : (sRv.getReg rs1 + signExtend12 offset).toNat % 8 = 0 := by
+    have h := h_valign
+    unfold is_aligned_vaddr Sail.BitVec.toNatInt at h
+    rw [beq_iff_eq] at h
+    exact Int.ofNat_inj.mp h
+  have hdata := hrel.mem_agree (sRv.getReg rs1 + signExtend12 offset) halign8
   refine ⟨sailStateWithReg sSail rd
       (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat), ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
@@ -772,11 +777,11 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
       Sail.BitVec.signExtend, BitVec.signExtend_eq, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure]
   · -- abstraction relation holds for the post-state
-    refine ⟨fun r => ?_, fun a => ?_⟩
+    refine ⟨fun r => ?_, fun a ha => ?_⟩
     · rw [hdata]
       simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 end EvmAsm.Rv64.SailEquiv

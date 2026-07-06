@@ -59,7 +59,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd40 : decide (p < 48) = true := by simp; omega
     have hd48 : decide (p < 56) = true := by simp; omega
     simp only [hp64, hd0, hd8, hd16, hd24, hd32, hd40, hd48,
-               Bool.true_and, Bool.not_true, Bool.false_and, Bool.false_or, Bool.or_false]
+               Bool.true_and, Bool.not_true, Bool.false_and, Bool.or_false]
     rw [show p / 8 = 0 from Nat.div_eq_of_lt h0, show p % 8 = p from Nat.mod_eq_of_lt h0]
     simp
   rcases Nat.lt_or_ge p 16 with h1 | h1
@@ -74,7 +74,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 8 < 64) = true := by simp; omega
     simp only [hp64, hge0, hd8, hd16, hd24, hd32, hd40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega), Bool.false_or]
     rw [show p / 8 = 1 from by omega, show p % 8 = p - 8 from by omega]
   rcases Nat.lt_or_ge p 24 with h2 | h2
@@ -89,7 +89,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 16 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hd16, hd24, hd32, hd40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega), Bool.and_false, Bool.false_or]
     rw [show p / 8 = 2 from by omega, show p % 8 = p - 16 from by omega]
@@ -105,7 +105,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 24 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hge16, hd24, hd32, hd40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 2) 0) (p - 16) (by omega),
@@ -123,7 +123,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 32 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hge16, hge24, hd32, hd40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 2) 0) (p - 16) (by omega),
@@ -142,7 +142,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 40 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hge16, hge24, hge32, hd40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 2) 0) (p - 16) (by omega),
@@ -162,7 +162,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hd_s  : decide (p - 48 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hge16, hge24, hge32, hge40, hd48, hd_s,
                Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.or_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 2) 0) (p - 16) (by omega),
@@ -181,8 +181,7 @@ theorem reconstructDword_getLsbD (mem : Std.ExtHashMap Nat (BitVec 8)) (base p :
     have hge48 : decide (p < 56) = false := by simp; omega
     have hd_s  : decide (p - 56 < 64) = true := by simp; omega
     simp only [hp64, hge0, hge8, hge16, hge24, hge32, hge40, hge48, hd_s,
-               Bool.true_and, Bool.not_false, Bool.not_true, Bool.false_and,
-               Bool.false_or, Bool.or_false]
+               Bool.true_and, Bool.not_false]
     simp only [BitVec.getLsbD_of_ge (mem.getD base 0) p (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 1) 0) (p - 8) (by omega),
                BitVec.getLsbD_of_ge (mem.getD (base + 2) 0) (p - 16) (by omega),

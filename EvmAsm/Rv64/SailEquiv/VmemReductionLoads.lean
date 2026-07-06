@@ -26,6 +26,32 @@ namespace EvmAsm.Rv64.SailEquiv
 -- Alignment plumbing
 -- ============================================================================
 
+/-- The aligned base plus the byte offset reconstructs the original address, in `Nat` form.
+    Disjoint-bit decomposition (proved WITHOUT `bv_decide`): the aligned base holds the high
+    bits (`addr.toNat / 8 * 8`), the byte offset the low 3 bits (`addr.toNat % 8`).
+    (Lived in `ByteOps.lean` before the toy-model files were evolved upstream; its only
+    consumers are the SailEquiv load bridges below.) -/
+theorem alignToDword_add_byteOffset_toNat (addr : Word) :
+    (alignToDword addr).toNat + byteOffset addr = addr.toNat := by
+  unfold alignToDword byteOffset
+  simp only [BitVec.toNat_and, BitVec.toNat_not, BitVec.toNat_ofNat,
+             show (7 : Nat) % 2 ^ 64 = 7 from rfl]
+  have hlo : addr.toNat &&& 7 = addr.toNat % 8 := by
+    have h := Nat.and_two_pow_sub_one_eq_mod addr.toNat 3
+    simpa using h
+  have hhi_mod : (addr.toNat &&& (2 ^ 64 - 1 - 7)) % 8 = 0 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_mod_two_pow,
+        show (2 ^ 64 - 1 - 7 : Nat) % 2 ^ 3 = 0 from by decide]
+    simp
+  have hhi_div : (addr.toNat &&& (2 ^ 64 - 1 - 7)) / 8 = addr.toNat / 8 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_div_two_pow,
+        show (2 ^ 64 - 1 - 7 : Nat) / 2 ^ 3 = 2 ^ 61 - 1 from by decide]
+    exact Nat.and_two_pow_sub_one_of_lt_two_pow (by have := addr.isLt; omega)
+  have hhi : addr.toNat &&& (2 ^ 64 - 1 - 7) = addr.toNat / 8 * 8 := by
+    have heucl := Nat.div_add_mod (addr.toNat &&& (2 ^ 64 - 1 - 7)) 8
+    omega
+  rw [hlo, hhi]; omega
+
 /-- Aligned base + the rounded byte offset reconstructs the access address (Nat form).
     For a `w`-aligned address (`w ∈ {1,2,4}`), `(byteOffset addr / w) * w = byteOffset addr`. -/
 theorem alignToDword_offset_eq (addr : Word) (w : Nat) (hw : w = 1 ∨ w = 2 ∨ w = 4)
@@ -37,7 +63,7 @@ theorem alignToDword_offset_eq (addr : Word) (w : Nat) (hw : w = 1 ∨ w = 2 ∨
     have h7 : (7#64).toNat = 7 := by decide
     rw [h7]
     have key := Nat.and_two_pow_sub_one_eq_mod addr.toNat 3
-    simp only [show (2:Nat)^3 - 1 = 7 from rfl, show (2:Nat)^3 = 8 from rfl] at key
+    simp only [show (2:Nat)^3 = 8 from rfl] at key
     exact key
   have hnat_eq : (alignToDword addr).toNat + byteOffset addr = addr.toNat :=
     alignToDword_add_byteOffset_toNat addr
@@ -50,6 +76,16 @@ theorem is_aligned_vaddr_toNat (addr : Word) (w : Nat)
   rw [beq_iff_eq] at h
   have h2 : (Int.ofNat (addr.toNat % w)) = Int.ofNat 0 := h
   exact Int.ofNat_inj.mp h2
+
+/-- The dword-aligned base is 8-aligned in `Nat` form — discharges the alignment
+    hypothesis of `StateRel.mem_agree` at `alignToDword` addresses. -/
+theorem alignToDword_toNat_mod8 (addr : Word) : (alignToDword addr).toNat % 8 = 0 := by
+  have h := alignToDword_byteOffset_zero addr
+  unfold byteOffset at h
+  rw [BitVec.toNat_and, show (7#64).toNat = 7 from rfl] at h
+  have key : (alignToDword addr).toNat &&& 7 = (alignToDword addr).toNat % 8 := by
+    simpa using Nat.and_two_pow_sub_one_eq_mod (alignToDword addr).toNat 3
+  rw [← key]; exact h
 
 -- ============================================================================
 -- Word loads (LW / LWU), width 4
@@ -104,7 +140,8 @@ theorem lw_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hbridge : sRv.getWord32 (sRv.getReg rs1 + signExtend12 offset)
       = ((b3.append b2).append b1).append b0 := by
     simp only [MachineState.getWord32]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hpos : byteOffset (sRv.getReg rs1 + signExtend12 offset) / 4 < 2 := by
       have := byteOffset_lt_8 (addr := sRv.getReg rs1 + signExtend12 offset); omega
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
@@ -138,13 +175,13 @@ theorem lw_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (Result.Ok (((b3.append b2).append b1).append b0), sSail) from by
       simp only [runSail, hvr]]
     simp only [extend_value, Bool.false_eq_true, if_false, sign_extend,
-      Sail.BitVec.signExtend, BitVec.signExtend_eq, runSail_bind, runSail_wX_bits_of_reg,
+      Sail.BitVec.signExtend, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 /-- **`lwu_sail_equiv` discharged.** Word load, zero-extended (unsigned). -/
 theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -193,7 +230,8 @@ theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hbridge : sRv.getWord32 (sRv.getReg rs1 + signExtend12 offset)
       = ((b3.append b2).append b1).append b0 := by
     simp only [MachineState.getWord32]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hpos : byteOffset (sRv.getReg rs1 + signExtend12 offset) / 4 < 2 := by
       have := byteOffset_lt_8 (addr := sRv.getReg rs1 + signExtend12 offset); omega
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
@@ -229,11 +267,11 @@ theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [extend_value, if_true, zero_extend, Sail.BitVec.zeroExtend,
       BitVec.zeroExtend_eq_setWidth, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 -- ============================================================================
 -- Halfword loads (LH / LHU), width 2
@@ -282,7 +320,8 @@ theorem lh_sail_equiv (sRv : MachineState) (sSail : SailState)
     (b1.append b0) bm h_rs (by simpa using hvra)
   have hbridge : sRv.getHalfword (sRv.getReg rs1 + signExtend12 offset) = b1.append b0 := by
     simp only [MachineState.getHalfword]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hpos : byteOffset (sRv.getReg rs1 + signExtend12 offset) / 2 < 4 := by
       have := byteOffset_lt_8 (addr := sRv.getReg rs1 + signExtend12 offset); omega
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
@@ -307,13 +346,13 @@ theorem lh_sail_equiv (sRv : MachineState) (sSail : SailState)
           (MemoryAccessType.Load mem_payload.Data) false false false) sSail
         = some (Result.Ok (b1.append b0), sSail) from by simp only [runSail, hvr]]
     simp only [extend_value, Bool.false_eq_true, if_false, sign_extend,
-      Sail.BitVec.signExtend, BitVec.signExtend_eq, runSail_bind, runSail_wX_bits_of_reg,
+      Sail.BitVec.signExtend, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 /-- **`lhu_sail_equiv` discharged.** Halfword load, zero-extended (unsigned). -/
 theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -358,7 +397,8 @@ theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
     (b1.append b0) bm h_rs (by simpa using hvra)
   have hbridge : sRv.getHalfword (sRv.getReg rs1 + signExtend12 offset) = b1.append b0 := by
     simp only [MachineState.getHalfword]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hpos : byteOffset (sRv.getReg rs1 + signExtend12 offset) / 2 < 4 := by
       have := byteOffset_lt_8 (addr := sRv.getReg rs1 + signExtend12 offset); omega
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
@@ -385,11 +425,11 @@ theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [extend_value, if_true, zero_extend, Sail.BitVec.zeroExtend,
       BitVec.zeroExtend_eq_setWidth, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 -- ============================================================================
 -- Byte loads (LB / LBU), width 1
@@ -437,7 +477,8 @@ theorem lb_sail_equiv (sRv : MachineState) (sSail : SailState)
     b0 bm h_rs (by simpa using hvra)
   have hbridge : sRv.getByte (sRv.getReg rs1 + signExtend12 offset) = b0 := by
     simp only [MachineState.getByte]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
         + (byteOffset (sRv.getReg rs1 + signExtend12 offset) / 1) * 1
         = (sRv.getReg rs1 + signExtend12 offset).toNat :=
@@ -458,13 +499,13 @@ theorem lb_sail_equiv (sRv : MachineState) (sSail : SailState)
           (MemoryAccessType.Load mem_payload.Data) false false false) sSail
         = some (Result.Ok b0, sSail) from by simp only [runSail, hvr]]
     simp only [extend_value, Bool.false_eq_true, if_false, sign_extend,
-      Sail.BitVec.signExtend, BitVec.signExtend_eq, runSail_bind, runSail_wX_bits_of_reg,
+      Sail.BitVec.signExtend, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 /-- **`lbu_sail_equiv` discharged.** Byte load, zero-extended (unsigned). -/
 theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -508,7 +549,8 @@ theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
     b0 bm h_rs (by simpa using hvra)
   have hbridge : sRv.getByte (sRv.getReg rs1 + signExtend12 offset) = b0 := by
     simp only [MachineState.getByte]
-    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))]
+    rw [← hrel.mem_agree (alignToDword (sRv.getReg rs1 + signExtend12 offset))
+          (alignToDword_toNat_mod8 _)]
     have hbase : (alignToDword (sRv.getReg rs1 + signExtend12 offset)).toNat
         + (byteOffset (sRv.getReg rs1 + signExtend12 offset) / 1) * 1
         = (sRv.getReg rs1 + signExtend12 offset).toNat :=
@@ -531,10 +573,10 @@ theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [extend_value, if_true, zero_extend, Sail.BitVec.zeroExtend,
       BitVec.zeroExtend_eq_setWidth, runSail_bind, runSail_wX_bits_of_reg,
       runSail_pure, hbridge]
-  · refine ⟨fun r => ?_, fun a => ?_⟩
+  · refine ⟨fun r => ?_, fun a ha => ?_⟩
     · simpa [execInstrBr, MachineState.setPC]
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
-        using hrel.mem_agree a
+        using hrel.mem_agree a ha
 
 end EvmAsm.Rv64.SailEquiv

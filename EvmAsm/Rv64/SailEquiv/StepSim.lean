@@ -8,7 +8,8 @@
   ## Scope (tiers)
 
   The 49 `Instr` constructors that `toSailInstr?` maps (everything except the pseudo
-  `MV`/`LI`/`NOP`, which map to `none`) split by the preconditions their equivalence
+  `MV`/`LI`/`NOP` and the ZisK accelerator call `CSRS`, which map to `none`) split by
+  the preconditions their equivalence
   needs — a consequence of `StateRel` tracking only the 32 integer registers and
   memory (NOT the PC or any CSR):
 
@@ -41,12 +42,13 @@ namespace EvmAsm.Rv64
 /-- Instructions whose SAIL-equivalence is unconditional — provable from `StateRel`
     alone (register + memory agreement), with no PC/CSR/alignment side conditions.
 
-    Excludes: the 6 system/pseudo constructors (`ECALL`/`EBREAK`/`FENCE`/`MV`/`LI`/
-    `NOP`); the 11 memory ops (need the bare-mode `vmem` discharge); and the 9
+    Excludes: the 7 system/pseudo constructors (`ECALL`/`EBREAK`/`FENCE`/`MV`/`LI`/
+    `NOP`/`CSRS` — the last is the ZisK accelerator call, outside the SAIL bridge);
+    the 11 memory ops (need the bare-mode `vmem` discharge); and the 9
     control-flow ops (`AUIPC`, the conditional branches, `JAL`, `JALR` — need PC/CSR
     agreement and jump-target alignment). -/
 def Instr.simulableUncond : Instr → Bool
-  | .ECALL | .EBREAK | .FENCE | .MV .. | .LI .. | .NOP => false
+  | .ECALL | .EBREAK | .FENCE | .MV .. | .LI .. | .NOP | .CSRS .. => false
   | .LD .. | .LW .. | .LWU .. | .LB .. | .LBU .. | .LH .. | .LHU .. => false
   | .SD .. | .SW .. | .SB .. | .SH .. => false
   | .AUIPC .. => false
@@ -64,7 +66,7 @@ local macro "sim_step" lemma:term : tactic =>
   `(tactic| (simp only [toSailInstr?, Option.some.injEq] at h
              subst h
              simp only [execute]
-             apply $lemma <;> exact hrel))
+             apply $lemma <;> first | exact hrel | exact h_nextpc))
 
 -- `no_sim`: discharge an excluded (non-`simulableUncond`) case — `simulableUncond i`
 -- reduces to `false`, contradicting `huncond`.
@@ -77,16 +79,20 @@ set_option maxHeartbeats 800000 in
 
     For every `Instr` whose equivalence holds from `StateRel` alone, executing the
     bridged SAIL instruction `si = toSailInstr? i` retires successfully and lands in a
-    state related (by `StateRel`) to the toy model's `execInstrBr` result. One object
-    subsuming the 29 unconditional per-instruction `*_sail_equiv` lemmas. -/
+    state related (by `StateRel`) to the toy model's `execInstrBr` result, preserving
+    `nextPC` agreement (the per-instruction lemmas thread `nextPC = pc + 4` through, so
+    the consolidated form does too). One object subsuming the 29 unconditional
+    per-instruction `*_sail_equiv` lemmas. -/
 theorem step_execute_sail_sim_uncond
     (sRv : MachineState) (sSail : SailState) (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
     (i : Instr) (si : SailInstr)
     (h : toSailInstr? i = some si)
     (huncond : i.simulableUncond = true) :
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv i) sSail' := by
+      StateRel (execInstrBr sRv i) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   cases i with
   | ADD _ _ _    => sim_step add_sail_equiv
   | SUB _ _ _    => sim_step sub_sail_equiv
@@ -131,6 +137,7 @@ theorem step_execute_sail_sim_uncond
   | MV _ _       => no_sim
   | LI _ _       => no_sim
   | NOP          => no_sim
+  | CSRS _ _     => no_sim
   | ADDIW _ _ _  => sim_step addiw_sail_equiv
   | ECALL        => no_sim
   | FENCE        => no_sim
