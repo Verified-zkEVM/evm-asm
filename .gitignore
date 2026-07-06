@@ -17,3 +17,4 @@ cycles-history.jsonl
 # committed; only need to exist in the working tree to start the next session.
 docs/agents/phase*-bootstrap.md
 docs/agents/rollout-complete.md
+build.log
