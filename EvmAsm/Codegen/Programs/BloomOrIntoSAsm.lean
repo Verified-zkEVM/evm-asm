@@ -186,6 +186,293 @@ def bloomOrIntoFn (src dst : Word) (srcBytes orig : List (BitVec 8)) : Fn where
     rf.get .x10 = 0 ∧ ws = (List.range 256).map (orByte srcBytes orig)
   body := bloomOrBody src dst srcBytes orig
 
+/-! ## The correctness triple -/
+
+/-- Dropping the first `8*i` bytes of the `i`-window discards the OR'd prefix
+    and exposes the untouched original tail. -/
+theorem orWin_drop (src orig : List (BitVec 8)) (i : Nat) :
+    (orWin src orig i).drop (8 * i) = orig.drop (8 * i) := by
+  have h : ((List.range (8 * i)).map (orByte src orig)).length = 8 * i := by simp
+  rw [orWin, List.drop_append_of_le_length (le_of_eq h.symm),
+    List.drop_eq_nil_of_le (le_of_eq h), List.nil_append]
+
+/-- An `LD` that misses the writable window reads the read-only region
+    (dword form; local reprove of `MultiRw`'s private lemma). -/
+theorem ld_dword_romiss (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12) (v : Word)
+    (hmiss : ¬ inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 8)
+    (hv : ro.dwordAt (rf.get rs1 + signExtend12 ofs) = v) :
+    execInstrRF ro rwBase rf ws (.LD rd rs1 ofs) = (rf.set rd v, ws) := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+  rw [if_neg hmiss, hv]
+
+/-- Register file after one dword OR step (given the loaded dst dword `vdst`
+    and src dword `vsrc`): `x28 := vdst ||| vsrc`, both cursors `+8`, count `-1`. -/
+def orStepRf (rf : RegFile) (vdst vsrc : Word) : RegFile :=
+  ((((rf.set .x28 vdst).set .x29 vsrc).set .x28 (vdst ||| vsrc)).set .x6
+        (rf.get .x6 + signExtend12 (8 : BitVec 12))).set .x7
+        (rf.get .x7 + signExtend12 (8 : BitVec 12)) |>.set .x5
+        (rf.get .x5 + signExtend12 (-1 : BitVec 12))
+
+theorem orStepRf_get_x5 (rf : RegFile) (vdst vsrc : Word) :
+    (orStepRf rf vdst vsrc).get .x5 = rf.get .x5 + signExtend12 (-1 : BitVec 12) := by
+  unfold orStepRf
+  rw [RegFile.get_set_self _ _ _ (by decide : Reg.x5 ≠ .x0)]
+
+theorem orStepRf_get_x6 (rf : RegFile) (vdst vsrc : Word) :
+    (orStepRf rf vdst vsrc).get .x6 = rf.get .x6 + signExtend12 (8 : BitVec 12) := by
+  unfold orStepRf
+  rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x5),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x7),
+    RegFile.get_set_self _ _ _ (by decide : Reg.x6 ≠ .x0)]
+
+theorem orStepRf_get_x7 (rf : RegFile) (vdst vsrc : Word) :
+    (orStepRf rf vdst vsrc).get .x7 = rf.get .x7 + signExtend12 (8 : BitVec 12) := by
+  unfold orStepRf
+  rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x5),
+    RegFile.get_set_self _ _ _ (by decide : Reg.x7 ≠ .x0)]
+
+/-- **The dword OR-step engine** (own heartbeat budget): one loop body loads
+    the dst cell (RW), loads the src cell (RO miss), ORs them, stores the
+    result back into the dst cell, and advances both cursors + the count. -/
+theorem or_step_engine (src dst : Word) (i : Nat) (srcBytes : List (BitVec 8))
+    (rf : RegFile) (ws : List (BitVec 8))
+    (hx6 : rf.get .x6 = dst + BitVec.ofNat 64 (8 * i))
+    (hx7 : rf.get .x7 = src + BitVec.ofNat 64 (8 * i))
+    (hi : i < 32)
+    (hsrc : src.toNat + 256 < 2 ^ 64) (hdst : dst.toNat + 256 < 2 ^ 64)
+    (hdisj : src.toNat + 256 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat)
+    (hws : ws.length = 256) :
+    execBlock ⟨src, srcBytes⟩ dst rf ws orStepBlock
+      = (orStepRf rf (packBytes ((ws.drop (8 * i)).take 8))
+            (packBytes ((srcBytes.drop (8 * i)).take 8)),
+         setBytes ws (8 * i)
+           (dwordBytes (packBytes ((ws.drop (8 * i)).take 8)
+             ||| packBytes ((srcBytes.drop (8 * i)).take 8)))) := by
+  have hse_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have hi8 : (BitVec.ofNat 64 (8 * i)).toNat = 8 * i := by
+    rw [BitVec.toNat_ofNat]; omega
+  -- dst LD address: offset `8*i` into the writable window
+  have hdst_addr : (rf.get .x6 + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * i := by
+    rw [hx6, hse_0]; bv_omega
+  -- src LD address (register x7 survives the first load into x28)
+  have hx7' : (rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+      + signExtend12 (0 : BitVec 12) = src + BitVec.ofNat 64 (8 * i) := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x28), hx7, hse_0]; simp
+  -- the src LD misses the writable window (disjointness)
+  have hmiss : ¬ inRw dst ws
+      ((rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+        + signExtend12 (0 : BitVec 12)) 8 := by
+    rw [hx7']; unfold inRw; rw [hws]
+    have hsubd : (src + BitVec.ofNat 64 (8 * i) - dst).toNat
+        = (src.toNat + 8 * i + (2 ^ 64 - dst.toNat)) % 2 ^ 64 := by
+      rw [BitVec.toNat_sub, BitVec.toNat_add, hi8]; congr 1; omega
+    rw [hsubd]; rcases hdisj with hd | hd <;> omega
+  -- the src cell read from the read-only region
+  have hsrcval : Region.dwordAt ⟨src, srcBytes⟩
+      ((rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+        + signExtend12 (0 : BitVec 12))
+      = packBytes ((srcBytes.drop (8 * i)).take 8) := by
+    rw [hx7']
+    show packBytes ((srcBytes.drop ((src + BitVec.ofNat 64 (8 * i) - src).toNat)).take 8)
+      = packBytes ((srcBytes.drop (8 * i)).take 8)
+    rw [show (src + BitVec.ofNat 64 (8 * i) - src).toNat = 8 * i by
+      rw [BitVec.toNat_sub, BitVec.toNat_add, hi8]; omega]
+  rw [show orStepBlock = [.LD .x28 .x6 (0 : BitVec 12), .LD .x29 .x7 (0 : BitVec 12),
+      .OR .x28 .x28 .x29, .SD .x6 .x28 (0 : BitVec 12),
+      .ADDI .x6 .x6 (8 : BitVec 12), .ADDI .x7 .x7 (8 : BitVec 12),
+      .ADDI .x5 .x5 (-1 : BitVec 12)] from rfl]
+  -- LD dst (writable window, offset 8*i)
+  rw [execBlock_cons, execInstrRF_ld_dword _ _ _ _ _ _ _ (8 * i)
+      (packBytes ((ws.drop (8 * i)).take 8)) hdst_addr (by rw [hws]; omega) rfl]
+  dsimp only
+  -- LD src (read-only region)
+  rw [execBlock_cons, ld_dword_romiss _ _ _ _ _ _ _
+      (packBytes ((srcBytes.drop (8 * i)).take 8)) hmiss hsrcval]
+  dsimp only
+  -- OR
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [RegFile.get_set_self _ _ _ (by decide : Reg.x29 ≠ .x0),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x29),
+    RegFile.get_set_self _ _ _ (by decide : Reg.x28 ≠ .x0)]
+  -- SD dst (writable window, offset 8*i)
+  have hstore_addr : ((((rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).set .x29
+        (packBytes ((srcBytes.drop (8 * i)).take 8))).set .x28
+        (packBytes ((ws.drop (8 * i)).take 8) ||| packBytes ((srcBytes.drop (8 * i)).take 8))).get .x6
+        + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * i := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28),
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x29),
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28), hx6, hse_0]
+    bv_omega
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ (8 * i) hstore_addr]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide : Reg.x28 ≠ .x0)]
+  -- three ADDIs
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_nil]
+  -- align the register file with `orStepRf`
+  unfold orStepRf
+  simp only [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x29),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x6),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x28),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x29),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x28),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x29)]
+
+/-- **The `bloom_or_into` correctness triple.** -/
+theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf) (hrww : RwRegion.wf ⟨dst, 256⟩) (base : Word) :
+    (bloomOrIntoFn src dst srcBytes orig).Spec base := by
+  vcgen
+  case region => exact ⟨hwf, hrww⟩
+  case bloomOrInto.loop.inv_init =>
+    rintro rf ws A ⟨rf₀, ws₀, hlen₀,
+      ⟨hx10, hx11, rfl, hol', hsl', hsrcb, hdstb, hdisjb⟩, rfl, rfl⟩
+    simp only [proBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, ?_, by omega, hsl', hol', hsrcb, hdstb, hdisjb, ?_⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
+        RegFile.get_set_self _ _ _ (by decide : Reg.x5 ≠ .x0)]
+      rfl
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x7),
+        RegFile.get_set_self _ _ _ (by decide : Reg.x6 ≠ .x0),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), hx10]
+      simp
+    · rw [RegFile.get_set_self _ _ _ (by decide : Reg.x7 ≠ .x0),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x5), hx11]
+      simp
+    · rw [orWin_zero]
+  case bloomOrInto.loop.inv_step =>
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, hlen₀,
+      ⟨⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin⟩, hcond⟩, rfl, rfl⟩
+    have hwslen : ws₀.length = 256 := by
+      rw [hwin]; exact length_orWin srcBytes orig i holI (by omega)
+    simp only [show (bloomOrIntoFn src dst srcBytes orig).rw.base = dst from rfl,
+      show (bloomOrIntoFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl]
+    rw [or_step_engine src dst i srcBytes rf₀ ws₀ hx6 hx7 hi hsrcI hdstI hdisjI hwslen]
+    refine ⟨?_, ?_, ?_, by omega, hslI, holI, hsrcI, hdstI, hdisjI, ?_⟩
+    · rw [orStepRf_get_x5, hx5,
+        show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 (32 - i)).toNat = 32 - i := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (32 - (i + 1))).toNat = 32 - (i + 1) := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [orStepRf_get_x6, hx6,
+        show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 (8 * i)).toNat = 8 * i := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (8 * (i + 1))).toNat = 8 * (i + 1) := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [orStepRf_get_x7, hx7,
+        show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 (8 * i)).toNat = 8 * i := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (8 * (i + 1))).toNat = 8 * (i + 1) := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [hwin, orWin_drop, orWin_step srcBytes orig i holI hi]
+  case bloomOrInto.loop.exhausted =>
+    rintro rf ws A ⟨hx5, -, -, -, -, -, -, -, -, -⟩
+    simp only [Cond.holds, not_not]
+    rw [hx5, show (32 - 32 : Nat) = 0 from rfl]
+    rfl
+  case bloomOrInto.loop.body.step.mem =>
+    rintro rf ws A hwslen
+      ⟨i, hi, ⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin⟩, hcond⟩
+    have hws256 : ws.length = 256 := hwslen
+    have hse_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+    have hi8 : (BitVec.ofNat 64 (8 * i)).toNat = 8 * i := by rw [BitVec.toNat_ofNat]; omega
+    have hdst_addr : (rf.get .x6 + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * i := by
+      rw [hx6, hse_0]; bv_omega
+    have hx7' : (rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+        + signExtend12 (0 : BitVec 12) = src + BitVec.ofNat 64 (8 * i) := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ .x28), hx7, hse_0]; simp
+    have hsrc_addr : (src + BitVec.ofNat 64 (8 * i) - src).toNat = 8 * i := by
+      rw [BitVec.toNat_sub, BitVec.toNat_add, hi8]; omega
+    have hmiss : ¬ inRw dst ws
+        ((rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+          + signExtend12 (0 : BitVec 12)) 8 := by
+      rw [hx7']; unfold inRw; rw [hws256]
+      have hsubd : (src + BitVec.ofNat 64 (8 * i) - dst).toNat
+          = (src.toNat + 8 * i + (2 ^ 64 - dst.toNat)) % 2 ^ 64 := by
+        rw [BitVec.toNat_sub, BitVec.toNat_add, hi8]; congr 1; omega
+      rw [hsubd]; rcases hdisjI with hd | hd <;> omega
+    simp only [show (bloomOrIntoFn src dst srcBytes orig).rw.base = dst from rfl,
+      show (bloomOrIntoFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl]
+    rw [show orStepBlock = [.LD .x28 .x6 (0 : BitVec 12), .LD .x29 .x7 (0 : BitVec 12),
+        .OR .x28 .x28 .x29, .SD .x6 .x28 (0 : BitVec 12),
+        .ADDI .x6 .x6 (8 : BitVec 12), .ADDI .x7 .x7 (8 : BitVec 12),
+        .ADDI .x5 .x5 (-1 : BitVec 12)] from rfl]
+    refine ⟨?_, ?_⟩
+    · -- LD dst: routes to the writable window, aligned, fits
+      simp only [loadSem]
+      rw [if_pos (show inRw dst ws (rf.get .x6 + signExtend12 (0 : BitVec 12)) 8 from by
+        unfold inRw; rw [hdst_addr, hws256]; omega)]
+      unfold Region.loadOk
+      rw [hdst_addr, hws256]
+      exact ⟨⟨i, rfl⟩, by omega⟩
+    · rw [execInstrRF_ld_dword _ _ _ _ _ _ _ (8 * i)
+          (packBytes ((ws.drop (8 * i)).take 8)) hdst_addr (by rw [hws256]; omega) rfl]
+      refine ⟨?_, ?_⟩
+      · -- LD src: misses the writable window, routes to the read-only region
+        simp only [loadSem]
+        rw [if_neg hmiss]
+        unfold Region.loadOk
+        rw [hx7']
+        show 8 ∣ (src + BitVec.ofNat 64 (8 * i) - src).toNat
+          ∧ (src + BitVec.ofNat 64 (8 * i) - src).toNat + 8 ≤ srcBytes.length
+        rw [hsrc_addr, hslI]
+        exact ⟨⟨i, rfl⟩, by omega⟩
+      · rw [ld_dword_romiss _ _ _ _ _ _ _ (packBytes ((srcBytes.drop (8 * i)).take 8)) hmiss
+          (by
+            show Region.dwordAt ⟨src, srcBytes⟩
+                ((rf.set .x28 (packBytes ((ws.drop (8 * i)).take 8))).get .x7
+                  + signExtend12 (0 : BitVec 12)) = _
+            rw [hx7']
+            show packBytes ((srcBytes.drop ((src + BitVec.ofNat 64 (8 * i) - src).toNat)).take 8) = _
+            rw [hsrc_addr])]
+        -- [OR, SD, ADDI, ADDI, ADDI]
+        refine ⟨trivial, ?_⟩
+        dsimp only [execInstrRF, aluSem]
+        refine ⟨⟨?_, ?_⟩, blockVCs_of_not_hasLoad _ _ _ _ _ (by decide)⟩
+        · unfold inRw
+          rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28),
+            RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x29),
+            RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28), hdst_addr, hws256]
+          show 8 * i + 8 ≤ 256
+          omega
+        · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28),
+            RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x29),
+            RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28), hdst_addr]
+          exact ⟨i, rfl⟩
+  case bloomOrInto.post =>
+    rintro rf ws A ⟨rf₀, ws₀, hlen₀,
+      ⟨⟨i, hile, hx5, hx6, hx7, hi2, hslP, holP, hsrcP, hdstP, hdisjP, hwin⟩, hncond⟩,
+      rfl, rfl⟩
+    have hi32 : i = 32 := by
+      simp only [Cond.holds, not_not] at hncond
+      rw [hx5] at hncond
+      have hz : rf₀.get .x0 = 0 := rfl
+      rw [hz] at hncond
+      have : (BitVec.ofNat 64 (32 - i)).toNat = (0 : Word).toNat := by rw [hncond]
+      rw [show (0 : Word).toNat = 0 from rfl, BitVec.toNat_ofNat] at this
+      omega
+    subst hi32
+    refine ⟨?_, ?_⟩
+    · simp only [epiBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide : Reg.x10 ≠ .x0)]
+    · rw [hwin, orWin_full srcBytes orig holP]
+
 /-! ## Byte-identity to the emitted routine -/
 
 -- The structured flatten is exactly `bloomOrInto_prog` minus the trailing
