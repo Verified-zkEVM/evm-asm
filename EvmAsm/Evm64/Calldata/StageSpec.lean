@@ -32,7 +32,7 @@ namespace EvmAsm.Evm64
 namespace Calldata
 
 open EvmAsm.Rv64
-open EvmAsm.Evm64.EvmEnv (callDataPtrOff callDataLenOff)
+open EvmAsm.Evm64.EvmEnv
 
 /-- `pcFree` extended to close `bytesRegion _.pcFree` leaves (the base `pcFree`
     tactic handles only register atoms). -/
@@ -992,6 +992,70 @@ theorem evm_calldataload_staged_core_spec_within
       (memBase + BitVec.ofNat 64 (cdByteOff + normW.toNat + 32))
       (buf + BitVec.ofNat 64 32) (0 : Word)
       (BitVec.zeroExtend 64 (callDataByte windowBytes 7)) (out.getLimbN 3) buf _ ?_
+    simp only [sepConj_assoc'] at hq ⊢; xperm_chunked hq
+
+/-- **The public staged CALLDATALOAD stack spec** (`0x35`, arena-free): pops
+    the 256-bit offset and pushes `callDataLoadWord data offsetWord.toNat` in
+    place, with the calldata modeled as a slice of the aligned parent-memory
+    region (`bytesRegion memBase memBytes`, `env.callDataPtr = memBase +
+    cdByteOff`, Option-1) rather than requiring an aligned calldata pointer.
+    The `env` block is framed through `envIs`; the staging buffer `buf` (64
+    bytes, tail-zero) is consumed and returned as `calldataRegionIs`.  This
+    is the arena-free CALLDATALOAD `.proven` registry witness. -/
+theorem evm_calldataload_staged_stack_spec_within
+    (base envAddr sp buf memBase : Word) (cdByteOff len : Nat)
+    (offsetWord : EvmWord) (env : EvmEnv) (rest : List EvmWord)
+    (data memBytes origBuf : List (BitVec 8))
+    (x5o x6o x7o x28o x29o x30o x31o offOld byteOld accOld addrOld : Word)
+    (h_cdp : env.callDataPtr = memBase + BitVec.ofNat 64 cdByteOff)
+    (h_len : data.length = env.callDataLen.toNat)
+    (h_len_def : len = env.callDataLen.toNat)
+    (h_data : data = (memBytes.drop cdByteOff).take len)
+    (h_mem_align : memBase.toNat % 8 = 0)
+    (h_buf_align : buf.toNat % 8 = 0)
+    (h_fits : cdByteOff + len ≤ memBytes.length)
+    (h_mem_over : memBase.toNat + memBytes.length + 32 ≤ 2 ^ 64)
+    (h_mem_valid : ∀ k, k < memBytes.length →
+      isValidByteAccess (memBase + BitVec.ofNat 64 k) = true)
+    (h_buf_over : buf.toNat + 64 < 2 ^ 64)
+    (h_buf_valid : ∀ k, k < 64 → isValidByteAccess (buf + BitVec.ofNat 64 k) = true)
+    (h_origBuf_len : origBuf.length = 64)
+    (h_origBuf_tail : origBuf.drop 32 = List.replicate 32 0) :
+    cpsTripleWithin 401 base (base + 484) (evm_calldataload_staged_code base)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ x5o) ** ((.x6 : Reg) ↦ᵣ x6o) ** ((.x7 : Reg) ↦ᵣ x7o) **
+       ((.x28 : Reg) ↦ᵣ x28o) ** ((.x29 : Reg) ↦ᵣ x29o) **
+       ((.x30 : Reg) ↦ᵣ x30o) ** ((.x31 : Reg) ↦ᵣ x31o) **
+       ((.x15 : Reg) ↦ᵣ offOld) ** ((.x16 : Reg) ↦ᵣ byteOld) **
+       ((.x17 : Reg) ↦ᵣ accOld) ** ((.x18 : Reg) ↦ᵣ addrOld) **
+       evmStackIs sp (offsetWord :: rest) ** envIs envAddr env **
+       bytesRegion buf origBuf ** bytesRegion memBase memBytes)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x14 : Reg) ↦ᵣ buf) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x28 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x15 **
+       regOwn .x16 ** regOwn .x17 ** regOwn .x18 **
+       evmStackIs sp (callDataLoadWord data offsetWord.toNat :: rest) **
+       envIs envAddr env **
+       calldataRegionIs buf (stagedWindowBytes data offsetWord.toNat) **
+       bytesRegion memBase memBytes) := by
+  have h_core := evm_calldataload_staged_core_spec_within base envAddr sp buf
+    memBase cdByteOff len offsetWord env.callDataLen data memBytes origBuf
+    x5o x6o x7o x28o x29o x30o x31o offOld byteOld accOld addrOld
+    h_len h_len_def h_data h_mem_align h_buf_align h_fits h_mem_over h_mem_valid
+    h_buf_over h_buf_valid h_origBuf_len h_origBuf_tail
+  rw [← h_cdp] at h_core
+  have h_framed := cpsTripleWithin_frameR
+    (evmStackIs (sp + 32) rest ** envIsCallDataPtrLenRest envAddr env)
+    (pcFree_sepConj pcFree_evmStackIs (by
+      unfold envIsCallDataPtrLenRest; pcFreeR)) h_core
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h_framed
+  · rw [evmStackIs_cons, envIs_callDataPtrLen_split envAddr env] at hp
+    dsimp only [evmWordIs] at hp
+    simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp
+  · rw [evmStackIs_cons, envIs_callDataPtrLen_split envAddr env]
+    dsimp only [evmWordIs]
     simp only [sepConj_assoc'] at hq ⊢; xperm_chunked hq
 
 
