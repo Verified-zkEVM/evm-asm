@@ -92,6 +92,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
