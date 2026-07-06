@@ -24,8 +24,17 @@ namespace EvmAsm.Codegen
     Currently referenced nowhere (kept for documentation of the arena sizes). -/
 def modexpBnMaxLimbs : Nat := 256
 
-/-- Scratch data section for the BigNum modexp backend. -/
+/-- Scratch data section for the BigNum modexp backend.
+
+    Emitted into `.data` (not `.text`): the modexp backend writes to these
+    arenas at runtime (memset on entry, then operand staging + mul/redc). If
+    they land in the read-only code section, ziskemu rejects the write
+    (`Mem::write_silent() invalid addr=… write section start=a0000000`) and
+    panics; spike silently tolerates the stray write into `.text`. Callers that
+    splice this inline between `.text` functions must restore `.section .text`
+    afterwards (see `Dispatch.lean`). -/
 def emitModexpBnScratchData : String :=
+  ".section .data\n" ++
   ".balign 8\n" ++
   "modexp_bn_base:\n" ++ "  .zero 2048\n" ++
   "modexp_bn_exp:\n" ++ "  .zero 2048\n" ++
