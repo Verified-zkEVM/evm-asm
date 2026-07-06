@@ -3120,13 +3120,15 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
-   -- lv44p.1: 32-byte zero-pad staging window for CALLDATALOAD (h_CALLDATALOAD
-   -- preBody). The verified mload body reads a raw 32-byte window with no
-   -- out-of-bounds guard; the handler stages a zero-padded copy here so reads
-   -- past env.callDataLen yield the EVM-mandated zero pad instead of adjacent
-   -- memory. Used transiently within one opcode dispatch (no re-entrancy: the
-   -- dispatcher runs one opcode at a time), so a single static buffer is sound.
-   "bv_cdl_stage:\n  .zero 32\n" ++
+   -- t1iqb: 64-byte zero-pad staging window for the VERIFIED arena-free
+   -- CALLDATALOAD (h_CALLDATALOAD body = evm_calldataload_staged). The staging
+   -- loop writes the 32-byte window into bytes [0,32); the window ladder reads a
+   -- calldataRegionIs footprint (window ++ 32-byte zero pad) = 64 bytes, so the
+   -- buffer is 64 bytes with the tail [32,64) statically zero (.balign 8 above
+   -- keeps it dword-aligned, matching the proof's buf%8=0 / tail-zero precond).
+   -- Used transiently within one opcode dispatch (no re-entrancy: the dispatcher
+   -- runs one opcode at a time), so a single static buffer is sound.
+   "bv_cdl_stage:\n  .zero 64\n" ++
    -- coc3g.9.3 (#9458 follow-up, bv_fail=53): EMPTY_CODE_HASH (keccak "") for the
    -- callDescendFallThrough empty-code-EOA routing fix. status 5 from
    -- code_at_header_state_root means code_hash not in witness.codes; for an

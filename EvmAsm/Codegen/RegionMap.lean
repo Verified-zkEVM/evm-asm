@@ -180,14 +180,16 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x59318
+    (`readelf -S`, `0x59320`). Link-layout-dependent; the drift guard re-derives it. -/
+def textSizeBytes : Nat := 0x59320
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x195156b0`). Link-layout-dependent. Grew by `0x4010000`
-    (~64 MiB) when the `.71` reconciliation raised `frameStride` `0x29000→0x39000`
-    (the `call_frame_arena` trailing pad = `frameArrayBytes - unionChildren`). -/
-def dataSizeBytes : Nat := 0x195156b0
+    (`readelf -S`, `0x195156d0`). Link-layout-dependent. Grew by `0x20` (32 B)
+    when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
+    CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
+    `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
+    `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
+def dataSizeBytes : Nat := 0x195156d0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
