@@ -99,5 +99,46 @@ theorem stageBufContent_set (copyBytes origBuf : List (BitVec 8)) (i : Nat)
         congr 1
         omega
 
+/-- Peel a pure `⌜fact⌝` from the right of the precondition into an ambient
+    hypothesis (same as `LoadSpec.cpsTripleWithin_of_pure_imp`). -/
+private theorem cpsTripleWithin_of_pure_imp
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} {fact : Prop}
+    (h : fact → cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** ⌜fact⌝) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, hpq⟩ := hPR
+  obtain ⟨h1, h2, hd, hunion, hPF, hR_⟩ := hpq
+  have hpf := (sepConj_pure_right h1).1 hPF
+  exact h hpf.2 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hunion, hpf.1, hR_⟩ hpc
+
+/-- `BitVec.ult` of two `memBase`-relative pointers reflects the `Nat` order of
+    their offsets, when neither addition wraps. -/
+theorem stage_ult_offsets (memBase : Word) (a b : Nat)
+    (ha : memBase.toNat + a < 2 ^ 64) (hb : memBase.toNat + b < 2 ^ 64)
+    (ha' : a < 2 ^ 64) (hb' : b < 2 ^ 64) :
+    BitVec.ult (memBase + BitVec.ofNat 64 a) (memBase + BitVec.ofNat 64 b)
+      = decide (a < b) := by
+  have hx : (memBase + BitVec.ofNat 64 a).toNat = memBase.toNat + a := by
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha',
+        Nat.mod_eq_of_lt ha]
+  have hy : (memBase + BitVec.ofNat 64 b).toNat = memBase.toNat + b := by
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hb',
+        Nat.mod_eq_of_lt hb]
+  simp only [BitVec.ult, hx, hy]
+  exact decide_eq_decide.mpr (by omega)
+
+/-! ## Copy-loop body + induction — DEFERRED (t1iqb phase B, WIP)
+
+The single-iteration `stage_body_spec_within` and the `n`-iteration
+`stage_copy_loop_spec_within` closure are in progress; the full WIP proof is
+saved at `scratchpad/StageSpec-body-wip.lean`.  The helpers above
+(`stage_copy_byte_eq`, `stageBufContent`+`_set`, `stage_ult_offsets`,
+`cpsTripleWithin_of_pure_imp`) are the proven foundations.  See the PR
+description for the remaining plan (body inner-branch framing, loop induction
+modelled on `cu64_loop_spec_within`, setup normalize-branch, compose with
+`calldataload_window_arm_core_spec_within`, stack/env lift). -/
+
 end Calldata
 end EvmAsm.Evm64
