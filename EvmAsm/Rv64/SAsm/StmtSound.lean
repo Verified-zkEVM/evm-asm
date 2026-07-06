@@ -1249,6 +1249,8 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact absurd hleaf (by simp [Stmt.callFree])
   | callReg lbl rs handles =>
       exact absurd hleaf (by simp [Stmt.callFree])
+  | callAt lbl roR f =>
+      exact absurd hleaf (by simp [Stmt.callFree])
   | callRegS lbl rs handles =>
       exact absurd hleaf (by simp [Stmt.callFree])
 
