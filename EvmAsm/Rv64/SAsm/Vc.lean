@@ -129,6 +129,12 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
   | callRegS _ rs handles, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
       reach rf₀ ws₀ A₀ ∧ ∃ h ∈ handles, rf₀.get rs = h.entry
         ∧ h.pre rf₀ ws₀ A₀ ∧ h.post rf₀ ws₀ A₀ rf ws A
+  | callAt _ roR f, reach => fun rf' ws' A'' => ∃ rf ws A rest,
+      ws.length = rw.len ∧ reach rf ws A
+      ∧ (∃ hp, (bytesRegion f.region.base f.region.bytes ** rest) hp)
+      ∧ roR rf ws A rest
+      ∧ f.post rf' ws' empAssertion
+      ∧ A'' = (bytesRegion f.region.base f.region.bytes ** rest)
 
 /-- Labeled verification conditions of a statement, given the reachable set
     at its entry.  `pfx` is the path prefix for labels. -/
@@ -247,6 +253,15 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
   | callRegS lbl rs handles, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A →
           ∃ h ∈ handles, rf.get rs = h.entry ∧ h.pre rf ws A⟩]
+  | callAt lbl roR f, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A → A.pcFree →
+          ∀ hp, A hp →
+          ∃ rest, roR rf ws A rest
+            ∧ (bytesRegion f.region.base f.region.bytes ** rest) hp
+            ∧ rest.pcFree⟩ ::
+      ⟨pfx ++ lbl ++ ".pre", ∀ rf ws A rest, ws.length = rw.len →
+          reach rf ws A → roR rf ws A rest → f.pre rf ws empAssertion⟩ ::
+      [⟨pfx ++ lbl ++ ".post_emp", ∀ rf ws A, f.post rf ws A → A = empAssertion⟩]
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -268,6 +283,7 @@ def steps : Stmt → Nat
   | call _ f => 1 + f.nSteps
   | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
   | callRegS _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
+  | callAt _ _ f => 1 + f.nSteps
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
@@ -317,6 +333,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | callRegS lbl rs handles =>
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
       exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
+  | callAt lbl roR f =>
+      rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hr, hsat, hR, hpost, hA⟩
+      exact ⟨rf, ws, A, rest, hlen, h rf ws A hr, hsat, hR, hpost, hA⟩
 
 -- ============================================================================
 -- Structural `sp` eliminators (docs/sasm-howto.md, "Branchy straight-line
@@ -474,6 +493,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | call lbl f => exact nomatch h
   | callReg lbl rs handles => exact nomatch h
   | callRegS lbl rs handles => exact nomatch h
+  | callAt lbl roR f => exact nomatch h
 
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
@@ -648,6 +668,16 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+  | callAt lbl roR f =>
+      intro vc hvc
+      rcases List.mem_cons.mp hvc with rfl | hvc
+      · exact fun rf ws A hr hApc hp hA =>
+          hvcs.head rf ws A (h rf ws A hr) hApc hp hA
+      · rcases List.mem_cons.mp hvc with rfl | hvc
+        · exact fun rf ws A rest hlen hr =>
+            hvcs.tail.head rf ws A rest hlen (h rf ws A hr)
+        · rcases List.mem_singleton.mp hvc with rfl
+          exact hvcs.tail.tail.head
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
     shares the caller's regions.  Stated structurally (rather than as a union
@@ -677,6 +707,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | callRegS _ _ handles => ∀ h ∈ handles,
       (∀ a i, h.code a = some i → cr a = some i)
       ∧ h.region = reg ∧ h.rw = rw
+  | callAt _ _ f => (∀ a i, f.code a = some i → cr a = some i) ∧ f.rw = rw
 
 end Stmt
 
