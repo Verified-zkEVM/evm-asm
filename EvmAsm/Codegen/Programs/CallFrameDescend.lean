@@ -144,87 +144,29 @@ def callFrameSetCallEnvFunction : String :=
   "  ret"
 
 /-- `call_frame_set_calldata(a0 = child env base, a1 = parent mem base,
-    a2 = argsOff, a3 = argsLen, a4 = child depth)`: COPY the child's calldata
-    out of parent memory into a fresh, 8-aligned, 32-zero-byte-tailed
-    allocation of the `bv_calldata_arena` bump allocator, and point
-    `callDataPtr@416` at the copy (`callDataLen@424 = argsLen`).
+    a2 = argsOff, a3 = argsLen)`: alias the child's calldata view into the
+    parent frame's memory — `callDataPtr@416 = parent_mem + argsOff`,
+    `callDataLen@424 = argsLen`. No copy: the parent frame slot persists
+    (strictly shallower index) while the child runs, so CALLDATALOAD/COPY read
+    directly from it. Clobbers t0. -/
+def callFrameSetCalldata_prog : Program :=
+  [ .ADD .x5 .x11 .x12,
+    .SD .x10 .x5 (416 : BitVec 12),
+    .SD .x10 .x13 (424 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
-    This replaces the former no-copy alias (`callDataPtr = parent_mem +
-    argsOff`): the copy is what establishes the `CalldataRegionWf`/
-    `paddedCallData` region contract (`EvmAsm/Evm64/Calldata/Region.lean`)
-    the verified `evm_calldataload` opcode program consumes — the alias was
-    byte-granular (not 8-aligned) and had live parent memory, not zeros,
-    after `argsLen`.
-
-    Allocation: `base = cursor; cursor += round8(argsLen + 32)`;
-    `cd_alloc_base[a4] = base` so `frame_return` restores the cursor when the
-    child frame pops (the single unwind point, incl. exceptional halts). The
-    cursor lazily initializes to the arena base when 0 (standalone probes
-    skip the dispatcher setup that seeds it). The 32-byte zero tail is
-    (re)written on every allocation — arena bytes are reused by sibling
-    calls and later txs.
-
-    Over-capacity (allocation would pass `bv_calldata_arena_end`): set
-    `bv_calldata_overflow` and continue deterministically with EMPTY calldata
-    (len 0). The flag is consumed at the receipts tail exactly like
-    `evm_log_data_overflow` — the run refuses to attest (conservative
-    reject), never a wrong verdict. Unreachable below ~129 max-arg
-    (128 KiB) simultaneously-live frames (`CallFrameLayout.calldataArenaBytes`
-    cap derivation).
-
-    Clobbers t0-t4; preserves a0-a4. Follow-up bead: SAsm-verify this loop
-    (whileS, `msetMemcpyFn_spec` pattern) — until then it is reviewed
-    setup asm like its `call_frame_enter`/`call_frame_set_call_env`
-    siblings (the former 4-instr alias `Program` and its byte-identity pin
-    were retired with the alias). -/
 def callFrameSetCalldataFunction : String :=
-  "call_frame_set_calldata:\n" ++
-  "  la t0, bv_calldata_cursor\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lcfsc_have_cursor\n" ++
-  "  la t1, bv_calldata_arena\n" ++
-  ".Lcfsc_have_cursor:\n" ++
-  "  addi t2, a3, 39\n" ++            -- argsLen + 32 (zero tail) + 7 (round8)
-  "  srli t2, t2, 3\n" ++
-  "  slli t2, t2, 3\n" ++
-  "  add t2, t1, t2\n" ++             -- t2 = new cursor
-  "  la t3, bv_calldata_arena_end\n" ++
-  "  bgtu t2, t3, .Lcfsc_overflow\n" ++
-  "  sd t2, 0(t0)\n" ++               -- commit cursor
-  "  la t0, cd_alloc_base\n" ++
-  "  slli t4, a4, 3\n" ++
-  "  add t0, t0, t4\n" ++
-  "  sd t1, 0(t0)\n" ++               -- cd_alloc_base[depth] = base
-  "  add t0, a1, a2\n" ++             -- t0 = src = parent_mem + argsOff
-  "  mv t2, t1\n" ++                  -- t2 = dst cursor
-  "  mv t4, a3\n" ++                  -- t4 = remaining bytes
-  ".Lcfsc_copy:\n" ++
-  "  beqz t4, .Lcfsc_copy_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lcfsc_copy\n" ++
-  ".Lcfsc_copy_done:\n" ++
-  "  li t4, 32\n" ++                  -- 32-byte zero tail (paddedCallData)
-  ".Lcfsc_zero:\n" ++
-  "  sb x0, 0(t2)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lcfsc_zero\n" ++
-  "  sd t1, 416(a0)\n" ++             -- child env.callDataPtr = padded copy base
-  "  sd a3, 424(a0)\n" ++             -- child env.callDataLen = argsLen
-  "  ret\n" ++
-  ".Lcfsc_overflow:\n" ++
-  "  la t0, bv_calldata_overflow\n" ++
-  "  li t2, 1\n" ++
-  "  sd t2, 0(t0)\n" ++
-  "  sd t1, 416(a0)\n" ++             -- deterministic continuation: empty calldata
-  "  sd x0, 424(a0)\n" ++
-  "  ret"
+  "call_frame_set_calldata:\n" ++ emitProgram callFrameSetCalldata_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `callFrameSetCalldata_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem callFrameSetCalldataFunction_eq_prog :
+    callFrameSetCalldataFunction = "call_frame_set_calldata:\n" ++ emitProgram callFrameSetCalldata_prog := rfl
 
 #guard callFrameSetCalldataFunction.startsWith "call_frame_set_calldata:\n"
+#guard callFrameSetCalldata_prog.length = 4
 /-- `call_frame_forward_gas(a0 = gas_left, a1 = requested, a2 = value_nonzero)`:
     EIP-150 message-call gas forwarding (`vm/gas.py:419,424,64,415`). Returns
     `a0 = min(requested, gas_left - gas_left/64) + (value_nonzero ? 2300 : 0)`.
@@ -343,12 +285,10 @@ def callFrameDescendFunction : String :=
   "  ld a3, 8(s7)                   # value_ptr\n" ++
   "  ld a4, 16(s7)                  # is_static\n" ++
   "  jal ra, call_frame_set_call_env\n" ++
-  -- 6. copy child calldata out of the (still-live) parent memory into a
-  --    fresh padded bv_calldata_arena allocation (CalldataRegionWf contract).
+  -- 6. alias child calldata into the (still-live) parent memory.
   "  mv a0, s9; mv a1, s2\n" ++
   "  ld a2, 24(s7)                  # argsOff\n" ++
   "  ld a3, 32(s7)                  # argsLen\n" ++
-  "  mv a4, s8                      # child depth (cd_alloc_base index)\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
   -- 7a. EIP-150 transfer_gas_cost: a value-bearing CALL/CALLCODE charges
   -- GAS_CALL_VALUE (9000) BEFORE the 63/64 forwarding cap (it is part of
@@ -630,14 +570,11 @@ def ziskCallDescendPrologue : String :=
   "  la a1, cfd_parent_env; la a2, cfd_to_word; la a3, cfd_value_word; li a4, 1\n" ++  -- STATICCALL
   "  jal ra, call_frame_set_call_env\n" ++
   "  ld t0, 96(a0); sd t0, 88(s0)\n" ++      -- child CALLVALUE limb0 (expect 0 = static)
-  -- Calldata copy test: child callDataPtr@416 = fresh bv_calldata_arena
-  -- allocation holding a byte-identical copy of parent_mem[argsOff..+len)
-  -- with a 32-byte zero tail; len@424 = argsLen.
+  -- Calldata alias test: child callDataPtr@416 = parent_mem + argsOff, len@424.
   "  la a0, call_frame_arena; li t0, 0x38400; add a0, a0, t0\n" ++
-  "  la t0, call_frame_arena; li t1, 0x5a; sb t1, 0x40(t0)\n" ++  -- seed src byte
-  "  la a1, call_frame_arena; li a2, 0x40; li a3, 0x20; li a4, 1\n" ++
+  "  la a1, call_frame_arena; li a2, 0x40; li a3, 0x20\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
-  "  ld t0, 416(a0); la t1, bv_calldata_arena; sub t0, t0, t1; sd t0, 96(s0)\n" ++ -- expect 0 (copy at arena base)
+  "  ld t0, 416(a0); la t1, call_frame_arena; sub t0, t0, t1; sd t0, 96(s0)\n" ++  -- expect 0x40
   "  ld t0, 424(a0); sd t0, 104(s0)\n" ++                                          -- expect 0x20
   -- Gas forward test (EIP-150 63/64 + stipend).
   "  li a0, 6400; li a1, 100000; li a2, 0; jal ra, call_frame_forward_gas; sd a0, 112(s0)\n" ++  -- 6300
@@ -659,15 +596,6 @@ def ziskCallDescendDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
-  -- Padded-calldata bump-allocator stubs (real regions live in the runtime
-  -- dispatcher data section; small arena — the probe allocates once).
-  ".balign 32\n" ++
-  "bv_calldata_arena:\n  .zero 4096\n" ++
-  "bv_calldata_arena_end:\n" ++
-  ".balign 8\n" ++
-  "bv_calldata_cursor:\n  .zero 8\n" ++
-  "bv_calldata_overflow:\n  .zero 8\n" ++
-  "cd_alloc_base:\n  .zero 8200\n" ++
   ".balign 8\n" ++
   "evm_call_depth:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -701,7 +629,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +88  child env.ADDRESS limb0         (expect 0xbb = to)
       +96  child env.CALLER limb0          (expect 0xaa = parent ADDRESS)
       +104 child env.CALLVALUE limb0       (expect 0x7  = value)
-      +112 child env.callDataPtr - &bv_calldata_arena (expect 0 = padded copy base)
+      +112 child env.callDataPtr - &pmem   (expect 0x40 = argsOff)
       +120 child env.callDataLen           (expect 0x20 = argsLen)
       +128 child env.gasRemaining          (expect 3300 = min(1000,98438)+2300)
       +136 child env.codeSize              (expect 0x33)
@@ -711,9 +639,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000)
       +176/+184 state-gas snapshots       (expect 12345/67890)
       +192/+200 refund/warmth snapshots   (expect 24680/5)
-      +208/+216 running bloom checkpoint  (expect word0/word31 copied)
-      +224 copied calldata byte [0]       (expect 0x5a seeded at pmem+argsOff)
-      +232 calldata zero-tail byte [len]  (expect 0) -/
+      +208/+216 running bloom checkpoint  (expect word0/word31 copied) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -734,8 +660,6 @@ def ziskCallFrameDescendPrologue : String :=
   -- to / value words.
   "  la t0, cfd2_to; li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, cfd2_val; li t1, 0x7; sd t1, 0(t0)\n" ++
-  -- Seed a source calldata byte at parent_mem[argsOff] so the copy is checkable.
-  "  la t0, cfd2_pmem; li t1, 0x5a; sb t1, 0x40(t0)\n" ++
   -- descriptor.
   "  la t0, cfd2_desc\n" ++
   "  la t1, cfd2_to;  sd t1, 0(t0)\n" ++
@@ -762,7 +686,7 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t0, 0(x20);   sd t0, 88(s0)\n" ++
   "  ld t0, 64(x20);  sd t0, 96(s0)\n" ++
   "  ld t0, 96(x20);  sd t0, 104(s0)\n" ++
-  "  la t1, bv_calldata_arena; ld t0, 416(x20); sub t0, t0, t1; sd t0, 112(s0)\n" ++
+  "  la t1, cfd2_pmem; ld t0, 416(x20); sub t0, t0, t1; sd t0, 112(s0)\n" ++
   "  ld t0, 424(x20); sd t0, 120(s0)\n" ++
   "  ld t0, 568(x20); sd t0, 128(s0)\n" ++
   "  ld t0, 496(x20); sd t0, 136(s0)\n" ++
@@ -773,9 +697,6 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t0, 640(x20); sd t0, 192(s0)\n" ++   -- expect 24680 (refund_acc, nxio8.4.2)
   "  ld t0, 648(x20); sd t0, 200(s0)\n" ++   -- expect 5 (warmth count, nxio8.4.3)
   "  la t0, rb_bloom_checkpoints; ld t1, 0(t0); sd t1, 208(s0); ld t1, 248(t0); sd t1, 216(s0)\n" ++
-  -- Padded-calldata copy checks: byte-identical copy + 32-byte zero tail.
-  "  ld t0, 416(x20); lbu t1, 0(t0); sd t1, 224(s0)\n" ++   -- copied src byte (expect 0x5a)
-  "  ld t0, 416(x20); lbu t1, 32(t0); sd t1, 232(s0)\n" ++  -- zero-tail byte at +argsLen (expect 0)
   -- child register bases.
   "  la t1, call_frame_arena; sub t0, x13, t1; sd t0, 56(s0)\n" ++
   "  la t1, call_frame_arena; sub t0, x20, t1; sd t0, 64(s0)\n" ++
@@ -837,15 +758,6 @@ def ziskCallFrameDescendDataSection : String :=
   "rb_running_block_bloom:\n  .zero 256\n" ++
   "rb_running_receipt_bloom:\n  .zero 256\n" ++
   "rb_bloom_checkpoints:\n  .zero 262144\n" ++
-  -- Padded-calldata bump-allocator stubs (real regions live in the runtime
-  -- dispatcher data section; small arena — the probe allocates once).
-  ".balign 32\n" ++
-  "bv_calldata_arena:\n  .zero 4096\n" ++
-  "bv_calldata_arena_end:\n" ++
-  ".balign 8\n" ++
-  "bv_calldata_cursor:\n  .zero 8\n" ++
-  "bv_calldata_overflow:\n  .zero 8\n" ++
-  "cd_alloc_base:\n  .zero 8200\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++

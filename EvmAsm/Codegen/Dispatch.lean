@@ -88,11 +88,6 @@ def evmStackGuardBytes : Nat := 512
     the canonical home). Value: `0x20000` (128 KiB). -/
 def runtimeMemoryBytes : Nat := frameMemBytes
 
--- Drift pin: the top-level calldata cap literal in
--- `emitRuntimeDispatcherSetupWithInputAsm` (`li x28, 16777184`) is
--- `calldataArenaBytes - 32` (one allocation = len + the 32-byte zero tail).
-#guard calldataArenaBytes - 32 = 16777184
-
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
     executable-code size (`MAX_INIT_CODE_SIZE` — initcode executes).
@@ -2226,51 +2221,9 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  slli x5, x5, 3\n" ++          -- x5 = padded bytecode length
   "  add x6, x10, x5\n" ++         -- x6 = &(calldata length)
   "  ld x7, 0(x6)\n" ++            -- x7 = calldata length
-  "  addi x6, x6, 8\n" ++          -- x6 = input calldata ptr (x6/x7 stay live for the walk below)
-  -- Padded-calldata region (verified CALLDATALOAD drop-in): copy the input
-  -- calldata into `bv_calldata_arena` and give it a 32-byte zero tail so
-  -- `env.callDataPtr` satisfies the `CalldataRegionWf`/`paddedCallData`
-  -- contract (EvmAsm/Evm64/Calldata/Region.lean) the verified opcode program
-  -- consumes. The input region itself keeps live data right after the
-  -- calldata bytes (pad + slot_count + preload), so it can never carry the
-  -- zero tail in place. Cap = CallFrameLayout.calldataArenaBytes (16 MiB);
-  -- over-cap exits conservatively BEFORE execution starts (same idiom as the
-  -- slot-count cap below). x28-x31 are dead in this window (x28's next use is
-  -- the slot-count cap); x5/x6/x7 are NOT disturbed — x6/x7 remain the input
-  -- walk cursor consumed at the slot-count step.
-  "  li x28, 16777184\n" ++        -- calldataArenaBytes - 32
-  "  bgtu x7, x28, .exit_invalid\n" ++
-  "  la x28, bv_calldata_arena\n" ++
-  "  sd x28, 416(x20)\n" ++        -- env.callDataPtrOff (416) = arena base (8-aligned)
+  "  addi x6, x6, 8\n" ++          -- x6 = calldata ptr
+  "  sd x6, 416(x20)\n" ++         -- env.callDataPtrOff (416) = ptr
   "  sd x7, 424(x20)\n" ++         -- env.callDataLenOff (424) = len
-  "  la x29, cd_alloc_base; sd x28, 0(x29)\n" ++      -- depth-0 allocation base
-  -- (bv_calldata_overflow is deliberately NOT reset here: the guest runs one
-  -- block per execution, so its .zero init is the per-block reset, and the
-  -- flag must survive across the block's per-tx dispatches to reach the
-  -- receipts-tail conservative check.)
-  "  mv x29, x6\n" ++              -- x29 = src cursor (input calldata)
-  "  mv x31, x7\n" ++              -- x31 = remaining bytes
-  ".cdl_arena_copy_loop:\n" ++
-  "  beqz x31, .cdl_arena_copy_done\n" ++
-  "  lbu x30, 0(x29)\n" ++
-  "  sb x30, 0(x28)\n" ++
-  "  addi x29, x29, 1\n" ++
-  "  addi x28, x28, 1\n" ++
-  "  addi x31, x31, -1\n" ++
-  "  j .cdl_arena_copy_loop\n" ++
-  ".cdl_arena_copy_done:\n" ++
-  "  li x31, 32\n" ++              -- 32-byte zero tail (paddedCallData)
-  ".cdl_arena_zero_tail:\n" ++
-  "  sb x0, 0(x28)\n" ++
-  "  addi x28, x28, 1\n" ++
-  "  addi x31, x31, -1\n" ++
-  "  bnez x31, .cdl_arena_zero_tail\n" ++
-  "  addi x30, x7, 39\n" ++        -- round8(len + 32)
-  "  srli x30, x30, 3\n" ++
-  "  slli x30, x30, 3\n" ++
-  "  la x29, bv_calldata_arena\n" ++
-  "  add x29, x29, x30\n" ++
-  "  la x28, bv_calldata_cursor; sd x29, 0(x28)\n" ++ -- bump cursor past depth-0 allocation
   -- M24: locate the storage preload segment past the calldata pad and
   -- expand each 64-byte (key, value) input entry into a 128-byte
   -- Option A entry (addrHash=0, slotKey=key, original=value,
@@ -3167,28 +3120,15 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
-   -- (lv44p.1 note: the former `bv_cdl_stage` 32-byte staging window is gone —
-   -- the verified full `evm_calldataload` handler reads the padded arena
-   -- below directly, so no per-op staging is needed.)
-   -- Padded-calldata bump arena (verified CALLDATALOAD drop-in; sizes are
-   -- single-sourced from CallFrameLayout.calldataArenaBytes /
-   -- .calldataAllocBaseBytes, fit pinned by calldataArena_and_layout_fit).
-   -- bv_calldata_arena holds one 8-aligned, 32-zero-byte-tailed copy of the
-   -- calldata per LIVE frame (depth-indexed bump allocation): the dispatcher
-   -- setup copies the top-level input calldata to the arena base;
-   -- call_frame_set_calldata allocates round8(argsLen+32) at bv_calldata_cursor
-   -- per CALL descend and records the base in cd_alloc_base[depth];
-   -- frame_return restores the cursor from cd_alloc_base[child_depth].
-   -- bv_calldata_overflow: set when an allocation would overrun the arena;
-   -- consumed like evm_log_data_overflow (conservative bail, never a wrong
-   -- verdict).
-   ".balign 32\n" ++
-   "bv_calldata_arena:\n  .zero " ++ toString calldataArenaBytes ++ "\n" ++
-   "bv_calldata_arena_end:\n" ++
-   ".balign 8\n" ++
-   "bv_calldata_cursor:\n  .zero 8\n" ++
-   "bv_calldata_overflow:\n  .zero 8\n" ++
-   "cd_alloc_base:\n  .zero " ++ toString calldataAllocBaseBytes ++ "\n" ++
+   -- t1iqb: 64-byte zero-pad staging window for the VERIFIED arena-free
+   -- CALLDATALOAD (h_CALLDATALOAD body = evm_calldataload_staged). The staging
+   -- loop writes the 32-byte window into bytes [0,32); the window ladder reads a
+   -- calldataRegionIs footprint (window ++ 32-byte zero pad) = 64 bytes, so the
+   -- buffer is 64 bytes with the tail [32,64) statically zero (.balign 8 above
+   -- keeps it dword-aligned, matching the proof's buf%8=0 / tail-zero precond).
+   -- Used transiently within one opcode dispatch (no re-entrancy: the dispatcher
+   -- runs one opcode at a time), so a single static buffer is sound.
+   "bv_cdl_stage:\n  .zero 64\n" ++
    -- coc3g.9.3 (#9458 follow-up, bv_fail=53): EMPTY_CODE_HASH (keccak "") for the
    -- callDescendFallThrough empty-code-EOA routing fix. status 5 from
    -- code_at_header_state_root means code_hash not in witness.codes; for an

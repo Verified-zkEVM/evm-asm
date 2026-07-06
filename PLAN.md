@@ -1118,6 +1118,26 @@ bundle). Tracked by issue #313.
 
 #### 6.3 CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
 - Load from calldata region in environment.
+- **t1iqb (2026-07): the 16 MiB `bv_calldata_arena` is ELIMINATED.** The #9871
+  per-frame padded-copy arena could conservatively false-reject a legal
+  deep-call/large-args block (worst case ~80-90 MiB live under the 63/64 rule).
+  Phase A (done, branch `fix/t1iqb-eliminate-calldata-arena`) reverted the
+  arena + handler-swap + proven-flip to baseline `f53336814`: copy-free
+  `call_frame_set_calldata` alias + read-time zero-pad staging into
+  `bv_cdl_stage` + raw `evm_calldataload_window` at offset 0.
+  **Phase B (DONE, PR #9876): CALLDATALOAD is `.proven` again, arena-free.**
+  Verified staged program `evm_calldataload_staged` (`Calldata/StageProgram.lean`,
+  121 instrs = 27-instr ≤32B copy-with-zero-fill loop ;; the 94-instr
+  `evm_calldataload_window` ladder). End-to-end spec `Calldata/StageSpec.lean`:
+  `evm_calldataload_staged_core_spec_within` (401-step compose) →
+  `evm_calldataload_staged_stack_spec_within` (public `evmStackIs`/`envIs`,
+  the `.proven` witness), classical-3. Source modeled Option-1 as a slice of
+  the aligned parent-memory region (`bytesRegion memBase memBytes`,
+  `env.callDataPtr = memBase + cdByteOff`) — the aliased calldata pointer is
+  generally unaligned, so `bytesRegion cdp data` directly is unavailable; the
+  64-byte staging buffer (`bv_cdl_stage`, tail-zero) is the aligned region the
+  window ladder runs over at offset 0. The emitted h_CALLDATALOAD body IS this
+  verified program (byte-checked); EEST 8/8 full-match preserved.
 
 ---
 

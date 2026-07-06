@@ -5,7 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Calldata.LoadProgram
-import EvmAsm.Evm64.Calldata.LoadFullProgram
+import EvmAsm.Evm64.Calldata.StageProgram
 import EvmAsm.Evm64.Calldata.CopyProgram
 import EvmAsm.Evm64.Calldata.SizeProgram
 import EvmAsm.Codegen.Dispatch
@@ -41,36 +41,27 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackOverflowGuardAsm
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 }
-  , -- Verified CALLDATALOAD (0x35). The body is the full bounds-checked
-    -- `evm_calldataload` (111 instructions): a 12-instruction dispatch
-    -- OR-reduces offset limbs 1..3 and the `offset_lo >= len` bit and
-    -- branches to a 4xSD zero arm; the in-bounds arm is the 94-instruction
-    -- 32-byte window read (mirrors `evm_mload`), followed by a JAL to the
-    -- common exit. Registry witness:
-    -- `Calldata.evm_calldataload_stack_spec_within` (cpsTripleWithin 107)
-    -- — unconditional in the operand (in-bounds, straddle, low-limb OOB,
-    -- offsets >= 2^64 all covered).
+  , -- M21 real CALLDATALOAD (0x35), arena-free & VERIFIED (bead evm-asm-t1iqb).
+    -- The whole body is the verified `evm_calldataload_staged` program
+    -- (`Calldata/StageProgram.lean`, 121 instructions = 27-instruction
+    -- zero-padded staging loop ;; the 94-instruction `evm_calldataload_window`
+    -- ladder), proven end-to-end in `Calldata/StageSpec.lean`
+    -- (`evm_calldataload_staged_stack_spec_within`, classical-3): it pops the
+    -- 256-bit offset, materializes the zero-padded 32-byte CALLDATALOAD window
+    -- into the aligned 64-byte `bv_cdl_stage` buffer (out-of-bounds positions
+    -- yield the EVM-mandated zero pad — `stage[i] = cdp[normOff+i]` in bounds,
+    -- 0 otherwise), then re-runs the window ladder over that buffer at offset 0
+    -- and writes the packed word back to the EVM stack slot.
     --
-    -- lv44p.1 zero-pad, resolved: the witness's precondition
-    -- (`CalldataRegionWf` + `paddedCallData`, Evm64/Calldata/Region.lean)
-    -- requires `env.callDataPtr` to be 8-aligned and backed by
-    -- `callDataLen + 32` addressable bytes with a 32-zero-byte tail. The
-    -- padded-arena setup (PR #9871) establishes exactly this at every call
-    -- frame (`bv_calldata_arena` bump allocations in
-    -- `call_frame_set_calldata` + the top-level prologue copy), so the
-    -- straddle window `offset < len < offset+32` reads real bytes then
-    -- zeros — no staging buffer needed. The former `bv_cdl_stage`
-    -- per-op staging loop is deleted.
-    --
-    -- Register instantiation (pinned by the `#guard`s in
-    -- Evm64/Calldata/LoadFullProgram.lean): envBaseReg = x20 (read-only),
-    -- clobbers {x14..x18, x5, x28, x29} — strictly narrower than the old
-    -- staging preBody's {x5, x6, x7, x14, x28..x31}.
+    -- The `preBody` only does the stack-underflow guard and materializes the
+    -- buffer base into x14 (a linker `la`, not a fixed-offset instruction);
+    -- everything else is the verified Program. x20 = env, x12 = sp (dispatcher
+    -- prologue); the body's first instruction is `ld x5, 416(x20)`.
     { label   := "h_CALLDATALOAD"
     , opcodes := [0x35]
-    , preBody := stackUnderflowGuardAsm 1
-    , body    := EvmAsm.Evm64.Calldata.evm_calldataload
-                   .x20 .x15 .x16 .x17 .x18 .x14 .x5 .x28 .x29
+    , preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
+                 "  la x14, bv_cdl_stage\n"      -- x14 = stage base (survives into body)
+    , body    := EvmAsm.Evm64.Calldata.evm_calldataload_staged
     , tail    := .advanceAndRet 1 }
   , -- M21 real CALLDATACOPY (0x37). The verified body
     -- `evm_calldatacopy` (19 instructions) pops `(destOffset, offset,

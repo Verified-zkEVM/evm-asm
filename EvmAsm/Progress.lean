@@ -70,8 +70,8 @@ import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
+import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
-import EvmAsm.Evm64.Calldata.LoadSpec
 
 namespace EvmAsm.Progress
 
@@ -227,23 +227,7 @@ def registry : List OpcodeEntry := [
   entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
   entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
   entry "CALLDATALOAD" .proven
-      (some "Calldata.evm_calldataload_stack_spec_within")
-      ("unconditional CALLDATALOAD stack spec over the 111-instruction " ++
-       "bounds-checked evm_calldataload (the shipped codegen — h_CALLDATALOAD " ++
-       "dispatches the verified program directly; the padded-arena setup " ++
-       "establishes the region contract at every frame) (dispatch OR-reduces " ++
-       "offset limbs 1-3 " ++
-       "+ SLTU low-limb bound, BNE to a 4xSD zero arm; in-bounds arm reuses " ++
-       "the MLOAD-transported 32-byte window ladder): evmStackIs sp " ++
-       "(offsetWord :: rest) -> evmStackIs sp (callDataLoadWord data " ++
-       "offsetWord.toNat :: rest). Calldata modeled by calldataRegionIs — " ++
-       "bytes at env.callDataPtr with a 32-zero-byte tail pad, so the " ++
-       "straddle window (offset < len < offset+32) is covered with no case " ++
-       "split; every 256-bit offset handled (in-bounds, straddle, low-limb " ++
-       "OOB, >= 2^64). Only static resource-shape hypotheses (h_len, " ++
-       "CalldataRegionWf).  (was: program in Calldata/LoadProgram.lean; no " ++
-       "stack spec yet)")
-      (cycleBound := some 107),
+      (some "Calldata.evm_calldataload_staged_stack_spec_within"),
   entry "CALLDATASIZE" .proven
       (some "Calldata.evm_calldatasize_stack_spec_within"),
   entry "CALLDATACOPY" .partly
@@ -428,7 +412,7 @@ private noncomputable abbrev _chainid_witness    := @EvmAsm.Evm64.Env.evm_chaini
 private noncomputable abbrev _selfbalance_witness := @EvmAsm.Evm64.Env.evm_selfbalance_stack_spec_within
 private noncomputable abbrev _basefee_witness    := @EvmAsm.Evm64.Env.evm_basefee_stack_spec_within
 private noncomputable abbrev _calldataload_witness :=
-  @EvmAsm.Evm64.Calldata.evm_calldataload_stack_spec_within
+  @EvmAsm.Evm64.Calldata.evm_calldataload_staged_stack_spec_within
 private noncomputable abbrev _calldatasize_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
 private noncomputable abbrev _calldatacopy_witness :=

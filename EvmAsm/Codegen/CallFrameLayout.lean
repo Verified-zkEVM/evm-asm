@@ -255,49 +255,4 @@ theorem packedBlockLog_and_layout_fit :
     balArenaTotalBytes + frameArrayBytes + packedBlockLogArenaBytes
       ≤ sszScratchBase - dataBase := by decide
 
-/-! ## Padded calldata bump arena (verified CALLDATALOAD drop-in)
-
-    The verified `evm_calldataload` opcode program consumes the
-    `CalldataRegionWf`/`paddedCallData` contract
-    (`EvmAsm/Evm64/Calldata/Region.lean`): `env.callDataPtr` 8-aligned and
-    backed by `callDataLen + 32` addressable bytes whose 32-byte tail is
-    zero. The guest establishes it by COPYING calldata (top-level input and
-    per-CALL args) into `bv_calldata_arena`, a depth-indexed bump allocator:
-    descend at child depth `d` allocates `round8(argsLen + 32)` at the
-    cursor and records the base in `cd_alloc_base[d]`; `frame_return`
-    restores the cursor from `cd_alloc_base[child_depth]` (the single unwind
-    point, incl. exceptional child halts).
-
-    **Cap derivation.** A full per-frame slot cannot fit: `0x20040` per slot
-    adds ~128 MiB to `frameArrayBytes` and fails `packedBlockLog_and_layout_fit`
-    by ~41 MiB (real ELF headroom is tighter still: `RegionMap.dataSizeBytes`
-    leaves ~48 MiB). The bump arena is sized against the honest per-call
-    bound instead: one CALL's `argsLen` ≤ `frameMemBytes = 0x20000`
-    (args ⊆ parent memory, enforced by `callMemoryExpansionGasAsm`), but the
-    worst LEGAL live-chain sum is `maxCallDepth * (frameMemBytes + 32)`
-    ≈ 128 MiB (gas does not bind it lower: expanding to 0x20000 costs only
-    45,056 gas/frame), so any static size is conservative somewhere. 16 MiB
-    moves the conservative-failure point from "one 32 KiB arg call"
-    (plausible in EEST) to "≥ 129 max-arg live frames" (adversarial only,
-    and BUDGET-bound anyway). Over-capacity sets `bv_calldata_overflow`,
-    which is consumed like `evm_log_data_overflow`: the run refuses to
-    attest (conservative bv-fail), never a wrong verdict. -/
-
-/-- Padded calldata bump arena capacity: 16 MiB (see cap derivation above). -/
-def calldataArenaBytes : Nat := 0x1000000
-
-/-- Depth-indexed allocation-base table `cd_alloc_base`: one 8-byte cursor
-    snapshot per frame slot (depths 0..1024), restored on frame return. -/
-def calldataAllocBaseBytes : Nat := frameSlotCount * 8
-
-/-- **Fits gate (load-bearing):** the three giants plus the calldata bump
-    arena and its depth table stay inside the `.data`→`.sszscratch` span.
-    398,180,592 ≤ 475,004,928 (leaves ~73 MiB kernel slack; the measured ELF
-    headroom after the arena is ~32 MiB — `readelf -lW` remains the ground
-    truth via `check-region-map.sh`). -/
-theorem calldataArena_and_layout_fit :
-    balArenaTotalBytes + frameArrayBytes + packedBlockLogArenaBytes
-      + calldataArenaBytes + calldataAllocBaseBytes
-      ≤ sszScratchBase - dataBase := by decide
-
 end EvmAsm.Codegen
