@@ -2753,7 +2753,32 @@ reads a dword from EACH of two independent ambient buffers `a0`, `a1`
 (NO `a0 ≠ a1` hypothesis — squaring `a0=a1` and product `a0≠a1` both
 work), sums them, writes through the writable window `dst`; the exact
 `be→le(a0); be→le(a1); arithMod; le→be(dst)` shape GLM + the crypto
-session clone for their `MulModP` proofs. Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
+session clone for their `MulModP` proofs.  Focused-region CALLS landed
+(`SAsm/CallAt.lean`): `readAt` covers inline focused reads but NOT the
+converter CALLS of `bnfMulModP`/`secfMulModP` (`CalleesIn` statically
+requires every callee's `region = reg`, so one `Fn` can't call
+`bnf_be_to_le(a0)` then `(a1)`).  NEW `Stmt.callAt lbl roR f` (callee
+analogue of `readAt`): the wrapped callee's read-only `region` is a
+`bytesRegion` atom carved from the ambient `A` for that one call (NOT the
+enclosing `reg`); the `.focus` VC forces caller ownership, the enclosing
+`reg` and remainder `rest` are framed, and the callee's writable window
+stays the enclosing `rw` (`.pre` VC = callee pre at emp ambient, `.post_emp`
+VC = callee post ambient is emp so the enclosing `A = fregion ** rest`
+reconstructs).  Byte-transparent: flattens to the SAME single `JAL` as
+`call` (`callAt_byte_transparent`), so wrapping converter calls keeps
+`bnfMulModP` byte-identical (spec-only, no re-emit/EEST).  Soundness
+`Stmt.soundR`'s `callAt` case: `cpsCallWithin` on the callee triple
+(`f.sound` at `asrtM f.region rw`, region NOT rewritten to `reg`), framed
+by `reg ** rest` with pre-facts riding through a `⌜⌝` conjunct so the exit
+`sp` reconstructs; two helper lemmas (`cpsTripleWithin_exists_pre_gen`,
+`_pure_pre`).  Additive: engine/`blockVCs`/existing calls unchanged, corpus
+green; `Stmt.soundR`, `adderFn_spec`, `callAtFn_spec` all classical-3.
+Demo `callAtFn`/`callAtFn_spec`: leaf accumulator callee (`adderFn`, reads
+its focused buffer + window, writes the sum) called TWICE under `callAt` on
+`a0` then `a1` (allowed to coincide), post pins the window to
+`packBytes bs0 + packBytes bs1` — a function of BOTH inputs; the exact
+`bnfMulModP` shape `CalleesIn` rejects today, GLM clones it to finish.
+Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
 (slotCell/keyCell, mutual treeAtS/treeFrom, ctxS slot-zipper with
 ctxS_zip_fold + ctxS_push_left/right, the 3-dword bytesRegion split,
 setBytes_junk_node) plus treeInsertFn + treeInsertFn_spec: the full BST

@@ -243,6 +243,22 @@ inductive Stmt where
       construct for state-transforming callees invoked repeatedly at one
       call site (the interpreter's opcode handlers). -/
   | callRegS (label : String) (rs : Reg) (handles : List FnHandleS)
+  /-- Direct call with a **focused read-only region** (the callee analogue of
+      `readAt`): `jal ra, f.entry` to a routine whose read-only `region` is
+      NOT the enclosing function's `reg` but a `bytesRegion` atom carved out
+      of the ambient assertion `A` for that one call.  The relation `roR`
+      pins the decomposition `A = bytesRegion f.region.base f.region.bytes **
+      rest`; the `.focus` VC forces the caller to own that atom, and the
+      callee is run against it as its `region` while the enclosing `reg` and
+      the remainder `rest` are framed.  The callee's writable window is the
+      enclosing `rw` (as for a plain `call`); its ambient is empty (leaf
+      callee).  Flattens to the same single `JAL` as `call` — byte-identical,
+      no injected instructions.  This is how a multi-input routine calls one
+      converter per external buffer (`bnfMulModP`: be→le a0; be→le a1;
+      le→be dst, with a0/a1 arbitrary independent pointers). -/
+  | callAt (label : String)
+           (roR : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
+           (f : FnHandle)
 
 namespace Stmt
 
@@ -268,6 +284,7 @@ def size : Stmt → Nat
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
+  | callAt _ _ _      => 1
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -292,6 +309,7 @@ def callFree : Stmt → Bool
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
+  | callAt _ _ _      => false
 
 end Stmt
 

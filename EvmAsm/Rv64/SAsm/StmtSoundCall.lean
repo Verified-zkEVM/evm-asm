@@ -136,6 +136,25 @@ theorem FnHandleS.nSteps_le_foldr_max {h : FnHandleS} :
       · exact Nat.le_trans (FnHandleS.nSteps_le_foldr_max hmem')
           (Nat.le_max_right _ _)
 
+/-- Eliminate an existentially-quantified precondition. -/
+theorem cpsTripleWithin_exists_pre_gen {n : Nat} {entry exit_ : Word}
+    {cr : CodeReq} {Q : Assertion} {α : Sort u} {P : α → Assertion}
+    (h : ∀ x, cpsTripleWithin n entry exit_ cr (P x) Q) :
+    cpsTripleWithin n entry exit_ cr (fun hp => ∃ x, P x hp) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨h0, hcompat, h1, h2, hd, hu, ⟨x, hPx⟩, hR2⟩ := hPR
+  exact h x R hR s hcr ⟨h0, hcompat, h1, h2, hd, hu, hPx, hR2⟩ hpc
+
+/-- Discharge a pure-proposition conjunct in the precondition. -/
+theorem cpsTripleWithin_pure_pre {n : Nat} {entry exit_ : Word}
+    {cr : CodeReq} {P : Prop} {H Q : Assertion}
+    (h : P → cpsTripleWithin n entry exit_ cr H Q) :
+    cpsTripleWithin n entry exit_ cr (⌜P⌝ ** H) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨h0, hcompat, hh⟩ := hPR
+  rw [sepConj_assoc', sepConj_pure_left] at hh
+  exact h hh.1 R hR s hcr ⟨h0, hcompat, hh.2⟩ hpc
+
 /-- Caller-shaped soundness (Milestone M4): the flattened code of `s`
     satisfies a bounded CPS triple at `asrtR` granularity, provided the
     ambient `cr` also contains every callee's code (`hcallees`) and the call
@@ -1146,6 +1165,146 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
       rw [h4]
       exact hfinal
+  | callAt lbl roR f =>
+      obtain ⟨hoffset, halign, hnotself⟩ := hcalls
+      obtain ⟨hcalleeCode, hrweq⟩ := hcallees
+      have hfocus : ∀ rf ws A, reach rf ws A → A.pcFree → ∀ hp, A hp →
+          ∃ rest, roR rf ws A rest
+            ∧ (bytesRegion f.region.base f.region.bytes ** rest) hp
+            ∧ rest.pcFree := hvcs.head
+      have hpreVC : ∀ rf ws A rest, ws.length = rw.len → reach rf ws A →
+          roR rf ws A rest → f.pre rf ws empAssertion := hvcs.tail.head
+      have hpostEmp : ∀ rf ws A, f.post rf ws A → A = empAssertion :=
+        hvcs.tail.tail.head
+      -- callee triple retargeted at the aligned return address (region NOT rewritten)
+      have hret' : cpsTripleWithin f.nSteps f.entry ((base + 4) &&& ~~~(1 : Word)) f.code
+          ((.x1 ↦ᵣ (base + 4)) ** asrtM f.region rw f.pre)
+          ((.x1 ↦ᵣ (base + 4)) ** asrtM f.region rw f.post) := by
+        rw [halign, ← hrweq]; exact f.sound (base + 4) halign
+      have hdisj : (CodeReq.singleton base
+          (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).Disjoint f.code := by
+        intro a
+        by_cases ha : a = base
+        · subst ha; exact Or.inr hnotself
+        · left; simp [CodeReq.singleton, ha]
+      have hmono : ∀ a i,
+          ((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code) a = some i →
+          cr a = some i := by
+        intro a i hh
+        simp only [CodeReq.union] at hh
+        cases hs : CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base))) a with
+        | none => rw [hs] at hh; exact hcalleeCode a i hh
+        | some j =>
+            rw [hs] at hh
+            apply hcode a i
+            rw [show Stmt.flatten base (.callAt lbl roR f)
+              = [.JAL .x1 (BitVec.setWidth 21 (f.entry - base))] from rfl,
+              CodeReq.ofProg_singleton]
+            rw [hs]; exact hh
+      -- the fixed call triple (callee run against its own focused region)
+      have hcall : ∀ vOld : Word, cpsTripleWithin (1 + f.nSteps) base (base + 4) cr
+          (((.x1 : Reg) ↦ᵣ vOld) ** asrtM f.region rw f.pre)
+          (((.x1 : Reg) ↦ᵣ (base + 4)) ** asrtM f.region rw f.post) := fun vOld =>
+        cpsTripleWithin_extend_code hmono
+          (WP.cpsCallWithin (vOld := vOld) (BitVec.setWidth 21 (f.entry - base))
+            hoffset halign (pcFree_asrtM f.region rw f.pre) hdisj hret')
+      simp only [Stmt.steps, Stmt.size, Nat.mul_one]
+      rw [show base + BitVec.ofNat 64 4 = base + 4 from rfl]
+      apply cpsTripleWithin_regOwn_right_pre
+      intro vOld
+      -- The flat middle assertions: the callee's owned resources (regfile, the
+      -- primary rw window, and the FOCUSED region) plus the framed enclosing
+      -- read-only region and the remainder `rest`, guarded by the pure facts
+      -- that ride from pre to post so the exit `sp` can be reconstructed.
+      refine cpsTripleWithin_weaken (P := fun hp => ∃ rf ws A rest,
+          (⌜ws.length = rw.len ∧ reach rf ws A ∧ roR rf ws A rest ∧ rest.pcFree⌝ **
+            ((((.x1 : Reg) ↦ᵣ vOld) **
+                ((regFileIs rf ** bytesRegion rw.base ws) **
+                  bytesRegion f.region.base f.region.bytes)) **
+              (bytesRegion reg.base reg.bytes ** rest))) hp)
+        (Q := fun hp => ∃ rf ws A rest rf'' ws'',
+          (⌜reach rf ws A ∧ roR rf ws A rest ∧ f.post rf'' ws'' empAssertion
+              ∧ ws.length = rw.len ∧ ws''.length = rw.len ∧ rest.pcFree⌝ **
+            ((((.x1 : Reg) ↦ᵣ (base + 4)) **
+                ((regFileIs rf'' ** bytesRegion rw.base ws'') **
+                  bytesRegion f.region.base f.region.bytes)) **
+              (bytesRegion reg.base reg.bytes ** rest))) hp)
+        ?_ ?_ ?_
+      · -- PRE entailment: asrtM reg rw reach ** (.x1↦vOld)  ⊢  Pmid.
+        --   Decompose the region assertion, focus the ambient onto the
+        --   callee's region atom + remainder, then permute into flat form.
+        intro hp hh
+        obtain ⟨hL, hx1, hdx, hux, hLv, hx1v⟩ := hh
+        obtain ⟨hAo, hRg, hdo, huo, hAov, hRgv⟩ := hLv
+        obtain ⟨rf, ws, A, hlen, hApc, hreach, hcore⟩ := hAov
+        obtain ⟨hRW, hAh, hdc, huc, hRWv, hAv⟩ := hcore
+        obtain ⟨rest, hroR, hpairA, hrestpc⟩ := hfocus rf ws A hreach hApc hAh hAv
+        refine ⟨rf, ws, A, rest, ?_⟩
+        rw [sepConj_pure_left]
+        refine ⟨⟨hlen, hreach, hroR, hrestpc⟩, ?_⟩
+        have hh' : ((((regFileIs rf ** bytesRegion rw.base ws) **
+            (bytesRegion f.region.base f.region.bytes ** rest)) **
+            bytesRegion reg.base reg.bytes) ** ((.x1 : Reg) ↦ᵣ vOld)) hp :=
+          ⟨hL, hx1, hdx, hux,
+            ⟨hAo, hRg, hdo, huo, ⟨hRW, hAh, hdc, huc, hRWv, hpairA⟩, hRgv⟩, hx1v⟩
+        xperm_hyp hh'
+      · -- POST entailment: Qmid  ⊢  asrtR reg rw (sp callAt reach).
+        intro hp hh
+        obtain ⟨rf, ws, A, rest, rf'', ws'', hh2⟩ := hh
+        rw [sepConj_pure_left] at hh2
+        obtain ⟨⟨hreach, hroR, hpost, hlen, hlen'', hrestpc⟩, hheap⟩ := hh2
+        have hheap' : ((((regFileIs rf'' ** bytesRegion rw.base ws'') **
+            (bytesRegion f.region.base f.region.bytes ** rest)) **
+            bytesRegion reg.base reg.bytes) ** ((.x1 : Reg) ↦ᵣ (base + 4))) hp := by
+          xperm_hyp hheap
+        obtain ⟨hY, hx1, hd0, hu0, hYv, hx1v⟩ := hheap'
+        obtain ⟨hAoC, hRgh, hd1, hu1, hAoCv, hRgv⟩ := hYv
+        obtain ⟨hRW, hFRrest, hd2, hu2, hRWv, hFRrestv⟩ := hAoCv
+        refine ⟨hY, hx1, hd0, hu0, ⟨hAoC, hRgh, hd1, hu1, ?_, hRgv⟩, ⟨base + 4, hx1v⟩⟩
+        refine ⟨rf'', ws'',
+          bytesRegion f.region.base f.region.bytes ** rest, hlen'',
+          pcFree_sepConj (bytesRegion_pcFree _ _) hrestpc, ?_,
+          ⟨hRW, hFRrest, hd2, hu2, hRWv, hFRrestv⟩⟩
+        exact ⟨rf, ws, A, rest, hlen, hreach, ⟨hFRrest, hFRrestv⟩, hroR, hpost, rfl⟩
+      · -- MIDDLE triple: the framed call, bridged flat ↔ asrtM at the callee.
+        apply cpsTripleWithin_exists_pre_gen; intro rf
+        apply cpsTripleWithin_exists_pre_gen; intro ws
+        apply cpsTripleWithin_exists_pre_gen; intro A
+        apply cpsTripleWithin_exists_pre_gen; intro rest
+        apply cpsTripleWithin_pure_pre; rintro ⟨hlen, hreach, hroR, hrestpc⟩
+        have hpre := hpreVC rf ws A rest hlen hreach hroR
+        refine cpsTripleWithin_weaken ?_ ?_
+          (cpsTripleWithin_frameR (bytesRegion reg.base reg.bytes ** rest)
+            (pcFree_sepConj (bytesRegion_pcFree _ _) hrestpc) (hcall vOld))
+        · -- pre bridge: flat callee resources ⊢ asrtM f.region rw f.pre (emp ambient)
+          intro hp hh
+          obtain ⟨hLeft, hFrame, hd, hu, hLv, hFv⟩ := hh
+          obtain ⟨hx1, hX, hd2, hu2, hx1v, hXv⟩ := hLv
+          obtain ⟨hRW, hFR, hd3, hu3, hRWv, hFRv⟩ := hXv
+          exact ⟨hLeft, hFrame, hd, hu,
+            ⟨hx1, hX, hd2, hu2, hx1v,
+              ⟨hRW, hFR, hd3, hu3,
+                ⟨rf, ws, empAssertion, hlen, pcFree_emp, hpre,
+                  by rw [sepConj_emp_right']; exact hRWv⟩,
+                hFRv⟩⟩,
+            hFv⟩
+        · -- post bridge: asrtM f.region rw f.post (emp ambient) ⊢ Qmid
+          intro hp hh
+          obtain ⟨hLeft, hFrame, hd, hu, hLv, hFv⟩ := hh
+          obtain ⟨hx1, hM, hd2, hu2, hx1v, hMv⟩ := hLv
+          obtain ⟨hAo, hFR, hd3, hu3, hAov, hFRv⟩ := hMv
+          obtain ⟨rf'', ws'', A_c'', hlen'', hApc'', hpost'', hcore''⟩ := hAov
+          have hAce : A_c'' = empAssertion := hpostEmp rf'' ws'' A_c'' hpost''
+          subst hAce
+          rw [sepConj_emp_right'] at hcore''
+          exact ⟨rf, ws, A, rest, rf'', ws'', by
+            rw [sepConj_pure_left]
+            exact ⟨⟨hreach, hroR, hpost'', hlen, hlen'', hrestpc⟩,
+              ⟨hLeft, hFrame, hd, hu,
+                ⟨hx1, hM, hd2, hu2, hx1v, ⟨hAo, hFR, hd3, hu3, hcore'', hFRv⟩⟩,
+                hFv⟩⟩⟩
   | callReg lbl rs handles =>
       obtain ⟨halignRet, hentries⟩ := hcalls
       have hrs : Reg.isExposed rs = true := hofs
