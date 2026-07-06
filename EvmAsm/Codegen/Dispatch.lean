@@ -3167,13 +3167,9 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
-   -- lv44p.1: 32-byte zero-pad staging window for CALLDATALOAD (h_CALLDATALOAD
-   -- preBody). The verified mload body reads a raw 32-byte window with no
-   -- out-of-bounds guard; the handler stages a zero-padded copy here so reads
-   -- past env.callDataLen yield the EVM-mandated zero pad instead of adjacent
-   -- memory. Used transiently within one opcode dispatch (no re-entrancy: the
-   -- dispatcher runs one opcode at a time), so a single static buffer is sound.
-   "bv_cdl_stage:\n  .zero 32\n" ++
+   -- (lv44p.1 note: the former `bv_cdl_stage` 32-byte staging window is gone —
+   -- the verified full `evm_calldataload` handler reads the padded arena
+   -- below directly, so no per-op staging is needed.)
    -- Padded-calldata bump arena (verified CALLDATALOAD drop-in; sizes are
    -- single-sourced from CallFrameLayout.calldataArenaBytes /
    -- .calldataAllocBaseBytes, fit pinned by calldataArena_and_layout_fit).
