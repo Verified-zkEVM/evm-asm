@@ -148,7 +148,6 @@ btiScanStorageChangesFunction	EvmAsm/Codegen/Programs/BlockVerdictTxsIndependent
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
-callFrameSetCalldataFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
 calldataByteCountsFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 chainValidateBlobGasUsedMultipleFunction	EvmAsm/Codegen/Programs/ChainValidateBlob.lean
 chainValidateBlobGasUsedUnderMaxFunction	EvmAsm/Codegen/Programs/ChainValidateBlob.lean

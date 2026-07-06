@@ -186,8 +186,8 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     satWithin_ramRegion 0xa0630000 0x200000 (by omega) (by omega)
       (by omega) (by omega)
   have t5 : (regionScratch RegionMap.dataRegion).SatWithin
-      0xa3000000 0xbc5156b0 :=
-    satWithin_ramRegion 0xa3000000 0x195156b0 (by omega) (by omega)
+      0xa3000000 0xbd5176d0 :=
+    satWithin_ramRegion 0xa3000000 0x1a5176d0 (by omega) (by omega)
       (by omega) (by omega)
   have t6 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf500000 0xbfb80000 :=
