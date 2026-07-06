@@ -11,7 +11,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.DynamicOpcodeGas
+import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Rv64.SAsm.MultiDword
 
 namespace EvmAsm.Codegen
 
@@ -112,6 +114,91 @@ theorem logDataGasFn_spec (topics dataBytes : Word) (base : Word) :
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
       RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
       not_false_eq_true, hx10, hx11]
+
+/-! ## init_code_cost
+
+    `a0 = init_code_length, a1 = gas_per_word, a2 = u64 out ptr →
+    a0 = 0` with `*a2 = gas_per_word * ((a0 + 31) >>> 5)` (EIP-3860).
+    Pure register arithmetic plus one dword store through a one-cell
+    writable window: `ADDI;SRLI;MUL;SD;LI`, ret. -/
+
+/-- Verified port of `init_code_cost`:
+    `*outPtr := gasPerWord * ((len + 31) >>> 5); a0 := 0`. -/
+def initCodeCostFn (len gasPerWord outPtr : Word) : Fn where
+  name := "initCodeCost"
+  region := Region.empty
+  rw := ⟨outPtr, 8⟩
+  pre  := fun rf _ A =>
+    rf.get .x10 = len ∧ rf.get .x11 = gasPerWord ∧ rf.get .x12 = outPtr
+      ∧ A = empAssertion
+  post := fun rf ws A =>
+    rf.get .x10 = 0 ∧ rf.get .x12 = outPtr
+      ∧ ws = dwordBytes (((len + 31) >>> 5) * gasPerWord) ∧ A = empAssertion
+  body := .block "body"
+    [ .ADDI .x5 .x10 (31 : BitVec 12),
+      .SRLI .x5 .x5 (5 : BitVec 6),
+      .MUL .x5 .x5 .x11,
+      .SD .x12 .x5 (0 : BitVec 12),
+      .LI .x10 (0 : Word) ]
+
+/-- The five body instructions match the emitted routine (excluding the
+    shared `ret` epilogue). -/
+theorem initCodeCost_byte_tie :
+    (initCodeCostFn 0 0 0).body.flatten 0
+      ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)] = initCodeCost_prog := rfl
+
+#guard ((initCodeCostFn 0 0 0).body.flatten 0).length = 5
+
+private theorem se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+
+/-- Specification: at every entry state with `a0 = len`, `a1 = gasPerWord`,
+    `a2 = outPtr` (8-aligned, valid), and an empty ambient assertion, the
+    body stores `gasPerWord * ((len + 31) >>> 5)` to `*outPtr` and leaves
+    `a0 = 0`, the ambient assertion empty. -/
+theorem initCodeCostFn_spec (len gasPerWord outPtr : Word) (base : Word)
+    (hwf : RwRegion.wf ⟨outPtr, 8⟩) :
+    (initCodeCostFn len gasPerWord outPtr).Spec base := by
+  have hidx : ∀ rf : RegFile, rf.get .x12 = outPtr →
+      ((rf.get .x12 + signExtend12 (0 : BitVec 12)) - outPtr).toNat = 0 := by
+    intro rf h
+    rw [h, se12_0]; bv_omega
+  have hrwbase : (initCodeCostFn len gasPerWord outPtr).rw.base = outPtr := rfl
+  vcgen
+  case region => exact ⟨Region.empty_wf, hwf⟩
+  case initCodeCost.body.mem =>
+    rintro rf ws A hws hpre
+    have hws8 : ws.length = 8 := hws
+    obtain ⟨hx10, hx11, hx12, -⟩ := hpre
+    have h5 : (5 : BitVec 6).toNat = 5 := by decide
+    simp only [blockVCs, loadSem, storeSem, aluSem, execInstrRF, inRw,
+      RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true, hrwbase, se12_0, h5, hx10, hx11, hx12,
+      show ws.length = 8 from hws8]
+    refine ⟨trivial, trivial, trivial, ?_, trivial, trivial⟩
+    have hzero : (outPtr + (0 : Word) - outPtr).toNat = 0 := by bv_omega
+    rw [hzero]; exact ⟨by omega, by decide⟩
+  case initCodeCost.post =>
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, hpre, rfl, rfl⟩
+    obtain ⟨hx10, hx11, hx12, hA⟩ := hpre
+    have hws8 : ws₀.length = 8 := hws₀
+    have h5 : (5 : BitVec 6).toNat = 5 := by decide
+    refine ⟨?_, ?_, ?_, hA⟩
+    · -- rf'.get .x10 = 0: the last LI set it
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+        storeSem, initCodeCostFn, RegFile.get_set_self, RegFile.get_set_ne,
+        ne_eq, reduceCtorEq, not_false_eq_true, se12_0, se12_31, h5, hx10, hx11]
+    · -- rf'.get .x12 = outPtr: no instruction writes x12
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+        storeSem, initCodeCostFn, RegFile.get_set_self, RegFile.get_set_ne,
+        ne_eq, reduceCtorEq, not_false_eq_true, se12_0, se12_31, h5, hx10,
+        hx11, hx12]
+    · -- ws' = dwordBytes (((len+31)>>>5)*gasPerWord)
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+        storeSem, initCodeCostFn, RegFile.get_set_self, RegFile.get_set_ne,
+        ne_eq, reduceCtorEq, not_false_eq_true, se12_0, se12_31, h5, hx10,
+        hx11, hx12]
+      have hzero : (outPtr + (0 : Word) - outPtr).toNat = 0 := by bv_omega
+      rw [hzero, setBytes_dword_full ws₀ _ hws8]
 
 end GasRoutinesSAsm
 
