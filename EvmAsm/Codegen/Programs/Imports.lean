@@ -96,6 +96,7 @@ import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
+import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange

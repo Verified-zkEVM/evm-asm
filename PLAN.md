@@ -172,9 +172,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   field; explicit structured flattens are pinned and the divergence documented.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
-  pinned to `u256FromU64Be_prog`.  `Bls12Fq12ZeroSAsm.lean` verifies the
-  bottom-test `blq_zero` dword zero-loop (`blqZeroFn_spec`, post
-  `ws = replicate 576 0`) with byte-identity pinned to `blqZero_prog`.
+  pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
+  bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
+  `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
+  `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
+  (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
+  `blqZero_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
