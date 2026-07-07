@@ -74,6 +74,7 @@ import EvmAsm.Evm64.Code.SizeSpec
 import EvmAsm.Evm64.ControlFlow.PcSpec
 import EvmAsm.Evm64.GasOpcode.Spec
 import EvmAsm.Evm64.BlobBaseFee.Spec
+import EvmAsm.Evm64.ControlFlow.Jumpdest
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
@@ -274,7 +275,8 @@ def registry : List OpcodeEntry := [
   entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within"),
   entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
   entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within"),
-  entry "JUMPDEST" .execSpec none "no-op opcode; gas-only",
+  entry "JUMPDEST" .proven (some "ControlFlow.evm_jumpdest_stack_spec_within")
+      (cycleBound := some 0),
   entry "TLOAD" .execSpec none "EIP-1153 (Cancun); transient-log scan handler (Codegen Storage.lean)",
   entry "TSTORE" .execSpec none "EIP-1153 (Cancun); transient-log append handler (Codegen Storage.lean)",
   entry "MCOPY" .execSpec none "EIP-5656 (Cancun); overlap-aware memmove handler (EvmMcopyHandlers)",
@@ -323,10 +325,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 55 := by decide
+theorem provenCount_eq      : provenCount      = 56 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 30 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 29 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -357,10 +359,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 115 := by decide
+theorem provenBytes_eq      : provenBytes      = 116 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 34  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 33  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -429,6 +431,8 @@ private noncomputable abbrev _gas_witness :=
   @EvmAsm.Evm64.GasOpcode.evm_gas_stack_spec_within
 private noncomputable abbrev _blobbasefee_witness :=
   @EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
+private noncomputable abbrev _jumpdest_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jumpdest_stack_spec_within
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
