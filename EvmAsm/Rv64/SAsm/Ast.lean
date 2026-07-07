@@ -163,6 +163,11 @@ inductive Stmt where
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
+  /-- Bounded top-guarded loop with a reloaded header block before every guard
+      evaluation.  It byte-matches `header; B¬guard -> exit; body; JAL -> header`.
+      The invariant holds after the header has run, at the guard evaluation. -/
+  | whileHeader (label : String) (header : Stmt) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
   /-- Bounded loop with an *entry-snapshot-parameterized* invariant
       (docs/sasm-design.md §3.10): `inv rf₀ ws₀ A₀ i` must hold at the i-th
       evaluation of the header, where `(rf₀, ws₀, A₀)` is the symbolic state
@@ -308,6 +313,7 @@ def size : Stmt → Nat
   | blockAt _ _ _ is  => is.length
   | readAt _ _ _ is   => is.length
   | «while» _ _ _ _ b   => b.size + 2
+  | whileHeader _ h _ _ _ b => h.size + b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
   | «doWhileBreak» _ _ _ _ bb _ ba => bb.size + ba.size + 2
@@ -337,6 +343,7 @@ def callFree : Stmt → Bool
   | blockAt _ _ _ _   => true
   | readAt _ _ _ _    => true
   | «while» _ _ _ _ b => b.callFree
+  | whileHeader _ h _ _ _ b => h.callFree && b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhileBreak» _ _ _ _ bb _ ba => bb.callFree && ba.callFree
