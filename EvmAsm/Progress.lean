@@ -74,6 +74,8 @@ import EvmAsm.Evm64.Code.SizeSpec
 import EvmAsm.Evm64.ControlFlow.PcSpec
 import EvmAsm.Evm64.GasOpcode.Spec
 import EvmAsm.Evm64.BlobBaseFee.Spec
+import EvmAsm.Evm64.BlobHash.Spec
+import EvmAsm.Evm64.BlockHash.Spec
 import EvmAsm.Evm64.ControlFlow.Jumpdest
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
@@ -249,7 +251,8 @@ def registry : List OpcodeEntry := [
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
-  entry "BLOCKHASH" .execSpec none "env-bridge level",
+  entry "BLOCKHASH" .proven (some "BlockHash.evm_blockhash_stack_spec_within")
+      (cycleBound := some 24),
   entry "COINBASE" .proven (some "Env.evm_coinbase_stack_spec_within"),
   entry "TIMESTAMP" .proven (some "Env.evm_timestamp_stack_spec_within"),
   entry "NUMBER" .proven (some "Env.evm_number_stack_spec_within"),
@@ -258,7 +261,8 @@ def registry : List OpcodeEntry := [
   entry "CHAINID" .proven (some "Env.evm_chainid_stack_spec_within"),
   entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within"),
   entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within"),
-  entry "BLOBHASH" .execSpec none "env-bridge level",
+  entry "BLOBHASH" .proven (some "BlobHash.evm_blobhash_stack_spec_within")
+      (cycleBound := some 20),
   entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within"),
 
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
@@ -325,10 +329,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 56 := by decide
+theorem provenCount_eq      : provenCount      = 58 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 29 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 27 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -359,10 +363,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 116 := by decide
+theorem provenBytes_eq      : provenBytes      = 118 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 33  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 31  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -433,6 +437,10 @@ private noncomputable abbrev _blobbasefee_witness :=
   @EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
 private noncomputable abbrev _jumpdest_witness :=
   @EvmAsm.Evm64.ControlFlow.evm_jumpdest_stack_spec_within
+private noncomputable abbrev _blobhash_witness :=
+  @EvmAsm.Evm64.BlobHash.evm_blobhash_stack_spec_within
+private noncomputable abbrev _blockhash_witness :=
+  @EvmAsm.Evm64.BlockHash.evm_blockhash_stack_spec_within
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within

@@ -180,8 +180,10 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x59320`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x59320
+    (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it.
+    Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
+    shared tail (verified `evm_blobhash` body swap). -/
+def textSizeBytes : Nat := 0x59318
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195156d0`). Link-layout-dependent. Grew by `0x20` (32 B)
