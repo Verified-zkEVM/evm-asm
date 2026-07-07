@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.ControlFlow.Program
+import EvmAsm.Evm64.ControlFlow.Jumpdest
 import EvmAsm.Codegen.Dispatch
 
 namespace EvmAsm.Codegen
@@ -80,7 +81,9 @@ private def jumpiValidityTail : HandlerTail :=
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
-    , body    := []
+      -- The verified JUMPDEST program (`ControlFlow/Jumpdest.lean`) —
+      -- definitionally the empty instruction list.
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpdest
     , tail    := .advanceAndRet 1 }
   , { label := "h_JUMP"
     , opcodes := [0x56]
