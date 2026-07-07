@@ -36,6 +36,14 @@ def addCarryState (a b orig : List (BitVec 8)) : Nat → List (BitVec 8) × Word
       let step := addCarryByte (a.getD idx 0) (b.getD idx 0) st.2
       (st.1.set idx step.1, step.2)
 
+private theorem addCarryState_succ (a b orig : List (BitVec 8)) (k : Nat) :
+    addCarryState a b orig (k + 1) =
+      let st := addCarryState a b orig k
+      let idx := 31 - k
+      let step := addCarryByte (a.getD idx 0) (b.getD idx 0) st.2
+      (st.1.set idx step.1, step.2) := by
+  rfl
+
 /-- Final 32-byte big-endian result. -/
 def u256AddBeBytes (a b orig : List (BitVec 8)) : List (BitVec 8) :=
   (addCarryState a b orig 32).1
@@ -105,6 +113,18 @@ def u256AddBePost (aPtr bPtr outPtr : Word)
     ws = u256AddBeBytes aBytes bBytes orig ∧
     A = (bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes)
 
+/-- Byte-identical loop body before the mid-body break test. -/
+def u256AddBeBefore (aPtr bPtr _outPtr : Word)
+    (aBytes bBytes _orig : List (BitVec 8)) : Stmt :=
+  .block "addr" [.ADD .x7 .x10 .x5, .ADD .x28 .x11 .x5, .ADD .x29 .x12 .x5] ;;;
+  .readAt "readA" .x10 (roA aPtr bPtr aBytes bBytes) [.LBU .x30 .x7 (0 : BitVec 12)] ;;;
+  .readAt "readB" .x11 (roB aPtr bPtr aBytes bBytes) [.LBU .x31 .x28 (0 : BitVec 12)] ;;;
+  .block "sumStore" [.ADD .x30 .x30 .x31,
+    .ADD .x30 .x30 .x6,
+    .SRLI .x6 .x30 (8 : BitVec 6),
+    .ANDI .x30 .x30 (255 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12)]
+
 /-- Byte-identical structured body, excluding the final `ret` epilogue handled
     by `Fn.Spec`. -/
 def u256AddBeBody (aPtr bPtr outPtr : Word)
@@ -112,14 +132,7 @@ def u256AddBeBody (aPtr bPtr outPtr : Word)
   .block "init" [.LI .x5 (31 : Word), .LI .x6 (0 : Word)] ;;;
   .«doWhileBreak» "loop" 31 (u256AddBeInv aPtr bPtr outPtr aBytes bBytes orig)
     (u256AddBeLoopPost aPtr bPtr outPtr aBytes bBytes orig)
-    (.block "addr" [.ADD .x7 .x10 .x5, .ADD .x28 .x11 .x5, .ADD .x29 .x12 .x5] ;;;
-     .readAt "readA" .x10 (roA aPtr bPtr aBytes bBytes) [.LBU .x30 .x7 (0 : BitVec 12)] ;;;
-     .readAt "readB" .x11 (roB aPtr bPtr aBytes bBytes) [.LBU .x31 .x28 (0 : BitVec 12)] ;;;
-     .block "sumStore" [.ADD .x30 .x30 .x31,
-       .ADD .x30 .x30 .x6,
-       .SRLI .x6 .x30 (8 : BitVec 6),
-       .ANDI .x30 .x30 (255 : BitVec 12),
-       .SB .x29 .x30 (0 : BitVec 12)])
+    (u256AddBeBefore aPtr bPtr outPtr aBytes bBytes orig)
     (.beq .x5 .x0)
     (.block "dec" [.ADDI .x5 .x5 (-1 : BitVec 12)]) ;;;
   .block "retVal" [.MV .x10 .x6]
@@ -205,6 +218,12 @@ private theorem readLbu_blockVCs (ptr outPtr : Word) (rf : RegFile) (ws robytes 
   rw [add_idx_sub_self ptr i hi, hroLen]
   exact ⟨one_dvd _, by omega⟩
 
+private theorem execBlock_lbu_ws (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs : Reg) (ofs : BitVec 12) :
+    (execBlock ro rwBase rf ws [.LBU rd rs ofs]).2 = ws := by
+  rw [execBlock_cons, execBlock_nil, execInstrRF]
+  dsimp only [aluSem, loadSem]
+
 private theorem execBlock_lbu_get_ne (ro : Region) (rwBase : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (rd rs : Reg) (ofs : BitVec 12) (r : Reg)
     (hne : r ≠ rd) :
@@ -214,6 +233,216 @@ private theorem execBlock_lbu_get_ne (ro : Region) (rwBase : Word) (rf : RegFile
   by_cases h : inRw rwBase ws (rf.get rs + signExtend12 ofs) 1
   · rw [if_pos h, RegFile.get_set_ne _ _ _ _ hne]
   · rw [if_neg h, RegFile.get_set_ne _ _ _ _ hne]
+
+private theorem execBlock_lbu_ro_idx (ptr outPtr : Word) (rf : RegFile)
+    (ws robytes : List (BitVec 8)) (rd addrReg : Reg) (i : Nat) (hi : i ≤ 31)
+    (haddr : rf.get addrReg = ptr + BitVec.ofNat 64 (31 - i))
+    (hws : ws.length = 32)
+    (hptrBound : ptr.toNat + 32 < 2 ^ 64)
+    (houtBound : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : ptr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ ptr.toNat) :
+    execBlock ⟨ptr, robytes⟩ outPtr rf ws [.LBU rd addrReg (0 : BitVec 12)] =
+      (rf.set rd ((robytes.getD (31 - i) 0).zeroExtend 64), ws) := by
+  have haddr0 : rf.get addrReg + signExtend12 (0 : BitVec 12)
+      = ptr + BitVec.ofNat 64 (31 - i) := by
+    rw [haddr, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  rw [execBlock_cons, execInstrRF]
+  dsimp only [aluSem, loadSem]
+  rw [if_neg (by
+    rw [haddr0]
+    exact not_inRw_disjoint32 ptr outPtr ws i hi hws hptrBound houtBound hdisj)]
+  rw [haddr0, byteAt_idx ptr robytes i hi, execBlock_nil]
+
+private theorem andi255_truncate8 (x : Word) :
+    (x &&& signExtend12 (255 : BitVec 12)).truncate 8 = x.truncate 8 := by
+  have h255 : signExtend12 (255 : BitVec 12) = (255 : Word) := by decide
+  apply BitVec.eq_of_getLsbD_eq
+  intro j
+  rw [h255]
+  by_cases hj : j < 8
+  · have hmask : (255 : Word).getLsbD j = true := by
+      interval_cases j <;> rfl
+    simp only [BitVec.truncate_eq_setWidth, BitVec.getLsbD_setWidth,
+      BitVec.getLsbD_and, hj, decide_true, Bool.true_and]
+    rw [hmask]
+    simp
+  · simp [BitVec.truncate_eq_setWidth, BitVec.getLsbD_setWidth, hj]
+
+private theorem sumStore_effect (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
+    (i : Nat) (hi : i ≤ 31) (a b : BitVec 8) (carry : Word)
+    (hx30 : rf.get .x30 = a.zeroExtend 64)
+    (hx31 : rf.get .x31 = b.zeroExtend 64)
+    (hx6 : rf.get .x6 = carry)
+    (hx29 : rf.get .x29 = outPtr + BitVec.ofNat 64 (31 - i)) :
+    let r := execBlock Region.empty outPtr rf ws
+      [.ADD .x30 .x30 .x31, .ADD .x30 .x30 .x6,
+       .SRLI .x6 .x30 (8 : BitVec 6), .ANDI .x30 .x30 (255 : BitVec 12),
+       .SB .x29 .x30 (0 : BitVec 12)]
+    r.1.get .x10 = rf.get .x10 ∧
+    r.1.get .x11 = rf.get .x11 ∧
+    r.1.get .x12 = rf.get .x12 ∧
+    r.1.get .x5 = rf.get .x5 ∧
+    r.1.get .x6 = (addCarryByte a b carry).2 ∧
+    r.2 = ws.set (31 - i) (addCarryByte a b carry).1 := by
+  dsimp only
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ (31 - i) (by
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hx29, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    rw [show outPtr + BitVec.ofNat 64 (31 - i) + (0 : Word) =
+        outPtr + BitVec.ofNat 64 (31 - i) by bv_omega]
+    exact add_idx_sub_self outPtr i hi)]
+  rw [execBlock_nil]
+  simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+    not_false_eq_true]
+  unfold addCarryByte
+  simp only [hx30, hx31, hx6]
+  refine ⟨trivial, trivial, trivial, trivial, rfl, ?_⟩
+  rw [show setBytes ws (31 - i)
+      [((BitVec.zeroExtend 64 a + BitVec.zeroExtend 64 b + carry) &&&
+        signExtend12 (255 : BitVec 12)).truncate 8]
+      = ws.set (31 - i)
+        (((BitVec.zeroExtend 64 a + BitVec.zeroExtend 64 b + carry) &&&
+          signExtend12 (255 : BitVec 12)).truncate 8) from rfl]
+  rw [andi255_truncate8]
+
+private theorem u256AddBeBefore_effect (aPtr bPtr outPtr : Word)
+    (aBytes bBytes orig : List (BitVec 8)) (i : Nat) :
+    ∀ rf' ws' A',
+      sp Region.empty ⟨outPtr, 32⟩ (u256AddBeBefore aPtr bPtr outPtr aBytes bBytes orig)
+        (u256AddBeInv aPtr bPtr outPtr aBytes bBytes orig i) rf' ws' A' →
+      rf'.get .x10 = aPtr ∧
+      rf'.get .x11 = bPtr ∧
+      rf'.get .x12 = outPtr ∧
+      rf'.get .x5 = BitVec.ofNat 64 (31 - i) ∧
+      rf'.get .x6 = (addCarryState aBytes bBytes orig (i + 1)).2 ∧
+      ws' = (addCarryState aBytes bBytes orig (i + 1)).1 ∧
+      i ≤ 31 ∧
+      aBytes.length = 32 ∧ bBytes.length = 32 ∧ orig.length = 32 ∧
+      aPtr.toNat + 32 < 2 ^ 64 ∧ bPtr.toNat + 32 < 2 ^ 64 ∧ outPtr.toNat + 32 < 2 ^ 64 ∧
+      (aPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ aPtr.toNat) ∧
+      (bPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ bPtr.toNat) ∧
+      A' = (bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes) := by
+  intro rf' ws' A' hsp
+  unfold u256AddBeBefore at hsp
+  obtain ⟨rfS, wsS, hwsS, hreachB, hrf', hws'⟩ := hsp
+  obtain ⟨rfB0, wsB0, AB, robB, restB, hlenBRead, hreachA, _hsatB,
+    hroBrel, hrfB, hwsB, hAeqB⟩ := hreachB
+  obtain ⟨rfA0, wsA0, AA, robA, restA, hlenARead, hreach0, _hsatA,
+    hroArel, hrfA, hwsA, _hAeqA⟩ := hreachA
+  obtain ⟨rf0, ws0, hws0, hinv, hrf0, hws0eq⟩ := hreach0
+  obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hi, hlenA, hlenB, hlenO,
+    hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+  obtain ⟨hptrA, hrobA, hrestA⟩ := hroArel
+  obtain ⟨hptrB, hrobB, hrestB⟩ := hroBrel
+  dsimp only [u256AddBeFn] at hlenARead hlenBRead hrf0 hws0eq hrfA hwsA hrfB hwsB hrf' hws'
+  have haddrA : rfA0.get .x7 = rfA0.get .x10 + BitVec.ofNat 64 (31 - i) := by
+    rw [hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hx5]
+  have hreadA : execBlock { base := rfA0.get .x10, bytes := robA } outPtr rfA0 wsA0
+      [.LBU .x30 .x7 (0 : BitVec 12)] =
+      (rfA0.set .x30 ((aBytes.getD (31 - i) 0).zeroExtend 64), wsA0) := by
+    rw [hrobA]
+    apply execBlock_lbu_ro_idx
+    · exact hi
+    · exact haddrA
+    · exact hlenARead
+    · rw [hptrA]
+      exact hplA
+    · exact hplO
+    · rw [hptrA]
+      exact hdisjA
+  have hwsAeq : wsB0 = wsA0 := by
+    rw [hwsA, execBlock_lbu_ws]
+  have haddrB : rfB0.get .x28 = rfB0.get .x11 + BitVec.ofNat 64 (31 - i) := by
+    rw [hrfA, hreadA, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x30),
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hx11, hx5]
+  have hreadB : execBlock { base := rfB0.get .x11, bytes := robB } outPtr rfB0 wsB0
+      [.LBU .x31 .x28 (0 : BitVec 12)] =
+      (rfB0.set .x31 ((bBytes.getD (31 - i) 0).zeroExtend 64), wsB0) := by
+    rw [hrobB]
+    apply execBlock_lbu_ro_idx
+    · exact hi
+    · exact haddrB
+    · rw [hwsAeq]
+      exact hlenARead
+    · rw [hptrB]
+      exact hplB
+    · exact hplO
+    · rw [hptrB]
+      exact hdisjB
+  have hwsSeq : wsS = (addCarryState aBytes bBytes orig i).1 := by
+    rw [hwsB, execBlock_lbu_ws, hwsAeq, hws0eq]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    exact hwsState
+  have hx30S : rfS.get .x30 = (aBytes.getD (31 - i) 0).zeroExtend 64 := by
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x30 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_self _ _ _ (by decide)]
+  have hx31S : rfS.get .x31 = (bBytes.getD (31 - i) 0).zeroExtend 64 := by
+    rw [hrfB, hreadB, RegFile.get_set_self _ _ _ (by decide)]
+  have hx6S : rfS.get .x6 = (addCarryState aBytes bBytes orig i).2 := by
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx6
+  have hx29S : rfS.get .x29 = outPtr + BitVec.ofNat 64 (31 - i) := by
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hx12, hx5]
+  have hsum := sumStore_effect outPtr rfS wsS i hi
+    (aBytes.getD (31 - i) 0) (bBytes.getD (31 - i) 0)
+    (addCarryState aBytes bBytes orig i).2 hx30S hx31S hx6S hx29S
+  dsimp only at hsum
+  obtain ⟨hsx10, hsx11, hsx12, hsx5, hsx6, hsws⟩ := hsum
+  have hAfinal : A' = (bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes) := by
+    rw [hAeqB, hptrB, hrobB, hrestB]
+    xperm
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hi, hlenA, hlenB, hlenO, hplA, hplB, hplO,
+    hdisjA, hdisjB, hAfinal⟩
+  · rw [hrf', hsx10]
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx10
+  · rw [hrf', hsx11]
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx11
+  · rw [hrf', hsx12]
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx12
+  · rw [hrf', hsx5]
+    rw [hrfB, hreadB, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x31), hrfA, hreadA,
+      RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x30), hrf0]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx5
+  · rw [hrf', hsx6]
+    rw [addCarryState_succ]
+  · rw [hws', hsws, hwsSeq]
+    rw [addCarryState_succ]
 
 private theorem sumStore_blockVCs (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
     (i : Nat) (hi : i ≤ 31)
@@ -256,6 +485,191 @@ theorem u256AddBe_retVal_post (aPtr bPtr outPtr : Word)
   · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x10), hx12]
   · exact hwsBytes
   · exact hA
+
+
+theorem u256AddBe_spec (aPtr bPtr outPtr : Word)
+    (aBytes bBytes orig : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroA : Region.wf ⟨aPtr, aBytes⟩)
+    (hroB : Region.wf ⟨bPtr, bBytes⟩)
+    (base : Word) :
+    (u256AddBeFn aPtr bPtr outPtr aBytes bBytes orig).Spec base := by
+  vcgen
+  case region => exact ⟨Region.empty_wf, hrw⟩
+  case u256AddBe.loop.inv_init =>
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, hpre, hrf, hws⟩
+    obtain ⟨hx10, hx11, hx12, hwsOrig, hlenA, hlenB, hlenO, hplA, hplB, hplO,
+      hdisjA, hdisjB, hA⟩ := hpre
+    have hws32 : ws₀.length = 32 := hws₀
+    subst hrf
+    subst hws
+    unfold u256AddBeInv
+    simp only [u256AddBeFn, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, by omega, hlenA, hlenB, hlenO, hplA, hplB, hplO,
+      hdisjA, hdisjB, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), hx10]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x5), hx11]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x5), hx12]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
+        RegFile.get_set_self _ _ _ (by decide)]
+      rfl
+    · rw [RegFile.get_set_self _ _ _ (by decide)]
+      rfl
+    · exact hwsOrig
+  case u256AddBe.loop.before.readA.focus =>
+    rintro rf ws A hreach hApc hp hhp
+    obtain ⟨rf₀, ws₀, hws₀, ⟨i, hi, hinv⟩, hrf, hws⟩ := hreach
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+    dsimp only [u256AddBeFn] at hrf hws hws₀
+    subst hrf
+    subst hws
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true] at hhp ⊢
+    refine ⟨aBytes, bytesRegion bPtr bBytes, ⟨?_, rfl, rfl⟩, ?_, bytesRegion_pcFree _ _, ?_⟩
+    · exact hx10
+    · rw [hA] at hhp
+      rw [hx10]
+      exact hhp
+    · rw [hx10]
+      exact hroA
+  case u256AddBe.loop.before.readA.mem =>
+    rintro rf ws A robytes rest hws hreach hro hsat
+    obtain ⟨rf₀, ws₀, hws₀, ⟨i, hi, hinv⟩, hrf, hwsEq⟩ := hreach
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+    obtain ⟨hptr, hrob, hrest⟩ := hro
+    dsimp only [u256AddBeFn] at hrf hws hws₀ hwsEq ⊢
+    have hws32 : ws.length = 32 := hws
+    subst hrf
+    subst hwsEq
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+      RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true] at hptr hrob hrest ⊢
+    have haddr : (((rf₀.set Reg.x7 (rf₀.get Reg.x10 + rf₀.get Reg.x5)).set Reg.x28
+        (rf₀.get Reg.x11 + rf₀.get Reg.x5)).set Reg.x29
+        (rf₀.get Reg.x12 + rf₀.get Reg.x5)).get Reg.x7 =
+        rf₀.get Reg.x10 + BitVec.ofNat 64 (31 - i) := by
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+        not_false_eq_true, hx5]
+    exact readLbu_blockVCs (rf₀.get .x10) outPtr _ ws robytes .x30 .x7 i hi haddr hws32
+      (by rw [hrob]; exact hlenA) (by rw [hx10]; exact hplA) hplO
+      (by rw [hx10]; exact hdisjA)
+  case u256AddBe.loop.before.readB.focus =>
+    rintro rf ws A hreach hApc hp hhp
+    obtain ⟨rf₀, ws₀, A₀, robA, restA, hlenARead, hreach0, hsatA,
+      hroArel, hrfA, hwsA, hAeqA⟩ := hreach
+    obtain ⟨rfInit, wsInit, hwsInit, ⟨i, hi, hinv⟩, hrf0, hws0⟩ := hreach0
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+    obtain ⟨hptrA, hrobA, hrestA⟩ := hroArel
+    dsimp only [u256AddBeFn] at hrfA hrf0 hwsA hws0 hlenARead hwsInit
+    have hx11' : rf.get .x11 = bPtr := by
+      rw [hrfA, execBlock_lbu_get_ne _ _ _ _ .x30 .x7 (0 : BitVec 12) .x11 (by decide), hrf0]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+        RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true, hx11]
+    have hAshape : A = (bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes) := by
+      rw [hAeqA, hptrA, hrobA, hrestA]
+    refine ⟨bBytes, bytesRegion aPtr aBytes, ⟨hx11', rfl, rfl⟩, ?_, bytesRegion_pcFree _ _, ?_⟩
+    · rw [hx11']
+      rw [hAshape] at hhp
+      xperm_hyp hhp
+    · rw [hx11']
+      exact hroB
+  case u256AddBe.loop.before.readB.mem =>
+    rintro rf ws A robytes rest hws hreach hro hsat
+    obtain ⟨rf₀, ws₀, A₀, robA, restA, hlenARead, hreach0, hsatA,
+      hroArel, hrfA, hwsA, hAeqA⟩ := hreach
+    obtain ⟨rfInit, wsInit, hwsInit, ⟨i, hi, hinv⟩, hrf0, hws0⟩ := hreach0
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+    obtain ⟨hptr, hrob, hrest⟩ := hro
+    dsimp only [u256AddBeFn] at hrfA hrf0 hwsA hws0 hlenARead hws hwsInit ⊢
+    have hws32 : ws.length = 32 := hws
+    have haddr : rf.get .x28 = rf.get .x11 + BitVec.ofNat 64 (31 - i) := by
+      rw [hrfA,
+        execBlock_lbu_get_ne _ _ _ _ .x30 .x7 (0 : BitVec 12) .x28 (by decide),
+        execBlock_lbu_get_ne _ _ _ _ .x30 .x7 (0 : BitVec 12) .x11 (by decide),
+        hrf0]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+        RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+        not_false_eq_true, hx11, hx5]
+    exact readLbu_blockVCs (rf.get .x11) outPtr rf ws robytes .x31 .x28 i hi haddr hws32
+      (by rw [hrob]; exact hlenB) (by rw [hptr]; exact hplB) hplO
+      (by rw [hptr]; exact hdisjB)
+  case u256AddBe.loop.before.sumStore.mem =>
+    rintro rf ws A hws hreach
+    obtain ⟨rfB, wsB, AB, robB, restB, hlenBRead, hreachA, hsatB,
+      hroBrel, hrfB, hwsB, hAeqB⟩ := hreach
+    obtain ⟨rfA, wsA, AA, robA, restA, hlenARead, hreach0, hsatA,
+      hroArel, hrfA, hwsA, hAeqA⟩ := hreachA
+    obtain ⟨rf₀, ws₀, hws₀, ⟨i, hi, hinv⟩, hrf0, hws0⟩ := hreach0
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hinv
+    dsimp only [u256AddBeFn] at hrf0 hws0 hlenARead hlenBRead hrfA hrfB hwsA hwsB hws₀ hws ⊢
+    have hws32 : ws.length = 32 := hws
+    have hx29 : rf.get .x29 = outPtr + BitVec.ofNat 64 (31 - i) := by
+      rw [hrfB, execBlock_lbu_get_ne _ _ _ _ .x31 .x28 (0 : BitVec 12) .x29 (by decide),
+        hrfA, execBlock_lbu_get_ne _ _ _ _ .x30 .x7 (0 : BitVec 12) .x29 (by decide),
+        hrf0]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+        RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+        not_false_eq_true, hx12, hx5]
+    exact sumStore_blockVCs outPtr rf ws i hi hx29 hws32
+  case u256AddBe.loop.inv_step =>
+    rintro i hiLt rf' ws' A' hsp
+    obtain ⟨rfa, wsa, hwsa, ⟨hspbb, _hnbreak⟩, hrf', hws'⟩ := hsp
+    have hb := u256AddBeBefore_effect aPtr bPtr outPtr aBytes bBytes orig i rfa wsa A' hspbb
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hb
+    subst hrf'
+    subst hws'
+    unfold u256AddBeInv
+    simp only [u256AddBeFn, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, by omega, hlenA, hlenB, hlenO, hplA, hplB, hplO,
+      hdisjA, hdisjB, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), hx10]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x5), hx11]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x5), hx12]
+    · rw [RegFile.get_set_self _ _ _ (by decide), hx5,
+        show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+      bv_omega
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x5), hx6]
+    · exact hwsState
+  case u256AddBe.loop.exhausted =>
+    rintro rf' ws' A' hspbb
+    have hb := u256AddBeBefore_effect aPtr bPtr outPtr aBytes bBytes orig 31 rf' ws' A' hspbb
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hb
+    simp only [Cond.holds]
+    rw [hx5]
+    rfl
+  case u256AddBe.loop.break =>
+    rintro i hi rf' ws' A' hspbb hbreak
+    have hb := u256AddBeBefore_effect aPtr bPtr outPtr aBytes bBytes orig i rf' ws' A' hspbb
+    obtain ⟨hx10, hx11, hx12, hx5, hx6, hwsState, hik, hlenA, hlenB, hlenO,
+      hplA, hplB, hplO, hdisjA, hdisjB, hA⟩ := hb
+    simp only [Cond.holds, RegFile.get_x0] at hbreak
+    have hi31 : i = 31 := by
+      rw [hx5] at hbreak
+      have hto := congrArg BitVec.toNat hbreak
+      rw [idx_toNat i hik] at hto
+      change 31 - i = 0 at hto
+      omega
+    subst hi31
+    unfold u256AddBeLoopPost u256AddBeCarry u256AddBeBytes
+    refine ⟨hx10, hx11, hx12, ?_, ?_, ?_, hA⟩
+    · rw [hx5]
+      rfl
+    · exact hx6
+    · exact hwsState
+  case u256AddBe.post =>
+    intro rf ws A h
+    exact u256AddBe_retVal_post aPtr bPtr outPtr aBytes bBytes orig rf ws A h
+
+#print axioms u256AddBe_spec
 
 end U256AddBeSAsm
 
