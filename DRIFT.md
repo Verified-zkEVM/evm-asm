@@ -80,6 +80,19 @@ STOP, KECCAK256, BALANCE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RE
   beyond) are explicitly outside the kernel-checked core. Drift is *fenced* by
   build-time `#guard` round-trip tests (`Codegen/RoundTripTests.lean`) and the
   conformance floor (`check-conformance-floor.sh`), not *proven*.
+- **Handler glue is proven per-opcode, not universally.** Each opcode is
+  `.proven` on its verified *body* spec, but the subroutine the codegen emits,
+  `h_<OP>`, wraps that body in glue — a stack-underflow guard prologue, any
+  `preBody` clobber-saves / `la` address loads, and the advance-`x10`/`ret`
+  tail — that the body spec does not cover. This handler glue is separately
+  kernel-proven (guard + body + tail, both underflow and no-underflow paths)
+  for `ADD` (`Codegen.Proofs.evmAddGuardedHandlerSpec`) and `CALLDATALOAD`
+  (`Codegen.Proofs.evm_calldataload_staged_guarded_handler_spec`); for the other
+  `.proven` opcodes (`MOD`, `EXP`, `ADDMOD`, …) the preBody glue is **not yet
+  proven**. The final tie from the proven Program to the emitted ELF bytes is
+  machine-checked for `h_ADD` only (`scripts/check_guarded_handler_bytes.py`);
+  for `CALLDATALOAD` the `la` targets are proven relative to reconstruction
+  hypotheses, with the byte-tie deferred.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a

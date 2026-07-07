@@ -1154,6 +1154,19 @@ bundle). Tracked by issue #313.
   64-byte staging buffer (`bv_cdl_stage`, tail-zero) is the aligned region the
   window ladder runs over at offset 0. The emitted h_CALLDATALOAD body IS this
   verified program (byte-checked); EEST 8/8 full-match preserved.
+  **Handler-glue proof (DONE, from #9876 follow-up).** The `.proven` witness
+  above covers only the *body*; the emitted `h_CALLDATALOAD` also wraps it in a
+  stack-underflow guard (`negOff = -32`), a `la x14, bv_cdl_stage` buffer-base
+  load, and the `.advanceAndRet 1` tail — the unverified glue flagged in
+  DRIFT.md ("codegen unverified by design"). `Codegen/Proofs/
+  CalldataLoadGuardedHandlerSpec.lean` now proves it end-to-end:
+  `evm_calldataload_staged_guarded_handler_spec` (`cpsTripleWithin 410`, both
+  underflow → flag:=7 and no-underflow → body post + `x10`+1 paths), classical-3.
+  Reusable pieces: `HandlerSpecs.cleanRetHandlerSpec'` (looping-body lift,
+  steps ≠ instruction count) and `guardedHandlerX14Spec` (guard template with
+  `x14` threaded into the handler rather than framed) — the template for the
+  other unverified-glue opcodes (MOD, EXP, ADDMOD, …). The `la x14` target is an
+  `hla3` reconstruction hypothesis (byte-tie deferred, as for `h_ADD`).
 
 ---
 

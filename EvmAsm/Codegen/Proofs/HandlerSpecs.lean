@@ -272,6 +272,156 @@ theorem cleanRetHandlerSpec
   rw [← hCodeEq, show nSteps + 2 = (nSteps + 1) + 1 from by omega]
   exact h_full
 
+/-- **Looping-body variant of `cleanRetHandlerSpec`.**
+
+    `cleanRetHandlerSpec` assumes the body's step count equals `body.length`
+    (`hBodyLen`), which only holds for straight-line bodies. A body with an
+    internal loop (e.g. the CALLDATALOAD staging copy, 401 steps over 121
+    instructions) executes more steps than it has instructions, so its
+    `cpsTripleWithin` bound `nSteps` is decoupled from `body.length`.
+
+    This variant takes `nSteps` free and pins the body's exit PC to the
+    *instruction*-derived `base + 4 * body.length` (the address just past the
+    body, where the `ADDI x10` tail begins). Everything else is identical to
+    `cleanRetHandlerSpec`. Reusable for every looping handler body (EXP, …). -/
+theorem cleanRetHandlerSpec'
+    {nSteps : Nat} {base : Word} {body : Program} {P Q : Assertion}
+    (hQpcFree : Q.pcFree)
+    (hBodyLenBound : body.length < 2 ^ 60)
+    (h_body : cpsTripleWithin nSteps base (base + BitVec.ofNat 64 (4 * body.length))
+                (CodeReq.ofProg base body) P Q)
+    (n : BitVec 12)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin (nSteps + 2) base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base body n)
+      (P ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (Q ** (.x10 ↦ᵣ (x10_init + signExtend12 n)) ** (.x1 ↦ᵣ x1_init)) := by
+  -- Set up code-region addresses (instruction-derived, not step-derived).
+  set addiAddr : Word := base + BitVec.ofNat 64 (4 * body.length) with haddiAddr
+  set jalrAddr : Word := addiAddr + 4 with hjalrAddr
+  -- Step 1: body, framed with F on the right.
+  have h_body_framed :=
+    cpsTripleWithin_frameR
+      ((.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (by pcFree) h_body
+  -- Step 2: ADDI x10 x10 n at addiAddr.
+  have h_addi := addi_spec_same_within .x10 x10_init n addiAddr (by decide)
+  have h_addi_x1 :=
+    cpsTripleWithin_frameR (.x1 ↦ᵣ x1_init) pcFree_regIs h_addi
+  have h_addi_framed :=
+    cpsTripleWithin_frameL Q hQpcFree h_addi_x1
+  -- Step 3: JALR x0 x1 0 (= cc_ret) at jalrAddr.
+  have h_jalr := EvmAsm.Evm64.ret_spec_within' jalrAddr x1_init
+  have h_jalr_x10 :=
+    cpsTripleWithin_frameL (.x10 ↦ᵣ (x10_init + signExtend12 n))
+      pcFree_regIs h_jalr
+  have h_jalr_framed :=
+    cpsTripleWithin_frameL Q hQpcFree h_jalr_x10
+  -- 4 * body.length < 2^64 from the < 2^60 length bound.
+  have hBodyLenBound64 : (4 * body.length : Nat) < 2 ^ 64 := by
+    have : (2 : Nat) ^ 60 * 4 ≤ 2 ^ 64 := by decide
+    omega
+  -- Disjointness #1: body code vs ADDI singleton.
+  have h_disj_body_addi :
+      (CodeReq.ofProg base body).Disjoint
+        (CodeReq.singleton addiAddr (.ADDI .x10 .x10 n)) := by
+    intro a
+    by_cases ha : a = addiAddr
+    · left
+      apply CodeReq.ofProg_none_range
+      intro k hk heq
+      subst ha
+      simp only [addiAddr] at heq
+      have hk_bound : (4 * k : Nat) < 4 * body.length := by omega
+      have hk_bound' : (4 * k : Nat) < 2 ^ 64 := by omega
+      bv_omega
+    · right
+      simp [CodeReq.singleton, ha]
+  -- Compose body ;; ADDI.
+  have h_body_addi :=
+    cpsTripleWithin_seq h_disj_body_addi h_body_framed h_addi_framed
+  -- Disjointness #2: (body ∪ ADDI) vs JALR singleton.
+  have h_disj_bodyaddi_jalr :
+      ((CodeReq.ofProg base body).union
+          (CodeReq.singleton addiAddr (.ADDI .x10 .x10 n))).Disjoint
+        (CodeReq.singleton jalrAddr (.JALR .x0 .x1 0)) := by
+    apply CodeReq.Disjoint.union_left
+    · intro a
+      by_cases ha : a = jalrAddr
+      · left
+        apply CodeReq.ofProg_none_range
+        intro k hk heq
+        subst ha
+        simp only [jalrAddr, addiAddr] at heq
+        have hk_bound : (4 * k : Nat) < 4 * body.length := by omega
+        have hk_bound' : (4 * k : Nat) < 2 ^ 64 := by omega
+        bv_omega
+      · right; simp [CodeReq.singleton, ha]
+    · apply CodeReq.Disjoint.singleton
+      intro heq
+      have : (4 : Word) = 0 := by
+        have h := heq
+        bv_omega
+      exact absurd this (by decide)
+  -- Compose (body ;; ADDI) ;; JALR.
+  have h_full :=
+    cpsTripleWithin_seq h_disj_bodyaddi_jalr h_body_addi h_jalr_framed
+  -- Align the CodeReq with cleanRetHandlerCode.
+  have hCodeEq :
+      ((CodeReq.ofProg base body).union
+          (CodeReq.singleton addiAddr (.ADDI .x10 .x10 n))).union
+            (CodeReq.singleton jalrAddr (.JALR .x0 .x1 0)) =
+        cleanRetHandlerCode base body n := by
+    unfold cleanRetHandlerCode cleanRetHandlerProgram
+    unfold seq
+    have hOuter :
+        CodeReq.ofProg base (body ++ (Rv64.ADDI .x10 .x10 n ++ cc_ret)) =
+          (CodeReq.ofProg base body).union
+            (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * body.length))
+              (Rv64.ADDI .x10 .x10 n ++ cc_ret)) :=
+      CodeReq.ofProg_append
+    rw [hOuter]
+    have hInner :
+        CodeReq.ofProg (base + BitVec.ofNat 64 (4 * body.length))
+            (Rv64.ADDI .x10 .x10 n ++ cc_ret) =
+          (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * body.length))
+              (Rv64.ADDI .x10 .x10 n)).union
+            (CodeReq.ofProg
+              (base + BitVec.ofNat 64 (4 * body.length)
+                + BitVec.ofNat 64 (4 * (Rv64.ADDI .x10 .x10 n).length))
+              cc_ret) :=
+      CodeReq.ofProg_append
+    rw [hInner]
+    rw [show CodeReq.ofProg (base + BitVec.ofNat 64 (4 * body.length))
+              (Rv64.ADDI .x10 .x10 n)
+            = CodeReq.singleton (base + BitVec.ofNat 64 (4 * body.length))
+                (Instr.ADDI .x10 .x10 n) from
+        CodeReq.ofProg_singleton]
+    rw [show CodeReq.ofProg
+              (base + BitVec.ofNat 64 (4 * body.length)
+                + BitVec.ofNat 64 (4 * (Rv64.ADDI .x10 .x10 n).length))
+              cc_ret
+            = CodeReq.singleton
+                (base + BitVec.ofNat 64 (4 * body.length)
+                  + BitVec.ofNat 64 (4 * (Rv64.ADDI .x10 .x10 n).length))
+                (Instr.JALR .x0 .x1 0) from
+        CodeReq.ofProg_singleton]
+    rw [← CodeReq.union_assoc]
+    have h_addi_len : (Rv64.ADDI .x10 .x10 n).length = 1 := by
+      simp [Rv64.ADDI, single]
+    have h_addi_off :
+        base + BitVec.ofNat 64 (4 * body.length) = addiAddr := by
+      simp only [addiAddr]
+    rw [h_addi_off]
+    have h_jalr_off :
+        addiAddr + BitVec.ofNat 64 (4 * (Rv64.ADDI .x10 .x10 n).length) = jalrAddr := by
+      rw [h_addi_len]
+      simp only [jalrAddr]
+      bv_omega
+    rw [h_jalr_off]
+  rw [← hCodeEq, show nSteps + 2 = (nSteps + 1) + 1 from by omega]
+  exact h_full
+
 -- ============================================================================
 -- 3. Concrete instance — ADD (0x01)
 -- ============================================================================
