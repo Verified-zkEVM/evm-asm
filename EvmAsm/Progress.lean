@@ -223,7 +223,7 @@ def registry : List OpcodeEntry := [
 
   -- Environment (0x30..0x3e)
   entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within"),
-  entry "BALANCE" .execSpec none "not in EvmOpcode enum yet",
+  entry "BALANCE" .execSpec none "witness-backed account read",
   entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within"),
   entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
   entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
@@ -236,12 +236,12 @@ def registry : List OpcodeEntry := [
   entry "CODESIZE" .execSpec none "env read in Code/Basic.lean",
   entry "CODECOPY" .execSpec none "Code/CopyExec.lean + CopyMemory.lean",
   entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within"),
-  entry "EXTCODESIZE" .execSpec none "not in EvmOpcode enum yet",
-  entry "EXTCODECOPY" .execSpec none "not in EvmOpcode enum yet",
+  entry "EXTCODESIZE" .execSpec none "witness-backed account read",
+  entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
   entry "RETURNDATASIZE" .execSpec none
       "ReturnDataHandlers.lean; table dispatch only",
   entry "RETURNDATACOPY" .execSpec none "ReturnData/CopyExec + CopyMemory",
-  entry "EXTCODEHASH" .execSpec none "not in EvmOpcode enum yet",
+  entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
   entry "BLOCKHASH" .execSpec none "env-bridge level",
@@ -271,9 +271,9 @@ def registry : List OpcodeEntry := [
   entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
   entry "GAS" .execSpec none "reads remaining gas from EvmState",
   entry "JUMPDEST" .execSpec none "no-op opcode; gas-only",
-  entry "TLOAD" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "TSTORE" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "MCOPY" .notStarted none "EIP-5656 (Cancun); not in EvmOpcode enum",
+  entry "TLOAD" .execSpec none "EIP-1153 (Cancun); transient-log scan handler (Codegen Storage.lean)",
+  entry "TSTORE" .execSpec none "EIP-1153 (Cancun); transient-log append handler (Codegen Storage.lean)",
+  entry "MCOPY" .execSpec none "EIP-5656 (Cancun); overlap-aware memmove handler (EvmMcopyHandlers)",
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
@@ -296,7 +296,7 @@ def registry : List OpcodeEntry := [
   entry "CREATE" .execSpec none
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
-  entry "CALLCODE" .execSpec none "not in EvmOpcode enum yet",
+  entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
   entry "RETURN" .execSpec none "TerminatingArgs + TerminatingExecutionBridge",
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
@@ -322,8 +322,8 @@ def totalEntries     : Nat := registry.length
 theorem provenCount_eq      : provenCount      = 51 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 31 := by decide
-theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 34 := by decide
+theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
 /-! ## Byte-code counts
@@ -356,8 +356,8 @@ def totalBytes       : Nat :=
 theorem provenBytes_eq      : provenBytes      = 111 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 35  := by decide
-theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 38  := by decide
+theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
 /-! ## Witness `abbrev`s
