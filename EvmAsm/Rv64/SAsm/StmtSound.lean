@@ -1257,10 +1257,23 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact absurd hofs (by simp [Stmt.offsetsOk])
   | retIf lbl c t e iht ihe =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
 
 -- ============================================================================
 -- Return-terminating soundness
 -- ============================================================================
+
+/-- Same-`CodeReq` sequencing onto the taken branch, derived from the existing
+    not-taken sequencing lemma by swapping branch arms. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr : CodeReq}
+    {P Q_t1 Q_f1 Q_t2 : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr P mid Q_t1 exit_f Q_f1)
+    (h2 : cpsTripleWithin nSteps2 mid target cr Q_t1 Q_t2) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry cr P target Q_t2 exit_f Q_f1 := by
+  exact cpsBranchWithin_swap
+    (cpsBranchWithin_seq_cpsTripleWithin_same_cr (cpsBranchWithin_swap h1) h2 (fun _ hp => hp))
 
 /-- `jalr x0, ra, 0`: return to the aligned address held in `ra`, preserving
     all pc-free framed state.  This is local to the return-terminating SAsm
