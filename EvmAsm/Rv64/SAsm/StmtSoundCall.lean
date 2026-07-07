@@ -877,6 +877,202 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
         (asrtR_mono (fun rf ws A hr => hInvInit rf ws A hr))
         (fun _ hp => hp)
         hsound
+  | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
+      obtain ⟨hcalleesBB, hcalleesBA⟩ := hcallees
+      obtain ⟨hcallsBB, hcallsBA⟩ := hcalls
+      simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
+      obtain ⟨⟨⟨⟨⟨hwfB, hofsBreak⟩, _hofsBackPos⟩, hofsBack⟩, hOBB⟩, hOBA⟩ := hofs
+      simp only [Stmt.size] at hsz
+      have hInvInit : ∀ rf ws A, reach rf ws A → inv 0 rf ws A := hvcs.head
+      have hInvStep : ∀ i, i < fuel → ∀ rf' ws' A',
+          Stmt.sp reg rw ba
+            (fun rf ws A => Stmt.sp reg rw bb (inv i) rf ws A ∧ ¬ breakCond.holds rf)
+            rf' ws' A' → inv (i + 1) rf' ws' A' := hvcs.tail.head
+      have hExhausted : ∀ rf' ws' A',
+          Stmt.sp reg rw bb (inv fuel) rf' ws' A' → breakCond.holds rf' :=
+        hvcs.tail.tail.head
+      have hBreak : ∀ i, i ≤ fuel → ∀ rf' ws' A',
+          Stmt.sp reg rw bb (inv i) rf' ws' A' → breakCond.holds rf' →
+            post rf' ws' A' := hvcs.tail.tail.tail.head
+      have hBBVcs := hvcs.tail.tail.tail.tail.left
+      have hBAVcs := hvcs.tail.tail.tail.tail.right
+      have hflat : Stmt.flatten base (.doWhileBreak lbl fuel inv post bb breakCond ba)
+          = bb.flatten base
+            ++ breakCond.toInstr (Stmt.brOfs (ba.size + 2))
+            :: (ba.flatten (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+                ++ [.JAL .x0 (Stmt.jBack (bb.size + ba.size + 1))]) := rfl
+      have hflatBB : (bb.flatten base).length = bb.size := Stmt.flatten_length bb base
+      have hcode_bb : ∀ a' i,
+          CodeReq.ofProg base (bb.flatten base) a' = some i → cr a' = some i :=
+        fun a' i h => hcode a' i (hflat ▸ ofProg_mono_left a' i h)
+      have hcode_break : ∀ a' i,
+          CodeReq.singleton (base + BitVec.ofNat 64 (4 * bb.size))
+            (breakCond.toInstr (Stmt.brOfs (ba.size + 2))) a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_mono_right (p1 := bb.flatten base)
+          (by simp only [List.length_cons, List.length_append, List.length_nil,
+            Stmt.flatten_length]; omega)
+        rw [hflatBB]
+        exact ofProg_head a' i h
+      have hcode_ba : ∀ a' i,
+          CodeReq.ofProg (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+            (ba.flatten (base + BitVec.ofNat 64 (4 * (bb.size + 1)))) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_mono_right (p1 := bb.flatten base)
+          (by simp only [List.length_cons, List.length_append, List.length_nil,
+            Stmt.flatten_length]; omega)
+        rw [hflatBB]
+        apply ofProg_cons_tail
+          (by simp only [List.length_append, List.length_cons, List.length_nil,
+            Stmt.flatten_length]; omega)
+        rw [show (base + BitVec.ofNat 64 (4 * bb.size)) + 4
+            = base + BitVec.ofNat 64 (4 * (bb.size + 1)) from by bv_omega]
+        exact ofProg_mono_left a' i h
+      have hcode_jal : ∀ a' i,
+          CodeReq.singleton (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 1)))
+            (.JAL .x0 (Stmt.jBack (bb.size + ba.size + 1))) a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_mono_right (p1 := bb.flatten base)
+          (by simp only [List.length_cons, List.length_append, List.length_nil,
+            Stmt.flatten_length]; omega)
+        rw [hflatBB]
+        apply ofProg_cons_tail
+          (by simp only [List.length_append, List.length_cons, List.length_nil,
+            Stmt.flatten_length]; omega)
+        rw [show (base + BitVec.ofNat 64 (4 * bb.size)) + 4
+            = base + BitVec.ofNat 64 (4 * (bb.size + 1)) from by bv_omega]
+        apply ofProg_mono_right
+          (p1 := ba.flatten (base + BitVec.ofNat 64 (4 * (bb.size + 1))))
+          (by simp only [List.length_cons, List.length_nil, Stmt.flatten_length]; omega)
+        rw [Stmt.flatten_length,
+          show (base + BitVec.ofNat 64 (4 * (bb.size + 1))) + BitVec.ofNat 64 (4 * ba.size)
+            = base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 1)) from by bv_omega]
+        exact ofProg_head a' i h
+      have hzeroHeader : ∀ (r : Reach),
+          cpsBranchWithin 0 base cr (asrtR reg rw r)
+            base (asrtR reg rw r)
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2)))
+              (asrtR reg rw post) := by
+        intro r R hR s hcr hpre hpc
+        exact ⟨0, Nat.le_refl 0, s, rfl, Or.inl ⟨hpc, hpre⟩⟩
+      have hbreak : ∀ (r : Reach),
+          cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * bb.size)) cr (asrtR reg rw r)
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2)))
+              (asrtR reg rw fun rf ws A => r rf ws A ∧ breakCond.holds rf)
+            (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+              (asrtR reg rw fun rf ws A => r rf ws A ∧ ¬ breakCond.holds rf) := by
+        intro r
+        have hbr := branch_spec_asrt breakCond (Stmt.brOfs (ba.size + 2)) rw r
+          (base + BitVec.ofNat 64 (4 * bb.size)) hwfB
+        rw [signExtend13_brOfs hofsBreak,
+          show (base + BitVec.ofNat 64 (4 * bb.size))
+              + BitVec.ofNat 64 (4 * (ba.size + 2))
+            = base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2)) from by bv_omega,
+          show (base + BitVec.ofNat 64 (4 * bb.size)) + 4
+            = base + BitVec.ofNat 64 (4 * (bb.size + 1)) from by bv_omega] at hbr
+        exact cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
+          (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+            (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_break hbr))
+      have hbeforeStep : ∀ i, i ≤ fuel →
+          cpsTripleWithin bb.steps base (base + BitVec.ofNat 64 (4 * bb.size)) cr
+            (asrtR reg rw (inv i))
+            (asrtR reg rw (Stmt.sp reg rw bb (inv i))) := by
+        intro i hi
+        have hb := ihbb base (pfx ++ lbl ++ ".before.") (inv i) hOBB
+          (by omega) hcode_bb hcalleesBB hcallsBB
+          (Stmt.vcs_antitone reg rw bb _ (fun rf ws A hr => ⟨i, hi, hr⟩) hBBVcs)
+        simpa [Stmt.flatten_length] using hb
+      have hafterStep : ∀ i, i < fuel →
+          cpsTripleWithin (ba.steps + 1)
+            (base + BitVec.ofNat 64 (4 * (bb.size + 1))) base cr
+            (asrtR reg rw fun rf ws A => Stmt.sp reg rw bb (inv i) rf ws A
+              ∧ ¬ breakCond.holds rf)
+            (asrtR reg rw fun rf ws A => inv (i + 1) rf ws A) := by
+        intro i hi
+        have hb := ihba (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+          (pfx ++ lbl ++ ".after.")
+          (fun rf ws A => Stmt.sp reg rw bb (inv i) rf ws A ∧ ¬ breakCond.holds rf)
+          hOBA (by omega) hcode_ba hcalleesBA hcallsBA
+          (Stmt.vcs_antitone reg rw ba _ (fun rf ws A hr => ⟨i, hi, hr.1, hr.2⟩) hBAVcs)
+        have hjal := jal0_spec_pcFree (Stmt.jBack (bb.size + ba.size + 1))
+          (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 1)))
+          (pcFree_asrtR reg rw (Stmt.sp reg rw ba fun rf ws A =>
+            Stmt.sp reg rw bb (inv i) rf ws A ∧ ¬ breakCond.holds rf))
+        rw [show (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+              + BitVec.ofNat 64 (4 * ba.size)
+            = base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 1)) from by bv_omega] at hb
+        rw [add_jBack base (bb.size + ba.size + 1) (by omega) hofsBack] at hjal
+        have hjal' := cpsTripleWithin_extend_code hcode_jal hjal
+        have hseq := cpsTripleWithin_seq_same_cr hb hjal'
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (asrtR_mono (fun rf ws A hsp => hInvStep i hi rf ws A hsp)) hseq
+      have hBodyBranch : ∀ i, i < fuel →
+          cpsBranchWithin (bb.steps + ba.steps + 2) base cr
+            (asrtR reg rw (inv i))
+            base (asrtR reg rw fun rf ws A => inv (i + 1) rf ws A)
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2)))
+              (asrtR reg rw post) := by
+        intro i hi
+        have hcomposed1 := cpsTripleWithin_seq_cpsBranchWithin_same_cr
+          (hbeforeStep i (by omega)) (hbreak (Stmt.sp reg rw bb (inv i)))
+        have hcomposed2 := cpsBranchWithin_seq_cpsTripleWithin_same_cr hcomposed1
+          (hafterStep i hi) (asrtR_mono (fun rf ws A hh => hBreak i (by omega) rf ws A hh.1 hh.2))
+        rw [show bb.steps + 1 + (ba.steps + 1) = bb.steps + ba.steps + 2 from by omega]
+          at hcomposed2
+        exact cpsBranchWithin_swap hcomposed2
+      have hFinalBreak : ∀ start, start = fuel →
+          cpsTripleWithin (bb.steps + 1) base
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2))) cr
+            (asrtR reg rw (inv start)) (asrtR reg rw post) := by
+        intro start hsf
+        have hcomposed := cpsTripleWithin_seq_cpsBranchWithin_same_cr
+          (hbeforeStep start (by omega)) (hbreak (Stmt.sp reg rw bb (inv start)))
+        have hpostT : cpsTripleWithin 0
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2)))
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2))) cr
+            (asrtR reg rw fun rf ws A => Stmt.sp reg rw bb (inv start) rf ws A
+              ∧ breakCond.holds rf)
+            (asrtR reg rw post) :=
+          cpsTripleWithin_entails (asrtR_mono (fun rf ws A hh =>
+            hBreak start (by omega) rf ws A hh.1 hh.2))
+        have hdead : cpsTripleWithin 0
+            (base + BitVec.ofNat 64 (4 * (bb.size + 1)))
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2))) cr
+            (asrtR reg rw fun rf ws A => Stmt.sp reg rw bb (inv start) rf ws A
+              ∧ ¬ breakCond.holds rf)
+            (asrtR reg rw post) :=
+          cpsTripleWithin_unreachable (asrtR_unsat (fun rf ws A hh =>
+            hh.2 (hExhausted rf ws A (hsf ▸ hh.1))))
+        simpa [Nat.add_comm] using cpsBranchWithin_merge_same_cr hcomposed hpostT hdead
+      have hcert : ∀ fuel' start, start + fuel' = fuel →
+          WP.loopBreakNatCert 0 (bb.steps + ba.steps + 2) (bb.steps + 1) base base
+            (base + BitVec.ofNat 64 (4 * (bb.size + ba.size + 2))) cr
+            (fun i => asrtR reg rw (inv i))
+            (fun i => asrtR reg rw (inv i))
+            (fun _ => asrtR reg rw post)
+            (fun _ => asrtR reg rw post)
+            (asrtR reg rw post) start fuel' := by
+        intro fuel'
+        induction fuel' with
+        | zero =>
+            intro start hstart
+            simpa [WP.loopBreakNatCert] using hFinalBreak start (by omega)
+        | succ fuel' ih =>
+            intro start hstart
+            refine ⟨hzeroHeader (inv start), hBodyBranch start (by omega), ?_, ?_, ih (start + 1) (by omega)⟩
+            · exact fun hp h => h
+            · exact fun hp h => h
+      have hsound := WP.loopBreakNatCert_sound (hcert fuel 0 (by omega))
+      exact cpsTripleWithin_weaken
+        (asrtR_mono (fun rf ws A hr => hInvInit rf ws A hr))
+        (fun _ hp => hp) hsound
   | «doWhile» lbl c fuel inv b ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
       obtain ⟨⟨⟨hwf, hsizepos⟩, hsizele⟩, hOB⟩ := hofs

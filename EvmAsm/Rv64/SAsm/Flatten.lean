@@ -77,6 +77,11 @@ def flatten (addr : Word) : Stmt → List Instr
             ++ breakCond.toInstr (brOfs (ba.size + 2))
             :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
                 ++ [.JAL .x0 (jBack (bb.size + ba.size + 2))]))
+  | «doWhileBreak» _ _ _ _ bb breakCond ba =>
+      bb.flatten addr
+        ++ breakCond.toInstr (brOfs (ba.size + 2))
+        :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 1)))
+            ++ [.JAL .x0 (jBack (bb.size + ba.size + 1))])
   | «doWhile» _ guard _ _ b =>
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
   | «doWhileS» _ guard _ _ b =>
@@ -124,6 +129,8 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | «whileS» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
   | «whileBreak» _ guard fuel inv post bb breakCond ba ihbb ihba =>
+      simp [flatten, size, ihbb, ihba]; omega
+  | «doWhileBreak» _ fuel inv post bb breakCond ba ihbb ihba =>
       simp [flatten, size, ihbb, ihba]; omega
   | «doWhile» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
@@ -173,6 +180,12 @@ def offsetsOk : Stmt → Bool
            && decide (4 * (bb.size + ba.size + 3) < 2^12)
            && decide (4 * (ba.size + 2) < 2^12)
            && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
+           && bb.offsetsOk && ba.offsetsOk
+  | «doWhileBreak» _ _ _ _ bb breakCond ba =>
+      breakCond.wf
+           && decide (4 * (ba.size + 2) < 2^12)
+           && decide (0 < bb.size + ba.size + 1)
+           && decide (4 * (bb.size + ba.size + 1) ≤ 2^20)
            && bb.offsetsOk && ba.offsetsOk
   | «doWhile» _ guard _ _ b =>
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
@@ -226,6 +239,9 @@ def callsOk : Stmt → Word → Prop
   | «whileBreak» _ _ _ _ _ bb _ ba, addr =>
       bb.callsOk (addr + 4)
         ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+  | «doWhileBreak» _ _ _ _ bb _ ba, addr =>
+      bb.callsOk addr
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 1)))
   | «doWhile» _ _ _ _ b, addr => b.callsOk addr
   | «doWhileS» _ _ _ _ b, addr => b.callsOk addr
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt, addr =>

@@ -40,4 +40,5 @@ import EvmAsm.Rv64.SAsm.MultiRw
 import EvmAsm.Rv64.SAsm.MultiRead
 import EvmAsm.Rv64.SAsm.CallAt
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
+import EvmAsm.Rv64.SAsm.DoWhileBreakDemo
 import EvmAsm.Rv64.SAsm.EarlyRet

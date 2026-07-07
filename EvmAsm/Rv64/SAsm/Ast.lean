@@ -194,6 +194,16 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (post : RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+  /-- Bottom-entry loop with a **mid-body break** and no top guard.  Each
+      iteration starts by running `bodyBefore`; if `breakCond` holds, the
+      synthesized branch exits to `post`, otherwise `bodyAfter` runs and a
+      synthesized `JAL x0` jumps back to the loop entry.  `inv i` holds at the
+      i-th entry to `bodyBefore`.  This byte-matches loops whose only exit test
+      is in the middle of the body, after required side effects such as stores. -/
+  | «doWhileBreak» (label : String) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (post : RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
   /-- Bottom-test (`do`-`while`) loop: `body` runs unconditionally, then the
       trailing branch loops back to the body's start while `guard` holds, at
       most `fuel` iterations — the machine idiom `body ++ [B guard → Lbody]`
@@ -300,6 +310,7 @@ def size : Stmt → Nat
   | «while» _ _ _ _ b   => b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
+  | «doWhileBreak» _ _ _ _ bb _ ba => bb.size + ba.size + 2
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
@@ -328,6 +339,7 @@ def callFree : Stmt → Bool
   | «while» _ _ _ _ b => b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
+  | «doWhileBreak» _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhile» _ _ _ _ b => b.callFree
   | «doWhileS» _ _ _ _ b => b.callFree
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
