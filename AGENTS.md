@@ -134,6 +134,19 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 - **Spec design — keep preconditions static; put outcomes in the postcondition.** A subroutine spec's Lean arguments and hypotheses (preconditions) must contain only information that is **statically known or available before the program runs** — base/pointers, lengths, the input bytes, alignment, memory-validity, and size bounds. Whether the run succeeds or fails, and the value it decodes/produces, must **not** appear in the precondition: no hypothesis that pre-decides which branch is taken (e.g. `content[0] ≠ 0`, `len > 32`, `success`), and no precondition phrased as "if the outcome is X then …". Instead, a **unified** spec states every outcome in the **postcondition as a disjunction** — one disjunct per outcome, each carrying its own guard (a static condition like `32 < len`), status code, and result/output assertion. Use a single static upper bound for the step count: `cpsTripleWithin` means "within N steps" (`∃ k ≤ nSteps`), so pick a bound covering all cases and lift each branch's exact count with `cpsTripleWithin_mono_nSteps`. This keeps the theorem easy to apply — a caller supplies only static facts and reads the case analysis back out. Per-outcome sub-specs (one Hoare triple per branch) are fine as building blocks, but the top-level unified theorem must follow this shape. (Example: `EvmAsm/Rv64/RLP/ContentToU256Be.lean`.)
 
+- **Read-only memory in SAsm specs stays read-only.** If a routine reads from a
+  second input buffer that the caller owns as immutable/ambient memory, do not
+  model that buffer as an `rw` region just because the current `Fn.region` is
+  the primary mutable focus. Keep the writable focus on the actual mutable
+  region, carry the read-only buffer in the ambient assertion (typically
+  `A = bytesRegion ptr bytes`), and use `.readAt` with a stable base register
+  plus a focus relation for the read-only bytes. If the routine has two input
+  buffers and actual callsites guarantee non-overlap, make disjointness a
+  static precondition after checking every callsite; do not infer it from the
+  memory model. Example: `bnfEq32Fn_spec` keeps `a1` as an ambient read-only
+  `bytesRegion`, preserves stable `x11`, uses cursor `x7` only for loads, and
+  requires the two 32-byte ranges to be disjoint.
+
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
 - **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
 - If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
@@ -144,6 +157,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   4. For straight-line SAsm ports with many memory writes, keeping the emitted body byte-identical as one `.block` is fine, but move the large `blockVCs` proof into named helper lemmas. Normalize concrete address offsets in those helpers before handing the range/alignment tail to `simp`/`omega`; otherwise Lean may expand `BitVec.toNat` modulo arithmetic and lose the simple offset fact.
   5. In `vcgen` post cases, avoid closing large final-state equalities with bare `rfl`. Nontrivial definitional equality can timeout instead of failing clearly. Prove a small execution/engine lemma for the flattened body, rewrite the post target with it, then bridge to the semantic postcondition with an explicit list/value lemma.
   6. For byte-identical bottom-test loops (`Stmt.doWhile`), remember that `inv i` is after the `(i+1)`-th body execution. In the `inv_init` VC, `vcgen` may expose the loop-entry writable bytes under a generated local witness rather than the theorem parameter name; destruct the `sp` hypothesis and use that local witness. In the final post, use the failed guard to prove the exact terminal index, not just the fuel bound.
+  7. In SAsm memory VCs, if the hypothesis is `ws.length = (someFn ...).rw.len`, prefer `change ws.length = <literal> at h_len` when the literal is known. `simpa [someFn] using h_len` can unfold the whole `Fn` (including body/post) and hit recursion limits for no useful reason.
 - **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
   posts, `extract_pure`/`drop_pure` struggles): fold posts behind
   `@[irreducible]` helpers and extract pures one layer at a time — full
