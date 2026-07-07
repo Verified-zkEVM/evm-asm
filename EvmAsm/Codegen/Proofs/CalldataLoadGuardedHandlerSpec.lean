@@ -91,7 +91,6 @@ theorem laX14_staged_length (hi3 : BitVec 20) (lo3 : BitVec 12) :
 -- Step 1: `la x14, bv_cdl_stage ;; evm_calldataload_staged`
 -- ============================================================================
 
-set_option maxHeartbeats 1200000 in
 
 /-- **The `la x14` + verified-body composition.** Sits at `hbase + 40` (the
     post-guard address). The two `la` instructions overwrite the incoming
@@ -232,7 +231,6 @@ theorem laX14_staged_body_spec_within
 -- Step 3: the guard-prologue template with `x14` threaded into the handler
 -- ============================================================================
 
-set_option maxHeartbeats 1200000 in
 /-- **Guard template with `x14` consumed by the handler.** The sibling of
     `GuardedHandlerSpecs.guardedCleanRetHandlerSpec`, but the guard's residual
     `x14` (`= curTop + signExtend12 negOff`) flows *into* the handler's pre
@@ -426,7 +424,6 @@ theorem guardedHandlerX14Spec
 -- Step 4: the concrete `h_CALLDATALOAD` handler-level spec
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- **The verified `h_CALLDATALOAD` handler subroutine** (opcode 0x35). The full
     emitted glue — the 10-instruction stack-underflow guard (`negOff = -32`,
     word count 1), the `la x14, bv_cdl_stage` buffer-base load, the verified
