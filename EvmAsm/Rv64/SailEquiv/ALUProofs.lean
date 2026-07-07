@@ -27,7 +27,7 @@
 import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -409,7 +409,7 @@ theorem mul_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    mul_low_equiv, LeanRV64D.Functions.xlen]
+    mul_low_equiv, Out.Functions.xlen]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]

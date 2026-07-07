@@ -14,26 +14,9 @@ import EvmAsm.Rv64.SailEquiv.MonadLemmas
 import EvmAsm.Rv64.SailEquiv.MemReduce
 
 open Sail
-open LeanRV64D.Functions
+open Out.Functions
 
 namespace EvmAsm.Rv64.SailEquiv
-
-/-- `untilFuelM` with fuel 1 and a **pure** loop condition runs the body exactly
-    once and returns its result (the condition is evaluated but has no effect).
-    For an aligned access `split_misaligned` gives `n = 1`, so the `vmem_*_addr`
-    loop is this single iteration. -/
-theorem untilFuelM_one_pure {α : Type} (g : α → Bool) (init : α) (f : α → SailM α) :
-    untilFuelM 1 (fun x => (Pure.pure (g x) : SailM Bool)) init f = f init := by
-  unfold untilFuelM
-  simp [untilFuelM.go]
-
-/-- Monad-generic version of `untilFuelM_one_pure`, for the `SailME` (ExceptT) loop
-    in `vmem_write_addr`/`vmem_read_addr`. -/
-theorem untilFuelM_one_pure_gen {m : Type → Type} [Monad m] [LawfulMonad m] {α : Type}
-    (g : α → Bool) (init : α) (f : α → m α) :
-    untilFuelM 1 (fun x => (Pure.pure (g x) : m Bool)) init f = f init := by
-  unfold untilFuelM
-  simp [untilFuelM.go]
 
 /-- Sail's `writeBytes` stores byte `i` as `v.extractLsb' (8*i) 8`; our reassembly
     lemmas (`MemReduce`) are stated with `extractByte`. They coincide. -/

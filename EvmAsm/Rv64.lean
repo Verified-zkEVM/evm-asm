@@ -48,6 +48,14 @@ import EvmAsm.Rv64.SailEquiv.ShiftProofs
 import EvmAsm.Rv64.SailEquiv.ImmProofs
 import EvmAsm.Rv64.SailEquiv.BranchProofs
 import EvmAsm.Rv64.SailEquiv.MemProofs
+-- VmemReduction: building blocks for discharging the MemProofs h_exec hypothesis.
+import EvmAsm.Rv64.SailEquiv.VmemReduction
+-- VmemReductionN: width-N generalisation discharging the sub-doubleword loads.
+import EvmAsm.Rv64.SailEquiv.VmemReductionN
+-- VmemReductionLoads: unconditional LW/LWU/LH/LHU/LB/LBU equivalence lemmas.
+import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
+-- StepSim consolidates the per-instruction lemmas into one step-simulation theorem.
+import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs
 import EvmAsm.Rv64.SailEquiv.StepProofs
 import EvmAsm.Rv64.SailEquiv.MemReduce

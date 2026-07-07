@@ -7,7 +7,7 @@
 
 import EvmAsm.Rv64.SailEquiv.StateRel
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -326,7 +326,7 @@ private theorem runSail_wX_bits_x1 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x2 {v : BitVec 64} {s : SailState} :
@@ -337,7 +337,7 @@ private theorem runSail_wX_bits_x2 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x3 {v : BitVec 64} {s : SailState} :
@@ -348,7 +348,7 @@ private theorem runSail_wX_bits_x3 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x4 {v : BitVec 64} {s : SailState} :
@@ -359,7 +359,7 @@ private theorem runSail_wX_bits_x4 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x5 {v : BitVec 64} {s : SailState} :
@@ -370,7 +370,7 @@ private theorem runSail_wX_bits_x5 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x6 {v : BitVec 64} {s : SailState} :
@@ -381,7 +381,7 @@ private theorem runSail_wX_bits_x6 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x7 {v : BitVec 64} {s : SailState} :
@@ -392,7 +392,7 @@ private theorem runSail_wX_bits_x7 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x8 {v : BitVec 64} {s : SailState} :
@@ -403,7 +403,7 @@ private theorem runSail_wX_bits_x8 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x9 {v : BitVec 64} {s : SailState} :
@@ -414,7 +414,7 @@ private theorem runSail_wX_bits_x9 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x10 {v : BitVec 64} {s : SailState} :
@@ -425,7 +425,7 @@ private theorem runSail_wX_bits_x10 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x11 {v : BitVec 64} {s : SailState} :
@@ -436,7 +436,7 @@ private theorem runSail_wX_bits_x11 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x12 {v : BitVec 64} {s : SailState} :
@@ -447,7 +447,7 @@ private theorem runSail_wX_bits_x12 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x13 {v : BitVec 64} {s : SailState} :
@@ -458,7 +458,7 @@ private theorem runSail_wX_bits_x13 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x14 {v : BitVec 64} {s : SailState} :
@@ -469,7 +469,7 @@ private theorem runSail_wX_bits_x14 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x15 {v : BitVec 64} {s : SailState} :
@@ -480,7 +480,7 @@ private theorem runSail_wX_bits_x15 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x16 {v : BitVec 64} {s : SailState} :
@@ -491,7 +491,7 @@ private theorem runSail_wX_bits_x16 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x17 {v : BitVec 64} {s : SailState} :
@@ -502,7 +502,7 @@ private theorem runSail_wX_bits_x17 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x18 {v : BitVec 64} {s : SailState} :
@@ -513,7 +513,7 @@ private theorem runSail_wX_bits_x18 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x19 {v : BitVec 64} {s : SailState} :
@@ -524,7 +524,7 @@ private theorem runSail_wX_bits_x19 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x20 {v : BitVec 64} {s : SailState} :
@@ -535,7 +535,7 @@ private theorem runSail_wX_bits_x20 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x21 {v : BitVec 64} {s : SailState} :
@@ -546,7 +546,7 @@ private theorem runSail_wX_bits_x21 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x22 {v : BitVec 64} {s : SailState} :
@@ -557,7 +557,7 @@ private theorem runSail_wX_bits_x22 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x23 {v : BitVec 64} {s : SailState} :
@@ -568,7 +568,7 @@ private theorem runSail_wX_bits_x23 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x24 {v : BitVec 64} {s : SailState} :
@@ -579,7 +579,7 @@ private theorem runSail_wX_bits_x24 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x25 {v : BitVec 64} {s : SailState} :
@@ -590,7 +590,7 @@ private theorem runSail_wX_bits_x25 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x26 {v : BitVec 64} {s : SailState} :
@@ -601,7 +601,7 @@ private theorem runSail_wX_bits_x26 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x27 {v : BitVec 64} {s : SailState} :
@@ -612,7 +612,7 @@ private theorem runSail_wX_bits_x27 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x28 {v : BitVec 64} {s : SailState} :
@@ -623,7 +623,7 @@ private theorem runSail_wX_bits_x28 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x29 {v : BitVec 64} {s : SailState} :
@@ -634,7 +634,7 @@ private theorem runSail_wX_bits_x29 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x30 {v : BitVec 64} {s : SailState} :
@@ -645,7 +645,7 @@ private theorem runSail_wX_bits_x30 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 private theorem runSail_wX_bits_x31 {v : BitVec 64} {s : SailState} :
@@ -656,7 +656,7 @@ private theorem runSail_wX_bits_x31 {v : BitVec 64} {s : SailState} :
     modifyGet, MonadStateOf.modifyGet,
     xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    xreg_full_write_callback, Out.Functions.not, to_bits, get_slice_int,
     bind, EStateM.bind, pure, EStateM.pure]
 
 /-- Generic `wX_bits` dispatch: for any `rd : Reg`, the SAIL write reduces
@@ -687,7 +687,7 @@ theorem runSail_xreg_write_callback {reg : regidx} {v : BitVec 64} {s : SailStat
     runSail (xreg_write_callback reg v) s = some (⟨⟩, s) := by
   simp [runSail, xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
-    xreg_full_write_callback, LeanRV64D.Functions.not,
+    xreg_full_write_callback, Out.Functions.not,
     bind, EStateM.bind, pure, EStateM.pure]
 
 -- ============================================================================
@@ -760,7 +760,7 @@ private theorem currentlyEnabled_Ext_C_result (s : SailState) (misa_val : BitVec
     currentlyEnabled extension.Ext_C s =
       EStateM.Result.ok ((_get_Misa_C misa_val) == 1#1) s := by
   rw [currentlyEnabled.eq_def]
-  simp [hartSupports, _get_Misa_C, LeanRV64D.Functions.not, LeanRV64D.Functions.xlen,
+  simp [hartSupports, _get_Misa_C, Out.Functions.not, Out.Functions.xlen,
     PreSail.readReg, h_misa,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
@@ -770,7 +770,7 @@ theorem currentlyEnabled_Ext_Zca_result (s : SailState) (misa_val : BitVec 64)
     currentlyEnabled extension.Ext_Zca s =
       EStateM.Result.ok ((_get_Misa_C misa_val) == 1#1) s := by
   rw [currentlyEnabled.eq_def]
-  simp [hartSupports, LeanRV64D.Functions.not, LeanRV64D.Functions.xlen,
+  simp [hartSupports, Out.Functions.not, Out.Functions.xlen,
     currentlyEnabled_Ext_C_result s misa_val h_misa,
     pure, EStateM.pure, bind, EStateM.bind]
 
@@ -803,7 +803,7 @@ theorem runSail_jump_to {target : BitVec 64} {s : SailState}
     assert, PreSail.assert,
     hb0', hb1', BitVec.ofBool,
     bit_to_bool, bool_bit_backwards,
-    h_zca, LeanRV64D.Functions.not,
+    h_zca, Out.Functions.not,
     set_next_pc, redirect_callback,
     PreSail.writeReg, EStateM.modifyGet,
     modify, MonadState.modifyGet, modifyGet, MonadStateOf.modifyGet,

@@ -21,7 +21,7 @@
 
 import EvmAsm.Rv64.SailEquiv.BranchProofs
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
