@@ -183,8 +183,10 @@ def schemeAAnchors : List GuestRegion :=
     (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it.
     Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
-    EIP-8037 gas checking began deriving the regular-gas dimension in-guest. -/
-def textSizeBytes : Nat := 0x53400
+    EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
+    Shrunk by `0x3c` when child-error state-gas spill stopped being credited
+    back to regular gas. -/
+def textSizeBytes : Nat := 0x533c4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195156d0`). Link-layout-dependent. Grew by `0x20` (32 B)
