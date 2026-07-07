@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Evm64.BlobBaseFee.Program
 
 namespace EvmAsm.Codegen
 
@@ -24,20 +25,12 @@ open EvmAsm.Rv64
   `evm_env+544`; indexes outside that count, or indexes with nonzero high
   limbs, push zero per execution-specs. -/
 def blobContextHandlers : List OpcodeHandlerSpec :=
-  let blobBaseFeeBody : Program :=
-    ADDI .x12 .x12 (-32) ;;
-    LD .x15 .x20 (BitVec.ofNat 12 512) ;;
-    SD .x12 .x15 0 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 520) ;;
-    SD .x12 .x15 8 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 528) ;;
-    SD .x12 .x15 16 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 536) ;;
-    SD .x12 .x15 24
   [ { label := "h_BLOBBASEFEE"
     , opcodes := [0x4a]
     , preBody := stackOverflowGuardAsm
-    , body := blobBaseFeeBody
+      -- The verified BLOBBASEFEE program (`BlobBaseFee/Spec.lean`), the same
+      -- instruction list as the former inline `blobBaseFeeBody`.
+    , body := EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee .x20 .x15
     , tail := .advanceAndRet 1 } ]
   ++
   [ { label := "h_BLOBHASH"
