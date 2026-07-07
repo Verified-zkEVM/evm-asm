@@ -199,6 +199,14 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (post : RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+  /-- Bounded scan loop with two mid-body break branches that select one of two
+      short tails before reconverging at the following statement.  It byte-matches
+      `guard; before; breakA; breakB; step; JAL -> guard; selA; JAL -> join; selB`.
+      The node post is after either selector has run and control is at the join. -/
+  | while2BreakJoin (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (post : RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakA breakB : Cond) (bodyStep selectA selectB : Stmt)
   /-- Bottom-entry loop with a **mid-body break** and no top guard.  Each
       iteration starts by running `bodyBefore`; if `breakCond` holds, the
       synthesized branch exits to `post`, otherwise `bodyAfter` runs and a
@@ -316,6 +324,8 @@ def size : Stmt → Nat
   | whileHeader _ h _ _ _ b => h.size + b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB =>
+      before.size + step.size + selA.size + selB.size + 5
   | «doWhileBreak» _ _ _ _ bb _ ba => bb.size + ba.size + 2
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
@@ -346,6 +356,8 @@ def callFree : Stmt → Bool
   | whileHeader _ h _ _ _ b => h.callFree && b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB =>
+      before.callFree && step.callFree && selA.callFree && selB.callFree
   | «doWhileBreak» _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhile» _ _ _ _ b => b.callFree
   | «doWhileS» _ _ _ _ b => b.callFree

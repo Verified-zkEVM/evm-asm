@@ -127,6 +127,7 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       fun rf ws A => ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
         ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf
   | «whileBreak» _ _ _ _ post _ _ _, _ => post
+  | while2BreakJoin _ _ _ _ post _ _ _ _ _ _, _ => post
   | «doWhileBreak» _ _ _ post _ _ _, _ => post
   | «doWhile» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
@@ -255,6 +256,45 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
         (fun rf ws A => ∃ i, i < fuel ∧
           sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
             ∧ ¬ breakCond.holds rf))
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
+          ∀ rf' ws' A', sp reg rw step
+              (fun rf ws A =>
+                sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                  ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf) rf' ws' A' →
+            inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf⟩ ::
+      ⟨pfx ++ lbl ++ ".selA_exit", ∀ rf' ws' A',
+          sp reg rw selA
+            (fun rf ws A =>
+              (∃ i, i ≤ fuel ∧ inv i rf ws A ∧ ¬ guard.holds rf) ∨
+              (∃ i, i < fuel ∧
+                sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                  ∧ breakA.holds rf)) rf' ws' A' →
+            post rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".selB_exit", ∀ rf' ws' A',
+          sp reg rw selB
+            (fun rf ws A => ∃ i, i < fuel ∧
+              sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                ∧ ¬ breakA.holds rf ∧ breakB.holds rf) rf' ws' A' →
+            post rf' ws' A'⟩ ::
+      (vcs reg rw before (pfx ++ lbl ++ ".before.")
+        (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+       ++ vcs reg rw step (pfx ++ lbl ++ ".step.")
+        (fun rf ws A => ∃ i, i < fuel ∧
+          sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf)
+       ++ vcs reg rw selA (pfx ++ lbl ++ ".selA.")
+        (fun rf ws A =>
+          (∃ i, i ≤ fuel ∧ inv i rf ws A ∧ ¬ guard.holds rf) ∨
+          (∃ i, i < fuel ∧
+            sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ breakA.holds rf))
+       ++ vcs reg rw selB (pfx ++ lbl ++ ".selB.")
+        (fun rf ws A => ∃ i, i < fuel ∧
+          sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ ¬ breakA.holds rf ∧ breakB.holds rf))
   | «doWhileBreak» lbl fuel inv post bb breakCond ba, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
       ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
@@ -351,6 +391,9 @@ def steps : Stmt → Nat
   | «whileS» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | «whileBreak» _ _ fuel _ _ bb _ ba =>
       WP.loopBound 1 (bb.steps + ba.steps + 2) 1 fuel
+  | while2BreakJoin _ _ fuel _ _ before _ _ step selA selB =>
+      WP.loopBound 1 (before.steps + 2 + step.steps + 1)
+        (before.steps + 2 + selA.steps + 1 + selB.steps) fuel
   | «doWhileBreak» _ fuel _ _ bb _ ba =>
       WP.loopBound 0 (bb.steps + ba.steps + 2) (bb.steps + 1) fuel
   | «doWhile» _ _ fuel _ b => b.steps + WP.loopBound 1 b.steps 1 fuel
@@ -401,6 +444,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
       exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
   | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba =>
+      exact fun rf ws A hr => hr
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB =>
       exact fun rf ws A hr => hr
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
       exact fun rf ws A hr => hr
@@ -580,6 +625,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | whileHeader lbl header guard fuel inv body ihh ihb => exact nomatch h
   | «whileS» lbl c fuel inv b ih => exact nomatch h
   | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba => exact nomatch h
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB => exact nomatch h
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba => exact nomatch h
   | «doWhile» lbl c fuel inv b ih => exact nomatch h
   | «doWhileS» lbl c fuel inv b ih => exact nomatch h
@@ -739,6 +785,16 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       · -- body VCs (before ++ after): their reaches do not mention the outer
         -- reachable set, so the same obligations serve `r₁` and `r₂`.
         exact hvcs.tail.tail.tail.tail.tail vc hvc
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | rfl | rfl | rfl | rfl | hvc
+      · exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+      · exact hvcs.tail.head
+      · exact hvcs.tail.tail.head
+      · exact hvcs.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.tail vc hvc
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
@@ -841,6 +897,9 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | «whileS» _ _ _ _ b => b.CalleesIn reg rw cr
   | «whileBreak» _ _ _ _ _ bb _ ba =>
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB =>
+      before.CalleesIn reg rw cr ∧ step.CalleesIn reg rw cr ∧
+      selA.CalleesIn reg rw cr ∧ selB.CalleesIn reg rw cr
   | «doWhileBreak» _ _ _ _ bb _ ba =>
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr
   | «doWhile» _ _ _ _ b => b.CalleesIn reg rw cr
