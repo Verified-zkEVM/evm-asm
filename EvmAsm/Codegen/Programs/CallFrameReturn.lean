@@ -87,23 +87,10 @@ def frameReturnFunction : String :=
   -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
   -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
   "  bnez s0, .Lfr_sgas_done\n" ++
-  -- If child state-gas charges spilled into regular gas, restore that spilled
-  -- regular amount to the child leftover before merging it into the parent.
-  -- spill = max(0, (used - used0) - max(0, left0 - left)). The globals are
-  -- restored below; this accounts for the regular-gas side of the same rollback.
-  "  ld t0, 632(x20)                 # used0\n" ++
-  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
-  "  bleu t2, t0, .Lfr_sgas_no_spill\n" ++
-  "  sub t2, t2, t0                 # t2 = used_delta\n" ++
-  "  ld t0, 624(x20)                 # left0\n" ++
-  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left\n" ++
-  "  bleu t0, t3, .Lfr_sgas_add_spill\n" ++
-  "  sub t3, t0, t3                 # t3 = reservoir_spent\n" ++
-  "  bleu t2, t3, .Lfr_sgas_no_spill\n" ++
-  "  sub t2, t2, t3\n" ++
-  ".Lfr_sgas_add_spill:\n" ++
-  "  add s7, s7, t2\n" ++
-  ".Lfr_sgas_no_spill:\n" ++
+  -- On child error, execution-specs returns the child state-gas allocation to
+  -- the parent's state reservoir, not to regular gas. If a child state-gas
+  -- charge spilled into `gas_left`, that regular gas remains spent; do not add
+  -- it back to the child leftover before the EIP-150 gas merge.
   "  ld t0, 632(x20)                 # used0\n" ++
   "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
   "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left, including child refunds\n" ++
@@ -117,10 +104,8 @@ def frameReturnFunction : String :=
   -- (amsterdamStateBytesPerNewAccountV2 = 120*1530 = 183600) is refunded to
   -- state_gas_left and subtracted from state_gas_used, matching execution-specs
   -- credit_state_gas_refund(evm, create_account_state_gas). This MUST NOT touch
-  -- gas_left — the spec credits state_gas_left ONLY. frame_return's spill restore
-  -- (above) already excluded the CREATE charge from s7 because the snapshot holds
-  -- POST-charge values (used_delta excludes the CREATE charge), so gas_left is not
-  -- inflated. Check create_frame_flag[child_depth] (set by create_frame_descend).
+  -- gas_left; the spec credits state_gas_left only. Check create_frame_flag[child_depth]
+  -- (set by create_frame_descend).
   "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
   "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
   "  ld t0, 0(t0)\n" ++
