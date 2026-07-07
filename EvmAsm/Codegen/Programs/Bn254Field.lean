@@ -446,10 +446,15 @@ theorem bnfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
     completion + mid `BNE x28,x29` break-on-mismatch), where the two exits
     jump to *different* result blocks (`LI x10,1` / `LI x10,0`).
 
-    Per the drop-in policy (same technique as `bnfIsZero32`), we model it as
-    a **single-exit `whileBreak`** whose body scans 32 bytes (break on first
-    mismatch), followed by a post-loop block that derives the result from the
-    **counter** `x5` (`x5 = 0` ⟺ all 32 bytes matched ⟺ buffers equal). -/
+    Per the drop-in policy (same technique as `bnfIsZero32`), the scaffold
+    below models it as a **single-exit `whileBreak`** whose body scans 32
+    bytes (break on first mismatch), followed by a post-loop block that derives
+    the result from the **counter** `x5` (`x5 = 0` ⟺ all 32 bytes matched ⟺
+    buffers equal).
+
+    This PR intentionally leaves the emitted `bnfEq32_prog` byte-identical to
+    the hand-written routine. Re-emitting from `bnfEq32Body` belongs with the
+    full `bnfEq32Fn_spec` proof and the EEST A/B parity gate. -/
 
 
 /-- Loop invariant at header evaluation `i`: counter `x5 = 32-i`, cursors
@@ -547,9 +552,27 @@ def bnfEq32Fn (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Fn where
     ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64
   body := bnfEq32Body ptr1 ptr2 bs1 bs2
 
-/-- Re-emitted drop-in: the verified `bnfEq32Body` flatten + `ret`. -/
+/-- Return a0 = 1 iff the two 32-byte buffers at a0 and a1 are equal.
+
+    Kept byte-identical to the current emitted helper. The structured
+    `bnfEq32Body` above is proof scaffolding only until `bnfEq32Fn_spec` lands
+    with the drop-in re-emit and EEST A/B parity run. -/
 def bnfEq32_prog : Program :=
-  (bnfEq32Body 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bn254FieldEq32Function : String :=
   "bnf_eq32:\n" ++ emitProgram bnfEq32_prog
