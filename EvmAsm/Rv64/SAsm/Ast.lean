@@ -259,8 +259,19 @@ inductive Stmt where
   | callAt (label : String)
            (roR : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
            (f : FnHandle)
+  /-- Return to `ra` (`JALR x0 x1 0`).  This node is intentionally rejected by
+      the legacy single-exit `Stmt.sound` path; use the return-terminating
+      soundness path for statements whose control flow exits through `ra`. -/
+  | retJalr (label : String)
+  /-- Branch to one of two return-terminated tail blocks, with no balancing
+      `JAL` after either arm.  Layout: `B c -> then; else; then`, where both
+      arms are checked by the return-terminating soundness path. -/
+  | retIf  (label : String) (c : Cond) (thn els : Stmt)
 
 namespace Stmt
+
+/-- Return to `ra` (`JALR x0 x1 0`). -/
+def ret (label : String) : Stmt := retJalr label
 
 /-- Sequential composition, right-associated. -/
 scoped infixr:60 " ;;; " => Stmt.seq
@@ -285,6 +296,8 @@ def size : Stmt → Nat
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
   | callAt _ _ _      => 1
+  | retJalr _         => 1
+  | retIf _ _ t e     => t.size + e.size + 1
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -310,6 +323,8 @@ def callFree : Stmt → Bool
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
   | callAt _ _ _      => false
+  | retJalr _         => true
+  | retIf _ _ t e     => t.callFree && e.callFree
 
 end Stmt
 
