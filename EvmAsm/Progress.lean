@@ -70,6 +70,10 @@ import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
+import EvmAsm.Evm64.Code.SizeSpec
+import EvmAsm.Evm64.ControlFlow.PcSpec
+import EvmAsm.Evm64.GasOpcode.Spec
+import EvmAsm.Evm64.BlobBaseFee.Spec
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
@@ -223,7 +227,7 @@ def registry : List OpcodeEntry := [
 
   -- Environment (0x30..0x3e)
   entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within"),
-  entry "BALANCE" .execSpec none "not in EvmOpcode enum yet",
+  entry "BALANCE" .execSpec none "witness-backed account read",
   entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within"),
   entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
   entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
@@ -233,15 +237,15 @@ def registry : List OpcodeEntry := [
       (some "Calldata.evm_calldatasize_stack_spec_within"),
   entry "CALLDATACOPY" .proven
       (some "Calldata.evm_calldatacopy_stack_spec_within"),
-  entry "CODESIZE" .execSpec none "env read in Code/Basic.lean",
+  entry "CODESIZE" .proven (some "Code.evm_codesize_stack_spec_within"),
   entry "CODECOPY" .execSpec none "Code/CopyExec.lean + CopyMemory.lean",
   entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within"),
-  entry "EXTCODESIZE" .execSpec none "not in EvmOpcode enum yet",
-  entry "EXTCODECOPY" .execSpec none "not in EvmOpcode enum yet",
+  entry "EXTCODESIZE" .execSpec none "witness-backed account read",
+  entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
   entry "RETURNDATASIZE" .execSpec none
       "ReturnDataHandlers.lean; table dispatch only",
   entry "RETURNDATACOPY" .execSpec none "ReturnData/CopyExec + CopyMemory",
-  entry "EXTCODEHASH" .execSpec none "not in EvmOpcode enum yet",
+  entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
   entry "BLOCKHASH" .execSpec none "env-bridge level",
@@ -254,7 +258,7 @@ def registry : List OpcodeEntry := [
   entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within"),
   entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within"),
   entry "BLOBHASH" .execSpec none "env-bridge level",
-  entry "BLOBBASEFEE" .execSpec none "env-bridge level",
+  entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within"),
 
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
   entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
@@ -267,13 +271,13 @@ def registry : List OpcodeEntry := [
   entry "SSTORE" .execSpec none "Storage*.lean; ECALL → host",
   entry "JUMP" .execSpec none "handled by interpreter PC update",
   entry "JUMPI" .execSpec none "handled by interpreter PC update",
-  entry "PC" .execSpec none "reads EVM PC from EvmState",
+  entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within"),
   entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
-  entry "GAS" .execSpec none "reads remaining gas from EvmState",
+  entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within"),
   entry "JUMPDEST" .execSpec none "no-op opcode; gas-only",
-  entry "TLOAD" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "TSTORE" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "MCOPY" .notStarted none "EIP-5656 (Cancun); not in EvmOpcode enum",
+  entry "TLOAD" .execSpec none "EIP-1153 (Cancun); transient-log scan handler (Codegen Storage.lean)",
+  entry "TSTORE" .execSpec none "EIP-1153 (Cancun); transient-log append handler (Codegen Storage.lean)",
+  entry "MCOPY" .execSpec none "EIP-5656 (Cancun); overlap-aware memmove handler (EvmMcopyHandlers)",
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
@@ -296,7 +300,7 @@ def registry : List OpcodeEntry := [
   entry "CREATE" .execSpec none
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
-  entry "CALLCODE" .execSpec none "not in EvmOpcode enum yet",
+  entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
   entry "RETURN" .execSpec none "TerminatingArgs + TerminatingExecutionBridge",
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
@@ -319,11 +323,11 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 51 := by decide
+theorem provenCount_eq      : provenCount      = 55 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 31 := by decide
-theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 30 := by decide
+theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
 /-! ## Byte-code counts
@@ -353,11 +357,11 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 111 := by decide
+theorem provenBytes_eq      : provenBytes      = 115 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 35  := by decide
-theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 34  := by decide
+theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
 /-! ## Witness `abbrev`s
@@ -417,6 +421,14 @@ private noncomputable abbrev _calldatasize_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
 private noncomputable abbrev _calldatacopy_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatacopy_stack_spec_within
+private noncomputable abbrev _codesize_witness :=
+  @EvmAsm.Evm64.Code.evm_codesize_stack_spec_within
+private noncomputable abbrev _pc_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_pc_stack_spec_within
+private noncomputable abbrev _gas_witness :=
+  @EvmAsm.Evm64.GasOpcode.evm_gas_stack_spec_within
+private noncomputable abbrev _blobbasefee_witness :=
+  @EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within

@@ -222,6 +222,16 @@ inductive Stmt where
            (inv : RegFile → List (BitVec 8) → Assertion →
              Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (body : Stmt)
+  /-- Bounded return-terminating loop with two distinct return tails.  The
+      header exits to `guardTail` when `guard` fails; after `bodyBefore`,
+      `breakCond` exits to `breakTail`; otherwise `bodyAfter` runs and the
+      synthesized `JAL x0` jumps back to the header.  Both tails must be
+      accepted by `retOffsetsOk`, so the whole statement exits through `ra`
+      rather than through the legacy single-exit `Fn.Spec` path. -/
+  | «retWhileBreak» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+           (guardTail breakTail : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -259,8 +269,19 @@ inductive Stmt where
   | callAt (label : String)
            (roR : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
            (f : FnHandle)
+  /-- Return to `ra` (`JALR x0 x1 0`).  This node is intentionally rejected by
+      the legacy single-exit `Stmt.sound` path; use the return-terminating
+      soundness path for statements whose control flow exits through `ra`. -/
+  | retJalr (label : String)
+  /-- Branch to one of two return-terminated tail blocks, with no balancing
+      `JAL` after either arm.  Layout: `B c -> then; else; then`, where both
+      arms are checked by the return-terminating soundness path. -/
+  | retIf  (label : String) (c : Cond) (thn els : Stmt)
 
 namespace Stmt
+
+/-- Return to `ra` (`JALR x0 x1 0`). -/
+def ret (label : String) : Stmt := retJalr label
 
 /-- Sequential composition, right-associated. -/
 scoped infixr:60 " ;;; " => Stmt.seq
@@ -281,10 +302,13 @@ def size : Stmt → Nat
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
   | callAt _ _ _      => 1
+  | retJalr _         => 1
+  | retIf _ _ t e     => t.size + e.size + 1
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -306,10 +330,14 @@ def callFree : Stmt → Bool
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhile» _ _ _ _ b => b.callFree
   | «doWhileS» _ _ _ _ b => b.callFree
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
+      bb.callFree && ba.callFree && gt.callFree && bt.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
   | callAt _ _ _      => false
+  | retJalr _         => true
+  | retIf _ _ t e     => t.callFree && e.callFree
 
 end Stmt
 

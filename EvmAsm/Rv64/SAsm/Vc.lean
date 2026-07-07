@@ -78,6 +78,12 @@ end VCs
 
 namespace Stmt
 
+/-- Step bound for a two-tail return loop after each syntactic tail is closed
+    into the common `ra` exit and fed to `WP.loopBreakNatCert`. -/
+def retLoopSteps (bodyBeforeSteps bodyAfterSteps guardTailSteps breakTailSteps fuel : Nat) : Nat :=
+  WP.loopBound (1 + guardTailSteps) (bodyBeforeSteps + bodyAfterSteps + breakTailSteps + 2)
+    (1 + guardTailSteps) fuel
+
 /-- Strongest-postcondition transformer over the symbolic state (exposed
     register file + writable-region contents), reading loads from the
     read-only region `reg` and routing writable-region accesses by address.
@@ -124,6 +130,14 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
   | «doWhileS» _ c fuel inv _, reach =>
       fun rf ws A => ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
         ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf
+  | «retWhileBreak» _ guard fuel inv bb breakCond _ gt bt, _ =>
+      fun rf' ws' A' =>
+        sp reg rw gt (fun rf ws A =>
+          (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) rf' ws' A' ∨
+        sp reg rw bt (fun rf ws A =>
+          (∃ i, i < fuel ∧
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
+            ∧ breakCond.holds rf) rf' ws' A'
   | call _ f, _ => fun rf ws A => f.post rf ws A
   | callReg _ _ handles, _ => fun rf ws A => ∃ h ∈ handles, h.post rf ws A
   | callRegS _ rs handles, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
@@ -135,6 +149,10 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       ∧ roR rf ws A rest
       ∧ f.post rf' ws' empAssertion
       ∧ A'' = (bytesRegion f.region.base f.region.bytes ** rest)
+  | retJalr _, reach => reach
+  | retIf _ c t e, reach => fun rf' ws' A' =>
+      sp reg rw t (fun rf ws A => reach rf ws A ∧ c.holds rf) rf' ws' A' ∨
+      sp reg rw e (fun rf ws A => reach rf ws A ∧ ¬ c.holds rf) rf' ws' A'
 
 /-- Labeled verification conditions of a statement, given the reachable set
     at its entry.  `pfx` is the path prefix for labels. -/
@@ -245,6 +263,26 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
         (fun rf ws A => reach rf ws A ∨
           ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
             ∧ ∃ i, i < fuel ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel → ∀ rf' ws' A',
+          sp reg rw ba (fun rf ws A =>
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakCond.holds rf) rf' ws' A' →
+          inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf⟩ ::
+      (vcs reg rw bb (pfx ++ lbl ++ ".before.")
+        (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ guard.holds rf) ++
+      vcs reg rw ba (pfx ++ lbl ++ ".after.")
+        (fun rf ws A => ∃ i, i < fuel ∧
+          sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ ¬ breakCond.holds rf) ++
+      vcs reg rw gt (pfx ++ lbl ++ ".guardTail.")
+        (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) ++
+      vcs reg rw bt (pfx ++ lbl ++ ".breakTail.")
+        (fun rf ws A => (∃ i, i < fuel ∧
+          sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
+            ∧ breakCond.holds rf))
   | call lbl f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
   | callReg lbl rs handles, pfx, reach =>
@@ -262,6 +300,10 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       ⟨pfx ++ lbl ++ ".pre", ∀ rf ws A rest, ws.length = rw.len →
           reach rf ws A → roR rf ws A rest → f.pre rf ws empAssertion⟩ ::
       [⟨pfx ++ lbl ++ ".post_emp", ∀ rf ws A, f.post rf ws A → A = empAssertion⟩]
+  | retJalr _, _, _ => []
+  | retIf lbl c t e, pfx, reach =>
+      vcs reg rw t (pfx ++ lbl ++ ".t.") (fun rf ws A => reach rf ws A ∧ c.holds rf) ++
+      vcs reg rw e (pfx ++ lbl ++ ".e.") (fun rf ws A => reach rf ws A ∧ ¬ c.holds rf)
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -280,10 +322,14 @@ def steps : Stmt → Nat
       WP.loopBound 1 (bb.steps + ba.steps + 2) 1 fuel
   | «doWhile» _ _ fuel _ b => b.steps + WP.loopBound 1 b.steps 1 fuel
   | «doWhileS» _ _ fuel _ b => b.steps + WP.loopBound 1 b.steps 1 fuel
+  | «retWhileBreak» _ _ fuel _ bb _ ba gt bt =>
+      retLoopSteps bb.steps ba.steps gt.steps bt.steps fuel
   | call _ f => 1 + f.nSteps
   | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
   | callRegS _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
   | callAt _ _ f => 1 + f.nSteps
+  | retJalr _ => 1
+  | retIf _ _ t e => 1 + max t.steps e.steps
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
@@ -326,6 +372,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | «doWhileS» lbl c fuel inv b ihb =>
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
       exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact fun rf ws A hr => hr
   | call lbl f =>
       exact fun rf ws A hr => hr
   | callReg lbl rs handles =>
@@ -336,6 +384,12 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | callAt lbl roR f =>
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hr, hsat, hR, hpost, hA⟩
       exact ⟨rf, ws, A, rest, hlen, h rf ws A hr, hsat, hR, hpost, hA⟩
+  | retJalr lbl =>
+      exact fun rf ws A hr => h rf ws A hr
+  | retIf lbl c t e iht ihe =>
+      rintro rf ws A (ht | he)
+      · exact Or.inl (iht (fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩) rf ws A ht)
+      · exact Or.inr (ihe (fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩) rf ws A he)
 
 -- ============================================================================
 -- Structural `sp` eliminators (docs/sasm-howto.md, "Branchy straight-line
@@ -490,10 +544,13 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba => exact nomatch h
   | «doWhile» lbl c fuel inv b ih => exact nomatch h
   | «doWhileS» lbl c fuel inv b ih => exact nomatch h
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt => exact nomatch h
   | call lbl f => exact nomatch h
   | callReg lbl rs handles => exact nomatch h
   | callRegS lbl rs handles => exact nomatch h
   | callAt lbl roR f => exact nomatch h
+  | retJalr lbl => exact nomatch h
+  | retIf lbl c t e iht ihe => exact nomatch h
 
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
@@ -653,6 +710,21 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
             (fun hr2 => hr2.elim fun rf₀ hr2 => hr2.elim fun ws₀ hr2 => hr2.elim fun A₀ hr2 =>
               Or.inr ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr2.1, hr2.2⟩))
           hvcs.tail.tail.tail vc hvc
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | hvc
+      · exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+      rcases hvc with rfl | hvc
+      · exact hvcs.tail.head
+      rcases hvc with rfl | hvc
+      · exact hvcs.tail.tail.head
+      simp only [List.mem_append] at hvc
+      rcases hvc with ((hvc | hvc) | hvc) | hvc
+      · exact ihbb _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.left.left vc hvc
+      · exact ihba _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.left.right vc hvc
+      · exact ihgt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.right vc hvc
+      · exact ihbt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.right vc hvc
   | call lbl f =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
@@ -678,6 +750,15 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
             hvcs.tail.head rf ws A rest hlen (h rf ws A hr)
         · rcases List.mem_singleton.mp hvc with rfl
           exact hvcs.tail.tail.head
+  | retJalr lbl =>
+      intro vc hvc
+      exact absurd hvc (List.not_mem_nil)
+  | retIf lbl c t e iht ihe =>
+      intro vc hvc
+      simp only [vcs, List.mem_append] at hvc
+      rcases hvc with hvc | hvc
+      · exact iht _ (fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩) hvcs.left vc hvc
+      · exact ihe _ (fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩) hvcs.right vc hvc
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
     shares the caller's regions.  Stated structurally (rather than as a union
@@ -699,6 +780,8 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr
   | «doWhile» _ _ _ _ b => b.CalleesIn reg rw cr
   | «doWhileS» _ _ _ _ b => b.CalleesIn reg rw cr
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
+      bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr ∧ gt.CalleesIn reg rw cr ∧ bt.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
   | callReg _ _ handles => ∀ h ∈ handles,
@@ -708,6 +791,8 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
       (∀ a i, h.code a = some i → cr a = some i)
       ∧ h.region = reg ∧ h.rw = rw
   | callAt _ _ f => (∀ a i, f.code a = some i → cr a = some i) ∧ f.rw = rw
+  | retJalr _ => True
+  | retIf _ _ t e => t.CalleesIn reg rw cr ∧ e.CalleesIn reg rw cr
 
 end Stmt
 

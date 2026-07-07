@@ -202,6 +202,13 @@ semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 - **Gas / memory cost modeling.** Per-opcode `cpsTripleWithin N` bounds are a
   verified *step-count surrogate*; the EVM gas schedule mapping is modeled, not
   proven equivalent to the yellow-paper schedule.
+- **Per-opcode handler glue.** Even for `.proven` opcodes, the handler
+  `preBody`/tail glue around the verified subroutine — gas accounting
+  (`copyWordGasAsm`), MSIZE / memory-expansion bookkeeping
+  (`updateActiveMemorySizeAsm`), OOG guards, and offset normalization — is
+  unverified `.custom` asm (the CALLDATACOPY #9880 convention). A dedicated
+  gas-glue verification track is deferred work; until it lands, the `.proven`
+  tier certifies the opcode's data effect, not its gas/expansion glue.
 - **Trusted axiom base.** Only the three classical axioms
   (`propext`, `Classical.choice`, `Quot.sound`); `native_decide`/`bv_decide`
   trust axioms are forbidden (CI-gated by `check-axioms.sh` /

@@ -1495,6 +1495,12 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
       rw [h4]
       exact hfinal
+  | retJalr lbl =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
+  | retIf lbl c t e iht ihe =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
+  | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
 
 end SAsm
 end EvmAsm.Rv64
