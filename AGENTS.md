@@ -178,6 +178,23 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ## Common Pitfalls
 
+### SAsm Proof Repair Notes
+
+- When `rfl` on a generated SAsm equality times out or spins, assume the equality
+  is nontrivial before increasing budgets. Split the proof into named helper
+  lemmas that expose the exact register/memory update being used, then rewrite
+  with those helpers. This was the difference between a timeout-shaped failure
+  and a small proof for `u256FromU64BeFn_spec`.
+- For large straight-line or loop bodies, keep `blockVCs` proofs separate from
+  the semantic engine lemma. Prove load/store routing and alignment in a
+  dedicated helper, and make widths explicit with `change` when `omega` is
+  seeing an opaque `nbytes` projection instead of a numeral.
+- In `vcgen` cases, generated `sp` hypotheses often substitute names away with
+  `rfl`, so do not rely on user-chosen names surviving destructuring. Also
+  reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
+  a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
+  make an otherwise exact rewrite fail.
+
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
 3. **List operations**: Be careful with `execProgram` and list append - may need explicit `execProgram_append`
