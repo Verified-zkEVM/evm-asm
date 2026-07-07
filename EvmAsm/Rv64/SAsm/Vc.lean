@@ -121,6 +121,8 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       ∧ A'' = (bytesRegion (rf.get p) robytes ** rest)
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
+  | whileHeader _ _ c fuel inv _, _ =>
+      fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | «whileS» _ c fuel inv _, reach =>
       fun rf ws A => ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
         ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf
@@ -210,6 +212,18 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf⟩ ::
       vcs reg rw b (pfx ++ lbl ++ ".body.")
         (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ c.holds rf)
+  | whileHeader lbl h c fuel inv b, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf' ws' A', sp reg rw h reach rf' ws' A' → inv 0 rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
+          ∀ rf' ws' A', sp reg rw h
+              (sp reg rw b (fun rf ws A => inv i rf ws A ∧ c.holds rf)) rf' ws' A' →
+            inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf⟩ ::
+      (vcs reg rw h (pfx ++ lbl ++ ".header.")
+        (fun rf ws A => reach rf ws A ∨
+          ∃ i, i < fuel ∧ sp reg rw b (fun rf ws A => inv i rf ws A ∧ c.holds rf) rf ws A)
+       ++ vcs reg rw b (pfx ++ lbl ++ ".body.")
+        (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ c.holds rf))
   | «whileS» lbl c fuel inv b, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv rf ws A 0 rf ws A⟩ ::
       ⟨pfx ++ lbl ++ ".inv_step", ∀ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀ → ∀ i, i < fuel →
@@ -333,6 +347,7 @@ def steps : Stmt → Nat
   | blockAt _ _ _ is => is.length
   | readAt _ _ _ is => is.length
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
+  | whileHeader _ h _ fuel _ b => h.steps + WP.loopBound 1 (b.steps + 1 + h.steps) 1 fuel
   | «whileS» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | «whileBreak» _ _ fuel _ _ bb _ ba =>
       WP.loopBound 1 (bb.steps + ba.steps + 2) 1 fuel
@@ -379,6 +394,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       rintro rf' ws' A'' ⟨rf, ws, A, robytes, rest, hlen, hr, hsat, hR, hrf, hws, hA⟩
       exact ⟨rf, ws, A, robytes, rest, hlen, h rf ws A hr, hsat, hR, hrf, hws, hA⟩
   | «while» lbl c fuel inv b ihb =>
+      exact fun rf ws A hr => hr
+  | whileHeader lbl h c fuel inv b ihh ihb =>
       exact fun rf ws A hr => hr
   | «whileS» lbl c fuel inv b ihb =>
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
@@ -560,6 +577,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | readAt lbl p roR is => exact nomatch h
   | ghost lbl R => exact nomatch h
   | «while» lbl c fuel inv b ih => exact nomatch h
+  | whileHeader lbl header guard fuel inv body ihh ihb => exact nomatch h
   | «whileS» lbl c fuel inv b ih => exact nomatch h
   | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba => exact nomatch h
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba => exact nomatch h
@@ -684,6 +702,20 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       · exact hvcs.tail.head
       · exact hvcs.tail.tail.head
       · exact hvcs.tail.tail.tail vc hvc
+  | whileHeader lbl header guard fuel inv body ihh ihb =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons, List.mem_append] at hvc
+      rcases hvc with rfl | rfl | rfl | hvc
+      · exact fun rf ws A hsp => hvcs.head rf ws A (sp_mono reg rw header h rf ws A hsp)
+      · exact hvcs.tail.head
+      · exact hvcs.tail.tail.head
+      · rcases hvc with hvc | hvc
+        · exact ihh _
+            (fun rf ws A hr => hr.elim (fun hr => Or.inl (h rf ws A hr))
+              (fun hr => Or.inr hr))
+            hvcs.tail.tail.tail.left vc hvc
+        · exact ihb _ (fun rf ws A hr => hr)
+            hvcs.tail.tail.tail.right vc hvc
   | «whileS» lbl c fuel inv b ihb =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
@@ -805,6 +837,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | blockAt _ _ _ _ => True
   | readAt _ _ _ _ => True
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
+  | whileHeader _ h _ _ _ b => h.CalleesIn reg rw cr ∧ b.CalleesIn reg rw cr
   | «whileS» _ _ _ _ b => b.CalleesIn reg rw cr
   | «whileBreak» _ _ _ _ _ bb _ ba =>
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr

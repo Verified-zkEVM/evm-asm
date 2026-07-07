@@ -68,6 +68,11 @@ def flatten (addr : Word) : Stmt → List Instr
   | «while» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
+  | whileHeader _ h c _ _ b =>
+      h.flatten addr ++
+        c.neg.toInstr (brOfs (b.size + 2))
+          :: (b.flatten (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
+              ++ [.JAL .x0 (jBack (h.size + b.size + 1))])
   | «whileS» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
@@ -126,6 +131,8 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | readAt _ _ _ _ => rfl
   | «while» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
+  | whileHeader _ h c fuel inv b ihh ihb =>
+      simp [flatten, size, ihh, ihb]; omega
   | «whileS» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
   | «whileBreak» _ guard fuel inv post bb breakCond ba ihbb ihba =>
@@ -171,6 +178,11 @@ def offsetsOk : Stmt → Bool
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
            && b.offsetsOk
+  | whileHeader _ h c _ _ b =>
+      c.wf && decide (4 * (b.size + 2) < 2^12)
+           && decide (0 < h.size + b.size + 1)
+           && decide (4 * (h.size + b.size + 1) ≤ 2^20)
+           && h.offsetsOk && b.offsetsOk
   | «whileS» _ c _ _ b =>
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
@@ -235,6 +247,8 @@ def callsOk : Stmt → Word → Prop
   | blockAt _ _ _ _, _ => True
   | readAt _ _ _ _, _ => True
   | «while» _ _ _ _ b, addr => b.callsOk (addr + 4)
+  | whileHeader _ h _ _ _ b, addr =>
+      h.callsOk addr ∧ b.callsOk (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
   | «whileS» _ _ _ _ b, addr => b.callsOk (addr + 4)
   | «whileBreak» _ _ _ _ _ bb _ ba, addr =>
       bb.callsOk (addr + 4)
