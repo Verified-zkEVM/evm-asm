@@ -177,8 +177,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
-  `blqZero_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero` (`bnqZeroFn_spec`,
-  post `ws = replicate 384 0`) with byte-identity pinned to `bnqZero_prog`.
+  `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
+  loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
+  source/destination disjointness precondition and byte-identity pinned to
+  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
+  `bnqZero_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
