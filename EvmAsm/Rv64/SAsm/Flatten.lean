@@ -86,9 +86,9 @@ def flatten (addr : Word) : Stmt → List Instr
         :: (bb.flatten (addr + 4)
             ++ breakCond.toInstr (brOfs (ba.size + gt.size + 2))
             :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
-                ++ [.JAL .x0 (jBack (bb.size + ba.size + 2))]
-                ++ gt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
-                ++ bt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3)))))
+                ++ .JAL .x0 (jBack (bb.size + ba.size + 2))
+                :: (gt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
+                    ++ bt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3))))))
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
@@ -130,7 +130,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | «doWhileS» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
   | «retWhileBreak» _ guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
-      simp only [flatten, size, List.length_cons, List.length_append, List.length_nil,
+      simp only [flatten, size, List.length_cons, List.length_append,
         ihbb, ihba, ihgt, ihbt]
       omega
   | call _ callee => rfl
