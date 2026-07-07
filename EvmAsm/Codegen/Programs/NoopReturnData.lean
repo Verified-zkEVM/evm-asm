@@ -6,25 +6,19 @@
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Evm64.ReturnData.SizeProgram
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Evm64.ReturnData (evm_returndatasize)
 
 /-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
     `evm_precompile_frame`. -/
 def returnDataHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_RETURNDATASIZE", opcodes := [0x3d]
-    , preBody := stackOverflowGuardAsm
-    , body := []
-    , tail := .custom <|
-        "  la x14, evm_precompile_frame\n" ++
-        "  ld x15, 8(x14)\n" ++
-        "  addi x12, x12, -32\n" ++
-        "  sd x15, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" }
+    , preBody := stackOverflowGuardAsm ++ "\n" ++ "  la x14, evm_precompile_frame"
+    , body := evm_returndatasize .x14 .x15
+    , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
     , body := []
     , tail := .custom <|
