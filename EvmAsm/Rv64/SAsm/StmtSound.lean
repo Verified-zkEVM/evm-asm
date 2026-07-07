@@ -1187,6 +1187,386 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
         (asrtM_mono (fun rf ws A hr => hInvInit rf ws A hr))
         (fun _ hp => hp)
         hsound
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
+      obtain ⟨⟨⟨hleafBefore, hleafStep⟩, hleafSelA⟩, hleafSelB⟩ := hleaf
+      simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
+      rcases hofs with ⟨hofs, hOSelB⟩
+      rcases hofs with ⟨hofs, hOSelA⟩
+      rcases hofs with ⟨hofs, hOStep⟩
+      rcases hofs with ⟨hofs, hOBefore⟩
+      rcases hofs with ⟨hofs, hofsJoin⟩
+      rcases hofs with ⟨hofs, hofsBack⟩
+      rcases hofs with ⟨hofs, hposBack⟩
+      rcases hofs with ⟨hofs, hofsB⟩
+      rcases hofs with ⟨hofs, hofsA⟩
+      rcases hofs with ⟨hofs, hofsG⟩
+      rcases hofs with ⟨⟨hwfG, hwfA⟩, hwfB⟩
+      simp only [Stmt.size] at hsz
+      have hInvInit : ∀ rf ws A, reach rf ws A → inv 0 rf ws A := hvcs.head
+      have hInvStep : ∀ i, i < fuel → ∀ rf' ws' A', Stmt.sp reg rw step
+            (fun rf ws A =>
+              Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf) rf' ws' A' →
+          inv (i + 1) rf' ws' A' := hvcs.tail.head
+      have hExhausted : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf := hvcs.tail.tail.head
+      have hSelAExit : ∀ rf' ws' A',
+          Stmt.sp reg rw selA
+            (fun rf ws A =>
+              (∃ i, i ≤ fuel ∧ inv i rf ws A ∧ ¬ guard.holds rf) ∨
+              (∃ i, i < fuel ∧
+                Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                  ∧ breakA.holds rf)) rf' ws' A' →
+            post rf' ws' A' := hvcs.tail.tail.tail.head
+      have hSelBExit : ∀ rf' ws' A',
+          Stmt.sp reg rw selB
+            (fun rf ws A => ∃ i, i < fuel ∧
+              Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+                ∧ ¬ breakA.holds rf ∧ breakB.holds rf) rf' ws' A' →
+            post rf' ws' A' := hvcs.tail.tail.tail.tail.head
+      have hSubVcs := hvcs.tail.tail.tail.tail.tail
+      have hBeforeVcs := hSubVcs.left.left.left
+      have hStepVcs := hSubVcs.left.left.right
+      have hSelAVcs := hSubVcs.left.right
+      have hSelBVcs := hSubVcs.right
+      let node : Stmt := .while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB
+      let beforeAddr : Word := base + 4
+      let breakAAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + 1))
+      let breakBAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + 2))
+      let stepAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + 3))
+      let backJalAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + step.size + 3))
+      let selAAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + step.size + 4))
+      let selAJalAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + step.size + selA.size + 4))
+      let selBAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + step.size + selA.size + 5))
+      let joinAddr : Word := base + BitVec.ofNat 64 (4 * (before.size + step.size + selA.size + selB.size + 5))
+      let guardInstr := guard.neg.toInstr (Stmt.brOfs (before.size + step.size + 4))
+      let breakAInstr := breakA.toInstr (Stmt.brOfs (step.size + 3))
+      let breakBInstr := breakB.toInstr (Stmt.brOfs (step.size + selA.size + 3))
+      let backInstr := Instr.JAL .x0 (Stmt.jBack (before.size + step.size + 3))
+      let selAJalInstr := Instr.JAL .x0 (Stmt.jFwd (selB.size + 1))
+      have hfullBound : 4 * (node.flatten base).length < 2 ^ 64 := by
+        rw [Stmt.flatten_length]
+        simpa [node, Stmt.size] using hsz
+      have hflatNode : node.flatten base =
+          [guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr] ++
+            step.flatten stepAddr ++ [backInstr] ++ selA.flatten selAAddr ++
+            [selAJalInstr] ++ selB.flatten selBAddr := by
+        simp [node, Stmt.flatten, beforeAddr, stepAddr, selAAddr, selBAddr,
+          guardInstr, breakAInstr, breakBInstr, backInstr, selAJalInstr, List.append_assoc]
+      have hcode_of_layout (subBase : Word) (pre mid suf : List Instr)
+          (hflat : node.flatten base = pre ++ mid ++ suf)
+          (haddr : subBase = base + BitVec.ofNat 64 (4 * pre.length)) :
+          ∀ a i, CodeReq.ofProg subBase mid a = some i → cr a = some i := by
+        intro a i h
+        rw [haddr] at h
+        apply hcode a i
+        rw [hflat]
+        exact CodeReq.ofProg_mono_subrange base pre mid suf (by simpa [← hflat] using hfullBound) a i h
+      have hcode_guard : ∀ a i,
+          CodeReq.singleton base guardInstr a = some i → cr a = some i := by
+        intro a i h
+        exact hcode a i (by simpa [node, Stmt.flatten, guardInstr] using ofProg_head a i h)
+      have hcode_before : ∀ a i, CodeReq.ofProg beforeAddr (before.flatten beforeAddr) a = some i → cr a = some i := by
+        apply hcode_of_layout beforeAddr [guardInstr] (before.flatten beforeAddr)
+          ([breakAInstr] ++ [breakBInstr] ++ step.flatten stepAddr ++ [backInstr] ++
+            selA.flatten selAAddr ++ [selAJalInstr] ++ selB.flatten selBAddr)
+        · simp [hflatNode, List.append_assoc]
+        · unfold beforeAddr; simp [guardInstr]; try bv_omega
+      have hcode_breakA : ∀ a i, CodeReq.singleton breakAAddr breakAInstr a = some i → cr a = some i := by
+        intro a i h
+        have hm := hcode_of_layout breakAAddr
+          ([guardInstr] ++ before.flatten beforeAddr) [breakAInstr]
+          ([breakBInstr] ++ step.flatten stepAddr ++ [backInstr] ++ selA.flatten selAAddr ++
+            [selAJalInstr] ++ selB.flatten selBAddr) ?_ ?_
+        · exact hm a i (ofProg_head a i h)
+        · simp [hflatNode, List.append_assoc]
+        · unfold breakAAddr; simp [Stmt.flatten_length, guardInstr]; try bv_omega
+      have hcode_breakB : ∀ a i, CodeReq.singleton breakBAddr breakBInstr a = some i → cr a = some i := by
+        intro a i h
+        have hm := hcode_of_layout breakBAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr]) [breakBInstr]
+          (step.flatten stepAddr ++ [backInstr] ++ selA.flatten selAAddr ++
+            [selAJalInstr] ++ selB.flatten selBAddr) ?_ ?_
+        · exact hm a i (ofProg_head a i h)
+        · simp [hflatNode, List.append_assoc]
+        · unfold breakBAddr; simp [Stmt.flatten_length, guardInstr, breakAInstr]; try bv_omega
+      have hcode_step : ∀ a i, CodeReq.ofProg stepAddr (step.flatten stepAddr) a = some i → cr a = some i := by
+        apply hcode_of_layout stepAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr])
+          (step.flatten stepAddr)
+          ([backInstr] ++ selA.flatten selAAddr ++ [selAJalInstr] ++ selB.flatten selBAddr)
+        · simp [hflatNode, List.append_assoc]
+        · unfold stepAddr; simp [Stmt.flatten_length, guardInstr, breakAInstr, breakBInstr]; try bv_omega
+      have hcode_back : ∀ a i, CodeReq.singleton backJalAddr backInstr a = some i → cr a = some i := by
+        intro a i h
+        have hm := hcode_of_layout backJalAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr] ++
+            step.flatten stepAddr) [backInstr]
+          (selA.flatten selAAddr ++ [selAJalInstr] ++ selB.flatten selBAddr) ?_ ?_
+        · exact hm a i (ofProg_head a i h)
+        · simp [hflatNode, List.append_assoc]
+        · unfold backJalAddr
+          simp [Stmt.flatten_length, guardInstr, breakAInstr, breakBInstr]
+          try bv_omega
+      have hcode_selA : ∀ a i, CodeReq.ofProg selAAddr (selA.flatten selAAddr) a = some i → cr a = some i := by
+        apply hcode_of_layout selAAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr] ++
+            step.flatten stepAddr ++ [backInstr]) (selA.flatten selAAddr)
+          ([selAJalInstr] ++ selB.flatten selBAddr)
+        · simp [hflatNode, List.append_assoc]
+        · unfold selAAddr
+          simp [Stmt.flatten_length, guardInstr, breakAInstr, breakBInstr, backInstr]
+          try bv_omega
+      have hcode_selAJal : ∀ a i, CodeReq.singleton selAJalAddr selAJalInstr a = some i → cr a = some i := by
+        intro a i h
+        have hm := hcode_of_layout selAJalAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr] ++
+            step.flatten stepAddr ++ [backInstr] ++ selA.flatten selAAddr) [selAJalInstr]
+          (selB.flatten selBAddr) ?_ ?_
+        · exact hm a i (ofProg_head a i h)
+        · simp [hflatNode, List.append_assoc]
+        · unfold selAJalAddr
+          simp [Stmt.flatten_length, guardInstr, breakAInstr, breakBInstr, backInstr]
+          try bv_omega
+      have hcode_selB : ∀ a i, CodeReq.ofProg selBAddr (selB.flatten selBAddr) a = some i → cr a = some i := by
+        apply hcode_of_layout selBAddr
+          ([guardInstr] ++ before.flatten beforeAddr ++ [breakAInstr] ++ [breakBInstr] ++
+            step.flatten stepAddr ++ [backInstr] ++ selA.flatten selAAddr ++ [selAJalInstr])
+          (selB.flatten selBAddr) []
+        · simp [hflatNode, List.append_assoc]
+        · unfold selBAddr
+          simp [Stmt.flatten_length, guardInstr, breakAInstr, breakBInstr, backInstr, selAJalInstr]
+          try bv_omega
+      let selAReach : Reach := fun rf ws A =>
+        (∃ i, i ≤ fuel ∧ inv i rf ws A ∧ ¬ guard.holds rf) ∨
+        (∃ i, i < fuel ∧
+          Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ breakA.holds rf)
+      let selBReach : Reach := fun rf ws A => ∃ i, i < fuel ∧
+        Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+          ∧ ¬ breakA.holds rf ∧ breakB.holds rf
+      have hselABase : cpsTripleWithin selA.steps selAAddr selAJalAddr cr
+          (asrtM reg rw selAReach) (asrtM reg rw (Stmt.sp reg rw selA selAReach)) := by
+        have hs := ihSelA selAAddr (pfx ++ lbl ++ ".selA.") selAReach hleafSelA hOSelA (by omega)
+          hcode_selA hSelAVcs
+        rwa [show selAAddr + BitVec.ofNat 64 (4 * selA.size) = selAJalAddr from by
+          unfold selAAddr selAJalAddr; try bv_omega] at hs
+      have hselAToPost : cpsTripleWithin (selA.steps + 1) selAAddr joinAddr cr
+          (asrtM reg rw selAReach) (asrtM reg rw post) := by
+        have hs := cpsTripleWithin_weaken (fun _ hp => hp)
+          (asrtM_mono (fun rf ws A hsp => hSelAExit rf ws A hsp)) hselABase
+        have hjal := jal0_spec_pcFree (Stmt.jFwd (selB.size + 1)) selAJalAddr
+          (pcFree_asrtM reg rw post)
+        rw [show selAJalAddr + signExtend21 (Stmt.jFwd (selB.size + 1)) = joinAddr from by
+          unfold selAJalAddr joinAddr
+          rw [signExtend21_jFwd hofsJoin]
+          try bv_omega] at hjal
+        exact cpsTripleWithin_seq_same_cr hs (cpsTripleWithin_extend_code hcode_selAJal hjal)
+      have hselBBase : cpsTripleWithin selB.steps selBAddr joinAddr cr
+          (asrtM reg rw selBReach) (asrtM reg rw (Stmt.sp reg rw selB selBReach)) := by
+        have hs := ihSelB selBAddr (pfx ++ lbl ++ ".selB.") selBReach hleafSelB hOSelB (by omega)
+          hcode_selB hSelBVcs
+        rwa [show selBAddr + BitVec.ofNat 64 (4 * selB.size) = joinAddr from by
+          unfold selBAddr joinAddr; try bv_omega] at hs
+      have hselBToPost : cpsTripleWithin selB.steps selBAddr joinAddr cr
+          (asrtM reg rw selBReach) (asrtM reg rw post) := by
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (asrtM_mono (fun rf ws A hsp => hSelBExit rf ws A hsp)) hselBBase
+      have hheader : ∀ r,
+          cpsBranchWithin 1 base cr (asrtM reg rw r)
+            selAAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ ¬ guard.holds rf)
+            beforeAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ guard.holds rf) := by
+        intro r
+        have hbr := branch_spec_asrt guard.neg (Stmt.brOfs (before.size + step.size + 4)) rw r base
+          (by rw [Cond.wf_neg]; exact hwfG)
+        rw [show base + signExtend13 (Stmt.brOfs (before.size + step.size + 4)) = selAAddr from by
+          unfold selAAddr
+          rw [signExtend13_brOfs hofsG]
+          try bv_omega,
+          show base + 4 = beforeAddr from by unfold beforeAddr; rfl] at hbr
+        have hbr' := cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_guard hbr)
+        refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ hbr'
+        · exact asrtM_mono (fun rf ws A hh => ⟨hh.1, (Cond.holds_neg guard rf).mp hh.2⟩)
+        · exact asrtM_mono (fun rf ws A hh =>
+            ⟨hh.1, Decidable.of_not_not (fun hcc => hh.2 ((Cond.holds_neg guard rf).mpr hcc))⟩)
+      have hbeforeStep : ∀ i, i < fuel → cpsTripleWithin before.steps beforeAddr breakAAddr cr
+          (asrtM reg rw fun rf ws A => inv i rf ws A ∧ guard.holds rf)
+          (asrtM reg rw (Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf))) := by
+        intro i hi
+        have hb := ihBefore beforeAddr (pfx ++ lbl ++ ".before.")
+          (fun rf ws A => inv i rf ws A ∧ guard.holds rf) hleafBefore hOBefore (by omega)
+          hcode_before
+          (Stmt.vcs_antitone reg rw before _ (fun rf ws A hr => ⟨i, hi, hr.1, hr.2⟩) hBeforeVcs)
+        rwa [show beforeAddr + BitVec.ofNat 64 (4 * before.size) = breakAAddr from by
+          unfold beforeAddr breakAAddr; try bv_omega] at hb
+      have hbreakABranch : ∀ r,
+          cpsBranchWithin 1 breakAAddr cr (asrtM reg rw r)
+            selAAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ breakA.holds rf)
+            breakBAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ ¬ breakA.holds rf) := by
+        intro r
+        have hbr := branch_spec_asrt breakA (Stmt.brOfs (step.size + 3)) rw r breakAAddr hwfA
+        rw [show breakAAddr + signExtend13 (Stmt.brOfs (step.size + 3)) = selAAddr from by
+          unfold breakAAddr selAAddr
+          rw [signExtend13_brOfs hofsA]
+          try bv_omega,
+          show breakAAddr + 4 = breakBAddr from by unfold breakAAddr breakBAddr; try bv_omega] at hbr
+        exact cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_breakA hbr)
+      have hbreakBBranch : ∀ r,
+          cpsBranchWithin 1 breakBAddr cr (asrtM reg rw r)
+            selBAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ breakB.holds rf)
+            stepAddr (asrtM reg rw fun rf ws A => r rf ws A ∧ ¬ breakB.holds rf) := by
+        intro r
+        have hbr := branch_spec_asrt breakB (Stmt.brOfs (step.size + selA.size + 3)) rw r breakBAddr hwfB
+        rw [show breakBAddr + signExtend13 (Stmt.brOfs (step.size + selA.size + 3)) = selBAddr from by
+          unfold breakBAddr selBAddr
+          rw [signExtend13_brOfs hofsB]
+          try bv_omega,
+          show breakBAddr + 4 = stepAddr from by unfold breakBAddr stepAddr; try bv_omega] at hbr
+        exact cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_breakB hbr)
+      have hstepBack : ∀ i, i < fuel → cpsTripleWithin (step.steps + 1) stepAddr base cr
+          (asrtM reg rw fun rf ws A =>
+            Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf)
+          (asrtM reg rw fun rf ws A => inv (i + 1) rf ws A) := by
+        intro i hi
+        have hs := ihStep stepAddr (pfx ++ lbl ++ ".step.")
+          (fun rf ws A =>
+            Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf) hleafStep hOStep (by omega)
+          hcode_step
+          (Stmt.vcs_antitone reg rw step _ (fun rf ws A hr => ⟨i, hi, hr.1, hr.2.1, hr.2.2⟩) hStepVcs)
+        have hjal := jal0_spec_pcFree (Stmt.jBack (before.size + step.size + 3)) backJalAddr
+          (pcFree_asrtM reg rw (Stmt.sp reg rw step fun rf ws A =>
+            Stmt.sp reg rw before (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakA.holds rf ∧ ¬ breakB.holds rf))
+        rw [show stepAddr + BitVec.ofNat 64 (4 * step.size) = backJalAddr from by
+          unfold stepAddr backJalAddr; try bv_omega] at hs
+        rw [show backJalAddr + signExtend21 (Stmt.jBack (before.size + step.size + 3)) = base from by
+          unfold backJalAddr
+          rw [add_jBack base (before.size + step.size + 3) hposBack hofsBack]] at hjal
+        have hseq := cpsTripleWithin_seq_same_cr hs (cpsTripleWithin_extend_code hcode_back hjal)
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (asrtM_mono (fun rf ws A hsp => hInvStep i hi rf ws A hsp)) hseq
+      have hloopExitLe : ∀ n,
+          before.steps + 2 + selA.steps + 1 + selB.steps ≤
+            WP.loopBound 1 (before.steps + 2 + step.steps + 1)
+              (before.steps + 2 + selA.steps + 1 + selB.steps) n := by
+        intro n
+        induction n with
+        | zero => simp [WP.loopBound]
+        | succ n ih => simp [WP.loopBound]; omega
+      have hloop : ∀ fuel' start, start + fuel' = fuel →
+          cpsTripleWithin (WP.loopBound 1 (before.steps + 2 + step.steps + 1)
+              (before.steps + 2 + selA.steps + 1 + selB.steps) fuel') base joinAddr cr
+            (asrtM reg rw fun rf ws A => inv start rf ws A) (asrtM reg rw post) := by
+        intro fuel'
+        induction fuel' with
+        | zero =>
+            intro start hstart
+            have hsf : start = fuel := by omega
+            have hExit : cpsTripleWithin (before.steps + 1 + selA.steps + 1 + selB.steps)
+                selAAddr joinAddr cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ ¬ guard.holds rf)
+                (asrtM reg rw post) := by
+              have hsA : cpsTripleWithin (selA.steps + 1) selAAddr joinAddr cr
+                  (asrtM reg rw fun rf ws A => inv start rf ws A ∧ ¬ guard.holds rf)
+                  (asrtM reg rw post) :=
+                cpsTripleWithin_weaken
+                  (asrtM_mono (fun rf ws A hr => Or.inl ⟨start, by omega, hr.1, hr.2⟩))
+                  (fun _ hp => hp) hselAToPost
+              exact cpsTripleWithin_mono_nSteps (by omega) hsA
+            have hDead : cpsTripleWithin (before.steps + 1 + selA.steps + 1 + selB.steps)
+                beforeAddr joinAddr cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ guard.holds rf)
+                (asrtM reg rw post) :=
+              cpsTripleWithin_unreachable (asrtM_unsat (fun rf ws A hh =>
+                hExhausted rf ws A (hsf ▸ hh.1) hh.2))
+            have hmerge :=
+              cpsBranchWithin_merge_same_cr (hheader (fun rf ws A => inv start rf ws A)) hExit hDead
+            exact cpsTripleWithin_mono_nSteps (by simp [WP.loopBound]; omega) hmerge
+        | succ fuel' ih =>
+            intro start hstart
+            let restSteps := WP.loopBound 1 (before.steps + 2 + step.steps + 1)
+              (before.steps + 2 + selA.steps + 1 + selB.steps) fuel'
+            have hRestExit : before.steps + 2 + selA.steps + 1 + selB.steps ≤ restSteps := by
+              simpa [restSteps] using hloopExitLe fuel'
+            have hExit : cpsTripleWithin (before.steps + 1 + (1 + (step.steps + 1 + restSteps)))
+                selAAddr joinAddr cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ ¬ guard.holds rf)
+                (asrtM reg rw post) := by
+              have hsA : cpsTripleWithin (selA.steps + 1) selAAddr joinAddr cr
+                  (asrtM reg rw fun rf ws A => inv start rf ws A ∧ ¬ guard.holds rf)
+                  (asrtM reg rw post) :=
+                cpsTripleWithin_weaken
+                  (asrtM_mono (fun rf ws A hr => Or.inl ⟨start, by omega, hr.1, hr.2⟩))
+                  (fun _ hp => hp) hselAToPost
+              exact cpsTripleWithin_mono_nSteps (by omega) hsA
+            have hBody : cpsTripleWithin (before.steps + 1 + (1 + (step.steps + 1 + restSteps)))
+                beforeAddr joinAddr cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ guard.holds rf)
+                (asrtM reg rw post) := by
+              have hb0 := hbeforeStep start (by omega)
+              have hbrA := hbreakABranch (Stmt.sp reg rw before
+                (fun rf ws A => inv start rf ws A ∧ guard.holds rf))
+              have hpreA := cpsTripleWithin_seq_cpsBranchWithin_same_cr hb0 hbrA
+              have hATail : cpsTripleWithin (1 + (step.steps + 1 + restSteps)) selAAddr joinAddr cr
+                  (asrtM reg rw fun rf ws A =>
+                    Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                      ∧ breakA.holds rf)
+                  (asrtM reg rw post) := by
+                have hsA : cpsTripleWithin (selA.steps + 1) selAAddr joinAddr cr
+                    (asrtM reg rw fun rf ws A =>
+                      Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                        ∧ breakA.holds rf)
+                    (asrtM reg rw post) :=
+                  cpsTripleWithin_weaken
+                    (asrtM_mono (fun rf ws A hr => Or.inr ⟨start, by omega, hr.1, hr.2⟩))
+                    (fun _ hp => hp) hselAToPost
+                exact cpsTripleWithin_mono_nSteps (by omega) hsA
+              have hBTail : cpsTripleWithin (1 + (step.steps + 1 + restSteps)) breakBAddr joinAddr cr
+                  (asrtM reg rw fun rf ws A =>
+                    Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                      ∧ ¬ breakA.holds rf)
+                  (asrtM reg rw post) := by
+                have hbrB := hbreakBBranch (fun rf ws A =>
+                  Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                    ∧ ¬ breakA.holds rf)
+                have hBTaken : cpsTripleWithin (step.steps + 1 + restSteps) selBAddr joinAddr cr
+                    (asrtM reg rw fun rf ws A =>
+                      (Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                        ∧ ¬ breakA.holds rf) ∧ breakB.holds rf)
+                    (asrtM reg rw post) := by
+                  have hsB : cpsTripleWithin selB.steps selBAddr joinAddr cr
+                      (asrtM reg rw fun rf ws A =>
+                        (Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                          ∧ ¬ breakA.holds rf) ∧ breakB.holds rf)
+                      (asrtM reg rw post) :=
+                    cpsTripleWithin_weaken
+                      (asrtM_mono (fun rf ws A hr => ⟨start, by omega, hr.1.1, hr.1.2, hr.2⟩))
+                      (fun _ hp => hp) hselBToPost
+                  exact cpsTripleWithin_mono_nSteps (by omega) hsB
+                have hBFall : cpsTripleWithin (step.steps + 1 + restSteps) stepAddr joinAddr cr
+                    (asrtM reg rw fun rf ws A =>
+                      (Stmt.sp reg rw before (fun rf ws A => inv start rf ws A ∧ guard.holds rf) rf ws A
+                        ∧ ¬ breakA.holds rf) ∧ ¬ breakB.holds rf)
+                    (asrtM reg rw post) := by
+                  have hs := hstepBack start (by omega)
+                  have hi := ih (start + 1) (by omega)
+                  have hseq := cpsTripleWithin_seq_same_cr hs hi
+                  exact cpsTripleWithin_weaken
+                    (asrtM_mono (fun rf ws A hr => ⟨hr.1.1, hr.1.2, hr.2⟩))
+                    (fun _ hp => hp) hseq
+                exact cpsBranchWithin_merge_same_cr hbrB hBTaken hBFall
+              simpa [Nat.add_assoc] using cpsBranchWithin_merge_same_cr hpreA hATail hBTail
+            have hmerge := cpsBranchWithin_merge_same_cr (hheader (fun rf ws A => inv start rf ws A)) hExit hBody
+            exact cpsTripleWithin_mono_nSteps (by simp [WP.loopBound, restSteps]; omega) hmerge
+      have hsound := hloop fuel 0 (by omega)
+      simpa [Stmt.steps, node] using
+        cpsTripleWithin_weaken (asrtM_mono (fun rf ws A hr => hInvInit rf ws A hr))
+          (fun _ hp => hp) hsound
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
       simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       obtain ⟨hleafBB, hleafBA⟩ := hleaf
@@ -2200,6 +2580,8 @@ theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word
   | whileHeader lbl header guard fuel inv body ihh ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | «whileS» lbl c fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba =>
+      exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | while2BreakJoin lbl guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB =>
       exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
       exact absurd hofs (by simp [Stmt.retOffsetsOk])
