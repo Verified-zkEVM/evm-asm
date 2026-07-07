@@ -170,6 +170,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
+  (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
+  pinned to `u256FromU64Be_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
