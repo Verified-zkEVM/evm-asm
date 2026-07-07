@@ -81,6 +81,14 @@ def flatten (addr : Word) : Stmt → List Instr
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
   | «doWhileS» _ guard _ _ b =>
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
+  | «retWhileBreak» _ guard _ _ bb breakCond ba gt bt =>
+      guard.neg.toInstr (brOfs (bb.size + ba.size + 3))
+        :: (bb.flatten (addr + 4)
+            ++ breakCond.toInstr (brOfs (ba.size + gt.size + 2))
+            :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+                ++ .JAL .x0 (jBack (bb.size + ba.size + 2))
+                :: (gt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
+                    ++ bt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3))))))
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
@@ -121,6 +129,10 @@ theorem flatten_length (s : Stmt) (addr : Word) :
       simp [flatten, size, ihb]
   | «doWhileS» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
+  | «retWhileBreak» _ guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      simp only [flatten, size, List.length_cons, List.length_append,
+        ihbb, ihba, ihgt, ihbt]
+      omega
   | call _ callee => rfl
   | callReg _ _ _ => rfl
   | callRegS _ _ _ => rfl
@@ -166,6 +178,7 @@ def offsetsOk : Stmt → Bool
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
   | «doWhileS» _ guard _ _ b =>
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
+  | «retWhileBreak» _ _ _ _ _ _ _ _ _ => false
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -181,6 +194,13 @@ def retOffsetsOk : Stmt → Bool
   | retIf _ c t e =>
       c.wf && decide (4 * (e.size + 1) < 2^12)
            && t.retOffsetsOk && e.retOffsetsOk
+  | «retWhileBreak» _ guard _ _ bb breakCond ba gt bt =>
+      guard.wf && breakCond.wf
+        && decide (4 * (bb.size + ba.size + 3) < 2^12)
+        && decide (4 * (ba.size + gt.size + 2) < 2^12)
+        && decide (0 < bb.size + ba.size + 2)
+        && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
+        && bb.offsetsOk && ba.offsetsOk && gt.retOffsetsOk && bt.retOffsetsOk
   | _ => false
 
 /-- Address-aware side conditions of the call sites of a statement placed at
@@ -208,6 +228,11 @@ def callsOk : Stmt → Word → Prop
         ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
   | «doWhile» _ _ _ _ b, addr => b.callsOk addr
   | «doWhileS» _ _ _ _ b, addr => b.callsOk addr
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt, addr =>
+      bb.callsOk (addr + 4)
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+        ∧ gt.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
+        ∧ bt.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3)))
   | call _ f, addr =>
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4

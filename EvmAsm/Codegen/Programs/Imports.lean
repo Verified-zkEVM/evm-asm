@@ -152,6 +152,7 @@ import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.WitnessCodeLookup
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256IsZeroSAsm
 import EvmAsm.Codegen.Programs.GasRoutinesSAsm
 import EvmAsm.Codegen.Programs.Tx
