@@ -143,6 +143,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   3. Breaking up large `have`s into separate lemmas so the core composition step has fewer atoms to permute.
   4. For straight-line SAsm ports with many memory writes, keeping the emitted body byte-identical as one `.block` is fine, but move the large `blockVCs` proof into named helper lemmas. Normalize concrete address offsets in those helpers before handing the range/alignment tail to `simp`/`omega`; otherwise Lean may expand `BitVec.toNat` modulo arithmetic and lose the simple offset fact.
   5. In `vcgen` post cases, avoid closing large final-state equalities with bare `rfl`. Nontrivial definitional equality can timeout instead of failing clearly. Prove a small execution/engine lemma for the flattened body, rewrite the post target with it, then bridge to the semantic postcondition with an explicit list/value lemma.
+  6. For byte-identical bottom-test loops (`Stmt.doWhile`), remember that `inv i` is after the `(i+1)`-th body execution. In the `inv_init` VC, `vcgen` may expose the loop-entry writable bytes under a generated local witness rather than the theorem parameter name; destruct the `sp` hypothesis and use that local witness. In the final post, use the failed guard to prove the exact terminal index, not just the fuel bound.
 - **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
   posts, `extract_pure`/`drop_pure` struggles): fold posts behind
   `@[irreducible]` helpers and extract pures one layer at a time — full
