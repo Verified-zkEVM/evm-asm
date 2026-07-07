@@ -134,6 +134,19 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 - **Spec design — keep preconditions static; put outcomes in the postcondition.** A subroutine spec's Lean arguments and hypotheses (preconditions) must contain only information that is **statically known or available before the program runs** — base/pointers, lengths, the input bytes, alignment, memory-validity, and size bounds. Whether the run succeeds or fails, and the value it decodes/produces, must **not** appear in the precondition: no hypothesis that pre-decides which branch is taken (e.g. `content[0] ≠ 0`, `len > 32`, `success`), and no precondition phrased as "if the outcome is X then …". Instead, a **unified** spec states every outcome in the **postcondition as a disjunction** — one disjunct per outcome, each carrying its own guard (a static condition like `32 < len`), status code, and result/output assertion. Use a single static upper bound for the step count: `cpsTripleWithin` means "within N steps" (`∃ k ≤ nSteps`), so pick a bound covering all cases and lift each branch's exact count with `cpsTripleWithin_mono_nSteps`. This keeps the theorem easy to apply — a caller supplies only static facts and reads the case analysis back out. Per-outcome sub-specs (one Hoare triple per branch) are fine as building blocks, but the top-level unified theorem must follow this shape. (Example: `EvmAsm/Rv64/RLP/ContentToU256Be.lean`.)
 
+- **Read-only memory in SAsm specs stays read-only.** If a routine reads from a
+  second input buffer that the caller owns as immutable/ambient memory, do not
+  model that buffer as an `rw` region just because the current `Fn.region` is
+  the primary mutable focus. Keep the writable focus on the actual mutable
+  region, carry the read-only buffer in the ambient assertion (typically
+  `A = bytesRegion ptr bytes`), and use `.readAt` with a stable base register
+  plus a focus relation for the read-only bytes. If the routine has two input
+  buffers and actual callsites guarantee non-overlap, make disjointness a
+  static precondition after checking every callsite; do not infer it from the
+  memory model. Example: `bnfEq32Fn_spec` keeps `a1` as an ambient read-only
+  `bytesRegion`, preserves stable `x11`, uses cursor `x7` only for loads, and
+  requires the two 32-byte ranges to be disjoint.
+
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
 - **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
 - If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
