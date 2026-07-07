@@ -23,8 +23,30 @@ def blockVerdictExactGasCheck : String :=
   "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  bnez a0, .Lbv_block_state_gas_fail\n" ++
-  -- Use the gas-result arena as produced. Do not normalize or repair it before
-  -- the exact block gas check; mismatches should expose the upstream producer.
+  -- The gas-result arena's block increment is settlement-style gas and can
+  -- include state gas. `eip8037_block_gas_used` takes the regular dimension
+  -- separately from state gas, so derive that regular input before the final
+  -- header comparison.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
+  ".Lbv_regular_eip8037_loop:\n" ++
+  "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
+  "  slli t5, t1, 3\n" ++
+  "  la t6, bvgr_block_gas_increments; add t6, t6, t5; ld a0, 0(t6)\n" ++
+  "  la t6, bvgr_tx_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a2, 0(t6)\n" ++
+  "  bgeu a1, a2, .Lbv_regular_eip8037_have_state_sub\n" ++
+  "  mv a1, a2\n" ++
+  ".Lbv_regular_eip8037_have_state_sub:\n" ++
+  "  bltu a0, a1, .Lbv_regular_eip8037_floor\n" ++
+  "  sub a0, a0, a1\n" ++
+  ".Lbv_regular_eip8037_floor:\n" ++
+  "  la t6, bvgr_calldata_floor; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bgeu a0, a1, .Lbv_regular_eip8037_have_max\n" ++
+  "  mv a0, a1\n" ++
+  ".Lbv_regular_eip8037_have_max:\n" ++
+  "  la t6, bvgr_block_gas_increments; add t6, t6, t5; sd a0, 0(t6)\n" ++
+  "  addi t1, t1, 1; j .Lbv_regular_eip8037_loop\n" ++
+  ".Lbv_regular_eip8037_done:\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  la t2, bv_exact_header_gas_used; sd a0, 0(t2)\n" ++
   "  mv t1, a0                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
