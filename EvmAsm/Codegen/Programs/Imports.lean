@@ -94,6 +94,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
