@@ -260,6 +260,7 @@ Every phase follows the same seven-step shape. Deviate only with a documented re
 - **Goal:** close concrete BitVec/Word arithmetic evaluations (`(1 : Word) <<< 6 = 64`, `BitVec.toNat` of small literals, `Word + 0 = Word`, `BitVec.add_assoc/comm` chain rewrites).
 - **Risk:** **highest scope-blowup risk** — easy to over-include and slow `grind` globally. Approach cautiously: identify the top 5–10 repeated atomic facts via grep, ship just those, expand only if a follow-up survey shows demand. Cap the file at ~30 entries; split by sub-domain if larger.
 - **Dependencies:** gate on experience from Phases 2–5 (what worked, what didn't, what atomic-fact density the grind index tolerates).
+- **Demand-driver:** the Sail-equiv memory-discharge work (`EvmAsm/Rv64/SailEquiv/`) generates exactly this class of fact (per-width `Int.toNat`/index/`setWidth`/sign-zero-extend evaluations). Tier C (6 sub-doubleword loads, `sail-tier-c-bootstrap.md`) multiplies them — seed `bv_eval` from there once 5–10 recur. NB the *monad-plumbing* counterpart there is a **simp-only** set `sail_step` (decl in `EvmAsm/Rv64/SailEquiv/SailStepAttr.lean`, used via the `sail_reduce` macro) — deliberately NOT a grind set (definitional unfolding, grind-loop risk); keep that split.
 
 #### Phase 7 ⏳ — Retrospective & policy hardening
 - **Measure:**

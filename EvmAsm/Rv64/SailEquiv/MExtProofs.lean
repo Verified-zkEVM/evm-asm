@@ -9,7 +9,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -169,11 +169,11 @@ private theorem overflow_guard_div (a b : BitVec 64) :
 theorem div_full_equiv_applied {a b : BitVec 64} :
     to_bits_truncate (l := 64)
       (if (((if ((b.toInt == (0 : Int)) : Bool) then (-1 : Int)
-           else a.toInt.tdiv b.toInt) ≥b ((2 : Int) ^ ((LeanRV64D.Functions.xlen : Int) - 1))) : Bool)
-       then (-((2 : Int) ^ ((LeanRV64D.Functions.xlen : Int) - 1)))
+           else a.toInt.tdiv b.toInt) ≥b ((2 : Int) ^ ((Out.Functions.xlen : Int) - 1))) : Bool)
+       then (-((2 : Int) ^ ((Out.Functions.xlen : Int) - 1)))
        else (if ((b.toInt == (0 : Int)) : Bool) then (-1 : Int) else a.toInt.tdiv b.toInt)) =
     rv64_div a b := by
-  simp only [LeanRV64D.Functions.xlen]
+  simp only [Out.Functions.xlen]
   unfold rv64_div; rw [int_toInt_beq_zero]
   by_cases hb : b = 0#64
   · subst hb
@@ -252,7 +252,7 @@ theorem mulh_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
+    show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
       Signedness.Signed Signedness.Signed x y VectorHalf.High = rv64_mulh x y
     from mulh_high_equiv]
   simp only [runSail_wX_bits_of_reg]
@@ -275,7 +275,7 @@ theorem mulhsu_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
+    show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
       Signedness.Signed Signedness.Unsigned x y VectorHalf.High = rv64_mulhsu x y
     from mulhsu_high_equiv]
   simp only [runSail_wX_bits_of_reg]
@@ -309,7 +309,7 @@ theorem mulhu_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
+    show ∀ x y : Word, mult_to_bits_half (l := Out.Functions.xlen)
       Signedness.Unsigned Signedness.Unsigned x y VectorHalf.High = rv64_mulhu x y
     from mulhu_high_equiv]
   simp only [runSail_wX_bits_of_reg]
@@ -330,7 +330,7 @@ theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    LeanRV64D.Functions.not,
+    Out.Functions.not,
     Bool.not_false, Bool.true_and, ite_false, Bool.false_eq_true]
   conv in to_bits_truncate _ => rw [div_full_equiv_applied]
   simp only [runSail_wX_bits_of_reg]
@@ -351,7 +351,7 @@ theorem divu_sail_equiv (sRv : MachineState) (sSail : SailState)
       sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    LeanRV64D.Functions.xlen, LeanRV64D.Functions.not,
+    Out.Functions.xlen, Out.Functions.not,
     Bool.not_true, Bool.false_and, ite_true, ite_false, Bool.false_eq_true]
   conv in to_bits_truncate _ => rw [divu_full_equiv]
   simp only [runSail_wX_bits_of_reg]

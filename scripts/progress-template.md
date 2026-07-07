@@ -119,7 +119,7 @@ column is the typed `cpsTripleWithin N` step bound (cost surrogate); see C.1.
 
 | Component | State |
 |---|---|
-| RV64 instruction semantics tie | `Rv64/SailEquiv/` references the official Sail RISC-V model via the `dhsorens/sail-riscv-lean` fork (`lakefile.toml`) |
+| RV64 instruction semantics tie | `Rv64/SailEquiv/` references the vendored, release-pinned, scoped RV64IM Sail model in `vendor/sail-riscv-zkvm-lean/` (`lakefile.toml` path-dep; pins in `sail-import/PROVENANCE.toml`) |
 | Mathlib pin | `lake-manifest.json` (refreshed alongside Lean nightly) |
 | Lean toolchain pin | `lean-toolchain` (Lean 4 nightly) |
 | Kernel additions | 0 literal `axiom`, 0 `sorry`. Both TCB-expanding tactics are forbidden and fully eliminated (`native_decide` 206→0, `bv_decide` 290→0), so the trusted base is only the three classical axioms (`propext`, `Classical.choice`, `Quot.sound`); the `scripts/axiom-allow.txt` burndown list is now empty. Audited by `scripts/check-axioms.sh` (axis A.1) and pre-filtered by `scripts/check-forbidden-tactics.sh`. |

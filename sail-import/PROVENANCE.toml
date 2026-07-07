@@ -1,0 +1,76 @@
+# Provenance of the Sail-extracted RISC-V model — the trust anchor's pin record.
+#
+# SKELETON (staged 2026-06-24, pre-P1). The `[current]` block records what the
+# project consumes TODAY (the dhsorens fork, unscoped full RV64D). The `[target]`
+# block is the foundation P1/P2 will establish (pinned, scoped, vendored). The
+# pin gate `scripts/check-sail-pin.sh` (added in P2) will assert that the
+# resolved dependency matches whichever block is authoritative.
+#
+# See docs/sail-zkvm-implementation-plan.md (P2.3) and docs/sail-zkvm-model-review.md §6.
+
+[current]
+# What lakefile.toml + lake-manifest.json resolve to right now.
+# MIGRATED (2026-06-25, P2 steps 3-4, commit pending): the project now consumes the
+# VENDORED model — `[current]` == `[target]`. The dhsorens fork is GONE from
+# lakefile.toml + lake-manifest.json. See [target] for the authoritative pins.
+source          = "vendor/sail-riscv-zkvm-lean"   # local path require (package "out", lib "Out")
+lean_sail_rev   = "79b4d08505af29d88b3918f32d29840fae1fa191"   # = lean-sail v4; pinned by the vendored package's lakefile
+scope           = ["main", "I_insts", "M_insts"]   # scoped RV64IM (113 Lean files)
+project_toolchain = "leanprover/lean4:v4.30.0-rc1"
+notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out). AXIOM FOOTPRINT (corrected 2026-06-25 adversarial review, docs/agents/sail-adversarial-review.md F1): pure-ALU lemmas reduce to {propext, Classical.choice, Quot.sound}; memory lemmas additionally carry Sail PLATFORM axioms {plat_term_write, load_reservation, match_reservation, sys_enable_experimental_extensions} (host/LR-SC/experimental-ext boundary). The earlier '3 classical only' note was inaccurate for mem ops. (F2 RESOLVED: the model_sha256 below is correct; only its recipe was underspecified — pinned reproducibly at the hash line.)"
+
+# Historical (pre-migration): dhsorens fork, full RV64D, lean-sail v3.
+#   source = https://github.com/dhsorens/sail-riscv-lean
+#   lean_rv64d_rev = 6009afb10039129aabcfd03ddac1c58670fe5d96 (moving rev=main)
+#   lean_sail_rev  = 49ccc5af55c957fcd170c439592327794b4aa886 (v3)
+#   scope = --all-modules (153 Lean files: vector/FP/CSR/paging/crypto)
+
+[target]
+# DIRECTION (maintainer, 2026-06-25): use the LATEST/best of each upstream component;
+# keep the project's toolchain unless a real trade-off forces otherwise. Validated by
+# the P1 spike + actual builds. See docs/agents/sail-regen-spike.md.
+# (The 0.19.1 / sail-riscv 1760ee2 path the spike first explored is ABANDONED.)
+sail_compiler_version = "0.20.2"   # latest on opam: `opam install sail.0.20.2` — ships sail_lean_backend (no build-from-source)
+ocaml_min_version = "5.2"   # !! REQUIRED: build Sail on OCaml >=5.2 (we used 5.4.1). On 4.14.2 the Lean backend stack-overflows on the sail-riscv model — rems-project/sail#1674.
+sail_riscv_tag    = "2026-06-22-b5a2182"   # latest sail-riscv RELEASE tag (requires Sail >=0.20.1). Generation validated on main @ e123b61 (~equivalent).
+lean_sail_rev     = "v4"   # = 79b4d08, HEAD of rems-project/lean-sail. The MATCHED runtime Sail 0.20.2 emits as the lakefile `require`. Model imports EXTERNAL Sail (no inline runtime).
+project_toolchain = "leanprover/lean4:v4.30.0-rc1"   # UNCHANGED — verified the matched pair builds here (see toolchain note)
+z3_version        = "4.15.3"   # required by Sail's typechecker; not on PATH by default (nix store path in regen-sail-model.sh)
+# lean flags MUST match sail-riscv's cmake target — all THREE --lean-non-beq-type
+# (instruction, ExecutionResult, Step); omitting the latter two => ExecutionResult
+# fails to derive BEq. Generation cost: ~9-13 min / ~7 GB (one-time; --memo-z3 helps).
+# Module selection is POSITIONAL after the project file (no --module flag even in
+# 0.20.2). sail-riscv main/tags ALSO expose -DSAIL_MODULES as a cmake cache var.
+sail_modules = ["main", "I_insts", "M_insts"]   # scoped RV64IM; see "scoping" open question in the spike report
+config_file = "sail-import/riscv64im_zicclsm.json"   # NOTE: produced against 1760ee2; P2 must REGENERATE/REVALIDATE against the tag's config schema + tighten (single flat RAM; justify extension set; actually run validate_config)
+config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
+arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Renaming cosmetic.
+vendor_path  = "vendor/sail-riscv-zkvm-lean"   # P2 step 2: model VENDORED here (113 .lean files; package "out", lib "Out" kept verbatim from the proven artifact). lakefile git-pins lean-sail at the rev below.
+model_sha256 = "3a49ffa5cfc3a46e52686d56f43d3923567242bf616cdf3e2f19a4b8859a76e0"
+# REPRODUCIBLE RECIPE (pinned 2026-06-25 after review F2 — the old one-liner was
+# underspecified re: CWD/locale/.lake and did NOT reproduce this hash). Run EXACTLY:
+#   cd vendor/sail-riscv-zkvm-lean && \
+#     find . -name '*.lean' -not -path './.lake/*' | LC_ALL=C sort | xargs sha256sum | sha256sum
+# The three things that MUST be pinned: (1) CWD = the vendor dir (so paths are './…',
+# not absolute/stripped); (2) LC_ALL=C sort (locale-stable ordering — a plain `sort`
+# under a non-C locale gives a different concatenation order, hence a different hash);
+# (3) exclude './.lake/*' (build artifacts). Verified bit-identical across runs on
+# coreutils 9.4. check-sail-pin.sh (P6) must use this exact invocation.
+
+# ---- TOOLCHAIN: RESOLVED + PROVEN — no change, no model patching ----
+# lean-sail v4 *declares* lean-toolchain v4.29.0, but that is only its CI's toolchain.
+# PROVEN (2026-06-25): the matched pair — Sail-0.20.2-generated scoped model (113
+# files) + lean-sail v4 — builds on the project's v4.30.0-rc1 PATCH-FREE: `lake build`
+# 84/84 jobs, exit 0, incl. InstsEnd (execute_*), DecodeExt, Step, Model. No toolchain
+# downgrade, no cross-version source edits. The earlier "must move to v4.29.0 or
+# forward-patch" framing was a false premise (declared toolchain != required toolchain).
+# RE-PROVEN VENDORED (2026-06-25, P2 step 2): the model copied to vendor_path, with its
+# lakefile git-pinning lean-sail @ 79b4d08, builds 84/84 (exit 0) from the committed
+# location — lean-sail fetched fresh from git, no scratchpad absolute paths. Reproducible.
+# (Side note: the project pins mathlib `master`, so a downgrade to v4.29.0 would have
+# forced pinning mathlib off master — moot now.) Remaining check: lean-sail v4 +
+# mathlib-master coexisting inside the actual evm-asm lake build (P2 step 1).
+#
+# ---- P2 still owes lemma re-pointing for model-logic renames ----
+# e.g. bool_to_bit -> bool_to_bits (Prelude), hit by ALUProofs SLT/SLTU/SLTI.
+# Run a full regenerated-vs-current-vendored diff to enumerate the rest.

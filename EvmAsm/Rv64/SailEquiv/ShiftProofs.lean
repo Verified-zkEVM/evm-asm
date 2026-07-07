@@ -11,7 +11,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -27,21 +27,21 @@ private theorem extractLsb_bv6_id (shamt : BitVec 6) :
   apply BitVec.eq_of_toNat_eq; simp; omega
 
 private theorem sll_extractLsb_bv6 (v : BitVec 64) (shamt : BitVec 6) :
-    shift_bits_left v (Sail.BitVec.extractLsb shamt (LeanRV64D.Functions.log2_xlen -i 1) 0) =
+    shift_bits_left v (Sail.BitVec.extractLsb shamt (Out.Functions.log2_xlen -i 1) 0) =
     v <<< shamt.toNat := by
-  simp only [shift_bits_left, Sail.BitVec.extractLsb, LeanRV64D.Functions.log2_xlen]
+  simp only [shift_bits_left, Sail.BitVec.extractLsb, Out.Functions.log2_xlen]
   rw [extractLsb_bv6_id]; rfl
 
 private theorem srl_extractLsb_bv6 (v : BitVec 64) (shamt : BitVec 6) :
-    shift_bits_right v (Sail.BitVec.extractLsb shamt (LeanRV64D.Functions.log2_xlen -i 1) 0) =
+    shift_bits_right v (Sail.BitVec.extractLsb shamt (Out.Functions.log2_xlen -i 1) 0) =
     v >>> shamt.toNat := by
-  simp only [shift_bits_right, Sail.BitVec.extractLsb, LeanRV64D.Functions.log2_xlen]
+  simp only [shift_bits_right, Sail.BitVec.extractLsb, Out.Functions.log2_xlen]
   rw [extractLsb_bv6_id]; rfl
 
 private theorem sra_extractLsb_bv6 (v : BitVec 64) (shamt : BitVec 6) :
-    shift_bits_right_arith v (Sail.BitVec.extractLsb shamt (LeanRV64D.Functions.log2_xlen -i 1) 0) =
+    shift_bits_right_arith v (Sail.BitVec.extractLsb shamt (Out.Functions.log2_xlen -i 1) 0) =
     BitVec.sshiftRight v shamt.toNat := by
-  simp only [shift_bits_right_arith, Sail.BitVec.extractLsb, LeanRV64D.Functions.log2_xlen,
+  simp only [shift_bits_right_arith, Sail.BitVec.extractLsb, Out.Functions.log2_xlen,
     BitVec.toNatInt]
   congr 1; simp [Int.toNat]; omega
 

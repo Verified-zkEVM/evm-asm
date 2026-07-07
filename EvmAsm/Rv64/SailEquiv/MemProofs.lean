@@ -18,7 +18,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -27,18 +27,10 @@ namespace EvmAsm.Rv64.SailEquiv
 -- Doubleword loads/stores (LD/SD)
 -- ============================================================================
 
-theorem ld_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
+-- `ld_sail_equiv` (doubleword load) is now DISCHARGED unconditionally as
+-- `EvmAsm.Rv64.SailEquiv.ld_sail_equiv` in `VmemReduction.lean` — it takes a real
+-- `StateRel` + `BareModeInv` + per-access bundle instead of the vacuous `h_exec`
+-- hypothesis the other (still-deferred) memory lemmas below carry.
 
 theorem sd_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
@@ -57,31 +49,8 @@ theorem sd_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
 -- Word loads/stores (LW/LWU/SW)
 -- ============================================================================
 
-theorem lw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LW rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LW rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
-
-theorem lwu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LWU rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LWU rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
+-- `lw_sail_equiv` / `lwu_sail_equiv` are now DISCHARGED unconditionally in
+-- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
 theorem sw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
@@ -100,31 +69,8 @@ theorem sw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
 -- Byte loads/stores (LB/LBU/SB)
 -- ============================================================================
 
-theorem lb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LB rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LB rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
-
-theorem lbu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LBU rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LBU rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
+-- `lb_sail_equiv` / `lbu_sail_equiv` are now DISCHARGED unconditionally in
+-- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
 theorem sb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
@@ -143,31 +89,8 @@ theorem sb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
 -- Halfword loads/stores (LH/LHU/SH)
 -- ============================================================================
 
-theorem lh_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LH rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LH rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
-
-theorem lhu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LHU rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LHU rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
+-- `lh_sail_equiv` / `lhu_sail_equiv` are now DISCHARGED unconditionally in
+-- `VmemReductionLoads.lean` (no `h_exec`); the deferred conditional versions were removed.
 
 theorem sh_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
