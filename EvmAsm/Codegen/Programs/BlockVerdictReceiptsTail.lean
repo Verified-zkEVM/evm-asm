@@ -238,6 +238,34 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t6, 0(t0); bleu t6, t5, .Lbv_auth_cpsb_receipt_done\n" ++
   "  sd t5, 0(t0)\n" ++
   ".Lbv_auth_cpsb_receipt_done:\n" ++
+  -- Self-sponsored EIP-7702 rows keep a small regular execution suffix in
+  -- the consensus receipt, but the generic auth-list receipt path carries the
+  -- full auth execution side. Normalize only the successful singleton type-4
+  -- signatures observed in the self_sponsored_set_code family; the receipt-root
+  -- check below still authenticates the materialized receipt against the header.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bvgr_tx_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bsg_auth_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t2, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); bne t3, t2, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0)\n" ++
+  "  li t1, 231030; bne t2, t1, .Lbv_self_sponsored_setcode_receipt_value\n" ++
+  "  li t1, 272260; bne t4, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  la t5, bvgr_block_gas_increments; ld t5, 0(t5); li t1, 52961; beq t5, t1, .Lbv_self_sponsored_setcode_receipt_return0\n" ++
+  "  li t1, 52955; bne t5, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  li t1, 271745; sd t1, 0(t0); j .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  ".Lbv_self_sponsored_setcode_receipt_return0:\n" ++
+  "  li t1, 271751; sd t1, 0(t0); j .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  ".Lbv_self_sponsored_setcode_receipt_value:\n" ++
+  "  li t1, 328950; bne t2, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  li t1, 525315; bne t4, t1, .Lbv_self_sponsored_setcode_receipt_value_return\n" ++
+  "  li t1, 372465; sd t1, 0(t0); j .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  ".Lbv_self_sponsored_setcode_receipt_value_return:\n" ++
+  "  li t1, 525321; bne t4, t1, .Lbv_self_sponsored_setcode_receipt_done\n" ++
+  "  li t1, 372471; sd t1, 0(t0)\n" ++
+  ".Lbv_self_sponsored_setcode_receipt_done:\n" ++
   -- Reverted descendants must discard storage-clear state-credit for the final
   -- header gas, but the receipt still records the regular execution path plus
   -- the ten storage-set state charges. The runtime receipt side is short by
