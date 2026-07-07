@@ -89,6 +89,12 @@ def flatten (addr : Word) : Stmt → List Instr
       [.JALR .x1 rs 0]
   | callAt _ _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
+  | retJalr _ =>
+      [.JALR .x0 .x1 0]
+  | retIf _ c t e =>
+      c.toInstr (brOfs (e.size + 1))
+        :: (e.flatten (addr + 4)
+            ++ t.flatten (addr + BitVec.ofNat 64 (4 * (e.size + 1))))
 
 /-- The flattened code of a statement occupies exactly `size` slots. -/
 theorem flatten_length (s : Stmt) (addr : Word) :
@@ -119,6 +125,9 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | callReg _ _ _ => rfl
   | callRegS _ _ _ => rfl
   | callAt _ _ f => rfl
+  | retJalr _ => rfl
+  | retIf _ c t e iht ihe =>
+      simp [flatten, size, iht, ihe]; omega
 
 /-- Decidable well-formedness: every synthesized offset fits its immediate
     field, and every branch condition reads only exposed registers (or x0).
@@ -161,6 +170,18 @@ def offsetsOk : Stmt → Bool
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
   | callAt _ _ _ => true
+  | retJalr _ => false
+  | retIf _ _ _ _ => false
+
+/-- Return-terminating offset well-formedness.  This accepts the return-only
+    nodes that the legacy single-exit `offsetsOk` deliberately rejects. -/
+def retOffsetsOk : Stmt → Bool
+  | seq a b => a.offsetsOk && b.retOffsetsOk
+  | retJalr _ => true
+  | retIf _ c t e =>
+      c.wf && decide (4 * (e.size + 1) < 2^12)
+           && t.retOffsetsOk && e.retOffsetsOk
+  | _ => false
 
 /-- Address-aware side conditions of the call sites of a statement placed at
     `addr`: each `jal` offset round-trips through its 21-bit immediate, the
@@ -201,6 +222,10 @@ def callsOk : Stmt → Word → Prop
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ f.code addr = none
+  | retJalr _, _ => True
+  | retIf _ _ t e, addr =>
+      e.callsOk (addr + 4)
+        ∧ t.callsOk (addr + BitVec.ofNat 64 (4 * (e.size + 1)))
 
 end Stmt
 end SAsm

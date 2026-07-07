@@ -1253,6 +1253,179 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact absurd hleaf (by simp [Stmt.callFree])
   | callRegS lbl rs handles =>
       exact absurd hleaf (by simp [Stmt.callFree])
+  | retJalr lbl =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
+  | retIf lbl c t e iht ihe =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
+
+-- ============================================================================
+-- Return-terminating soundness
+-- ============================================================================
+
+/-- `jalr x0, ra, 0`: return to the aligned address held in `ra`, preserving
+    all pc-free framed state.  This is local to the return-terminating SAsm
+    path so the legacy single-exit `Fn.Spec` remains unchanged. -/
+theorem jalr_ret_spec_left (base ret : Word) (halign : (ret &&& ~~~(1 : Word)) = ret)
+    {P : Assertion} (hP : P.pcFree) :
+    cpsTripleWithin 1 base ret (CodeReq.singleton base (.JALR .x0 .x1 0))
+      (((.x1 : Reg) ↦ᵣ ret) ** P) (((.x1 : Reg) ↦ᵣ ret) ** P) := by
+  intro R hR s hcr hPR hpc; subst hpc
+  have hfetch : s.code s.pc = some (.JALR .x0 .x1 0) :=
+    CodeReq.singleton_satisfiedBy.mp hcr
+  have hstep' : step s = some (execInstrBr s (.JALR .x0 .x1 0)) :=
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) rfl
+  have hx1 : s.getReg .x1 = ret :=
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+  have hexec : execInstrBr s (.JALR .x0 .x1 0) = s.setPC ret := by
+    rw [execInstrBr_jalr_x0, hx1]
+    congr 1
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show ret + (0 : Word) = ret from by bv_omega]
+    exact halign
+  refine ⟨1, Nat.le_refl 1, s.setPC ret, ?_, rfl, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep', hexec]; rfl
+  · exact holdsFor_pcFree_setPC
+      (pcFree_sepConj (pcFree_sepConj (by pcFree) hP) hR) hPR
+
+/-- Soundness for return-terminating SAsm statements.  Unlike `Stmt.sound`, the
+    exit PC is the aligned value held in `ra`, and the postcondition must hold
+    at every syntactic return leaf.  The legacy `offsetsOk` deliberately rejects
+    these nodes; `retOffsetsOk` is the separate byte-layout checker for this
+    multi-exit path. -/
+theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word)
+    (pfx : String) (reach : Reach) {cr : CodeReq}
+    (hreg : reg.wf) (hrw : rw.wf)
+    (hleaf : s.callFree = true)
+    (hofs : s.retOffsetsOk = true)
+    (hsz : 4 * s.size < 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (hcode : ∀ a i, CodeReq.ofProg base (s.flatten base) a = some i → cr a = some i)
+    (hvcs : VCs.Hold (Stmt.vcs reg rw s pfx reach)) :
+    cpsTripleWithin s.steps base ret cr
+      ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw reach))
+      ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw (Stmt.sp reg rw s reach))) := by
+  induction s generalizing base pfx reach cr with
+  | seq a b iha ihb =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
+      simp only [Stmt.retOffsetsOk, Bool.and_eq_true] at hofs
+      simp only [Stmt.size] at hsz
+      have hsza : 4 * a.size < 2 ^ 64 := by omega
+      have hszb : 4 * b.size < 2 ^ 64 := by omega
+      have hla : (a.flatten base).length = a.size := Stmt.flatten_length a base
+      have hcode_a : ∀ a' i,
+          CodeReq.ofProg base (a.flatten base) a' = some i → cr a' = some i :=
+        fun a' i h => hcode a' i (ofProg_mono_left a' i h)
+      have hcode_b : ∀ a' i,
+          CodeReq.ofProg (base + BitVec.ofNat 64 (4 * a.size))
+            (b.flatten (base + BitVec.ofNat 64 (4 * a.size))) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode
+        apply ofProg_mono_right
+          (by rw [hla, Stmt.flatten_length]; omega)
+        rw [hla]
+        exact h
+      have ha := Stmt.sound reg rw a base pfx reach hreg hrw hleaf.1 hofs.1 hsza hcode_a hvcs.left
+      have ha' := cpsTripleWithin_frameL (((.x1 : Reg) ↦ᵣ ret)) (by pcFree) ha
+      have hb := ihb (base + BitVec.ofNat 64 (4 * a.size)) pfx (Stmt.sp reg rw a reach)
+        hleaf.2 hofs.2 hszb hcode_b hvcs.right
+      have hseq := cpsTripleWithin_seq_same_cr ha' hb
+      simpa [Stmt.steps, Stmt.sp] using hseq
+  | retJalr lbl =>
+      have hret := jalr_ret_spec_left base ret halign (pcFree_asrtM reg rw reach)
+      exact cpsTripleWithin_extend_code
+        (fun a i h => hcode a i (by simpa [Stmt.flatten] using h)) hret
+  | retIf lbl c t e iht ihe =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
+      simp only [Stmt.retOffsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
+      obtain ⟨⟨⟨hwf, hofsBr⟩, hOT⟩, hOE⟩ := hofs
+      simp only [Stmt.size] at hsz
+      have hle : (e.flatten (base + 4)).length = e.size := Stmt.flatten_length ..
+      have hflat : Stmt.flatten base (.retIf lbl c t e)
+          = c.toInstr (Stmt.brOfs (e.size + 1))
+            :: (e.flatten (base + 4)
+                ++ t.flatten (base + BitVec.ofNat 64 (4 * (e.size + 1)))) := rfl
+      have hlenAll : 4 * ((e.flatten (base + 4)
+          ++ t.flatten (base + BitVec.ofNat 64 (4 * (e.size + 1)))).length + 1) ≤ 2 ^ 64 := by
+        simp only [List.length_append, hle, Stmt.flatten_length]
+        omega
+      have hcode_br : ∀ a' i,
+          CodeReq.singleton base (c.toInstr (Stmt.brOfs (e.size + 1))) a' = some i →
+          cr a' = some i :=
+        fun a' i h => hcode a' i (hflat ▸ ofProg_head a' i h)
+      have hcode_e : ∀ a' i,
+          CodeReq.ofProg (base + 4) (e.flatten (base + 4)) a' = some i → cr a' = some i :=
+        fun a' i h => hcode a' i
+          (hflat ▸ ofProg_cons_tail hlenAll a' i (ofProg_mono_left a' i h))
+      have hcode_t : ∀ a' i,
+          CodeReq.ofProg (base + BitVec.ofNat 64 (4 * (e.size + 1)))
+            (t.flatten (base + BitVec.ofNat 64 (4 * (e.size + 1)))) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_cons_tail hlenAll
+        apply ofProg_mono_right (p1 := e.flatten (base + 4))
+          (by simp only [hle, Stmt.flatten_length]; omega)
+        rw [hle, show (base + 4) + BitVec.ofNat 64 (4 * e.size)
+            = base + BitVec.ofNat 64 (4 * (e.size + 1)) from by bv_omega]
+        exact h
+      have hbr := branch_spec_asrt c (Stmt.brOfs (e.size + 1)) rw reach base hwf
+      rw [signExtend13_brOfs hofsBr,
+        show base + BitVec.ofNat 64 (4 * (e.size + 1))
+          = base + BitVec.ofNat 64 (4 * (e.size + 1)) from rfl] at hbr
+      have hbr0 := cpsBranchWithin_frameR (((.x1 : Reg) ↦ᵣ ret)) (by pcFree)
+        (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr))
+      have hbr' : cpsBranchWithin 1 base cr
+          ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw reach))
+          (base + BitVec.ofNat 64 (4 * (e.size + 1)))
+            ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw fun rf ws A => reach rf ws A ∧ c.holds rf))
+          (base + 4)
+            ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw fun rf ws A => reach rf ws A ∧ ¬ c.holds rf)) := by
+        refine cpsBranchWithin_weaken ?_ ?_ ?_ hbr0
+        · intro hp hh; rwa [sepConj_comm']
+        · intro hp hh; rwa [sepConj_comm']
+        · intro hp hh; rwa [sepConj_comm']
+      have ht := iht (base + BitVec.ofNat 64 (4 * (e.size + 1))) (pfx ++ lbl ++ ".t.")
+        (fun rf ws A => reach rf ws A ∧ c.holds rf) hleaf.1 hOT (by omega)
+        hcode_t hvcs.left
+      have he := ihe (base + 4) (pfx ++ lbl ++ ".e.")
+        (fun rf ws A => reach rf ws A ∧ ¬ c.holds rf) hleaf.2 hOE (by omega)
+        hcode_e hvcs.right
+      have hpostT : cpsTripleWithin (max t.steps e.steps)
+          (base + BitVec.ofNat 64 (4 * (e.size + 1))) ret cr
+          (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw (fun rf ws A => reach rf ws A ∧ c.holds rf))
+          (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw (Stmt.sp reg rw (.retIf lbl c t e) reach)) := by
+        refine cpsTripleWithin_mono_nSteps (Nat.le_max_left _ _) ?_
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (sepConj_mono_right (asrtM_mono (fun rf ws A hsp => Or.inl hsp))) ht
+      have hpostE : cpsTripleWithin (max t.steps e.steps)
+          (base + 4) ret cr
+          (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw (fun rf ws A => reach rf ws A ∧ ¬ c.holds rf))
+          (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw (Stmt.sp reg rw (.retIf lbl c t e) reach)) := by
+        refine cpsTripleWithin_mono_nSteps (Nat.le_max_right _ _) ?_
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (sepConj_mono_right (asrtM_mono (fun rf ws A hsp => Or.inr hsp))) he
+      simpa [Stmt.steps] using cpsBranchWithin_merge_same_cr hbr' hpostT hpostE
+  | block lbl is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | ite lbl c t e iht ihe => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «when» lbl c b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | assert lbl P => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | ghost lbl R => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | blockAt lbl p winR is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | readAt lbl p roR is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «while» lbl c fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «whileS» lbl c fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «whileBreak» lbl guard fuel inv post bb breakCond ba ihbb ihba =>
+      exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «doWhile» lbl guard fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | «doWhileS» lbl guard fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | call lbl f => exact absurd hleaf (by simp [Stmt.callFree])
+  | callReg lbl rs handles => exact absurd hleaf (by simp [Stmt.callFree])
+  | callRegS lbl rs handles => exact absurd hleaf (by simp [Stmt.callFree])
+  | callAt lbl roR f => exact absurd hleaf (by simp [Stmt.callFree])
 
 end SAsm
 end EvmAsm.Rv64
