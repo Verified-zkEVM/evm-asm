@@ -62,18 +62,16 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 31 opcodes have executable-spec / handler / host-bridge
+These 33 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-STOP, KECCAK256, BALANCE, CODESIZE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RETURNDATACOPY, EXTCODEHASH, BLOCKHASH, BLOBHASH, BLOBBASEFEE, SLOAD, SSTORE, JUMP, JUMPI, PC, GAS, JUMPDEST, LOG0..4, CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, INVALID, SELFDESTRUCT.
+STOP, KECCAK256, BALANCE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RETURNDATACOPY, EXTCODEHASH, BLOCKHASH, BLOBHASH, BLOBBASEFEE, SLOAD, SSTORE, JUMP, JUMPI, PC, GAS, JUMPDEST, TLOAD, TSTORE, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, INVALID, SELFDESTRUCT.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `TLOAD` | EIP-1153 (Cancun); not in EvmOpcode enum |
-| `TSTORE` | EIP-1153 (Cancun); not in EvmOpcode enum |
-| `MCOPY` | EIP-5656 (Cancun); not in EvmOpcode enum |
+
 
 ## Trust boundaries (unverified by design)
 
@@ -92,6 +90,13 @@ STOP, KECCAK256, BALANCE, CODESIZE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDA
 - **Gas / memory cost modeling.** Per-opcode `cpsTripleWithin N` bounds are a
   verified *step-count surrogate*; the EVM gas schedule mapping is modeled, not
   proven equivalent to the yellow-paper schedule.
+- **Per-opcode handler glue.** Even for `.proven` opcodes, the handler
+  `preBody`/tail glue around the verified subroutine — gas accounting
+  (`copyWordGasAsm`), MSIZE / memory-expansion bookkeeping
+  (`updateActiveMemorySizeAsm`), OOG guards, and offset normalization — is
+  unverified `.custom` asm (the CALLDATACOPY #9880 convention). A dedicated
+  gas-glue verification track is deferred work; until it lands, the `.proven`
+  tier certifies the opcode's data effect, not its gas/expansion glue.
 - **Trusted axiom base.** Only the three classical axioms
   (`propext`, `Classical.choice`, `Quot.sound`); `native_decide`/`bv_decide`
   trust axioms are forbidden (CI-gated by `check-axioms.sh` /

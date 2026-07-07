@@ -7,6 +7,7 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Evm64.Code.CopyProgram
+import EvmAsm.Evm64.Code.SizeProgram
 
 namespace EvmAsm.Codegen
 
@@ -29,16 +30,8 @@ def codeHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_CODESIZE"
       opcodes := [0x38]
       preBody := stackOverflowGuardAsm
-      body    := []
-      tail    := .custom <|
-        "  addi x12, x12, -32\n" ++
-        "  ld x14, " ++ toString EvmAsm.Evm64.Code.codeSizeOff ++ "(x20)\n" ++
-        "  sd x14, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" }
+      body    := EvmAsm.Evm64.Code.evm_codesize .x20 .x14
+      tail    := .advanceAndRet 1 }
   , { label   := "h_CODECOPY"
       opcodes := [0x39]
       preBody := stackUnderflowGuardAsm 3 ++ "\n" ++

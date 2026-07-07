@@ -43,6 +43,7 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x1d => some SAR
   | 0x20 => some KECCAK256
   | 0x30 => some ADDRESS
+  | 0x31 => some BALANCE
   | 0x32 => some ORIGIN
   | 0x33 => some CALLER
   | 0x34 => some CALLVALUE
@@ -52,8 +53,11 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x38 => some CODESIZE
   | 0x39 => some CODECOPY
   | 0x3a => some GASPRICE
+  | 0x3b => some EXTCODESIZE
+  | 0x3c => some EXTCODECOPY
   | 0x3d => some RETURNDATASIZE
   | 0x3e => some RETURNDATACOPY
+  | 0x3f => some EXTCODEHASH
   | 0x40 => some BLOCKHASH
   | 0x41 => some COINBASE
   | 0x42 => some TIMESTAMP
@@ -76,6 +80,9 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x59 => some MSIZE
   | 0x5a => some GAS
   | 0x5b => some JUMPDEST
+  | 0x5c => some TLOAD
+  | 0x5d => some TSTORE
+  | 0x5e => some MCOPY
   | 0x5f => some PUSH0
   | 0x60 => some (PUSH 1)
   | 0x61 => some (PUSH 2)
@@ -151,6 +158,7 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0xa4 => some (LOG LogArgs.Kind.log4)
   | 0xf0 => some CREATE
   | 0xf1 => some CALL
+  | 0xf2 => some CALLCODE
   | 0xf3 => some RETURN
   | 0xf4 => some DELEGATECALL
   | 0xf5 => some CREATE2
