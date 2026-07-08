@@ -199,7 +199,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  `bnqCopy_prog`; `Bn254Fp2CopySAsm.lean` verifies the straight-line
+  `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
+  64-byte source/destination disjointness precondition and byte-identity pinned
+  to `bnpFp2Copy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
   verifies the `call_frame_set_calldata` child-env writer

@@ -194,6 +194,12 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For straight-line copy ports, avoid proving the semantic engine by repeatedly
+  reassociating appended instruction chunks unless the append lemma is already
+  a local simplifier. A failed append rewrite can leave huge nested `execBlock`
+  projections. The stable pattern is explicit per-pair `LD`/`SD` rewrites plus
+  a separate semantic fold lemma (`copyFold64`-style) that rewrites the nested
+  `setBytes` chain to the source bytes.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
