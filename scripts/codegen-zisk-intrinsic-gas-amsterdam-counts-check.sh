@@ -89,13 +89,15 @@ zeros = b.count(0)
 nz = len(b) - zeros
 calldata_tokens = zeros + 4 * nz
 access_tokens = 80 * $access_addrs + 128 * $access_slots
-intrinsic = 21000 + 4 * calldata_tokens
+intrinsic = 12000 + 4 * calldata_tokens
 if $is_creation:
-    intrinsic += 9000 + 2 * ((len(b) + 31) // 32)
-intrinsic += 2400 * $access_addrs + 1900 * $access_slots
+    intrinsic += 11000 + 2 * ((len(b) + 31) // 32)
+else:
+    intrinsic += 3000
+intrinsic += 3000 * $access_addrs + 3000 * $access_slots
 intrinsic += 16 * access_tokens
-intrinsic += 7500 * $auths
-floor = 21000 + 16 * (4 * len(b) + access_tokens)
+intrinsic += 15816 * $auths
+floor = 12000 + 16 * (4 * len(b) + access_tokens)
 required = max(intrinsic, floor)
 status = 0 if required <= $gas_limit and required <= 16777216 else 1
 # EIP-8037 intrinsic state gas: create_state_gas + auth_state_gas
@@ -128,7 +130,7 @@ run_case "authorization_two"      80000 0 0 0 2 "ff" || FAILED=1
 run_case "creation_and_auth"      90000 1 0 0 1 "00ab" || FAILED=1
 run_case "floor_dominates"        26000 0 0 0 0 "$(python3 -c "print('ff' * 200)")" || FAILED=1
 run_case "txmax_floor_cap"        20000000 0 0 0 0 "repeat:ff:262000" || FAILED=1
-run_case "one_gas_short"          20999 0 0 0 0 "" || FAILED=1
+run_case "one_gas_short"          14999 0 0 0 0 "" || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

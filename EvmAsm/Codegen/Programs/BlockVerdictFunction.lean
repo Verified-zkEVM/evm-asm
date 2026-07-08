@@ -757,7 +757,13 @@ def blockVerdictFunction : String :=
   "  la a2, bv_tx_recipient_code_hash\n" ++
   "  la a3, bv_cf_code_off; la a4, bv_cf_code_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lbv_code_preimage_fail            # current-frame code preimage absent -> reject\n" ++
+  "  beqz a0, .Lbv_cf_code_preimage_ok\n" ++
+  "  la t0, bsbd_code_from_bal; ld t0, 0(t0); beqz t0, .Lbv_code_preimage_fail\n" ++
+  -- EIP-7702 pointer-to-pointer: same-block BAL code_changes bytes are
+  -- executed raw, matching execution-specs' non-recursive delegation.
+  "  la t0, cahsr_code_offset; ld t1, 0(t0); la t2, bv_cf_code_off; sd t1, 0(t2)\n" ++
+  "  la t0, cahsr_code_length; ld t1, 0(t0); la t2, bv_cf_code_len; sd t1, 0(t2)\n" ++
+  ".Lbv_cf_code_preimage_ok:\n" ++
   -- bmvmx.5 (single-tx CONTRACT-recipient nonce/balance lower bound): a non-self-contained
   -- contract recipient bails inside dispatch_tx_runtime_code (structured nonzero reason codes)
   -- -> skips the @1020 sender checks, so a single value-moving tx to such a recipient with a bad
