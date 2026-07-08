@@ -189,6 +189,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
+  `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
+  (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
+  source/destination disjointness precondition and byte-identity pinned to
+  `blsgCopy96_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -201,7 +205,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   source/destination disjointness precondition and byte-identity pinned to
   `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
-  byte-identity pinned to `runningBloomCopy_prog`.
+  byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
+  verifies the `call_frame_set_calldata` child-env writer
+  (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
+  416 and `argsLen` at offset 424) with byte-identity pinned to
+  `callFrameSetCalldata_prog`.
   `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
@@ -2654,8 +2662,22 @@ ghost-pinned contract families (PinDemo) or spill to a caller-private
 dword outside the callee's `widenRw` window and reload after `LI`
 re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
 exposed set (blockOk rejects them) so verified code can't clobber them;
-frames are STATIC windows of the stack arena (no dynamic `addi sp`),
-design in docs/sasm-design.md §3.6.2. Indirect calls landed
+frames are STATIC windows of the stack arena (no dynamic `addi sp`)
+*at the `Stmt` layer*, design in docs/sasm-design.md §3.6.2.
+**Dynamic C-ABI leaf frames landed** (`SAsm/AbiFrame.lean` +
+`AbiFrameDemo.lean`, bead evm-asm-4ch8f.76): the guest's
+`addi sp,-N; sd ra/s0/s1; …body…; ld ra/s0/s1; addi sp,+N; ret`
+shape is modelled as a machine-level construct directly on
+`cpsTripleWithin` (the `blockOk`/`Stmt.sound` structured layer is
+untouched — fully additive). `sp` and the saved `s`-registers are
+ordinary owned `↦ᵣ` atoms inside the frame (frame-scoped exposure);
+the allocated slots below `sp` are a genuinely-owned `frameSlotsOwn`
+region; callee-saved preservation is *derived* from the
+`cpsTripleWithin` frame rule (save slots framed across the body),
+never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
+entry values + the body's rw effect, byte-identical (`#guard`) to a
+hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via
@@ -3059,8 +3081,9 @@ the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 `ws = replicate 32 0`) and `secfCopy32` (two-region ro-load→rw-store, post
 `ws = srcBytes`), each byte-tied `body.flatten 0 ++ [ret] = secf…_prog`,
-port-check + classical-3. `secfGetBitLsb` deferred (bit-extraction post
-wants the `.38.1` `beBytesToNat`/`testBit` vocabulary).
+port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
+`secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
+the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
