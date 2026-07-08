@@ -162,13 +162,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`), `SszPayloadWithdrawalsSAsm.lean`
-  (`spwU32leFn_spec`, byte-identity pinned to `spwU32le_prog`),
-  `SszParentHeaderSAsm.lean` (`ephU32leFn_spec`, byte-identity pinned to
-  `ephU32le_prog`), and `BalGasValidSAsm.lean` (`bgvU32leFn_spec`,
-  byte-identity pinned to `bgvU32le_prog`) are verified straight-line byte-wise
-  readers over the SAsm `Region` model (own-budget engine lemma per the heavy
-  `execBlock` reduction).
+  `a0 := leU32 (bytes@a0) 0`), `BlockAccessListHashSAsm.lean` verifies the
+  identical `bah_u32le` leaf (`bahU32leFn_spec`, byte-identity pinned to
+  `bahU32le_prog`), `SszPayloadWithdrawalsSAsm.lean` (`spwU32leFn_spec`,
+  byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
+  (`ephU32leFn_spec`, byte-identity pinned to `ephU32le_prog`),
+  `BalGasValidSAsm.lean` (`bgvU32leFn_spec`, byte-identity pinned to
+  `bgvU32le_prog`), `SszWitnessStateSAsm.lean` (`swsU32leFn_spec`,
+  byte-identity pinned to `swsU32le_prog`), and
+  `Eip7702NonceReuseGuardSAsm.lean` (`enrgU32leFn_spec`, byte-identity pinned
+  to `enrgU32le_prog`) are verified straight-line byte-wise readers over the
+  SAsm `Region` model (own-budget engine lemma per the heavy `execBlock`
+  reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
@@ -178,11 +183,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
+  `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
+  (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
+  source/destination disjointness precondition and byte-identity pinned to
+  `blsgCopy96_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -193,7 +203,29 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`.
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
+  dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
+  `Bn254Fp2CopySAsm.lean` verifies the straight-line
+  `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
+  64-byte source/destination disjointness precondition and byte-identity pinned
+  to `bnpFp2Copy_prog`.
+  `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
+  byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
+  verifies the `call_frame_set_calldata` child-env writer
+  (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
+  416 and `argsLen` at offset 424) with byte-identity pinned to
+  `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
+  byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
+  post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
+  emitted rounded-word BitVec cost difference) pinned to
+  `memoryExpansionGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -3075,8 +3107,9 @@ the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 `ws = replicate 32 0`) and `secfCopy32` (two-region ro-load→rw-store, post
 `ws = srcBytes`), each byte-tied `body.flatten 0 ++ [ret] = secf…_prog`,
-port-check + classical-3. `secfGetBitLsb` deferred (bit-extraction post
-wants the `.38.1` `beBytesToNat`/`testBit` vocabulary).
+port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
+`secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
+the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
