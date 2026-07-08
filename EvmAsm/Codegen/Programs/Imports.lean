@@ -109,11 +109,14 @@ import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
