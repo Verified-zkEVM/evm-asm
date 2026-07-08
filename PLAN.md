@@ -104,6 +104,8 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 | Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
+| Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
+| Persistent storage | SLOAD (0x54) | 47 | 🟡 `.conditional` stage-1 (`Storage.evm_sload_stack_spec_within`, `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean`). Structural clone of the proven TLOAD reverse scan on the **persistent** log (base `0xa0630000`, length cell `env+448`); body-as-Program `evm_sload`, byte-identical re-encoding (`li 0xa0630000` → `lui/addiw/slli 99`; `#guard` pins emission, region map/ELF unchanged). Witness: stack top := `persistentLookup addrHash slotKey entries` in place, budget `7 + 34n`. `.conditional` (not `.proven`) because miss→0 is EVM-sound only relative to the `committedStorageIs` snapshot — MPT-witness verification deferred to stage-2 (post-Phase-10). `coverRef := sload_precondition_reachable` (decide-checked hit-antecedent). **conditionalCount 0→1, execSpecCount 19→18; provenCount unchanged (66).** SSTORE is the append+original-scan sibling. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -157,6 +159,39 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   **TLOAD** is the reverse-scan sibling: same layout/assertions, scans the log
   from the end for the matching `(addrHash, slotKey)` and pushes `current`
   (0 if absent) — reuse `storageLogIs_split_at` for the isolate-entry shape.
+- **Transient load recipe** (`EvmAsm/Evm64/Transient/Load{Program,Spec}.lean`,
+  TLOAD done — the first genuinely loopy `.proven` opcode):
+  - **Pseudo-instruction expansion for byte-identity with branches**: the old
+    inline scan used numeric labels + `li x14, 0xa0830000`; `li` assembles to
+    THREE instructions (`lui x14, 0xa ; addiw x14, x14, 131 ; slli x14, x14, 16`),
+    so a `Program` using the 1-instruction `LI` model would emit wrong `.+N`
+    branch offsets for any branch crossing it. Fix: write the exact GNU-as
+    expansion into the `Program` (model layout = machine layout, all branch
+    offsets concrete); verify with `riscv64-elf-as` + `objdump` diff.
+  - **Loop induction at the composition level**: prove ONE iteration over the
+    loop slice (`evm_tload_loop`, ∀ entry `b2`; compare block / copy arm /
+    decrement tail as separate ∀-base sub-slice lemmas glued by
+    `CodeReq.ofProg_mono_append_{left,right}`/`ofProg_mono_subrange` +
+    `cpsTripleWithin_extend_code`), then close the loop by **snoc induction**
+    (`List.reverseRecOn`) — the entry appended LAST is scanned FIRST, so
+    `transientLookup` unfolds via `transientLookup_snoc` and
+    `storageLogIs_snoc` isolates exactly the scanned entry; no index
+    bookkeeping. Budget `34*m` per invariant, `cpsTripleWithin_mono_nSteps`
+    absorbs the per-path slack (27/31/34).
+  - **Scratch registers across iterations**: iteration posts clobber `x16`/`x17`
+    differently per exit path — merge to `regOwn` (8-way mismatch `by_cases`
+    + `sepConj_own2/own4` at fixed leading positions), and state the loop
+    invariant pre with `regOwn .x16 ** regOwn .x17`, discharged via
+    `cpsTripleWithin_regOwn2_pre` (∀-quantified concrete pre → `regOwn` pre).
+  - **NEW runBlock gotcha (d)**: the per-instruction spec's operands must be
+    SYNTACTICALLY identical to the Program's spelling — `ld_spec_gen_within …
+    (BitVec.ofNat 12 464)` silently fails against a Program written with
+    `BitVec.ofNat 12 transientLogLengthOff` ("don't know how to synthesize
+    placeholder" at the `have`). Pass the def-name form and `decide` the
+    `signExtend12` fold, exactly as the Program spells it.
+  - 8-way limb mismatch merged via one `hne : ¬(8-conjunction)` hypothesis;
+    word↔limb bridge `evmWord_eq_of_limbs_eq` (via `fromLimbs_getLimb`
+    round-trip) converts `¬(e.addrHash = a ∧ e.slotKey = k)` to the limb form.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
@@ -197,7 +232,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
-  `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
+  `bgvU64le_prog`.  `Blake2fLoadLe64SAsm.lean` verifies `blk2_ld_le64`
+  (`blk2LdLe64Fn_spec`, post `a0 := leU64 (bytes@a0)`) as a byte-identical
+  fixed eight-iteration descending `doWhile` byte-load loop pinned to
+  `blk2LdLe64_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
   beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops
@@ -218,7 +256,15 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `ws = srcBytes` for `8*n` bytes) with byte-identity pinned to
   `blsfCopyQuads_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
-  byte-identity pinned to `blsg2Zero192_prog`; `Bls12G2Copy192SAsm.lean`
+  byte-identity pinned to `blsg2Zero192_prog`;
+  `Bls12G1LeToBeSAsm.lean` verifies the six-limb
+  `blsg_le_to_be` converter (`blsgLeToBeFn_spec`, post
+  `beBytesToNat ws = leLimbsToNat [...]`) with byte-identity pinned to
+  `blsgLeToBe_prog`;
+  `Bls12G1BeToLeSAsm.lean` verifies the six-limb
+  `blsg_be_to_le` converter (`blsgBeToLeFn_spec`, post
+  `leLimbsToNat ws-limbs = beBytesToNat inBytes`) with byte-identity pinned
+  to `blsgBeToLe_prog`; `Bls12G2Copy192SAsm.lean`
   verifies the ABI-frame caller `blsg2_copy192` (`blsg2Copy192Frame_spec`,
   post copies 24 dwords / 192 bytes) by calling the verified
   `blsf_copy_quads` callee, byte-identity pinned to `blsg2Copy192_prog`;
@@ -227,12 +273,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`. `Bls12Fq12IsZeroSAsm.lean` verifies `blq_is_zero`
+  (`blqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 72 dword limbs is zero)
+  with byte-identity pinned to `blqIsZero_prog`; `Bn254Fp2IsZeroSAsm.lean`
+  verifies `bnp_fp2_is_zero`
+  (`bnpFp2IsZeroFn_spec`, post `a0` is the emitted `SLTIU` result over the OR
+  of the eight 64-bit limbs) with byte-identity pinned to `bnpFp2IsZero_prog`.
+  `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254Fq12IsZeroSAsm.lean` verifies `bnq_is_zero`
+  (`bnqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 48 dword limbs is zero)
+  with byte-identity pinned to `bnqIsZero_prog`. `Bn254Fp2ZeroSAsm.lean`
+  verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
@@ -2797,6 +2852,28 @@ bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
 with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
 on; porting a real cross-calling routine additionally needs its callees'
 whole-routine contracts (each its own port).
+**Flat-contract adapter landed** (bead evm-asm-el1w2, branch
+`feat/flat-contract-adapter`): `SAsm/FnFlat.lean` derives a
+`callWithin_spec`-consumable flat callee contract from any call-free leaf's
+`Fn.Spec` (`Fn.retSpecFlat`), via the partial-state identity
+`regFileIs rf = regAtoms rf exposedRegs` (pack/unpack of the exposed file
+into fifteen `↦ᵣ` atoms), generic ownership peeling over register lists
+(`cpsTripleWithin_peel_regOwns`), and the `dwordsIs ↔ bytesRegion`
+conversion.  Three NAMED side-conditions (footprint width — adapted
+contracts own the whole exposed file, callers carry `regOwns` riders; post
+completeness — the leaf's `Fn` post must pin any register value the caller
+needs; ambient pinning `A = empAssertion`).  Re-derivation:
+`bnq_set_one`'s hand-written flat callee theorem replaced by the adapter
+applied to `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` (post strengthened to pin the
+advanced `a0`/drained counter/ambient — ~10-line VC patch); the caller's
+genuine post is unchanged (FQ12 = ONE, sp/ra/s0 restored, `a0 = dst+384`)
+with the footprint widened by the inherent `regOwns bnqRiders`; also fixed
+the file's stale post-relink address anchors (proofs now at the real
+GuestAddrs, `#guard`-tied).  Porting guide gained §5a (adapter recipe +
+side-conditions), the thin-wrapper anti-example (header_extract_number →
+stop at the missing rlp_field_to_u64 contract, bead 4ch8f.26.7.1), the
+`empAssertion` cleanup pattern, and the semantic-constants vs
+address-anchors discipline (bead evm-asm-q4xm0).  Classical-3 everywhere.
 **Port-automation + first real cross-call port landed** (branch
 `feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
 boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
