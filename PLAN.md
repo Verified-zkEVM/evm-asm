@@ -203,13 +203,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
+  dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
+  `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
   verifies the `call_frame_set_calldata` child-env writer
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
+  byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
+  post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
+  emitted rounded-word BitVec cost difference) pinned to
+  `memoryExpansionGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
