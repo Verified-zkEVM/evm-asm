@@ -162,8 +162,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`), `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`), and `BalGasValidSAsm.lean`
-  (`bgvU32leFn_spec`, byte-identity pinned to `bgvU32le_prog`) are verified
+  `a0 := leU32 (bytes@a0) 0`), `BalGasValidSAsm.lean` (`bgvU32leFn_spec`,
+  byte-identity pinned to `bgvU32le_prog`), and `Eip7702NonceReuseGuardSAsm.lean`
+  (`enrgU32leFn_spec`, byte-identity pinned to `enrgU32le_prog`) are verified
   straight-line byte-wise readers
   over the SAsm `Region` model (own-budget engine lemma per the heavy
   `execBlock` reduction).  Big-endian writers (`whileS` loops over a writable
