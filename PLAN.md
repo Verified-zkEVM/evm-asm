@@ -259,12 +259,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`. `Bls12Fq12IsZeroSAsm.lean` verifies `blq_is_zero`
+  (`blqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 72 dword limbs is zero)
+  with byte-identity pinned to `blqIsZero_prog`; `Bn254Fp2IsZeroSAsm.lean`
+  verifies `bnp_fp2_is_zero`
+  (`bnpFp2IsZeroFn_spec`, post `a0` is the emitted `SLTIU` result over the OR
+  of the eight 64-bit limbs) with byte-identity pinned to `bnpFp2IsZero_prog`.
+  `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254Fq12IsZeroSAsm.lean` verifies `bnq_is_zero`
+  (`bnqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 48 dword limbs is zero)
+  with byte-identity pinned to `bnqIsZero_prog`. `Bn254Fp2ZeroSAsm.lean`
+  verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
