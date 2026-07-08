@@ -50,7 +50,7 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-
+| `SLOAD` | stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan (byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, length cell env+448) is proven to replace the stack top in place with persistentLookup — the `current` of the most-recent committedStorageIs entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` because the miss→0 branch is EVM-sound only RELATIVE to the committedStorageIs snapshot supplied in the precondition; full MPT-witness verification that the snapshot faithfully reflects state root is deferred to stage-2 (post-Phase-10). Structural clone of the proven TLOAD reverse scan on the transient log. |
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
 
@@ -62,10 +62,10 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 20 opcodes have executable-spec / handler / host-bridge
+These 18 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SLOAD, SSTORE, TLOAD, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, SELFDESTRUCT.
+KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, SELFDESTRUCT.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 
