@@ -218,7 +218,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `ws = srcBytes` for `8*n` bytes) with byte-identity pinned to
   `blsfCopyQuads_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
-  byte-identity pinned to `blsg2Zero192_prog`;
+  byte-identity pinned to `blsg2Zero192_prog`; `Bls12G2Copy192SAsm.lean`
+  verifies the ABI-frame caller `blsg2_copy192` (`blsg2Copy192Frame_spec`,
+  post copies 24 dwords / 192 bytes) by calling the verified
+  `blsf_copy_quads` callee, byte-identity pinned to `blsg2Copy192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
