@@ -2535,15 +2535,26 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- computed floor here; x11 is free (it last held a calldata byte).
   "  la x11, runtime_tx_calldata_floor\n" ++
   "  sd x10, 0(x11)\n" ++
+  -- EIP-7702 adds PER_AUTH_BASE_COST to intrinsic.regular for each
+  -- authorization before the runtime gas reservoir is initialized
+  -- (execution-specs transactions.py: calculate_intrinsic_cost). Charge it in
+  -- the same accumulator used below for both tx.gas validation and the
+  -- tx.gas - gas_left receipt formula.
+  "  la x11, runtime_tx_auth_count\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_regular_charge_done\n" ++
+  "  li x11, 7500\n" ++
+  "  mul x9, x9, x11\n" ++
+  "  add x7, x7, x9\n" ++
+  ".runtime_tx_auth_regular_charge_done:\n" ++
   "  la x11, runtime_tx_intrinsic_regular\n" ++
   "  sd x7, 0(x11)\n" ++
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
-  -- EIP-7702 intrinsic state gas is part of intrinsic_gas, but the regular
-  -- intrinsic accumulator above deliberately tracks only intrinsic.regular for
-  -- TX_MAX_GAS_LIMIT budgeting. Subtract the staged authorization state dimension
-  -- from execution gas before the EIP-8037 reservoir split.
+  -- EIP-7702 intrinsic state gas is part of intrinsic_gas. Subtract the staged
+  -- authorization state dimension from execution gas before the EIP-8037
+  -- reservoir split.
   "  la x11, runtime_tx_auth_count\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_state_charge_done\n" ++
