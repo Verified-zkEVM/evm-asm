@@ -104,6 +104,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 | Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
+| Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -157,6 +158,39 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   **TLOAD** is the reverse-scan sibling: same layout/assertions, scans the log
   from the end for the matching `(addrHash, slotKey)` and pushes `current`
   (0 if absent) — reuse `storageLogIs_split_at` for the isolate-entry shape.
+- **Transient load recipe** (`EvmAsm/Evm64/Transient/Load{Program,Spec}.lean`,
+  TLOAD done — the first genuinely loopy `.proven` opcode):
+  - **Pseudo-instruction expansion for byte-identity with branches**: the old
+    inline scan used numeric labels + `li x14, 0xa0830000`; `li` assembles to
+    THREE instructions (`lui x14, 0xa ; addiw x14, x14, 131 ; slli x14, x14, 16`),
+    so a `Program` using the 1-instruction `LI` model would emit wrong `.+N`
+    branch offsets for any branch crossing it. Fix: write the exact GNU-as
+    expansion into the `Program` (model layout = machine layout, all branch
+    offsets concrete); verify with `riscv64-elf-as` + `objdump` diff.
+  - **Loop induction at the composition level**: prove ONE iteration over the
+    loop slice (`evm_tload_loop`, ∀ entry `b2`; compare block / copy arm /
+    decrement tail as separate ∀-base sub-slice lemmas glued by
+    `CodeReq.ofProg_mono_append_{left,right}`/`ofProg_mono_subrange` +
+    `cpsTripleWithin_extend_code`), then close the loop by **snoc induction**
+    (`List.reverseRecOn`) — the entry appended LAST is scanned FIRST, so
+    `transientLookup` unfolds via `transientLookup_snoc` and
+    `storageLogIs_snoc` isolates exactly the scanned entry; no index
+    bookkeeping. Budget `34*m` per invariant, `cpsTripleWithin_mono_nSteps`
+    absorbs the per-path slack (27/31/34).
+  - **Scratch registers across iterations**: iteration posts clobber `x16`/`x17`
+    differently per exit path — merge to `regOwn` (8-way mismatch `by_cases`
+    + `sepConj_own2/own4` at fixed leading positions), and state the loop
+    invariant pre with `regOwn .x16 ** regOwn .x17`, discharged via
+    `cpsTripleWithin_regOwn2_pre` (∀-quantified concrete pre → `regOwn` pre).
+  - **NEW runBlock gotcha (d)**: the per-instruction spec's operands must be
+    SYNTACTICALLY identical to the Program's spelling — `ld_spec_gen_within …
+    (BitVec.ofNat 12 464)` silently fails against a Program written with
+    `BitVec.ofNat 12 transientLogLengthOff` ("don't know how to synthesize
+    placeholder" at the `have`). Pass the def-name form and `decide` the
+    `signExtend12` fold, exactly as the Program spells it.
+  - 8-way limb mismatch merged via one `hne : ¬(8-conjunction)` hypothesis;
+    word↔limb bridge `evmWord_eq_of_limbs_eq` (via `fromLimbs_getLimb`
+    round-trip) converts `¬(e.addrHash = a ∧ e.slotKey = k)` to the limb form.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
