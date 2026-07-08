@@ -178,7 +178,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   32-byte digest byte-reverse as an emitted SAsm-shaped `Program` with
   flattening guards. `BalValueReverseSAsm.lean` now provides the BAL tuple
   value byte-reverse as a genuine bounded SAsm `while` loop with a proved
-  `Fn.Spec`; `AccountTupleSequencesConsistent.lean` splices the emitted
+  `Fn.Spec`; `Blake2fStoreLe64SAsm.lean` verifies the byte-identical `blk2_st_le64` fixed byte-store loop (`a1` stored as little-endian `dwordBytes` at `a0`). `AccountTupleSequencesConsistent.lean` splices the emitted
   PC-relative branch program into the per-record BAL value normalization.
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
@@ -216,7 +216,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`;
+  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
+  byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -2731,9 +2733,91 @@ arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
 concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
 values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
 one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
-A survey of the emitted guest found **no clean sp-frame leaf** to port via
-`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
-the real-routine port remains deferred.
+**s-register-exposed loop bridge + synthetic loop-leaf demo landed** (branch
+`port/abi-frame-loop-leaf`, stacks on `feat/abi-frame-spec`, bead
+evm-asm-4ch8f.76 follow-up): the prior "no clean sp-frame leaf" note conflated
+single-exit with straight-line — a body with an *internal* fall-through loop is
+still single-exit at the frame boundary. `SAsm/AbiFrameLoop.lean` adds
+`countdownLoop_spec`, a general, register-agnostic bottom-decrement countdown
+loop at the `cpsTripleWithin` level (analogue of the RLP `cu64_loop`, but the
+counter register and the invariant family `inv : Nat → Assertion` are free, so
+they may reference callee-saved `s`-registers — the capability the structured
+`while`/`doWhile` combinators lack since `Reg.isExposed` excludes s-regs).
+`SAsm/AbiFrameLoopDemo.lean` instantiates it for a synthetic software-multiply
+leaf (`acc = inc*kw` by repeated addition, `s0`/`s1` as loop-local
+accumulator/counter): `mulFrame_spec` composes prefix·loop·suffix into the
+`abiFrame_spec` body hypothesis and concludes `sp`/`ra`/`s0`/`s1` restored to
+entry + the rw dword at `[a0]` holds `inc*kw`, with a genuine loop invariant
+(`s0 = inc*(K−n)` at remaining count `n`), byte-identical (`#guard`/`rfl`) to a
+hand-written 16-instruction prog, axioms `[propext, Classical.choice,
+Quot.sound]`. This proves frame+loop composition end-to-end.
+**First REAL sp-frame guest routine landed** (bead evm-asm-ffziu, branch
+`port/abi-frame-reemit-complete`): `parent_header_matches_witness_first`
+re-emitted as a verified `abiFrameProg` drop-in
+(`SAsm/ParentHeaderFrame.lean`, 84 instrs; byte-CHANGED, not byte-matched —
+the original's `lwu` offset-table reads are misaligned whenever the section
+pointer is 4-unaligned, so the re-emission byte-reconstructs both u32-LE
+offsets via `lbu`+`slli`+`add`, and the early-exit byte loop is reshaped into
+the branch-free memcmp countdown the verified `memcmpLoop_spec` core proves;
+functionally identical outputs on every input, validated by the dedicated
+ziskemu probe A/B). `phmwCore_spec` is the unified single-exit body triple
+(all branches — empty / `N = 0` / single-vs-multi element / length-mismatch /
+match — reconverge to one exit; genuine disjunctive post `phmwStatus` /
+`phmwIsMatch`), and `phmwFrame_spec` derives the whole-routine ABI contract
+via `abiFrame_spec` (sp/ra/all seven saved s-regs restored). The routine is
+anchored at `0xF18` so the memcmp core's `0x1000` loop anchor lands exactly on
+the loop header (no base-generalization needed). Byte-tie:
+`parentHeaderMatchesWitnessFirst_prog = phmwProgList` by `rfl` in
+`BlockHashPredicates.lean`; drift guards re-tied (`#guard length = 84`),
+fixture + GuestAddrs + coverage doc regenerated. Axioms `[propext,
+Classical.choice, Quot.sound]`. Remaining candidates for the same treatment:
+`witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`.
+**Frame + cross-call composition landed** (bead evm-asm-4ch8f.76.2, branch
+`feat/abi-frame-call`): `SAsm/AbiFrameCall.lean` adds `stackFree sp k` (the
+free-stack region below `sp`: `k` genuinely owned `memOwn` dwords a callee
+carves its own frame from — no arbitrary-stack hole; `stackFree_split` frames
+the unused depth), `jal_link_spec_within` (the linking `jal ra` step), and the
+call rules `callWithin_spec`/`abiFrameCall_spec` (compose a `jal ra` with a
+callee whole-routine `cpsTripleWithin` contract — the `abiFrame_spec` /
+`FnHandle.sound` shape at `ret := A + 4`; the caller's frame slots + saved-ra
+slot are framed out of the callee footprint, so their preservation across the
+call is PROVEN by separation; sequences of calls chain by ordinary
+sequencing, each `jal` re-clobbering `ra` via the free `vOld`).  Notably
+`abiFrame_spec` needed NO generalization: its `vals'` is already free
+(including `.x1`), so the epilogue restores a call-clobbered `ra` from the
+slot.  `SAsm/AbiFrameCallDemo.lean`: a framed caller (`twice`, saves only
+`ra`) calls a framed callee (`bump`, own 16-byte frame carved from the
+caller's `stackFree`, increments `[a0]`, clobbers `s0`) TWICE via real
+`jal`s; `twiceFrame_spec` restores `sp`/`ra` to entry with `[a0] = v + 2`.
+Byte-transparent (`#guard`/`rfl`), additive, classical-3 axioms.  This is the
+bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
+with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
+on; porting a real cross-calling routine additionally needs its callees'
+whole-routine contracts (each its own port).
+**Port-automation + first real cross-call port landed** (branch
+`feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
+boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
+combinators), `code_mem` (code membership by kernel evaluation:
+`CodeReq.sub_ofProg_of_lookup` + `singleton_mono (by decide)` — replaces the
+manual `ofProg_mono_sub`/`ofProg_lookup_addr`/`memAt` plumbing),
+`lift_code`/`liftCode`, and the apply-and-discharge wrappers `abi_frame` /
+`countdown_loop` / `countdown_loop_bottom` / `frame_call` (all
+`abiFrame_spec`/loop/call side-conditions auto-closed; only the genuine body
+triple/invariant remains).  `SAsm/AbiFrameLoopBottom.lean` adds the
+`do-while` loop lemma `countdownLoopBottom_spec` + the writable dword-array
+region `dwordsIs`/`dwordsIs_at_set` (the store-loop analogue of
+`bytesRegion`).  Re-derived via the tactics with identical statements:
+`mulFrame_spec`/`mulLoop_spec`, `bumpCall_spec`/`twiceFrame_spec`.  First
+REAL cross-call sp-frame port: `bnq_set_one`
+(`Codegen/Programs/Bn254Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.17,
+byte-TRANSPARENT — the emitted `bnqSetOne_prog` IS the `abiFrameProg`
+flatten, `#guard`/`rfl`, no guest-byte change, no A/B needed): the callee
+`bnq_zero` gets a flat whole-routine contract (`bnqZeroFlat_spec`,
+bottom-test store loop over `dwordsIs`, genuine zero-prefix invariant)
+consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
+restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
+blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
+contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry

@@ -10,12 +10,13 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Class | Count | Meaning |
 |---|---:|---|
-| ALREADY-STRUCTURED | 391 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
+| ALREADY-STRUCTURED | 393 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
 | BLOCKED_ON_.6 | 309 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
-| COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
+| COMPOSITE | 137 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | CALLER-LOCAL-FRAGMENT | 8 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | MULTI-ENTRY-BUNDLE | 4 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
-| **TOTAL** | **851** | |
+| READY-WAVE3 | 1 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
+| **TOTAL** | **852** | |
 
 ## Landed in this PR (384)
 
@@ -177,7 +178,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `chainValidateConsecutiveNumbersFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidateExtraDataLengthFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidateGasUsedUnderLimitFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
-| `chainValidateIncreasingTimestampsFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
+| `chainValidateIncreasingTimestampsFunction` | `EvmAsm/Codegen/Programs/ChainValidateProgs.lean` | 0 |
 | `chainValidatePostMergeFullFunction` | `EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean` | 0 |
 | `checkGasLimitFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `codeAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/StateCompose.lean` | 0 |
@@ -406,10 +407,11 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `zkvmKeccak256SegmentsFunction` | `EvmAsm/Codegen/Programs/HashBridge.lean` | 0 |
 | `zkvmSha256Function` | `EvmAsm/Codegen/Programs/HashBridge.lean` | 0 |
 
-## READY-WAVE3 (0)
+## READY-WAVE3 (1)
 
 | Function | File | Instrs | Note |
 |---|---|---:|---|
+| `simpleTransferIntrinsicGasFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSimpleTransferGas.lean` | 180 | 18 reloc sym(s) |
 
 ## CONVERTED-CLEAN (0)
 
@@ -633,7 +635,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessStorageNodeKindDistribution.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 2 |
 
-## ALREADY-STRUCTURED (391) — by file
+## ALREADY-STRUCTURED (393) — by file
 
 | File | Count |
 |---|---:|
@@ -695,9 +697,10 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/CallFrameBase.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 4 |
-| `EvmAsm/Codegen/Programs/ChainValidate.lean` | 4 |
+| `EvmAsm/Codegen/Programs/ChainValidate.lean` | 3 |
 | `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` | 2 |
 | `EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean` | 1 |
+| `EvmAsm/Codegen/Programs/ChainValidateProgs.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CommittedStorageLookup.lean` | 2 |
 | `EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean` | 3 |
 | `EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean` | 1 |
@@ -739,7 +742,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/P256Verify.lean` | 12 |
 | `EvmAsm/Codegen/Programs/Receipt.lean` | 2 |
 | `EvmAsm/Codegen/Programs/ReceiptsRootIndexed.lean` | 1 |
-| `EvmAsm/Codegen/Programs/RlpRead.lean` | 5 |
+| `EvmAsm/Codegen/Programs/RlpRead.lean` | 7 |
 | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 5 |
 | `EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 4 |
@@ -784,7 +787,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 1 |
 
-## COMPOSITE (139) — by file
+## COMPOSITE (137) — by file
 
 | File | Count |
 |---|---:|
@@ -858,7 +861,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/ReceiptsConsensus.lean` | 1 |
 | `EvmAsm/Codegen/Programs/RequestsHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Ripemd160.lean` | 1 |
-| `EvmAsm/Codegen/Programs/RlpRead.lean` | 2 |
 | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SenderBalanceDebit.lean` | 1 |
