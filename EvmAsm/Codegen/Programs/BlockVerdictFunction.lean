@@ -414,31 +414,37 @@ def blockVerdictFunction : String :=
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; divu t5, t5, t4; li t6, 34000; mul t6, t6, t5; li t4, 45000; add t6, t6, t4\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_blake2f:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_default\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld t5, 56(t2); lbu t6, 0(t5); slli t6, t6, 24; lbu t4, 1(t5); slli t4, t4, 16; or t6, t6, t4; lbu t4, 2(t5); slli t4, t4, 8; or t6, t6, t4; lbu t4, 3(t5); or t6, t6, t4\n" ++
+  "  lbu t4, 212(t5); li t5, 1; bgtu t4, t5, .Lbv_simple_transfer_precompile_fail\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_point_eval:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 50000\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1add:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 256; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 375\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 160; divu t5, t5, t4; li t6, 12000; mul t6, t6, t5\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 12000; mul t6, t6, t5\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2add:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 512; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 600\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 288; divu t5, t5, t4; li t6, 22500; mul t6, t6, t5\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 22500; mul t6, t6, t5\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_pairing:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 384; divu t5, t5, t4; li t6, 32600; mul t6, t6, t5; li t4, 37700; add t6, t6, t4\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 384; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 32600; mul t6, t6, t5; li t4, 37700; add t6, t6, t4\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_map_g1:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 64; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 5500\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_map_g2:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 128; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 23800\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_p256:\n" ++
@@ -446,6 +452,15 @@ def blockVerdictFunction : String :=
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_default:\n" ++
   "  li t6, 0\n" ++
+  "  j .Lbv_simple_transfer_no_log_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_fail:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
+  "  la t4, bv_runtime_gas_left; sd zero, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
