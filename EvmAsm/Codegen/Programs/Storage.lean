@@ -82,17 +82,16 @@ open EvmAsm.Rv64
     Clobbers `x5`, `x6`, `x9`, `x14`-`x17`. Jumps to `.exit_outofgas` if the
     additional debit cannot be paid. The static dispatch table already charged
     100 gas for SSTORE, and `evm_storage_access_charge_key` already charged the
-    2000 cold delta, so this computes the remaining debit to match Amsterdam's
+    2900 cold delta, so this computes the remaining debit to match Amsterdam's
     `vm/instructions/storage.py`:
-    - clean-changing (original == current ≠ new): +2800 warm, +2900 cold
-      (Amsterdam dropped the legacy EIP-2200 SET split — COLD_STORAGE_WRITE -
-      COLD_STORAGE_ACCESS = 2900 regardless of the original being zero); when
+    - clean-changing (original == current ≠ new): +10000 STORAGE_WRITE; when
       the original is zero this is a state CREATION, so it additionally charges
       the EIP-8037 state gas STATE_BYTES_PER_STORAGE_SET(64) ×
       COST_PER_STATE_BYTE(1530) = 97,920 via the charge_state_gas rule: drain
       `evm_state_gas_left` first, spill the remainder into env.gasRemaining,
       OOG when both are short; `evm_state_gas_used` accumulates the charge.
-    - dirty/noop branch: +0 warm, +100 cold
+    - dirty/noop branch: +0; the access charge is already fully covered by the
+      dispatch warm floor plus storage-access helper.
     Refund-counter updates are handled by `sstore_gas_refund_outcome` below. -/
 def sstoreValueTransitionGasAsm : String :=
   -- x14 = OR of the new value limbs. For a missing slot, original=current=0.
@@ -153,26 +152,19 @@ def sstoreValueTransitionGasAsm : String :=
   "  bnez x15, .Lsstore_clean_changing\n" ++
   "  li x9, 1\n" ++
   ".Lsstore_clean_changing:\n" ++
-  "  li x14, 2800\n" ++              -- COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS - warm floor
-  "  beqz x19, .Lsstore_charge_delta\n" ++
-  "  li x14, 2900\n" ++
+  "  li x14, 10000\n" ++             -- STORAGE_WRITE
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_missing_slot:\n" ++
   "  li x9, 0\n" ++
   "  bnez x14, .Lsstore_missing_nonzero\n" ++
-  "  beqz x19, .Lsstore_gas_done\n" ++
-  "  li x14, 100\n" ++
-  "  j .Lsstore_charge_delta\n" ++
+  "  j .Lsstore_gas_done\n" ++
   ".Lsstore_missing_nonzero:\n" ++   -- missing slot = original = current = 0: creation
   "  li x9, 1\n" ++
-  "  li x14, 2800\n" ++
-  "  beqz x19, .Lsstore_charge_delta\n" ++
-  "  li x14, 2900\n" ++
+  "  li x14, 10000\n" ++             -- STORAGE_WRITE
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_dirty_or_noop:\n" ++
   "  li x9, 0\n" ++
-  "  beqz x19, .Lsstore_gas_done\n" ++
-  "  li x14, 100\n" ++
+  "  j .Lsstore_gas_done\n" ++
   ".Lsstore_charge_delta:\n" ++
   "  ld x15, 568(x20)\n" ++
   "  bltu x15, x14, .exit_outofgas\n" ++
@@ -214,7 +206,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         stackUnderflowGuardAsm 1 ++ "\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SLOAD's 100 warm floor, so the helper only charges the
-        -- 2000 cold delta on first touch. Preserve handler return address
+        -- 2900 cold delta on first touch. Preserve handler return address
         -- plus dispatcher PC / stack registers across the ABI a0/a1/a2 call.
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
@@ -264,7 +256,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  bltu x14, x15, .exit_outofgas\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SSTORE's 100 warm floor, so this helper only charges
-        -- the 2000 cold delta on first key touch. Run before the scan /
+        -- the 2900 cold delta on first key touch. Run before the scan /
         -- append path so out-of-gas cannot mutate the storage log.
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
