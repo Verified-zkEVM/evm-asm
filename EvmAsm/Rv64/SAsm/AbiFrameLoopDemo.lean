@@ -45,6 +45,7 @@
 
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.AbiFrameLoop
+import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.Tactics.XSimp
 import Mathlib.Data.BitVec
 
@@ -143,16 +144,6 @@ def mulInv (inc outPtr : Word) (K : Nat) (n : Nat) : Assertion :=
 theorem pcFree_mulInv (inc outPtr : Word) (K n : Nat) : (mulInv inc outPtr K n).pcFree :=
   pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs pcFree_regIs)
 
-/-- Code-membership: instruction `idx` of the routine sits in `mulCr`. -/
-private theorem memAt (idx : Nat) (addr : Word) (instr : Instr)
-    (hk : idx < mulProgList.length) (hbound : 4 * mulProgList.length < 2 ^ 64)
-    (haddr : addr = (0x1000 : Word) + BitVec.ofNat 64 (4 * idx))
-    (hget : mulProgList.get ⟨idx, hk⟩ = instr) :
-    ∀ a i, CodeReq.singleton addr instr a = some i → mulCr a = some i := by
-  have m := CodeReq.ofProg_lookup_addr (0x1000 : Word) mulProgList idx addr hk hbound haddr
-  rw [hget] at m
-  exact CodeReq.singleton_mono m
-
 /-- **The per-iteration loop body** (`add ; addi ; jal-back`, `0x101C → 0x1018`):
     `acc += inc`, `cnt -= 1`, back-edge to the header.  Discharges the loop's
     `hbody` obligation. -/
@@ -182,15 +173,8 @@ theorem mulLoopBody_spec (inc outPtr : Word) (K n : Nat) (hn : n < K) :
 theorem mulLoop_spec (inc outPtr kw : Word) :
     cpsTripleWithin (kw.toNat * (3 + 1) + 1) (0x1018 : Word) (0x1028 : Word) mulCr
       ((.x9 ↦ᵣ BitVec.ofNat 64 kw.toNat) ** (Reg.x0 ↦ᵣ (0 : Word)) ** mulInv inc outPtr kw.toNat kw.toNat)
-      ((.x9 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word)) ** mulInv inc outPtr kw.toNat 0) :=
-  countdownLoop_spec mulCr (0x1018 : Word) (0x1028 : Word) .x9 (16 : BitVec 13)
-    3 kw.toNat (mulInv inc outPtr kw.toNat)
-    (by decide)
-    (kw.isLt)
-    (by decide)
-    (fun n => pcFree_mulInv inc outPtr kw.toNat n)
-    (memAt 6 0x1018 (.BEQ .x9 .x0 (16 : BitVec 13)) (by decide) (by decide) (by decide) (by rfl))
-    (fun n hn => mulLoopBody_spec inc outPtr kw.toNat n hn)
+      ((.x9 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word)) ** mulInv inc outPtr kw.toNat 0) := by
+  countdown_loop (16 : BitVec 13) (fun n hn => mulLoopBody_spec inc outPtr kw.toNat n hn)
 
 /-- **The prefix** (`li s0,0 ; mv s1,a2`, `0x1010 → 0x1018`): initialize the
     accumulator and load the counter. -/
@@ -326,31 +310,7 @@ theorem mulFrame_spec (ret inc kw outPtr arb8 arb9 oldD : Word)
         ** ((0x2FFE0 : Word) ↦ₘ ret) ** ((0x2FFE8 : Word) ↦ₘ arb8) ** ((0x2FFF0 : Word) ↦ₘ arb9))
       (by pcFree) (mulCore_spec inc kw outPtr arb8 arb9 oldD)
     exact cpsTripleWithin_weaken (by xsimp) (by xsimp) hframed
-  have h := abiFrame_spec (base := 0x1000) (sp0 := 0x30000) (ret := ret)
-    (negImm := -32) (posImm := 32)
-    (frame := mulFrame) (raOfs := 0) (sregs := [(.x8, 8), (.x9, 16)])
-    (vals := mulVals ret arb8 arb9) (vals' := mulVals' ret inc kw)
-    (body := mulBody) (bodySteps := 2 + (kw.toNat * (3 + 1) + 1) + 1)
-    (callerPre := mulCallerPre inc kw outPtr oldD) (callerPost := mulCallerPost inc kw outPtr)
-    (cr := mulCr)
-    (hframe := rfl)
-    (hne := by decide)
-    (hbound := by decide)
-    (hprogBound := by decide)
-    (hret := rfl)
-    (halign := halign)
-    (hframeRestore := by decide)
-    (hcpF := by
-      simp only [mulCallerPre]
-      exact pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs pcFree_memIs))))
-    (hcpF' := by
-      simp only [mulCallerPost]
-      exact pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs pcFree_memIs))))
-    (hsub := fun a i h => h)
-    (hbody := hbody)
-  exact h
+  abi_frame (32 : BitVec 12) halign hbody
 
 #print axioms countdownLoop_spec
 #print axioms mulFrame_spec
