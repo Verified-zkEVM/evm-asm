@@ -88,6 +88,7 @@ import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
+import EvmAsm.Evm64.Storage.LoadSpec
 
 namespace EvmAsm.Progress
 
@@ -287,7 +288,18 @@ def registry : List OpcodeEntry := [
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
       "aligned spec proven; unaligned _public variants in progress",
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
-  entry "SLOAD" .execSpec none "Storage*.lean; ECALL → host",
+  entry "SLOAD" .conditional (some "Storage.evm_sload_stack_spec_within")
+      ("stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan " ++
+       "(byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, " ++
+       "length cell env+448) is proven to replace the stack top in place with " ++
+       "persistentLookup — the `current` of the most-recent committedStorageIs " ++
+       "entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` " ++
+       "because the miss→0 branch is EVM-sound only RELATIVE to the " ++
+       "committedStorageIs snapshot supplied in the precondition; full MPT-" ++
+       "witness verification that the snapshot faithfully reflects state root " ++
+       "is deferred to stage-2 (post-Phase-10). Structural clone of the proven " ++
+       "TLOAD reverse scan on the transient log.")
+      (coverRef := some "sload_precondition_reachable"),
   entry "SSTORE" .execSpec none "Storage*.lean; ECALL → host",
   entry "JUMP" .proven (some "ControlFlow.evm_jump_stack_spec_within")
       (cycleBound := some 13),
@@ -354,8 +366,8 @@ def totalEntries     : Nat := registry.length
 
 theorem provenCount_eq      : provenCount      = 66 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 19 := by decide
+theorem conditionalCount_eq : conditionalCount = 1  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 18 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -388,8 +400,8 @@ def totalBytes       : Nat :=
 
 theorem provenBytes_eq      : provenBytes      = 126 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 23  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 1   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 22  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -474,6 +486,10 @@ private noncomputable abbrev _returndatasize_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
 private noncomputable abbrev _tload_witness :=
   @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
+private noncomputable abbrev _sload_witness :=
+  @EvmAsm.Evm64.Storage.evm_sload_stack_spec_within
+private noncomputable abbrev _sload_cover :=
+  @EvmAsm.Evm64.Storage.sload_precondition_reachable
 private noncomputable abbrev _tstore_witness :=
   @EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
 private noncomputable abbrev _stop_witness :=
