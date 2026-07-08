@@ -189,6 +189,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
+  `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
+  (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
+  source/destination disjointness precondition and byte-identity pinned to
+  `blsgCopy96_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
