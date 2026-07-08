@@ -10,70 +10,9 @@
 
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 
 namespace EvmAsm.Codegen
-
-/-- Direct EOA -> deposit-contract fallback used before the log-derived path.
-    It derives one EIP-6110 request body from canonical deposit calldata/value,
-    then leaves the existing requests_hash verifier to compare against the header. -/
-def blockVerdictDirectDepositFallback : String :=
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_deposit_after_direct\n" ++
-  "  la t0, bv_simple_transfer_tx; ld t1, 0(t0); bnez t1, .Lbv_deposit_after_direct\n" ++
-  "  ld t1, 48(t0); bnez t1, .Lbv_deposit_after_direct\n" ++
-  "  ld t1, 64(t0); li t2, 404; bne t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  addi t1, t0, 72; la t2, pdr_deposit_addr; li t3, 20\n" ++
-  ".Lbv_deposit_addr_cmp:\n" ++
-  "  beqz t3, .Lbv_deposit_addr_ok\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbv_deposit_after_direct\n" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_deposit_addr_cmp\n" ++
-  ".Lbv_deposit_addr_ok:\n" ++
-  "  la t0, bv_simple_transfer_tx; ld s1, 56(t0)\n" ++
-  "  lbu t1, 0(s1); li t2, 0x22; bne t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  lbu t1, 1(s1); li t2, 0x89; bne t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  lbu t1, 2(s1); li t2, 0x51; bne t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  lbu t1, 3(s1); li t2, 0x18; bne t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 4; li a1, 128; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 36; li a1, 208; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 68; li a1, 272; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 132; li a1, 48; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 212; li a1, 32; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  addi a0, s1, 276; li a1, 96; jal ra, edd_be32_eq; beqz a0, .Lbv_deposit_after_direct\n" ++
-  "  la t0, bv_simple_transfer_tx; addi a0, t0, 96; li a1, 1000000000; la a2, c1_er_assembled\n" ++
-  "  jal ra, u256_div_u64_be; bnez a0, .Lbv_deposit_after_direct\n" ++
-  "  la t0, c1_er_assembled; li t1, 0\n" ++
-  ".Lbv_deposit_q_hi_zero:\n" ++
-  "  li t2, 24; beq t1, t2, .Lbv_deposit_q_hi_ok\n" ++
-  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbv_deposit_after_direct\n" ++
-  "  addi t1, t1, 1; j .Lbv_deposit_q_hi_zero\n" ++
-  ".Lbv_deposit_q_hi_ok:\n" ++
-  "  lbu t1, 24(t0); slli t1, t1, 56; lbu t2, 25(t0); slli t2, t2, 48; or t1, t1, t2\n" ++
-  "  lbu t2, 26(t0); slli t2, t2, 40; or t1, t1, t2; lbu t2, 27(t0); slli t2, t2, 32; or t1, t1, t2\n" ++
-  "  lbu t2, 28(t0); slli t2, t2, 24; or t1, t1, t2; lbu t2, 29(t0); slli t2, t2, 16; or t1, t1, t2\n" ++
-  "  lbu t2, 30(t0); slli t2, t2, 8; or t1, t1, t2; lbu t2, 31(t0); or t1, t1, t2\n" ++
-  "  li t2, 1000000000; bltu t1, t2, .Lbv_deposit_after_direct\n" ++
-  "  la t0, c1_dbody; addi t1, s1, 164; mv t2, t0; li t3, 48\n" ++
-  ".Lbv_deposit_copy_pubkey:\n" ++
-  "  beqz t3, .Lbv_deposit_copy_pubkey_done\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_deposit_copy_pubkey\n" ++
-  ".Lbv_deposit_copy_pubkey_done:\n" ++
-  "  addi t1, s1, 244; la t2, c1_dbody; addi t2, t2, 48; li t3, 32\n" ++
-  ".Lbv_deposit_copy_wc:\n" ++
-  "  beqz t3, .Lbv_deposit_copy_wc_done\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_deposit_copy_wc\n" ++
-  ".Lbv_deposit_copy_wc_done:\n" ++
-  "  la t1, c1_er_assembled; addi t1, t1, 31; la t2, c1_dbody; addi t2, t2, 80; li t3, 8\n" ++
-  ".Lbv_deposit_copy_amount:\n" ++
-  "  beqz t3, .Lbv_deposit_copy_amount_done\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_deposit_copy_amount\n" ++
-  ".Lbv_deposit_copy_amount_done:\n" ++
-  "  addi t1, s1, 308; la t2, c1_dbody; addi t2, t2, 88; li t3, 96\n" ++
-  ".Lbv_deposit_copy_sig:\n" ++
-  "  beqz t3, .Lbv_deposit_copy_sig_done\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_deposit_copy_sig\n" ++
-  ".Lbv_deposit_copy_sig_done:\n" ++
-  "  la t0, c1_dbody; sd zero, 184(t0)\n" ++
-  "  la t0, c1_dstatus; sd zero, 0(t0); la t0, c1_dlen; li t1, 192; sd t1, 0(t0)\n" ++
-  "  j .Lbv_deposit_body_ready\n"
 
 /-- Tail of `block_verdict`, concatenated after the main body.
     Targeted pre-materialization receipt normalizations are intentionally absent:
