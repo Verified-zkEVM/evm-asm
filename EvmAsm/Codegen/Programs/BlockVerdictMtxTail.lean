@@ -118,14 +118,9 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
   -- bmvmx.5.5.2.2.12: sender GAS debit = bvgr_receipt_gas_increments[i] * eff_price (+ value below).
-  -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
-  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain.
-  -- This block runs after receipt validation (reached via .Lbv_b2_entry from
-  -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
-  -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
-  -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
-  -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is
-  -- still added below. i = bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
+  -- bvgr_receipt_gas_increments[i] is the per-tx gas_used produced by the gas chain.
+  -- The type-3 blob fee is a separate dimension and is still added below. i =
+  -- bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t2, bvgr_receipt_gas_increments; add t2, t2, t1; ld a1, 0(t2)\n" ++   -- receipt_gas_used[i] (u64)
   "  la a0, bv_fee_egp_scratch; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
@@ -138,28 +133,6 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_type4_auth\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_innoff; ld t1, 0(t0); la t2, bv_mtx_skip_ctx; ld t2, 8(t2); add t1, t2, t1\n" ++
-  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_type4_auth\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
-  "  la t0, bvgr_receipt_gas_increments; add t0, t0, t1; ld t2, 0(t0)\n" ++
-  "  la t0, bvgr_tx_total_state_gas; add t0, t0, t1; ld t3, 0(t0); bgeu t2, t3, .Lbv_b2_after_type4_auth\n" ++
-  "  li t2, " ++ toString (amsterdamAuthStateGas + 7500) ++ "; mul a1, a1, t2\n" ++
-  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  ".Lbv_b2_after_type4_auth:\n" ++
   "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++

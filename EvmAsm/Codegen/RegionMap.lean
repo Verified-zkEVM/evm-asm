@@ -191,15 +191,15 @@ def schemeAAnchors : List GuestRegion :=
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
     being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x54bf0
+def textSizeBytes : Nat := 0x549b0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
+    (`readelf -S`, `0x19528050`). Link-layout-dependent. Shrank by `0x40` (64 B)
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x19528090
+def dataSizeBytes : Nat := 0x19528050
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
