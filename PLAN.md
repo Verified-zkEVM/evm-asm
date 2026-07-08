@@ -2668,9 +2668,29 @@ arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
 concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
 values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
 one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
-A survey of the emitted guest found **no clean sp-frame leaf** to port via
-`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
-the real-routine port remains deferred.
+**s-register-exposed loop bridge + synthetic loop-leaf demo landed** (branch
+`port/abi-frame-loop-leaf`, stacks on `feat/abi-frame-spec`, bead
+evm-asm-4ch8f.76 follow-up): the prior "no clean sp-frame leaf" note conflated
+single-exit with straight-line — a body with an *internal* fall-through loop is
+still single-exit at the frame boundary. `SAsm/AbiFrameLoop.lean` adds
+`countdownLoop_spec`, a general, register-agnostic bottom-decrement countdown
+loop at the `cpsTripleWithin` level (analogue of the RLP `cu64_loop`, but the
+counter register and the invariant family `inv : Nat → Assertion` are free, so
+they may reference callee-saved `s`-registers — the capability the structured
+`while`/`doWhile` combinators lack since `Reg.isExposed` excludes s-regs).
+`SAsm/AbiFrameLoopDemo.lean` instantiates it for a synthetic software-multiply
+leaf (`acc = inc*kw` by repeated addition, `s0`/`s1` as loop-local
+accumulator/counter): `mulFrame_spec` composes prefix·loop·suffix into the
+`abiFrame_spec` body hypothesis and concludes `sp`/`ra`/`s0`/`s1` restored to
+entry + the rw dword at `[a0]` holds `inc*kw`, with a genuine loop invariant
+(`s0 = inc*(K−n)` at remaining count `n`), byte-identical (`#guard`/`rfl`) to a
+hand-written 16-instruction prog, axioms `[propext, Classical.choice,
+Quot.sound]`. This proves frame+loop composition end-to-end. The port of a
+*real* emitted single-loop no-cross-call leaf (candidates:
+`witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`,
+`parentHeaderMatchesWitnessFirst_prog`) remains deferred — each has a branchy
+setup + loop + multiple exit blocks whose full body-triple + genuine SSZ
+semantics is a large lift (filed as a follow-up bead).
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
