@@ -219,7 +219,7 @@ def statelessGuestEpilogue : String :=
   "  li a3, 20                  # list capacity log2 (MAX_TRANSACTIONS_PER_PAYLOAD)\n" ++
   "  la a4, npr_dynamic_tx_root\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  # --- block_access_list_root = hash_tree_root(ByteList[2^24]) ---\n" ++
+  "  # --- block_access_list_root = hash_tree_root(ByteList[2^30]) ---\n" ++
   "  # bal section ends at exec_payload end = NPR + versioned_hashes_offset.\n" ++
   "  addi a0, s6, 588           # &block_access_list_offset (exec_payload+528)\n" ++
   "  jal ra, sg_load_u32le\n" ++
@@ -232,7 +232,7 @@ def statelessGuestEpilogue : String :=
   "  addi t1, s6, 16            # NPR_addr\n" ++
   "  add t1, t1, s8             # exec_payload_end = NPR + versioned_hashes_offset\n" ++
   "  sub a1, t1, a0             # bal_len\n" ++
-  "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
+  "  li a2, 25                  # chunk-cap log2 (2^30 / 32)\n" ++
   "  la a3, npr_dynamic_bal_root\n" ++
   "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  # --- versioned_hashes_root = hash_tree_root(List[Bytes32, 4096]) ---\n" ++

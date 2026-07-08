@@ -19,8 +19,8 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  li s1, 21000                 # intrinsic regular\n" ++
-  "  li s2, 21000                 # calldata floor\n" ++
+  "  li s1, 23000                 # intrinsic regular = legacy base + Amsterdam recipient access delta\n" ++
+  "  li s2, 21000                 # calldata floor base\n" ++
   "  ld s3, 56(s0)                # calldata ptr\n" ++
   "  ld s4, 64(s0)                # calldata len\n" ++
   ".Lstig_data_loop:\n" ++
@@ -59,7 +59,7 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t0, runtime_tx_access_list_address_count; ld t1, 0(t0)\n" ++
   ".Lstig_addr_loop:\n" ++
   "  beqz t1, .Lstig_slot_count\n" ++
-  "  li t2, 3680\n" ++
+  "  li t2, 4280\n" ++
   "  add s1, s1, t2\n" ++
   "  li t2, 1280\n" ++
   "  add s2, s2, t2\n" ++
@@ -69,7 +69,7 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t0, runtime_tx_access_list_storage_key_count; ld t1, 0(t0)\n" ++
   ".Lstig_slot_loop:\n" ++
   "  beqz t1, .Lstig_store_done\n" ++
-  "  li t2, 3948\n" ++
+  "  li t2, 5048\n" ++
   "  add s1, s1, t2\n" ++
   "  li t2, 2048\n" ++
   "  add s2, s2, t2\n" ++
@@ -84,7 +84,7 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t1, bsg_access_len; ld a1, 0(t1); la a2, teer_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lstig_fail\n" ++
-  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 7500; mul t1, t1, t2; add s1, s1, t1\n" ++
+  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 15816; mul t1, t1, t2; add s1, s1, t1\n" ++
   ".Lstig_auth_done:\n" ++
   "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
   "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
