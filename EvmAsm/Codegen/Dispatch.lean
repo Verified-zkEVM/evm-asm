@@ -36,6 +36,7 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
@@ -2534,9 +2535,23 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- computed floor here; x11 is free (it last held a calldata byte).
   "  la x11, runtime_tx_calldata_floor\n" ++
   "  sd x10, 0(x11)\n" ++
+  "  la x11, runtime_tx_intrinsic_regular\n" ++
+  "  sd x7, 0(x11)\n" ++
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
+  -- EIP-7702 intrinsic state gas is part of intrinsic_gas, but the regular
+  -- intrinsic accumulator above deliberately tracks only intrinsic.regular for
+  -- TX_MAX_GAS_LIMIT budgeting. Subtract the staged authorization state dimension
+  -- from execution gas before the EIP-8037 reservoir split.
+  "  la x11, runtime_tx_auth_count\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_charge_done\n" ++
+  "  li x11, " ++ toString amsterdamAuthStateGasPerAuth ++ "\n" ++
+  "  mul x9, x9, x11\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_auth_state_charge_done:\n" ++
   -- nxio8 (EIP-8037): split execution gas into gas_left and the state-gas
   -- reservoir (fork.py: gas = min(TX_MAX_GAS_LIMIT - intrinsic.regular,
   -- execution_gas); state_gas_reservoir = execution_gas - gas). x7 still holds
@@ -3116,6 +3131,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_warm_fn:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_count:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
@@ -3159,6 +3176,8 @@ def emitRuntimeDispatcherDataSectionCore
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
   -- was validated against (0 when --validate-tx-gas was not requested).
   "runtime_tx_calldata_floor:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy

@@ -353,6 +353,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_runtime_gas_left:\n  .zero 8\n" ++
   "bv_runtime_refund_counter:\n  .zero 8\n" ++
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
+  "bv_runtime_intrinsic_state_gas:\n  .zero 8\n" ++
   -- Last dispatch_tx_runtime_code status: 0 success; 1 code lookup; 2 non-self-contained;
   -- 3 BAL/account/key cap; 4 storage proof/slot lookup; 5 payload cap; 6 staging;
   -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
@@ -448,6 +449,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- this zero-initialized array keeps the exact block gas check honest for rows
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
+  -- delegation marker. Those authorities are warm for the receipt regular
+  -- dimension, so the type-4 auth regular delta is discounted by 2600 each.
+  "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
   "bv_exact_net_status:\n  .zero 8\n" ++
@@ -464,6 +469,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_predelegated_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
