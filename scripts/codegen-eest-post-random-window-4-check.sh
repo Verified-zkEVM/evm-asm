@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the fourth EEST stateless-guest regression window after random_statetest
-# in zkevm@v0.4.0 fixture order.
+# in tests-zkevm@v0.5.0 fixture order.
 #
 # This gate starts at skip 20085 and covers 1000 selected stateless blocks.
 set -euo pipefail
