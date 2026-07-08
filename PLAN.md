@@ -210,6 +210,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
   to `bnpFp2Copy_prog`.
+  `Bn254CurveCopySAsm.lean` verifies the alignment-free
+  `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
+  static 64-byte source/destination disjointness precondition and byte-identity
+  pinned to `bncCopy64_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
