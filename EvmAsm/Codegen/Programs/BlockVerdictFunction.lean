@@ -19,14 +19,18 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.BlockVerdictMtxRuntime
 import EvmAsm.Codegen.Programs.BlockVerdictEip7702SenderAuth
 import EvmAsm.Codegen.Programs.BlockVerdictCreateCollision
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
 
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
 def blockVerdictFunction : String :=
+  simpleTransferIntrinsicGasFunction ++
   "block_verdict:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -82,160 +86,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_withdrawals_root_valid; sd a1, 0(t0)\n" ++
   "  bnez a0, .Lbv_withdrawals_root_fail\n" ++
   "  beqz a1, .Lbv_withdrawals_root_fail\n" ++
-  -- bmvmx.1.4.4: precompute the supported single-tx EOA settlement scalars BEFORE
-  -- block_state_root so .4.1/.4.2 can build execution-derived sender/coinbase leaves.
-  -- ADDITIVE (no consumer reads bmvmx_* yet) -> verdict byte-identical. exec_p = 0(s0)
-  -- (= bv_exec_p). All bv_* writes here are idempotent with the post-348 tx preamble,
-  -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
-  "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
-  "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvReceiptsShapeClear ++  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  "  addi t4, s3, 60; la t0, bv_exec_p; sd t4, 0(t0)\n" ++         -- exec_p = ssz_base(s3)+60 (block_state_root's bsr_exec_p derivation; 0(s0) is NOT populated pre-348)
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 504; jal ra, bgv_u32le\n" ++       -- transactions_offset
-  "  la t0, bmvmx_txoff; sd a0, 0(t0)\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 508; jal ra, bgv_u32le\n" ++       -- withdrawals_offset
-  "  la t0, bmvmx_txoff; ld t1, 0(t0)\n" ++
-  "  bleu a0, t1, .Lbmvmx_done\n" ++                                -- no transactions
-  "  sub t5, a0, t1\n" ++                                           -- tx list byte length
-  "  li t6, 4; bltu t5, t6, .Lbmvmx_done\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); add t6, t4, t1; la t0, bv_tx_list_ptr; sd t6, 0(t0)\n" ++
-  "  la t0, bv_tx_list_len; sd t5, 0(t0)\n" ++
-  "  la t0, bv_tx_list_ptr; ld a0, 0(t0); jal ra, bgv_u32le\n" ++  -- offset[0] = 4*tx_count
-  "  andi t0, a0, 3; bnez t0, .Lbmvmx_done\n" ++
-  "  srli t1, a0, 2; la t0, bv_tx_count; sd t1, 0(t0)\n" ++
-  "  li t0, 1; bne t1, t0, .Lbmvmx_done\n" ++                       -- single-tx class only
-  "  la a0, bmvmx_ctx; li a1, 0; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bmvmx_ctx; ld t1, 0(t0); bnez t1, .Lbmvmx_done; ld t1, 48(t0); bnez t1, .Lbmvmx_done\n" ++   -- unsupported/creation tx shape
-  -- bmvmx.1.4.3.1 envelope (cheap half): restrict the exec-derived balance compare to a
-  -- LEGACY (type-0, no access list) single tx. Outside legacy, stay conservative: jump to
-  -- .Lbmvmx_done (skip the whole inert compute; bmvmx_avail stays 0, so .4.3.2's gate never
-  -- fires). The remaining envelope conditions gate the per-compare bmvmx_*_checked flags:
-  -- sender/recipient/coinbase distinctness is enforced below; the EOA-recipient check (so
-  -- gas_used==21000 is exact) is DEFERRED to .4.3.2's reject path, since that MPT+keccak
-  -- lookup would otherwise burden every single-tx block's verdict (proving-cost sensitive).
-  "  la t0, bmvmx_ctx; ld t0, 160(t0); bnez t0, .Lbmvmx_done\n" ++  -- non-legacy (2930/1559/4844/7702) -> conservative
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 440; la t2, bmvmx_basefee_be; li t3, 0\n" ++   -- base_fee LE->BE (32B)
-  ".Lbmvmx_rev:\n" ++
-  "  li t0, 32; beq t3, t0, .Lbmvmx_rev_done\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_rev\n" ++
-  ".Lbmvmx_rev_done:\n" ++
-  "  la t0, bmvmx_ctx; ld a0, 8(t0); ld a1, 16(t0)\n" ++           -- tx bytes ptr/len
-  "  la a2, bmvmx_basefee_be; la a3, bmvmx_eff_gas_price; la a4, bmvmx_priority_fee\n" ++
-  "  jal ra, tx_effective_gas_pricing\n" ++
-  "  bnez a0, .Lbmvmx_done\n" ++                                    -- pricing failed -> stay unavailable
-  "  la t1, bmvmx_ctx; addi t1, t1, 96; la t2, bmvmx_value; li t3, 0\n" ++   -- copy value (32B)
-  ".Lbmvmx_vcopy:\n" ++
-  "  li t0, 32; beq t3, t0, .Lbmvmx_vdone\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_vcopy\n" ++
-  ".Lbmvmx_vdone:\n" ++
-  "  la t0, bmvmx_gas_used; li t1, 21000; sd t1, 0(t0)\n" ++       -- EOA intrinsic gas_used
-  -- bmvmx.1.4.1: execution-derived sender balance debit = gas_used*eff_gas_price + value
-  -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
-  "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
-  "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
-  -- bmvmx.1.4.1 compare (additive; sets bmvmx_sender_match only -> verdict byte-identical):
-  -- assert the BAL sender post balance == sender_pre - bmvmx_sender_debit. Sender address is
-  -- derived from the selected public key (pubkeys = SSZ_BASE(s3) + offsets[3]@s3+12; 65-byte
-  -- SEC1 key 0x04||x||y -> address_from_pubkey(key+1)). Reuses bmvmx_acct/bmvmx_cb_* scratch.
-  "  la t0, bmvmx_sender_match; sd zero, 0(t0)\n" ++
-  "  addi a0, s3, 12; jal ra, bgv_u32le\n" ++                          -- offsets[3] (public_keys offset)
-  "  add t0, s3, a0; addi a0, t0, 1\n" ++                              -- pubkey[0] x||y (skip 0x04 prefix)
-  "  la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lbmvmx_sd_preok\n" ++
-  "  li t0, 1; bne a0, t0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
-  ".Lbmvmx_sd_preok:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_sender_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
-  "  jal ra, bal_account_post_fields\n" ++
-  "  bnez a0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_sd_skip\n" ++
-  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++
-  ".Lbmvmx_sd_ra:\n" ++
-  "  beq t6, t1, .Lbmvmx_sd_rad\n" ++
-  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_sd_ra\n" ++
-  ".Lbmvmx_sd_rad:\n" ++
-  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_sender_debit; la a2, bmvmx_cb_expected; jal ra, u256_sub_be\n" ++   -- expected = pre - debit
-  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_sender_match; sd a0, 0(t0)\n" ++                     -- match = (pre - debit == BAL post)
-  "  la t0, bmvmx_sender_checked; li t1, 1; sd t1, 0(t0)\n" ++          -- bmvmx.1.4.3.1: sender compare PERFORMED in-envelope (distinctness cleared below)
-  ".Lbmvmx_sd_skip:\n" ++
-  -- bmvmx.1.4.2: execution-derived coinbase fee credit = priority_fee_per_gas * gas_used
-  -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
-  -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
-  "  la a0, bmvmx_priority_fee; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_coinbase_credit; jal ra, u256_mul_u64_be\n" ++
-  -- bmvmx.1.4.2 compare (additive; sets bmvmx_coinbase_match only -> verdict byte-identical):
-  -- assert the BAL coinbase post balance == coinbase_pre + bmvmx_coinbase_credit. Any miss /
-  -- not-found / overlap (coinbase==sender/recipient) / absent leaves match=0 (conservative).
-  "  la t0, bmvmx_coinbase_match; sd zero, 0(t0)\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 32; la t2, bmvmx_coinbase_addr; li t3, 0\n" ++   -- coinbase = fee_recipient (exec_p+32)
-  ".Lbmvmx_cbaddr:\n" ++
-  "  li t0, 20; beq t3, t0, .Lbmvmx_cbaddr_d\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_cbaddr\n" ++
-  ".Lbmvmx_cbaddr_d:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_coinbase_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lbmvmx_cb_preok\n" ++                                  -- 0 = found (pre = bmvmx_acct+8)
-  "  li t0, 1; bne a0, t0, .Lbmvmx_cb_skip\n" ++                       -- not 'not-found' -> parse err, skip
-  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
-  ".Lbmvmx_cb_preok:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_coinbase_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbmvmx_cb_skip\n" ++                                    -- coinbase absent in BAL / err -> conservative
-  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
-  "  jal ra, bal_account_post_fields\n" ++
-  "  bnez a0, .Lbmvmx_cb_skip\n" ++
-  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++   -- zero, then right-align
-  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_cb_skip\n" ++   -- absent (UINT64_MAX) / >32 -> skip
-  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++   -- dst offset = 32 - len
-  ".Lbmvmx_cb_ra:\n" ++
-  "  beq t6, t1, .Lbmvmx_cb_rad\n" ++
-  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_cb_ra\n" ++
-  ".Lbmvmx_cb_rad:\n" ++
-  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_coinbase_credit; la a2, bmvmx_cb_expected; jal ra, u256_add_be\n" ++
-  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_coinbase_match; sd a0, 0(t0)\n" ++                   -- match = (pre+credit == BAL post)
-  "  la t0, bmvmx_coinbase_checked; li t1, 1; sd t1, 0(t0)\n" ++       -- bmvmx.1.4.3.1: coinbase compare PERFORMED in-envelope (distinctness cleared below)
-  ".Lbmvmx_cb_skip:\n" ++
-  "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
-  bvReceiptsShapeSet 1 true ++  -- Distinctness clears the performed sender/coinbase checks when value/fee effects overlap.
-  "  la a0, bmvmx_sender_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_s_vs_cb\n" ++                                    -- sender == recipient -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_s_vs_cb:\n" ++
-  "  la a0, bmvmx_sender_addr; la a1, bmvmx_coinbase_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_cb_vs_s\n" ++                                    -- sender == coinbase -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_cb_vs_s:\n" ++
-  "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_sender_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_cb_vs_r\n" ++                                    -- coinbase == sender -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_cb_vs_r:\n" ++
-  "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_dist_done\n" ++                                  -- coinbase == recipient -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_dist_done:\n" ++
-  "  j .Lbmvmx_done\n" ++
-  -- local helper: a0,a1 = 20-byte address ptrs; returns a0 = 1 if they differ, 0 if equal.
-  -- Reached only via jal (clobbers t0..t2); callers do not rely on ra after.
-  ".Lbmvmx_addr20_ne:\n" ++
-  "  li t2, 0\n" ++
-  ".Lbmvmx_a20_loop:\n" ++
-  "  li t0, 20; beq t2, t0, .Lbmvmx_a20_eq\n" ++
-  "  add t0, a0, t2; lbu t0, 0(t0); add t1, a1, t2; lbu t1, 0(t1)\n" ++
-  "  bne t0, t1, .Lbmvmx_a20_ne\n" ++
-  "  addi t2, t2, 1; j .Lbmvmx_a20_loop\n" ++
-  ".Lbmvmx_a20_ne:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lbmvmx_a20_eq:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lbmvmx_done:\n" ++
+  blockVerdictBmvMxPrecomputePrefix ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
@@ -459,7 +310,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
-  "  bnez a0, .Lbv_cd_eoa_restore\n" ++
+  "  bnez a0, .Lbv_cd_eoa_confirmed\n" ++
   ".Lbv_cd_same_block_delegation:\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, bv_tx_recipient_code_hash\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
@@ -467,11 +318,43 @@ def blockVerdictFunction : String :=
   "  j .Lbv_contract_dispatch\n" ++
   ".Lbv_cd_eoa_restore:\n" ++
   "  la t2, bv_simple_transfer_tx        # restore t2 for the EOA path (jal clobbered it)\n" ++
-  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # EOA calldata not staged here\n" ++
+  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # unresolved code hash with calldata: conservative skip\n" ++
+  ".Lbv_cd_eoa_confirmed:\n" ++
+  "  la t2, bv_simple_transfer_tx        # confirmed empty-code recipient\n" ++
+  "  # Active precompile recipients have empty state-trie code but still execute. Detect them\n" ++
+  "  # before the zero-value EOA shortcut so their execution gas reaches the exact gas arena.\n" ++
+  "  mv t0, t2; addi t0, t0, 72; li t1, 0\n" ++
+  ".Lbv_tx_gas_precharge_pc0_prefix:\n" ++
+  "  li t3, 18; beq t1, t3, .Lbv_tx_gas_precharge_pc0_low16\n" ++
+  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbv_tx_gas_precharge_value_check\n" ++
+  "  addi t1, t1, 1; j .Lbv_tx_gas_precharge_pc0_prefix\n" ++
+  ".Lbv_tx_gas_precharge_pc0_low16:\n" ++
+  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
+  "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_value_check\n" ++
+  "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
+  "  li t4, 2; beq t3, t4, .Lbv_simple_transfer_precompile_sha256\n" ++
+  "  li t4, 3; beq t3, t4, .Lbv_simple_transfer_precompile_ripemd160\n" ++
+  "  li t4, 4; beq t3, t4, .Lbv_simple_transfer_precompile_identity\n" ++
+  "  li t4, 5; beq t3, t4, .Lbv_simple_transfer_precompile_modexp\n" ++
+  "  li t4, 6; beq t3, t4, .Lbv_simple_transfer_precompile_ecadd\n" ++
+  "  li t4, 7; beq t3, t4, .Lbv_simple_transfer_precompile_ecmul\n" ++
+  "  li t4, 8; beq t3, t4, .Lbv_simple_transfer_precompile_ecpairing\n" ++
+  "  li t4, 9; beq t3, t4, .Lbv_simple_transfer_precompile_blake2f\n" ++
+  "  li t4, 10; beq t3, t4, .Lbv_simple_transfer_precompile_point_eval\n" ++
+  "  li t4, 11; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g1add\n" ++
+  "  li t4, 12; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g1msm\n" ++
+  "  li t4, 13; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g2add\n" ++
+  "  li t4, 14; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g2msm\n" ++
+  "  li t4, 15; beq t3, t4, .Lbv_simple_transfer_precompile_bls_pairing\n" ++
+  "  li t4, 16; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g1\n" ++
+  "  li t4, 17; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g2\n" ++
+  "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
+  ".Lbv_tx_gas_precharge_value_check:\n" ++
   "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
-  "  ld t0, 120(t2); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t0, 120(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_no_log_then_after_tx_gas_precharge\n" ++
   ".Lbv_tx_gas_precharge_nonzero_value:\n" ++
   "  # The post-balance verifier below models an EOA simple transfer: sender\n" ++
   "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
@@ -487,8 +370,134 @@ def blockVerdictFunction : String :=
   ".Lbv_tx_gas_precharge_pc_low16:\n" ++
   "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
   "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
-  "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
-  "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
+  "  li t4, 2; beq t3, t4, .Lbv_simple_transfer_precompile_sha256\n" ++
+  "  li t4, 3; beq t3, t4, .Lbv_simple_transfer_precompile_ripemd160\n" ++
+  "  li t4, 4; beq t3, t4, .Lbv_simple_transfer_precompile_identity\n" ++
+  "  li t4, 5; beq t3, t4, .Lbv_simple_transfer_precompile_modexp\n" ++
+  "  li t4, 6; beq t3, t4, .Lbv_simple_transfer_precompile_ecadd\n" ++
+  "  li t4, 7; beq t3, t4, .Lbv_simple_transfer_precompile_ecmul\n" ++
+  "  li t4, 8; beq t3, t4, .Lbv_simple_transfer_precompile_ecpairing\n" ++
+  "  li t4, 9; beq t3, t4, .Lbv_simple_transfer_precompile_blake2f\n" ++
+  "  li t4, 10; beq t3, t4, .Lbv_simple_transfer_precompile_point_eval\n" ++
+  "  li t4, 11; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g1add\n" ++
+  "  li t4, 12; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g1msm\n" ++
+  "  li t4, 13; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g2add\n" ++
+  "  li t4, 14; beq t3, t4, .Lbv_simple_transfer_precompile_bls_g2msm\n" ++
+  "  li t4, 15; beq t3, t4, .Lbv_simple_transfer_precompile_bls_pairing\n" ++
+  "  li t4, 16; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g1\n" ++
+  "  li t4, 17; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g2\n" ++
+  "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
+  "  j .Lbv_tx_gas_precharge_not_precompile\n" ++
+  ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
+  "  li t6, 3000\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_sha256:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); addi t5, t5, 31; srli t5, t5, 5; li t6, 12; mul t6, t6, t5; addi t6, t6, 60\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_ripemd160:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); addi t5, t5, 31; srli t5, t5, 5; li t6, 120; mul t6, t6, t5; addi t6, t6, 600\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_identity:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); addi t5, t5, 31; srli t5, t5, 5; li t6, 3; mul t6, t6, t5; addi t6, t6, 15\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_modexp:\n" ++
+  "  li t6, 500\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_ecadd:\n" ++
+  "  li t6, 150\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_ecmul:\n" ++
+  "  li t6, 6000\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_ecpairing:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; divu t5, t5, t4; li t6, 34000; mul t6, t6, t5; li t4, 45000; add t6, t6, t4\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_blake2f:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  ld t5, 56(t2); lbu t6, 0(t5); slli t6, t6, 24; lbu t4, 1(t5); slli t4, t4, 16; or t6, t6, t4; lbu t4, 2(t5); slli t4, t4, 8; or t6, t6, t4; lbu t4, 3(t5); or t6, t6, t4\n" ++
+  "  lbu t4, 212(t5); li t5, 1; bgtu t4, t5, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_point_eval:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t6, 50000\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_g1add:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 256; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t6, 375\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_g1msm:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 12000; mul t6, t6, t5\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_g2add:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 512; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t6, 600\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_g2msm:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 22500; mul t6, t6, t5\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_pairing:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 384; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 32600; mul t6, t6, t5; li t4, 37700; add t6, t6, t4\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_map_g1:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 64; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t6, 5500\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_bls_map_g2:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 128; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t6, 23800\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_p256:\n" ++
+  "  li t6, 6900\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_default:\n" ++
+  "  li t6, 0\n" ++
+  "  j .Lbv_simple_transfer_no_log_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_fail:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
+  "  la t4, bv_runtime_gas_left; sd zero, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  "  j .Lbv_simple_transfer_after_log_snapshot\n" ++
+  ".Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
+  "  jal ra, bv_emit_single_tx_tl7708\n" ++
+  "  jal ra, dispatcher_reemit_pending_tl\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  ".Lbv_simple_transfer_after_log_snapshot:\n" ++
+  "  ld t6, 8(sp)\n" ++
+  "  ld t4, 16(sp)\n" ++
+  "  ld t3, 32(sp)\n" ++
+  "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; sub t5, t5, t6\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  ld t5, 24(sp)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_runtime_publish_fail:\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
@@ -498,8 +507,15 @@ def blockVerdictFunction : String :=
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
-  "  ld t0, 160(t2); li t1, 3; beq t0, t1, .Lbv_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
-  "  li t1, 4; beq t0, t1, .Lbv_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  "  ld t0, 160(t2); li t1, 3; bne t0, t1, .Lbv_stx_not_blob_skip_runtime_gas\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
+  ".Lbv_stx_not_blob_skip_runtime_gas:\n" ++
+  "  li t1, 4; bne t0, t1, .Lbv_stx_regular_gas_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  ".Lbv_stx_regular_gas_verify:\n" ++
+  "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
+  ".Lbv_stx_legacy_21k_verify:\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
@@ -686,17 +702,20 @@ def blockVerdictFunction : String :=
   -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (now incl. the Part 2 top-level
   -- transfer log above), to be threaded into the per-tx receipt record.
   "  jal ra, block_log_window_snapshot\n" ++
-  -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
-  -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
-  "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
-  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
+  -- EOA/simple-transfer execution does not run runtime dispatcher setup, so
+  -- publish gas from the same tx-context intrinsic helper used by the direct
+  -- shortcut. The resulting before-refund value is regular + state, which the
+  -- exact EIP-8037 block-gas check later splits back into its two dimensions.
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; sub t5, t5, t6\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  li t5, 1; la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
-  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++

@@ -82,6 +82,8 @@ import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
+import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
+import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe32U64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
@@ -105,6 +107,7 @@ import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountPath

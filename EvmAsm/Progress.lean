@@ -84,6 +84,8 @@ import EvmAsm.Evm64.ControlFlow.Jumpdest
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
+import EvmAsm.Evm64.Terminating.StopSpec
+import EvmAsm.Evm64.Terminating.InvalidSpec
 
 namespace EvmAsm.Progress
 
@@ -154,8 +156,14 @@ def entry (name : String) (tier : ProofTier) (proofRef : Option String)
     with `EvmAsm.Evm64.EvmOpcode.byte?`. -/
 def registry : List OpcodeEntry := [
   -- Stop and arithmetic (0x00..0x0b)
-  entry "STOP" .execSpec none
-      "executable-spec only; `Termination.lean` + `TerminatingArgs.lean`",
+  entry "STOP" .proven (some "evm_stop_stack_spec_within")
+      ("halt-triple over the verified `evm_stop` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 1` tail): sets `evm_halt_flag := 1`, points "
+       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. First terminating/halt opcode — shape for INVALID/RETURN/"
+       ++ "REVERT/SELFDESTRUCT")
+      (cycleBound := some 7),
   entry "ADD" .proven (some "evm_add_stack_spec_within") (cycleBound := some 30),
   entry "MUL" .proven (some "evm_mul_stack_spec_within") (cycleBound := some 63),
   entry "SUB" .proven (some "evm_sub_stack_spec_within") (cycleBound := some 30),
@@ -319,7 +327,13 @@ def registry : List OpcodeEntry := [
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
   entry "REVERT" .execSpec none "TerminatingArgs",
-  entry "INVALID" .execSpec none "TerminatingArgs",
+  entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
+      ("halt-triple over the verified `evm_invalid` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
+       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. Direct STOP clone with routing code 3 (`.exit_invalid_op`)")
+      (cycleBound := some 7),
   entry "SELFDESTRUCT" .execSpec none "SelfdestructEffects + terminating bridge",
 ]
 
@@ -336,10 +350,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 62 := by decide
+theorem provenCount_eq      : provenCount      = 64 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 23 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 21 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -370,10 +384,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 122 := by decide
+theorem provenBytes_eq      : provenBytes      = 124 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 27  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 25  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -456,6 +470,10 @@ private noncomputable abbrev _codecopy_witness :=
   @EvmAsm.Evm64.Code.evm_codecopy_stack_spec_within
 private noncomputable abbrev _returndatasize_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
+private noncomputable abbrev _stop_witness :=
+  @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
+private noncomputable abbrev _invalid_witness :=
+  @EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
