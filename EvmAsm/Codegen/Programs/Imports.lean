@@ -117,6 +117,7 @@ import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
+import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
