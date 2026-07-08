@@ -181,6 +181,7 @@ import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.CalcExcessBlobGasSAsm
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp

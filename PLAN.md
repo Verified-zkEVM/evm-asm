@@ -202,6 +202,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
