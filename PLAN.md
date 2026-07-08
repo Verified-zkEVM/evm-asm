@@ -2815,6 +2815,11 @@ consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
 restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
 blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
 contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
+BLS12-381 analogue `blq_set_one` now follows the same framework path
+(`Codegen/Programs/Bls12Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.23,
+byte-TRANSPARENT): flat `blq_zero` contract over 72 dwords/576 bytes,
+`callWithin_spec` from the frame body, and postcondition ONE = dword 0 set to
+1 with the remaining 71 dwords zero.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
