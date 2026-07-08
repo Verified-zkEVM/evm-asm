@@ -187,8 +187,10 @@ def schemeAAnchors : List GuestRegion :=
     Shrunk by `0x3c` when child-error state-gas spill stopped being credited
     back to regular gas. Grew by `0x174` when the EIP-4788 fast path learned
     same-slot stale timestamp reverts. Grew again after EIP-7702 child calls
-    began preferring same-block delegation markers over stale pre-state markers. -/
-def textSizeBytes : Nat := 0x545bc
+    began preferring same-block delegation markers over stale pre-state markers.
+    Grew again when EIP-7702 dispatch began allowing same-block marker precedence
+    for pointer-to-pointer code. -/
+def textSizeBytes : Nat := 0x54618
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
