@@ -168,10 +168,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
   (`ephU32leFn_spec`, byte-identity pinned to `ephU32le_prog`),
   `BalGasValidSAsm.lean` (`bgvU32leFn_spec`, byte-identity pinned to
-  `bgvU32le_prog`), and `SszWitnessStateSAsm.lean` (`swsU32leFn_spec`,
-  byte-identity pinned to `swsU32le_prog`) are verified straight-line
-  byte-wise readers over the SAsm `Region` model (own-budget engine lemma per
-  the heavy `execBlock` reduction).
+  `bgvU32le_prog`), `SszWitnessStateSAsm.lean` (`swsU32leFn_spec`,
+  byte-identity pinned to `swsU32le_prog`), and
+  `Eip7702NonceReuseGuardSAsm.lean` (`enrgU32leFn_spec`, byte-identity pinned
+  to `enrgU32le_prog`) are verified straight-line byte-wise readers over the
+  SAsm `Region` model (own-budget engine lemma per the heavy `execBlock`
+  reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
