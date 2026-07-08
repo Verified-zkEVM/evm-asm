@@ -188,7 +188,7 @@ def schemeAAnchors : List GuestRegion :=
     back to regular gas. Grew by `0x174` when the EIP-4788 fast path learned
     same-slot stale timestamp reverts. Grew again after EIP-7702 child calls
     began preferring same-block delegation markers over stale pre-state markers. -/
-def textSizeBytes : Nat := 0x545b4
+def textSizeBytes : Nat := 0x545bc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
