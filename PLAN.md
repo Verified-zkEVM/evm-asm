@@ -210,6 +210,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
