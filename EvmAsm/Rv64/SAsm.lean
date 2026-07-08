@@ -36,6 +36,7 @@ import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.AbiFrameCallDemo
 import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
 import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Rv64.SAsm.ParentHeaderMemcmp
 import EvmAsm.Rv64.SAsm.ParentHeaderFrame
 import EvmAsm.Rv64.SAsm.CallRegDemo
