@@ -35,8 +35,16 @@ def blockVerdictExactGasCheck : String :=
   "  slli t5, t1, 3\n" ++
   "  la t6, bvgr_before_refund; add t6, t6, t5; ld a0, 0(t6)\n" ++
   "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bnez t1, .Lbv_regular_eip8037_compute\n" ++
+  "  la t6, bvgr_arena_tx_count; ld a2, 0(t6); li a3, 1; bne a2, a3, .Lbv_regular_eip8037_compute\n" ++
+  "  la t6, tgbpv_skip_value; ld a2, 0(t6); bnez a2, .Lbv_regular_eip8037_keep_increment\n" ++
+  ".Lbv_regular_eip8037_compute:\n" ++
   "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
+  "  j .Lbv_regular_eip8037_store\n" ++
+  ".Lbv_regular_eip8037_keep_increment:\n" ++
+  "  la t6, bvgr_block_gas_increments; add t6, t6, t5; ld a0, 0(t6)\n" ++
+  ".Lbv_regular_eip8037_store:\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; sd a0, 0(t6)\n" ++
   "  addi t1, t1, 1; j .Lbv_regular_eip8037_loop\n" ++
   ".Lbv_regular_eip8037_done:\n" ++

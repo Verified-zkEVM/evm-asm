@@ -343,6 +343,9 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
   "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
   ".Lbv_stx_legacy_21k_verify:\n" ++
+  topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
+  "  li t1, 21000; add t0, t0, t1; la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
@@ -373,6 +376,7 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t0); lbu a0, 0(t1); bne t6, a0, .Lbv_st_recipient_do_verify\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t5, t5, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
   ".Lbv_st_recipient_do_verify:\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lbv_st_skip_recipient_overlap\n" ++
   "  # EIP-7928/4895 (evm-asm-ouis9): like the fee-recipient skip below, the strict\n" ++
   "  # recipient post-balance check models recipient_post = recipient_pre + value.\n" ++
   "  # When the block has withdrawals the recipient may ALSO receive a withdrawal\n" ++
@@ -493,6 +497,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   bvReceiptsShapeSet 2 true ++  ".Lbv_tl7708_ready:\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lbv_tl7708_skip\n" ++
   "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_tl7708_skip\n" ++
   -- EIP-7708 self-suppression: emit the transfer log ONLY to a DIFFERENT account. The spec
@@ -546,7 +551,12 @@ def blockVerdictFunction : String :=
   ".Lbv_simple_transfer_direct_gas_have_left:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
-  "  li t5, 1; la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_direct_status_success\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
+  ".Lbv_simple_transfer_direct_status_success:\n" ++
+  "  li t5, 1\n" ++
+  ".Lbv_simple_transfer_direct_status_store:\n" ++
+  "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++

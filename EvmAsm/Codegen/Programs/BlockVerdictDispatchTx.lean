@@ -229,6 +229,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: resolve the witness-lookup header ONCE (mtx-gated). Default
   -- (dtrc_use_pre_header=0, single-tx) = sv_this_rlp (this block's POST-state header,
   -- whose root is NOT in the pre-rooted witness -> lookups bail -> conservative, byte-
@@ -267,6 +268,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t2, 0(t4); li t3, 0xef; bne t2, t3, .Ldtrc_have_code\n" ++
   "  lbu t2, 1(t4); li t3, 0x01; bne t2, t3, .Ldtrc_have_code\n" ++
   "  lbu t2, 2(t4); bnez t2, .Ldtrc_have_code\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++
   -- Copy the 20-byte target address (marker bytes 3..22) into dtrc_deleg_target.
   "  la t1, dtrc_deleg_target; addi t5, t4, 3; li t6, 20\n" ++
   ".Ldtrc_deleg_copy:\n" ++
@@ -287,6 +289,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, runtime_access_account_seed\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++
