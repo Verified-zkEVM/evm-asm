@@ -194,6 +194,12 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For byte-copy loops, distinguish writable-window byte loads from read-only
+  source loads. `execInstrRF_lbu_byte` is for `LBU` inside the writable region;
+  source-copy loops normally need a local `execInstrRF_lbu_ro` miss lemma plus
+  `execInstrRF_sb_byte` and `truncate_zeroExtend_byte` for the store. For
+  one-byte window steps, `List.take_add` and `List.take_one_drop_eq_of_lt_length`
+  avoid brittle deprecated `take_succ` rewrites.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
