@@ -161,11 +161,14 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   PC-relative branch program into the per-record BAL value normalization.
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
-  `swdReadU64le_prog`), `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`), and `BalGasValidSAsm.lean`
-  (`bgvU32leFn_spec`, byte-identity pinned to `bgvU32le_prog`) are verified
-  straight-line byte-wise readers over the SAsm `Region` model (own-budget
-  engine lemma per the heavy `execBlock` reduction).
+  `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
+  `a0 := leU32 (bytes@a0) 0`), `SszPayloadWithdrawalsSAsm.lean`
+  (`spwU32leFn_spec`, byte-identity pinned to `spwU32le_prog`),
+  `SszParentHeaderSAsm.lean` (`ephU32leFn_spec`, byte-identity pinned to
+  `ephU32le_prog`), and `BalGasValidSAsm.lean` (`bgvU32leFn_spec`,
+  byte-identity pinned to `bgvU32le_prog`) are verified straight-line byte-wise
+  readers over the SAsm `Region` model (own-budget engine lemma per the heavy
+  `execBlock` reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
