@@ -2707,6 +2707,28 @@ the loop header (no base-generalization needed). Byte-tie:
 fixture + GuestAddrs + coverage doc regenerated. Axioms `[propext,
 Classical.choice, Quot.sound]`. Remaining candidates for the same treatment:
 `witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`.
+**Frame + cross-call composition landed** (bead evm-asm-4ch8f.76.2, branch
+`feat/abi-frame-call`): `SAsm/AbiFrameCall.lean` adds `stackFree sp k` (the
+free-stack region below `sp`: `k` genuinely owned `memOwn` dwords a callee
+carves its own frame from — no arbitrary-stack hole; `stackFree_split` frames
+the unused depth), `jal_link_spec_within` (the linking `jal ra` step), and the
+call rules `callWithin_spec`/`abiFrameCall_spec` (compose a `jal ra` with a
+callee whole-routine `cpsTripleWithin` contract — the `abiFrame_spec` /
+`FnHandle.sound` shape at `ret := A + 4`; the caller's frame slots + saved-ra
+slot are framed out of the callee footprint, so their preservation across the
+call is PROVEN by separation; sequences of calls chain by ordinary
+sequencing, each `jal` re-clobbering `ra` via the free `vOld`).  Notably
+`abiFrame_spec` needed NO generalization: its `vals'` is already free
+(including `.x1`), so the epilogue restores a call-clobbered `ra` from the
+slot.  `SAsm/AbiFrameCallDemo.lean`: a framed caller (`twice`, saves only
+`ra`) calls a framed callee (`bump`, own 16-byte frame carved from the
+caller's `stackFree`, increments `[a0]`, clobbers `s0`) TWICE via real
+`jal`s; `twiceFrame_spec` restores `sp`/`ra` to entry with `[a0] = v + 2`.
+Byte-transparent (`#guard`/`rfl`), additive, classical-3 axioms.  This is the
+bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
+with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
+on; porting a real cross-calling routine additionally needs its callees'
+whole-routine contracts (each its own port).
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
