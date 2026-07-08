@@ -2642,8 +2642,22 @@ ghost-pinned contract families (PinDemo) or spill to a caller-private
 dword outside the callee's `widenRw` window and reload after `LI`
 re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
 exposed set (blockOk rejects them) so verified code can't clobber them;
-frames are STATIC windows of the stack arena (no dynamic `addi sp`),
-design in docs/sasm-design.md §3.6.2. Indirect calls landed
+frames are STATIC windows of the stack arena (no dynamic `addi sp`)
+*at the `Stmt` layer*, design in docs/sasm-design.md §3.6.2.
+**Dynamic C-ABI leaf frames landed** (`SAsm/AbiFrame.lean` +
+`AbiFrameDemo.lean`, bead evm-asm-4ch8f.76): the guest's
+`addi sp,-N; sd ra/s0/s1; …body…; ld ra/s0/s1; addi sp,+N; ret`
+shape is modelled as a machine-level construct directly on
+`cpsTripleWithin` (the `blockOk`/`Stmt.sound` structured layer is
+untouched — fully additive). `sp` and the saved `s`-registers are
+ordinary owned `↦ᵣ` atoms inside the frame (frame-scoped exposure);
+the allocated slots below `sp` are a genuinely-owned `frameSlotsOwn`
+region; callee-saved preservation is *derived* from the
+`cpsTripleWithin` frame rule (save slots framed across the body),
+never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
+entry values + the body's rw effect, byte-identical (`#guard`) to a
+hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via
