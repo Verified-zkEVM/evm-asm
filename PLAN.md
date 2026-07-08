@@ -254,6 +254,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
+  `Bls12G1LeToBeSAsm.lean` verifies the six-limb
+  `blsg_le_to_be` converter (`blsgLeToBeFn_spec`, post
+  `beBytesToNat ws = leLimbsToNat [...]`) with byte-identity pinned to
+  `blsgLeToBe_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -2838,6 +2842,28 @@ bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
 with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
 on; porting a real cross-calling routine additionally needs its callees'
 whole-routine contracts (each its own port).
+**Flat-contract adapter landed** (bead evm-asm-el1w2, branch
+`feat/flat-contract-adapter`): `SAsm/FnFlat.lean` derives a
+`callWithin_spec`-consumable flat callee contract from any call-free leaf's
+`Fn.Spec` (`Fn.retSpecFlat`), via the partial-state identity
+`regFileIs rf = regAtoms rf exposedRegs` (pack/unpack of the exposed file
+into fifteen `↦ᵣ` atoms), generic ownership peeling over register lists
+(`cpsTripleWithin_peel_regOwns`), and the `dwordsIs ↔ bytesRegion`
+conversion.  Three NAMED side-conditions (footprint width — adapted
+contracts own the whole exposed file, callers carry `regOwns` riders; post
+completeness — the leaf's `Fn` post must pin any register value the caller
+needs; ambient pinning `A = empAssertion`).  Re-derivation:
+`bnq_set_one`'s hand-written flat callee theorem replaced by the adapter
+applied to `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` (post strengthened to pin the
+advanced `a0`/drained counter/ambient — ~10-line VC patch); the caller's
+genuine post is unchanged (FQ12 = ONE, sp/ra/s0 restored, `a0 = dst+384`)
+with the footprint widened by the inherent `regOwns bnqRiders`; also fixed
+the file's stale post-relink address anchors (proofs now at the real
+GuestAddrs, `#guard`-tied).  Porting guide gained §5a (adapter recipe +
+side-conditions), the thin-wrapper anti-example (header_extract_number →
+stop at the missing rlp_field_to_u64 contract, bead 4ch8f.26.7.1), the
+`empAssertion` cleanup pattern, and the semantic-constants vs
+address-anchors discipline (bead evm-asm-q4xm0).  Classical-3 everywhere.
 **Port-automation + first real cross-call port landed** (branch
 `feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
 boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
