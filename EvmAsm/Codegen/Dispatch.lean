@@ -2460,10 +2460,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x8, 0(x5)\n" ++            -- x8 = is_creation
   "  addi x5, x5, 8\n" ++          -- x5 = &(account-witness header_len)
   "  beqz x7, .runtime_tx_gas_done\n" ++
-  "  li x7, 21000\n" ++            -- x7 = intrinsic = TX_BASE
+  "  li x7, 23000\n" ++            -- x7 = intrinsic = legacy base + Amsterdam recipient access delta
   "  li x10, 21000\n" ++           -- x10 = data floor = TX_BASE
   "  beqz x8, .runtime_tx_gas_no_create\n" ++
-  "  li x8, 32000\n" ++            -- TX_CREATE
+  "  li x8, 30000\n" ++            -- legacy TX_CREATE adjusted for recipient baseline
   "  add x7, x7, x8\n" ++
   ".runtime_tx_gas_no_create:\n" ++
   "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
@@ -2502,13 +2502,13 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- standalone runtime probes leave both labels zero, preserving the old path.
   -- tokens_in_access_list = 80 * address_count + 128 * storage_key_count.
   -- Amsterdam regular intrinsic gas includes both the legacy access-list
-  -- surcharge (2400/address, 1900/storage key) and the EIP-7623 access-token
+  -- surcharge (3000/address, 3000/storage key) and the EIP-7623 access-token
   -- floor surcharge (16 gas per token); the separate floor accumulator keeps
   -- only the calldata-floor value used by the post-refund max.
   "  la x11, runtime_tx_access_list_address_count\n" ++
   "  ld x11, 0(x11)\n" ++
   "  beqz x11, .runtime_tx_gas_access_slots\n" ++
-  "  li x15, 2400\n" ++
+  "  li x15, 3000\n" ++
   ".runtime_tx_gas_addr_loop:\n" ++
   "  add x7, x7, x15\n" ++
   "  addi x7, x7, 1280\n" ++
@@ -2519,7 +2519,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, runtime_tx_access_list_storage_key_count\n" ++
   "  ld x11, 0(x11)\n" ++
   "  beqz x11, .runtime_tx_gas_check\n" ++
-  "  li x15, 1900\n" ++
+  "  li x15, 3000\n" ++
   "  li x14, 2048\n" ++
   ".runtime_tx_gas_slot_loop:\n" ++
   "  add x7, x7, x15\n" ++
@@ -2543,7 +2543,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, runtime_tx_auth_count\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_regular_charge_done\n" ++
-  "  li x11, 7500\n" ++
+  "  li x11, 15816\n" ++
   "  mul x9, x9, x11\n" ++
   "  add x7, x7, x9\n" ++
   ".runtime_tx_auth_regular_charge_done:\n" ++
