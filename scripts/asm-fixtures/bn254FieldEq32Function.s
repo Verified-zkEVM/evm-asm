@@ -1,19 +1,16 @@
 bnf_eq32:
-  li t0, 32
-  mv t1, a0
-  mv t2, a1
-.Lbnf_eq_loop:
-  beqz t0, .Lbnf_eq_yes
-  lbu t3, 0(t1)
-  lbu t4, 0(t2)
-  bne t3, t4, .Lbnf_eq_no
-  addi t1, t1, 1
-  addi t2, t2, 1
-  addi t0, t0, -1
-  j .Lbnf_eq_loop
-.Lbnf_eq_yes:
-  li a0, 1
-  ret
-.Lbnf_eq_no:
-  li a0, 0
-  ret
+  li x5, 32
+  mv x6, x10
+  mv x7, x11
+  beq x5, x0, .+32
+  lbu x28, 0(x6)
+  lbu x29, 0(x7)
+  bne x28, x29, .+20
+  addi x6, x6, 1
+  addi x7, x7, 1
+  addi x5, x5, -1
+  jal x0, .-28
+  li x10, 1
+  beq x5, x0, .+8
+  li x10, 0
+  jalr x0, 0(x1)

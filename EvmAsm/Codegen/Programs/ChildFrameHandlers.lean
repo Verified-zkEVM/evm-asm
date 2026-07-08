@@ -750,6 +750,18 @@ def callDescendFallThrough
   -- `to`, matching current_target = the EOA). Soundness: descending runs the EXACT code the spec
   -- runs (single-hop target), recording more exec effects -- it cannot accept a block the spec
   -- rejects (the BAL comparator independently checks each declared final).
+  -- Same-block EIP-7702 authorizations overwrite the callee's delegation
+  -- marker before message execution. Prefer the BAL final marker over the
+  -- stale pre-state marker; only fall back to this prior-block path on miss.
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
+  "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  mv t2, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  li t4, 2; beq t2, t4, .Lcd_empty_" ++ tag ++ "\n" ++
+  "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
   "  la t4, cd_deleg_target; addi t5, t3, 3; li t6, 20\n" ++
   ".Lcd_pdeleg_copy_" ++ tag ++ ":\n" ++
   "  beqz t6, .Lcd_pdeleg_copied_" ++ tag ++ "\n" ++
