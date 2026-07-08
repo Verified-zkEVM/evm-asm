@@ -2912,6 +2912,24 @@ BLS12-381 analogue `blq_set_one` now follows the same framework path
 byte-TRANSPARENT): flat `blq_zero` contract over 72 dwords/576 bytes,
 `callWithin_spec` from the frame body, and postcondition ONE = dword 0 set to
 1 with the remaining 71 dwords zero.
+**Count-up call-loop lemma + blsg2_encode port landed** (branch
+`feat/countup-call-loop`, beads evm-asm-ipt7m + 4ch8f.58.3.24.2):
+`SAsm/AbiFrameLoopBottom.lean` adds `countupLoopBottom_spec` — the
+bottom-tested count-up analogue of `countdownLoopBottom_spec` (counter
+`0 → N` against a nonzero bound REGISTER that the body reloads each pass,
+`… ; addi ctr,ctr,1 ; li bnd,N ; bne ctr,bnd,back`), register/bound/offset
+agnostic, arbitrary per-iteration body triple (verified to admit a
+`callWithin_spec` composition) — plus the `countup_loop` FramePort macro.
+Consumer: `blsg2_encode` (`Codegen/Programs/Bls12G2EncodeSAsm.lean`,
+byte-TRANSPARENT `abiFrameProg (-40)/(+40)`, frame ra/s0/s1/s2): the loop
+body computes `48·i` (two shifts + add), points `a0`/`a1` at chunk `i`, and
+REALLY calls `blsg_le_to_be` — the callee contract is DERIVED with the
+adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
+`blsgLeToBeFn_spec`, ambient-pinned per §5a) and consumed by
+`callWithin_spec`; `blsg2Encode_spec` concludes sp/ra/s0/s1/s2 restored and
+the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
+inputs untouched).  First loop-of-calls port; callee steps kept symbolic
+(`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
