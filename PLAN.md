@@ -251,7 +251,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  `blsgCopy96_prog`; `Bls12FieldCopyQuadsSAsm.lean` verifies the generic
+  `blsf_copy_quads` dword-copy callee (`blsfCopyQuadsFn_spec`, post
+  `ws = srcBytes` for `8*n` bytes) with byte-identity pinned to
+  `blsfCopyQuads_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12G1LeToBeSAsm.lean` verifies the six-limb
@@ -261,7 +264,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1BeToLeSAsm.lean` verifies the six-limb
   `blsg_be_to_le` converter (`blsgBeToLeFn_spec`, post
   `leLimbsToNat ws-limbs = beBytesToNat inBytes`) with byte-identity pinned
-  to `blsgBeToLe_prog`;
+  to `blsgBeToLe_prog`; `Bls12G2Copy192SAsm.lean`
+  verifies the ABI-frame caller `blsg2_copy192` (`blsg2Copy192Frame_spec`,
+  post copies 24 dwords / 192 bytes) by calling the verified
+  `blsf_copy_quads` callee, byte-identity pinned to `blsg2Copy192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -295,6 +301,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `bncZero64_prog`.
+  `P256CopyNSAsm.lean` verifies the P256 helper byte loop `p256_copy_n`
+  (`p256CopyNFn_spec`, post `ws = bs.take len`) with static source/destination
+  disjointness and byte-identity pinned to `p256CopyN_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
