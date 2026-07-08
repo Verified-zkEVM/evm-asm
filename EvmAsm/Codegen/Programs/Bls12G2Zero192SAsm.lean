@@ -1,48 +1,49 @@
 /-
-  EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+  EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 
-  Verified SAsm port of `bnq_zero`: zero the 384-byte BN254 FQ12 buffer at `a0`.  The emitted routine is a bottom-test dword loop:
-  initialize `x5 = 12`, store a zero dword, advance `a0`, decrement `x5`, and
+  Verified SAsm port of `blsg2_zero192`: zero the 192-byte BLS12-381 G2
+  point buffer at `a0`.  The emitted routine is a bottom-test dword loop:
+  initialize `x5 = 24`, store a zero dword, advance `a0`, decrement `x5`, and
   branch back while `x5 != 0`.
 
-  The postcondition is the genuine buffer effect: all 384 bytes are zero.  The
-  structured `doWhile` body is byte-identical to `bnqZero_prog` including
+  The postcondition is the genuine buffer effect: all 192 bytes are zero.  The
+  structured `doWhile` body is byte-identical to `blsg2Zero192_prog` including
   the trailing `ret` drift guard below.
 -/
 
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.Programs.Bls12G2
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
 
-namespace Bn254Fq12ZeroSAsm
+namespace Bls12G2Zero192SAsm
 
-def zeroWin384 (orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
+def zeroWin192 (orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
   List.replicate (8 * i) (0 : BitVec 8) ++ orig.drop (8 * i)
 
-theorem zeroWin384_zero (orig : List (BitVec 8)) : zeroWin384 orig 0 = orig := by
-  simp [zeroWin384]
+theorem zeroWin192_zero (orig : List (BitVec 8)) : zeroWin192 orig 0 = orig := by
+  simp [zeroWin192]
 
-theorem zeroWin384_48_eq (orig : List (BitVec 8)) (h : orig.length = 384) :
-    zeroWin384 orig 48 = List.replicate 384 (0 : BitVec 8) := by
-  simp only [zeroWin384, Nat.reduceMul,
-    List.drop_eq_nil_of_le (by omega : orig.length <= 384), List.append_nil]
+theorem zeroWin192_24_eq (orig : List (BitVec 8)) (h : orig.length = 192) :
+    zeroWin192 orig 24 = List.replicate 192 (0 : BitVec 8) := by
+  simp only [zeroWin192, Nat.reduceMul,
+    List.drop_eq_nil_of_le (by omega : orig.length <= 192), List.append_nil]
 
-theorem length_zeroWin384 (orig : List (BitVec 8)) (i : Nat)
-    (h : orig.length = 384) (hi : i <= 48) : (zeroWin384 orig i).length = 384 := by
-  simp only [zeroWin384, List.length_append, List.length_replicate, List.length_drop, h]
+theorem length_zeroWin192 (orig : List (BitVec 8)) (i : Nat)
+    (h : orig.length = 192) (hi : i <= 24) : (zeroWin192 orig i).length = 192 := by
+  simp only [zeroWin192, List.length_append, List.length_replicate, List.length_drop, h]
   omega
 
-theorem zeroWin384_step (orig : List (BitVec 8)) (i : Nat)
-    (h : orig.length = 384) (hi : i < 48) :
-    setBytes (zeroWin384 orig i) (8 * i) (dwordBytes (0 : Word)) = zeroWin384 orig (i + 1) := by
-  rw [zeroWin384]
+theorem zeroWin192_step (orig : List (BitVec 8)) (i : Nat)
+    (h : orig.length = 192) (hi : i < 24) :
+    setBytes (zeroWin192 orig i) (8 * i) (dwordBytes (0 : Word)) = zeroWin192 orig (i + 1) := by
+  rw [zeroWin192]
   rw [setBytes_append_right _ _ _ _ (by simp)]
   simp only [List.length_replicate, Nat.sub_self]
-  have hsuf : (orig.drop (8 * i)).length = 384 - 8 * i := by simp [h]
+  have hsuf : (orig.drop (8 * i)).length = 192 - 8 * i := by simp [h]
   have hfit : 0 + (dwordBytes (0 : Word)).length <= (orig.drop (8 * i)).length := by
     rw [length_dwordBytes, hsuf]
     omega
@@ -63,7 +64,7 @@ theorem zeroWin384_step (orig : List (BitVec 8)) (i : Nat)
     rw [List.drop_drop]
     congr 1]
   rw [show dwordBytes (0 : Word) = List.replicate 8 (0 : BitVec 8) from by decide]
-  simp only [zeroWin384]
+  simp only [zeroWin192]
   rw [<- List.append_assoc]
   congr 1
   rw [List.replicate_append_replicate]
@@ -72,11 +73,11 @@ theorem zeroWin384_step (orig : List (BitVec 8)) (i : Nat)
 def zeroStepBlock : List Instr :=
   [.SD .x10 .x0 (0 : BitVec 12),
    .ADDI .x10 .x10 (8 : BitVec 12),
-   .ADDI .x7 .x7 (-1 : BitVec 12)]
+   .ADDI .x5 .x5 (-1 : BitVec 12)]
 
 def zeroStepRf (rf : RegFile) : RegFile :=
   let r1 := rf.set .x10 (rf.get .x10 + signExtend12 (8 : BitVec 12))
-  r1.set .x7 (r1.get .x7 + signExtend12 (-1 : BitVec 12))
+  r1.set .x5 (r1.get .x5 + signExtend12 (-1 : BitVec 12))
 
 theorem zeroStepRf_get_x10 (rf : RegFile) :
     (zeroStepRf rf).get .x10 = rf.get .x10 + signExtend12 (8 : BitVec 12) := by
@@ -84,15 +85,15 @@ theorem zeroStepRf_get_x10 (rf : RegFile) :
   simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
     not_false_eq_true]
 
-theorem zeroStepRf_get_x7 (rf : RegFile) :
-    (zeroStepRf rf).get .x7 =
-      rf.get .x7 + signExtend12 (-1 : BitVec 12) := by
+theorem zeroStepRf_get_x5 (rf : RegFile) :
+    (zeroStepRf rf).get .x5 =
+      rf.get .x5 + signExtend12 (-1 : BitVec 12) := by
   unfold zeroStepRf
   simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
     not_false_eq_true]
 
 theorem zero_engine (reg : Region) (dst : Word) (rf : RegFile)
-    (ws : List (BitVec 8)) (i : Nat) (hi : i < 48)
+    (ws : List (BitVec 8)) (i : Nat) (hi : i < 24)
     (hx10 : rf.get .x10 = dst + BitVec.ofNat 64 (8 * i)) :
     execBlock reg dst rf ws zeroStepBlock
       = (zeroStepRf rf, setBytes ws (8 * i) (dwordBytes (0 : Word))) := by
@@ -107,116 +108,105 @@ theorem zero_engine (reg : Region) (dst : Word) (rf : RegFile)
 
 def zeroInv (dst : Word) (orig : List (BitVec 8)) :
     Nat -> RegFile -> List (BitVec 8) -> Assertion -> Prop :=
-  fun i rf ws A =>
+  fun i rf ws _ =>
     rf.get .x10 = dst + BitVec.ofNat 64 (8 * (i + 1)) ∧
-    rf.get .x7 = BitVec.ofNat 64 (48 - (i + 1)) ∧
-    i < 48 ∧ orig.length = 384 ∧ ws = zeroWin384 orig (i + 1) ∧
-    A = empAssertion
+    rf.get .x5 = BitVec.ofNat 64 (24 - (i + 1)) ∧
+    i < 24 ∧ orig.length = 192 ∧ ws = zeroWin192 orig (i + 1)
 
-def bnqZeroBody (dst : Word) (orig : List (BitVec 8)) : Stmt :=
-  .block "init" [.LI .x7 (48 : Word)] ;;;
-  .doWhile "loop" (.bne .x7 .x0) 47 (zeroInv dst orig)
+def blsg2Zero192Body (dst : Word) (orig : List (BitVec 8)) : Stmt :=
+  .block "init" [.LI .x5 (24 : Word)] ;;;
+  .doWhile "loop" (.bne .x5 .x0) 23 (zeroInv dst orig)
     (.block "zero" zeroStepBlock)
 
-def bnqZeroFn (dst : Word) (orig : List (BitVec 8)) : Fn where
-  name := "bnqZero"
-  rw := ⟨dst, 384⟩
-  pre := fun rf ws A =>
-    rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 384 ∧ A = empAssertion
-  post := fun rf ws A =>
-    rf.get .x10 = dst + BitVec.ofNat 64 384 ∧ rf.get .x7 = 0 ∧
-    ws = List.replicate 384 (0 : BitVec 8) ∧ A = empAssertion
-  body := bnqZeroBody dst orig
+def blsg2Zero192Fn (dst : Word) (orig : List (BitVec 8)) : Fn where
+  name := "blsg2Zero192"
+  rw := ⟨dst, 192⟩
+  pre := fun rf ws _ => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 192
+  post := fun _ ws _ => ws = List.replicate 192 (0 : BitVec 8)
+  body := blsg2Zero192Body dst orig
 
-def bnqZero_verified : Program :=
-  (bnqZeroBody 0 []).flatten 0
+def blsg2Zero192_verified : Program :=
+  (blsg2Zero192Body 0 []).flatten 0
 
-#guard (bnqZero_verified : List Instr).length = 5
-#guard (bnqZeroBody 0 []).flatten 0 = (bnqZeroBody 0 []).flatten 0x80000000
-#guard (bnqZeroBody 0 []).flatten 0 ++ [Instr.JALR .x0 .x1 0] = bnqZero_prog
+#guard (blsg2Zero192_verified : List Instr).length = 5
+#guard (blsg2Zero192Body 0 []).flatten 0 = (blsg2Zero192Body 0 []).flatten 0x80000000
+#guard (blsg2Zero192Body 0 []).flatten 0 ++ [Instr.JALR .x0 .x1 0] = blsg2Zero192_prog
 
-theorem bnqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
-    (hwf : RwRegion.wf ⟨dst, 384⟩) (base : Word) :
-    (bnqZeroFn dst orig).Spec base := by
-  have hbase : (bnqZeroFn dst orig).rw.base = dst := rfl
+theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
+    (hwf : RwRegion.wf ⟨dst, 192⟩) (base : Word) :
+    (blsg2Zero192Fn dst orig).Spec base := by
+  have hbase : (blsg2Zero192Fn dst orig).rw.base = dst := rfl
   vcgen
   case region => exact ⟨Region.empty_wf, hwf⟩
-  case bnqZero.loop.inv_init =>
+  case blsg2Zero192.loop.inv_init =>
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, rfl, hlen, hA⟩
+    rcases hpre with ⟨hx10, rfl, hlen⟩
     simp only [hbase]
-    have hx10Init : (execBlock (bnqZeroFn dst ws0).region dst rfInit ws0
-        [Instr.LI Reg.x7 48]).1.get .x10 = dst := by
+    have hx10Init : (execBlock (blsg2Zero192Fn dst ws0).region dst rfInit ws0
+        [Instr.LI Reg.x5 24]).1.get .x10 = dst := by
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
         ne_eq, reduceCtorEq, not_false_eq_true, hx10]
     rw [zero_engine _ dst _ ws0 0 (by omega) (by simpa using hx10Init)]
-    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_⟩
     · rw [zeroStepRf_get_x10, hx10Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       bv_omega
-    · rw [zeroStepRf_get_x7]
+    · rw [zeroStepRf_get_x5]
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
       rw [RegFile.get_set_self _ _ _ (by decide)]
       decide
-    · change setBytes ws0 (8 * 0) (dwordBytes (0 : Word)) = zeroWin384 ws0 (0 + 1)
-      simpa [zeroWin384_zero ws0] using zeroWin384_step ws0 0 hlen (by omega)
-  case bnqZero.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
+    · change setBytes ws0 (8 * 0) (dwordBytes (0 : Word)) = zeroWin192 ws0 (0 + 1)
+      simpa [zeroWin192_zero ws0] using zeroWin192_step ws0 0 hlen (by omega)
+  case blsg2Zero192.loop.inv_step =>
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀⟩, hcond⟩, rfl, rfl⟩
     simp only [hbase]
     rw [zero_engine _ dst rf₀ ws₀ (i + 1) (by omega) hx10]
-    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_⟩
     · rw [zeroStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (8 : Word).toNat = 8 from by decide]
       omega
-    · rw [zeroStepRf_get_x7, hx5, show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+    · rw [zeroStepRf_get_x5, hx5, show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
       interval_cases i <;> decide
-    · rw [hws₀, zeroWin384_step orig (i + 1) hlen (by omega)]
-  case bnqZero.loop.exhausted =>
-    rintro rf ws A ⟨-, hx5, -, -, -, -⟩
+    · rw [hws₀, zeroWin192_step orig (i + 1) hlen (by omega)]
+  case blsg2Zero192.loop.exhausted =>
+    rintro rf ws A ⟨-, hx5, -, -, -⟩
     simp only [Cond.holds, hx5, not_not, RegFile.get_x0]
     decide
-  case bnqZero.loop.body.zero.mem =>
+  case blsg2Zero192.loop.body.zero.mem =>
     rintro rf ws A hlen (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen, -⟩, rfl, rfl⟩
-      have hlen384 : ws.length = 384 := by
-        change ws.length = 384 at hlen
-        exact hlen
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen⟩, rfl, rfl⟩
+      have hlen192 : ws.length = 192 := by simpa [blsg2Zero192Fn] using hlen
       have haddr0 : (dst + signExtend12 (0 : BitVec 12) - dst).toNat = 0 := by
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
         bv_omega
       simp only [zeroStepBlock, blockVCs, execInstrRF, aluSem, loadSem, storeSem,
         inRw, hbase, execBlock_cons, execBlock_nil, RegFile.get_set_ne, ne_eq,
-        reduceCtorEq, not_false_eq_true, hx10, hlen384, haddr0, and_true]
+        reduceCtorEq, not_false_eq_true, hx10, hlen192, haddr0, and_true]
       constructor
       · omega
       · exact Nat.dvd_zero 8
-    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws, -⟩, hcond⟩
+    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws⟩, hcond⟩
       have haddr : (rf.get .x10 + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * (i + 1) := by
         rw [hx10, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
         bv_omega
-      have hlen384 : ws.length = 384 := by
-        change ws.length = 384 at hlen
-        exact hlen
-      simp only [zeroStepBlock, blockVCs, loadSem, storeSem, inRw, hbase, haddr, hlen384,
+      have hlen192 : ws.length = 192 := by simpa [blsg2Zero192Fn] using hlen
+      simp only [zeroStepBlock, blockVCs, loadSem, storeSem, inRw, hbase, haddr, hlen192,
         and_true]
       constructor
       · omega
       · exact Nat.dvd_mul_right 8 (i + 1)
-  case bnqZero.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws, hA⟩, hncond⟩
-    have hi47 : i = 47 := by
+  case blsg2Zero192.post =>
+    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws⟩, hncond⟩
+    have hi23 : i = 23 := by
       simp only [Cond.holds, hx5, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
-    subst hi47
-    refine ⟨?_, ?_, ?_, hA⟩
-    · rw [hx10]
-    · rw [hx5]
-      decide
-    · rw [hws, zeroWin384_48_eq orig hlen]
+    subst hi23
+    rw [hws, zeroWin192_24_eq orig hlen]
+    rfl
 
-end Bn254Fq12ZeroSAsm
+end Bls12G2Zero192SAsm
 
 end EvmAsm.Codegen
