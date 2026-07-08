@@ -258,6 +258,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blsg_le_to_be` converter (`blsgLeToBeFn_spec`, post
   `beBytesToNat ws = leLimbsToNat [...]`) with byte-identity pinned to
   `blsgLeToBe_prog`;
+  `Bls12G1BeToLeSAsm.lean` verifies the six-limb
+  `blsg_be_to_le` converter (`blsgBeToLeFn_spec`, post
+  `leLimbsToNat ws-limbs = beBytesToNat inBytes`) with byte-identity pinned
+  to `blsgBeToLe_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
