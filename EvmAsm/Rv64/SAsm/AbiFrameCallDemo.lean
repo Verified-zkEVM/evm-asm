@@ -48,6 +48,7 @@
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.Fn
+import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -235,9 +236,7 @@ theorem bumpCall_spec (spVal ret ptr arb8 arb11 v : Word)
       ((.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v))
       ((.x8 ↦ᵣ ptr) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1)) ** (ptr ↦ₘ (v + 1))) := by
     refine cpsTripleWithin_extend_code
-      (fun a i h => bumpSub a i
-        (CodeReq.ofProg_mono_sub (0x2000 : Word) (0x200C : Word) bumpProgList
-          bumpBody 3 (by decide) (by rfl) (by decide) (by decide) a i h)) ?_
+      (CodeReq.sub_ofProg_of_lookup (0x200C : Word) bumpBody (by decide) (by decide)) ?_
     show cpsTripleWithin 4 (0x200C : Word) (0x201C : Word)
       (CodeReq.ofProg (0x200C : Word) bumpBody) _ _
     simp only [bumpBody]
@@ -254,26 +253,31 @@ theorem bumpCall_spec (spVal ret ptr arb8 arb11 v : Word)
       (0x2018 : Word)
     rw [add_sext0] at hsd
     runBlock hmv hld haddi hsd
-  -- The abiFrame instance.
-  have h := abiFrame_spec (base := 0x2000) (sp0 := spVal) (ret := ret)
-    (negImm := -16) (posImm := 16)
-    (frame := bumpFrame) (raOfs := 0) (sregs := [(.x8, 8)])
-    (vals := bumpVals ret arb8) (vals' := bumpVals' ret ptr)
-    (body := bumpBody) (bodySteps := 4)
-    (callerPre := (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v))
-    (callerPost := (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1)) ** (ptr ↦ₘ (v + 1)))
-    (cr := callDemoCr)
-    (hframe := rfl)
-    (hne := by decide)
-    (hbound := by decide)
-    (hprogBound := by decide)
-    (hret := rfl)
-    (halign := halign)
-    (hframeRestore := frameRestore16 spVal)
-    (hcpF := by pcFree)
-    (hcpF' := by pcFree)
-    (hsub := fun a i h => bumpSub a i h)
-    (hbody := by
+  -- The abiFrame instance (all routine side-conditions via `abi_frame`).
+  have h : cpsTripleWithin (1 + bumpFrame.length + 4 + bumpFrame.length + 1 + 1)
+      (0x2000 : Word) ret callDemoCr
+      ((.x2 ↦ᵣ spVal) ** regsAt bumpFrame (bumpVals ret arb8)
+        ** frameSlotsOwn bumpFrame (spVal + signExtend12 (-16 : BitVec 12))
+        ** ((.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v)))
+      ((.x2 ↦ᵣ spVal) ** regsAt bumpFrame (bumpVals ret arb8)
+        ** frameSlotsSaved bumpFrame (spVal + signExtend12 (-16 : BitVec 12))
+            (bumpVals ret arb8)
+        ** ((.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1)) ** (ptr ↦ₘ (v + 1)))) := by
+    refine ?_
+    have hbody : cpsTripleWithin 4
+        ((0x2000 : Word) + BitVec.ofNat 64 (4 * (1 + bumpFrame.length)))
+        ((0x2000 : Word) + BitVec.ofNat 64 (4 * (1 + bumpFrame.length + bumpBody.length)))
+        callDemoCr
+        ((.x2 ↦ᵣ (spVal + signExtend12 (-16 : BitVec 12)))
+          ** regsAt bumpFrame (bumpVals ret arb8)
+          ** frameSlotsSaved bumpFrame (spVal + signExtend12 (-16 : BitVec 12))
+              (bumpVals ret arb8)
+          ** ((.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v)))
+        ((.x2 ↦ᵣ (spVal + signExtend12 (-16 : BitVec 12)))
+          ** regsAt bumpFrame (bumpVals' ret ptr)
+          ** frameSlotsSaved bumpFrame (spVal + signExtend12 (-16 : BitVec 12))
+              (bumpVals ret arb8)
+          ** ((.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1)) ** (ptr ↦ₘ (v + 1)))) := by
       have hentry : (0x2000 : Word) + BitVec.ofNat 64 (4 * (1 + bumpFrame.length))
           = (0x200C : Word) := by decide
       have hexit : (0x2000 : Word)
@@ -290,7 +294,8 @@ theorem bumpCall_spec (spVal ret ptr arb8 arb11 v : Word)
                 + signExtend12 (8 : BitVec 12)) ↦ₘ arb8))
         (by pcFree) hcore
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-        (fun _ hq => by xperm_hyp hq) hframed)
+        (fun _ hq => by xperm_hyp hq) hframed
+    abi_frame (16 : BitVec 12) halign hbody
   -- Reshape: `frameSlotsOwn`/`frameSlotsSaved` ↔ the free-stack region.
   rw [show (11 : Nat) = 1 + bumpFrame.length + 4 + bumpFrame.length + 1 + 1 from rfl]
   refine cpsTripleWithin_weaken (fun h2 hp => ?_) (fun h2 hq => ?_) h
@@ -360,77 +365,52 @@ theorem twiceFrame_spec (sp0 ret ptr arb8 arb11 v : Word)
   -- call 1: jal at 0x1008 → bump, back to 0x100C.
   have hb1 := bumpCall_spec newSp ((0x1008 : Word) + 4) ptr arb8 arb11 v
     (by decide)
-  have hcall1 := abiFrameCall_spec (cr := callDemoCr)
-    (A := 0x1008) (calleeEntry := 0x2000) (vOld := ret) (spVal := newSp)
-    (offset := (0xFF8 : BitVec 21)) (m := 2) (n := 11)
-    (calleePre := (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v))
-    (calleePost := (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1))
-      ** (ptr ↦ₘ (v + 1)))
+  have hcall1 := abiFrameCall_spec (A := 0x1008) (vOld := ret)
+    (offset := (0xFF8 : BitVec 21))
     (F := ((newSp + signExtend12 (0 : BitVec 12)) ↦ₘ ret))
-    (by decide)
-    (twiceAt 2 (0x1008 : Word) (.JAL .x1 (0xFF8 : BitVec 21)) (by decide) (by decide)
-      (by decide) (by rfl))
-    (by pcFree) (by pcFree)
-    hb1
+    (htarget := by decide) (hmem := by code_mem) (hpre := by pcf) (hF := by pcf)
+    (hcallee := hb1)
   -- call 2: jal at 0x100C → bump, back to 0x1010.
   have hb2 := bumpCall_spec newSp ((0x100C : Word) + 4) ptr arb8 (v + 1) (v + 1)
     (by decide)
-  have hcall2 := abiFrameCall_spec (cr := callDemoCr)
-    (A := 0x100C) (calleeEntry := 0x2000) (vOld := (0x1008 : Word) + 4)
-    (spVal := newSp) (offset := (0xFF4 : BitVec 21)) (m := 2) (n := 11)
-    (calleePre := (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1))
-      ** (ptr ↦ₘ (v + 1)))
-    (calleePost := (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr) ** (.x11 ↦ᵣ (v + 1 + 1))
-      ** (ptr ↦ₘ (v + 1 + 1)))
+  have hcall2 := abiFrameCall_spec (A := 0x100C) (vOld := (0x1008 : Word) + 4)
+    (offset := (0xFF4 : BitVec 21))
     (F := ((newSp + signExtend12 (0 : BitVec 12)) ↦ₘ ret))
-    (by decide)
-    (twiceAt 3 (0x100C : Word) (.JAL .x1 (0xFF4 : BitVec 21)) (by decide) (by decide)
-      (by decide) (by rfl))
-    (by pcFree) (by pcFree)
-    hb2
+    (htarget := by decide) (hmem := by code_mem) (hpre := by pcf) (hF := by pcf)
+    (hcallee := hb2)
   -- chain the two calls
   have hchain := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hcall1 hcall2
   rw [show (0x100C : Word) + 4 = (0x1010 : Word) from by decide] at hchain
   -- ---- the abiFrame wrapper ----
-  have h := abiFrame_spec (base := 0x1000) (sp0 := sp0) (ret := ret)
-    (negImm := -8) (posImm := 8)
-    (frame := twiceFrame) (raOfs := 0) (sregs := [])
-    (vals := twiceVals ret) (vals' := twiceVals')
-    (body := twiceBody) (bodySteps := (1 + 11) + (1 + 11))
-    (callerPre := stackFree newSp 2 ** (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr)
-      ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v))
-    (callerPost := stackFree newSp 2 ** (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr)
-      ** (.x11 ↦ᵣ (v + 1 + 1)) ** (ptr ↦ₘ (v + 1 + 1)))
-    (cr := callDemoCr)
-    (hframe := rfl)
-    (hne := by decide)
-    (hbound := by decide)
-    (hprogBound := by decide)
-    (hret := rfl)
-    (halign := halign)
-    (hframeRestore := frameRestore8 sp0)
-    (hcpF := pcFree_sepConj (pcFree_stackFree _ _) (by pcFree))
-    (hcpF' := pcFree_sepConj (pcFree_stackFree _ _) (by pcFree))
-    (hsub := fun a i h => twiceSub a i h)
-    (hbody := by
-      have hentry : (0x1000 : Word) + BitVec.ofNat 64 (4 * (1 + twiceFrame.length))
-          = (0x1008 : Word) := by decide
-      have hexit : (0x1000 : Word)
-            + BitVec.ofNat 64 (4 * (1 + twiceFrame.length + twiceBody.length))
-          = (0x1010 : Word) := by decide
-      rw [hentry, hexit]
-      simp only [twiceFrame, regsAt, frameSlotsSaved, twiceVals, twiceVals',
-        List.foldr_cons, List.foldr_nil, sepConj_emp_right']
-      refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hchain
-      · rw [← hNS] at hp
-        xperm_hyp hp
-      · rw [← hNS]
-        xperm_hyp hq)
+  have hbody : cpsTripleWithin ((1 + 11) + (1 + 11))
+      ((0x1000 : Word) + BitVec.ofNat 64 (4 * (1 + twiceFrame.length)))
+      ((0x1000 : Word) + BitVec.ofNat 64 (4 * (1 + twiceFrame.length + twiceBody.length)))
+      callDemoCr
+      ((.x2 ↦ᵣ newSp) ** regsAt twiceFrame (twiceVals ret)
+        ** frameSlotsSaved twiceFrame newSp (twiceVals ret)
+        ** (stackFree newSp 2 ** (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr)
+          ** (.x11 ↦ᵣ arb11) ** (ptr ↦ₘ v)))
+      ((.x2 ↦ᵣ newSp) ** regsAt twiceFrame twiceVals'
+        ** frameSlotsSaved twiceFrame newSp (twiceVals ret)
+        ** (stackFree newSp 2 ** (.x8 ↦ᵣ arb8) ** (.x10 ↦ᵣ ptr)
+          ** (.x11 ↦ᵣ (v + 1 + 1)) ** (ptr ↦ₘ (v + 1 + 1)))) := by
+    have hentry : (0x1000 : Word) + BitVec.ofNat 64 (4 * (1 + twiceFrame.length))
+        = (0x1008 : Word) := by decide
+    have hexit : (0x1000 : Word)
+          + BitVec.ofNat 64 (4 * (1 + twiceFrame.length + twiceBody.length))
+        = (0x1010 : Word) := by decide
+    rw [hentry, hexit]
+    simp only [twiceFrame, regsAt, frameSlotsSaved, twiceVals, twiceVals',
+      List.foldr_cons, List.foldr_nil, sepConj_emp_right']
+    refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hchain
+    · xperm_hyp hp
+    · xperm_hyp hq
   rw [show (29 : Nat)
       = 1 + twiceFrame.length + ((1 + 11) + (1 + 11)) + twiceFrame.length + 1 + 1
     from rfl]
-  exact h
+  rw [hNS] at hbody ⊢
+  abi_frame (8 : BitVec 12) halign hbody
 
 #print axioms twiceFrame_spec
 #print axioms bumpCall_spec

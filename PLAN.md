@@ -2729,6 +2729,30 @@ bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
 with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
 on; porting a real cross-calling routine additionally needs its callees'
 whole-routine contracts (each its own port).
+**Port-automation + first real cross-call port landed** (branch
+`feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
+boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
+combinators), `code_mem` (code membership by kernel evaluation:
+`CodeReq.sub_ofProg_of_lookup` + `singleton_mono (by decide)` — replaces the
+manual `ofProg_mono_sub`/`ofProg_lookup_addr`/`memAt` plumbing),
+`lift_code`/`liftCode`, and the apply-and-discharge wrappers `abi_frame` /
+`countdown_loop` / `countdown_loop_bottom` / `frame_call` (all
+`abiFrame_spec`/loop/call side-conditions auto-closed; only the genuine body
+triple/invariant remains).  `SAsm/AbiFrameLoopBottom.lean` adds the
+`do-while` loop lemma `countdownLoopBottom_spec` + the writable dword-array
+region `dwordsIs`/`dwordsIs_at_set` (the store-loop analogue of
+`bytesRegion`).  Re-derived via the tactics with identical statements:
+`mulFrame_spec`/`mulLoop_spec`, `bumpCall_spec`/`twiceFrame_spec`.  First
+REAL cross-call sp-frame port: `bnq_set_one`
+(`Codegen/Programs/Bn254Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.17,
+byte-TRANSPARENT — the emitted `bnqSetOne_prog` IS the `abiFrameProg`
+flatten, `#guard`/`rfl`, no guest-byte change, no A/B needed): the callee
+`bnq_zero` gets a flat whole-routine contract (`bnqZeroFlat_spec`,
+bottom-test store loop over `dwordsIs`, genuine zero-prefix invariant)
+consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
+restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
+blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
+contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
