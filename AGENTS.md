@@ -194,6 +194,11 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For byte-zero loops, prove the byte window step with `setBytes_singleton`
+  and make the tail append explicit before rewriting `List.replicate`. The
+  stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
+  `← List.replicate_append_replicate`; using `List.replicate_succ` rewrites to
+  the head-cons form and does not match the window suffix proof.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
