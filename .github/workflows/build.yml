@@ -91,6 +91,9 @@ jobs:
       - name: Region-map / link-layout drift (RegionMap sizes + symbol-addresses.tsv match ELF)
         run: scripts/check-region-map.sh
 
+      - name: Asm-to-Program drift (fixtures + concrete verification immediates)
+        run: scripts/check-asm-to-program.sh
+
       # Byte-tie (bead evm-asm-vgyg9 = .49.a): the verified guarded ADD handler
       # Program (GuardedHandlerSpecs.lean) must be byte-identical to the emitted
       # h_ADD subroutine at the dispatch-table address. Keeps the verified handle

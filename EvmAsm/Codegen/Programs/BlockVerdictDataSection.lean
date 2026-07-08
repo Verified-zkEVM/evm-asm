@@ -205,8 +205,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- xbi56.2: per-tx creation flag parallel to bv_tx_status_arr, used by the
-  -- EIP-8037 tx-error state-gas rule when materializing exact block state gas.
+  -- xbi56.2: per-tx creation-error refund eligibility flag parallel to
+  -- bv_tx_status_arr, used by the EIP-8037 tx-error state-gas rule when
+  -- materializing exact block state gas.
   "bv_tx_is_creation_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
   -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
@@ -1089,6 +1090,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bsbd_tgt_ptr:\n  .zero 8\n" ++
   "bsbd_tgt_len:\n  .zero 8\n" ++
+  "bsbd_code_from_bal:\n  .zero 8\n" ++
   -- bal_recipient_storage_keys private scratch:
   ".balign 8\n" ++
   "brsk_off:\n  .zero 8\n" ++

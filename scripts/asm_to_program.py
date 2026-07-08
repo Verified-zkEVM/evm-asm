@@ -917,6 +917,15 @@ def gen_guest_addrs():
     L.append("end EvmAsm.Codegen.GuestAddrs")
     return '\n'.join(L)+'\n'
 
+# These functions are verified drop-ins whose `_prog` definitions are intentionally
+# expressed through SAsm `Stmt.flatten` rather than pasted mechanical literals. The
+# fixture/Lean-render assemble checks still guard their emitted bytes; only the
+# verbatim generated-block source check is skipped.
+SOURCE_DRIFT_ALLOW = {
+    'bn254FieldEq32Function',
+    'bn254FieldIsZeroFunction',
+}
+
 def check_file(path, funcs, rendered=None):
     """CI drift guard for one file. For each func, confirm:
       (a) the ACTUAL Lean-rendered string (`emitProgram <prog>`, obtained from
@@ -925,7 +934,8 @@ def check_file(path, funcs, rendered=None):
           binary-identity check and it exercises Lean's `emitInstr`, not
           py_emit;
       (b) the exact generated block is present verbatim in the Lean file (source
-          drift guard);
+          drift guard), except for explicit verified drop-ins whose `_prog` is
+          intentionally defined by Lean code rather than a pasted literal;
       (c) py_emit's offline render still agrees (fast cross-check of the mirror).
     `rendered` may be a precomputed {func: lean-string} map (so a batch caller
     runs the Lean elaborator once). Returns a list of problem strings."""
@@ -978,7 +988,7 @@ def check_file(path, funcs, rendered=None):
         # source drift
         prog=lean_camel(entry)+'_prog'
         block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
-        if block not in text:
+        if fn not in SOURCE_DRIFT_ALLOW and block not in text:
             problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
