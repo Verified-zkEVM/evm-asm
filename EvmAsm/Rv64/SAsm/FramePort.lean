@@ -8,6 +8,9 @@
   tactics, so each port reduces to its genuine core (body semantics + loop
   invariant + the disjunctive post).
 
+  Standalone step-by-step guide (triage tiers, worked examples, checklist):
+  **docs/porting-sp-frame-routines.md**.
+
   ## The recipe: how to port an sp-frame routine
 
   1. **Define the routine** as an `abiFrameProg` flatten and byte-tie it:
