@@ -102,7 +102,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
-| Terminating | STOP | 7 | ✅ STOP proved (`evm_stop_stack_spec_within`, halt-triple over `evm_stop`); shape for INVALID/RETURN/REVERT/SELFDESTRUCT |
+| Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -162,11 +162,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`) are verified straight-line byte-wise readers;
-  `BlockAccessListHashSAsm.lean` verifies the identical `bah_u32le` leaf
-  (`bahU32leFn_spec`, byte-identity pinned to `bahU32le_prog`) over the SAsm
+  `a0 := leU32 (bytes@a0) 0`), `BlockAccessListHashSAsm.lean` verifies the
+  identical `bah_u32le` leaf (`bahU32leFn_spec`, byte-identity pinned to
+  `bahU32le_prog`), `SszPayloadWithdrawalsSAsm.lean` (`spwU32leFn_spec`,
+  byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
+  (`ephU32leFn_spec`, byte-identity pinned to `ephU32le_prog`), and
+  `BalGasValidSAsm.lean` (`bgvU32leFn_spec`, byte-identity pinned to
+  `bgvU32le_prog`) are verified straight-line byte-wise readers over the SAsm
   `Region` model (own-budget engine lemma per the heavy `execBlock`
-  reduction).  Big-endian writers (`whileS` loops over a writable
+  reduction).
+  `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
+  `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
+  `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
   beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops

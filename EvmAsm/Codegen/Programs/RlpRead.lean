@@ -12,6 +12,8 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 
@@ -701,38 +703,81 @@ theorem rlpItemSizeFunction_eq_prog :
     list ptr), a4 = out_size_ptr (u64, full encoded size). Returns a0 = 0 on
     success, 1 on parse failure / i out of range. The cursor is kept in a
     callee-saved register because `rlp_item_size` clobbers the temporaries. -/
+def rlpItemSpan_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .ADD .x9 .x10 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BGEU .x8 .x9 (112 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (100 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (24 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADD .x21 .x8 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x21 .x8 (1 : BitVec 12),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x18 (28 : BitVec 13),
+    .BGEU .x21 .x9 (56 : BitVec 13),
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 120)),
+    .ADD .x21 .x21 .x10,
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .BGEU .x21 .x9 (32 : BitVec 13),
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144)),
+    .SUB .x6 .x21 .x8,
+    .SD .x19 .x6 (0 : BitVec 12),
+    .SD .x20 .x10 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `rlpItemSpan_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpItemSpan_relocs : RelocTable :=
+  [ (30, .jal .x1 "rlp_item_size"),
+    (36, .jal .x1 "rlp_item_size") ]
+
 def rlpItemSpanFunction : String :=
-  "rlp_item_span:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0; add s1, a0, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  bgeu s0, s1, .Lrisp_fail\n" ++
-  "  lbu t0, 0(s0)\n" ++
-  "  li t1, 0xc0; bltu t0, t1, .Lrisp_fail\n" ++   -- outer must be a list
-  "  li t1, 0xf8; bltu t0, t1, .Lrisp_short_outer\n" ++
-  "  li t1, 0xf7; sub t2, t0, t1; addi t2, t2, 1\n" ++
-  "  add s5, s0, t2; j .Lrisp_walk\n" ++
-  ".Lrisp_short_outer:\n" ++
-  "  addi s5, s0, 1\n" ++                          -- cursor at first item
-  ".Lrisp_walk:\n" ++
-  "  li s6, 0\n" ++                                -- index
-  ".Lrisp_loop:\n" ++
-  "  beq s6, s2, .Lrisp_target\n" ++
-  "  bgeu s5, s1, .Lrisp_fail\n" ++
-  "  mv a0, s5; jal ra, rlp_item_size\n" ++
-  "  add s5, s5, a0; addi s6, s6, 1; j .Lrisp_loop\n" ++
-  ".Lrisp_target:\n" ++
-  "  bgeu s5, s1, .Lrisp_fail\n" ++
-  "  mv a0, s5; jal ra, rlp_item_size\n" ++
-  "  sub t1, s5, s0; sd t1, 0(s3); sd a0, 0(s4)\n" ++
-  "  li a0, 0; j .Lrisp_ret\n" ++
-  ".Lrisp_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lrisp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64; ret"
+  "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpItemSpan_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpItemSpanFunction_eq_prog :
+    rlpItemSpanFunction = "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs := rfl
+
+#guard rlpItemSpanFunction.startsWith "rlp_item_span:\n"
+#guard rlpItemSpan_prog.length = 53
 
 /-- `zisk_rlp_item_span`: probe. Input: bytes 0..8 list_len, 8..16 index i,
     16.. list bytes. Output: 0..8 status, 8..16 item start offset, 16..24
