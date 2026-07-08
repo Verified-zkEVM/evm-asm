@@ -2685,12 +2685,28 @@ accumulator/counter): `mulFrame_spec` composes prefix·loop·suffix into the
 entry + the rw dword at `[a0]` holds `inc*kw`, with a genuine loop invariant
 (`s0 = inc*(K−n)` at remaining count `n`), byte-identical (`#guard`/`rfl`) to a
 hand-written 16-instruction prog, axioms `[propext, Classical.choice,
-Quot.sound]`. This proves frame+loop composition end-to-end. The port of a
-*real* emitted single-loop no-cross-call leaf (candidates:
-`witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`,
-`parentHeaderMatchesWitnessFirst_prog`) remains deferred — each has a branchy
-setup + loop + multiple exit blocks whose full body-triple + genuine SSZ
-semantics is a large lift (filed as a follow-up bead).
+Quot.sound]`. This proves frame+loop composition end-to-end.
+**First REAL sp-frame guest routine landed** (bead evm-asm-ffziu, branch
+`port/abi-frame-reemit-complete`): `parent_header_matches_witness_first`
+re-emitted as a verified `abiFrameProg` drop-in
+(`SAsm/ParentHeaderFrame.lean`, 84 instrs; byte-CHANGED, not byte-matched —
+the original's `lwu` offset-table reads are misaligned whenever the section
+pointer is 4-unaligned, so the re-emission byte-reconstructs both u32-LE
+offsets via `lbu`+`slli`+`add`, and the early-exit byte loop is reshaped into
+the branch-free memcmp countdown the verified `memcmpLoop_spec` core proves;
+functionally identical outputs on every input, validated by the dedicated
+ziskemu probe A/B). `phmwCore_spec` is the unified single-exit body triple
+(all branches — empty / `N = 0` / single-vs-multi element / length-mismatch /
+match — reconverge to one exit; genuine disjunctive post `phmwStatus` /
+`phmwIsMatch`), and `phmwFrame_spec` derives the whole-routine ABI contract
+via `abiFrame_spec` (sp/ra/all seven saved s-regs restored). The routine is
+anchored at `0xF18` so the memcmp core's `0x1000` loop anchor lands exactly on
+the loop header (no base-generalization needed). Byte-tie:
+`parentHeaderMatchesWitnessFirst_prog = phmwProgList` by `rfl` in
+`BlockHashPredicates.lean`; drift guards re-tied (`#guard length = 84`),
+fixture + GuestAddrs + coverage doc regenerated. Axioms `[propext,
+Classical.choice, Quot.sound]`. Remaining candidates for the same treatment:
+`witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
