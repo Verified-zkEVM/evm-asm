@@ -26,10 +26,9 @@ def blockVerdictExactGasCheck : String :=
   -- Derive Amsterdam's block-regular dimension from the exact pre-refund
   -- combined gas and the net state-gas dimension:
   --   tx_regular_gas = before_refund - tx_state_gas
-  --   block_regular_increment = max(tx_regular_gas, calldata_floor)
   -- `before_refund` is `tx.gas - gas_left - state_gas_left`, so it includes
   -- regular gas plus state gas. Subtracting `bvgr_tx_total_state_gas` here is
-  -- the spec formula, not a post-hoc correction to the header comparison.
+  -- the spec formula; EIP-7623 calldata-flooring is receipt-only.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
@@ -38,10 +37,6 @@ def blockVerdictExactGasCheck : String :=
   "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
-  "  la t6, bvgr_calldata_floor; add t6, t6, t5; ld a1, 0(t6)\n" ++
-  "  bgeu a0, a1, .Lbv_regular_eip8037_have_max\n" ++
-  "  mv a0, a1\n" ++
-  ".Lbv_regular_eip8037_have_max:\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; sd a0, 0(t6)\n" ++
   "  addi t1, t1, 1; j .Lbv_regular_eip8037_loop\n" ++
   ".Lbv_regular_eip8037_done:\n" ++

@@ -4,7 +4,42 @@
   Simple-transfer gas publication helper for block_verdict.
 -/
 
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+
 namespace EvmAsm.Codegen
+
+/-! Compute the EIP-2780 top-frame recipient state-gas charge for an
+    empty-code top-level value transfer.
+
+    Result:
+      t0 = 0 or StateGasCosts.NEW_ACCOUNT
+
+    Clobbers t0-t6/a0-a4. Requires `s0 = block_verdict params`; `ctxLabel`
+    names a simple-transfer/multi-tx context with recipient and value. -/
+def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
+  "  li t0, 0\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  ld t2,  96(t1); ld t3, 104(t1); or t2, t2, t3\n" ++
+  "  ld t3, 112(t1); or t2, t2, t3\n" ++
+  "  ld t3, 120(t1); or t2, t2, t3\n" ++
+  "  beqz t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t1, 72; ld a3, 80(s0); ld a4, 88(s0)\n" ++
+  "  jal ra, account_exists_at_header_state_root\n" ++
+  "  bnez a0, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  "  la t2, aex_predicate; ld t2, 0(t2)\n" ++
+  "  beqz t2, .L" ++ tag ++ "_recipient_state_charge\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t1, 72; ld a3, 80(s0); ld a4, 88(s0)\n" ++
+  "  jal ra, account_is_empty_at_header_state_root\n" ++
+  "  bnez a0, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  "  la t2, aie_predicate; ld t2, 0(t2)\n" ++
+  "  beqz t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  ".L" ++ tag ++ "_recipient_state_charge:\n" ++
+  liAmsterdamNewAccountStateGas "t0" ++
+  "  j .L" ++ tag ++ "_recipient_state_done\n" ++
+  ".L" ++ tag ++ "_recipient_state_zero:\n" ++
+  "  li t0, 0\n" ++
+  ".L" ++ tag ++ "_recipient_state_done:\n"
 
 /-! Compute Amsterdam intrinsic regular gas and calldata floor for the non-creation
     simple-transfer shortcut. This mirrors the runtime dispatcher setup path but
@@ -19,8 +54,22 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  li s1, 23000                 # intrinsic regular = legacy base + Amsterdam recipient access delta\n" ++
-  "  li s2, 21000                 # calldata floor base\n" ++
+  "  li s1, 12000                 # Amsterdam TX_BASE\n" ++
+  "  ld a0, 24(s0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bmvmx_sender_addr; addi t1, s0, 72; li t2, 20\n" ++
+  ".Lstig_self_cmp:\n" ++
+  "  beqz t2, .Lstig_sender_done\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lstig_not_self\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lstig_self_cmp\n" ++
+  ".Lstig_not_self:\n" ++
+  "  li t5, 3000; add s1, s1, t5  # COLD_ACCOUNT_ACCESS\n" ++
+  "  ld t0, 96(s0); ld t1, 104(s0); or t0, t0, t1\n" ++
+  "  ld t1, 112(s0); or t0, t0, t1\n" ++
+  "  ld t1, 120(s0); or t0, t0, t1\n" ++
+  "  beqz t0, .Lstig_sender_done\n" ++
+  "  li t5, 6000; add s1, s1, t5  # TRANSFER_LOG_COST + TX_VALUE_COST\n" ++
+  ".Lstig_sender_done:\n" ++
+  "  li s2, 12000                 # Amsterdam calldata floor base\n" ++
   "  ld s3, 56(s0)                # calldata ptr\n" ++
   "  ld s4, 64(s0)                # calldata len\n" ++
   ".Lstig_data_loop:\n" ++
