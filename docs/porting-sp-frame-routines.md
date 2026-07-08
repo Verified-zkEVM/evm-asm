@@ -273,6 +273,12 @@ check them BEFORE starting; each failure has a fix):
    the ambient `A = empAssertion` (add the conjunct; it threads through
    the strongest-post trivially).
 
+**Step counts stay symbolic**: for larger (do-while / nested-loop) callees,
+state and thread the callee step count as `(calleeFn …).body.steps + 1` —
+do NOT prove `body.steps = <literal>` by `rfl`, which hits recursion depth
+on big bodies. Caller-side arithmetic then goes through `omega` with the
+symbolic term treated as an opaque `Nat`.
+
 ## 6. Worked examples (copy these skeletons)
 
 ### 6.1 Straight-line body inside a frame — `AbiFrameCallDemo.bump`
