@@ -190,8 +190,10 @@ def schemeAAnchors : List GuestRegion :=
     began preferring same-block delegation markers over stale pre-state markers.
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
-    being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x54644
+    being derived for EIP-6110 negative system requests. Grew again when the
+    v0.5.0 `ProtocolFork` ordinal update shifted the Amsterdam fork check
+    from `24` to `20`. -/
+def textSizeBytes : Nat := 0x54658
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
