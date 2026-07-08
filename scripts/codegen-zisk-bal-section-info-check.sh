@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
 FILTER="${1:-block_access_lists_eip4895}"
 LIMIT="${2:-16}"
 ZISKEMU="${ZISKEMU:-}"

@@ -57,8 +57,8 @@ namespace Bn254Fq12SetOneSAsm
 
 -- The two routines are adjacent in the guest text: `bnq_zero` (6 slots)
 -- immediately precedes `bnq_set_one`.
-#guard GuestAddrs.bnq_zero = 0x800305E8
-#guard GuestAddrs.bnq_set_one = 0x80030600
+#guard GuestAddrs.bnq_zero = 0x80030404
+#guard GuestAddrs.bnq_set_one = 0x8003041C
 #guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = GuestAddrs.bnq_set_one
 
 /-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
@@ -84,7 +84,7 @@ theorem setOneProg_eq :
 /-- The verification `CodeReq`: both adjacent routines, at their guest
     addresses. -/
 def bnqCr : CodeReq :=
-  CodeReq.ofProg (0x800305E8 : Word) (bnqZero_prog ++ bnqSetOne_prog)
+  CodeReq.ofProg (0x80030404 : Word) (bnqZero_prog ++ bnqSetOne_prog)
 
 -- ============================================================================
 -- Word / list helpers.
@@ -154,11 +154,11 @@ theorem pcFree_zeroInvF (dst : Word) (vs : List Word) (n : Nat) :
   unfold zeroInvF
   pcf
 
-/-- The per-iteration body (`sd ; addi a0 ; addi ctr`, `0x800305EC →
-    0x800305F8`): zero one dword, advance, decrement. -/
+/-- The per-iteration body (`sd ; addi a0 ; addi ctr`, `0x80030408 →
+    0x80030414`): zero one dword, advance, decrement. -/
 private theorem zeroLoopBody_spec (dst : Word) (vs : List Word)
     (hlen : vs.length = 48) (n : Nat) (hn : n < 48) :
-    cpsTripleWithin 3 (0x800305EC : Word) (0x800305F8 : Word) bnqCr
+    cpsTripleWithin 3 (0x80030408 : Word) (0x80030414 : Word) bnqCr
       ((.x7 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** zeroInvF dst vs (n + 1))
       ((.x7 ↦ᵣ BitVec.ofNat 64 n) ** (Reg.x0 ↦ᵣ (0 : Word))
@@ -178,19 +178,19 @@ private theorem zeroLoopBody_spec (dst : Word) (vs : List Word)
   simp only [zeroInvF, hpn, ← hp, ← hL]
   rw [heq1, ← hset, heq2]
   have hsd := sd_x0_spec_gen_within .x10 (dst + BitVec.ofNat 64 (8 * p))
-    (L.getD p 0) (0 : BitVec 12) (0x800305EC : Word)
+    (L.getD p 0) (0 : BitVec 12) (0x80030408 : Word)
   rw [add_sext0] at hsd
-  rw [show (0x800305EC : Word) + 4 = (0x800305F0 : Word) from by decide] at hsd
+  rw [show (0x80030408 : Word) + 4 = (0x8003040C : Word) from by decide] at hsd
   have hsdC := liftCode (cr' := bnqCr) hsd (by code_mem)
   have ha1 := addi_spec_gen_same_within .x10 (dst + BitVec.ofNat 64 (8 * p))
-    (8 : BitVec 12) (0x800305F0 : Word) (by decide)
+    (8 : BitVec 12) (0x8003040C : Word) (by decide)
   rw [addr_step8] at ha1
-  rw [show (0x800305F0 : Word) + 4 = (0x800305F4 : Word) from by decide] at ha1
+  rw [show (0x8003040C : Word) + 4 = (0x80030410 : Word) from by decide] at ha1
   have ha1C := liftCode (cr' := bnqCr) ha1 (by code_mem)
   have ha2 := addi_spec_gen_same_within .x7 (BitVec.ofNat 64 (n + 1))
-    (-1 : BitVec 12) (0x800305F4 : Word) (by decide)
+    (-1 : BitVec 12) (0x80030410 : Word) (by decide)
   rw [cnt_step_down] at ha2
-  rw [show (0x800305F4 : Word) + 4 = (0x800305F8 : Word) from by decide] at ha2
+  rw [show (0x80030410 : Word) + 4 = (0x80030414 : Word) from by decide] at ha2
   have ha2C := liftCode (cr' := bnqCr) ha2 (by code_mem)
   have hFrontRest : (front ** rest).pcFree := pcFree_sepConj hf hr
   have hsdF := cpsTripleWithin_frameR
@@ -232,32 +232,32 @@ private theorem zeroLoopBody_spec (dst : Word) (vs : List Word)
 theorem bnqZeroFlat_spec (ret dst v7 : Word) (vs : List Word)
     (hlen : vs.length = 48)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin (1 + 48 * (3 + 1) + 1) (0x800305E8 : Word) ret bnqCr
+    cpsTripleWithin (1 + 48 * (3 + 1) + 1) (0x80030404 : Word) ret bnqCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (.x7 ↦ᵣ v7)
         ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst vs)
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384))
         ** (.x7 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** dwordsIs dst (List.replicate 48 (0 : Word))) := by
   -- init: li x7, 48
-  have hli := li_spec_gen_within .x7 v7 (48 : Word) (0x800305E8 : Word) (by decide)
+  have hli := li_spec_gen_within .x7 v7 (48 : Word) (0x80030404 : Word) (by decide)
   rw [show (48 : Word) = BitVec.ofNat 64 48 from rfl] at hli
-  rw [show (0x800305E8 : Word) + 4 = (0x800305EC : Word) from by decide] at hli
+  rw [show (0x80030404 : Word) + 4 = (0x80030408 : Word) from by decide] at hli
   have hliC := liftCode (cr' := bnqCr) hli (by code_mem)
   have hliF := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst vs)
     (by pcf) hliC
   -- the loop, endpoints presented at 48 / 0
-  have hloop : cpsTripleWithin (48 * (3 + 1)) (0x800305EC : Word) (0x800305FC : Word)
+  have hloop : cpsTripleWithin (48 * (3 + 1)) (0x80030408 : Word) (0x80030418 : Word)
       bnqCr
       ((.x7 ↦ᵣ BitVec.ofNat 64 48) ** (Reg.x0 ↦ᵣ (0 : Word)) ** zeroInvF dst vs 48)
       ((.x7 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word)) ** zeroInvF dst vs 0) := by
-    have h := countdownLoopBottom_spec bnqCr (0x800305EC : Word) (0x800305F8 : Word)
+    have h := countdownLoopBottom_spec bnqCr (0x80030408 : Word) (0x80030414 : Word)
       .x7 (-12 : BitVec 13) 3 48 (zeroInvF dst vs)
       (by decide) (by omega) (by omega) (by decide)
       (fun n => pcFree_zeroInvF dst vs n)
       (by code_mem)
       (fun n hn => zeroLoopBody_spec dst vs hlen n hn)
-    rw [show (0x800305F8 : Word) + 4 = (0x800305FC : Word) from by decide] at h
+    rw [show (0x80030414 : Word) + 4 = (0x80030418 : Word) from by decide] at h
     exact h
   have hstart : zeroInvF dst vs 48
       = ((.x10 ↦ᵣ dst) ** dwordsIs dst vs) := by
@@ -274,7 +274,7 @@ theorem bnqZeroFlat_spec (ret dst v7 : Word) (vs : List Word)
   rw [hstart, hend] at hloop
   have hloopF := cpsTripleWithin_frameR ((.x1 : Reg) ↦ᵣ ret) (by pcf) hloop
   -- ret
-  have hret := Fn.jalr_ret_spec (0x800305FC : Word) ret halign
+  have hret := Fn.jalr_ret_spec (0x80030418 : Word) ret halign
     (P := (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) ** (.x7 ↦ᵣ BitVec.ofNat 64 0)
       ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst (List.replicate 48 (0 : Word)))
     (by pcf)
@@ -297,7 +297,7 @@ def setOneVals (ret arb8 : Word) : Reg → Word :=
     clobbered by the `jal`; the epilogue restores it from the slot), `s0`
     the buffer pointer. -/
 def setOneVals' (dst : Word) : Reg → Word :=
-  fun r => match r with | .x1 => (0x80030614 : Word) | .x8 => dst | _ => 0
+  fun r => match r with | .x1 => (0x80030430 : Word) | .x8 => dst | _ => 0
 
 /-- **The whole-routine ABI contract for `bnq_set_one`.**  On return `sp`,
     `ra`, and `s0` are restored to ENTRY values (`ra` was clobbered by the
@@ -310,7 +310,7 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
     cpsTripleWithin
       (1 + setOneFrame.length + (1 + (1 + (1 + 48 * (3 + 1) + 1)) + 1 + 1)
         + setOneFrame.length + 1 + 1)
-      (0x80030600 : Word) ret bnqCr
+      (0x8003041C : Word) ret bnqCr
       ((.x2 ↦ᵣ sp0) ** regsAt setOneFrame (setOneVals ret arb8)
         ** frameSlotsOwn setOneFrame (sp0 + signExtend12 (-16 : BitVec 12))
         ** ((.x10 ↦ᵣ dst) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7)
@@ -322,32 +322,32 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
           ** (Reg.x0 ↦ᵣ (0 : Word))
           ** dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word)))) := by
   -- ---- the single-exit body: mv ; call ; li ; sd ----
-  -- mv s0, a0 (0x8003060C)
-  have hmv := mv_spec_gen_within .x8 .x10 dst arb8 (0x8003060C : Word) (by decide)
-  rw [show (0x8003060C : Word) + 4 = (0x80030610 : Word) from by decide] at hmv
+  -- mv s0, a0 (0x80030428)
+  have hmv := mv_spec_gen_within .x8 .x10 dst arb8 (0x80030428 : Word) (by decide)
+  rw [show (0x80030428 : Word) + 4 = (0x8003042C : Word) from by decide] at hmv
   have hmvC := liftCode (cr' := bnqCr) hmv (by code_mem)
   have hmvF := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (Reg.x0 ↦ᵣ (0 : Word))
       ** dwordsIs dst vs)
     (by pcf) hmvC
-  -- jal ra, bnq_zero (0x80030610): the cross-call.
-  have hcallee := bnqZeroFlat_spec ((0x80030610 : Word) + 4) dst v7 vs hlen (by decide)
-  have hcall := callWithin_spec (0x80030610 : Word) (0x800305E8 : Word) ret
+  -- jal ra, bnq_zero (0x8003042C): the cross-call.
+  have hcallee := bnqZeroFlat_spec ((0x8003042C : Word) + 4) dst v7 vs hlen (by decide)
+  have hcall := callWithin_spec (0x8003042C : Word) (0x80030404 : Word) ret
     (jalOff GuestAddrs.bnq_zero (GuestAddrs.bnq_set_one + 16)) (1 + 48 * (3 + 1) + 1)
     (by decide) (by code_mem) (by pcf) hcallee
-  rw [show (0x80030610 : Word) + 4 = (0x80030614 : Word) from by decide] at hcall
+  rw [show (0x8003042C : Word) + 4 = (0x80030430 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ dst) ** (.x5 ↦ᵣ v5)) (by pcf) hcall
-  -- li t0, 1 (0x80030614)
-  have hli := li_spec_gen_within .x5 v5 (1 : Word) (0x80030614 : Word) (by decide)
-  rw [show (0x80030614 : Word) + 4 = (0x80030618 : Word) from by decide] at hli
+  -- li t0, 1 (0x80030430)
+  have hli := li_spec_gen_within .x5 v5 (1 : Word) (0x80030430 : Word) (by decide)
+  rw [show (0x80030430 : Word) + 4 = (0x80030434 : Word) from by decide] at hli
   have hliC := liftCode (cr' := bnqCr) hli (by code_mem)
   have hliF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80030614 : Word)) ** (.x8 ↦ᵣ dst)
+    (((.x1 : Reg) ↦ᵣ (0x80030430 : Word)) ** (.x8 ↦ᵣ dst)
       ** (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) ** (.x7 ↦ᵣ BitVec.ofNat 64 0)
       ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst (List.replicate 48 (0 : Word)))
     (by pcf) hliC
-  -- sd t0 -> 0(s0) (0x80030618): coefficient 0 := 1.
+  -- sd t0 -> 0(s0) (0x80030434): coefficient 0 := 1.
   obtain ⟨front, rest, hf, hr, heq1, heq2⟩ :=
     dwordsIs_at_set dst (List.replicate 48 (0 : Word)) 0 1 (by decide)
   have hcell0 : dst + BitVec.ofNat 64 (8 * 0) = dst := by
@@ -358,12 +358,12 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
       = ((1 : Word) :: List.replicate 47 (0 : Word)) := by decide
   rw [hone] at heq2
   have hsd := sd_spec_gen_within .x8 .x5 dst (1 : Word)
-    ((List.replicate 48 (0 : Word)).getD 0 0) (0 : BitVec 12) (0x80030618 : Word)
+    ((List.replicate 48 (0 : Word)).getD 0 0) (0 : BitVec 12) (0x80030434 : Word)
   rw [add_sext0] at hsd
-  rw [show (0x80030618 : Word) + 4 = (0x8003061C : Word) from by decide] at hsd
+  rw [show (0x80030434 : Word) + 4 = (0x80030438 : Word) from by decide] at hsd
   have hsdC := liftCode (cr' := bnqCr) hsd (by code_mem)
   have hsdF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80030614 : Word))
+    (((.x1 : Reg) ↦ᵣ (0x80030430 : Word))
       ** (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) ** (.x7 ↦ᵣ BitVec.ofNat 64 0)
       ** (Reg.x0 ↦ᵣ (0 : Word)) ** front ** rest)
     (by repeat first
@@ -378,8 +378,8 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
     (fun h hp => by rw [heq1] at hp; xperm_hyp hp) s2 hsdF
   -- the single-exit body triple, in `abiFrame_spec` shape
   have hbody : cpsTripleWithin (1 + (1 + (1 + 48 * (3 + 1) + 1)) + 1 + 1)
-      ((0x80030600 : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length)))
-      ((0x80030600 : Word)
+      ((0x8003041C : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length)))
+      ((0x8003041C : Word)
         + BitVec.ofNat 64 (4 * (1 + setOneFrame.length + setOneBody.length)))
       bnqCr
       ((.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12)))
@@ -395,11 +395,11 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
         ** ((.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) ** regOwn .x5 ** regOwn .x7
           ** (Reg.x0 ↦ᵣ (0 : Word))
           ** dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word)))) := by
-    have hentry : (0x80030600 : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length))
-        = (0x8003060C : Word) := by decide
-    have hexit : (0x80030600 : Word)
+    have hentry : (0x8003041C : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length))
+        = (0x80030428 : Word) := by decide
+    have hexit : (0x8003041C : Word)
           + BitVec.ofNat 64 (4 * (1 + setOneFrame.length + setOneBody.length))
-        = (0x8003061C : Word) := by decide
+        = (0x80030438 : Word) := by decide
     rw [hentry, hexit]
     simp only [setOneFrame, regsAt, frameSlotsSaved, setOneVals, setOneVals',
       List.foldr_cons, List.foldr_nil, sepConj_emp_right']
@@ -415,7 +415,7 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
     -- release t0 (`↦ 1`) and the drained counter (`↦ 0`) to ownership;
     -- reassemble the ONE array from the extracted cell.
     have hq1 : ((.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ BitVec.ofNat 64 0)
-        ** ((.x1 : Reg) ↦ᵣ (0x80030614 : Word)) ** (.x8 ↦ᵣ dst)
+        ** ((.x1 : Reg) ↦ᵣ (0x80030430 : Word)) ** (.x8 ↦ᵣ dst)
         ** (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word))
         ** (.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12)))

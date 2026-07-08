@@ -196,6 +196,33 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- When adapting a proven SAsm loop to a larger buffer, do not globally replace
+  numeric substrings. Buffer counts like 12/24 are ghost/spec constants, but
+  instruction immediates still use `BitVec 12` and `signExtend12`; changing those
+  silently produces bad imports or non-RISC-V-width instructions.
+- For byte-zero loops, prove the byte window step with `setBytes_singleton`
+  and make the tail append explicit before rewriting `List.replicate`. The
+  stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
+  `← List.replicate_append_replicate`; using `List.replicate_succ` rewrites to
+  the head-cons form and does not match the window suffix proof.
+- For byte-copy loops, distinguish writable-window byte loads from read-only
+  source loads. `execInstrRF_lbu_byte` is for `LBU` inside the writable region;
+  source-copy loops normally need a local `execInstrRF_lbu_ro` miss lemma plus
+  `execInstrRF_sb_byte` and `truncate_zeroExtend_byte` for the store. For
+  one-byte window steps, `List.take_add` and `List.take_one_drop_eq_of_lt_length`
+  avoid brittle deprecated `take_succ` rewrites.
+- For straight-line copy ports, avoid proving the semantic engine by repeatedly
+  reassociating appended instruction chunks unless the append lemma is already
+  a local simplifier. A failed append rewrite can leave huge nested `execBlock`
+  projections. The stable pattern is explicit per-pair `LD`/`SD` rewrites plus
+  a separate semantic fold lemma (`copyFold64`-style) that rewrites the nested
+  `setBytes` chain to the source bytes.
+- For straight-line SAsm store blocks, the final instruction's `blockVCs` tail is
+  `True`, so rewriting that last `execInstrRF` in the memory-VC simp set is often
+  unused and trips the warning gate. For post proofs, rewrite each store with
+  `execInstrRF_sd_dword`, then run `simp only` to collapse pair projections
+  before applying the semantic `setBytes` lemma. Avoid `subst` on huge
+  `execBlock` equalities; rewrite with the equality instead.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application

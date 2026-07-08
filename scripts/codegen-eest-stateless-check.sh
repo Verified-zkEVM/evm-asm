@@ -10,8 +10,11 @@
 #      against the fixture's recorded `statelessOutputBytes`.
 #
 # Fixtures come from the release tarball fetched by
-# scripts/eest-fetch-fixtures.sh (NOT re-filled locally); the EEST repo is
-# vendored as the `execution-spec-tests` submodule for provenance.
+# scripts/eest-fetch-fixtures.sh (NOT re-filled locally). zkevm stateless
+# fixtures are published from ethereum/execution-specs releases. If a requested
+# fixture tag's upstream release/asset has not been published yet, the fetch
+# script records `.not-available`; this harness reports that as a neutral skip
+# instead of a regression.
 #
 # Conformance metrics reported per run -- the 105-byte
 # SszStatelessValidationResult decomposes into three independently
@@ -101,7 +104,7 @@
 #                        surface failures hiding at the tail of the default
 #                        first-N selection without shuffling. Applied after
 #                        --random when both are given (reverses the shuffle).
-#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
 #
 # Environment:
 #   EEST_RUN_DIR         explicit conversion/result directory. When unset, each
@@ -111,6 +114,7 @@
 #
 # Exit:
 #   0 -- ran to completion (baseline mode), or all --min-* thresholds met
+#   0 -- fixtures not available upstream for TAG yet (neutral skip)
 #   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
 set -euo pipefail
 
@@ -169,7 +173,9 @@ BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
+DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
 USER_GUEST_ELF="${GUEST_ELF:-}"
 VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
@@ -216,7 +222,7 @@ Options:
   --no-verify-input-parity skip the default input parity check
   --verify-execution-spec-input
                            additionally decode guest bytes via execution-specs
-  --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 shuffle fixtures into a random order before --limit; run
@@ -558,6 +564,12 @@ fi
 # --- locate fixtures --------------------------------------------------------
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 if [[ ! -d "$FX" ]]; then
+  unavailable_marker="$REPO_ROOT/gen-out/eest-fixtures/$TAG/.not-available"
+  if [[ -f "$unavailable_marker" ]]; then
+    echo "EEST fixtures not available for $TAG (upstream release not published yet) -- skipping" >&2
+    sed 's/^/  /' "$unavailable_marker" >&2
+    exit 0
+  fi
   echo "EEST fixtures not found at: $FX" >&2
   echo "  run: scripts/eest-fetch-fixtures.sh '$TAG'" >&2
   exit 1
