@@ -81,17 +81,17 @@ inductive SpecError where
     `_protocol_fork_to_ssz` uses `tuple(ProtocolFork).index(fork)`. -/
 inductive ProtocolFork where
   | Frontier | Homestead | DAOFork | TangerineWhistle | SpuriousDragon
-  | Byzantium | Constantinople | ConstantinopleFix | Istanbul | MuirGlacier
-  | Berlin | London | ArrowGlacier | GrayGlacier | Paris | Shanghai | Cancun
-  | Prague | Osaka | BPO1 | BPO2 | BPO3 | BPO4 | BPO5 | Amsterdam
+  | Byzantium | StPetersburg | Istanbul | MuirGlacier | Berlin | London
+  | ArrowGlacier | GrayGlacier | Paris | Shanghai | Cancun | Prague | Osaka
+  | BPO1 | BPO2 | Amsterdam
   deriving Repr, BEq, DecidableEq
 
-/-- `tuple(ProtocolFork)` — the SSZ enum ordering (`stateless_ssz.py:225`). -/
+/-- `tuple(ProtocolFork)` — the SSZ enum ordering (`stateless_ssz.py:249`). -/
 def protocolForks : List ProtocolFork :=
   [.Frontier, .Homestead, .DAOFork, .TangerineWhistle, .SpuriousDragon,
-   .Byzantium, .Constantinople, .ConstantinopleFix, .Istanbul, .MuirGlacier,
-   .Berlin, .London, .ArrowGlacier, .GrayGlacier, .Paris, .Shanghai, .Cancun,
-   .Prague, .Osaka, .BPO1, .BPO2, .BPO3, .BPO4, .BPO5, .Amsterdam]
+   .Byzantium, .StPetersburg, .Istanbul, .MuirGlacier, .Berlin, .London,
+   .ArrowGlacier, .GrayGlacier, .Paris, .Shanghai, .Cancun, .Prague, .Osaka,
+   .BPO1, .BPO2, .Amsterdam]
 
 /-! ## Chain-config dataclasses (`stateless.py:139`–`183`) -/
 

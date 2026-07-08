@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 RUN_DIR="${EEST_INPUT_PARITY_RUN_DIR:-$REPO_ROOT/gen-out/eest-input-parity}"
 LIMIT="${EEST_INPUT_PARITY_LIMIT:-2}"
@@ -18,7 +18,7 @@ Usage:
   scripts/eest-stateless-input-parity-check.sh [options]
 
 Options:
-  --tag TAG              EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  --tag TAG              EEST fixture tag (default $EEST_FIXTURE_TAG or tests-zkevm@v0.5.0)
   --fixtures-dir DIR     fixture root (default gen-out/eest-fixtures/$TAG/fixtures/fixtures)
   --run-dir DIR          output directory (default gen-out/eest-input-parity)
   --limit N              cases per representative filter (default 2)
