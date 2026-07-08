@@ -176,7 +176,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
-  `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
+  `bgvU64le_prog`.  `Blake2fLoadLe64SAsm.lean` verifies `blk2_ld_le64`
+  (`blk2LdLe64Fn_spec`, post `a0 := leU64 (bytes@a0)`) as a byte-identical
+  fixed eight-iteration descending `doWhile` byte-load loop pinned to
+  `blk2LdLe64_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
   beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops

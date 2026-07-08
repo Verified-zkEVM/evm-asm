@@ -194,6 +194,15 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For SAsm loops that read immutable `Fn.region` bytes with `LBU` and have an
+  empty writable region, `execInstrRF_lbu_byte` is the wrong helper: it models
+  reads routed through `rw`. Use a small read-only `LBU` helper that rewrites
+  through `Region.byteAt` after proving `¬ inRw` for the empty `rw` window.
+- Descending pointer loops can have a terminal wrapped pointer (`src - 1`) even
+  when all loaded byte offsets are natural numbers. Avoid invariants of the
+  form `src + BitVec.ofNat _ (7 - k)` at the final state; use an explicit
+  finite offset helper and prove the load-address and post-step-pointer lemmas
+  separately.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application

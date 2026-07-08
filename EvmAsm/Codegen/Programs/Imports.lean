@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
+import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe32U64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
