@@ -1033,7 +1033,7 @@ def balCodePreimagesValidFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd x20, 104(sp)\n" ++
   "  mv s0, a0                  # target address ptr\n" ++
   "  mv s1, a1                  # witness.state ptr\n" ++
   "  mv s2, a2                  # witness.state len\n" ++
@@ -1088,9 +1088,10 @@ def balCodePreimagesValidFunction : String :=
   -- whether the target's code exists; previously the charge was only on the
   -- resolution-SUCCESS paths, so unresolved targets (empty / nonexistent code)
   -- skipped it -> gas under-counted -> bv_fail=34 on EIP-7702 fixtures.
-  -- x20(=s4) is bv_bal_len inside this fn; reload caller env from 40(sp).
+  -- x20 is the caller runtime env; reload the saved env pointer before
+  -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
   "  beqz s10, .Lbsbd_skip_charge\n" ++
-  "  sd s4, 96(sp); ld x20, 40(sp)\n" ++
+  "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
   "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -1171,7 +1172,7 @@ def balCodePreimagesValidFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp)\n" ++
   "  addi sp, sp, 112\n" ++
   "  ret\n" ++
   "\n" ++

@@ -567,7 +567,7 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
 def eip8037TxStateGasFunction : String :=
   "eip8037_tx_state_gas:\n" ++
   "  # a0=intrinsic_state_gas, a1=state_gas_used, a2=state_refund,\n" ++
-  "  # a3=error_flag, a4=is_creation, a5=tx_state_gas_out\n" ++
+  "  # a3=error_flag, a4=creation_error_refund_eligible, a5=tx_state_gas_out\n" ++
   "  beq a3, zero, .Le8037sg_settle\n" ++
   "  li a1, 0                   # error: state_gas_used = 0\n" ++
   "  beq a4, zero, .Le8037sg_settle\n" ++
@@ -631,7 +631,7 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
       tx_state_gas = intrinsic_state_gas + state_gas_used - state_refund
 
     with the transaction-error rule handled by `eip8037_tx_state_gas`:
-    on error, `state_gas_used = 0`, and creation errors add the new-account
+    on error, `state_gas_used = 0`, and creation errors that entered process_create_message add the new-account
     refund before the subtraction.
 
     ABI:
@@ -639,7 +639,7 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
       a1 = executed_state_gas array ptr (raw `evm_state_gas_used` per tx)
       a2 = state_refund array ptr
       a3 = tx_status array ptr (1 success, 0 error)
-      a4 = is_creation array ptr (nonzero iff tx.to is empty)
+      a4 = creation-error-refund-eligible array ptr (nonzero iff the error path entered process_create_message)
       a5 = count
       a6 = output tx_state_gas array ptr
 

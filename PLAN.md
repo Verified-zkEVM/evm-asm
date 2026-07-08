@@ -203,7 +203,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`.
+  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
+  byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
+  verifies the `call_frame_set_calldata` child-env writer
+  (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
+  416 and `argsLen` at offset 424) with byte-identity pinned to
+  `callFrameSetCalldata_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -3057,8 +3063,9 @@ the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 `ws = replicate 32 0`) and `secfCopy32` (two-region ro-load→rw-store, post
 `ws = srcBytes`), each byte-tied `body.flatten 0 ++ [ret] = secf…_prog`,
-port-check + classical-3. `secfGetBitLsb` deferred (bit-extraction post
-wants the `.38.1` `beBytesToNat`/`testBit` vocabulary).
+port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
+`secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
+the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
