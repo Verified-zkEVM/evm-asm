@@ -9,6 +9,7 @@
 
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Codegen.Programs.CreateSameTxCollision
@@ -250,6 +251,40 @@ def basicPrecompileCallTail
     "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_ts_cmp\n" ++
     ".L" ++ tag ++ "_eip4788_current:\n" ++
+    -- The shortcut substitutes for the successful user-call path through the
+    -- beacon-roots bytecode. Debit that path's regular gas from the EIP-150
+    -- child allotment: non-SLOAD opcodes + two warm SLOAD floors, plus the
+    -- 2000-gas cold delta for each slot not already warmed by the tx access list.
+    "  la t0, stal_token_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+    "  la t1, bsr_addr_4788; addi t1, t1, 19; li t2, 20\n" ++
+    ".L" ++ tag ++ "_eip4788_token_copy:\n" ++
+    "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_eip4788_token_copy\n" ++
+    "  la t0, stal_slot_le; la t1, swd_4788_slot; addi t1, t1, 31; li t2, 32\n" ++
+    ".L" ++ tag ++ "_eip4788_ts_slot_copy:\n" ++
+    "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_eip4788_ts_slot_copy\n" ++
+    "  la t0, cd_callee_be; la t1, swd_4788_root_slot; addi t1, t1, 31; li t2, 32\n" ++
+    ".L" ++ tag ++ "_eip4788_root_slot_copy:\n" ++
+    "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_eip4788_root_slot_copy\n" ++
+    "  li x16, 320\n" ++
+    "  la t6, stal_token_le; la a1, stal_slot_le\n" ++
+    storageAccessKeyScanAsm (tag ++ "_eip4788_ts_scan") (tag ++ "_eip4788_ts_warm") (tag ++ "_eip4788_ts_cold") (tag ++ "_eip4788_ts_next") ++
+    ".L" ++ tag ++ "_eip4788_ts_warm:\n" ++
+    "  j .L" ++ tag ++ "_eip4788_root_cost\n" ++
+    ".L" ++ tag ++ "_eip4788_ts_cold:\n" ++
+    "  addi x16, x16, 2000\n" ++
+    ".L" ++ tag ++ "_eip4788_root_cost:\n" ++
+    "  la t6, stal_token_le; la a1, cd_callee_be\n" ++
+    storageAccessKeyScanAsm (tag ++ "_eip4788_root_scan") (tag ++ "_eip4788_root_warm") (tag ++ "_eip4788_root_cold") (tag ++ "_eip4788_root_next") ++
+    ".L" ++ tag ++ "_eip4788_root_warm:\n" ++
+    "  j .L" ++ tag ++ "_eip4788_charge\n" ++
+    ".L" ++ tag ++ "_eip4788_root_cold:\n" ++
+    "  addi x16, x16, 2000\n" ++
+    ".L" ++ tag ++ "_eip4788_charge:\n" ++
+    chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, stal_token_le; la a1, stal_slot_le; jal ra, evm_storage_access_seed_key\n" ++
+    "  la a0, stal_token_le; la a1, cd_callee_be; jal ra, evm_storage_access_seed_key\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  li t0, 1; la t1, bv_eip4788_current_fast_seen; sd t0, 0(t1)\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li t0, 1; sd t0, 0(x15)\n" ++
