@@ -186,7 +186,7 @@ def schemeAAnchors : List GuestRegion :=
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
     Shrunk by `0x3c` when child-error state-gas spill stopped being credited
     back to regular gas. -/
-def textSizeBytes : Nat := 0x54070
+def textSizeBytes : Nat := 0x541f0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
