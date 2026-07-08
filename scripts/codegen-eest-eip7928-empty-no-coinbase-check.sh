@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
 JOBS="${EEST_EIP7928_EMPTY_NO_COINBASE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP7928_EMPTY_NO_COINBASE_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7928_EMPTY_NO_COINBASE_RUN_DIR:-gen-out/eest-eip7928-empty-no-coinbase}"
