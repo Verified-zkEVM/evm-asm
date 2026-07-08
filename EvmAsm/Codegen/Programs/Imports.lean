@@ -145,6 +145,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameDescend
+import EvmAsm.Codegen.Programs.CallFrameSetCalldataSAsm
 import EvmAsm.Codegen.Programs.CallFrameReturn
 import EvmAsm.Codegen.Programs.CallFrameRoundtrip
 import EvmAsm.Codegen.Programs.RegistryReceipts

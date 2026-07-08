@@ -201,7 +201,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   source/destination disjointness precondition and byte-identity pinned to
   `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
-  byte-identity pinned to `runningBloomCopy_prog`.
+  byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
+  verifies the `call_frame_set_calldata` child-env writer
+  (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
+  416 and `argsLen` at offset 424) with byte-identity pinned to
+  `callFrameSetCalldata_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
