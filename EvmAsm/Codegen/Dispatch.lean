@@ -2460,12 +2460,38 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x8, 0(x5)\n" ++            -- x8 = is_creation
   "  addi x5, x5, 8\n" ++          -- x5 = &(account-witness header_len)
   "  beqz x7, .runtime_tx_gas_done\n" ++
-  "  li x7, 23000\n" ++            -- x7 = intrinsic = legacy base + Amsterdam recipient access delta
-  "  li x10, 21000\n" ++           -- x10 = data floor = TX_BASE
+  "  li x7, 12000\n" ++            -- x7 = intrinsic.regular = Amsterdam TX_BASE
+  "  li x10, 12000\n" ++           -- x10 = calldata floor = Amsterdam TX_BASE
   "  beqz x8, .runtime_tx_gas_no_create\n" ++
-  "  li x8, 30000\n" ++            -- legacy TX_CREATE adjusted for recipient baseline
+  "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
   ".runtime_tx_gas_no_create:\n" ++
+  -- EIP-2780 decomposes the non-create recipient/value components out of the
+  -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self
+  -- value calls additionally pay TRANSFER_LOG_COST + TX_VALUE_COST.
+  "  ld x8, -8(x5)\n" ++           -- x8 = is_creation
+  "  bnez x8, .runtime_tx_gas_recipient_done\n" ++
+  "  li x8, 0\n" ++
+  ".runtime_tx_gas_self_cmp:\n" ++
+  "  li x9, 20; beq x8, x9, .runtime_tx_gas_recipient_done\n" ++
+  "  add x11, x20, x8\n" ++
+  "  lbu x12, 0(x11)\n" ++
+  "  addi x11, x20, 64\n" ++
+  "  add x11, x11, x8\n" ++
+  "  lbu x13, 0(x11)\n" ++
+  "  bne x12, x13, .runtime_tx_gas_not_self\n" ++
+  "  addi x8, x8, 1\n" ++
+  "  j .runtime_tx_gas_self_cmp\n" ++
+  ".runtime_tx_gas_not_self:\n" ++
+  "  li x8, 3000\n" ++             -- COLD_ACCOUNT_ACCESS
+  "  add x7, x7, x8\n" ++
+  "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
+  "  ld x9, 112(x20); or x8, x8, x9\n" ++
+  "  ld x9, 120(x20); or x8, x8, x9\n" ++
+  "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
+  "  li x8, 6000\n" ++             -- TRANSFER_LOG_COST + TX_VALUE_COST
+  "  add x7, x7, x8\n" ++
+  ".runtime_tx_gas_recipient_done:\n" ++
   "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
   "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
   "  ld x12, 424(x20)\n" ++        -- x12 = calldata length for initcode words
@@ -2592,6 +2618,16 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   ".runtime_tx_auth_state_refund_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
+  -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
+  -- dispatch. Transaction-aware callers stage 3000 here when tx.to is an
+  -- EIP-7702 delegation; standalone/probe inputs leave it zero.
+  "  la x11, runtime_tx_top_frame_regular_gas\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  sd x6, 568(x20)\n" ++
+  ".runtime_tx_top_frame_regular_done:\n" ++
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
@@ -3146,6 +3182,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_regular_refund:\n" ++
+  "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
    -- t1iqb: 64-byte zero-pad staging window for the VERIFIED arena-free
@@ -3189,6 +3227,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_calldata_floor:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_intrinsic_regular:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_top_frame_regular_gas:\n" ++
   "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy

@@ -92,7 +92,11 @@ def simpleTransferFeeRecipientBalVerifyFunction : String :=
   "  beqz a0, .Lstfv_have_price\n" ++
   "  li t0, 10; sd t0, 0(s7); j .Lstfv_ret\n" ++
   ".Lstfv_have_price:\n" ++
-  "  addi a0, s7, 80; li a1, 21000; addi a2, s7, 112\n" ++
+  "  addi a0, s7, 80; la t0, tgbpv_simple_transfer_gas_used; ld a1, 0(t0)\n" ++
+  "  bnez a1, .Lstfv_have_simple_transfer_gas_used\n" ++
+  "  li a1, 21000\n" ++
+  ".Lstfv_have_simple_transfer_gas_used:\n" ++
+  "  addi a2, s7, 112\n" ++
   "  jal ra, u256_mul_u64_be\n" ++
   "  beqz a0, .Lstfv_have_credit\n" ++
   "  li t0, 11; sd t0, 0(s7); j .Lstfv_ret\n" ++
@@ -250,6 +254,7 @@ def ziskSimpleTransferFeeRecipientBalVerifyDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "stfv_count:\n  .zero 8\n" ++
+  "tgbpv_simple_transfer_gas_used:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "stfv_wd_credit:\n  .zero 32\n" ++   -- uyu11.1: EIP-4895 withdrawal credit (0 unless caller set)
   "stfv_row_off:\n  .zero 8\n" ++
