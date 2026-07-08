@@ -225,7 +225,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
@@ -665,6 +665,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
   "  ld t0, 160(s2); li t1, 4; bne t0, t1, .Ldtrc_auth_done\n" ++
   "  ld a0, 176(s2); ld a1, 184(s2); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -687,12 +688,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- The callable dispatcher resets its state-gas cells during setup, so compute
   -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
+  "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
+  "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+  "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
+  "  addi t5, t5, -1; slli t5, t5, 3; la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
+  "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
+  ".Ldtrc_auth_predelegated_stored:\n" ++
+  "  la t4, teer_auth_count; ld t5, 0(t4); la t4, runtime_tx_auth_count; sd t5, 0(t4)\n" ++
   -- The callable dispatcher will reread calldata_len at payload+8+round8(code_len)
   -- before it has any verdict-side bounds context. If later staging accidentally
   -- clobbers that word, ziskemu panics on the derived slot-count address instead
@@ -762,7 +770,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a0, 7\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret"
 
