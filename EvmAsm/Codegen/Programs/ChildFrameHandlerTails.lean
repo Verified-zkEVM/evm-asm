@@ -36,6 +36,16 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcdac_done_" ++ tag ++ "\n" ++
   "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcdac_done_" ++ tag ++ "\n" ++
   "  lbu t4, 2(t3); bnez t4, .Lcdac_done_" ++ tag ++ "\n" ++
+  -- Same-block EIP-7702 authorizations update the account's code before message
+  -- execution. If the BAL has a final delegation marker for this callee, it is
+  -- the tx-state code execution-specs sees; charge/follow that marker instead
+  -- of the stale pre-state marker returned by code_at_header_state_root.
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
+  "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
+  "  li t4, 1; bne t6, t4, .Lcdac_done_" ++ tag ++ "\n" ++
   -- delegation marker: target = code[3..22] (20-byte canonical BE) at t3+3.
   -- runtime_access_account_charge reads 20 bytes from a0 (read-only), so pass it
   -- the in-place marker bytes; it debits 2500 + inserts on cold, 0 on warm.
