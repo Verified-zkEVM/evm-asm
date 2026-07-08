@@ -103,6 +103,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 | Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
+| Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -128,7 +129,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `accountRlpIs`/`accountDecodedIs` tied to `decode_account_from_leaf`
   (`Stateless/State/AccountAssertions.lean`); `storageSlotIs`/`storageLogIs`/
   `committedStorageIs` for the 128-byte exec-logs
-  (`Evm64/StorageAssertions.lean`); `mptNodeIs`/`nodeDbIs` with the
+  (`Evm64/StorageAssertions.lean`, now with `storageSlotIs_eq_flat` +
+  `evm_tstore_stack_spec_within` as the first consumer — see "Transient store
+  recipe"); `mptNodeIs`/`nodeDbIs` with the
   `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
   tie (`Evm64/WitnessAssertions.lean`). The concrete↔abstract refinement
@@ -136,6 +139,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE
   contents-update fold, `rlpToMutableNode`, storage log-replay lemmas, …).
+- **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
+  Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
+  (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler
+  keeps only the guards in `preBody`, byte-identity pinned by a `#guard` on
+  `emitProgram`. Witness `evm_tstore_spec_within` proves the 35-instruction body
+  by **splitting into two `runBlock` halves** (`evm_tstore_p1` 24 instrs,
+  `evm_tstore_p2` 11) composed via `cpsTripleWithin_frameR` +
+  `cpsTripleWithin_extend_code` (`ofProg_mono_append_left/right`) +
+  `cpsTripleWithin_seq_perm_same_cr`. **runBlock gotchas learned the hard way:**
+  it silently fails to close the goal past ~30 heap atoms in one pass, at a
+  non-variable entry (`base+96` — prove the half `∀ b2` and instantiate), and
+  when the code is `CodeReq.ofProg` applied bare (wrap in a named `abbrev` so
+  `deltaTarget` unfolds the abbrev, not `ofProg`). The stack wrapper
+  `evm_tstore_stack_spec_within` lifts to `transientLogLenIs`/`storageLogIs`/
+  `evmStackIs` via `storageLogIs_snoc` + `storageSlotIs_eq_flat` + `xperm`.
+  **TLOAD** is the reverse-scan sibling: same layout/assertions, scans the log
+  from the end for the matching `(addrHash, slotKey)` and pushes `current`
+  (0 if absent) — reuse `storageLogIs_split_at` for the isolate-entry shape.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
