@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Evm64.Transient.StoreProgram
 
 namespace EvmAsm.Codegen
 
@@ -537,43 +538,43 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x5d]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
-        staticContextWriteGuardAsm ++
-        "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
-        "  li x14, 0xa0830000\n" ++
-        "  slli x16, x15, 7\n" ++
-        "  add x14, x14, x16\n" ++        -- x14 = append target
-        -- addrHash = current frame env.ADDRESS [x20+0..x20+32] (per-frame keying).
-        "  ld x16, 0(x20)\n  sd x16, 0(x14)\n" ++
-        "  ld x16, 8(x20)\n  sd x16, 8(x14)\n" ++
-        "  ld x16, 16(x20)\n  sd x16, 16(x14)\n" ++
-        "  ld x16, 24(x20)\n  sd x16, 24(x14)\n" ++
-        -- slotKey from stack
-        "  ld x16, 0(x12)\n" ++
-        "  sd x16, 32(x14)\n" ++
-        "  ld x16, 8(x12)\n" ++
-        "  sd x16, 40(x14)\n" ++
-        "  ld x16, 16(x12)\n" ++
-        "  sd x16, 48(x14)\n" ++
-        "  ld x16, 24(x12)\n" ++
-        "  sd x16, 56(x14)\n" ++
-        -- original = 0 (unused for transient)
-        "  sd x0, 64(x14)\n" ++
-        "  sd x0, 72(x14)\n" ++
-        "  sd x0, 80(x14)\n" ++
-        "  sd x0, 88(x14)\n" ++
-        -- current from stack [x12+32..x12+64]
-        "  ld x16, 32(x12)\n" ++
-        "  sd x16, 96(x14)\n" ++
-        "  ld x16, 40(x12)\n" ++
-        "  sd x16, 104(x14)\n" ++
-        "  ld x16, 48(x12)\n" ++
-        "  sd x16, 112(x14)\n" ++
-        "  ld x16, 56(x12)\n" ++
-        "  sd x16, 120(x14)\n" ++
-        -- increment transient log_length
-        "  addi x15, x15, 1\n" ++
-        "  sd x15, 464(x20)"
-    , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+        staticContextWriteGuardAsm
+      -- Verified append core (byte-identical reorder of the former inline
+      -- preBody append text + the `addi x12, x12, 64` pop). Witnessed by
+      -- `EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within`.
+    , body    := EvmAsm.Evm64.Transient.evm_tstore .x20
     , tail    := .advanceAndRet 1 } ]
+
+/- **Byte-identity pin for the TSTORE body-as-Program rewire.**
+
+   The verified `evm_tstore` body emits exactly the append instruction stream
+   that used to live inline in the `h_TSTORE` `preBody`, followed by the
+   `addi x12, x12, 64` pop that used to be the handler `body`. This `#guard`
+   pins that emission so any future change to `evm_tstore` is caught. The only
+   textual difference from the former inline text is the transient-log-base
+   `li` immediate, now rendered in decimal (`2692939776`) rather than hex
+   (`0xa0830000`) — the same numeric value, so the assembler produces
+   byte-identical machine code (region map / symbol addresses unchanged). -/
+#guard emitProgram (EvmAsm.Evm64.Transient.evm_tstore .x20) =
+  "  ld x15, 464(x20)\n" ++
+  "  li x14, 2692939776\n" ++
+  "  slli x16, x15, 7\n" ++
+  "  add x14, x14, x16\n" ++
+  "  ld x16, 0(x20)\n  sd x16, 0(x14)\n" ++
+  "  ld x16, 8(x20)\n  sd x16, 8(x14)\n" ++
+  "  ld x16, 16(x20)\n  sd x16, 16(x14)\n" ++
+  "  ld x16, 24(x20)\n  sd x16, 24(x14)\n" ++
+  "  ld x16, 0(x12)\n  sd x16, 32(x14)\n" ++
+  "  ld x16, 8(x12)\n  sd x16, 40(x14)\n" ++
+  "  ld x16, 16(x12)\n  sd x16, 48(x14)\n" ++
+  "  ld x16, 24(x12)\n  sd x16, 56(x14)\n" ++
+  "  sd x0, 64(x14)\n  sd x0, 72(x14)\n  sd x0, 80(x14)\n  sd x0, 88(x14)\n" ++
+  "  ld x16, 32(x12)\n  sd x16, 96(x14)\n" ++
+  "  ld x16, 40(x12)\n  sd x16, 104(x14)\n" ++
+  "  ld x16, 48(x12)\n  sd x16, 112(x14)\n" ++
+  "  ld x16, 56(x12)\n  sd x16, 120(x14)\n" ++
+  "  addi x15, x15, 1\n" ++
+  "  sd x15, 464(x20)\n" ++
+  "  addi x12, x12, 64"
 
 end EvmAsm.Codegen

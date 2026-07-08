@@ -194,6 +194,17 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For byte-zero loops, prove the byte window step with `setBytes_singleton`
+  and make the tail append explicit before rewriting `List.replicate`. The
+  stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
+  `← List.replicate_append_replicate`; using `List.replicate_succ` rewrites to
+  the head-cons form and does not match the window suffix proof.
+- For byte-copy loops, distinguish writable-window byte loads from read-only
+  source loads. `execInstrRF_lbu_byte` is for `LBU` inside the writable region;
+  source-copy loops normally need a local `execInstrRF_lbu_ro` miss lemma plus
+  `execInstrRF_sb_byte` and `truncate_zeroExtend_byte` for the store. For
+  one-byte window steps, `List.take_add` and `List.take_one_drop_eq_of_lt_length`
+  avoid brittle deprecated `take_succ` rewrites.
 - For straight-line copy ports, avoid proving the semantic engine by repeatedly
   reassociating appended instruction chunks unless the append lemma is already
   a local simplifier. A failed append rewrite can leave huge nested `execBlock`
