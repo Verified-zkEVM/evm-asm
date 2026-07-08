@@ -175,31 +175,6 @@ def txGasBalPostVerifyRuntimeFunction : String :=
   "  la t0, tgbpvr_in; ld a0, 0(t0); ld a1, 8(t0); ld a2, 16(t0); ld a3, 24(t0)\n" ++
   "  la a4, tgbpvr_egp; la a5, tgbpvr_zero; la a6, tgbpvr_gasdebit\n" ++
   "  jal ra, sender_debit_from_gas\n" ++
-  "  # Type-4 sender settlement includes both the regular auth charge and the AUTH_BASE\n" ++
-  "  # Amsterdam state-gas component for each authorization. The runtime gas result does not\n" ++
-  "  # include this authorization-list settlement term, so add (7500 + 23*1530) per auth.\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tgbpvr_tx_type; la a3, tgbpvr_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Ltgbpvr_after_auth_fee\n" ++
-  "  la t0, tgbpvr_tx_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Ltgbpvr_after_auth_fee\n" ++
-  "  la t0, tgbpvr_inner_off; ld t3, 0(t0); bltu s1, t3, .Ltgbpvr_after_auth_fee\n" ++
-  "  add a0, s0, t3; sub a1, s1, t3; li a2, 9; la a3, tgbpvr_auth_off; la a4, tgbpvr_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltgbpvr_after_auth_fee\n" ++
-  "  la t0, tgbpvr_inner_off; ld t1, 0(t0); add t1, s0, t1\n" ++
-  "  la t0, tgbpvr_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, tgbpvr_auth_len; ld a1, 0(t0); la a2, tgbpvr_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Ltgbpvr_after_auth_fee\n" ++
-  "  la t0, tgbpvr_auth_count; ld a1, 0(t0); beqz a1, .Ltgbpvr_after_auth_fee\n" ++
-  "  li t0, 42690; mul a1, a1, t0\n" ++
-  "  la a0, tgbpvr_egp; la a2, tgbpvr_authdebit\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Ltgbpvr_auth_inconclusive\n" ++
-  "  la a0, tgbpvr_gasdebit; la a1, tgbpvr_authdebit; la a2, tgbpvr_gasdebit\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Ltgbpvr_auth_inconclusive\n" ++
-  ".Ltgbpvr_after_auth_fee:\n" ++
   "  mv a0, s0; mv a1, s1; la a2, tgbpvr_tx_type; la a3, tgbpvr_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Ltgbpvr_blob_inconclusive\n" ++
@@ -222,8 +197,6 @@ def txGasBalPostVerifyRuntimeFunction : String :=
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Ltgbpvr_blob_overflow\n" ++
   "  j .Ltgbpvr_blob_done\n" ++
-  ".Ltgbpvr_auth_inconclusive:\n" ++
-  "  li t0, 39; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
   ".Ltgbpvr_blob_inconclusive:\n" ++
   "  li t0, 39; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
   ".Ltgbpvr_blob_overflow:\n" ++
@@ -405,16 +378,12 @@ def ziskTxGasBalPostVerifyRuntimeDataSection : String :=
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
   "tgbpvr_blobdebit:\n  .zero 32\n" ++
-  "tgbpvr_authdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
   "tgbpvr_tx_type:\n  .zero 8\n" ++
   "tgbpvr_inner_off:\n  .zero 8\n" ++
   "tgbpvr_blob_count:\n  .zero 8\n" ++
-  "tgbpvr_auth_off:\n  .zero 8\n" ++
-  "tgbpvr_auth_len:\n  .zero 8\n" ++
-  "tgbpvr_auth_count:\n  .zero 8\n" ++
   "tcbg_struct:\n  .zero 248\n" ++
   ".balign 32\n" ++
   "tcbg_blob_fee_be:\n  .zero 32\n" ++
