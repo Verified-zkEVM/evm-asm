@@ -3050,8 +3050,9 @@ the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 `ws = replicate 32 0`) and `secfCopy32` (two-region ro-load→rw-store, post
 `ws = srcBytes`), each byte-tied `body.flatten 0 ++ [ret] = secf…_prog`,
-port-check + classical-3. `secfGetBitLsb` deferred (bit-extraction post
-wants the `.38.1` `beBytesToNat`/`testBit` vocabulary).
+port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
+`secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
+the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
