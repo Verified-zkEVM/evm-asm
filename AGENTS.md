@@ -45,7 +45,9 @@ callee-first order, against the separation-logic state-assertion vocabulary.
    pick-next rules, recipe table).
 3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
    `docs/agents/verified-replacement-strategy.md` (what to prove, spec shape,
-   what to do when a callee doesn't expose enough).
+   what to do when a callee doesn't expose enough); **sp-frame routines**
+   (stack frame + callee-saved regs, loops, cross-calls) →
+   `docs/porting-sp-frame-routines.md` (FramePort tactics, tiered recipe).
 4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
 5. Reviewing a PR → `docs/agents/review-playbook.md`.
 
