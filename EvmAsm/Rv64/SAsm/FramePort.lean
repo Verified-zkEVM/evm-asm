@@ -114,8 +114,8 @@ theorem CodeReq.sub_ofProg_of_lookup {cr : CodeReq} (A : Word) (seg : List Instr
 macro "code_mem" : tactic =>
   `(tactic| first
     | (with_reducible exact fun a i h => h)
-    | (with_reducible exact CodeReq.singleton_mono (by decide))
-    | (with_reducible exact CodeReq.sub_ofProg_of_lookup _ _ (by decide) (by decide)))
+    | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+    | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
 
 -- ============================================================================
 -- pcFree automation.
