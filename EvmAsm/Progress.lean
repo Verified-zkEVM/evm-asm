@@ -88,6 +88,7 @@ import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
 import EvmAsm.Evm64.Terminating.ReturnHaltSpec
 import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.RevertSpec
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Storage.LoadSpec
@@ -355,7 +356,25 @@ def registry : List OpcodeEntry := [
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
-  entry "REVERT" .execSpec none "TerminatingArgs",
+  entry "REVERT" .conditional (some "Terminating.evm_revert_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + rollback + halt " ++
+       "core, from the post-gas handler entry through the 0xa0010000 descriptor " ++
+       "(header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores " ++
+       "on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared " ++
+       "dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to " ++
+       "resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + " ++
+       "halt core verbatim (only the code layout shifts down 80 bytes with no " ++
+       "capture block, the kind-store value is 2, and the rollback is appended). " ++
+       "`.conditional` NOT because of a system_call_mode gate (REVERT has no " ++
+       "capture block — that is kind==1/RETURN-only — so it is strictly more " ++
+       "general than RETURN) but because (1) the memory-gas `preBody` (its " ++
+       ".exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and " ++
+       "(2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict " ++
+       "the input domain, exactly as in RETURN. The four `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+      (coverRef := some "revert_window_nondegenerate"),
   entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
       ("halt-triple over the verified `evm_invalid` program (byte image of the "
        ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
@@ -381,8 +400,8 @@ def totalEntries     : Nat := registry.length
 
 theorem provenCount_eq      : provenCount      = 66 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 2  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 17 := by decide
+theorem conditionalCount_eq : conditionalCount = 3  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 16 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -415,8 +434,8 @@ def totalBytes       : Nat :=
 
 theorem provenBytes_eq      : provenBytes      = 126 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 2   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 21  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 20  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -519,6 +538,11 @@ private noncomputable abbrev _return_witness :=
   @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within
 private noncomputable abbrev _return_cover :=
   @EvmAsm.Evm64.Terminating.return_precondition_reachable
+-- Full REVERT (0xfd) return-data window + rollback + halt core (see the note).
+private noncomputable abbrev _revert_witness :=
+  @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within
+private noncomputable abbrev _revert_cover :=
+  @EvmAsm.Evm64.Terminating.revert_window_nondegenerate
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
