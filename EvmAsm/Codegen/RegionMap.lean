@@ -186,8 +186,9 @@ def schemeAAnchors : List GuestRegion :=
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
     Shrunk by `0x3c` when child-error state-gas spill stopped being credited
     back to regular gas. Grew by `0x174` when the EIP-4788 fast path learned
-    same-slot stale timestamp reverts. -/
-def textSizeBytes : Nat := 0x5433c
+    same-slot stale timestamp reverts. Grew again after EIP-7702 child calls
+    began preferring same-block delegation markers over stale pre-state markers. -/
+def textSizeBytes : Nat := 0x545bc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)

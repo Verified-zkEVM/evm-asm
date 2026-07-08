@@ -81,6 +81,8 @@ import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
+import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
@@ -93,6 +95,8 @@ import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.MsetMemcpySAsm
 import EvmAsm.Codegen.Programs.BloomOrIntoSAsm
+import EvmAsm.Codegen.Programs.RunningBloomCopySAsm
+import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm

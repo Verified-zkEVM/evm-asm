@@ -11,7 +11,7 @@ namespace EvmAsm.Codegen
 def blockVerdictExactGasCheck : String :=
   -- xbi56.2: exact EIP-8037 block gas_used equality for rows whose runtime
   -- arena was prepared. State gas is intrinsic + executed - state_refund with
-  -- tx-error creation rules applied by eip8037_tx_state_gas.
+  -- tx-error creation-refund eligibility rules applied by eip8037_tx_state_gas.
   "  la a0, bvgr_tx_state_gas\n" ++
   "  la a1, bvgr_tx_exec_state_gas\n" ++
   "  la a2, bvgr_tx_state_refund\n" ++
