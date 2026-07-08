@@ -335,6 +335,8 @@ def blockVerdictTxGasPrechargeDataSection : String :=
   "tgbpv_blob_debit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_simple_transfer_gas_used:\n  .zero 8\n" ++
+  "tgbpv_skip_value:\n  .zero 8\n" ++
   "tgbpv_tx_type:\n  .zero 8\n" ++
   "tgbpv_inner_off:\n  .zero 8\n" ++
   "tgbpv_blob_count:\n  .zero 8\n" ++

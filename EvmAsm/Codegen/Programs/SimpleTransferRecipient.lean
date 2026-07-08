@@ -122,9 +122,14 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  mv a0, t2; mv a1, t3; addi a2, s5, 80\n" ++
   "  jal ra, account_extract_balance\n" ++
   "  bnez a0, .Lstrv_pre_balance_fail\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lstrv_skip_value_credit\n" ++
   "  addi a0, s5, 80; mv a1, s1; addi a2, s5, 144\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lstrv_overflow\n" ++
+  "  j .Lstrv_after_value_credit\n" ++
+  ".Lstrv_skip_value_credit:\n" ++
+  "  ld t0, 80(s5); sd t0, 144(s5); ld t0, 88(s5); sd t0, 152(s5); ld t0, 96(s5); sd t0, 160(s5); ld t0, 104(s5); sd t0, 168(s5)\n" ++
+  ".Lstrv_after_value_credit:\n" ++
   "  # uyu11.1: fold the EIP-4895 withdrawal credit (0 unless the caller set it)\n" ++
   "  # into expected = pre + value so the strict recipient check stays sound on\n" ++
   "  # withdrawal blocks (PR #8484 false-accept fix).\n" ++
@@ -223,6 +228,7 @@ def ziskSimpleTransferRecipientBalVerifyDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
+  "tgbpv_skip_value:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "strv_wd_credit:\n  .zero 32\n" ++   -- uyu11.1: EIP-4895 withdrawal credit (0 unless caller set)
   "strv_row_off:\n  .zero 8\n" ++
