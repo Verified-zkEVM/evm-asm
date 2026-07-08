@@ -1090,6 +1090,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bsbd_tgt_ptr:\n  .zero 8\n" ++
   "bsbd_tgt_len:\n  .zero 8\n" ++
+  "bsbd_code_from_bal:\n  .zero 8\n" ++
   -- bal_recipient_storage_keys private scratch:
   ".balign 8\n" ++
   "brsk_off:\n  .zero 8\n" ++

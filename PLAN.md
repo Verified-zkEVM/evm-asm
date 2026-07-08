@@ -189,6 +189,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
+  `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
+  (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
+  source/destination disjointness precondition and byte-identity pinned to
+  `blsgCopy96_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -199,16 +203,29 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`; `Bn254Fp2CopySAsm.lean` verifies the straight-line
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
+  dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
+  `Bn254Fp2CopySAsm.lean` verifies the straight-line
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
-  to `bnpFp2Copy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  to `bnpFp2Copy_prog`.
+  `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
   verifies the `call_frame_set_calldata` child-env writer
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
+  byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
+  post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
+  emitted rounded-word BitVec cost difference) pinned to
+  `memoryExpansionGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -2657,8 +2674,22 @@ ghost-pinned contract families (PinDemo) or spill to a caller-private
 dword outside the callee's `widenRw` window and reload after `LI`
 re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
 exposed set (blockOk rejects them) so verified code can't clobber them;
-frames are STATIC windows of the stack arena (no dynamic `addi sp`),
-design in docs/sasm-design.md §3.6.2. Indirect calls landed
+frames are STATIC windows of the stack arena (no dynamic `addi sp`)
+*at the `Stmt` layer*, design in docs/sasm-design.md §3.6.2.
+**Dynamic C-ABI leaf frames landed** (`SAsm/AbiFrame.lean` +
+`AbiFrameDemo.lean`, bead evm-asm-4ch8f.76): the guest's
+`addi sp,-N; sd ra/s0/s1; …body…; ld ra/s0/s1; addi sp,+N; ret`
+shape is modelled as a machine-level construct directly on
+`cpsTripleWithin` (the `blockOk`/`Stmt.sound` structured layer is
+untouched — fully additive). `sp` and the saved `s`-registers are
+ordinary owned `↦ᵣ` atoms inside the frame (frame-scoped exposure);
+the allocated slots below `sp` are a genuinely-owned `frameSlotsOwn`
+region; callee-saved preservation is *derived* from the
+`cpsTripleWithin` frame rule (save slots framed across the body),
+never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
+entry values + the body's rw effect, byte-identical (`#guard`) to a
+hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via

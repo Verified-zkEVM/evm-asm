@@ -200,6 +200,12 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   projections. The stable pattern is explicit per-pair `LD`/`SD` rewrites plus
   a separate semantic fold lemma (`copyFold64`-style) that rewrites the nested
   `setBytes` chain to the source bytes.
+- For straight-line SAsm store blocks, the final instruction's `blockVCs` tail is
+  `True`, so rewriting that last `execInstrRF` in the memory-VC simp set is often
+  unused and trips the warning gate. For post proofs, rewrite each store with
+  `execInstrRF_sd_dword`, then run `simp only` to collapse pair projections
+  before applying the semantic `setBytes` lemma. Avoid `subst` on huge
+  `execBlock` equalities; rewrite with the equality instead.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
