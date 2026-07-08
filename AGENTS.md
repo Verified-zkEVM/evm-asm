@@ -45,7 +45,9 @@ callee-first order, against the separation-logic state-assertion vocabulary.
    pick-next rules, recipe table).
 3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
    `docs/agents/verified-replacement-strategy.md` (what to prove, spec shape,
-   what to do when a callee doesn't expose enough).
+   what to do when a callee doesn't expose enough); **sp-frame routines**
+   (stack frame + callee-saved regs, loops, cross-calls) →
+   `docs/porting-sp-frame-routines.md` (FramePort tactics, tiered recipe).
 4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
 5. Reviewing a PR → `docs/agents/review-playbook.md`.
 
@@ -158,6 +160,8 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   5. In `vcgen` post cases, avoid closing large final-state equalities with bare `rfl`. Nontrivial definitional equality can timeout instead of failing clearly. Prove a small execution/engine lemma for the flattened body, rewrite the post target with it, then bridge to the semantic postcondition with an explicit list/value lemma.
   6. For byte-identical bottom-test loops (`Stmt.doWhile`), remember that `inv i` is after the `(i+1)`-th body execution. In the `inv_init` VC, `vcgen` may expose the loop-entry writable bytes under a generated local witness rather than the theorem parameter name; destruct the `sp` hypothesis and use that local witness. In the final post, use the failed guard to prove the exact terminal index, not just the fuel bound.
   7. In SAsm memory VCs, if the hypothesis is `ws.length = (someFn ...).rw.len`, prefer `change ws.length = <literal> at h_len` when the literal is known. `simpa [someFn] using h_len` can unfold the whole `Fn` (including body/post) and hit recursion limits for no useful reason.
+
+- **SAsm fixed byte loops:** for bottom-test byte loops like `blk2_st_le64`, keep the window post as a simple prefix/suffix splice (`targetBytes.take i ++ orig.drop i`) and split three lemmas before `vcgen`: one-byte splice, symbolic `execBlock` engine, and counter-nonzero bound. In `inv_step`, derive the `i + 1 < fuel` bound from the loop guard before calling the engine; otherwise `omega` sees only `i < fuel` and the final iteration looks reachable.
 - **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
   posts, `extract_pure`/`drop_pure` struggles): fold posts behind
   `@[irreducible]` helpers and extract pures one layer at a time — full
@@ -194,6 +198,23 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For top-tested `whileHeader` loops whose counter is decremented in the body,
+  derive the final pre-step bound from the taken guard (`Cond.holds`) and the
+  counter invariant before calling `omega`. The fuel bound alone may still
+  admit the exhausted state, producing impossible goals one iteration too late.
+- For SAsm loops that read immutable `Fn.region` bytes with `LBU` and have an
+  empty writable region, `execInstrRF_lbu_byte` is the wrong helper: it models
+  reads routed through `rw`. Use a small read-only `LBU` helper that rewrites
+  through `Region.byteAt` after proving `¬ inRw` for the empty `rw` window.
+- Descending pointer loops can have a terminal wrapped pointer (`src - 1`) even
+  when all loaded byte offsets are natural numbers. Avoid invariants of the
+  form `src + BitVec.ofNat _ (7 - k)` at the final state; use an explicit
+  finite offset helper and prove the load-address and post-step-pointer lemmas
+  separately.
+- When adapting a proven SAsm loop to a larger buffer, do not globally replace
+  numeric substrings. Buffer counts like 12/24 are ghost/spec constants, but
+  instruction immediates still use `BitVec 12` and `signExtend12`; changing those
+  silently produces bad imports or non-RISC-V-width instructions.
 - For byte-zero loops, prove the byte window step with `setBytes_singleton`
   and make the tail append explicit before rewriting `List.replicate`. The
   stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
