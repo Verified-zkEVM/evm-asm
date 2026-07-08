@@ -182,10 +182,11 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
 
     Bridge for the EIP-7702 existing-authority state-gas refund. For type-4
     authorizations that pass basic chain/nonce/target parsing, this recovers the
-    authority address, finds the authority's BAL AccountChanges row, and only
-    subtracts the refund when BAL records the matching 0xef0100||target
-    delegation marker. Callers pass BAL ptr 0 to keep the older intrinsic-only
-    behavior.
+    authority address, finds the authority's BAL AccountChanges row, and subtracts
+    the NEW_ACCOUNT refund when the authority existed in pre-state and BAL shows
+    the authorization nonce increment. It separately subtracts AUTH_BASE only when
+    the authority code was already a delegation marker. Callers pass BAL ptr 0 to
+    keep the older intrinsic-only behavior.
 
     Calling convention:
       a0 = encoded tx ptr, a1 = encoded tx len
@@ -252,6 +253,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, rlp_content_to_u64\n" ++
   "  bnez a1, .Lteer_next\n" ++
   "  mv t1, a0; li t2, -1; beq t1, t2, .Lteer_next\n" ++
+  "  sd t1, 144(sp)              # signed authorization nonce\n" ++
   "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_next\n" ++
@@ -261,6 +263,16 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
+  "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bne t1, t2, .Lteer_next\n" ++
+  "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
+  "  # account already exists, even if delegating to NULL_ADDRESS causes no code change.\n" ++
+  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
+  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
+  "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
+  liAmsterdamNewAccountStateGas "t3" ++
+  "  add s10, s10, t3\n" ++
+  ".Lteer_existing_code_check:\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
   "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
   "  li t3, 23; bne t2, t3, .Lteer_next\n" ++
@@ -274,15 +286,6 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
   ".Lteer_marker_match:\n" ++
-  "  # execution-specs set_delegation refunds the NEW_ACCOUNT state component when\n" ++
-  "  # the recovered authority account already exists in pre-state. When block_verdict\n" ++
-  "  # provides teer_records_ptr, use the matched BAL row index to read that pre-record flag.\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
-  liAmsterdamNewAccountStateGas "t3" ++
-  "  add s10, s10, t3\n" ++
-  ".Lteer_existing_code_check:\n" ++
   "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
   "  # BLOCK -- its delegation indicator is in the PRE-state, not this block's BAL. Spec\n" ++
   "  # set_delegation reads authority_code via get_code and refunds when is_valid_delegation.\n" ++
@@ -346,6 +349,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lteer_single_loop_setup\n" ++
   "  sd a0, 112(sp); sd a1, 120(sp); li s8, 0\n" ++
+  "  la t0, teer_auth_chain; sd zero, 0(t0)  # previous same-authority target was nonzero\n" ++
+  "  la t0, teer_auth_nonce; sd zero, 0(t0)  # same-tx AUTH_BASE refund count\n" ++
   ".Lteer_same_loop:\n" ++
   "  beq s8, s7, .Lteer_same_after_scan\n" ++
   "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
@@ -365,6 +370,16 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a1, .Lteer_single_loop_setup\n" ++
   "  sd a0, 128(sp); li t2, 20; bne a2, t2, .Lteer_single_loop_setup\n" ++
   "  sub s11, a0, a2; sd s11, 152(sp)\n" ++
+  "  beqz s8, .Lteer_same_authbase_counted\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_authbase_counted\n" ++
+  "  la t0, teer_auth_nonce; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteer_same_authbase_counted:\n" ++
+  "  mv t0, s11; li t1, 20; li t2, 0\n" ++
+  ".Lteer_same_target_or:\n" ++
+  "  beqz t1, .Lteer_same_target_ready\n" ++
+  "  lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lteer_same_target_or\n" ++
+  ".Lteer_same_target_ready:\n" ++
+  "  snez t2, t2; la t0, teer_auth_chain; sd t2, 0(t0)\n" ++
   "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lteer_single_loop_setup\n" ++
   "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
@@ -402,7 +417,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a0, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
   "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_same_final_no_code\n" ++
   "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
   "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
@@ -413,6 +428,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz t5, .Lteer_same_compute_refund\n" ++
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
+  ".Lteer_same_final_no_code:\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); bnez t1, .Lteer_single_loop_setup\n" ++
   ".Lteer_same_compute_refund:\n" ++
   "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_single_loop_setup\n" ++
   "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
@@ -422,7 +439,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz t3, .Lteer_same_have_new_refund\n" ++
   "  sub s10, s10, t4\n" ++
   ".Lteer_same_have_new_refund:\n" ++
-  "  addi t5, s7, -1\n" ++
+  "  la t5, teer_auth_nonce; ld t5, 0(t5)\n" ++
   "  li t4, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  mul t5, t5, t4\n" ++
   "  add s10, s10, t5\n" ++

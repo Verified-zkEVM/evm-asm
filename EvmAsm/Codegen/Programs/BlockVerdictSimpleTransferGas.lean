@@ -76,6 +76,16 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  addi t1, t1, -1\n" ++
   "  j .Lstig_slot_loop\n" ++
   ".Lstig_store_done:\n" ++
+  "  ld t0, 160(s0); li t1, 4; bne t0, t1, .Lstig_auth_done\n" ++
+  "  ld a0, 176(s0); ld a1, 184(s0); li a2, 9; la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lstig_fail\n" ++
+  "  ld t0, 176(s0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, bsg_access_len; ld a1, 0(t1); la a2, teer_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lstig_fail\n" ++
+  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 7500; mul t1, t1, t2; add s1, s1, t1\n" ++
+  ".Lstig_auth_done:\n" ++
   "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
   "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
   "  sd s1, 48(sp); sd s2, 56(sp)\n" ++
