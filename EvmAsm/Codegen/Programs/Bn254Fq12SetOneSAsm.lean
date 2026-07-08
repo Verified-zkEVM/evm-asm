@@ -57,8 +57,8 @@ namespace Bn254Fq12SetOneSAsm
 
 -- The two routines are adjacent in the guest text: `bnq_zero` (6 slots)
 -- immediately precedes `bnq_set_one`.
-#guard GuestAddrs.bnq_zero = 0x80030404
-#guard GuestAddrs.bnq_set_one = 0x8003041C
+#guard GuestAddrs.bnq_zero = 0x80030f74
+#guard GuestAddrs.bnq_set_one = 0x80030f8C
 #guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = GuestAddrs.bnq_set_one
 
 /-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
@@ -330,7 +330,7 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
     (((.x1 : Reg) ↦ᵣ ret) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (Reg.x0 ↦ᵣ (0 : Word))
       ** dwordsIs dst vs)
     (by pcf) hmvC
-  -- jal ra, bnq_zero (0x8003042C): the cross-call.
+  -- jal ra, bnq_zero: the cross-call.
   have hcallee := bnqZeroFlat_spec ((0x8003042C : Word) + 4) dst v7 vs hlen (by decide)
   have hcall := callWithin_spec (0x8003042C : Word) (0x80030404 : Word) ret
     (jalOff GuestAddrs.bnq_zero (GuestAddrs.bnq_set_one + 16)) (1 + 48 * (3 + 1) + 1)
