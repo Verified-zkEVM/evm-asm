@@ -77,10 +77,19 @@ def blockVerdictDirectDepositFallback : String :=
 
 /-- Tail of `block_verdict`, concatenated after the main body.
     Targeted pre-materialization receipt normalizations are intentionally absent:
-    wrong upstream gas/status/log values must be exposed by the consensus checks. -/
+    gas/status/log values must be derived from the verdict-side execution data
+    before the consensus checks. -/
 def blockVerdictReceiptsTail : String :=
   ".Lbv_after_gas_result_gate:\n" ++
   ".Lbv_mtx_b2_return:\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_receipt_gas_increments\n" ++
+  "  la a4, bvgr_tx_total_state_gas\n" ++
+  "  la a5, bvgr_block_gas_increments\n" ++
+  "  la a6, bvgr_tx_exec_state_gas\n" ++
+  "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++

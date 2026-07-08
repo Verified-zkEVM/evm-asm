@@ -23,23 +23,21 @@ def blockVerdictExactGasCheck : String :=
   "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  bnez a0, .Lbv_block_state_gas_fail\n" ++
-  -- The gas-result arena's block increment is settlement-style gas and can
-  -- include state gas. `eip8037_block_gas_used` takes the regular dimension
-  -- separately from state gas, so derive that regular input before the final
-  -- header comparison.
+  -- Derive Amsterdam's block-regular dimension from the exact pre-refund
+  -- combined gas and the net state-gas dimension:
+  --   tx_regular_gas = before_refund - tx_state_gas
+  --   block_regular_increment = max(tx_regular_gas, calldata_floor)
+  -- `before_refund` is `tx.gas - gas_left - state_gas_left`, so it includes
+  -- regular gas plus state gas. Subtracting `bvgr_tx_total_state_gas` here is
+  -- the spec formula, not a post-hoc correction to the header comparison.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
   "  slli t5, t1, 3\n" ++
-  "  la t6, bvgr_block_gas_increments; add t6, t6, t5; ld a0, 0(t6)\n" ++
-  "  la t6, bvgr_tx_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
-  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a2, 0(t6)\n" ++
-  "  bgeu a1, a2, .Lbv_regular_eip8037_have_state_sub\n" ++
-  "  mv a1, a2\n" ++
-  ".Lbv_regular_eip8037_have_state_sub:\n" ++
-  "  bltu a0, a1, .Lbv_regular_eip8037_floor\n" ++
+  "  la t6, bvgr_before_refund; add t6, t6, t5; ld a0, 0(t6)\n" ++
+  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
-  ".Lbv_regular_eip8037_floor:\n" ++
   "  la t6, bvgr_calldata_floor; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bgeu a0, a1, .Lbv_regular_eip8037_have_max\n" ++
   "  mv a0, a1\n" ++

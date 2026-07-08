@@ -1099,6 +1099,23 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld s4, 96(sp)\n" ++
   ".Lbsbd_skip_charge:\n" ++
+  -- EIP-7702: a delegation target that is an active precompile has empty code
+  -- for CALL/CALLCODE/STATICCALL/DELEGATECALL purposes. Return a distinct
+  -- nonzero status so top-level callers keep their EOA/no-code path, while
+  -- nested CALL can push the empty-code success word instead of attempting the
+  -- precompile with the delegated account's gas.
+  "  addi t0, s9, 3\n" ++
+  "  li t1, 0\n" ++
+  ".Lbsbd_pc_prefix:\n" ++
+  "  li t2, 18; beq t1, t2, .Lbsbd_pc_low16\n" ++
+  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbsbd_not_precompile\n" ++
+  "  addi t1, t1, 1; j .Lbsbd_pc_prefix\n" ++
+  ".Lbsbd_pc_low16:\n" ++
+  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
+  "  li t4, 1; bltu t3, t4, .Lbsbd_not_precompile\n" ++
+  "  li t4, 17; bgeu t4, t3, .Lbsbd_precompile_empty\n" ++
+  "  li t4, 256; beq t3, t4, .Lbsbd_precompile_empty\n" ++
+  ".Lbsbd_not_precompile:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  addi a2, s9, 3             # delegated address ptr\n" ++
@@ -1142,6 +1159,9 @@ def balCodePreimagesValidFunction : String :=
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)
   "  li a0, 0\n" ++
+  "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_precompile_empty:\n" ++
+  "  li a0, 2\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_next:\n" ++
   "  j .Lbsbd_loop\n" ++
