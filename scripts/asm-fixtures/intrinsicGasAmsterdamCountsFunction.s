@@ -21,20 +21,22 @@ intrinsic_gas_amsterdam_counts:
   slli t5, t1, 2              # non_zero_count * 4
   add t5, t5, t0              # tokens
   slli t6, t5, 2              # data cost = tokens * 4
-  li t4, 21000
+  li t4, 12000
   add t6, t6, t4              # intrinsic = base + data
+  li t4, 3000
+  add t6, t6, t4              # non-create recipient access; creation adds the remaining CREATE_ACCESS
   beqz a2, .Ligac_after_creation
-  li t4, 9000
+  li t4, 8000
   add t6, t6, t4
   addi t4, a1, 31
   srli t4, t4, 5
   slli t4, t4, 1              # init code cost = 2 * ceil(len / 32)
   add t6, t6, t4
 .Ligac_after_creation:
-  li t4, 2400
+  li t4, 3000
   mul t4, a3, t4
   add t6, t6, t4
-  li t4, 1900
+  li t4, 3000
   mul t4, a4, t4
   add t6, t6, t4
   li t4, 80
@@ -44,14 +46,14 @@ intrinsic_gas_amsterdam_counts:
   add t2, t2, t4             # access_tokens
   slli t4, t2, 4             # access-list floor gas = access_tokens * 16
   add t6, t6, t4
-  li t4, 7500
+  li t4, 15816
   mul t4, a5, t4
   add t6, t6, t4
   sd t6, 0(a6)
   slli t5, a1, 2             # floor calldata tokens = 4 * data_len
   add t5, t5, t2             # total floor tokens
   slli t5, t5, 4             # calldata floor gas = total tokens * 16
-  li t4, 21000
+  li t4, 12000
   add t5, t5, t4
   sd t5, 0(a7)
   li a0, 0
