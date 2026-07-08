@@ -244,12 +244,23 @@ def basicPrecompileCallTail
     "  lbu t3, 0(t0); bnez t3, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  addi t0, t0, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_ts_hi_zero\n" ++
     ".L" ++ tag ++ "_eip4788_ts_low_cmp_init:\n" ++
+    "  mv t5, t0\n" ++
     "  la t1, swd_ts_be8\n" ++
     "  li t2, 8\n" ++
     ".L" ++ tag ++ "_eip4788_ts_cmp:\n" ++
     "  beqz t2, .L" ++ tag ++ "_eip4788_current\n" ++
-    "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_stale_slot_check\n" ++
     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_ts_cmp\n" ++
+    ".L" ++ tag ++ "_eip4788_stale_slot_check:\n" ++
+    "  mv t0, t5; li t2, 8; li t3, 0\n" ++
+    ".L" ++ tag ++ "_eip4788_req_ts_u64:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_eip4788_req_idx\n" ++
+    "  lbu t4, 0(t0); slli t3, t3, 8; or t3, t3, t4; addi t0, t0, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_req_ts_u64\n" ++
+    ".L" ++ tag ++ "_eip4788_req_idx:\n" ++
+    "  li t4, 8191; remu t3, t3, t4\n" ++
+    "  la t0, swd_4788_slot; lbu t4, 30(t0); slli t4, t4, 8; lbu t6, 31(t0); or t4, t4, t6\n" ++
+    "  beq t3, t4, .L" ++ tag ++ "_eip4788_stale_current_slot\n" ++
+    "  j .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     ".L" ++ tag ++ "_eip4788_current:\n" ++
     -- The shortcut substitutes for the successful user-call path through the
     -- beacon-roots bytecode. Debit that path's regular gas from the EIP-150
@@ -308,6 +319,25 @@ def basicPrecompileCallTail
     ".L" ++ tag ++ "_eip4788_success:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1; sd x14, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
+    "  j .L" ++ tag ++ "_eip4788_done\n" ++
+    ".L" ++ tag ++ "_eip4788_stale_current_slot:\n" ++
+    -- Same-slot stale requests execute the EIP-4788 bytecode until the stored
+    -- timestamp check fails and reverts. The parent-state bytecode fallback is
+    -- wrong here because it cannot see the current block's begin-of-block write;
+    -- charge the regular gas used by that revert path before returning CALL=0.
+    "  li x16, 2204\n" ++
+    chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
+    "  ld t2, " ++ toString outSizeOff ++ "(x12); li t3, 32; bgeu t2, t3, .L" ++ tag ++ "_eip4788_stale_out_cap\n" ++
+    "  mv t3, t2\n" ++
+    ".L" ++ tag ++ "_eip4788_stale_out_cap:\n" ++
+    "  beqz t3, .L" ++ tag ++ "_eip4788_stale_fail\n" ++
+    "  ld t1, " ++ toString outOffsetOff ++ "(x12); add t1, x13, t1\n" ++
+    ".L" ++ tag ++ "_eip4788_stale_out_zero:\n" ++
+    "  sb zero, 0(t1); addi t1, t1, 1; addi t3, t3, -1; bnez t3, .L" ++ tag ++ "_eip4788_stale_out_zero\n" ++
+    ".L" ++ tag ++ "_eip4788_stale_fail:\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
+    ".L" ++ tag ++ "_eip4788_done:\n" ++
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".L" ++ tag ++ "_eip4788_fallthrough:\n"
