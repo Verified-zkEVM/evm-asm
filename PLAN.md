@@ -168,10 +168,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
   (`ephU32leFn_spec`, byte-identity pinned to `ephU32le_prog`),
   `BalGasValidSAsm.lean` (`bgvU32leFn_spec`, byte-identity pinned to
-  `bgvU32le_prog`), and `SszWitnessStateSAsm.lean` (`swsU32leFn_spec`,
-  byte-identity pinned to `swsU32le_prog`) are verified straight-line
-  byte-wise readers over the SAsm `Region` model (own-budget engine lemma per
-  the heavy `execBlock` reduction).
+  `bgvU32le_prog`), `SszWitnessStateSAsm.lean` (`swsU32leFn_spec`,
+  byte-identity pinned to `swsU32le_prog`), and
+  `Eip7702NonceReuseGuardSAsm.lean` (`enrgU32leFn_spec`, byte-identity pinned
+  to `enrgU32le_prog`) are verified straight-line byte-wise readers over the
+  SAsm `Region` model (own-budget engine lemma per the heavy `execBlock`
+  reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
@@ -181,6 +183,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
@@ -196,7 +199,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`.
+  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
+  byte-identity pinned to `runningBloomCopy_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
