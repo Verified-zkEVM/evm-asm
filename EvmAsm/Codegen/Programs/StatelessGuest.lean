@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
@@ -76,6 +77,7 @@ def statelessGuestUnit : BuildUnit := {
     -- scans block receipts for DEPOSIT_CONTRACT_ADDRESS logs -> type-0 deposit bodies, +
     -- extract_deposit_data). Self-contained (no dispatcher deps). Additive — unused until .C
     -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
+    blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
     materializeLogRecordsFunction ++ "\n" ++
