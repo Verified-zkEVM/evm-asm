@@ -23,10 +23,110 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+
+/-! Compute Amsterdam intrinsic regular gas and calldata floor for the non-creation
+    simple-transfer shortcut. This mirrors the runtime dispatcher setup path but
+    reads calldata/access-list fields from the already extracted simple-transfer
+    context, because the shortcut does not call the runtime dispatcher.
+
+    a0 = simple_transfer_tx_context ptr
+    returns a0=status, a1=intrinsic_regular, a2=calldata_floor, a3=intrinsic_state. -/
+def simpleTransferIntrinsicGasFunction : String :=
+  "simple_transfer_intrinsic_gas:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  li s1, 21000                 # intrinsic regular\n" ++
+  "  li s2, 21000                 # calldata floor\n" ++
+  "  ld s3, 56(s0)                # calldata ptr\n" ++
+  "  ld s4, 64(s0)                # calldata len\n" ++
+  ".Lstig_data_loop:\n" ++
+  "  beqz s4, .Lstig_access_list\n" ++
+  "  lbu t0, 0(s3)\n" ++
+  "  beqz t0, .Lstig_zero_byte\n" ++
+  "  addi s1, s1, 16\n" ++
+  "  addi s2, s2, 64\n" ++
+  "  j .Lstig_data_step\n" ++
+  ".Lstig_zero_byte:\n" ++
+  "  addi s1, s1, 4\n" ++
+  "  addi s2, s2, 64\n" ++
+  ".Lstig_data_step:\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  addi s4, s4, -1\n" ++
+  "  j .Lstig_data_loop\n" ++
+  ".Lstig_access_list:\n" ++
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  "  ld t0, 160(s0)\n" ++
+  "  beqz t0, .Lstig_store_done\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Lstig_access_field\n" ++
+  "  li a2, 8; li t1, 2; beq t0, t1, .Lstig_access_field\n" ++
+  "  li t1, 3; beq t0, t1, .Lstig_access_field\n" ++
+  "  li t1, 4; beq t0, t1, .Lstig_access_field\n" ++
+  "  j .Lstig_store_done\n" ++
+  ".Lstig_access_field:\n" ++
+  "  ld a0, 176(s0); ld a1, 184(s0); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lstig_fail\n" ++
+  "  ld t0, 176(s0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
+  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  bnez a0, .Lstig_fail\n" ++
+  "  la t0, runtime_tx_access_list_address_count; ld t1, 0(t0)\n" ++
+  ".Lstig_addr_loop:\n" ++
+  "  beqz t1, .Lstig_slot_count\n" ++
+  "  li t2, 3680\n" ++
+  "  add s1, s1, t2\n" ++
+  "  li t2, 1280\n" ++
+  "  add s2, s2, t2\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lstig_addr_loop\n" ++
+  ".Lstig_slot_count:\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; ld t1, 0(t0)\n" ++
+  ".Lstig_slot_loop:\n" ++
+  "  beqz t1, .Lstig_store_done\n" ++
+  "  li t2, 3948\n" ++
+  "  add s1, s1, t2\n" ++
+  "  li t2, 2048\n" ++
+  "  add s2, s2, t2\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lstig_slot_loop\n" ++
+  ".Lstig_store_done:\n" ++
+  "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
+  "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
+  "  sd s1, 48(sp); sd s2, 56(sp)\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_runtime_intrinsic_state_gas\n" ++
+  "  jal ra, tx_intrinsic_state_gas\n" ++
+  "  bnez a0, .Lstig_fail\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0)\n" ++
+  "  la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
+  "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
+  "  la t0, bv_chain_id; ld a4, 0(t0); li a5, 1\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  la t0, bv_runtime_intrinsic_state_gas; ld t1, 0(t0)\n" ++
+  "  bltu t1, a0, .Lstig_state_zero\n" ++
+  "  sub t1, t1, a0; sd t1, 0(t0); j .Lstig_state_done\n" ++
+  ".Lstig_state_zero:\n" ++
+  "  li t1, 0; sd zero, 0(t0)\n" ++
+  ".Lstig_state_done:\n" ++
+  "  ld s1, 48(sp); ld s2, 56(sp)\n" ++
+  "  li a0, 0; mv a1, s1; mv a2, s2; mv a3, t1\n" ++
+  "  j .Lstig_ret\n" ++
+  ".Lstig_fail:\n" ++
+  "  li a0, 1; li a1, 0; li a2, 0; li a3, 0\n" ++
+  ".Lstig_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
 def blockVerdictFunction : String :=
+  simpleTransferIntrinsicGasFunction ++
   "block_verdict:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -459,7 +559,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
-  "  bnez a0, .Lbv_cd_eoa_restore\n" ++
+  "  bnez a0, .Lbv_cd_eoa_confirmed\n" ++
   ".Lbv_cd_same_block_delegation:\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, bv_tx_recipient_code_hash\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
@@ -467,11 +567,14 @@ def blockVerdictFunction : String :=
   "  j .Lbv_contract_dispatch\n" ++
   ".Lbv_cd_eoa_restore:\n" ++
   "  la t2, bv_simple_transfer_tx        # restore t2 for the EOA path (jal clobbered it)\n" ++
-  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # EOA calldata not staged here\n" ++
+  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # unresolved code hash with calldata: conservative skip\n" ++
+  ".Lbv_cd_eoa_confirmed:\n" ++
+  "  la t2, bv_simple_transfer_tx        # confirmed empty-code recipient\n" ++
   "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
-  "  ld t0, 120(t2); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t0, 120(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_no_log_then_after_tx_gas_precharge\n" ++
   ".Lbv_tx_gas_precharge_nonzero_value:\n" ++
   "  # The post-balance verifier below models an EOA simple transfer: sender\n" ++
   "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
@@ -487,8 +590,56 @@ def blockVerdictFunction : String :=
   ".Lbv_tx_gas_precharge_pc_low16:\n" ++
   "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
   "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
-  "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
-  "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
+  "  li t4, 2; beq t3, t4, .Lbv_simple_transfer_precompile_sha256\n" ++
+  "  li t4, 17; bgeu t4, t3, .Lbv_simple_transfer_precompile_default\n" ++
+  "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_default\n" ++
+  "  j .Lbv_tx_gas_precharge_not_precompile\n" ++
+  ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
+  "  li t6, 3000\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_sha256:\n" ++
+  "  li t6, 60\n" ++
+  "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_precompile_default:\n" ++
+  "  li t6, 0\n" ++
+  ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  "  j .Lbv_simple_transfer_after_log_snapshot\n" ++
+  ".Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge:\n" ++
+  "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
+  "  jal ra, bv_emit_single_tx_tl7708\n" ++
+  "  jal ra, dispatcher_reemit_pending_tl\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  ".Lbv_simple_transfer_after_log_snapshot:\n" ++
+  "  ld t6, 8(sp)\n" ++
+  "  ld t4, 16(sp)\n" ++
+  "  ld t3, 32(sp)\n" ++
+  "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; sub t5, t5, t6\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  ld t5, 24(sp)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_simple_transfer_runtime_publish_fail:\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
@@ -498,8 +649,15 @@ def blockVerdictFunction : String :=
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
-  "  ld t0, 160(t2); li t1, 3; beq t0, t1, .Lbv_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
-  "  li t1, 4; beq t0, t1, .Lbv_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  "  ld t0, 160(t2); li t1, 3; bne t0, t1, .Lbv_stx_not_blob_skip_runtime_gas\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
+  ".Lbv_stx_not_blob_skip_runtime_gas:\n" ++
+  "  li t1, 4; bne t0, t1, .Lbv_stx_regular_gas_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  ".Lbv_stx_regular_gas_verify:\n" ++
+  "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
+  ".Lbv_stx_legacy_21k_verify:\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
@@ -686,17 +844,20 @@ def blockVerdictFunction : String :=
   -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (now incl. the Part 2 top-level
   -- transfer log above), to be threaded into the per-tx receipt record.
   "  jal ra, block_log_window_snapshot\n" ++
-  -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
-  -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
-  "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
-  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
+  -- EOA/simple-transfer execution does not run runtime dispatcher setup, so
+  -- publish gas from the same tx-context intrinsic helper used by the direct
+  -- shortcut. The resulting before-refund value is regular + state, which the
+  -- exact EIP-8037 block-gas check later splits back into its two dimensions.
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; sub t5, t5, t6\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  li t5, 1; la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
-  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++

@@ -306,6 +306,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_prestate_no\n" ++
   "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_prestate_no\n" ++
   "  lbu t1, 2(t0); bnez t1, .Lteer_prestate_no\n" ++
+  "  la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
   ".Lteer_prestate_no:\n" ++
@@ -438,12 +439,14 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
 
 /-! ## block_verdict_receipt_gas_eip8037_adjust
 
-    Repair EIP-7702 type-4 receipt gas increments when the runtime arena only
-    recorded regular execution gas. Amsterdam receipts use
-    `tx_gas_used_after_refund`; EIP-8037 block-state gas is tracked separately
-    and must not be folded into non-type-4 receipt cumulative gas. Decode
-    failures are non-gating: the helper leaves that tx's receipt gas at the
-    runtime value. -/
+    Derive EIP-7702 type-4 receipt gas increments from the verdict-side receipt
+    array. The runtime gas-result path already computes the post-refund/floor
+    receipt increment, including the EIP-8037 state-gas dimension; what is absent
+    for type-4 rows is the per-authorization regular intrinsic. Authorities
+    whose pre-state code was already a delegation marker are warm for the regular
+    dimension, so their missing regular delta is discounted by
+    `COLD_ACCOUNT_ACCESS = 2600`. Decode failures are non-gating: the helper
+    leaves that tx's receipt gas unchanged. -/
 def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "block_verdict_receipt_gas_eip8037_adjust:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -455,9 +458,6 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  mv s1, a1                   # tx list len\n" ++
   "  mv s2, a2                   # tx count\n" ++
   "  mv s3, a3                   # receipt gas increments\n" ++
-  "  mv s4, a4                   # intrinsic state gas array\n" ++
-  "  mv s5, a5                   # block gas increments (skip if receipt already includes state gas)\n" ++
-  "  sd a6, 104(sp)              # executed state gas array (optional)\n" ++
   "  beqz s2, .Lbvrga_done\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
   "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
@@ -491,114 +491,16 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvrga_next\n" ++
-  -- bbow4.7: full-gas-consumption type-4 rows can be floor-dominated. When
-  -- before_refund is still within the calldata floor plus the missing auth-base
-  -- margin, the consensus receipt gas is before_refund, not before_refund+auth.
-  -- huo4a: compute the type-4 receipt cumulative_gas SPEC-EXACTLY as the two
-  -- EIP-8037 block dimensions, replacing the prior per-shape +42690/+35190/2500
-  -- reconstruction. The runtime's regular pool omits the EIP-7702 per-auth
-  -- regular intrinsic (PER_AUTH_BASE_COST=7500/auth) and the auth-state intrinsic,
-  -- so the raw `bvgr_before_refund` (= tx.gas - (gas_left+state_gas_left)) is the
-  -- regular-execution + state-execution consumed but MISSING those intrinsics.
-  -- The spec receipt = tx_regular_gas + tx_state_gas (verified: msdfw 38509+133110
-  -- =171619). tx_state_gas is already correct in `bvgr_tx_total_state_gas` (net of
-  -- the new-account state refund); tx_regular_gas = (before_refund - exec_state) +
-  -- PER_AUTH_BASE_COST*auth_count. So the corrected pre-refund combined gas =
-  --   before_refund[i] - tx_exec_state_gas[i] + tx_total_state_gas[i] + 7500*auth_count
-  -- then apply the EIP-3529 gas refund (min(combined//5, refund_counter[i])) and the
-  -- EIP-7623 calldata floor (amsterdam fork.py:1132-1144). All inputs are verdict-
-  -- side arrays; no runtime change (the EIP-8037 2D-gas runtime stays as-is, 249/250).
   "  slli t1, s6, 3\n" ++
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0)\n" ++
-  "  la t0, bvrga_auth_count; ld t5, 0(t0); li t6, 7500; mul t5, t5, t6; add t5, t4, t5\n" ++
-  "  bleu t3, t5, .Lbvrga_type4_store_before_refund\n" ++
-  -- huo4a: dimension reconstruction = before_refund + tx_total_state_gas + 7500*auth_count,
-  -- THEN subtract tx_exec_state_gas. Add-before-subtract + saturate avoids the unsigned
-  -- UNDERFLOW that bit reverted txs (jouwf): a reverted SSTORE leaves bvgr_tx_exec_state_gas
-  -- holding the pre-revert state gas (large) while before_refund is small, so the old
-  -- `before_refund - exec_state` first step wrapped to ~2^64. When exec_state exceeds the
-  -- base the dimension is invalid (reverted), so saturate to 0 and let the max below recover
-  -- before_refund.
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
-  "  add t0, s4, t1; ld t4, 0(t0); mv t6, t4; add t3, t3, t4\n" ++   -- t3 += tx_total_state_gas[i], keep total in t6
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 = before_refund + tot + 7500*auth
-  "  mv a0, t4\n" ++                                                 -- a0 = authbase_total before t4 is reused
-  "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0)\n" ++              -- t4 = tx_exec_state_gas[i]
-  -- For legitimate txs base = before_refund+tot+7500 >= exec_state (before_refund already
-  -- includes the state charged to the pool). exec_state > base only happens on a REVERT,
-  -- where bvgr_tx_exec_state_gas holds the stale pre-revert state gas: the state was reverted
-  -- (state_used=0), so the correct exec_state contribution is 0 -> keep base, skip the
-  -- subtraction (verified: set_code_to_sstore revert receipt = before_refund 33221 + tot
-  -- 35190 + 7500 = 75911 = spec). This also avoids the unsigned underflow (jouwf).
-  -- bbow4.2.5.7: when the executed type-4 auth state gas equals the net tx state
-  -- gas (no existing-authority state refund), receipts must include that state
-  -- dimension. Subtract exec_state only when it is strictly larger than the net
-  -- state dimension, i.e. when the runtime pool included state that the refund
-  -- path removed from tx_total_state_gas.
-  -- bbow4.2.4: failed high-gas auth rows that reach this path have already paid
-  -- the per-auth regular intrinsic in `before_refund`; their receipt adds only
-  -- the EIP-8037 state dimension. Low failed rows still land in the floor/auth
-  -- margin branch below and add both dimensions there.
-  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); bnez t0, .Lbvrga_type4_authbase_ok\n" ++
-  "  sub t3, t3, a0\n" ++
-  ".Lbvrga_type4_authbase_ok:\n" ++
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t5, 0(t0)\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld a0, 0(t0); bne t5, a0, .Lbvrga_type4_subchk\n" ++
-  "  li a0, 21000; bne t5, a0, .Lbvrga_type4_subchk\n" ++
-  "  bleu t4, t6, .Lbvrga_type4_dimmaxchk\n" ++                       -- floor-only auth tx: keep state in receipt
-  ".Lbvrga_type4_subchk:\n" ++
-  "  bltu t3, t4, .Lbvrga_type4_dimmaxchk\n" ++                       -- exec_state > base (revert): keep base
-  "  sub t3, t3, t4\n" ++                                            -- t3 -= exec_state (no underflow)
-  ".Lbvrga_type4_dimmaxchk:\n" ++
-  -- max(dimension, before_refund): when the runtime under-charged the per-auth intrinsic
-  -- (set_code_to_self_destruct, gas_left>0) the dimension is the larger, correct value; when
-  -- before_refund already reflects the full charge (set_code_to_sstore exhausting gas, or a
-  -- revert) before_refund is the larger, correct value. #8989 omitted this and regressed
-  -- set_code_to_sstore[tx_value_1].
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t4, 0(t0)\n" ++   -- t4 = before_refund[i] (reload)
-  "  bgeu t3, t4, .Lbvrga_type4_dimmax\n" ++
-  "  mv t3, t4\n" ++
-  ".Lbvrga_type4_dimmax:\n" ++
-  "  li t4, 5; divu t5, t3, t4\n" ++                                 -- t5 = combined // 5
-  "  la t0, bvgr_refund_counter; add t0, t0, t1; ld t6, 0(t0)\n" ++  -- t6 = refund_counter[i]
-  "  bleu t6, t5, .Lbvrga_type4_refmin\n" ++
-  "  mv t6, t5\n" ++
-  ".Lbvrga_type4_refmin:\n" ++
-  "  sub t3, t3, t6\n" ++                                            -- t3 = combined - refund
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0)\n" ++  -- t4 = calldata_floor[i]
-  "  bgeu t3, t4, .Lbvrga_type4_store_final\n" ++
-  "  mv t3, t4\n" ++
-  ".Lbvrga_type4_store_final:\n" ++
-  "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
-  "  j .Lbvrga_next\n" ++
-  ".Lbvrga_type4_store_before_refund:\n" ++
-  -- bbow4.2.5.7 / EIP-7976: successful authorization-only transactions can land
-  -- here because before_refund equals the calldata floor while the dispatcher
-  -- omitted both PER_AUTH_BASE_COST and the EIP-8037 state dimension from the
-  -- receipt increment. The floor is not always 21000 after EIP-7976; for any exact
-  -- floor hit, the receipt is the net state dimension plus the calldata-floor
-  -- regular dimension plus PER_AUTH_BASE_COST per authorization.
-  -- bbow4.2.4: failed type-4 rows can spend a few VM gas above the calldata
-  -- floor before failing, but the consensus receipt still includes the auth
-  -- state-gas dimension plus PER_AUTH_BASE_COST. Gate that repair on the stored
-  -- tx status so successful full-gas rows keep the pre-existing floor behavior.
-  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t4, 0(t0); bnez t4, .Lbvrga_type4_store_before_refund_success\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); li t0, 21000; bne t4, t0, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  j .Lbvrga_type4_store_before_refund_with_dims\n" ++
-  ".Lbvrga_type4_store_before_refund_success:\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  li t5, 7500; mul t4, t4, t5; add t3, t3, t4\n" ++
-  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
-  "  j .Lbvrga_type4_store_before_refund_raw\n" ++
-  ".Lbvrga_type4_store_before_refund_with_dims:\n" ++
-  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++
-  ".Lbvrga_type4_store_before_refund_raw:\n" ++
-  "  add t2, s3, t1; sd t3, 0(t2)\n" ++
-  "  j .Lbvrga_next\n" ++
+  "  add t2, s3, t1; ld t3, 0(t2)\n" ++
+  "  la t0, bvrga_auth_count; ld t4, 0(t0); li t5, 7500; mul t4, t4, t5\n" ++
+  "  la t0, bvgr_tx_predelegated_auth_count; add t0, t0, t1; ld t6, 0(t0); beqz t6, .Lbvrga_auth_delta_ready\n" ++
+  "  li t5, 2600; mul t6, t6, t5; bltu t4, t6, .Lbvrga_auth_delta_zero\n" ++
+  "  sub t4, t4, t6; j .Lbvrga_auth_delta_ready\n" ++
+  ".Lbvrga_auth_delta_zero:\n" ++
+  "  li t4, 0\n" ++
+  ".Lbvrga_auth_delta_ready:\n" ++
+  "  add t3, t3, t4; sd t3, 0(t2)\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
@@ -1164,6 +1066,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_type:\n  .zero 8\n" ++
   "teer_inner_off:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_predelegated_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
