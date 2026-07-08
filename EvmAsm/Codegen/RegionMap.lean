@@ -185,8 +185,9 @@ def schemeAAnchors : List GuestRegion :=
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
     Shrunk by `0x3c` when child-error state-gas spill stopped being credited
-    back to regular gas. -/
-def textSizeBytes : Nat := 0x541c8
+    back to regular gas. Grew by `0x174` when the EIP-4788 fast path learned
+    same-slot stale timestamp reverts. -/
+def textSizeBytes : Nat := 0x5433c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
