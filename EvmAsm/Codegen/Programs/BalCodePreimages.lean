@@ -1038,6 +1038,7 @@ def balCodePreimagesValidFunction : String :=
   "  mv s1, a1                  # witness.state ptr\n" ++
   "  mv s2, a2                  # witness.state len\n" ++
   "  mv s10, a3                 # charge delegated access when nonzero\n" ++
+  "  la t0, bsbd_code_from_bal; sd zero, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
   "  beqz s3, .Lbsbd_no\n" ++
@@ -1158,6 +1159,7 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
   "  la t0, svf_codes_ptr; ld t5, 0(t0); sub t3, t3, t5\n" ++
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
+  "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
