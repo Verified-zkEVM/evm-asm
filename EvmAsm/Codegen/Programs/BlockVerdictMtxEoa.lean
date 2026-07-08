@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
 namespace EvmAsm.Codegen
 
@@ -80,6 +81,18 @@ def blockVerdictMtxEoaSettlement : String :=
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_eoa_tl7708_skip:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
+  topLevelValueRecipientStateGasAsm "bv_mtx_eoa" "bv_mtx_ctx" ++
+  "  beqz t0, .Lbv_mtx_eoa_state_done\n" ++
+  "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
+  "  bgeu t2, t0, .Lbv_mtx_eoa_state_res\n" ++
+  "  sub t3, t0, t2; sd x0, 0(t1)\n" ++
+  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_bail\n" ++
+  "  sub t2, t2, t3; sd t2, 568(t4); j .Lbv_mtx_eoa_state_used\n" ++
+  ".Lbv_mtx_eoa_state_res:\n" ++
+  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_used:\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++

@@ -84,9 +84,11 @@ import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
+import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
+import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe32U64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
@@ -107,10 +109,14 @@ import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
@@ -118,6 +124,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
+import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
@@ -141,6 +148,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
