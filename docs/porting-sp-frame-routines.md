@@ -40,7 +40,7 @@ by `.SD .x2 …` saves and ends with matching `.LD`s, `.ADDI .x2 .x2 (N)`,
 |---|---|---|---|
 | **A. straight-line body** | body has no `JAL`/`JALR` and no backward branch | `abi_frame` + `runBlock`/manual per-instruction specs | any agent (this doc suffices) |
 | **B. body with one countdown loop** | a backward `JAL .x0 (-…)` with a `BEQ ctr, x0, exit` header (**top-guard**), or a backward `BNE ctr, x0, (-…)` at the loop end (**do-while**) | tier A + `countdown_loop` (top-guard) / `countdown_loop_bottom` (do-while) | any agent, if the invariant is a simple accumulator/cursor |
-| **C. cross-call** | body contains `.JAL .x1 …` (links `ra`) | tier A/B + `callWithin_spec` / `frame_call` — but **every callee needs a whole-routine contract first** (see §6.3) | agent may proceed ONLY if all callees already have flat contracts; else port the callees first (bottom-up) or escalate |
+| **C. cross-call** | body contains `.JAL .x1 …` (links `ra`) | tier A/B + `callWithin_spec` / `frame_call` — but **every callee needs a whole-routine contract first**; if the callee has an `Fn.Spec`, DERIVE it with the adapter (§5a) instead of hand-writing | agent may proceed ONLY if all callees have flat contracts or `Fn.Spec`s to adapt; else port the callees first (bottom-up) or escalate |
 | **D. escalate** | see below | — | Opus/Fable |
 
 **Escalate (do not attempt) when:**
@@ -132,6 +132,7 @@ full drop-in discipline (§7) and is tier D unless you've done one before.
 | a top-guard countdown loop + its 5 side-conditions | `countdown_loop exitOff hbody` | `exitOff : BitVec 13` (the header `BEQ`'s exit offset), `hbody : ∀ n, n < N → cpsTripleWithin …` |
 | a do-while countdown loop | `countdown_loop_bottom backOff hbody` | `backOff : BitVec 13` (the tail `BNE`'s negative offset), `hbody` |
 | one `jal ra` call + its side-conditions (frame-aware form) | `frame_call offset hcallee` | `offset : BitVec 21` (the `JAL`'s immediate), `hcallee` (callee contract at `ret := A + 4`) |
+| a flat callee contract from an existing `Fn.Spec` | `Fn.retSpecFlat` + `cpsTripleWithin_peel_regOwns` + `regFileIs_eq_regAtoms` (§5a) | the leaf's `Fn.Spec`, its pinned post, the flat `Q` |
 | the body semantics, the loop invariant, the genuine post | — | **you** |
 
 ## 4. Tactic reference (exact call shapes)
@@ -226,6 +227,52 @@ outer shape, but their `asrtM` pre/post do NOT mix with the flat atoms
 this guide uses — do not try to consume them directly.) If the callee has
 no contract yet, port it first (bottom-up) or escalate.
 
+### 5a. Adapting an existing `Fn.Spec` leaf into a callee (the adapter)
+
+If the callee already has a structured-layer `Fn.Spec` (a `<Name>SAsm.lean`
+file with `vcgen`), do NOT hand-write its flat contract — derive it with
+the adapter `Fn.retSpecFlat` (`EvmAsm/Rv64/SAsm/FnFlat.lean`). Worked
+pattern: `Bn254Fq12SetOneSAsm.bnqZeroFlat_spec` (~60 lines, no loop proof).
+Skeleton:
+
+```lean
+theorem myCalleeFlat_spec (ret dst : Word) … (halign : …) :
+    cpsTripleWithin (STEPS) (ENTRY : Word) ret myCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns myScratch ** …memory…)
+      (((.x1 : Reg) ↦ᵣ ret) ** …post atoms… ** regOwns myScratch ** …) := by
+  rw [show (STEPS : Nat) = (myFn ARGS).body.steps + 1 from rfl]
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns myScratch (by decide) (P := …tracked atoms…)
+      (fun vf => ?_))
+  have had := Fn.retSpecFlat (myFn ARGS) ENTRY (myFn_spec …) (by show …; decide)
+    ret halign (fun r => if r = .x10 then dst else vf r) WS hlen
+    (by …f.pre…) (fun _ _ _ h => h.2.2.2)   -- post pins A = empAssertion
+    (Q := …) (fun rf' ws' hlen' hpost' hp hh => by …)
+  rw [show (myFn ARGS).programRet ENTRY = myCallee_prog from rfl] at had
+  have hadC := liftCode (cr' := myCr) had (by code_mem)
+  -- unpack `regFileIs` (`regFileIs_eq_regAtoms`, `regAtoms_eq_regAtomsOf`,
+  -- a local `exposedRegs_split`), convert memory (`dwordsIs_eq_bytesRegion`),
+  -- final `cpsTripleWithin_weaken` + `xperm_hyp`.
+```
+
+**Three inherent side-conditions** (named in `FnFlat.lean`'s module doc —
+check them BEFORE starting; each failure has a fix):
+
+1. **Footprint width**: an adapted contract owns the WHOLE exposed register
+   file (15 registers — that is what `Fn.Spec` claims), so the CALLER must
+   own all of them across the call: `regOwns` riders for the ones it does
+   not track (see `bnqRiders` in the worked file). A hand-written flat
+   theorem can have a smaller footprint; the adapter trades that for zero
+   per-callee proof.
+2. **Post completeness**: the adapter carries exactly `f.post`. If your
+   caller needs a final register value (e.g. the advanced `a0`), the
+   callee's `Fn` post must pin it — strengthen the `Fn` post (the
+   strongest-post already tracks it; e.g. `Bn254Fq12ZeroSAsm` gained
+   `rf.get .x10 = dst + 384 ∧ rf.get .x7 = 0` with a ~10-line VC patch).
+3. **Ambient pinning**: the callee's `pre`/`post`/loop invariant must pin
+   the ambient `A = empAssertion` (add the conjunct; it threads through
+   the strongest-post trivially).
+
 ## 6. Worked examples (copy these skeletons)
 
 ### 6.1 Straight-line body inside a frame — `AbiFrameCallDemo.bump`
@@ -319,6 +366,21 @@ template for tier C. Structure:
    `dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word))` — the FQ12
    at the entry `a0` is ONE.
 
+### 6.4 Anti-example: a thin wrapper blocked by its callee (STOP here)
+
+`header_extract_number` looks like the easiest cross-call port in the tree:
+an 8-instruction frame wrapper that calls `rlp_field_to_u64` with a fixed
+field index — a perfect `abi_frame` + `frame_call` fit. **It is not
+portable yet**, and trying to prove the caller first is wasted work: the
+callee `rlp_field_to_u64` is 42 instructions, framed, uses global
+`rfu_offset`/`rfu_length` scratch, itself calls `rlp_list_nth_item`, and
+has three status exits — it has neither a flat contract nor an adaptable
+`Fn.Spec`. The cross-call rule is strictly bottom-up: **when you triage a
+wrapper, triage its callees FIRST**; if any callee is missing a contract
+and is out of your tier, file/point to a blocker bead (here
+`evm-asm-4ch8f.26.7.1`) and stop at that layer. Do not "provisionally
+assume" a callee contract — there is no sound way to consume an assumption.
+
 ## 7. Byte-tie discipline
 
 **Verified == emitted is non-negotiable.** The `#guard`/`rfl` tie between
@@ -400,6 +462,24 @@ And verify by hand:
   call composes with `cpsTripleWithin_frameR` +
   `cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)` —
   copy the chain from `bnqZeroFlat_spec` or `twiceFrame_spec`.
+- **Separate semantic constants from address anchors.** When adapting a
+  port from a sibling routine, NEVER substitute constants mechanically:
+  address literals can embed the size token (a `blq` port was bitten by an
+  address ending in `…48` colliding with the 48-dword count). Keep two
+  clearly-labeled blocks — the semantic constants (element count, byte
+  size, post value) and the address anchors (entry, call site,
+  per-instruction addresses derived as entry + 4·k) — and `#guard`-tie
+  every anchor to its `GuestAddrs` constant so a stale anchor fails the
+  build instead of silently proving a theorem about the wrong address
+  (exactly the drift the `#guard`s caught in `Bn254Fq12SetOneSAsm.lean`
+  after a guest re-link).
+- **Framed empty-core jumps leave a leading `empAssertion`.** `jal x0`
+  (and other `empAssertion → empAssertion` specs) framed with `F` produce
+  `(empAssertion ** F)`-shaped states; clean up with the
+  `sepConj_emp_left'`/`sepConj_emp_right'` equalities (`rw` them, or keep
+  the `empAssertion` atom and let `xperm_hyp` match it — both sides must
+  then carry the SAME number of `emp` atoms; a count mismatch is the usual
+  cause of `xperm: could not find atom … empAssertion`).
 - **Genuine post, always.** If you cannot state/prove the routine's real
   semantics, stop and report; a weakened post merged today poisons every
   future composition on top of it.
