@@ -134,7 +134,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- StateGasCosts.NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530) = 183600
   -- in the STATE dimension (spec amsterdam vm/instructions/system.py:660-671), NOT the legacy
   -- 25000 GAS-dim surcharge that this replaces. The GAS-dim cost is only base(5000, dispatch) +
-  -- cold(2600, ee21v access gas); the new-account cost moved entirely to the state dimension under
+  -- cold(3000, ee21v access gas); the new-account cost moved entirely to the state dimension under
   -- EIP-8037. Mirror charge_state_gas (ChildFrameHandlerTails / Storage.lean): drain
   -- evm_state_gas_left, spill the remainder into the frame gas_left (568(x20)), OOG when both
   -- reservoirs are short; state_gas_used += charge. No refund snapshot -- the spec does not

@@ -54,7 +54,7 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-  -- add the 100 warm-floor the helper omits, so total = 2600 cold / 100 warm.
+  -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
   "  ld t0, 568(x20)\n  li t1, 100\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
@@ -93,13 +93,13 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .L" ++ tag ++ "_precompile_cmp\n" ++
   ".L" ++ tag ++ "_precompile_value_balok:\n" ++
-  "  li t0, 9000\n" ++
+  "  li t0, 10300\n" ++
   "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
   "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
   ".L" ++ tag ++ "_precompile_balok:\n" ++
   "  j .L" ++ tag ++ "_precompile_dispatch\n" ++
   ".L" ++ tag ++ "_precompile_insuffbal:\n" ++
-  "  li t0, 6700\n" ++
+  "  li t0, 8000\n" ++
   "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
   "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
   "  la x15, evm_precompile_frame\n" ++
@@ -219,7 +219,7 @@ def basicPrecompileCallTail
     "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
     "  jal ra, runtime_access_account_charge\n" ++
     -- EIP-7702: when the callee is a delegation marker, ALSO charge the delegation
-    -- target's access (cold 2600 / warm 100). callDelegationAccessChargeAsm
+    -- target's access (cold 3000 / warm 100). callDelegationAccessChargeAsm
     -- preserves s9/s10/s11 and x10/x12/x13, so the restore below still holds.
     callDelegationAccessChargeAsm tag ++
     "  mv x13, s9\n" ++
@@ -246,7 +246,7 @@ def basicPrecompileCallTail
     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_addr_cmp\n" ++
     ".L" ++ tag ++ "_eip4788_addr_match:\n" ++
     "  ld t0, " ++ toString inSizeOff ++ "(x12); li t1, 32; bne t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
-    "  ld t0, 0(x12); li t1, 2100; bltu t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  ld t0, 0(x12); li t1, 3000; bltu t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  ld t0, " ++ toString inOffsetOff ++ "(x12); add t0, x13, t0\n" ++
     "  li t2, 24\n" ++
     ".L" ++ tag ++ "_eip4788_ts_hi_zero:\n" ++

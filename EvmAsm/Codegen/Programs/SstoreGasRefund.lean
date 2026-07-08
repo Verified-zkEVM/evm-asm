@@ -34,12 +34,10 @@ open EvmAsm.Rv64
 
     Mirrors execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py:
     cold surcharge, original/current/new gas branch, and refund counter branch.
-    Amsterdam dropped the legacy EIP-2200 SET(20000) split: clean-changing
-    charges COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS = 2900 regardless of the
-    original being zero (the creation charge moved to EIP-8037 state gas), and
-    the restore refund is uniformly COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS -
-    WARM_ACCESS = 2800 (the zero-restore case additionally credits state gas,
-    surfaced via the +32 flag). -/
+    Amsterdam charges the access cost (cold 3000 or warm 100) and, on the first
+    change to a slot in the transaction, STORAGE_WRITE = 10000. Restore refunds
+    STORAGE_WRITE, and first-time clears use REFUND_STORAGE_CLEAR = 12480. The
+    zero-restore case additionally credits state gas, surfaced via the +32 flag. -/
 def sstoreGasRefundOutcomeFunction : String :=
   "sstore_gas_refund_outcome:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -79,35 +77,32 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  addi t0, t0, 8\n" ++
   "  j .Lsgr_cmp\n" ++
   ".Lsgr_cmp_done:\n" ++
-  "  li s6, 0                    # gas_cost\n" ++
+  "  li s6, 100                  # gas_cost\n" ++
   "  li s7, 0                    # refund_delta signed\n" ++
   "  bnez a3, .Lsgr_access_warm\n" ++
-  "  li t0, 2100\n" ++
-  "  add s6, s6, t0\n" ++
+  "  li s6, 3000\n" ++
   ".Lsgr_access_warm:\n" ++
   "  beqz s3, .Lsgr_warm_access_cost\n" ++
   "  bnez s4, .Lsgr_warm_access_cost\n" ++
-  "  li t0, 2900                 # clean-changing: COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS\n" ++
+  "  li t0, 10000                # clean-changing: STORAGE_WRITE\n" ++
   "  add s6, s6, t0\n" ++        -- (Amsterdam: no SET split; zero-origin creation is EIP-8037 state gas)
   "  j .Lsgr_refund\n" ++
   ".Lsgr_warm_access_cost:\n" ++
-  "  li t0, 100\n" ++
-  "  add s6, s6, t0\n" ++
   ".Lsgr_refund:\n" ++
   "  li t2, 0                    # zero-restore state-gas credit flag\n" ++
   "  bnez s4, .Lsgr_store\n" ++
   "  bnez s0, .Lsgr_restore_check\n" ++
   "  bnez s1, .Lsgr_reverse_clear\n" ++
   "  beqz s2, .Lsgr_restore_check\n" ++
-  "  li t0, 4800\n" ++
+  "  li t0, 12480\n" ++
   "  add s7, s7, t0\n" ++
   "  j .Lsgr_restore_check\n" ++
   ".Lsgr_reverse_clear:\n" ++
-  "  li t0, 4800\n" ++
+  "  li t0, 12480\n" ++
   "  sub s7, s7, t0\n" ++
   ".Lsgr_restore_check:\n" ++
   "  beqz s5, .Lsgr_store\n" ++
-  "  li t0, 2800                 # restore: COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS - WARM_ACCESS\n" ++
+  "  li t0, 10000                # restore: STORAGE_WRITE\n" ++
   "  add s7, s7, t0\n" ++
   "  beqz s0, .Lsgr_store\n" ++
   "  li t2, 1                    # zero restore: caller credits state gas (EIP-8037)\n" ++

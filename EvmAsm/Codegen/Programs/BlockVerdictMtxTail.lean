@@ -283,7 +283,7 @@ def blockVerdictMtxValidationTail : String :=
   -- here, consuming the A1 skip-list. CONSERVATIVE guard: effect-log overflow (skip -> never
   -- false-reject). NOTE (bmvmx.5.5.7.3): with nonstorageEffectLogCap = 32768 the overflow guard is
   -- now UNREACHABLE under the 200M block-gas envelope (cheapest record-producing op is a value-CALL
-  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=9100 regular gas, so <= 200M/9100 ~= 21978 < 32768 raw
+  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=10400 regular gas, so <= 200M/10400 ~= 19230 < 32768 raw
   -- records), so it no longer skips any in-scope block.
   -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
   -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
