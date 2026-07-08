@@ -55,7 +55,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_block_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bv_block_hash_check_enabled:\n  .zero 8\n" ++
+  "bv_block_hash_check_enabled:\n  .dword 1\n" ++
   ".balign 8\n" ++
   "svf_tx_count:\n  .zero 8\n" ++
   "svf_tx_descriptors:\n  .zero 32768\n" ++

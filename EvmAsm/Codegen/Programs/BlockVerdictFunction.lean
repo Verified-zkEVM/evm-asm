@@ -1330,16 +1330,8 @@ def blockVerdictFunction : String :=
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
-  "  beqz a0, .Lbv_eip7778_gate_ok\n" ++
-  -- WIP: two Amsterdam storage-clear multi-tx rows have complete runtime gas results but the
-  -- remaining-block-gas helper is one gas too strict on tx2. Keep this exact signature moving
-  -- while the EIP-7778 per-tx increment accounting is repaired.
-  "  li t0, 1; bne a0, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  li t0, 2; bne a1, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  li t0, 71057; bne a2, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  la t0, bvgr_block_gas_increments; ld t1, 8(t0); li t2, 21064; beq t1, t2, .Lbv_eip7778_gate_ok\n" ++
-  "  li t2, 21000; bne t1, t2, .Lbv_eip7778_block_gas_fail\n" ++
-  ".Lbv_eip7778_gate_ok:\n" ++
+  "  bnez a0, .Lbv_eip7778_block_gas_fail\n" ++
+
   blockVerdictExactGasCheck ++
   blockVerdictReceiptsTail
 
