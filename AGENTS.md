@@ -194,6 +194,10 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- When adapting a proven SAsm loop to a larger buffer, do not globally replace
+  numeric substrings. Buffer counts like 12/24 are ghost/spec constants, but
+  instruction immediates still use `BitVec 12` and `signExtend12`; changing those
+  silently produces bad imports or non-RISC-V-width instructions.
 - For byte-zero loops, prove the byte window step with `setBytes_singleton`
   and make the tail append explicit before rewriting `List.replicate`. The
   stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
