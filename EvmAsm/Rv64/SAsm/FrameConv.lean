@@ -21,11 +21,23 @@
     they are re-materialized by `LI` from the static layout (§3.6.1).
 
   s-registers (and `sp`/`gp`/`tp`) are outside the exposed set: `blockOk`
-  rejects any access, so verified SAsm code cannot clobber them and no
-  preservation machinery is needed.  Frames are *static* windows of the
-  stack arena — assigned by the global memory layout (bead evm-asm-4ch8f.6)
-  and carved per call edge by `widenRw`; verified code contains no dynamic
-  `addi sp` prologue.
+  rejects any access, so verified *SAsm structured* code cannot clobber them
+  and no preservation machinery is needed at the `Stmt` layer.  The frames
+  described here are *static* windows of the stack arena — assigned by the
+  global memory layout (bead evm-asm-4ch8f.6) and carved per call edge by
+  `widenRw`; SAsm `Stmt` code contains no dynamic `addi sp` prologue.
+
+  UPDATE (bead evm-asm-4ch8f.76): the guest's *dynamic* C-ABI leaf frames — an
+  `addi sp, sp, -N` prologue that saves `ra`/callee-saved `s`-registers, uses
+  them as locals, restores them, and `addi sp, sp, +N` before `ret` — are now
+  modelled by the machine-level frame construct in `AbiFrame.lean` (demo:
+  `AbiFrameDemo.lean`).  That construct sits directly on `cpsTripleWithin`
+  (below the `blockOk`/`Stmt.sound` structured layer, which is left untouched):
+  `sp` and the saved `s`-registers become ordinary owned `↦ᵣ` atoms inside the
+  frame, the allocated stack slots below `sp` are a genuinely-owned
+  `frameSlotsOwn` region, and callee-saved preservation is *derived* from the
+  `cpsTripleWithin` frame rule (the save slots sit in the frame across the
+  body), never assumed.
 -/
 
 import EvmAsm.Rv64.SAsm.HandleWiden
