@@ -2692,6 +2692,20 @@ region; callee-saved preservation is *derived* from the
 never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
 entry values + the body's rw effect, byte-identical (`#guard`) to a
 hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+**Generalized to a reusable lemma** (branch `feat/abi-frame-spec`,
+stacks on #9949): the construct is now parameterized over a
+`FrameDesc = List (Reg × BitVec 12)` of `(register, slot-offset)`;
+`storeSeq_spec`/`loadSeq_spec` prove the save/restore sequences by
+**induction over that list**, and `abiFrame_spec` composes
+prologue·body·epilogue·`ret` for a *free* `sp0`, *free* frame descriptor
+(`ra` at head via `raOfs`+`sregs`, `raOfs` free), *free* frame size, and an
+arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
+concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
+values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
+one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
+A survey of the emitted guest found **no clean sp-frame leaf** to port via
+`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
+the real-routine port remains deferred.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
