@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
