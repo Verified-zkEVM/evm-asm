@@ -173,6 +173,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
   pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
