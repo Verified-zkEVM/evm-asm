@@ -10,43 +10,70 @@ parent_header_matches_witness_first:
   mv s4, a4                  # is_match out ptr
   sd zero, 0(s4)
   beqz s3, .Lphmw_empty       # empty section -> status 1
-  # Compute element 0 bounds (SSZ list).
-  lwu t0, 0(s2)
-  srli t0, t0, 2              # N = first_offset / 4
-  beqz t0, .Lphmw_empty      # zero entries
-  lwu t1, 0(s2)               # el_0 inner offset (= 4 * N)
-  add s5, s2, t1              # el_0 start
-  # el_0 end: if N > 1, read offset[1] (4 bytes at offset 4); else use section_end.
-  li t2, 1
-  bgtu t0, t2, .Lphmw_have_next
-  add s6, s2, s3              # el_0_end = section_end
-  j .Lphmw_compare
-.Lphmw_have_next:
-  lwu t2, 4(s2)
-  add s6, s2, t2              # el_0_end = section + inner_off[1]
-.Lphmw_compare:
+  # Byte-reconstruct offset[0] (u32 LE; the section pointer may be unaligned,
+  # so no lwu). N = offset[0] / 4.
+  mv t6, s2
+  lbu t0, 0(t6)
+  addi t6, t6, 1
+  lbu t1, 0(t6)
+  addi t6, t6, 1
+  lbu t2, 0(t6)
+  addi t6, t6, 1
+  lbu t3, 0(t6)
+  slli t1, t1, 8
+  slli t2, t2, 16
+  slli t3, t3, 24
+  add t0, t0, t1
+  add t0, t0, t2
+  add t0, t0, t3
+  srli t4, t0, 2              # N = offset[0] / 4
+  beqz t4, .Lphmw_empty      # zero entries -> status 1
+  add s5, s2, t0              # el_0 start
+  # el_0 end: if N > 1, byte-reconstruct offset[1]; else use section_end.
+  li t5, 1
+  bltu t5, t4, .Lphmw_multi
+  add s6, s2, s3              # el_0 end = section end
+  j .Lphmw_join
+.Lphmw_multi:
+  addi t6, s2, 4
+  lbu t0, 0(t6)
+  addi t6, t6, 1
+  lbu t1, 0(t6)
+  addi t6, t6, 1
+  lbu t2, 0(t6)
+  addi t6, t6, 1
+  lbu t3, 0(t6)
+  slli t1, t1, 8
+  slli t2, t2, 16
+  slli t3, t3, 24
+  add t0, t0, t1
+  add t0, t0, t2
+  add t0, t0, t3
+  add s6, s2, t0              # el_0 end = offset[1]
+.Lphmw_join:
   sub t0, s6, s5              # el_0 length
-  # Length must match parent_header_rlp_len.
-  bne t0, s1, .Lphmw_no_match_success
-  # Byte-compare s0..s0+s1 against s5..s6.
+  bne t0, s1, .Lphmw_len_mismatch
+  # Branch-free memcmp countdown: matchFlag &= (byte_i equal) over ALL bytes.
   mv t1, s0
   mv t2, s5
   mv t3, s1
+  li t0, 1                    # matchFlag
 .Lphmw_loop:
-  beqz t3, .Lphmw_match
+  beqz t3, .Lphmw_loopdone
   lbu t4, 0(t1)
   lbu t5, 0(t2)
-  bne t4, t5, .Lphmw_no_match_success
+  xor t4, t4, t5
+  sltiu t6, t4, 1
+  and t0, t0, t6
   addi t1, t1, 1
   addi t2, t2, 1
   addi t3, t3, -1
   j .Lphmw_loop
-.Lphmw_match:
-  li t1, 1
-  sd t1, 0(s4)
+.Lphmw_loopdone:
+  sd t0, 0(s4)                # is_match = matchFlag
   li a0, 0
   j .Lphmw_ret
-.Lphmw_no_match_success:
+.Lphmw_len_mismatch:
   li a0, 0
   j .Lphmw_ret
 .Lphmw_empty:

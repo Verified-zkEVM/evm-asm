@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Rv64.SAsm.ParentHeaderFrame
 import EvmAsm.Codegen.Programs.HeaderGasExtract
 
 namespace EvmAsm.Codegen
@@ -692,6 +693,17 @@ def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
     AND any non-equality is detected without paying for two
     keccak calls.
 
+    RE-EMITTED in verified ABI-frame form (bead evm-asm-ffziu): the
+    offset-table words are byte-reconstructed with lbu (the section
+    pointer may be 4-unaligned, which the verified RV64 model rejects
+    for lwu), and the byte compare is a branch-free countdown that
+    scans ALL len bytes accumulating a match flag — functionally
+    identical outputs to the original early-exit form on every input
+    (both loops only read within the guarded element span and write
+    nothing until after the loop).  Verified end-to-end by
+    `SAsm.ParentHeaderFrame.phmwFrame_spec` via `abiFrame_spec` +
+    `countdownLoop_spec` + `memcmpLoop_spec`; byte-tie below.
+
     Calling convention:
       a0 (input)  : parent_header_rlp ptr
       a1 (input)  : parent_header_rlp_len
@@ -720,33 +732,60 @@ def parentHeaderMatchesWitnessFirst_prog : Program :=
     .MV .x19 .x13,
     .MV .x20 .x14,
     .SD .x20 .x0 (0 : BitVec 12),
-    .BEQ .x19 .x0 (124 : BitVec 13),
-    .LWU .x5 .x18 (0 : BitVec 12),
-    .SRLI .x5 .x5 (2 : BitVec 6),
-    .BEQ .x5 .x0 (112 : BitVec 13),
-    .LWU .x6 .x18 (0 : BitVec 12),
-    .ADD .x21 .x18 .x6,
-    .LI .x7 (1 : Word),
-    .BLTU .x7 .x5 (12 : BitVec 13),
+    .BEQ .x19 .x0 (232 : BitVec 13),
+    .MV .x31 .x18,
+    .LBU .x5 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x6 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x7 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x28 .x31 (0 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .SLLI .x7 .x7 (16 : BitVec 6),
+    .SLLI .x28 .x28 (24 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x5 .x5 .x7,
+    .ADD .x5 .x5 .x28,
+    .SRLI .x29 .x5 (2 : BitVec 6),
+    .BEQ .x29 .x0 (168 : BitVec 13),
+    .ADD .x21 .x18 .x5,
+    .LI .x30 (1 : Word),
+    .BLTU .x30 .x29 (12 : BitVec 13),
     .ADD .x22 .x18 .x19,
-    .JAL .x0 (12 : BitVec 21),
-    .LWU .x7 .x18 (4 : BitVec 12),
-    .ADD .x22 .x18 .x7,
+    .JAL .x0 (64 : BitVec 21),
+    .ADDI .x31 .x18 (4 : BitVec 12),
+    .LBU .x5 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x6 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x7 .x31 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .LBU .x28 .x31 (0 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .SLLI .x7 .x7 (16 : BitVec 6),
+    .SLLI .x28 .x28 (24 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x5 .x5 .x7,
+    .ADD .x5 .x5 .x28,
+    .ADD .x22 .x18 .x5,
     .SUB .x5 .x22 .x21,
-    .BNE .x5 .x9 (64 : BitVec 13),
+    .BNE .x5 .x9 (72 : BitVec 13),
     .MV .x6 .x8,
     .MV .x7 .x21,
     .MV .x28 .x9,
-    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x28 .x0 (40 : BitVec 13),
     .LBU .x29 .x6 (0 : BitVec 12),
     .LBU .x30 .x7 (0 : BitVec 12),
-    .BNE .x29 .x30 (36 : BitVec 13),
+    .XOR .x29 .x29 .x30,
+    .SLTIU .x31 .x29 (1 : BitVec 12),
+    .AND .x5 .x5 .x31,
     .ADDI .x6 .x6 (1 : BitVec 12),
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADDI .x28 .x28 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x6 (1 : Word),
-    .SD .x20 .x6 (0 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SD .x20 .x5 (0 : BitVec 12),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (0 : Word),
@@ -774,7 +813,17 @@ theorem parentHeaderMatchesWitnessFirstFunction_eq_prog :
     parentHeaderMatchesWitnessFirstFunction = "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog := rfl
 
 #guard parentHeaderMatchesWitnessFirstFunction.startsWith "parent_header_matches_witness_first:\n"
-#guard parentHeaderMatchesWitnessFirst_prog.length = 57
+#guard parentHeaderMatchesWitnessFirst_prog.length = 84
+
+/-- Byte-tie to the verified ABI-frame re-emission (bead evm-asm-ffziu): the
+    emitted Program is EXACTLY the `abiFrameProg` flatten whose whole-routine
+    contract is `SAsm.ParentHeaderFrame.phmwFrame_spec` (sp/ra/all saved
+    s-registers restored; genuine disjunctive status/is_match post; memcmp
+    countdown discharged by the verified `memcmpLoop_spec` core).  Verified ==
+    emitted, kernel-checked. -/
+theorem parentHeaderMatchesWitnessFirst_prog_eq_verified :
+    parentHeaderMatchesWitnessFirst_prog
+      = EvmAsm.Rv64.SAsm.ParentHeaderFrame.phmwProgList := rfl
 /-- `zisk_parent_header_matches_witness_first`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
