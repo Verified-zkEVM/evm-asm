@@ -97,7 +97,7 @@ private theorem stateOver_cons (rf : RegFile) (r : Reg) (rs : List Reg)
   · subst hrr
     simp [List.mem_cons]
   · simp only [beq_iff_eq, hrr, if_false, List.mem_cons]
-    by_cases hmem : r' ∈ rs <;> simp [hmem, hrr]
+    by_cases hmem : r' ∈ rs <;> simp [hmem]
 
 private theorem singletonReg_disjoint_stateOver (rf : RegFile) (r : Reg)
     (v : Word) (rs : List Reg) (hr_notin : r ∉ rs) :
