@@ -203,13 +203,36 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
+  dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
+  `Bn254Fp2CopySAsm.lean` verifies the straight-line
+  `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
+  64-byte source/destination disjointness precondition and byte-identity pinned
+  to `bnpFp2Copy_prog`.
+  `Bn254CurveCopySAsm.lean` verifies the alignment-free
+  `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
+  static 64-byte source/destination disjointness precondition and byte-identity
+  pinned to `bncCopy64_prog`.
+  `Bn254CurveZeroSAsm.lean` verifies the alignment-free
+  `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
+  byte-identity pinned to `bncZero64_prog`.
+  `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
   verifies the `call_frame_set_calldata` child-env writer
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
+  byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
+  post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
+  emitted rounded-word BitVec cost difference) pinned to
+  `memoryExpansionGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -2673,6 +2696,20 @@ region; callee-saved preservation is *derived* from the
 never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
 entry values + the body's rw effect, byte-identical (`#guard`) to a
 hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+**Generalized to a reusable lemma** (branch `feat/abi-frame-spec`,
+stacks on #9949): the construct is now parameterized over a
+`FrameDesc = List (Reg × BitVec 12)` of `(register, slot-offset)`;
+`storeSeq_spec`/`loadSeq_spec` prove the save/restore sequences by
+**induction over that list**, and `abiFrame_spec` composes
+prologue·body·epilogue·`ret` for a *free* `sp0`, *free* frame descriptor
+(`ra` at head via `raOfs`+`sregs`, `raOfs` free), *free* frame size, and an
+arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
+concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
+values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
+one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
+A survey of the emitted guest found **no clean sp-frame leaf** to port via
+`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
+the real-routine port remains deferred.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
