@@ -652,50 +652,51 @@ def ziskRlpEncodeBytesProbeUnit : BuildUnit := {
 
 /-- `rlp_item_size`: a0 = ptr to one RLP item -> a0 = its full encoded size.
     Leaf; clobbers t0..t6 only (preserves all s-registers and ra). -/
+def rlpItemSize_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (0x80 : Word),
+    .BGEU .x5 .x6 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (0xb8 : Word),
+    .BGEU .x5 .x6 (16 : BitVec 13),
+    .ADDI .x10 .x5 (-128 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (0xc0 : Word),
+    .BGEU .x5 .x6 (16 : BitVec 13),
+    .LI .x6 (0xb7 : Word),
+    .SUB .x7 .x5 .x6,
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x6 (0xf8 : Word),
+    .BGEU .x5 .x6 (16 : BitVec 13),
+    .ADDI .x10 .x5 (-192 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (0xf7 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (0 : Word),
+    .ADDI .x29 .x10 (1 : BitVec 12),
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x10 .x7 (1 : BitVec 12),
+    .ADD .x10 .x10 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpItemSizeFunction : String :=
-  "rlp_item_size:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bgeu t0, t1, .Lris2_a\n" ++
-  "  li a0, 1\n" ++                          -- single byte < 0x80
-  "  ret\n" ++
-  ".Lris2_a:\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bgeu t0, t1, .Lris2_b\n" ++
-  "  addi a0, t0, -128\n" ++                  -- short string: len = t0 - 0x80
-  "  addi a0, a0, 1\n" ++                     -- + 1 prefix byte
-  "  ret\n" ++
-  ".Lris2_b:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bgeu t0, t1, .Lris2_c\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1\n" ++                     -- long string: lol = t0 - 0xb7
-  "  j .Lris2_long\n" ++
-  ".Lris2_c:\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bgeu t0, t1, .Lris2_d\n" ++
-  "  addi a0, t0, -192\n" ++                  -- short list: len = t0 - 0xc0
-  "  addi a0, a0, 1\n" ++
-  "  ret\n" ++
-  ".Lris2_d:\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1\n" ++                     -- long list: lol = t0 - 0xf7
-  ".Lris2_long:\n" ++
-  "  li t3, 0\n" ++                           -- decoded length accumulator
-  "  addi t4, a0, 1\n" ++                     -- BE length bytes start at item+1
-  "  mv t5, t2\n" ++                          -- remaining lol bytes
-  ".Lris2_be:\n" ++
-  "  beqz t5, .Lris2_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lris2_be\n" ++
-  ".Lris2_done:\n" ++
-  "  addi a0, t2, 1\n" ++                     -- 1 (tag) + lol
-  "  add a0, a0, t3\n" ++                     -- + decoded payload length
-  "  ret"
+  "rlp_item_size:\n" ++ emitProgram rlpItemSize_prog
+
+theorem rlpItemSizeFunction_eq_prog :
+    rlpItemSizeFunction = "rlp_item_size:\n" ++ emitProgram rlpItemSize_prog := rfl
+
+#guard rlpItemSizeFunction.startsWith "rlp_item_size:\n"
+#guard rlpItemSize_prog.length = 35
 
 /-- `rlp_item_span`: a0 = list ptr, a1 = list len, a2 = item index i,
     a3 = out_start_ptr (u64, item start offset incl. its prefix, relative to

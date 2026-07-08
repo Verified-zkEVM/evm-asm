@@ -771,6 +771,7 @@ def callDescendFallThrough
   "  mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
+  "  li t4, 2; beq t3, t4, .Lcd_empty_" ++ tag ++ "\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   -- coc3g.6.5: CALL into a SAME-TX-CREATED contract. A child CREATEd earlier in this tx is
   -- ABSENT from the block-pre witness, so code_at_header_state_root returns status 1 (account
