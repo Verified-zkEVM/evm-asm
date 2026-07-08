@@ -15,9 +15,9 @@
   assembling one (`LBU`/`OR`/`SLLI`).  Byte-identical to the bn254 twin
   ` blsgLeToBe_prog`.
 
-  Functional post (real, unweakened): the big-endian value of the 32 output
-  bytes equals the little-endian decode of the six input u64 limbs —
-  `beBytesToNat ws = leLimbsToNat [inLimb0, inLimb1, inLimb2, inLimb3]`.
+  Functional post (real, unweakened): the 48 output bytes are exactly the
+  big-endian encoding of the six little-endian input u64 limbs; consequently
+  their big-endian value equals the little-endian limb decode.
 
   Byte-identity kernel-pinned: `<body>.flatten 0 ++ [ret] = blsgLeToBe_prog`.
 -/
@@ -46,6 +46,16 @@ def beBytesOfLimb (v : Word) : List (BitVec 8) :=
 
 @[simp] theorem length_beBytesOfLimb (v : Word) : (beBytesOfLimb v).length = 8 := by
   simp [beBytesOfLimb]
+
+/-- Exact 48-byte big-endian encoding of the six little-endian source limbs. -/
+def blsgLeToBeBytes (inBytes : List (BitVec 8)) : List (BitVec 8) :=
+  beBytesOfLimb (wsDword inBytes 40) ++ beBytesOfLimb (wsDword inBytes 32) ++
+    beBytesOfLimb (wsDword inBytes 24) ++ beBytesOfLimb (wsDword inBytes 16) ++
+    beBytesOfLimb (wsDword inBytes 8) ++ beBytesOfLimb (wsDword inBytes 0)
+
+@[simp] theorem length_blsgLeToBeBytes (inBytes : List (BitVec 8)) :
+    (blsgLeToBeBytes inBytes).length = 48 := by
+  simp [blsgLeToBeBytes]
 
 /-- Inner byte-dispersal loop invariant, **snapshot-parameterized** by the
     inner loop's entry `(rf₀, ws₀, A₀)`.  At entry: `x5 = k` (limb index,
@@ -137,6 +147,7 @@ def blsgLeToBeFn (src dst : Word) (inBytes orig : List (BitVec 8)) : Fn where
     src.toNat + 48 < 2 ^ 64 ∧ dst.toNat + 48 < 2 ^ 64 ∧
     (src.toNat + 48 ≤ dst.toNat ∨ dst.toNat + 48 ≤ src.toNat)
   post := fun _ ws _ =>
+    ws = blsgLeToBeBytes inBytes ∧
     beBytesToNat ws = Accel.leLimbsToNat
       [wsDword inBytes 0, wsDword inBytes 8, wsDword inBytes 16, wsDword inBytes 24,
         wsDword inBytes 32, wsDword inBytes 40]
@@ -723,7 +734,6 @@ theorem blsgLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       rw [BitVec.toNat_ofNat, show ((6 : Word)).toNat = 6 from by decide] at this
       omega
     subst hi5
-    refine ⟨?_, hwslen⟩
     have l0 := hlimbs 0 (by omega)
     have l1 := hlimbs 1 (by omega)
     have l2 := hlimbs 2 (by omega)
@@ -755,8 +765,11 @@ theorem blsgLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       congr 1
       conv_lhs => rw [← List.take_append_drop 8 (ws.drop 32)]
       rw [List.drop_drop]
-    rw [hsplit, l5, l4, l3, l2, l1, l0', ← List.append_assoc, ← List.append_assoc,
-      ← List.append_assoc, ← List.append_assoc]
+    have hbytes : ws = blsgLeToBeBytes inBytes := by
+      rw [hsplit, l5, l4, l3, l2, l1, l0', blsgLeToBeBytes,
+        ← List.append_assoc, ← List.append_assoc, ← List.append_assoc, ← List.append_assoc]
+    refine ⟨hbytes, ?_, hwslen⟩
+    rw [hbytes, blsgLeToBeBytes]
     exact beBytesToNat_beBlocks (wsDword inBytes 0) (wsDword inBytes 8)
       (wsDword inBytes 16) (wsDword inBytes 24) (wsDword inBytes 32) (wsDword inBytes 40)
   case blsgLeToBe.outer.body.inner.inv_init =>
@@ -841,6 +854,8 @@ theorem blsgLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       intro m hm; rw [hws0]; exact he2 ▸ holimbs m (by omega)
     exact outer_step_engine src dst inBytes rf₀ ws₀ A₀ rf2 ws' A' (i + 1) (by omega)
       hs5 hs28 hws0len hlimbs hInv
+
+#print axioms blsgLeToBeFn_spec
 
 end Bls12G1LeToBeSAsm
 
