@@ -292,18 +292,20 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
       calldata_tokens = zero_data_bytes + 4 * non_zero_data_bytes
       access_tokens   = 80 * access_list_address_count
                       + 128 * access_list_storage_key_count
-      intrinsic       = 21000
+      intrinsic       = 12000
                       + 4 * calldata_tokens
-                      + creation ? (9000 + 2 * ceil(data_len / 32)) : 0
-                      + 2400 * access_list_address_count
-                      + 1900 * access_list_storage_key_count
+                      + creation ? (11000 + 2 * ceil(data_len / 32)) : 3000
+                      + 3000 * access_list_address_count
+                      + 3000 * access_list_storage_key_count
                       + 16 * access_tokens
-                      + 7500 * authorization_count
-      floor           = 21000 + 16 * (4 * data_len + access_tokens)
+                      + 15816 * authorization_count
+      floor           = 12000 + 16 * (4 * data_len + access_tokens)
 
     This intentionally returns the regular intrinsic component and calldata
     floor. Amsterdam's EIP-8037 state-gas component is handled by the caller's
-    reservoir path. -/
+    reservoir path. The current call sites do not pass sender equality or tx
+    value, so this helper models the non-self-transfer, zero-value path used by
+    the supported block-verdict receipt accounting. -/
 def intrinsicGasAmsterdamCounts_prog : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x6 (0 : Word),
@@ -321,22 +323,26 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .SLLI .x30 .x6 (2 : BitVec 6),
     .ADD .x30 .x30 .x5,
     .SLLI .x31 .x30 (2 : BitVec 6),
-    .LUI .x29 (5 : BitVec 20),
-    .ADDIW .x29 .x29 (520 : BitVec 12),
+    .LUI .x29 (3 : BitVec 20),
+    .ADDIW .x29 .x29 (-288 : BitVec 12),
+    .ADD .x31 .x31 .x29,
+    .LUI .x29 (1 : BitVec 20),
+    .ADDIW .x29 .x29 (-1096 : BitVec 12),
     .ADD .x31 .x31 .x29,
     .BEQ .x12 .x0 (32 : BitVec 13),
     .LUI .x29 (2 : BitVec 20),
-    .ADDIW .x29 .x29 (808 : BitVec 12),
+    .ADDIW .x29 .x29 (-192 : BitVec 12),
     .ADD .x31 .x31 .x29,
     .ADDI .x29 .x11 (31 : BitVec 12),
     .SRLI .x29 .x29 (5 : BitVec 6),
     .SLLI .x29 .x29 (1 : BitVec 6),
     .ADD .x31 .x31 .x29,
     .LUI .x29 (1 : BitVec 20),
-    .ADDIW .x29 .x29 (-1696 : BitVec 12),
+    .ADDIW .x29 .x29 (-1096 : BitVec 12),
     .MUL .x29 .x13 .x29,
     .ADD .x31 .x31 .x29,
-    .LI .x29 (1900 : Word),
+    .LUI .x29 (1 : BitVec 20),
+    .ADDIW .x29 .x29 (-1096 : BitVec 12),
     .MUL .x29 .x14 .x29,
     .ADD .x31 .x31 .x29,
     .LI .x29 (80 : Word),
@@ -346,16 +352,16 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .ADD .x7 .x7 .x29,
     .SLLI .x29 .x7 (4 : BitVec 6),
     .ADD .x31 .x31 .x29,
-    .LUI .x29 (2 : BitVec 20),
-    .ADDIW .x29 .x29 (-692 : BitVec 12),
+    .LUI .x29 (4 : BitVec 20),
+    .ADDIW .x29 .x29 (-568 : BitVec 12),
     .MUL .x29 .x15 .x29,
     .ADD .x31 .x31 .x29,
     .SD .x16 .x31 (0 : BitVec 12),
     .SLLI .x30 .x11 (2 : BitVec 6),
     .ADD .x30 .x30 .x7,
     .SLLI .x30 .x30 (4 : BitVec 6),
-    .LUI .x29 (5 : BitVec 20),
-    .ADDIW .x29 .x29 (520 : BitVec 12),
+    .LUI .x29 (3 : BitVec 20),
+    .ADDIW .x29 .x29 (-288 : BitVec 12),
     .ADD .x30 .x30 .x29,
     .SD .x17 .x30 (0 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -372,7 +378,7 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
     intrinsicGasAmsterdamCountsFunction = "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog := rfl
 
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
-#guard intrinsicGasAmsterdamCounts_prog.length = 55
+#guard intrinsicGasAmsterdamCounts_prog.length = 59
 /-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
     Input layout:
       bytes  0.. 8 : data length

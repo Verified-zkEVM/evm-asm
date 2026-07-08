@@ -103,6 +103,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 | Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
+| Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -128,7 +129,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `accountRlpIs`/`accountDecodedIs` tied to `decode_account_from_leaf`
   (`Stateless/State/AccountAssertions.lean`); `storageSlotIs`/`storageLogIs`/
   `committedStorageIs` for the 128-byte exec-logs
-  (`Evm64/StorageAssertions.lean`); `mptNodeIs`/`nodeDbIs` with the
+  (`Evm64/StorageAssertions.lean`, now with `storageSlotIs_eq_flat` +
+  `evm_tstore_stack_spec_within` as the first consumer — see "Transient store
+  recipe"); `mptNodeIs`/`nodeDbIs` with the
   `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
   tie (`Evm64/WitnessAssertions.lean`). The concrete↔abstract refinement
@@ -136,6 +139,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE
   contents-update fold, `rlpToMutableNode`, storage log-replay lemmas, …).
+- **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
+  Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
+  (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler
+  keeps only the guards in `preBody`, byte-identity pinned by a `#guard` on
+  `emitProgram`. Witness `evm_tstore_spec_within` proves the 35-instruction body
+  by **splitting into two `runBlock` halves** (`evm_tstore_p1` 24 instrs,
+  `evm_tstore_p2` 11) composed via `cpsTripleWithin_frameR` +
+  `cpsTripleWithin_extend_code` (`ofProg_mono_append_left/right`) +
+  `cpsTripleWithin_seq_perm_same_cr`. **runBlock gotchas learned the hard way:**
+  it silently fails to close the goal past ~30 heap atoms in one pass, at a
+  non-variable entry (`base+96` — prove the half `∀ b2` and instantiate), and
+  when the code is `CodeReq.ofProg` applied bare (wrap in a named `abbrev` so
+  `deltaTarget` unfolds the abbrev, not `ofProg`). The stack wrapper
+  `evm_tstore_stack_spec_within` lifts to `transientLogLenIs`/`storageLogIs`/
+  `evmStackIs` via `storageLogIs_snoc` + `storageSlotIs_eq_flat` + `xperm`.
+  **TLOAD** is the reverse-scan sibling: same layout/assertions, scans the log
+  from the end for the matching `(addrHash, slotKey)` and pushes `current`
+  (0 if absent) — reuse `storageLogIs_split_at` for the isolate-entry shape.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
@@ -205,13 +226,36 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
+  dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
+  `Bn254Fp2CopySAsm.lean` verifies the straight-line
+  `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
+  64-byte source/destination disjointness precondition and byte-identity pinned
+  to `bnpFp2Copy_prog`.
+  `Bn254CurveCopySAsm.lean` verifies the alignment-free
+  `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
+  static 64-byte source/destination disjointness precondition and byte-identity
+  pinned to `bncCopy64_prog`.
+  `Bn254CurveZeroSAsm.lean` verifies the alignment-free
+  `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
+  byte-identity pinned to `bncZero64_prog`.
+  `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
   verifies the `call_frame_set_calldata` child-env writer
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
+  byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
+  post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
+  under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
+  byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
+  post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
+  emitted rounded-word BitVec cost difference) pinned to
+  `memoryExpansionGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -2660,8 +2704,36 @@ ghost-pinned contract families (PinDemo) or spill to a caller-private
 dword outside the callee's `widenRw` window and reload after `LI`
 re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
 exposed set (blockOk rejects them) so verified code can't clobber them;
-frames are STATIC windows of the stack arena (no dynamic `addi sp`),
-design in docs/sasm-design.md §3.6.2. Indirect calls landed
+frames are STATIC windows of the stack arena (no dynamic `addi sp`)
+*at the `Stmt` layer*, design in docs/sasm-design.md §3.6.2.
+**Dynamic C-ABI leaf frames landed** (`SAsm/AbiFrame.lean` +
+`AbiFrameDemo.lean`, bead evm-asm-4ch8f.76): the guest's
+`addi sp,-N; sd ra/s0/s1; …body…; ld ra/s0/s1; addi sp,+N; ret`
+shape is modelled as a machine-level construct directly on
+`cpsTripleWithin` (the `blockOk`/`Stmt.sound` structured layer is
+untouched — fully additive). `sp` and the saved `s`-registers are
+ordinary owned `↦ᵣ` atoms inside the frame (frame-scoped exposure);
+the allocated slots below `sp` are a genuinely-owned `frameSlotsOwn`
+region; callee-saved preservation is *derived* from the
+`cpsTripleWithin` frame rule (save slots framed across the body),
+never assumed. `demoFrame_spec` proves `sp`/`ra`/`s0`/`s1` restored to
+entry values + the body's rw effect, byte-identical (`#guard`) to a
+hand-written prog, axioms `[propext, Classical.choice, Quot.sound]`.
+**Generalized to a reusable lemma** (branch `feat/abi-frame-spec`,
+stacks on #9949): the construct is now parameterized over a
+`FrameDesc = List (Reg × BitVec 12)` of `(register, slot-offset)`;
+`storeSeq_spec`/`loadSeq_spec` prove the save/restore sequences by
+**induction over that list**, and `abiFrame_spec` composes
+prologue·body·epilogue·`ret` for a *free* `sp0`, *free* frame descriptor
+(`ra` at head via `raOfs`+`sregs`, `raOfs` free), *free* frame size, and an
+arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
+concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
+values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
+one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
+A survey of the emitted guest found **no clean sp-frame leaf** to port via
+`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
+the real-routine port remains deferred.
+Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via

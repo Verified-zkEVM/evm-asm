@@ -131,7 +131,7 @@ def chainConfigValidFunction : String :=
   "  sub s10, s3, s4             # active_fork len\n" ++
   "  li t0, 40; bltu s10, t0, .Lccv_fail\n" ++
   "  mv a0, s4; jal ra, bgv_u64le\n" ++
-  "  li t0, 24                   # ProtocolFork.Amsterdam enum index\n" ++
+  "  li t0, 20                   # ProtocolFork.Amsterdam enum index (tests-zkevm@v0.5.0)\n" ++
   "  bne a0, t0, .Lccv_fail\n" ++
   "  addi a0, s4, 8; jal ra, bgv_u32le\n" ++
   "  li t0, 16; bne a0, t0, .Lccv_fail\n" ++
