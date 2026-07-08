@@ -194,6 +194,10 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For top-tested `whileHeader` loops whose counter is decremented in the body,
+  derive the final pre-step bound from the taken guard (`Cond.holds`) and the
+  counter invariant before calling `omega`. The fuel bound alone may still
+  admit the exhausted state, producing impossible goals one iteration too late.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
