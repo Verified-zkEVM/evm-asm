@@ -162,9 +162,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`) are verified straight-line byte-wise readers
-  over the SAsm `Region` model (own-budget engine lemma per the heavy
-  `execBlock` reduction).  Big-endian writers (`whileS` loops over a writable
+  `a0 := leU32 (bytes@a0) 0`) are verified straight-line byte-wise readers;
+  `BlockAccessListHashSAsm.lean` verifies the identical `bah_u32le` leaf
+  (`bahU32leFn_spec`, byte-identity pinned to `bahU32le_prog`) over the SAsm
+  `Region` model (own-budget engine lemma per the heavy `execBlock`
+  reduction).  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
   beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops
