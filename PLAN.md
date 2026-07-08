@@ -157,7 +157,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   32-byte digest byte-reverse as an emitted SAsm-shaped `Program` with
   flattening guards. `BalValueReverseSAsm.lean` now provides the BAL tuple
   value byte-reverse as a genuine bounded SAsm `while` loop with a proved
-  `Fn.Spec`; `AccountTupleSequencesConsistent.lean` splices the emitted
+  `Fn.Spec`; `Blake2fStoreLe64SAsm.lean` verifies the byte-identical `blk2_st_le64` fixed byte-store loop (`a1` stored as little-endian `dwordBytes` at `a0`). `AccountTupleSequencesConsistent.lean` splices the emitted
   PC-relative branch program into the per-record BAL value normalization.
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to

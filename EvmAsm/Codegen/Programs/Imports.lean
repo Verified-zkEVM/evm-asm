@@ -84,6 +84,7 @@ import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
+import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
