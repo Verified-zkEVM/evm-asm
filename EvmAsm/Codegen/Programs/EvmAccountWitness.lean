@@ -233,6 +233,11 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  ld x21, 16(sp)\n" ++
     "  ld x13, 24(sp)\n" ++
     "  addi sp, sp, 32\n" ++
+    "  ld t0, 568(x20)\n" ++
+    "  li t1, 100\n" ++
+    "  bltu t0, t1, .exit_outofgas\n" ++
+    "  sub t0, t0, t1\n" ++
+    "  sd t0, 568(x20)\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
