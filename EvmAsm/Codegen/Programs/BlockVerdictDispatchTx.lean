@@ -686,19 +686,22 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
-  -- message state-gas reservoir when the recovered authority already exists.
-  -- The callable dispatcher resets its state-gas cells during setup, so compute
-  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
+  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
+  -- the recovered authority already exists. The callable dispatcher resets its
+  -- state-gas cells during setup, so compute both refunds here and stage them.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
   "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
   "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; sd zero, 0(t4)\n" ++
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+  "  la t4, teer_existing_count; ld t5, 0(t4); li t6, 8000; mul t5, t5, t6\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; sd t5, 0(t4)\n" ++
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3; la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
   "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
@@ -738,6 +741,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv s0, a0                    # effective gas_left\n" ++
   "  mv s1, a1                    # effective refund_counter\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; ld t5, 0(t4); add s1, s1, t5\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena

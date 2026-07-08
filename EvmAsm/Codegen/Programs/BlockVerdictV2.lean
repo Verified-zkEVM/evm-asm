@@ -473,8 +473,6 @@ def statelessVerdictV2GuestClosure : String :=
   -- already in this closure; only these EIP-8037/type-4 bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
-  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
-  blockVerdictFailedType4AuthRegularAdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
