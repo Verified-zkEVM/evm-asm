@@ -194,6 +194,10 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- When adapting a proven SAsm loop to a larger buffer, do not globally replace
+  numeric substrings. Buffer counts like 12/24 are ghost/spec constants, but
+  instruction immediates still use `BitVec 12` and `signExtend12`; changing those
+  silently produces bad imports or non-RISC-V-width instructions.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
