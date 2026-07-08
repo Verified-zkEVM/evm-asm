@@ -186,19 +186,6 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- WIP: exact-gas/state-root-authenticated multi-tx rows below still trip the cumulative
-  -- pure-payer sender-balance model. Skip only these known signatures while B2.3 is repaired;
-  -- the state root, receipt root, and exact block gas remain enforced by the surrounding verdict.
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
-  "  li t3, 2; bne t1, t3, .Lbv_b23_wip_bal_all_types\n" ++
-  "  li t3, 42000; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92120; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92056; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 861418; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_bal_all_types:\n" ++
-  "  li t3, 5; bne t1, t3, .Lbv_b23_wip_done\n" ++
-  "  li t3, 524790; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_done:\n" ++
   -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
   -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
   -- per-block tx-type pre-scan is needed here.)
