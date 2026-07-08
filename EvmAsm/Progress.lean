@@ -86,6 +86,8 @@ import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
 import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+import EvmAsm.Evm64.Terminating.ReturnSpec
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Storage.LoadSpec
@@ -336,7 +338,20 @@ def registry : List OpcodeEntry := [
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
   entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
-  entry "RETURN" .execSpec none "TerminatingArgs + TerminatingExecutionBridge",
+  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + halt core, from " ++
+       "the post-gas handler entry through the 0xa0010000 descriptor (header/22-" ++
+       "dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core " ++
+       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). `.conditional` " ++
+       "because (1) it is gated on the reachable precondition system_call_mode=0 " ++
+       "(the ordinary non-system-call tx case; the capture block is present for " ++
+       "layout but skipped) and (2) the memory-gas `preBody` (its .exit_outofgas " ++
+       "branch) is framed OUT as a decision-1 TCB boundary — the triple is stated " ++
+       "from the framed post-gas entry. The five `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+      (coverRef := some "return_precondition_reachable"),
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
@@ -366,8 +381,8 @@ def totalEntries     : Nat := registry.length
 
 theorem provenCount_eq      : provenCount      = 66 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 1  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 18 := by decide
+theorem conditionalCount_eq : conditionalCount = 2  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 17 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -400,8 +415,8 @@ def totalBytes       : Nat :=
 
 theorem provenBytes_eq      : provenBytes      = 126 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 1   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 22  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 2   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 21  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -496,6 +511,14 @@ private noncomputable abbrev _stop_witness :=
   @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
 private noncomputable abbrev _invalid_witness :=
   @EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
+-- Shared RETURN/REVERT halt core (`dispatchHaltRet 2` → `.exit_no_epilogue`).
+private noncomputable abbrev _return_halt_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
+-- Full RETURN (0xf3) return-data window + halt core (see the registry note).
+private noncomputable abbrev _return_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within
+private noncomputable abbrev _return_cover :=
+  @EvmAsm.Evm64.Terminating.return_precondition_reachable
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
