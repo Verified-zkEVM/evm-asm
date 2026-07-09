@@ -451,8 +451,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
-  -- delegation marker. Those authorities are warm for the receipt regular
-  -- dimension, so the type-4 auth regular delta is discounted by 3000 each.
+  -- delegation marker. Debug/accounting context for auth-base state refunds;
+  -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
@@ -470,6 +470,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_regular_refund:\n  .zero 8\n" ++
   "teer_predelegated_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
