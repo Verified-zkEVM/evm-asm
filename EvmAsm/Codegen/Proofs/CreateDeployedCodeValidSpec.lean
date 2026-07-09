@@ -3,7 +3,7 @@
 
   The SECOND verdict-glue cpsTriple — `create_deployed_code_valid`
   (Codegen/Programs/CreateDeployedCodeValid.lean), the EIP-3541/EIP-7907 deployed
-  code validity gate: `a0 := 1` (invalid) iff `len > 32768` OR
+  code validity gate: `a0 := 1` (invalid) iff `len > 65536` OR
   `(len ≠ 0 ∧ code[0] = 0xEF)`, else `0`. Unlike cisv (a single two-exit branch),
   this is a 3-branch SHARED-EXIT DAG, proven by the `_same_cr` family over a
   common `CodeReq.ofProg base cdcvProgram` (the Exp bit-test block,
@@ -123,7 +123,7 @@ private theorem cdcv_block3 (base codePtr len v6old x1_init dwordAddr wordVal : 
     (halign : alignToDword (codePtr + signExtend12 (0:BitVec 12)) = dwordAddr)
     (hvalid : isValidByteAccess (codePtr + signExtend12 (0:BitVec 12)) = true) :
     cpsTripleWithin 5 (base + 12) (x1_init &&& ~~~1) (cdcvCode base)
-      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) **
+      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) **
         (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal))
       ((.x10 ↦ᵣ (if (extractByte wordVal (byteOffset (codePtr + signExtend12 (0:BitVec 12)))).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (0xEF:Word)) **
@@ -135,9 +135,9 @@ private theorem cdcv_block3 (base codePtr len v6old x1_init dwordAddr wordVal : 
     (hmono := CodeReq.ofProg_mono_sub base (base + 12) cdcvProgram [.LBU .x6 .x10 (0:BitVec 12)] 3 (by bv_omega) (by decide) (by decide) (by decide))
   rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega] at hlbu0
   have hlbuF := cpsTripleWithin_frameR
-    ((.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768:Word)) ** (.x1 ↦ᵣ x1_init)) (by pcFree) hlbu0
+    ((.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536:Word)) ** (.x1 ↦ᵣ x1_init)) (by pcFree) hlbu0
   have hli0 := cpsTripleWithin_extend_code
-    (h := li_spec_gen_within .x5 (32768:Word) (0xEF:Word) (base + 16) (by nofun))
+    (h := li_spec_gen_within .x5 (65536:Word) (0xEF:Word) (base + 16) (by nofun))
     (hmono := CodeReq.ofProg_mono_sub base (base + 16) cdcvProgram [.LI .x5 (0xEF:Word)] 4 (by bv_omega) (by decide) (by decide) (by decide))
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at hli0
   have hliF := cpsTripleWithin_frameR
@@ -150,13 +150,13 @@ private theorem cdcv_block3 (base codePtr len v6old x1_init dwordAddr wordVal : 
 
 /-- block2 (from `base+8`): `beq x11,x0 ;; (valid | block3)`. Decides
     `x10 := if len = 0 then 0 else (block3 result)`. Scratch `x5/x6` join to
-    `regOwn` here (the `len=0` path has `x5=32768/x6=v6old`, block3 has
+    `regOwn` here (the `len=0` path has `x5=65536/x6=v6old`, block3 has
     `x5=0xEF/x6=byte0`). -/
 private theorem cdcv_block2 (base codePtr len v6old x1_init dwordAddr wordVal : Word)
     (halign : alignToDword (codePtr + signExtend12 (0:BitVec 12)) = dwordAddr)
     (hvalid : isValidByteAccess (codePtr + signExtend12 (0:BitVec 12)) = true) :
     cpsTripleWithin 6 (base + 8) (x1_init &&& ~~~1) (cdcvCode base)
-      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) **
+      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) **
         (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal))
       ((.x10 ↦ᵣ (if len = (0:Word) then (0:Word) else
           if (extractByte wordVal (byteOffset (codePtr + signExtend12 (0:BitVec 12)))).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
@@ -167,7 +167,7 @@ private theorem cdcv_block2 (base codePtr len v6old x1_init dwordAddr wordVal : 
     have h0 : signExtend12 (0:BitVec 12) = (0:Word) := by decide
     rw [h0]; bv_omega
   have hbr0 := cpsBranchWithin_frameR
-    ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) (by pcFree)
+    ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) (by pcFree)
     (cpsBranchWithin_extend_code
       (h := beq_spec_gen_within .x11 .x0 (16:BitVec 13) len (0:Word) (base + 8))
       (hmono := CodeReq.ofProg_mono_sub base (base + 8) cdcvProgram [.BEQ .x11 .x0 (16:BitVec 13)] 2
@@ -180,7 +180,7 @@ private theorem cdcv_block2 (base codePtr len v6old x1_init dwordAddr wordVal : 
   -- taken (len = 0) → valid arm (x10:=0)
   have hT : cpsTripleWithin 5 (base + 24) (x1_init &&& ~~~1) (cdcvCode base)
       (((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ (0:Word)) ** ⌜len = (0:Word)⌝) **
-        ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
+        ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
       ((.x10 ↦ᵣ (if len = (0:Word) then (0:Word) else if byte0 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) :=
     cpsTripleWithin_weaken
@@ -188,17 +188,17 @@ private theorem cdcv_block2 (base codePtr len v6old x1_init dwordAddr wordVal : 
       (fun h hq => by
         obtain ⟨hfact, hrest⟩ := (sepConj_pure_left h).mp hq
         rw [if_pos hfact]
-        have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x5 (v := (32768:Word)))))) h hrest
+        have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x5 (v := (65536:Word)))))) h hrest
         have h2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x6 (v := v6old)))))) h h1
         sep_perm h2)
       (cpsTripleWithin_frameL (⌜len = (0:Word)⌝) (by pcFree)
         (cpsTripleWithin_frameR ((.x0 ↦ᵣ (0:Word)))  (by pcFree)
           (cpsTripleWithin_mono_nSteps (by omega)
-            (cdcv_val_arm base len (32768:Word) v6old codePtr x1_init dwordAddr wordVal))))
+            (cdcv_val_arm base len (65536:Word) v6old codePtr x1_init dwordAddr wordVal))))
   -- not-taken (len ≠ 0) → block3
   have hF : cpsTripleWithin 5 (base + 12) (x1_init &&& ~~~1) (cdcvCode base)
       (((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ (0:Word)) ** ⌜len ≠ (0:Word)⌝) **
-        ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
+        ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
       ((.x10 ↦ᵣ (if len = (0:Word) then (0:Word) else if byte0 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) :=
     cpsTripleWithin_weaken
@@ -216,14 +216,14 @@ private theorem cdcv_block2 (base codePtr len v6old x1_init dwordAddr wordVal : 
   exact cpsTripleWithin_weaken (fun _ hp => by sep_perm hp) (fun _ hp => hp) hm
 
 /-- block1 (from `base+4`): `bltu x5,x11 ;; (invalid | block2)`. Decides
-    `x10 := if 32768 < len then 1 else (block2 result)`. -/
+    `x10 := if 65536 < len then 1 else (block2 result)`. -/
 private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : Word)
     (halign : alignToDword (codePtr + signExtend12 (0:BitVec 12)) = dwordAddr)
     (hvalid : isValidByteAccess (codePtr + signExtend12 (0:BitVec 12)) = true) :
     cpsTripleWithin 7 (base + 4) (x1_init &&& ~~~1) (cdcvCode base)
-      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768:Word)) ** (.x6 ↦ᵣ v6old) **
+      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536:Word)) ** (.x6 ↦ᵣ v6old) **
         (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768:Word) len then (1:Word) else
+      ((.x10 ↦ᵣ (if BitVec.ult (65536:Word) len then (1:Word) else
           if len = (0:Word) then (0:Word) else
           if (extractByte wordVal (byteOffset codePtr)).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) **
@@ -234,7 +234,7 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
   have hbr0 := cpsBranchWithin_frameR
     ((.x10 ↦ᵣ codePtr) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) (by pcFree)
     (cpsBranchWithin_extend_code
-      (h := bltu_spec_gen_within .x5 .x11 (28:BitVec 13) (32768:Word) len (base + 4))
+      (h := bltu_spec_gen_within .x5 .x11 (28:BitVec 13) (65536:Word) len (base + 4))
       (hmono := CodeReq.ofProg_mono_sub base (base + 4) cdcvProgram [.BLTU .x5 .x11 (28:BitVec 13)] 1
         (by bv_omega) (by decide) (by decide) (by decide)))
   have he_t : (base + 4 : Word) + signExtend13 (28:BitVec 13) = base + 32 := by
@@ -242,11 +242,11 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
     rw [this]; bv_omega
   have he_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
   rw [he_t, he_f] at hbr0
-  -- taken (32768 < len) → invalid arm (x10:=1)
+  -- taken (65536 < len) → invalid arm (x10:=1)
   have hT : cpsTripleWithin 6 (base + 32) (x1_init &&& ~~~1) (cdcvCode base)
-      (((.x5 ↦ᵣ (32768:Word)) ** (.x11 ↦ᵣ len) ** ⌜BitVec.ult (32768:Word) len⌝) **
+      (((.x5 ↦ᵣ (65536:Word)) ** (.x11 ↦ᵣ len) ** ⌜BitVec.ult (65536:Word) len⌝) **
         ((.x10 ↦ᵣ codePtr) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768:Word) len then (1:Word) else
+      ((.x10 ↦ᵣ (if BitVec.ult (65536:Word) len then (1:Word) else
           if len = (0:Word) then (0:Word) else
           if (extractByte wordVal (byteOffset codePtr)).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) :=
@@ -255,18 +255,18 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
       (fun h hq => by
         obtain ⟨hfact, hrest⟩ := (sepConj_pure_left h).mp hq
         rw [if_pos hfact]
-        have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x5 (v := (32768:Word)))))) h hrest
+        have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x5 (v := (65536:Word)))))) h hrest
         have h2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x6 (v := v6old)))))) h h1
         sep_perm h2)
-      (cpsTripleWithin_frameL (⌜BitVec.ult (32768:Word) len⌝) (by pcFree)
+      (cpsTripleWithin_frameL (⌜BitVec.ult (65536:Word) len⌝) (by pcFree)
         (cpsTripleWithin_frameR ((.x0 ↦ᵣ (0:Word))) (by pcFree)
           (cpsTripleWithin_mono_nSteps (by omega)
-            (cdcv_inv_arm base len (32768:Word) v6old codePtr x1_init dwordAddr wordVal))))
-  -- not-taken (¬ 32768 < len) → block2
+            (cdcv_inv_arm base len (65536:Word) v6old codePtr x1_init dwordAddr wordVal))))
+  -- not-taken (¬ 65536 < len) → block2
   have hF : cpsTripleWithin 6 (base + 8) (x1_init &&& ~~~1) (cdcvCode base)
-      (((.x5 ↦ᵣ (32768:Word)) ** (.x11 ↦ᵣ len) ** ⌜¬ BitVec.ult (32768:Word) len⌝) **
+      (((.x5 ↦ᵣ (65536:Word)) ** (.x11 ↦ᵣ len) ** ⌜¬ BitVec.ult (65536:Word) len⌝) **
         ((.x10 ↦ᵣ codePtr) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768:Word) len then (1:Word) else
+      ((.x10 ↦ᵣ (if BitVec.ult (65536:Word) len then (1:Word) else
           if len = (0:Word) then (0:Word) else
           if (extractByte wordVal (byteOffset codePtr)).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) :=
@@ -275,14 +275,14 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
       (fun h hq => by
         obtain ⟨hfact, hrest⟩ := (sepConj_pure_left h).mp hq
         rw [if_neg hfact]; rw [hcp] at hrest; sep_perm hrest)
-      (cpsTripleWithin_frameL (⌜¬ BitVec.ult (32768:Word) len⌝) (by pcFree)
+      (cpsTripleWithin_frameL (⌜¬ BitVec.ult (65536:Word) len⌝) (by pcFree)
         (cdcv_block2 base codePtr len v6old x1_init dwordAddr wordVal halign hvalid))
   have hm := cpsBranchWithin_merge_same_cr hbr0 hT hF
   exact cpsTripleWithin_weaken (fun _ hp => by sep_perm hp) (fun _ hp => hp) hm
 
 /-- The full `create_deployed_code_valid` gate as a cpsTriple over the structured
-    `cdcvProgram` the codegen emits: `li x5,32768 ;; block1`. The deployed gate
-    sets `a0 := 1` (invalid) iff `len > 32768` OR `(len ≠ 0 ∧ code[0] = 0xEF)`,
+    `cdcvProgram` the codegen emits: `li x5,65536 ;; block1`. The deployed gate
+    sets `a0 := 1` (invalid) iff `len > 65536` OR `(len ≠ 0 ∧ code[0] = 0xEF)`,
     else `0`. Alternate formulation over `cdcvCode`; see `cdcv_spec` for the
     explicit-singleton form built on `cdcv_merge1`. -/
 theorem cdcv_spec_via_blocks (base codePtr len v5old v6old x1_init dwordAddr wordVal : Word)
@@ -291,14 +291,14 @@ theorem cdcv_spec_via_blocks (base codePtr len v5old v6old x1_init dwordAddr wor
     cpsTripleWithin 8 base (x1_init &&& ~~~1) (cdcvCode base)
       ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) **
         (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768:Word) len then (1:Word) else
+      ((.x10 ↦ᵣ (if BitVec.ult (65536:Word) len then (1:Word) else
           if len = (0:Word) then (0:Word) else
           if (extractByte wordVal (byteOffset codePtr)).zeroExtend 64 = (0xEF:Word) then (1:Word) else 0)) **
         (.x11 ↦ᵣ len) ** regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0:Word)) **
         (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal)) := by
   have hli0 := cpsTripleWithin_extend_code
-    (h := li_spec_gen_within .x5 v5old (32768:Word) base (by nofun))
-    (hmono := CodeReq.ofProg_mono_sub base base cdcvProgram [.LI .x5 (32768:Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
+    (h := li_spec_gen_within .x5 v5old (65536:Word) base (by nofun))
+    (hmono := CodeReq.ofProg_mono_sub base base cdcvProgram [.LI .x5 (65536:Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
   have hliF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0:Word)) ** (.x1 ↦ᵣ x1_init) ** (dwordAddr ↦ₘ wordVal))
     (by pcFree) hli0
@@ -589,13 +589,13 @@ theorem cdcv_merge2
     (cpsBranchWithin_merge_same_cr hbr h_t h_f)
 
 /-- The size-check branch of `create_deployed_code_valid`, at `base + 4`:
-    `BGTU a1 t0` (≡ `BLTU x5 x11`, x5 = MAX = 32768, x11 = len) jumps to the invalid
+    `BGTU a1 t0` (≡ `BLTU x5 x11`, x5 = MAX = 65536, x11 = len) jumps to the invalid
     arm (`base + 32`, `LI x10 1; ret`) when `MAX < len`, else falls to the
     empty-length-check branch (`base + 8`, `cdcv_merge2`). Merges the two paths over
     ONE shared `CodeReq` (the invalid arm at `base + 32` already lives inside seg3's
     code), giving
     `x10 := if MAX < len then 1 else if len = 0 then 0 else if byte0 = 239 then 1 else 0`,
-    `x5`/`x6` abstracted to `regOwn`. The prologue's `LI x5 32768` is assumed (x5 = 32768
+    `x5`/`x6` abstracted to `regOwn`. The prologue's `LI x5 65536` is assumed (x5 = 65536
     on entry); `cdcv_spec` will compose it. -/
 theorem cdcv_merge1
     (base ptrVal oldByte len x1_init dwordAddr wordVal : Word)
@@ -611,15 +611,15 @@ theorem cdcv_merge1
                     (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))).union
                  ((CodeReq.singleton (base + 24) (.LI .x10 (0 : Word))).union
                     (CodeReq.singleton (base + 24 + 4) (.JALR .x0 .x1 0)))))))))
-      ((.x5 ↦ᵣ (32768 : Word)) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) **
+      ((.x5 ↦ᵣ (65536 : Word)) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) **
        (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
       ((regOwn .x6) ** (regOwn .x5) **
-       (.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+       (.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = 0 then (0 : Word)
                  else if (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 = (239 : Word)
                       then (1 : Word) else 0)) **
        (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) := by
-  have hm2 := cdcv_merge2 base ptrVal oldByte (32768 : Word) len x1_init dwordAddr wordVal halign hvalid
+  have hm2 := cdcv_merge2 base ptrVal oldByte (65536 : Word) len x1_init dwordAddr wordVal halign hvalid
   set byte0 := (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 with hb0
   set scode :=
     ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
@@ -672,11 +672,11 @@ theorem cdcv_merge1
   have h_t : cpsTripleWithin 6 (base + 32) (x1_init &&& ~~~1)
       ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
         ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode))
-      (((.x5 ↦ᵣ (32768 : Word)) ** (.x11 ↦ᵣ len) ** ⌜BitVec.ult (32768 : Word) len⌝) **
+      (((.x5 ↦ᵣ (65536 : Word)) ** (.x11 ↦ᵣ len) ** ⌜BitVec.ult (65536 : Word) len⌝) **
         ((.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x10 ↦ᵣ ptrVal) **
           (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)))
       ((regOwn .x6) ** (regOwn .x5) **
-       (.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+       (.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = 0 then (0 : Word) else if byte0 = (239 : Word) then (1 : Word) else 0)) **
        (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) :=
     cpsTripleWithin_extend_code hinv_mono
@@ -686,22 +686,22 @@ theorem cdcv_merge1
           (fun h hq => by
             obtain ⟨hult, hrest⟩ := (sepConj_pure_left h).mp hq
             rw [if_pos hult]
-            have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 (32768 : Word)))) h hrest
+            have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 (65536 : Word)))) h hrest
             have h2 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 oldByte)) h h1
             sep_perm h2)
-          (cpsTripleWithin_frameL ⌜BitVec.ult (32768 : Word) len⌝ (by pcFree)
+          (cpsTripleWithin_frameL ⌜BitVec.ult (65536 : Word) len⌝ (by pcFree)
             (cpsTripleWithin_frameR ((.x6 ↦ᵣ oldByte) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal))
               (by pcFree)
-              (cisv_arm (base + 32) (32768 : Word) x1_init ptrVal (1 : Word))))))
+              (cisv_arm (base + 32) (65536 : Word) x1_init ptrVal (1 : Word))))))
   -- Fall arm (MAX ≥ len): merge2 (empty-check + byte segment).
   have h_f : cpsTripleWithin 6 (base + 8) (x1_init &&& ~~~1)
       ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
         ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode))
-      (((.x5 ↦ᵣ (32768 : Word)) ** (.x11 ↦ᵣ len) ** ⌜¬ BitVec.ult (32768 : Word) len⌝) **
+      (((.x5 ↦ᵣ (65536 : Word)) ** (.x11 ↦ᵣ len) ** ⌜¬ BitVec.ult (65536 : Word) len⌝) **
         ((.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x10 ↦ᵣ ptrVal) **
           (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)))
       ((regOwn .x6) ** (regOwn .x5) **
-       (.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+       (.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = 0 then (0 : Word) else if byte0 = (239 : Word) then (1 : Word) else 0)) **
        (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) :=
     cpsTripleWithin_weaken
@@ -710,12 +710,12 @@ theorem cdcv_merge1
         obtain ⟨hnu, hrest⟩ := (sepConj_pure_left h).mp hq
         rw [if_neg hnu]
         sep_perm hrest)
-      (cpsTripleWithin_frameL ⌜¬ BitVec.ult (32768 : Word) len⌝ (by pcFree) hm2')
+      (cpsTripleWithin_frameL ⌜¬ BitVec.ult (65536 : Word) len⌝ (by pcFree) hm2')
   -- Branch: BLTU x5 x11, framing the non-branch state.
   have hbr0 := cpsBranchWithin_frameR
     ((.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
     (by pcFree)
-    (generic_bltu_spec_within .x5 .x11 (28 : BitVec 13) (32768 : Word) len (base + 4))
+    (generic_bltu_spec_within .x5 .x11 (28 : BitVec 13) (65536 : Word) len (base + 4))
   have he_t : ((base + 4) + signExtend13 (28 : BitVec 13) : Word) = base + 32 := by
     have : signExtend13 (28 : BitVec 13) = (28 : Word) := by decide
     rw [this]; bv_omega
@@ -728,7 +728,7 @@ theorem cdcv_merge1
     (cpsBranchWithin_merge_same_cr hbr h_t h_f)
 
 /-- The full `create_deployed_code_valid` gate as a `cpsTriple`: the prologue
-    `LI x5 32768` (set the MAX_CODE_SIZE constant) sequenced with the size-check
+    `LI x5 65536` (set the MAX_CODE_SIZE constant) sequenced with the size-check
     branch tree (`cdcv_merge1`). 8 steps from `base`:
     `x10 := if MAX < len then 1 else if len = 0 then 0 else if byte0 = 239 then 1 else 0`
     (0 = valid/deploy, 1 = invalid), `x5`/`x6` abstracted to `regOwn`. This is the
@@ -740,7 +740,7 @@ theorem cdcv_spec
     (halign : alignToDword ptrVal = dwordAddr)
     (hvalid : isValidByteAccess ptrVal = true) :
     cpsTripleWithin 8 base (x1_init &&& ~~~1)
-      ((CodeReq.singleton base (.LI .x5 (32768 : Word))).union
+      ((CodeReq.singleton base (.LI .x5 (65536 : Word))).union
         ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
           ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union
             ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
@@ -753,20 +753,20 @@ theorem cdcv_spec
       ((.x5 ↦ᵣ v5old) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) **
        (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
       ((regOwn .x6) ** (regOwn .x5) **
-       (.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+       (.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = 0 then (0 : Word)
                  else if (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 = (239 : Word)
                       then (1 : Word) else 0)) **
        (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) := by
   have hm1 := cdcv_merge1 base ptrVal oldByte len x1_init dwordAddr wordVal halign hvalid
-  -- Prologue: LI x5 32768 at base, base → base+4. Frame the rest (its post is
+  -- Prologue: LI x5 65536 at base, base → base+4. Frame the rest (its post is
   -- exactly merge1's entry).
   have hpro := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x10 ↦ᵣ ptrVal) **
       (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
     (by pcFree)
-    (li_spec_within .x5 v5old (32768 : Word) base (by nofun))
-  have hd0 : (CodeReq.singleton base (.LI .x5 (32768 : Word))).Disjoint
+    (li_spec_within .x5 v5old (65536 : Word) base (by nofun))
+  have hd0 : (CodeReq.singleton base (.LI .x5 (65536 : Word))).Disjoint
       ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
         ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union
           ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
