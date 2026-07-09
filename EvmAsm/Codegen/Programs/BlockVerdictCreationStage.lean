@@ -273,16 +273,43 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  jal ra, runtime_dispatcher_call\n" ++
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  jal ra, block_log_window_snapshot\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  mv s3, a2\n" ++
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd s3, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
+  -- Amsterdam EIP-7708: process_create_message transfers value into the child
+  -- frame before initcode runs, emitting Transfer(sender, created, value). The
+  -- staged top-level creation path has only STOP initcode, so adding the log
+  -- before the receipt-window snapshot preserves execution-specs ordering.
+  "  beqz s3, .Lbvcr_tl7708_done\n" ++
+  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbvcr_tl7708_done\n" ++
+  "  ld a0, 24(s0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la a0, bmvmx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
+  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
+  "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bmvmx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbvcr_tl_from:\n  beqz t3, .Lbvcr_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_tl_from\n" ++
+  ".Lbvcr_tl_from_d:\n" ++
+  "  la t0, eip7708_tl_to32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bv_create_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbvcr_tl_to:\n  beqz t3, .Lbvcr_tl_to_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_tl_to\n" ++
+  ".Lbvcr_tl_to_d:\n" ++
+  "  la t0, eip7708_tl_val32\n  addi t1, s0, 127; mv t2, t0; li t3, 32\n" ++
+  ".Lbvcr_tl_val:\n  beqz t3, .Lbvcr_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_tl_val\n" ++
+  ".Lbvcr_tl_val_d:\n" ++
+  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
+  ".Lbvcr_tl7708_done:\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+
   -- Successful top-level STOP creation makes the created account alive with
   -- the transaction value as balance and nonce 1. Record that execution-derived
   -- effect before BAL all-account non-storage comparisons run.
-  "  beqz a2, .Lbvcr_created_effect_done\n" ++
+  "  beqz s3, .Lbvcr_created_effect_done\n" ++
   "  la a0, bv_create_addr\n" ++
   "  la a1, nse_zero_bal\n" ++
   "  la a2, bv_creation_ctx_ptr; ld a2, 0(a2); addi a2, a2, 96\n" ++

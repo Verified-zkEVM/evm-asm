@@ -84,14 +84,18 @@ open EvmAsm.Rv64
     100 gas for SSTORE, and `evm_storage_access_charge_key` already charged the
     2900 cold delta, so this computes the remaining debit to match Amsterdam's
     `vm/instructions/storage.py`:
+
     - clean-changing (original == current ≠ new): +10000 STORAGE_WRITE; when
+
       the original is zero this is a state CREATION, so it additionally charges
       the EIP-8037 state gas STATE_BYTES_PER_STORAGE_SET(64) ×
       COST_PER_STATE_BYTE(1530) = 97,920 via the charge_state_gas rule: drain
       `evm_state_gas_left` first, spill the remainder into env.gasRemaining,
       OOG when both are short; `evm_state_gas_used` accumulates the charge.
+
     - dirty/noop branch: +0; the access charge is already fully covered by the
       dispatch warm floor plus storage-access helper.
+
     Refund-counter updates are handled by `sstore_gas_refund_outcome` below. -/
 def sstoreValueTransitionGasAsm : String :=
   -- x14 = OR of the new value limbs. For a missing slot, original=current=0.
@@ -160,7 +164,9 @@ def sstoreValueTransitionGasAsm : String :=
   "  j .Lsstore_gas_done\n" ++
   ".Lsstore_missing_nonzero:\n" ++   -- missing slot = original = current = 0: creation
   "  li x9, 1\n" ++
+
   "  li x14, 10000\n" ++             -- STORAGE_WRITE
+
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_dirty_or_noop:\n" ++
   "  li x9, 0\n" ++
