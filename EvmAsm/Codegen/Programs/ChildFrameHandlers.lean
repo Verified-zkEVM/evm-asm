@@ -567,16 +567,16 @@ def callDescendFallThrough
   -- `generic_call` charges `access_gas + transfer_gas + extend_memory` before
   -- STATE ACCESS / delegation resolution and before EIP-8037 NEW_ACCOUNT state gas.
   -- Access/memory are already charged before this fall-through, so charge the residual
-  -- value-transfer 9000 here and arm a one-shot flag. `call_frame_descend` consumes the
+  -- value-transfer 10300 here and arm a one-shot flag. `call_frame_descend` consumes the
   -- flag instead of charging again; empty-code paths refund the 2300 stipend, giving the
-  -- same net 6700 as execution-specs while preserving the pre-state-gas ordering.
+  -- same net 8000 as execution-specs while preserving the pre-state-gas ordering.
   (if valueBearing then
      "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
      "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  beqz t3, .Lcd_xfergas_ok_" ++ tag ++ "\n" ++   -- value == 0: no transfer
-     "  ld t3, 568(x20)\n  li t4, 9000\n  bltu t3, t4, .exit_outofgas\n" ++
+     "  ld t3, 568(x20)\n  li t4, 10300\n  bltu t3, t4, .exit_outofgas\n" ++
      "  sub t3, t3, t4\n  sd t3, 568(x20)\n" ++
      "  la t4, cd_xfer_gas_precharged\n  li t3, 1\n  sd t3, 0(t4)\n" ++
      ".Lcd_xfergas_ok_" ++ tag ++ ":\n"
@@ -824,9 +824,9 @@ def callDescendFallThrough
   -- code_hash is EMPTY_CODE_HASH (keccak ""), which is never stored in the codes
   -- section -> status 5. A value-CALL to such an existing EOA is a VALID
   -- empty-code callee: the spec runs no code, transfers value, and bills the net
-  -- 6700 value gas (9000 - 2300 stipend) -- exactly .Lcd_empty_. Without this the
+  -- 8000 value gas (10300 - 2300 stipend) -- exactly .Lcd_empty_. Without this the
   -- call routed to .Lcd_fail_ (push 0), skipping the value gas -> receipt
-  -- cumulative under-counted by 6700 -> receipts-root mismatch (bv_fail=53 on the
+  -- cumulative under-counted by 8000 -> receipts-root mismatch (bv_fail=53 on the
   -- 48 non-allowlisted blob_gas_subtraction_tx cases). Distinguish a genuine
   -- witness-miss (non-empty code hash absent from codes -> fail) from a legitimate
   -- empty-code EOA by checking cahsr_acct_struct.code_hash == EMPTY_CODE_HASH.
@@ -843,7 +843,7 @@ def callDescendFallThrough
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   (if valueBearing then
      "  la t0, cd_xfer_gas_precharged\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_xfer_done_" ++ tag ++ "\n" ++
-     "  sd x0, 0(t0)\n  li t1, 9000\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
+     "  sd x0, 0(t0)\n  li t1, 10300\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
      ".Lcd_fail_xfer_done_" ++ tag ++ ":\n"
    else "") ++
   "  mv x10, s10                           # restore parent PC before direct CALL failure resume\n" ++
@@ -856,20 +856,20 @@ def callDescendFallThrough
   -- here (NOT to the shared .Lcd_fail_) so this charge does NOT touch the depth-gate or the
   -- code-resolution-failure (status 2/3/4/5) arrivals, which the spec does NOT bill the
   -- value-transfer gas. Spec vm/instructions/system.py: charge_gas(extra_gas = access +
-  -- CALL_VALUE(9000)) and charge_gas(message_call_gas.cost) run BEFORE the
+  -- CALL_VALUE(10300)) and charge_gas(message_call_gas.cost) run BEFORE the
   -- `sender_balance < value` check (system.py:464/477/488); on insufficient balance only the
   -- sub-call gas (forwarded gas + GAS_CALL_STIPEND(2300)) is returned
   -- (`evm.gas_left += message_call_gas.sub_call`), so the NET regular consumed for the value
-  -- transfer is 9000 - 2300 = 6700 (access is already charged via runtime_access_account_charge
-  -- before the gate; the value!=0 gate guard guarantees value>0 here so the 6700 is
-  -- unconditional). Without it the reconstructed block_regular_gas under-counts by 6700 ->
+  -- transfer is 10300 - 2300 = 8000 (access is already charged via runtime_access_account_charge
+  -- before the gate; the value!=0 gate guard guarantees value>0 here so the 8000 is
+  -- unconditional). Without it the reconstructed block_regular_gas under-counts by 8000 ->
   -- header.gas_used appears to over-claim -> .Lbv_block_gas_used_over_fail (bv_fail=41:
   -- failed_inner_operation_no_log call_insufficient_balance). The spec's prior
-  -- charge_gas(extra_gas) would have OOG'd if gas_left < 6700, so bailing to .exit_outofgas
+  -- charge_gas(extra_gas) would have OOG'd if gas_left < 8000, so bailing to .exit_outofgas
   -- matches the spec. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
-     "  li t0, 6700\n" ++
+     "  li t0, 8000\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      -- bbow4.2.2 (bv41): the NEW_ACCOUNT state-gas charge (nxio8.8, below) lives in the
@@ -940,18 +940,18 @@ def callDescendFallThrough
   -- empty code (EOA): the call succeeds, runs nothing → push 1
   ".Lcd_empty_" ++ tag ++ ":\n" ++
   -- bnctz: a value-bearing CALL/CALLCODE (mode 0/2) to an empty/non-existent callee still pays the
-  -- value-transfer REGULAR gas. Spec system.py:444 charges extra_gas = access + CALL_VALUE(9000);
+  -- value-transfer REGULAR gas. Spec system.py:444 charges extra_gas = access + CALL_VALUE(10300);
   -- message_call_gas then funds the empty callee with the 2300 stipend, which returns unused, so
-  -- the NET regular consumed is 9000 - 2300 = 6700 (access is already charged via
+  -- the NET regular consumed is 10300 - 2300 = 8000 (access is already charged via
   -- runtime_access_account_charge; the new-account STATE gas is charged above). The .Lcd_empty
-  -- fast-path takes no child frame, so charge that 6700 net here. Without it, block_inc0 (and the
-  -- receipt = block_regular + tx_state) under-count by 6700 -> block_gas_used_call_new_account
+  -- fast-path takes no child frame, so charge that 8000 net here. Without it, block_inc0 (and the
+  -- receipt = block_regular + tx_state) under-count by 8000 -> block_gas_used_call_new_account
   -- bv_fail=53.
   -- coc3g.7 (bv_fail=41, bal_nonexistent callcode_positive_value): CALLCODE (mode 2) with value to a
   -- nonexistent CODE target (`to = current_target`, code from the popped address = empty) also runs
-  -- nothing and pays this 6700 net (spec callcode: transfer_gas_cost = CALL_VALUE(9000), stipend 2300
+  -- nothing and pays this 8000 net (spec callcode: transfer_gas_cost = CALL_VALUE(10300), stipend 2300
   -- refunded). CALLCODE charges NO new-account state gas (its recipient is current_target, always
-  -- alive) so this regular 6700 is the only value cost. STATICCALL/DELEGATECALL are value-less, so
+  -- alive) so this regular 8000 is the only value cost. STATICCALL/DELEGATECALL are value-less, so
   -- gate on `valueBearing` (mode 0 OR 2). x12 is still the parent stack top (value at x12+valueOff).
   (if valueBearing then
      "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
@@ -963,7 +963,7 @@ def callDescendFallThrough
      "  sd x0, 0(t2)\n  li t0, 2300\n  ld t1, 568(x20)\n  add t1, t1, t0\n  sd t1, 568(x20)\n" ++
      "  j .Lcd_empty_noval_" ++ tag ++ "\n" ++
      ".Lcd_empty_charge_net_" ++ tag ++ ":\n" ++
-     "  li t0, 6700\n" ++
+     "  li t0, 8000\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      ".Lcd_empty_noval_" ++ tag ++ ":\n"

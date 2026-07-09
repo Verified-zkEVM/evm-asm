@@ -259,12 +259,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`; `Bls12PtCopySAsm.lean` verifies the `blq_pt_copy` fixed
+  projective-point copy loop (`blqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1728-byte source/destination disjointness precondition and
+  byte-identity pinned to `blqPtCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254PtCopySAsm.lean` verifies the `bnq_pt_copy` fixed
+  projective-point copy loop (`bnqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1152-byte source/destination disjointness precondition and
+  byte-identity pinned to `bnqPtCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
@@ -274,10 +280,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
-  pinned to `bncCopy64_prog`.
+  pinned to `bncCopy64_prog`. `Secp256k1PointCopy64SAsm.lean` verifies the
+  analogous `secp256k1_point_copy64` byte loop (`secp256k1PointCopy64Fn_spec`,
+  post `ws = srcBytes`) with the same static disjointness precondition and
+  byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`.
+  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  verifies the analogous `secp256k1_point_zero64` byte loop
+  (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
+  byte-identity pinned to `secp256k1PointZero64_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`

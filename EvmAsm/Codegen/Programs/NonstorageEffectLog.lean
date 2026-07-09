@@ -45,10 +45,10 @@ open EvmAsm.Rv64
 
     Worst-case bound: record_nonstorage_effect APPENDS one raw record per value-bearing CALL /
     CREATE-created / SELFDESTRUCT-beneficiary. The cheapest record-producing op is a value-CALL to
-    an EXISTING WARM account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(9000) = 9100 REGULAR gas
+    an EXISTING WARM account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400 REGULAR gas
     (Amsterdam vm/gas.py:50, vm/instructions/system.py:424/465 — value transfer is charged via
     charge_gas, NOT the EIP-8037 state-gas dimension; CREATE 32000 / SELFDESTRUCT-redeploy ~37000
-    are dearer). So a 200M-gas block emits at most 200_000_000 / 9100 ≈ 21_978 raw records. 32768
+    are dearer). So a 200M-gas block emits at most 200_000_000 / 10400 ≈ 19_230 raw records. 32768
     covers that with ~49% margin (≈298M gas), so the effect log NEVER overflows under the 200M
     block-gas envelope — i.e. the overflow→skip path (multi-tx BlockVerdictMtxTail) and the
     single-tx silent-truncation are both UNREACHABLE within scope, closing the conservative skip.
