@@ -5,7 +5,7 @@
   costs. Consumers pass a bounded 32-byte-stride table of 20-byte canonical
   big-endian addresses. The dispatcher static gas table already charges the
   100-gas warm floor for account opcodes, so this helper charges only the
-  2500-gas cold delta and records newly cold addresses.
+  2900-gas Amsterdam cold delta and records newly cold addresses.
 -/
 
 import EvmAsm.Rv64.Program
@@ -30,7 +30,7 @@ open EvmAsm.Rv64
 -- only widens the table (100_000 * 32 = ~3.2 MiB) and the OOG threshold.
 def runtimeAccessAccountCapacity : Nat := 100000
 def runtimeAccessAccountRecordSize : Nat := 32
-def runtimeAccessColdDeltaGas : Nat := 2500
+def runtimeAccessColdDeltaGas : Nat := 2900
 def runtimeAccessAccountOutcomeCapacity : Nat := 64
 def runtimeAccessAccountOutcomeRecordSize : Nat := 64
 
