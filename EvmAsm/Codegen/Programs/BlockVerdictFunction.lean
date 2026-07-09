@@ -343,13 +343,24 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
   "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
   ".Lbv_stx_legacy_21k_verify:\n" ++
+  "  la t1, tgbpv_failed_oog; sd zero, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd zero, 0(t1)\n" ++
   topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_top_state_gas; ld t6, 0(t1)\n" ++
   "  add t0, a1, a3\n" ++
   "  bgeu t0, a2, .Lbv_stx_intrinsic_used_ready\n" ++
   "  mv t0, a2\n" ++
   ".Lbv_stx_intrinsic_used_ready:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t4, 40(t2); add t5, t0, t6; bgeu t4, t5, .Lbv_stx_not_failed_oog\n" ++
+  "  la t1, tgbpv_failed_oog; li t3, 1; sd t3, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd t3, 0(t1)\n" ++
+  "  mv t0, t4; j .Lbv_stx_gas_used_ready\n" ++
+  ".Lbv_stx_not_failed_oog:\n" ++
+  "  add t0, t0, t6\n" ++
+  ".Lbv_stx_gas_used_ready:\n" ++
   "  la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
@@ -545,10 +556,15 @@ def blockVerdictFunction : String :=
   -- shortcut. The resulting before-refund value is regular + state, which the
   -- exact EIP-8037 block-gas check later splits back into its two dimensions.
   topLevelValueRecipientStateGasAsm "bv_st_direct" "bv_simple_transfer_tx" ++
-  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t0, evm_state_gas_used; ld t0, 0(t0)\n" ++
+  "  la t0, tgbpv_top_state_gas; ld t0, 0(t0)\n" ++
+  "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_direct_state_publish_ok\n" ++
+  "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
+  ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
+  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
   "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
