@@ -56,3 +56,5 @@ import EvmAsm.Rv64.SAsm.EarlyRet
 import EvmAsm.Rv64.SAsm.GlobalData
 import EvmAsm.Rv64.SAsm.GlobalDataDemo
 import EvmAsm.Rv64.SAsm.BlockAtBridge
+import EvmAsm.Rv64.SAsm.TwoBreakWritable
+import EvmAsm.Rv64.SAsm.DualReadByteScan

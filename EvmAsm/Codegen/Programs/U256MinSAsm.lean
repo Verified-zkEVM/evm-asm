@@ -51,7 +51,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace U256MinSAsm
 
 -- Address anchor.
-#guard GuestAddrs.u256_min = 0x80024da4
+#guard GuestAddrs.u256_min = 0x80024c34
 
 -- The shared copy tail of the emitted program IS the combinator's
 -- generator (kernel-checked byte tie).
@@ -97,8 +97,9 @@ private theorem beBytesToNat_bound (bs : List (BitVec 8)) :
   omega
 
 /-- **BE lexicographic < implies numeric <**: equal prefixes and a smaller
-    byte at the first difference give a smaller value. -/
-private theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
+    byte at the first difference give a smaller value.  (Public: also
+    consumed by `U256LtBeSAsm`.) -/
+theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
     (hlen : as.length = bs.length) (i : Nat) (hia : i < as.length)
     (hpref : ∀ j, j < i → as.getD j 0 = bs.getD j 0)
     (hlt : (as.getD i 0).toNat < (bs.getD i 0).toNat) :
@@ -166,8 +167,9 @@ private theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
       = (bs.getD i 0 :: bs.drop (i + 1)).length := hlenTail
   exact Nat.add_lt_add_left hstep _
 
-/-- All bytes equal (equal lengths) means equal lists. -/
-private theorem bytes_eq_of_prefix_all (as bs : List (BitVec 8))
+/-- All bytes equal (equal lengths) means equal lists.  (Public: also
+    consumed by `U256LtBeSAsm`.) -/
+theorem bytes_eq_of_prefix_all (as bs : List (BitVec 8))
     (hlen : as.length = bs.length)
     (hpref : ∀ j, j < as.length → as.getD j 0 = bs.getD j 0) :
     as = bs := by
@@ -193,8 +195,8 @@ private instance : Decidable (minSel as bs) := Nat.decLe _ _
 /-- Shared pick-`a` exit segment (`mv x5, a0 ; j .copy`), entered with the
     selector KNOWN true. -/
 private theorem pickA_spec (w : Word) (hcond : minSel as bs) :
-    cpsTripleWithin 2 (0x80024d84 : Word) (0x80024d90 : Word)
-      (CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
+    cpsTripleWithin 2 (0x80024c60 : Word) (0x80024c6c : Word)
+      (CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
       (((.x5 : Reg) ↦ᵣ w) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) ** ((.x10 : Reg) ↦ᵣ aPtr) **
       ((.x11 : Reg) ↦ᵣ bPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
       ((.x1 : Reg) ↦ᵣ ret) **
@@ -205,14 +207,14 @@ private theorem pickA_spec (w : Word) (hcond : minSel as bs) :
       ((.x1 : Reg) ↦ᵣ ret) **
       regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
       bytesRegion aPtr as ** bytesRegion bPtr bs ** bytesRegion outPtr os) := by
-  have hmv := liftCode (cr' := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
-    (mv_spec_gen_within .x5 .x10 aPtr w (0x80024d84 : Word) (by decide))
+  have hmv := liftCode (cr' := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
+    (mv_spec_gen_within .x5 .x10 aPtr w (0x80024c60 : Word) (by decide))
     (by code_mem)
-  rw [show (0x80024d84 : Word) + 4 = (0x80024d88 : Word) from by decide] at hmv
-  have hjal := liftCode (cr' := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
-    (jal_x0_spec_gen_within (8 : BitVec 21) (0x80024d88 : Word))
+  rw [show (0x80024c60 : Word) + 4 = (0x80024c64 : Word) from by decide] at hmv
+  have hjal := liftCode (cr' := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
+    (jal_x0_spec_gen_within (8 : BitVec 21) (0x80024c64 : Word))
     (by code_mem)
-  rw [show (0x80024d88 : Word) + signExtend21 (8 : BitVec 21) = (0x80024d90 : Word)
+  rw [show (0x80024c64 : Word) + signExtend21 (8 : BitVec 21) = (0x80024c6c : Word)
     from by decide] at hjal
   have hmvF := cpsTripleWithin_frameR
     (((.x31 : Reg) ↦ᵣ (32 : Word)) ** ((.x11 : Reg) ↦ᵣ bPtr) **
@@ -241,8 +243,8 @@ private theorem pickA_spec (w : Word) (hcond : minSel as bs) :
 /-- Shared pick-`b` exit segment (`mv x5, a1`, falling into `.copy`),
     entered with the selector KNOWN false. -/
 private theorem pickB_spec (w : Word) (hcond : ¬ minSel as bs) :
-    cpsTripleWithin 1 (0x80024d8c : Word) (0x80024d90 : Word)
-      (CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
+    cpsTripleWithin 1 (0x80024c68 : Word) (0x80024c6c : Word)
+      (CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
       (((.x5 : Reg) ↦ᵣ w) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) ** ((.x10 : Reg) ↦ᵣ aPtr) **
       ((.x11 : Reg) ↦ᵣ bPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
       ((.x1 : Reg) ↦ᵣ ret) **
@@ -253,10 +255,10 @@ private theorem pickB_spec (w : Word) (hcond : ¬ minSel as bs) :
       ((.x1 : Reg) ↦ᵣ ret) **
       regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
       bytesRegion aPtr as ** bytesRegion bPtr bs ** bytesRegion outPtr os) := by
-  have hmv := liftCode (cr' := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
-    (mv_spec_gen_within .x5 .x11 bPtr w (0x80024d8c : Word) (by decide))
+  have hmv := liftCode (cr' := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
+    (mv_spec_gen_within .x5 .x11 bPtr w (0x80024c68 : Word) (by decide))
     (by code_mem)
-  rw [show (0x80024d8c : Word) + 4 = (0x80024d90 : Word) from by decide] at hmv
+  rw [show (0x80024c68 : Word) + 4 = (0x80024c6c : Word) from by decide] at hmv
   have hmvF := cpsTripleWithin_frameR
     (((.x31 : Reg) ↦ᵣ (32 : Word)) ** ((.x10 : Reg) ↦ᵣ aPtr) **
       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -280,8 +282,8 @@ private theorem scanLoop_spec
     (hvalidB : ∀ k, k < 32 → isValidByteAccess (bPtr + BitVec.ofNat 64 k) = true)
     (M i : Nat) (hMi : i + M = 32)
     (hpref : ∀ j, j < i → as.getD j 0 = bs.getD j 0) :
-    cpsTripleWithin (9 * M + 8) (0x80024d60 : Word) (0x80024d90 : Word)
-      (CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
+    cpsTripleWithin (9 * M + 8) (0x80024c3c : Word) (0x80024c6c : Word)
+      (CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
       (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) ** ((.x10 : Reg) ↦ᵣ aPtr) **
       ((.x11 : Reg) ↦ᵣ bPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
       ((.x1 : Reg) ↦ᵣ ret) **
@@ -307,13 +309,13 @@ private theorem scanLoop_spec
           bytesRegion aPtr as ** bytesRegion bPtr bs ** bytesRegion outPtr os)
         (by pcf)
         (cpsBranchWithin_extend_code
-          (cr' := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
+          (cr' := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
           (h := beq_spec_gen_within .x5 .x31 (36 : BitVec 13)
-            (BitVec.ofNat 64 32) (32 : Word) (0x80024d60 : Word))
+            (BitVec.ofNat 64 32) (32 : Word) (0x80024c3c : Word))
           (hmono := by code_mem))
-      rw [show (0x80024d60 : Word) + signExtend13 (36 : BitVec 13)
-            = (0x80024d84 : Word) from by decide,
-          show (0x80024d60 : Word) + 4 = (0x80024d64 : Word) from by decide] at hbr
+      rw [show (0x80024c3c : Word) + signExtend13 (36 : BitVec 13)
+            = (0x80024c60 : Word) from by decide,
+          show (0x80024c3c : Word) + 4 = (0x80024c40 : Word) from by decide] at hbr
       have hstation := retJoinStation_spec
         (cond := (BitVec.ofNat 64 32 = (32 : Word)))
         (PT := ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 32) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) **
@@ -341,7 +343,7 @@ private theorem scanLoop_spec
         (cpsTripleWithin_mono_nSteps (by omega) hstation)
   | succ n ih =>
       have hiN : i < 32 := by omega
-      set CR := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog with hCR
+      set CR := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog with hCR
       have hia : i < as.length := by omega
       have hib : i < bs.length := by omega
       set aByte := (as[i]'hia).zeroExtend 64 with haByte
@@ -381,24 +383,24 @@ private theorem scanLoop_spec
       -- ---- the four body instructions ----
       have hadd6 := liftCode (cr' := CR)
         (add_spec_gen_within .x6 .x10 .x5 aPtr (BitVec.ofNat 64 i) (vf .x6)
-          (0x80024d64 : Word) (by decide))
+          (0x80024c40 : Word) (by decide))
         (by rw [hCR]; code_mem)
-      rw [show (0x80024d64 : Word) + 4 = (0x80024d68 : Word) from by decide] at hadd6
+      rw [show (0x80024c40 : Word) + 4 = (0x80024c44 : Word) from by decide] at hadd6
       have hadd7 := liftCode (cr' := CR)
         (add_spec_gen_within .x7 .x11 .x5 bPtr (BitVec.ofNat 64 i) (vf .x7)
-          (0x80024d68 : Word) (by decide))
+          (0x80024c44 : Word) (by decide))
         (by rw [hCR]; code_mem)
-      rw [show (0x80024d68 : Word) + 4 = (0x80024d6c : Word) from by decide] at hadd7
+      rw [show (0x80024c44 : Word) + 4 = (0x80024c48 : Word) from by decide] at hadd7
       have hlbuA := liftCode (cr' := CR)
-        (bytesRegion_lbu_within .x28 .x6 aPtr (vf .x28) (0x80024d6c : Word)
+        (bytesRegion_lbu_within .x28 .x6 aPtr (vf .x28) (0x80024c48 : Word)
           as i (by decide) halignA hia (by omega) (hvalidA i hiN))
         (by rw [hCR]; code_mem)
-      rw [show (0x80024d6c : Word) + 4 = (0x80024d70 : Word) from by decide] at hlbuA
+      rw [show (0x80024c48 : Word) + 4 = (0x80024c4c : Word) from by decide] at hlbuA
       have hlbuB := liftCode (cr' := CR)
-        (bytesRegion_lbu_within .x29 .x7 bPtr (vf .x29) (0x80024d70 : Word)
+        (bytesRegion_lbu_within .x29 .x7 bPtr (vf .x29) (0x80024c4c : Word)
           bs i (by decide) halignB hib (by omega) (hvalidB i hiN))
         (by rw [hCR]; code_mem)
-      rw [show (0x80024d70 : Word) + 4 = (0x80024d74 : Word) from by decide] at hlbuB
+      rw [show (0x80024c4c : Word) + 4 = (0x80024c50 : Word) from by decide] at hlbuB
       -- ---- frames + chain of the body ----
       have hadd6F := cpsTripleWithin_frameR
         ((.x7 ↦ᵣ vf .x7) ** (.x28 ↦ᵣ vf .x28) ** (.x29 ↦ᵣ vf .x29) **
@@ -450,11 +452,11 @@ private theorem scanLoop_spec
         (by pcf)
         (cpsBranchWithin_extend_code (cr' := CR)
           (h := beq_spec_gen_within .x5 .x31 (36 : BitVec 13)
-            (BitVec.ofNat 64 i) (32 : Word) (0x80024d60 : Word))
+            (BitVec.ofNat 64 i) (32 : Word) (0x80024c3c : Word))
           (hmono := by rw [hCR]; code_mem))
-      rw [show (0x80024d60 : Word) + signExtend13 (36 : BitVec 13)
-            = (0x80024d84 : Word) from by decide,
-          show (0x80024d60 : Word) + 4 = (0x80024d64 : Word) from by decide] at hbrHdr
+      rw [show (0x80024c3c : Word) + signExtend13 (36 : BitVec 13)
+            = (0x80024c60 : Word) from by decide,
+          show (0x80024c3c : Word) + 4 = (0x80024c40 : Word) from by decide] at hbrHdr
       -- ---- station 1: BLTU x28 x29 → pick a ----
       have hbr1 := cpsBranchWithin_frameR
         (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** (.x6 ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -466,11 +468,11 @@ private theorem scanLoop_spec
         (by pcf)
         (cpsBranchWithin_extend_code (cr' := CR)
           (h := bltu_spec_gen_within .x28 .x29 (16 : BitVec 13) aByte bByte
-            (0x80024d74 : Word))
+            (0x80024c50 : Word))
           (hmono := by rw [hCR]; code_mem))
-      rw [show (0x80024d74 : Word) + signExtend13 (16 : BitVec 13)
-            = (0x80024d84 : Word) from by decide,
-          show (0x80024d74 : Word) + 4 = (0x80024d78 : Word) from by decide] at hbr1
+      rw [show (0x80024c50 : Word) + signExtend13 (16 : BitVec 13)
+            = (0x80024c60 : Word) from by decide,
+          show (0x80024c50 : Word) + 4 = (0x80024c54 : Word) from by decide] at hbr1
       -- ---- station 2: BLTU x29 x28 → pick b ----
       have hbr2 := cpsBranchWithin_frameR
         (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** (.x6 ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -482,15 +484,15 @@ private theorem scanLoop_spec
         (by pcf)
         (cpsBranchWithin_extend_code (cr' := CR)
           (h := bltu_spec_gen_within .x29 .x28 (20 : BitVec 13) bByte aByte
-            (0x80024d78 : Word))
+            (0x80024c54 : Word))
           (hmono := by rw [hCR]; code_mem))
-      rw [show (0x80024d78 : Word) + signExtend13 (20 : BitVec 13)
-            = (0x80024d8c : Word) from by decide,
-          show (0x80024d78 : Word) + 4 = (0x80024d7c : Word) from by decide] at hbr2
+      rw [show (0x80024c54 : Word) + signExtend13 (20 : BitVec 13)
+            = (0x80024c68 : Word) from by decide,
+          show (0x80024c54 : Word) + 4 = (0x80024c58 : Word) from by decide] at hbr2
       -- ---- continue segment: ADDI + JAL back, then the IH ----
       have haddi := liftCode (cr' := CR)
         (addi_spec_gen_same_within .x5 (BitVec.ofNat 64 i) (1 : BitVec 12)
-          (0x80024d7c : Word) (by decide))
+          (0x80024c58 : Word) (by decide))
         (by rw [hCR]; code_mem)
       rw [show (BitVec.ofNat 64 i : Word) + signExtend12 (1 : BitVec 12)
             = BitVec.ofNat 64 (i + 1) from by
@@ -499,16 +501,16 @@ private theorem scanLoop_spec
           rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
             show ((1 : Word)).toNat = 1 from rfl]
           omega,
-          show (0x80024d7c : Word) + 4 = (0x80024d80 : Word) from by decide] at haddi
+          show (0x80024c58 : Word) + 4 = (0x80024c5c : Word) from by decide] at haddi
       have hjal := liftCode (cr' := CR)
-        (jal_x0_spec_gen_within (-32 : BitVec 21) (0x80024d80 : Word))
+        (jal_x0_spec_gen_within (-32 : BitVec 21) (0x80024c5c : Word))
         (by rw [hCR]; code_mem)
-      rw [show (0x80024d80 : Word) + signExtend21 (-32 : BitVec 21)
-            = (0x80024d60 : Word) from by decide] at hjal
+      rw [show (0x80024c5c : Word) + signExtend21 (-32 : BitVec 21)
+            = (0x80024c3c : Word) from by decide] at hjal
       -- ---- continue segment (both bytes equal): ADDI ; JAL ; IH ----
       have hcont : ¬ BitVec.ult aByte bByte → ¬ BitVec.ult bByte aByte →
-          cpsTripleWithin (9 * n + 10) (0x80024d7c : Word)
-            (0x80024d90 : Word) CR
+          cpsTripleWithin (9 * n + 10) (0x80024c58 : Word)
+            (0x80024c6c : Word) CR
             ((.x28 ↦ᵣ aByte) ** (.x29 ↦ᵣ bByte) **
           ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
           (.x6 ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -588,8 +590,8 @@ private theorem scanLoop_spec
           (cpsTripleWithin_mono_nSteps (by omega) hj2)
       -- ---- station 2: BLTU x29 x28 → pick b ----
       have hstation2 : ¬ BitVec.ult aByte bByte →
-          cpsTripleWithin (1 + (9 * n + 10)) (0x80024d78 : Word)
-            (0x80024d90 : Word) CR
+          cpsTripleWithin (1 + (9 * n + 10)) (0x80024c54 : Word)
+            (0x80024c6c : Word) CR
             ((.x28 ↦ᵣ aByte) ** (.x29 ↦ᵣ bByte) **
           ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
           (.x6 ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -663,8 +665,8 @@ private theorem scanLoop_spec
         exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
           (fun _ hq => hq) hst
       -- ---- station 1: BLTU x28 x29 → pick a ----
-      have hstation1 : cpsTripleWithin (1 + (1 + (9 * n + 10))) (0x80024d74 : Word)
-          (0x80024d90 : Word) CR
+      have hstation1 : cpsTripleWithin (1 + (1 + (9 * n + 10))) (0x80024c50 : Word)
+          (0x80024c6c : Word) CR
           ((.x28 ↦ᵣ aByte) ** (.x29 ↦ᵣ bByte) **
           ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
           (.x6 ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -735,8 +737,8 @@ private theorem scanLoop_spec
         exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
           (fun _ hq => hq) hst
       -- ---- body ; station 1 ----
-      have hbody : cpsTripleWithin (9 * n + 16) (0x80024d64 : Word)
-          (0x80024d90 : Word) CR
+      have hbody : cpsTripleWithin (9 * n + 16) (0x80024c40 : Word)
+          (0x80024c6c : Word) CR
           (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
             (.x6 ↦ᵣ vf .x6) ** (.x7 ↦ᵣ vf .x7) **
             (.x28 ↦ᵣ vf .x28) ** (.x29 ↦ᵣ vf .x29) **
@@ -797,8 +799,8 @@ theorem u256Min_spec (aPtr bPtr outPtr ret : Word) (as bs os : List (BitVec 8))
     (hvalidA : ∀ k, k < 32 → isValidByteAccess (aPtr + BitVec.ofNat 64 k) = true)
     (hvalidB : ∀ k, k < 32 → isValidByteAccess (bPtr + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 308 (0x80024d58 : Word) ret
-      (CodeReq.ofProg (0x80024d58 : Word) u256Min_prog)
+    cpsTripleWithin 308 (0x80024c34 : Word) ret
+      (CodeReq.ofProg (0x80024c34 : Word) u256Min_prog)
       (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
         ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
@@ -812,23 +814,23 @@ theorem u256Min_spec (aPtr bPtr outPtr ret : Word) (as bs os : List (BitVec 8))
         bytesRegion aPtr as ** bytesRegion bPtr bs **
         bytesRegion outPtr
           (if beBytesToNat as ≤ beBytesToNat bs then as else bs)) := by
-  set CR := CodeReq.ofProg (0x80024d58 : Word) u256Min_prog with hCR
+  set CR := CodeReq.ofProg (0x80024c34 : Word) u256Min_prog with hCR
   -- ---- init: li x5, 0 ; li x31, 32 ----
   have hli5 := liftCode (cr' := CR)
-    (li_spec_gen_own_within .x5 (0 : Word) (0x80024d58 : Word) (by decide))
+    (li_spec_gen_own_within .x5 (0 : Word) (0x80024c34 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80024d58 : Word) + 4 = (0x80024d5c : Word) from by decide,
+  rw [show (0x80024c34 : Word) + 4 = (0x80024c38 : Word) from by decide,
       show (0 : Word) = BitVec.ofNat 64 0 from rfl] at hli5
   have hli31 := liftCode (cr' := CR)
-    (li_spec_gen_own_within .x31 (32 : Word) (0x80024d5c : Word) (by decide))
+    (li_spec_gen_own_within .x31 (32 : Word) (0x80024c38 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80024d5c : Word) + 4 = (0x80024d60 : Word) from by decide] at hli31
+  rw [show (0x80024c38 : Word) + 4 = (0x80024c3c : Word) from by decide] at hli31
   -- ---- the byte-walk scan ----
   have hloop := scanLoop_spec aPtr bPtr outPtr ret as bs os
     hlenA hlenB halignA halignB hovA hovB hvalidA hvalidB 32 0 (by omega)
     (fun j hj => absurd hj (by omega))
   -- ---- the dynamically-selected copy tail (the combinator, per case) ----
-  have hcopy : cpsTripleWithin 8 (0x80024d90 : Word) (0x80024db0 : Word) CR
+  have hcopy : cpsTripleWithin 8 (0x80024c6c : Word) (0x80024c8c : Word) CR
       ((((.x5 : Reg) ↦ᵣ (if minSel as bs then aPtr else bPtr)) **
         ((.x12 : Reg) ↦ᵣ outPtr) **
         bytesRegion aPtr as ** bytesRegion bPtr bs ** bytesRegion outPtr os)
@@ -843,37 +845,37 @@ theorem u256Min_spec (aPtr bPtr outPtr ret : Word) (as bs os : List (BitVec 8))
     by_cases hc : minSel as bs
     · rw [if_pos hc, if_pos hc]
       have h := cpsTripleWithin_extend_code
-        (hmono := CodeReq.ofProg_mono_sub (0x80024d58 : Word) (0x80024d90 : Word)
+        (hmono := CodeReq.ofProg_mono_sub (0x80024c34 : Word) (0x80024c6c : Word)
           u256Min_prog (dwordCopyProgFrom .x5 .x12 .x6 0 4) 14
           (by decide) (by decide) (by decide) (by decide))
         (selectedDwordCopy_spec .x5 .x12 .x6 (by decide) aPtr outPtr tv as os
-          0 4 (by omega) (by omega) (by decide) (0x80024d90 : Word))
-      rw [show (0x80024d90 : Word) + BitVec.ofNat 64 (4 * (2 * 4))
-            = (0x80024db0 : Word) from by decide,
+          0 4 (by omega) (by omega) (by decide) (0x80024c6c : Word))
+      rw [show (0x80024c6c : Word) + BitVec.ofNat 64 (4 * (2 * 4))
+            = (0x80024c8c : Word) from by decide,
           copyDwords_covers as os 4 (by omega) (by omega)] at h
       have hF := cpsTripleWithin_frameR (bytesRegion bPtr bs) (by pcf) h
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq) hF
     · rw [if_neg hc, if_neg hc]
       have h := cpsTripleWithin_extend_code
-        (hmono := CodeReq.ofProg_mono_sub (0x80024d58 : Word) (0x80024d90 : Word)
+        (hmono := CodeReq.ofProg_mono_sub (0x80024c34 : Word) (0x80024c6c : Word)
           u256Min_prog (dwordCopyProgFrom .x5 .x12 .x6 0 4) 14
           (by decide) (by decide) (by decide) (by decide))
         (selectedDwordCopy_spec .x5 .x12 .x6 (by decide) bPtr outPtr tv bs os
-          0 4 (by omega) (by omega) (by decide) (0x80024d90 : Word))
-      rw [show (0x80024d90 : Word) + BitVec.ofNat 64 (4 * (2 * 4))
-            = (0x80024db0 : Word) from by decide,
+          0 4 (by omega) (by omega) (by decide) (0x80024c6c : Word))
+      rw [show (0x80024c6c : Word) + BitVec.ofNat 64 (4 * (2 * 4))
+            = (0x80024c8c : Word) from by decide,
           copyDwords_covers bs os 4 (by omega) (by omega)] at h
       have hF := cpsTripleWithin_frameR (bytesRegion aPtr as) (by pcf) h
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq) hF
   -- ---- epilogue: li a0, 0 ; ret ----
   have hli10 := liftCode (cr' := CR)
-    (li_spec_gen_within .x10 aPtr (0 : Word) (0x80024db0 : Word) (by decide))
+    (li_spec_gen_within .x10 aPtr (0 : Word) (0x80024c8c : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80024db0 : Word) + 4 = (0x80024db4 : Word) from by decide] at hli10
+  rw [show (0x80024c8c : Word) + 4 = (0x80024c90 : Word) from by decide] at hli10
   have hret := liftCode (cr' := CR)
-    (EvmAsm.Evm64.ret_spec_within' (0x80024db4 : Word) ret)
+    (EvmAsm.Evm64.ret_spec_within' (0x80024c90 : Word) ret)
     (by rw [hCR]; code_mem)
   rw [halignRet] at hret
   -- ---- frames + chain ----
