@@ -118,10 +118,10 @@ cases = [
      dict(balance_changes=[(1, 10 ** 10)]), account_rlp(1, 10 ** 10), 0, 0),
     ("baacd_insert", bytes.fromhex("0000000000000000000000000000000000000002"), base,
      dict(balance_changes=[(1, 9)], nonce_changes=[(1, 7)]), account_rlp(7, 9), 1, 1),
-    # Legacy caller flag 4 is now only normalized to MODIFY. It must not clear
-    # the account's pre-existing storage root when storage_changes are absent.
+    # Caller flag 4 now passes through instead of being normalized to MODIFY. It must
+    # not hide the unsupported mode before downstream state-root handling.
     ("baacd_flag4_preserve_storage", bytes.fromhex("cccccccccccccccccccccccccccccccccccccccc"), nonempty_storage,
-     dict(balance_changes=[(4, 6)]), account_rlp(1, 6, storage_root({1: 7})), 4, 0),
+     dict(balance_changes=[(4, 6)]), account_rlp(1, 6, storage_root({1: 7})), 4, 4),
 ]
 
 with open(f"{outdir}/baacd_cases.txt", "w") as case_file:
