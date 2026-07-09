@@ -726,13 +726,13 @@ def emitCreateChildFrameData : String :=
   "  .zero 128\n" ++
   ".balign 32\n" ++
   "create_child_initcode:\n" ++
-  "  .zero 0x10000\n" ++
+  "  .zero 0x20000\n" ++
   ".balign 32\n" ++
   "create_child_returndata:\n" ++
-  "  .zero 0x10000\n" ++
+  "  .zero 0x20000\n" ++
   ".balign 32\n" ++
   "create_child_code:\n" ++
-  "  .zero 0x10000\n" ++
+  "  .zero 0x20000\n" ++
   -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
   createCodeEffectLogData ++ "\n" ++
