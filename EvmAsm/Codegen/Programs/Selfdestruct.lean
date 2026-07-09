@@ -17,7 +17,7 @@ open EvmAsm.Rv64
 
 def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t0, 584(x20)\n" ++
-  "  beqz t0, .L_selfdestruct_surcharge_done\n" ++
+  "  beqz t0, .L_selfdestruct_surcharge_no_ctx\n" ++
   "  mv t0, x20\n" ++
   "  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
   runtimeAccessWordToBe20Asm "selfdestruct_origin" "t0" "t1" "t2" "t3" ++
@@ -80,6 +80,12 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  la t0, aie_predicate\n" ++
   "  ld t1, 0(t0)\n" ++
   "  beqz t1, .L_selfdestruct_surcharge_done\n" ++
+  ".L_selfdestruct_surcharge_no_ctx:\n" ++
+  "  addi t0, x20, 32; li t2, 32\n" ++
+  ".L_selfdestruct_no_ctx_bal_loop:\n" ++
+  "  lbu t1, 0(t0); bnez t1, .L_selfdestruct_charge_new_account\n" ++
+  "  addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_selfdestruct_no_ctx_bal_loop\n" ++
+  "  j .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
   -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
   -- NEW_ACCOUNT state-gas charge on `not is_account_alive(beneficiary)` (amsterdam
@@ -182,11 +188,11 @@ def selfdestructLoadAccountInputsAsm : String :=
   "  sd x0, 0(t0)\n" ++
   "  la t0, sdai_beneficiary_len\n" ++
   "  sd x0, 0(t0)\n" ++
-  "  ld t0, 584(x20)\n" ++
-  "  beqz t0, .L_selfdestruct_accounts_done\n" ++
   "  mv t0, x20\n" ++
   "  la t1, sdai_origin_address\n" ++
   runtimeAccessWordToBe20Asm "selfdestruct_account_origin" "t0" "t1" "t2" "t3" ++
+  "  ld t0, 584(x20)\n" ++
+  "  beqz t0, .L_selfdestruct_accounts_done\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
@@ -405,31 +411,9 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, 96\n" ++
   "  j .L_selfdestruct_eip7708_have_balance\n" ++
   ".L_selfdestruct_eip7708_created:\n" ++
-  -- Stack frame (64B): sp+0 key(32B: 20B BE child addr + 12B zero), sp+32 = x10/x12 save.
-  "  addi sp, sp, -64\n" ++
-  "  sd x10, 32(sp)\n" ++
-  "  sd x12, 40(sp)\n" ++
-  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-  "  la t0, sdai_origin_address; addi t1, sp, 0; li t2, 20\n" ++
-  ".L_sd7708_ck:\n" ++
-  "  beqz t2, .L_sd7708_ck_d\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sd7708_ck\n" ++
-  ".L_sd7708_ck_d:\n" ++
-  -- zero the scratch (miss leaves it untouched -> value 0 -> no-op log), then read the live balance.
-  "  la t0, evm_selfdestruct_balance_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  mv a0, sp\n" ++
-  "  la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
-  "  mv t5, a0\n" ++                                  -- t5 = 1 found / 0 miss
-  "  ld x10, 32(sp)\n" ++
-  "  ld x12, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  -- coc3g.6.2: a constructor-SELFDESTRUCT child deposited no nonstorage effect (no RETURN), so the
-  -- latest-balance lookup MISSES. Its live balance is the child's selfBalance env+32 (the endowment
-  -- credited at create_frame_descend), and x20 IS the child env here. On a miss, read env+32 (LE,
-  -- byte 32 = LSB) into evm_selfdestruct_balance_scratch (BE, byte 31 = LSB) so the burn/transfer
-  -- log amount is the moved balance. (The byte-reverse below then flips it to LE for the log encoder.)
-  "  bnez t5, .L_selfdestruct_eip7708_have_balance\n" ++
+  -- A same-tx-created SELFDESTRUCT moves the current child frame balance. Reading the
+  -- non-storage-effect log here can pick up stale aggregate post-balances from earlier
+  -- CREATE bookkeeping, so use the live env selfBalance directly.
   "  la t0, evm_selfdestruct_balance_scratch; addi t1, x20, 63; li t2, 32\n" ++
   ".L_sd7708_envbal_rev:\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_envbal_rev\n" ++

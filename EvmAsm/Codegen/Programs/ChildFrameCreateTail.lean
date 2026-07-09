@@ -404,6 +404,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
     ".Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+    "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+    "  la t2, create_target_alive_current_tx; ld t2, 0(t2); sd t2, 0(t0)\n" ++
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++

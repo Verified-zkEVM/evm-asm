@@ -345,6 +345,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
   emitted rounded-word BitVec cost difference) pinned to
   `memoryExpansionGas_prog`.
+  `CallExtraGasSAsm.lean` verifies `call_extra_gas` as a byte-identical
+  two-`when` branch helper (`callExtraGasFn_spec`, post `a0 =
+  (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
+  `callExtraGas_prog`, after converting the raw asm string to a `Program`
+  rendered by `emitProgram`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -3417,6 +3422,18 @@ refreshed by Lean render.
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
 verified body and requires EEST A/B parity as the byte-changing drop-in gate.
+`P256Eq32SAsm.lean` verifies `p256_eq32` as the same 32-byte byte-equality
+`whileBreak` drop-in by reusing the `secf_eq32` body/proof wrapper
+(`p256Eq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal);
+`P256Verify.lean` now re-emits `p256Eq32_prog` from that verified body. Gates
+run: `lake build`, `port-check`, forbidden tactics, axioms, layering,
+unimported, no-warnings, focused `codegen-zisk-p256verify-check.sh`, and
+`tests-zkevm@v0.5.0` stateless EEST smoke limit=1 full match.
+`P256IsZeroNSAsm.lean` verifies `p256_is_zero_n` as a dynamic-length
+single-exit `whileBreak` drop-in (`p256IsZeroNFn_spec`, `a0 = 1` iff the first
+`len` input bytes are all-zero); the emitted P256VERIFY helper is rewired to
+the verified body, keeps the 12-instruction footprint, and requires EEST A/B
+parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
