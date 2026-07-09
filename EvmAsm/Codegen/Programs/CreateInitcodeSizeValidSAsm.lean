@@ -29,7 +29,7 @@ theorem cisvJoin_spec (base ret len v5old : Word)
     cpsTripleWithin 4 base ret (cisvCode base)
       ((.x10 ↦ᵣ len) ** (.x5 ↦ᵣ v5old) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ ret))
-      ((.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word) else (0 : Word))) **
+      ((.x10 ↦ᵣ (if BitVec.ult (131072 : Word) len then (1 : Word) else (0 : Word))) **
         regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)) := by
   set Ptail : Assertion := regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) with hPtail
   have hPtailF : Ptail.pcFree := by rw [hPtail]; pcf
@@ -48,22 +48,22 @@ theorem cisvJoin_spec (base ret len v5old : Word)
   have hbr := cpsBranchWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)) (by pcf)
     (cpsBranchWithin_extend_code
-      (h := bltu_spec_gen_within .x5 .x10 (12 : BitVec 13) (65536 : Word) len (base + 4))
+      (h := bltu_spec_gen_within .x5 .x10 (12 : BitVec 13) (131072 : Word) len (base + 4))
       (hmono := CodeReq.ofProg_mono_sub base (base + 4) cisvProgram
         [.BLTU .x5 .x10 (12 : BitVec 13)] 1 (by bv_omega) (by decide) (by decide) (by decide)))
   rw [show (base + 4 : Word) + signExtend13 (12 : BitVec 13) = base + 16 from by
         rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide]; bv_omega,
       show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at hbr
   have hstation : cpsTripleWithin 3 (base + 4) ret (cisvCode base)
-      ((.x5 ↦ᵣ (65536 : Word)) ** (.x10 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x5 ↦ᵣ (131072 : Word)) ** (.x10 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ ret))
-      ((.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word) else (0 : Word))) **
+      ((.x10 ↦ᵣ (if BitVec.ult (131072 : Word) len then (1 : Word) else (0 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** Ptail) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
       (retJoinStation_spec
-        (PT := (.x5 ↦ᵣ (65536 : Word)) ** (.x10 ↦ᵣ len) **
+        (PT := (.x5 ↦ᵣ (131072 : Word)) ** (.x10 ↦ᵣ len) **
           ((.x1 : Reg) ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)))
-        (PF := (.x5 ↦ᵣ (65536 : Word)) ** (.x10 ↦ᵣ len) **
+        (PF := (.x5 ↦ᵣ (131072 : Word)) ** (.x10 ↦ᵣ len) **
           ((.x1 : Reg) ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)))
         hbr
         (fun h hq => by xperm_hyp hq)
@@ -83,9 +83,9 @@ theorem cisvJoin_spec (base ret len v5old : Word)
           (fun h hq => by rw [if_neg hc]; rw [hPtail]; xperm_hyp hq)
           hvalTail))
   have hpro := cpsTripleWithin_extend_code
-    (h := li_spec_gen_within .x5 v5old (65536 : Word) base (by decide))
+    (h := li_spec_gen_within .x5 v5old (131072 : Word) base (by decide))
     (hmono := CodeReq.ofProg_mono_sub base base cisvProgram
-      [.LI .x5 (65536 : Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
+      [.LI .x5 (131072 : Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
   have hproF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)) (by pcf) hpro
   have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
