@@ -2963,6 +2963,11 @@ in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
 else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
 two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
 separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
+`CreateInitcodeSizeValidSAsm.lean` verifies the sibling EIP-3860 init-code
+size gate (`cisvJoin_spec`) over the emitted `cisvProgram`: one `li`, one
+`bltu`, and two shared return tails; genuine post `a0 = 1` iff
+`65536 <u len`, byte-transparent via `createInitcodeSizeValidFunction =
+emitProgram cisvProgram`, classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3379,6 +3384,18 @@ refreshed by Lean render.
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
 verified body and requires EEST A/B parity as the byte-changing drop-in gate.
+`P256Eq32SAsm.lean` verifies `p256_eq32` as the same 32-byte byte-equality
+`whileBreak` drop-in by reusing the `secf_eq32` body/proof wrapper
+(`p256Eq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal);
+`P256Verify.lean` now re-emits `p256Eq32_prog` from that verified body. Gates
+run: `lake build`, `port-check`, forbidden tactics, axioms, layering,
+unimported, no-warnings, focused `codegen-zisk-p256verify-check.sh`, and
+`tests-zkevm@v0.5.0` stateless EEST smoke limit=1 full match.
+`P256IsZeroNSAsm.lean` verifies `p256_is_zero_n` as a dynamic-length
+single-exit `whileBreak` drop-in (`p256IsZeroNFn_spec`, `a0 = 1` iff the first
+`len` input bytes are all-zero); the emitted P256VERIFY helper is rewired to
+the verified body, keeps the 12-instruction footprint, and requires EEST A/B
+parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic

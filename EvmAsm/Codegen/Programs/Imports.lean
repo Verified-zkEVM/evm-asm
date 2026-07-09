@@ -108,6 +108,8 @@ import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
 import EvmAsm.Codegen.Programs.P256LeToBeSAsm
 import EvmAsm.Codegen.Programs.P256BeToLeSAsm
 import EvmAsm.Codegen.Programs.P256CopyNSAsm
+import EvmAsm.Codegen.Programs.P256Eq32SAsm
+import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
@@ -142,6 +144,7 @@ import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
+import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
