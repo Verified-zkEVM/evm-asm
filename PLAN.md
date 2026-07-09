@@ -3037,6 +3037,28 @@ beBytesToNat bs then as else bs` byte-for-byte, inputs untouched, `x5`
 still pinned at the selected base.  `u256_max` is the same shape (selector
 inverted) but has NO GuestAddrs anchor (not linked); its port is a
 mechanical mirror once linked — deferred.  Classical-3.
+**Structured-layer AUIPC bridge landed** (branch
+`feat/auipc-structured-layer`, beads evm-asm-4ch8f.56.7 + .56.7.1;
+completes #10059 into the layer ports go through): the PC-agnostic
+`execBlock`/`blockOk`/`Stmt.sound` path cannot step `AUIPC`, so
+`SAsm/BlockAtBridge.lean` bridges to #10059's PC-threaded engine:
+`blockAt_flat_spec` restates `execBlockAt_sound` at the exposed-ATOM
+granularity (`regAtoms rf exposedRegs` = the fifteen `↦ᵣ` atoms via
+`regFileIs_eq_regAtoms`), making an `AUIPC` block interchangeable with a
+`blockOk`-proven one for `abiFrame_spec`/`frame_call`/loop/join
+composition; `blockAt_regs_spec` is the memory-free (`la`
+address-arithmetic) form with `blockVCsAt_of_not_hasLoad` discharging the
+VCs.  Original engine untouched (conservativity from #10059 intact).
+Consumer `frame_base` (`Codegen/Programs/CallFrameBaseSAsm.lean`,
+`#guard`-tied GuestAddrs.frame_base = 0x8003803c, spec directly over the
+emitted `frameBase_prog` — byte-transparent): the `[ADDI, LUI, MUL, AUIPC,
+ADDI, ADD]` leaf proven through the bridge with the emitter's
+`Codegen.laHi/laLo` reloc immediates kernel-checked equal to the psABI
+`Rv64.laHi/laLo` and the arena address PROVEN via `la_resolve` (only
+decidable `laInRange` remains); genuine post `a0 = call_frame_arena +
+(depth − 1) · 0x39000`.  Classical-3.  Downstream (other blockers remain):
+the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3) and point_double
+(4ch8f.38.5).
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
