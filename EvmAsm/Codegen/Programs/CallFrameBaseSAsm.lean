@@ -312,7 +312,6 @@ theorem frameBase_spec (depth ret : Word)
       show (Reg.x29 = Reg.x10) = False from by simp,
       show (Reg.x30 = Reg.x10) = False from by simp,
       show (Reg.x31 = Reg.x10) = False from by simp,
-      show (Reg.x10 = Reg.x10) = True from by simp,
       show (Reg.x11 = Reg.x10) = False from by simp,
       show (Reg.x12 = Reg.x10) = False from by simp,
       show (Reg.x13 = Reg.x10) = False from by simp,
