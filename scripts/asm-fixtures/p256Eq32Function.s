@@ -5,12 +5,12 @@ p256_eq32:
   beq x5, x0, .+32
   lbu x28, 0(x6)
   lbu x29, 0(x7)
-  bne x28, x29, .+28
+  bne x28, x29, .+20
   addi x6, x6, 1
   addi x7, x7, 1
   addi x5, x5, -1
   jal x0, .-28
   li x10, 1
-  jalr x0, 0(x1)
+  beq x5, x0, .+8
   li x10, 0
   jalr x0, 0(x1)
