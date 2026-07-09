@@ -83,6 +83,15 @@ def createFrameDescendFunction : String :=
   "  la t0, evm_call_depth; ld t1, 0(t0)            # child depth (post-push)\n" ++
   "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
   "  li t2, 1; sd t2, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_address_by_depth; slli t2, t1, 5; add t0, t0, t2\n" ++
+  "  la t2, create_address_be; ld t3, 0(t2); sd t3, 0(t0); ld t3, 8(t2); sd t3, 8(t0); ld t3, 16(t2); sd t3, 16(t0); ld t3, 24(t2); sd t3, 24(t0)\n" ++
+  "  la t0, create_sender_by_depth; slli t2, t1, 5; add t0, t0, t2\n" ++
+  "  la t2, create_sender_be; ld t3, 0(t2); sd t3, 0(t0); ld t3, 8(t2); sd t3, 8(t0); ld t3, 16(t2); sd t3, 16(t0); ld t3, 24(t2); sd t3, 24(t0)\n" ++
+  "  la t0, create_value_by_depth; slli t2, t1, 5; add t0, t0, t2\n" ++
+  "  la t2, create_value_be; ld t3, 0(t2); sd t3, 0(t0); ld t3, 8(t2); sd t3, 8(t0); ld t3, 16(t2); sd t3, 16(t0); ld t3, 24(t2); sd t3, 24(t0)\n" ++
+  "  la t0, create_nonce_by_depth; slli t2, t1, 3; add t0, t0, t2\n" ++
+  "  la t2, create_nonce; ld t3, 0(t2); sd t3, 0(t0)\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret"
 
@@ -95,6 +104,11 @@ def createFrameDescendData : String :=
   ".balign 32\n" ++
   "create_address_word:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "create_frame_flag:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n"
+  "create_frame_flag:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
+  "create_target_alive_flag:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
+  "create_address_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
+  "create_sender_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
+  "create_value_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
+  "create_nonce_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n"
 
 end EvmAsm.Codegen

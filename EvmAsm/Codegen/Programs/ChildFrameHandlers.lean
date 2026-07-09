@@ -599,7 +599,7 @@ def callDescendFallThrough
     "  ld t3, 584(x20)\n  beqz t3, .Lcd_nacc_done_" ++ tag ++ "\n" ++   -- no account-witness ctx: skip
     -- callee (`to`) word at x12+32: build cd_callee_be = reverse(mem[x12+32 .. x12+51]) = canonical
     -- 20-byte big-endian (stack words are LE-stored; mirrors the SELFDESTRUCT beneficiary / cd_caller_be).
-    "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+    "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
     ".Lcd_nacc_addr_" ++ tag ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_nacc_addr_" ++ tag ++ "\n" ++
@@ -684,7 +684,7 @@ def callDescendFallThrough
   -- `account_at_address` expects a canonical 20-byte big-endian address, while
   -- the EVM stack word stores the low 20 address bytes in word order. Mirror the
   -- new-account helper's conversion before code lookup for every CALL-family mode.
-  "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+  "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
@@ -883,7 +883,7 @@ def callDescendFallThrough
      -- bvgr_tx_exec_state_gas under-counts by 183600 -> block_state under-count -> bv41.
      (if mode != 0 then "" else
        "  ld t3, 584(x20)\n  beqz t3, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++   -- no witness ctx -> conservative skip
-       "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+       "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
        ".Lcd_ibnacc_addr_" ++ tag ++ ":\n" ++
        "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++

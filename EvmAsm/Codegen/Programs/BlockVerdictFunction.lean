@@ -1058,10 +1058,14 @@ def blockVerdictFunction : String :=
   -- inert until CREATE activation (.8c-3) and conservative (parse fail / omitted account -> reject).
   -- NOTE for .8c-3: add a per-tx reset of exec_code_effect_count (not reset today; harmless while the
   -- log is empty, but REQUIRED once CREATE writes it so stale records don't carry across txs).
+  -- Like the forward code comparator below, this reverse check needs a materialized runtime
+  -- gas/effect arena; otherwise it is reading partial effect evidence and can false-reject.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_code_covers\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_code_covers\n" ++
   "  bnez a0, .Lbv_bal_code_covers_fail\n" ++
+  ".Lbv_after_code_covers:\n" ++
   -- i3djw.3: all-accounts NON-STORAGE exec-vs-BAL (FORWARD). Every non-{sender,recipient,
   -- coinbase} BAL account that declares a balance/nonce change must be reproduced by an exec
   -- non-storage effect record (the i3djw.1 CALL-value producer + i3djw.2 CREATE producer

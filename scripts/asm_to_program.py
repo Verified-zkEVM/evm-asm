@@ -924,6 +924,8 @@ def gen_guest_addrs():
 SOURCE_DRIFT_ALLOW = {
     'bls12G1Eq48Function',
     'bls12G2EqNFunction',
+    'p256Eq32Function',
+    'p256IsZeroNFunction',
     'secp256k1FieldEq32Function',
     'secp256k1FieldIsZeroFunction',
     'bn254FieldEq32Function',
