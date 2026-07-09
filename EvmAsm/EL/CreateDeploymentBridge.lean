@@ -63,30 +63,6 @@ theorem callerVisibleEffect_deployResult
         gasRemaining := gasRemaining
         created := CreatedAccounts.markCreated created address } := rfl
 
-theorem callerVisibleEffect_deployResult_account
-    (created : CreatedAccounts.CreatedAccountSet)
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    WorldState.getAccount
-        (callerVisibleEffect created
-          (CreateEffects.deployResult state request address codeHash gasRemaining)).state
-        address =
-      some (CreateEffects.deployedAccount request codeHash) := by
-  simpa [callerVisibleEffect] using
-    CreateEffects.deployResultAccount state request address codeHash gasRemaining
-
-theorem callerVisibleEffect_deployResult_code?
-    (created : CreatedAccounts.CreatedAccountSet)
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    WorldState.accountCode?
-        (callerVisibleEffect created
-          (CreateEffects.deployResult state request address codeHash gasRemaining)).state
-        address =
-      some request.initcode := by
-  simpa [callerVisibleEffect] using
-    CreateEffects.deployResultCode? state request address codeHash gasRemaining
-
 theorem callerVisibleEffect_deployResult_createdInSameTx
     (created : CreatedAccounts.CreatedAccountSet)
     (state : WorldState) (request : CreateRequest) (address : Address)

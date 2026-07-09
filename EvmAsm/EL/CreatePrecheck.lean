@@ -83,13 +83,6 @@ def inputFromState
     creator := CreatorAccountView.fromState state request.creator
     targetCollides := targetCollides }
 
-/-- Collision predicate including the executable-spec storage collision arm. -/
-def targetHasStorage (state : WorldState) (addr : Address) : Prop :=
-  ∃ key, WorldState.getStorage state addr key ≠ 0
-
-def targetCollides (state : WorldState) (addr : Address) : Prop :=
-  CreateCollision.accountHasCodeOrNonce state addr ∨ targetHasStorage state addr
-
 def insufficientBalance (input : Input) : Prop :=
   input.creator.balance.toNat < input.request.value.toNat
 
@@ -134,38 +127,6 @@ def stackWordForOutcome (input : Input) (outcome : Outcome) : Word256 :=
   match outcome with
   | .execute => input.target.zeroExtend 256
   | _ => 0
-
-theorem targetHasStorage_of_getStorage_ne
-    {state : WorldState} {addr : Address} {key : StorageKey}
-    (h_storage : WorldState.getStorage state addr key ≠ 0) :
-    targetHasStorage state addr :=
-  ⟨key, h_storage⟩
-
-theorem targetCollides_of_codeOrNonce
-    {state : WorldState} {addr : Address}
-    (h_collision : CreateCollision.accountHasCodeOrNonce state addr) :
-    targetCollides state addr :=
-  Or.inl h_collision
-
-theorem targetCollides_of_storage
-    {state : WorldState} {addr : Address}
-    (h_storage : targetHasStorage state addr) :
-    targetCollides state addr :=
-  Or.inr h_storage
-
-theorem not_targetHasStorage_empty (addr : Address) :
-    ¬ targetHasStorage WorldState.empty addr := by
-  rintro ⟨key, h_storage⟩
-  simp at h_storage
-
-theorem not_targetCollides_empty (addr : Address) :
-    ¬ targetCollides WorldState.empty addr := by
-  intro h_collision
-  cases h_collision with
-  | inl h_codeOrNonce =>
-      exact (CreateCollision.createAddressAvailable_empty addr) h_codeOrNonce
-  | inr h_storage =>
-      exact not_targetHasStorage_empty addr h_storage
 
 theorem inputFromState_creator
     (state : WorldState) (request : CreateRequest) (target : Address)
