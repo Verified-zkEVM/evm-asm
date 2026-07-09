@@ -1187,7 +1187,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after
   -- value-move gates (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT, no withdrawals,
-  -- non-coinbase sender). Status 40 is a clean mismatch; other statuses skip.
+  -- status 40 is a clean mismatch; other statuses skip.
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
   ".Lbv_sbc_scan:\n" ++
@@ -1215,7 +1215,7 @@ def blockVerdictFunction : String :=
   "  la a6, basr_records; la a7, bv_sender_bal_check\n" ++
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
   "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
-  "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  "  li t1, 40; beq t0, t1, .Lbv_sender_bal_fail\n" ++          -- clean balance mismatch -> reject
   -- bmvmx.4: status 50 = check_transaction fee invalid (max_fee < base_fee, or
   -- priority_fee > max_fee); the runtime verify detected it and the spec REJECTS
   -- (InsufficientMaxFeePerGasError / PriorityFeeGreaterThanMaxFeeError), so reject
@@ -1300,15 +1300,11 @@ def blockVerdictFunction : String :=
   -- BALANCE reads are self-contained-rejected (0x47/0x31), so no executed callee reads a stale own
   -- balance. Positive validation of the multi-account value deltas (caller debited / callee credited
   -- by the nested CALL) against the BAL is bmvmx.1.6.4's all-accounts exec-vs-BAL compare.
-  -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the coinbase (its
-  -- post also folds the priority fee) or the sender (self-transfer nets gas -- the sender slice owns
-  -- it); withdrawals are already excluded above. A clean post mismatch (status 32) is a prover lie.
-  "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; ld t6, 0(s0); addi t6, t6, 32; li a0, 20\n" ++
-  ".Lbv_rbc_cb_cmp:\n" ++
-  "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == coinbase -> skip
-  "  lbu t3, 0(t5); lbu t4, 0(t6); bne t3, t4, .Lbv_rbc_not_cb\n" ++
-  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_rbc_cb_cmp\n" ++
-  ".Lbv_rbc_not_cb:\n" ++
+  -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the
+  -- sender (self-transfer nets gas -- the sender slice owns it); withdrawals are already
+  -- excluded above. Do not skip recipient==coinbase; a missing fee-credit model must
+  -- surface as a clean mismatch. A clean post mismatch (status 32) is a prover lie.
+
   "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; la t6, bv_sender_bal_check; addi t6, t6, 8; li a0, 20\n" ++
   ".Lbv_rbc_self_cmp:\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == sender (self-transfer) -> skip
@@ -1321,13 +1317,7 @@ def blockVerdictFunction : String :=
   "  jal ra, simple_transfer_recipient_bal_verify\n" ++
   "  la t0, bv_simple_transfer_recipient; ld t0, 0(t0); li t1, 32; beq t0, t1, .Lbv_recipient_bal_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_sbc_bal_mismatch:\n" ++
-  -- Clean value mismatch. Skip when the sender IS the coinbase (its post also folds the fee).
-  "  la t0, bv_sender_bal_check; addi t0, t0, 8; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
-  ".Lbv_sbc_cb_cmp:\n" ++
-  "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
+
   blockVerdictCreateCollisionBranch ++
   bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
