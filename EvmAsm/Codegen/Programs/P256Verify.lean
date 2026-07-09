@@ -50,6 +50,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 
 namespace EvmAsm.Codegen
 
@@ -170,18 +171,7 @@ theorem p256CopyNFunction_eq_prog :
 #guard p256CopyN_prog.length = 8
 /-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf. -/
 def p256IsZeroN_prog : Program :=
-  [ .MV .x6 .x10,
-    .MV .x5 .x11,
-    .BEQ .x5 .x0 (24 : BitVec 13),
-    .LBU .x7 .x6 (0 : BitVec 12),
-    .BNE .x7 .x0 (24 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-20 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  P256IsZeroNSAsm.p256IsZeroN_prog
 
 def p256IsZeroNFunction : String :=
   "p256_is_zero_n:\n" ++ emitProgram p256IsZeroN_prog
