@@ -5,7 +5,9 @@
   costs. Consumers pass a bounded 32-byte-stride table of 20-byte canonical
   big-endian addresses. The dispatcher static gas table already charges the
   100-gas warm floor for account opcodes, so this helper charges only the
+
   2900-gas Amsterdam cold delta and records newly cold addresses.
+
 -/
 
 import EvmAsm.Rv64.Program

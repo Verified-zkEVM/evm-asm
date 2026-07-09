@@ -480,8 +480,10 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     **Static base costs only** — all *dynamic* components are dropped:
     memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
     per-byte, and cold-access surcharges (SLOAD/BALANCE/EXTCODE*/CALL use
+
     the warm floor of 100; SSTORE uses 100; cold deltas are charged in
     opcode-specific helpers).
+
 
     Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
     not assigned a real opcode are 0, so trusted programs never spuriously
@@ -3124,7 +3126,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
-  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 9000 value-transfer gas
+  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 10300 value-transfer gas
   -- before NEW_ACCOUNT state gas. Descend consumes it to avoid a double charge; empty paths
   -- refund the 2300 stipend and clear it.
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++

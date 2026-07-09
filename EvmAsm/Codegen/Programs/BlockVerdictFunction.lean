@@ -1330,7 +1330,10 @@ def blockVerdictFunction : String :=
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
-  "  bnez a0, .Lbv_eip7778_block_gas_fail\n" ++
+
+  "  beqz a0, .Lbv_eip7778_gate_ok\n" ++
+  "  j .Lbv_eip7778_block_gas_fail\n" ++
+  ".Lbv_eip7778_gate_ok:\n" ++
 
   blockVerdictExactGasCheck ++
   blockVerdictReceiptsTail

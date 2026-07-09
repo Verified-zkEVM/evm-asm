@@ -94,8 +94,10 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b1_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
   ".Lbv_b1_done:\n" ++
-  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run after the gas-result
-  -- arena and receipt validation, where bvgr_receipt_gas_increments[i] holds the spec-exact
+
+  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the gas-result gate
+  -- (BlockVerdictReceiptsTail), where bvgr_receipt_gas_increments[i] holds the spec-exact
+
   -- (regular+state, refund+EIP-7623-floor) per-tx gas_used. The B2.2 sender debit needs that
   -- exact gas, which is 0 here (the gas chain runs later). So skip the B2 block at this early
   -- point and reach it via .Lbv_b2_entry from ReceiptsTail (returns to .Lbv_mtx_b2_return).
@@ -118,9 +120,16 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
   -- bmvmx.5.5.2.2.12: sender GAS debit = bvgr_receipt_gas_increments[i] * eff_price (+ value below).
-  -- bvgr_receipt_gas_increments[i] is the per-tx gas_used produced by the gas chain.
-  -- The type-3 blob fee is a separate dimension and is still added below. i =
-  -- bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
+
+  -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
+  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain,
+  -- which is why this block runs AFTER the gas-result gate (reached via .Lbv_b2_entry from
+  -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
+  -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
+  -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
+  -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is
+  -- still added below. i = bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
+
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t2, bvgr_receipt_gas_increments; add t2, t2, t1; ld a1, 0(t2)\n" ++   -- receipt_gas_used[i] (u64)
   "  la a0, bv_fee_egp_scratch; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
@@ -133,6 +142,9 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
+
+  ".Lbv_b2_after_type4_auth:\n" ++
+
   "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++
@@ -229,7 +241,9 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b23_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
   ".Lbv_b23_done:\n" ++
-  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail
+
+  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the gas-result gate)
+
   ".Lbv_mtx_storage:\n" ++        -- storage/tuples/A2a run at .Lbv_mtx_done (B2 skipped there via the .Lbv_b1_done jump)
   -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
   -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
@@ -256,7 +270,7 @@ def blockVerdictMtxValidationTail : String :=
   -- here, consuming the A1 skip-list. CONSERVATIVE guard: effect-log overflow (skip -> never
   -- false-reject). NOTE (bmvmx.5.5.7.3): with nonstorageEffectLogCap = 32768 the overflow guard is
   -- now UNREACHABLE under the 200M block-gas envelope (cheapest record-producing op is a value-CALL
-  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=9100 regular gas, so <= 200M/9100 ~= 21978 < 32768 raw
+  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=10400 regular gas, so <= 200M/10400 ~= 19230 < 32768 raw
   -- records), so it no longer skips any in-scope block.
   -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
   -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
