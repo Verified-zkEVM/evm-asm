@@ -89,6 +89,7 @@ import EvmAsm.Evm64.Terminating.InvalidSpec
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Storage.LoadSpec
+import EvmAsm.Evm64.Mcopy.Spec
 
 namespace EvmAsm.Progress
 
@@ -312,7 +313,18 @@ def registry : List OpcodeEntry := [
       (cycleBound := some 0),
   entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within"),
   entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within"),
-  entry "MCOPY" .execSpec none "EIP-5656 (Cancun); overlap-aware memmove handler (EvmMcopyHandlers)",
+  entry "MCOPY" .proven (some "Mcopy.evm_mcopy_stack_spec_within")
+      ("EIP-5656 (Cancun) overlap-aware memmove copy core proven "
+       ++ "(Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean): "
+       ++ "byte-identical body-as-Program of the h_MCOPY handler tail (verified "
+       ++ "against riscv64-elf-as), TOTAL over all (destOff,srcOff,len) — the two "
+       ++ "BGEU offset comparisons dispatch to a forward (low→high) or backward "
+       ++ "(high→low) byte loop, both proven to land on the same direction-"
+       ++ "independent mcopyResult (memmove: dst window ← original src slice) via "
+       ++ "a single evolving evmMemoryIs slab with a read-sees-original invariant "
+       ++ "per direction. Stack decode + gas/MSIZE/range-guard glue unverified per "
+       ++ "DRIFT (same as CALLDATACOPY/CODECOPY). First memory→memory / overlap-"
+       ++ "aware opcode; first two-directional loop proof."),
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
@@ -364,10 +376,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 66 := by decide
+theorem provenCount_eq      : provenCount      = 67 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 1  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 18 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 17 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -398,10 +410,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 126 := by decide
+theorem provenBytes_eq      : provenBytes      = 127 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 1   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 22  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 21  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
