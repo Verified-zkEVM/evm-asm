@@ -135,6 +135,19 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- the returned constructor bytes were already consumed as deployed code above.
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
+      -- execution-specs generic_create credits the CREATE NEW_ACCOUNT state-gas
+      -- charge back when the CREATE target was already alive. At this point
+      -- code/nonzero-nonce targets would have failed the deployable check, so
+      -- target_alive reduces to the captured pre-balance being nonzero.
+      "  la t0, nse_create_pre_bal\n" ++
+      "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+      "  beqz t1, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
+      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+      "  bltu t1, t2, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
+      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      ".Lrr_cralive_refund_done_" ++ toString kind ++ ":\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
       "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
