@@ -94,7 +94,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b1_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
   ".Lbv_b1_done:\n" ++
-  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the receipt-gas EIP-8037 adjust
+  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the gas-result gate
   -- (BlockVerdictReceiptsTail), where bvgr_receipt_gas_increments[i] holds the spec-exact
   -- (regular+state, refund+EIP-7623-floor) per-tx gas_used. The B2.2 sender debit needs that
   -- exact gas, which is 0 here (the gas chain runs later). So skip the B2 block at this early
@@ -119,8 +119,8 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_b2_next\n" ++
   -- bmvmx.5.5.2.2.12: sender GAS debit = bvgr_receipt_gas_increments[i] * eff_price (+ value below).
   -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
-  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain + the receipt-gas
-  -- adjust -- which is why this block runs AFTER that adjust (reached via .Lbv_b2_entry from
+  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain,
+  -- which is why this block runs AFTER the gas-result gate (reached via .Lbv_b2_entry from
   -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
   -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
   -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
@@ -213,19 +213,6 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- WIP: exact-gas/state-root-authenticated multi-tx rows below still trip the cumulative
-  -- pure-payer sender-balance model. Skip only these known signatures while B2.3 is repaired;
-  -- the state root, receipt root, and exact block gas remain enforced by the surrounding verdict.
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
-  "  li t3, 2; bne t1, t3, .Lbv_b23_wip_bal_all_types\n" ++
-  "  li t3, 42000; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92120; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92056; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 861418; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_bal_all_types:\n" ++
-  "  li t3, 5; bne t1, t3, .Lbv_b23_wip_done\n" ++
-  "  li t3, 524790; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_done:\n" ++
   -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
   -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
   -- per-block tx-type pre-scan is needed here.)
@@ -269,7 +256,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b23_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
   ".Lbv_b23_done:\n" ++
-  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the receipt-gas adjust)
+  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the gas-result gate)
   ".Lbv_mtx_storage:\n" ++        -- storage/tuples/A2a run at .Lbv_mtx_done (B2 skipped there via the .Lbv_b1_done jump)
   -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
   -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus

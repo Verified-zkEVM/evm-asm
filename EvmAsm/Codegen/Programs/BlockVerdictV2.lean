@@ -470,11 +470,9 @@ def statelessVerdictV2GuestClosure : String :=
   -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
   -- block_verdict's block_state-gas floor check. tx_extract_to_address /
   -- tx_type_dispatch / rlp_list_nth_item / rlp_list_count_items / bgv_u32le are
-  -- already in this closure; only these EIP-8037/type-4 bodies are new.
+  -- already in this closure; only the EIP-8037 state-gas bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
-  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
-  blockVerdictFailedType4AuthRegularAdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
