@@ -16,17 +16,6 @@ abbrev Byte := EvmAsm.EL.Byte
 abbrev EvmWord := EvmAsm.Evm64.EvmWord
 abbrev MemoryRange := EvmAsm.Evm64.CallArgs.MemoryRange
 
-/-- Input shape for CALL output-copy executable-helper conformance vectors. -/
-structure CallOutputInput where
-  result : CallResult
-  range : MemoryRange
-
-def mkRange (offset size : EvmWord) : MemoryRange :=
-  { offset := offset, size := size }
-
-def runCallOutput (input : CallOutputInput) : List Byte :=
-  EvmAsm.EL.CallOutputBridge.copiedOutputForRange input.result input.range
-
 end Call
 end Conformance
 end EvmAsm.EL

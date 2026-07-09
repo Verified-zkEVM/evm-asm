@@ -34,14 +34,6 @@ structure TerminatingStackInput where
 def readByteAt (memory : List Byte) (addr : Nat) : Byte :=
   memory.getD addr 0
 
-def visibleFromResult
-    (out : EvmAsm.EL.TerminatingStackExecutionBridge.TerminatingStackResult) :
-    TerminatingVisibleResult :=
-  { status := out.result.status
-    output := out.result.output
-    gasRemaining := out.result.gasRemaining
-    stack := out.stack }
-
 def terminatingReturnVector :
     TestVector TerminatingStackInput TerminatingVisibleResult :=
   { id := "terminating-stack-return"

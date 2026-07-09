@@ -25,10 +25,4 @@ structure Account where
   code : List Byte
   deriving Repr
 
-/-- Pure world state: account existence plus per-account storage slots. Missing
-    storage slots read as zero through `getStorage`. -/
-structure WorldState where
-  accounts : Address → Option Account
-  storage : Address → StorageKey → Word256
-
 end EvmAsm.EL

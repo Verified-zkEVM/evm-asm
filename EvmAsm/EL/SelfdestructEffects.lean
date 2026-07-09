@@ -14,22 +14,6 @@ namespace SelfdestructEffects
 
 abbrev CallSideEffects := MessageCallExecution.CallSideEffects
 
-/-- Pure result surface for SELFDESTRUCT state and side effects. -/
-structure SelfdestructEffect where
-  state : WorldState
-  sideEffects : CallSideEffects
-
-/-- Convert a pure SELFDESTRUCT effect into a message-call result. The status
-    decides whether the caller-visible layer commits the state/effects or
-    restores/clears them. -/
-def callResultFromEffect
-    (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
-    CallResult :=
-  { status := status
-    state := effect.state
-    output := []
-    gasRemaining := gasRemaining }
-
 end SelfdestructEffects
 
 end EvmAsm.EL

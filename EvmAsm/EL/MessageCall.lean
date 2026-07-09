@@ -128,36 +128,7 @@ inductive CallStatus where
   | failure
   deriving DecidableEq, Repr
 
-/-- Pure output of one message-call execution. -/
-structure CallResult where
-  status : CallStatus
-  state : WorldState
-  output : List Byte
-  gasRemaining : Nat
-
 namespace CallResult
-
-def succeeded (result : CallResult) : Prop :=
-  result.status = .success
-
-def reverted (result : CallResult) : Prop :=
-  result.status = .revert
-
-def failed (result : CallResult) : Prop :=
-  result.status = .failure
-
-theorem succeeded_mk_success
-    (state : WorldState) (output : List Byte) (gasRemaining : Nat) :
-    succeeded { status := .success, state := state, output := output, gasRemaining := gasRemaining } := rfl
-
-theorem reverted_mk_revert
-    (state : WorldState) (output : List Byte) (gasRemaining : Nat) :
-    reverted { status := .revert, state := state, output := output, gasRemaining := gasRemaining } := rfl
-
-theorem not_succeeded_mk_failure
-    (state : WorldState) (output : List Byte) (gasRemaining : Nat) :
-    ¬ succeeded { status := .failure, state := state, output := output, gasRemaining := gasRemaining } := by
-  simp [succeeded]
 
 end CallResult
 
