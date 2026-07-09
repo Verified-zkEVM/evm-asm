@@ -314,6 +314,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
   emitted rounded-word BitVec cost difference) pinned to
   `memoryExpansionGas_prog`.
+  `TxValidateAgainstBlockSAsm.lean` verifies `tx_validate_against_block` as a
+  byte-identical shared-return-tail cascade (`txvabJoin_spec`, post status 0/1/2/3
+  for ok, chain-id mismatch, gas-limit violation, nonce mismatch) pinned to
+  `txValidateAgainstBlock_prog`.
   `CallExtraGasSAsm.lean` verifies `call_extra_gas` as a byte-identical
   two-`when` branch helper (`callExtraGasFn_spec`, post `a0 =
   (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
