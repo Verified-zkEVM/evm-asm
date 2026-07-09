@@ -83,11 +83,10 @@ def evmStackGuardBytes : Nat := 512
 
 /-- Concrete byte capacity of the root runtime EVM memory arena (depth-0
     `evm_memory`). This is a guest implementation bound, not a protocol limit.
-    **Single-sourced** from `CallFrameLayout.frameMemBytes`: the depth-0 global
-    memory and every per-frame arena memory window are the same EVM-memory
-    capacity, so they cannot drift (the `.71` reconciliation — the model file is
-    the canonical home). Value: `0x20000` (128 KiB). -/
-def runtimeMemoryBytes : Nat := frameMemBytes
+    Depth-0 memory is larger than nested-frame memory so runtime gas replay can
+    execute large-but-valid memory expansions without inflating every call-frame
+    slot in the preallocated frame array. Nested frames keep `frameMemBytes`. -/
+def runtimeMemoryBytes : Nat := 0x50000
 
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
@@ -106,7 +105,7 @@ def runtimeMemoryBytes : Nat := frameMemBytes
     already covers a future specs sync to the current draft. The 16 KiB
     bitmap costs nothing per jump — capacity only sizes the loader-zeroed
     region and bounds the prologue's build scan (which still stops at the
-    actual `codeSize`). The root `evm_memory` arena also has 128 KiB headroom for large
+    actual `codeSize`). The root `evm_memory` arena also has 320 KiB capacity for large
     runtime memory ranges; initcode staging remains separately capped by
     protocol limits.
 
@@ -765,7 +764,8 @@ def emitCreateChildFrameData : String :=
   -- Amsterdam generic_create computes target_alive from the current tx_state before
   -- incorporating the child. A same-tx-created target can be alive even when its
   -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
-  "create_target_alive_current_tx:\n  .zero 8\n"
+  "create_target_alive_current_tx:\n  .zero 8\n" ++
+  "create_state_gas_charged_current:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -1256,11 +1256,57 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  add x20, x20, x5\n" ++
   s!"  li x6, {frameEnvOff}\n" ++
   "  add x20, x20, x6\n" ++
+  -- Exceptional child halt mirrors execution-specs: refill the child frame's
+  -- state gas in LIFO order, but burn the gas-left portion by keeping env+568
+  -- zero before frame_return observes it.
+  "  ld x5, 632(x20)                 # used0\n" ++
+  "  la x6, evm_state_gas_used; ld x7, 0(x6)\n" ++
+  "  la x6, evm_state_gas_left; ld x28, 0(x6)\n" ++
+  "  la x6, evm_state_gas_spilled; ld x29, 0(x6)\n" ++
+  "  ld x30, 760(x20)                # spilled0\n" ++
+  "  bleu x29, x30, 1f\n" ++
+  "  sub x29, x29, x30\n" ++
+  "  j 2f\n" ++
+  "1:\n" ++
+  "  li x29, 0\n" ++
+  "2:\n" ++
+  "  bleu x7, x5, 3f\n" ++
+  "  sub x7, x7, x5\n" ++
+  "  bleu x7, x29, 3f\n" ++
+  "  sub x7, x7, x29\n" ++
+  "  add x28, x28, x7\n" ++
+  "3:\n" ++
+  "  la x6, evm_state_gas_left; sd x28, 0(x6)\n" ++
+  "  ld x5, 632(x20); la x6, evm_state_gas_used; sd x5, 0(x6)\n" ++
+  "  ld x5, 760(x20); la x6, evm_state_gas_spilled; sd x5, 0(x6)\n" ++
+  -- generic_create credits NEW_ACCOUNT state gas back on child error. Save
+  -- whether this is a CREATE frame before frame_return restores the parent.
+  "  la x5, create_frame_flag; slli x6, x18, 3; add x5, x5, x6; ld x6, 0(x5); sd x0, 0(x5)\n" ++
+  "  la x5, create_target_alive_current_tx; sd x6, 0(x5)\n" ++
   "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
+  "  la x5, create_target_alive_current_tx; ld x5, 0(x5); beqz x5, 4f\n" ++
+  -- execution-specs `credit_state_gas_refund(NEW_ACCOUNT)` refills gas_left
+  -- first when the CREATE charge spilled out of the state-gas reservoir.
+  "  li x7, 183600\n" ++
+  "  la x5, evm_state_gas_spilled; ld x6, 0(x5); li x28, 0\n" ++
+  "  beqz x6, 5f\n" ++
+  "  mv x28, x6\n" ++
+  "  bleu x6, x7, 6f\n" ++
+  "  mv x28, x7\n" ++
+  "6:\n" ++
+  "  sub x6, x6, x28; sd x6, 0(x5)\n" ++
+  "  ld x6, 568(x20); add x6, x6, x28; sd x6, 568(x20)\n" ++
+  "  sub x7, x7, x28\n" ++
+  "5:\n" ++
+  "  beqz x7, 7f\n" ++
+  "  la x5, evm_state_gas_left; ld x6, 0(x5); add x6, x6, x7; sd x6, 0(x5)\n" ++
+  "7:\n" ++
+  "  la x5, evm_state_gas_used; ld x6, 0(x5); li x7, 183600; bltu x6, x7, 4f; sub x6, x6, x7; sd x6, 0(x5)\n" ++
+  "4:\n" ++
   "  j .dispatch_loop\n" ++
   s!"{label}_top:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
@@ -1704,19 +1750,29 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (56 : BitVec 13),
+    .BEQ .x6 .x0 (96 : BitVec 13),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (48 : BitVec 13),
+    .BEQ .x6 .x28 (88 : BitVec 13),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (40 : BitVec 13),
+    .BEQ .x6 .x28 (80 : BitVec 13),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
-    .AUIPC .x28 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
-    .ADDI .x28 .x28 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
-    .LD .x28 .x28 (0 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
+    .LD .x28 .x30 (0 : BitVec 12),
+    .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
+    .LD .x29 .x31 (0 : BitVec 12),
+    .SD .x30 .x0 (0 : BitVec 12),
+    .SD .x31 .x0 (0 : BitVec 12),
+    .BGEU .x29 .x28 (16 : BitVec 13),
+    .SUB .x28 .x28 .x29,
     .ADD .x7 .x7 .x28,
+    .JAL .x0 (4 : BitVec 21),
     .LI .x28 (2 : Word),
-    .BEQ .x6 .x28 (8 : BitVec 13),
+    .BNE .x6 .x28 (12 : BitVec 13),
+    .ADD .x5 .x5 .x29,
+    .JAL .x0 (8 : BitVec 21),
     .LI .x5 (0 : Word),
     .ADD .x10 .x5 .x7,
     .JALR .x0 .x1 (0 : BitVec 12) ]
@@ -1728,7 +1784,8 @@ def dispatcherTxGasSettle_relocs : RelocTable :=
   [ (4, .la .x5 "evm_env"),
     (7, .la .x7 "evm_state_gas_left"),
     (10, .la .x28 "evm_refund_acc"),
-    (21, .la .x28 "evm_state_gas_used") ]
+    (21, .la .x30 "evm_state_gas_used"),
+    (24, .la .x31 "evm_state_gas_spilled") ]
 
 def dispatcherTxGasSettleFunction : String :=
   "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs
@@ -1742,7 +1799,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 30
+#guard dispatcherTxGasSettle_prog.length = 40
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -2060,7 +2117,7 @@ def emitDispatcherCallableEpilogueSharedHelpers
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero runtimeMemoryBytes (128 KiB EVM memory, M7 onward)
+    evm_memory:       .zero runtimeMemoryBytes (320 KiB EVM memory, M7 onward)
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -2088,7 +2145,12 @@ def emitDispatcherDataSection
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 128 KiB root EVM memory for large runtime LOG/COPY ranges
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  ".balign 8\n" ++
+  "evm_sparse_memory_count:\n  .zero 8\n" ++
+  "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
+  "evm_sparse_memory_epoch_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "evm_sparse_memory_entries:\n  .zero " ++ toString (4096 * 56) ++ "\n" ++
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -2282,14 +2344,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   --     reset it; a 2nd dispatch call inherited tx 1's refunds).
   --   * evm_storage_access_count — EIP-2929 accessed_storage_keys is per tx
   --     (prepare_message builds a fresh set); a 2nd call saw tx 1's keys as warm.
-  --   * evm_state_gas_left / evm_state_gas_used — EIP-8037 per-tx state-gas
-  --     reservoir + usage (seeded below on the validate-tx-gas path).
+  --   * evm_state_gas_left / evm_state_gas_used / evm_state_gas_spilled — EIP-8037
+  --     per-tx state-gas reservoir + usage + gas-left spill tracking.
   -- evm_storage_access_outcome_count is NOT reset: the outcome log is an append-only
   -- cross-tx diagnostic surface (bal_storage_access_outcome_descriptors).
   "  la x28, evm_refund_acc; sd x0, 0(x28)\n" ++
   "  la x28, evm_storage_access_count; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
+  "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
+  "  la x28, evm_sparse_memory_count; sd x0, 0(x28)\n" ++
+  "  la x28, evm_sparse_memory_next_epoch; li x29, 1; sd x29, 0(x28)\n" ++
+  "  la x28, evm_sparse_memory_epoch_by_depth; sd x0, 0(x28)\n" ++
   -- halt_kind (OUTPUT+32) = 0: the skip-finalization (verdict-callable) exit
   -- join never writes the success kind, so without this reset a prior
   -- dispatch's REVERT/exceptional kind would leak into dispatcher_tx_gas_settle.
@@ -3134,6 +3200,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- before NEW_ACCOUNT state gas. Descend consumes it to avoid a double charge; empty paths
   -- refund the 2300 stipend and clear it.
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
+  "cd_new_account_charged_current:\n  .zero 8\n" ++
   -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
   -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
   -- deferred Transfer log so receipt order is Transfer then Burn.
@@ -3296,14 +3363,18 @@ def emitRuntimeDispatcherDataSectionCore
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
   -- - intrinsic.regular, execution_gas); 0 for tx.gas ≤ 16,777,216). The SSTORE
   -- handler's charge_state_gas drains it first and spills the remainder into
-  -- env.gasRemaining (vm/gas.py charge_state_gas). `evm_state_gas_used` accumulates
-  -- charges (the credit_state_gas_refund clamp + the on-error restore both need it).
-  -- Settlement (spec: tx.gas - gas_left - state_gas_left) folds the final
-  -- state_gas_left back via dispatcher_tx_gas_settle. Reset per dispatch call.
+  -- env.gasRemaining (vm/gas.py charge_state_gas). `evm_state_gas_spilled` tracks
+  -- the portion drawn from gas_left so child-error rollback can refill gas_left
+  -- before the reservoir, matching execution-specs `refill_frame_state_gas`.
+  -- `evm_state_gas_used` accumulates charges. Settlement (spec: tx.gas -
+  -- gas_left - state_gas_left) folds the final state_gas_left back via
+  -- dispatcher_tx_gas_settle. Reset per dispatch call.
   ".balign 8\n" ++
   "evm_state_gas_left:\n" ++
   "  .zero 8\n" ++
   "evm_state_gas_used:\n" ++
+  "  .zero 8\n" ++
+  "evm_state_gas_spilled:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "srfd_zero:\n" ++
@@ -3325,7 +3396,12 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 128 KiB root EVM memory for large runtime LOG/COPY ranges
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  ".balign 8\n" ++
+  "evm_sparse_memory_count:\n  .zero 8\n" ++
+  "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
+  "evm_sparse_memory_epoch_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "evm_sparse_memory_entries:\n  .zero " ++ toString (4096 * 56) ++ "\n" ++
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
