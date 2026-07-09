@@ -277,7 +277,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   pinned to `bncCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`.
+  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  verifies the analogous `secp256k1_point_zero64` byte loop
+  (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
+  byte-identity pinned to `secp256k1PointZero64_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
