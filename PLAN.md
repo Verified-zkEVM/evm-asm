@@ -274,7 +274,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
-  pinned to `bncCopy64_prog`.
+  pinned to `bncCopy64_prog`. `Secp256k1PointCopy64SAsm.lean` verifies the
+  analogous `secp256k1_point_copy64` byte loop (`secp256k1PointCopy64Fn_spec`,
+  post `ws = srcBytes`) with the same static disjointness precondition and
+  byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `bncZero64_prog`.
