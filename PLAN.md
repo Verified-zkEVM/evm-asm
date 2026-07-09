@@ -254,7 +254,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
   as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
   (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
-  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  single-exit drop-in with EEST A/B parity required); `Bls12G2EqNSAsm.lean`
+  verifies the dynamic `blsg2_eq_n` read-only dual-buffer byte equality leaf
+  (`blsg2EqNFn_spec`, post keyed by `firstDiff bs1 bs2 n`, `a2 = n`), as a
+  same-length single-exit re-emitted drop-in for BLS G2 callers; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop

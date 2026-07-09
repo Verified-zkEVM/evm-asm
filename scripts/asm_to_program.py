@@ -923,6 +923,7 @@ def gen_guest_addrs():
 # verbatim generated-block source check is skipped.
 SOURCE_DRIFT_ALLOW = {
     'bls12G1Eq48Function',
+    'bls12G2EqNFunction',
     'secp256k1FieldEq32Function',
     'secp256k1FieldIsZeroFunction',
     'bn254FieldEq32Function',

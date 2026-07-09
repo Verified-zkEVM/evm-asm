@@ -42,6 +42,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Codegen.Programs.Bls12G2EqNSAsm
 
 namespace EvmAsm.Codegen
 
@@ -490,23 +491,12 @@ theorem bls12G2Zero192Function_eq_prog :
 
 #guard bls12G2Zero192Function.startsWith "blsg2_zero192:\n"
 #guard blsg2Zero192_prog.length = 6
-/-- a0 = 1 iff the two a2-byte buffers at a0/a1 are equal. Leaf. -/
+/-- a0 = 1 iff the two a2-byte buffers at a0/a1 are equal. Leaf.
+
+    Re-emitted drop-in: the verified `Bls12G2EqNSAsm.blsg2EqNBody`
+    flatten + `ret` (15 instructions, same length as the pre-drop-in two-exit compare). -/
 def blsg2EqN_prog : Program :=
-  [ .MV .x6 .x10,
-    .MV .x7 .x11,
-    .MV .x5 .x12,
-    .BEQ .x5 .x0 (32 : BitVec 13),
-    .LBU .x28 .x6 (0 : BitVec 12),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x28 .x29 (28 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  Bls12G2EqNSAsm.blsg2EqN_prog
 
 def bls12G2EqNFunction : String :=
   "blsg2_eq_n:\n" ++ emitProgram blsg2EqN_prog
