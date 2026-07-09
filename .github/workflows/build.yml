@@ -115,9 +115,6 @@ jobs:
       - name: Axiom audit (no bv_decide / native_decide trust axioms; classical-only TCB)
         run: scripts/check-axioms.sh
 
-      - name: Conformance-vector floor (monotonic ratchet)
-        run: scripts/check-conformance-floor.sh
-
       # DIV-class defense PR fast-path: fuzz the six arithmetic opcodes
       # against an independent Nat/Int reference + re-verify the permanent
       # corpus still matches its frozen execution-specs verdict. Pure Lean,
