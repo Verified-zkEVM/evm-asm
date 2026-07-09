@@ -71,15 +71,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     updateActiveMemorySizeAsm
       (if hasSalt then "create2_init" else "create_init")
       "x15" "x16" "x18" "x19" "x23" "x6" true ++
-    -- The dispatcher static table charges 9000 for CREATE/CREATE2. Amsterdam
-    -- execution-specs charges CREATE_ACCESS = ACCOUNT_WRITE(8000) +
-    -- COLD_STORAGE_ACCESS(3000), so debit the remaining 2000 regular gas here
-    -- with the other pre-execution CREATE regular-gas components.
-    "  ld x18, 568(x20)\n" ++
-    "  li x19, 2000\n" ++
-    "  bltu x18, x19, .exit_outofgas\n" ++
-    "  sub x18, x18, x19\n" ++
-    "  sd x18, 568(x20)\n" ++
+    -- The dispatcher precharge already includes Amsterdam execution-specs'
+    -- CREATE_ACCESS = ACCOUNT_WRITE(8000) + COLD_STORAGE_ACCESS(3000).
+    -- Do not debit an additional cold-access delta here; generic_create's
+    -- insufficient-balance branch refunds only child-call/state reservoirs, not
+    -- any duplicate pre-execution CREATE_ACCESS charge.
     -- Convert env.ADDRESS from stack-word representation to the canonical
     -- 20-byte big-endian input expected by address_compute_create*.
     "  la x18, create_sender_be\n" ++
