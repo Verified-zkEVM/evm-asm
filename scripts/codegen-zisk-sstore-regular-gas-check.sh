@@ -2,8 +2,8 @@
 # codegen-zisk-sstore-regular-gas-check.sh -- bead nxio8.1.
 #
 # sstore_regular_gas computes the exact Amsterdam SSTORE *regular* gas cost
-# (EIP-7778 block_regular component): gas = (cold?2100:0) + (original==current &&
-# current!=new ? 2900 : 100). Verifies the four spec cases (execution-specs
+# (EIP-7778 block_regular component): gas = (cold?3000:100) +
+# (original==current && current!=new ? 10000 : 0). Verifies the four spec cases (execution-specs
 # amsterdam vm/instructions/storage.py + vm/gas.py).
 set -euo pipefail
 
@@ -48,10 +48,10 @@ with open(sys.argv[1],'wb') as f:
   fi
 }
 
-run_case cold_clean_change   1 0x5 0x5 0x7 5000
-run_case cold_else_orig_ne   1 0x3 0x5 0x7 2200
-run_case cold_else_nochange  1 0x5 0x7 0x7 2200
-run_case warm_clean_change   0 0x5 0x5 0x7 2900
+run_case cold_clean_change   1 0x5 0x5 0x7 13000
+run_case cold_else_orig_ne   1 0x3 0x5 0x7 3000
+run_case cold_else_nochange  1 0x5 0x7 0x7 3000
+run_case warm_clean_change   0 0x5 0x5 0x7 10100
 run_case warm_else_nochange  0 0x5 0x7 0x7 100
 run_case warm_else_dirty     0 0x3 0x5 0x7 100
 

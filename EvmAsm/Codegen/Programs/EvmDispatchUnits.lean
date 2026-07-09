@@ -897,10 +897,10 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
 
     Dispatches the multi_transaction_gas_accounting tx0 recipient bytecode
     (10× PUSH0; PUSH1 i; SSTORE — clearing slots 0..9, each preloaded to 1)
-    with gas=71050, and dumps the post-dispatch env.gasRemaining (env+568) +
-    persistent-log count (env+448). SPEC charges 21000 intrinsic + 10×5000
-    (cold clean-changing SSTORE-clear: 2100 cold + 2900 regular) + 50 pushes =
-    71050 (full) -> gas_left = 0, log count = 10 preload + 10 SSTORE appends =
+    with gas=151050, and dumps the post-dispatch env.gasRemaining (env+568) +
+    persistent-log count (env+448). SPEC charges 21000 intrinsic + 10×13000
+    (cold clean-changing SSTORE-clear: 3000 cold access + 10000 write) + 50 pushes =
+    151050 (full) -> gas_left = 0, log count = 10 preload + 10 SSTORE appends =
     20. (The probe originally pinned the d' undercharge — gas_left 25200 —
     which had TWO causes, both fixed: the BAL preload keys were staged BE and
     invisible to the LE exec-log scan, and this probe's own preload mirrored
@@ -914,10 +914,10 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
   body        := []
   prologueAsm :=
     "  li sp, 0xa0050000\n" ++
-    -- build ctx (192B): zero, gas@40=71050, recipient@72 = scgp_recip (20B)
+    -- build ctx (192B): zero, gas@40=151050, recipient@72 = scgp_recip (20B)
     "  la t0, scgp_ctx; mv t1, t0; li t2, 24\n" ++
     ".Lscgp_zc:\n  sd zero, 0(t1); addi t1, t1, 8; addi t2, t2, -1; bnez t2, .Lscgp_zc\n" ++
-    "  li t1, 71050; sd t1, 40(t0)\n" ++
+    "  li t1, 151050; sd t1, 40(t0)\n" ++
     "  addi t1, t0, 72; la t2, scgp_recip; li t3, 20\n" ++
     ".Lscgp_rc:\n  beqz t3, .Lscgp_rcd; lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscgp_rc\n" ++
     ".Lscgp_rcd:\n" ++

@@ -480,9 +480,10 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     **Static base costs only** — all *dynamic* components are dropped:
     memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
     per-byte, and cold-access surcharges (SLOAD/BALANCE/EXTCODE*/CALL use
-    the warm floor of 100; SSTORE uses 100; cold +3000/+3000 not modeled).
-    So state-touching ops UNDER-charge — fine for the first slice, which
-    establishes the metering machinery; dynamic costs are a follow-up.
+
+    the warm floor of 100; SSTORE uses 100; cold deltas are charged in
+    opcode-specific helpers).
+
 
     Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
     not assigned a real opcode are 0, so trusted programs never spuriously
@@ -521,7 +522,7 @@ def staticGasCost (op : Nat) : Nat :=
     -- stack / memory / flow
     | 0x50 => 2                                              -- POP (BASE)
     | 0x51 | 0x52 | 0x53 => 3                                -- MLOAD,MSTORE,MSTORE8 (VERYLOW)
-    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base; dynamic dropped)
+    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base)
     | 0x56 => 8                                              -- JUMP (MID)
     | 0x57 => 10                                             -- JUMPI (HIGH)
     | 0x58 | 0x59 | 0x5a => 2                                -- PC,MSIZE,GAS (BASE)
