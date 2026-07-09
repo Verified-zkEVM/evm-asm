@@ -102,6 +102,12 @@ EvmAsm.lean            -- root umbrella (see Common Pitfalls: new files must
    goals).
 4. When stuck, route by symptom: `docs/sasm-howto.md` §8 →
    `docs/agents/proof-patterns.md` → `GRIND.md`.
+5. For converter callees that feed larger callers, do not export only a numeric
+   equality if the loop invariant proves exact output bytes. Put the exact byte
+   list in the callee `Fn` post and derive the numeric equality from it; callers
+   need the bytes to reassemble larger output records. Keep `#print axioms` in
+   proof files, and keep `scripts/port-check.sh` filtering classical-only axiom
+   print output rather than removing the audit line.
 
 ### Proof-tier rubric (`EvmAsm/Progress.lean`)
 

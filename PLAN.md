@@ -254,34 +254,17 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
-  `Bls12G1LeToBeSAsm.lean` verifies the six-limb
-  `blsg_le_to_be` converter (`blsgLeToBeFn_spec`, post
-  `beBytesToNat ws = leLimbsToNat [...]`) with byte-identity pinned to
-  `blsgLeToBe_prog`;
-  `Bls12G1BeToLeSAsm.lean` verifies the six-limb
-  `blsg_be_to_le` converter (`blsgBeToLeFn_spec`, post
-  `leLimbsToNat ws-limbs = beBytesToNat inBytes`) with byte-identity pinned
-  to `blsgBeToLe_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`. `Bls12Fq12IsZeroSAsm.lean` verifies `blq_is_zero`
-  (`blqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 72 dword limbs is zero)
-  with byte-identity pinned to `blqIsZero_prog`; `Bn254Fp2IsZeroSAsm.lean`
-  verifies `bnp_fp2_is_zero`
-  (`bnpFp2IsZeroFn_spec`, post `a0` is the emitted `SLTIU` result over the OR
-  of the eight 64-bit limbs) with byte-identity pinned to `bnpFp2IsZero_prog`.
-  `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fq12IsZeroSAsm.lean` verifies `bnq_is_zero`
-  (`bnqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 48 dword limbs is zero)
-  with byte-identity pinned to `bnqIsZero_prog`. `Bn254Fp2ZeroSAsm.lean`
-  verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
@@ -2637,6 +2620,30 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   host-delegated syscalls.
 - RETURN and REVERT halt the current frame with output data.
 
+##### RETURN/REVERT (0xf3/0xfd) full-tail proof — status
+- **Halt core** (`Terminating/ReturnHaltSpec.evm_return_halt_spec_within`): DONE
+  (`dispatchHaltRet 2` → `.exit_no_epilogue`; STOP/INVALID clone, routing code 2).
+- **Descriptor-window loops** (`Terminating/ReturnWindowLoopSpec.lean`, all
+  classical-3): DONE
+  - `bytesRegion_sd_within` — reusable dword-store analog of
+    `bytesRegion_sb_within` (SD into a dword slot → `setBytes bs (8*q) (dwordBytes v)`).
+  - `returnZeroLoop_spec_within` — 22-word descriptor-body zeroing loop
+    (`zeroDwords` model), induction on the word countdown.
+  - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
+    loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
+    copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
+- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
+  straight-line glue as a single descriptor-window `Program` from the post-gas
+  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
+  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
+  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
+  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
+  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
+  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
+  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
+  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
+  stitched, so the registry is NOT flipped).
+
 ### Phase 9: Gas Metering
 
 #### 9.1 Static Gas
@@ -2846,28 +2853,6 @@ bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
 with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
 on; porting a real cross-calling routine additionally needs its callees'
 whole-routine contracts (each its own port).
-**Flat-contract adapter landed** (bead evm-asm-el1w2, branch
-`feat/flat-contract-adapter`): `SAsm/FnFlat.lean` derives a
-`callWithin_spec`-consumable flat callee contract from any call-free leaf's
-`Fn.Spec` (`Fn.retSpecFlat`), via the partial-state identity
-`regFileIs rf = regAtoms rf exposedRegs` (pack/unpack of the exposed file
-into fifteen `↦ᵣ` atoms), generic ownership peeling over register lists
-(`cpsTripleWithin_peel_regOwns`), and the `dwordsIs ↔ bytesRegion`
-conversion.  Three NAMED side-conditions (footprint width — adapted
-contracts own the whole exposed file, callers carry `regOwns` riders; post
-completeness — the leaf's `Fn` post must pin any register value the caller
-needs; ambient pinning `A = empAssertion`).  Re-derivation:
-`bnq_set_one`'s hand-written flat callee theorem replaced by the adapter
-applied to `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` (post strengthened to pin the
-advanced `a0`/drained counter/ambient — ~10-line VC patch); the caller's
-genuine post is unchanged (FQ12 = ONE, sp/ra/s0 restored, `a0 = dst+384`)
-with the footprint widened by the inherent `regOwns bnqRiders`; also fixed
-the file's stale post-relink address anchors (proofs now at the real
-GuestAddrs, `#guard`-tied).  Porting guide gained §5a (adapter recipe +
-side-conditions), the thin-wrapper anti-example (header_extract_number →
-stop at the missing rlp_field_to_u64 contract, bead 4ch8f.26.7.1), the
-`empAssertion` cleanup pattern, and the semantic-constants vs
-address-anchors discipline (bead evm-asm-q4xm0).  Classical-3 everywhere.
 **Port-automation + first real cross-call port landed** (branch
 `feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
 boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
@@ -2892,6 +2877,29 @@ consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
 restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
 blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
 contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
+BLS12-381 analogue `blq_set_one` now follows the same framework path
+(`Codegen/Programs/Bls12Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.23,
+byte-TRANSPARENT): flat `blq_zero` contract over 72 dwords/576 bytes,
+`callWithin_spec` from the frame body, and postcondition ONE = dword 0 set to
+1 with the remaining 71 dwords zero.
+**Count-up call-loop lemma + blsg2_encode port landed** (branch
+`feat/countup-call-loop`, beads evm-asm-ipt7m + 4ch8f.58.3.24.2):
+`SAsm/AbiFrameLoopBottom.lean` adds `countupLoopBottom_spec` — the
+bottom-tested count-up analogue of `countdownLoopBottom_spec` (counter
+`0 → N` against a nonzero bound REGISTER that the body reloads each pass,
+`… ; addi ctr,ctr,1 ; li bnd,N ; bne ctr,bnd,back`), register/bound/offset
+agnostic, arbitrary per-iteration body triple (verified to admit a
+`callWithin_spec` composition) — plus the `countup_loop` FramePort macro.
+Consumer: `blsg2_encode` (`Codegen/Programs/Bls12G2EncodeSAsm.lean`,
+byte-TRANSPARENT `abiFrameProg (-40)/(+40)`, frame ra/s0/s1/s2): the loop
+body computes `48·i` (two shifts + add), points `a0`/`a1` at chunk `i`, and
+REALLY calls `blsg_le_to_be` — the callee contract is DERIVED with the
+adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
+`blsgLeToBeFn_spec`, ambient-pinned per §5a) and consumed by
+`callWithin_spec`; `blsg2Encode_spec` concludes sp/ra/s0/s1/s2 restored and
+the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
+inputs untouched).  First loop-of-calls port; callee steps kept symbolic
+(`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
