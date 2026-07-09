@@ -121,8 +121,8 @@ theorem la_resolve (pc target : Word) (h : laInRange pc target) :
         = (target - pc).toNat % 2 ^ 12 := by omega
     rw [hmod]
     by_cases hc : 2 ^ 11 ≤ (target - pc).toNat % 2 ^ 12
-    · simp [hc]
-    · simp [hc]
+    · simp
+    · simp
   rw [BitVec.toNat_add, BitVec.toNat_add, hX, hY, hhi]
   by_cases h1 : 2 ^ 31 ≤ (((target - pc).toNat + 2048) % 2 ^ 64) / 2 ^ 12 % 2 ^ 20 * 4096 <;>
     by_cases h2 : 2 ^ 11 ≤ (target - pc).toNat % 2 ^ 12 <;>
