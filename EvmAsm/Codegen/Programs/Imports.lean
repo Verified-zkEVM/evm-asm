@@ -138,6 +138,7 @@ import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
+import EvmAsm.Codegen.Programs.Bls12G2EqNSAsm
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
