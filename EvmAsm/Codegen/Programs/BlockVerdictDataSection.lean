@@ -1326,11 +1326,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
-  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds the type-4 AUTH_BASE
-  -- and type-3 blob-data-gas sender-debit terms that multi_tx_actual_sender_debit omits,
-  -- so type-3/4 senders are debited exactly and B2.3 enforces them. txtype/innoff from
-  -- tx_type_dispatch; authoff/authlen/authcount = auth-list RLP; blobcount = blob hashes;
-  -- feedebit = the u256 fee accumulator added into the sender debit.
+  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds
+  -- type-3 blob-data-gas sender-debit terms; type-4 auth gas is already in
+  -- bvgr_receipt_gas_increments. txtype/innoff come from tx_type_dispatch;
+  -- blobcount = blob hashes; feedebit is the u256 fee accumulator added into
+  -- the sender debit.
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++
@@ -1407,16 +1407,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
   "tgbpvr_blobdebit:\n  .zero 32\n" ++
-  "tgbpvr_authdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
   "tgbpvr_tx_type:\n  .zero 8\n" ++
   "tgbpvr_inner_off:\n  .zero 8\n" ++
   "tgbpvr_blob_count:\n  .zero 8\n" ++
-  "tgbpvr_auth_off:\n  .zero 8\n" ++
-  "tgbpvr_auth_len:\n  .zero 8\n" ++
-  "tgbpvr_auth_count:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++

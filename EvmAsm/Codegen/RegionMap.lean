@@ -193,15 +193,15 @@ def schemeAAnchors : List GuestRegion :=
     being derived for EIP-6110 negative system requests. Grew again when the
     v0.5.0 `ProtocolFork` ordinal update shifted the Amsterdam fork check
     from `24` to `20`. Grew again when the BN254/BLS helper set landed. -/
-def textSizeBytes : Nat := 0x54518
+def textSizeBytes : Nat := 0x54414
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x19528090`). Link-layout-dependent. Grew by `0x20` (32 B)
+    (`readelf -S`, `0x19528050`). Link-layout-dependent. Earlier it grew
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x19528090
+def dataSizeBytes : Nat := 0x19528050
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

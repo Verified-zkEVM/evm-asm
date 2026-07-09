@@ -134,7 +134,7 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_mtx_skip_ctx; addi a1, a1, 96; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_add_be\n" ++                                               -- debit += tx.value
   "  bnez a0, .Lbv_b2_next\n" ++
-  ".Lbv_b2_after_auth:\n" ++
+  ".Lbv_b2_after_value:\n" ++
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
