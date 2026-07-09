@@ -3348,6 +3348,13 @@ refreshed by Lean render.
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
 verified body and requires EEST A/B parity as the byte-changing drop-in gate.
+`P256Eq32SAsm.lean` verifies `p256_eq32` as the same 32-byte byte-equality
+`whileBreak` drop-in by reusing the `secf_eq32` body/proof wrapper
+(`p256Eq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal);
+`P256Verify.lean` now re-emits `p256Eq32_prog` from that verified body. Gates
+run: `lake build`, `port-check`, forbidden tactics, axioms, layering,
+unimported, no-warnings, focused `codegen-zisk-p256verify-check.sh`, and
+`tests-zkevm@v0.5.0` stateless EEST smoke limit=1 full match.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
