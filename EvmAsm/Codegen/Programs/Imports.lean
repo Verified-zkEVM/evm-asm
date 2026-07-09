@@ -111,7 +111,10 @@ import EvmAsm.Codegen.Programs.P256CopyNSAsm
 import EvmAsm.Codegen.Programs.P256Eq32SAsm
 import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldConvSAsmLeToBe
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
+import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
@@ -149,6 +152,7 @@ import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid

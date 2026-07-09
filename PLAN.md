@@ -3059,6 +3059,33 @@ decidable `laInRange` remains); genuine post `a0 = call_frame_arena +
 (depth − 1) · 0x39000`.  Classical-3.  Downstream (other blockers remain):
 the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3) and point_double
 (4ch8f.38.5).
+**Multi-RW-subwindow callee adapter landed** (branch
+`feat/multi-rw-subwindow`, bead evm-asm-4ch8f.38.5 — converter+arithMod
+caller layer; the point_double inline-CSRS-2052 half stays open): the
+writable analog of `callAt`'s read-only focusing.  `SAsm/RwSubwindow.lean`:
+`bytesRegion_window_focus`/`bytesRegion_window_update` carve subwindow
+`[j, j+n)` out of ONE arena atom and reassemble it around a replaced window
+(`setBytes` merge — a callee that wrote only its window provably left every
+other subwindow untouched); `cpsTripleWithin_rwWindow` lifts a
+focused-window callee triple to the whole arena;
+`cpsTripleWithin_seq_exists_same_cr` threads ∃-posts (callees that pin only
+a PROPERTY of the written bytes) through a call sequence;
+`wsNat256_setBytes_low/inside/high` decode the accumulated splice image.
+Acceptance consumer `bnf_mul_mod_p`
+(`Codegen/Programs/Bn254FieldMulModPSAsm.lean`, `#guard`-tied
+GuestAddrs.bnf_mul_mod_p = 0x8002ff5c, byte-transparent `abiFrameProg` rfl
+tie, no A/B): an sp-frame (ra/s0/s1) around two `bnf_be_to_le` calls (each
+writing its own arena subwindow `_a`@0 / `_b`@0x20 of the 232-byte LE
+staging arena), the inline CSR-2050 arithMod accelerator step at arena-atom
+granularity (`csrs_arith256Mod_spec_within` decoding operands from the
+accumulated image, writing `_d`@0x40), and a final `bnf_le_to_be` call
+reading the focused `_d` window out to the external output — GENUINE post
+`beBytesToNat out' = Accel.arith256Mod (beBytesToNat aBE) (beBytesToNat
+bBE) c₀ m₀` (`(a·b+c₀) mod m₀`, `c₀`/`m₀` the staged addend/modulus cells),
+`sp`/`ra`/`s0`/`s1` restored, inputs and every non-written arena subwindow
+framed.  Both converters (`Bn254FieldConvSAsm`) retrofitted with ambient-`A`
+pinning (`A = empAssertion`) to satisfy `Fn.retSpecFlat`'s side condition.
+Classical-3.
 **Two-break writable-output combinator + `u256_lt_be` landed** (branch
 `feat/two-break-writable-lt`, bead evm-asm-i177q; porting-agent feedback —
 `retWhileBreak` has one mid-loop return break, `while2BreakJoin`
@@ -3084,6 +3111,51 @@ exhaustion → tail writes `0`, the `x0`-sourced store) and
 #10060) gives the GENUINE post `[a2] = if beBytesToNat as < beBytesToNat
 bs then 1 else 0` (dword), `a0 = 0`, inputs untouched.  Classical-3.
 Unblocks secf_reduce_once (4ch8f.38.2.4.1).
+**Dynamic-length byte dual-read scan + `blsg2_eq_n` landed** (branch
+`feat/dual-read-byte-scan`, bead evm-asm-v1ad3; porting-agent feedback —
+`DualReadScan` #10038 covers fixed dword `LD` scans only).
+`SAsm/DualReadByteScan.lean` (cpsTripleWithin level, additive):
+`byteScanProg` — the 12-instruction dynamic-length LBU dual-read equality
+scan generator (five generic scan registers, `a2`-style dynamic count,
+counter-verdict join `li a0,1; beq ctr,x0; li a0,0; ret`);
+`bytes_eq_of_prefix_eq` — the per-byte → byte-list equality bridge (the
+byte-level analogue of #10038's `bytes_eq_of_dwordSlots_eq`);
+`scan_spec` — the whole scan, register- AND length-agnostic at a SYMBOLIC
+base, built from `twoBreakRetLoop_spec`/`breakStation_spec` (#10067) with
+the two loop exits routed through the join (`joinEq_spec`/`joinNe_spec`);
+`CodeReq.ofProg_mem_at` — symbolic-base per-instruction code membership
+(`code_mem` needs concrete bases).  Consumer `blsg2_eq_n`
+(`Bls12G2EqNSAsm.lean`, `#guard`-tied GuestAddrs.blsg2_eq_n = 0x80033b80):
+the emitted `blsg2EqN_prog` IS `[mv;mv;mv] ++ byteScanProg x5 x28 x29 x6
+x7` (kernel `rfl`), so `blsg2EqN_spec` is byte-transparent (no re-emit, no
+A/B) with the GENUINE post `a0 = (if bs1 = bs2 then 1 else 0)`, inputs
+untouched — superseding the `firstDiff`-shaped `Fn` post.  Completes the
+equality-scan family (fixed-dword #10038 + dynamic-byte).  Classical-3.
+**Multi-register shared return-tail + branch-over-tail + `message_call_gas`
+landed** (branch `feat/multi-reg-return-tail`, bead evm-asm-24uka;
+porting-agent feedback — `sharedRetTail_spec` #10041 proves only the
+single-register `li rd,c; ret` arm).  `SAsm/MultiRegRetTail.lean`
+(cpsTripleWithin level, additive): `multiRegRetTail_spec` — a LIST of `li`
+register assignments then `ret`, proven once per tail address by induction
+on the assignment list, the post pinning EXACTLY the assigned registers
+(`regsSet assigns`, no arbitrary effect); register/value/length-agnostic
+(`sharedRetTail` is the singleton instance).  **Branch-over-tail needs no
+new lemma**: `retJoinStation_spec`/`breakStation_spec` are target-address-
+agnostic (the module doc records why — code is a persistent side-condition,
+not a consumed resource).  Consumer `message_call_gas`
+(`Codegen/Programs/MessageCallGasSAsm.lean`): the EIP-150 CALL forwarding
+helper, GENUINE post `mcgPost` — `a0 = 1` on input-sum overflow
+(`a1=a2=a3=0`), `a0 = 2` when `capped + extra` or `capped + stipend`
+overflows (zeroed likewise), else `a0 = 0` with `a1 = capped + extra_gas`,
+`a2 = capped + stipend`, `a3 = capped` (the all-but-one-64th cap and the
+2300 stipend as `capped`/`stipend` defs); the two output-overflow guards
+route OVER the success and status-1 tails to the status-2 tail at
+`base+124` (the branch-over-tail example, one `errTail_spec` instance
+consumed by both stations).  `message_call_gas` has no GuestAddrs anchor
+(probe-only), so the spec is at a SYMBOLIC base over the emitted
+`messageCallGas_prog` — byte-transparent, no A/B, consumable wherever a
+closure links it.  Completes the shared-return-tail family (single-reg
+#10041, store #10067, multi-reg + branch-over here).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
