@@ -118,14 +118,9 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
   -- bmvmx.5.5.2.2.12: sender GAS debit = bvgr_receipt_gas_increments[i] * eff_price (+ value below).
-  -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
-  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain.
-  -- This block runs after receipt validation (reached via .Lbv_b2_entry from
-  -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
-  -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
-  -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
-  -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is
-  -- still added below. i = bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
+  -- bvgr_receipt_gas_increments[i] is the per-tx gas_used produced by the gas chain.
+  -- The type-3 blob fee is a separate dimension and is still added below. i =
+  -- bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t2, bvgr_receipt_gas_increments; add t2, t2, t1; ld a1, 0(t2)\n" ++   -- receipt_gas_used[i] (u64)
   "  la a0, bv_fee_egp_scratch; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
@@ -138,28 +133,6 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_type4_auth\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_innoff; ld t1, 0(t0); la t2, bv_mtx_skip_ctx; ld t2, 8(t2); add t1, t2, t1\n" ++
-  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_type4_auth\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
-  "  la t0, bvgr_receipt_gas_increments; add t0, t0, t1; ld t2, 0(t0)\n" ++
-  "  la t0, bvgr_tx_total_state_gas; add t0, t0, t1; ld t3, 0(t0); bgeu t2, t3, .Lbv_b2_after_type4_auth\n" ++
-  "  li t2, " ++ toString (amsterdamAuthStateGas + 7500) ++ "; mul a1, a1, t2\n" ++
-  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  ".Lbv_b2_after_type4_auth:\n" ++
   "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++
@@ -213,19 +186,6 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- WIP: exact-gas/state-root-authenticated multi-tx rows below still trip the cumulative
-  -- pure-payer sender-balance model. Skip only these known signatures while B2.3 is repaired;
-  -- the state root, receipt root, and exact block gas remain enforced by the surrounding verdict.
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
-  "  li t3, 2; bne t1, t3, .Lbv_b23_wip_bal_all_types\n" ++
-  "  li t3, 42000; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92120; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92056; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 861418; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_bal_all_types:\n" ++
-  "  li t3, 5; bne t1, t3, .Lbv_b23_wip_done\n" ++
-  "  li t3, 524790; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_done:\n" ++
   -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
   -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
   -- per-block tx-type pre-scan is needed here.)

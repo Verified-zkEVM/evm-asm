@@ -245,55 +245,26 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
-  pinned to `u256FromU64Be_prog`.  `P256LeToBeSAsm.lean` verifies the nested
-  LE-to-BE converter `p256_le_to_be` (`p256LeToBeFn_spec`, post the BE output
-  decodes to the LE input limbs) with byte-identity pinned to `p256LeToBe_prog`.
-  `P256BeToLeSAsm.lean` verifies the nested
-  BE-to-LE converter `p256_be_to_le` (`p256BeToLeFn_spec`, post the LE limbs
-  decode to the BE input value) with byte-identity pinned to `p256BeToLe_prog`.
-  `Bls12G1Zero96SAsm.lean` verifies the
+  pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12FieldCopyQuadsSAsm.lean` verifies the generic
-  `blsf_copy_quads` dword-copy callee (`blsfCopyQuadsFn_spec`, post
-  `ws = srcBytes` for `8*n` bytes) with byte-identity pinned to
-  `blsfCopyQuads_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
-  `Bls12G1LeToBeSAsm.lean` verifies the six-limb
-  `blsg_le_to_be` converter (`blsgLeToBeFn_spec`, post
-  `beBytesToNat ws = leLimbsToNat [...]`) with byte-identity pinned to
-  `blsgLeToBe_prog`;
-  `Bls12G1BeToLeSAsm.lean` verifies the six-limb
-  `blsg_be_to_le` converter (`blsgBeToLeFn_spec`, post
-  `leLimbsToNat ws-limbs = beBytesToNat inBytes`) with byte-identity pinned
-  to `blsgBeToLe_prog`; `Bls12G2Copy192SAsm.lean`
-  verifies the ABI-frame caller `blsg2_copy192` (`blsg2Copy192Frame_spec`,
-  post copies 24 dwords / 192 bytes) by calling the verified
-  `blsf_copy_quads` callee, byte-identity pinned to `blsg2Copy192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`. `Bls12Fq12IsZeroSAsm.lean` verifies `blq_is_zero`
-  (`blqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 72 dword limbs is zero)
-  with byte-identity pinned to `blqIsZero_prog`; `Bn254Fp2IsZeroSAsm.lean`
-  verifies `bnp_fp2_is_zero`
-  (`bnpFp2IsZeroFn_spec`, post `a0` is the emitted `SLTIU` result over the OR
-  of the eight 64-bit limbs) with byte-identity pinned to `bnpFp2IsZero_prog`.
-  `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fq12IsZeroSAsm.lean` verifies `bnq_is_zero`
-  (`bnqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 48 dword limbs is zero)
-  with byte-identity pinned to `bnqIsZero_prog`. `Bn254Fp2ZeroSAsm.lean`
-  verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
@@ -307,9 +278,6 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `bncZero64_prog`.
-  `P256CopyNSAsm.lean` verifies the P256 helper byte loop `p256_copy_n`
-  (`p256CopyNFn_spec`, post `ws = bs.take len`) with static source/destination
-  disjointness and byte-identity pinned to `p256CopyN_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
@@ -2652,6 +2620,30 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   host-delegated syscalls.
 - RETURN and REVERT halt the current frame with output data.
 
+##### RETURN/REVERT (0xf3/0xfd) full-tail proof — status
+- **Halt core** (`Terminating/ReturnHaltSpec.evm_return_halt_spec_within`): DONE
+  (`dispatchHaltRet 2` → `.exit_no_epilogue`; STOP/INVALID clone, routing code 2).
+- **Descriptor-window loops** (`Terminating/ReturnWindowLoopSpec.lean`, all
+  classical-3): DONE
+  - `bytesRegion_sd_within` — reusable dword-store analog of
+    `bytesRegion_sb_within` (SD into a dword slot → `setBytes bs (8*q) (dwordBytes v)`).
+  - `returnZeroLoop_spec_within` — 22-word descriptor-body zeroing loop
+    (`zeroDwords` model), induction on the word countdown.
+  - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
+    loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
+    copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
+- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
+  straight-line glue as a single descriptor-window `Program` from the post-gas
+  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
+  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
+  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
+  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
+  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
+  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
+  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
+  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
+  stitched, so the registry is NOT flipped).
+
 ### Phase 9: Gas Metering
 
 #### 9.1 Static Gas
@@ -2861,28 +2853,6 @@ bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
 with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
 on; porting a real cross-calling routine additionally needs its callees'
 whole-routine contracts (each its own port).
-**Flat-contract adapter landed** (bead evm-asm-el1w2, branch
-`feat/flat-contract-adapter`): `SAsm/FnFlat.lean` derives a
-`callWithin_spec`-consumable flat callee contract from any call-free leaf's
-`Fn.Spec` (`Fn.retSpecFlat`), via the partial-state identity
-`regFileIs rf = regAtoms rf exposedRegs` (pack/unpack of the exposed file
-into fifteen `↦ᵣ` atoms), generic ownership peeling over register lists
-(`cpsTripleWithin_peel_regOwns`), and the `dwordsIs ↔ bytesRegion`
-conversion.  Three NAMED side-conditions (footprint width — adapted
-contracts own the whole exposed file, callers carry `regOwns` riders; post
-completeness — the leaf's `Fn` post must pin any register value the caller
-needs; ambient pinning `A = empAssertion`).  Re-derivation:
-`bnq_set_one`'s hand-written flat callee theorem replaced by the adapter
-applied to `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` (post strengthened to pin the
-advanced `a0`/drained counter/ambient — ~10-line VC patch); the caller's
-genuine post is unchanged (FQ12 = ONE, sp/ra/s0 restored, `a0 = dst+384`)
-with the footprint widened by the inherent `regOwns bnqRiders`; also fixed
-the file's stale post-relink address anchors (proofs now at the real
-GuestAddrs, `#guard`-tied).  Porting guide gained §5a (adapter recipe +
-side-conditions), the thin-wrapper anti-example (header_extract_number →
-stop at the missing rlp_field_to_u64 contract, bead 4ch8f.26.7.1), the
-`empAssertion` cleanup pattern, and the semantic-constants vs
-address-anchors discipline (bead evm-asm-q4xm0).  Classical-3 everywhere.
 **Port-automation + first real cross-call port landed** (branch
 `feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
 boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
