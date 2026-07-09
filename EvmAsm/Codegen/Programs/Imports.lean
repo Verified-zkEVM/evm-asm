@@ -203,6 +203,7 @@ import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256IsZeroSAsm
 import EvmAsm.Codegen.Programs.GasRoutinesSAsm
+import EvmAsm.Codegen.Programs.CallExtraGasSAsm
 import EvmAsm.Codegen.Programs.MemoryExpansionGasSAsm
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
