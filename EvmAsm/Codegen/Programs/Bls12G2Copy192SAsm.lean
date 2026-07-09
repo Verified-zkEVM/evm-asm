@@ -18,8 +18,8 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.Tactics
 
 namespace Bls12G2Copy192SAsm
 
-#guard GuestAddrs.blsf_copy_quads = 0x8002f39c
-#guard GuestAddrs.blsg2_copy192 = 0x80033a80
+#guard GuestAddrs.blsf_copy_quads = 0x8002F3AC
+#guard GuestAddrs.blsg2_copy192 = 0x80033A90
 
 /-- The caller's one-slot ABI frame: `ra` at 0(sp). -/
 def copy192Frame : FrameDesc := [(.x1, 0)]
@@ -38,22 +38,22 @@ theorem copy192Prog_eq :
 
 /-- Non-adjacent caller/callee code requirement. -/
 def copy192Cr : CodeReq :=
-  (CodeReq.ofProg (0x800335b4 : Word) blsg2Copy192_prog).union
-    (CodeReq.ofProg (0x8002eed0 : Word) blsfCopyQuads_prog)
+  (CodeReq.ofProg (0x800335C4 : Word) blsg2Copy192_prog).union
+    (CodeReq.ofProg (0x8002EEE0 : Word) blsfCopyQuads_prog)
 
 private theorem callerSub :
-    ∀ a i, CodeReq.ofProg (0x800335b4 : Word) blsg2Copy192_prog a = some i →
+    ∀ a i, CodeReq.ofProg (0x800335C4 : Word) blsg2Copy192_prog a = some i →
       copy192Cr a = some i := by
   intro a i h
   simp only [copy192Cr, CodeReq.union, h]
 
 private theorem calleeSub :
-    ∀ a i, CodeReq.ofProg (0x8002eed0 : Word) blsfCopyQuads_prog a = some i →
+    ∀ a i, CodeReq.ofProg (0x8002EEE0 : Word) blsfCopyQuads_prog a = some i →
       copy192Cr a = some i := by
   intro a i h
   obtain ⟨k, hk, rfl⟩ := ofProg_some_range h
-  have hnone : CodeReq.ofProg (0x800335b4 : Word) blsg2Copy192_prog
-      ((0x8002eed0 : Word) + BitVec.ofNat 64 (4 * k)) = none := by
+  have hnone : CodeReq.ofProg (0x800335C4 : Word) blsg2Copy192_prog
+      ((0x8002EEE0 : Word) + BitVec.ofNat 64 (4 * k)) = none := by
     apply CodeReq.ofProg_none_range
     intro k' hk' heq
     have hk7 : k' < 7 := hk'
@@ -144,7 +144,7 @@ theorem pcFree_copyInvF (src dst : Word) (srcWords dstWords : List Word) (init5 
 private theorem blsfCopyLoopBody_spec (src dst : Word) (srcWords dstWords : List Word)
     (init5 : Word) (hs : srcWords.length = 24) (hd : dstWords.length = 24)
     (n : Nat) (hn : n < 24) :
-    cpsTripleWithin 6 (0x8002eed4 : Word) (0x8002eed0 : Word) copy192Cr
+    cpsTripleWithin 6 (0x8002EEE4 : Word) (0x8002EEE0 : Word) copy192Cr
       ((.x12 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** copyInvF src dst srcWords dstWords init5 (n + 1))
       ((.x12 ↦ᵣ BitVec.ofNat 64 n) ** (Reg.x0 ↦ᵣ (0 : Word))
@@ -168,33 +168,33 @@ private theorem blsfCopyLoopBody_spec (src dst : Word) (srcWords dstWords : List
   simp only [copyInvF, hpn, ← hp, ← hL]
   rw [hsrcEq, hdstEq, ← hset, hdstSet]
   have hld := ld_spec_gen_within .x5 .x10 (src + BitVec.ofNat 64 (8 * p))
-    (lastLoaded srcWords init5 p) (srcWords.getD p 0) (0 : BitVec 12) (0x8002eed4 : Word)
+    (lastLoaded srcWords init5 p) (srcWords.getD p 0) (0 : BitVec 12) (0x8002EEE4 : Word)
     (by decide)
   rw [add_sext0] at hld
-  rw [show (0x8002eed4 : Word) + 4 = (0x8002eed8 : Word) from by decide] at hld
+  rw [show (0x8002EEE4 : Word) + 4 = (0x8002EEE8 : Word) from by decide] at hld
   have hldC := liftCode (cr' := copy192Cr) hld (by code_mem)
   have hsd := sd_spec_gen_within .x11 .x5 (dst + BitVec.ofNat 64 (8 * p))
-    (srcWords.getD p 0) (L.getD p 0) (0 : BitVec 12) (0x8002eed8 : Word)
+    (srcWords.getD p 0) (L.getD p 0) (0 : BitVec 12) (0x8002EEE8 : Word)
   rw [add_sext0] at hsd
-  rw [show (0x8002eed8 : Word) + 4 = (0x8002eedc : Word) from by decide] at hsd
+  rw [show (0x8002EEE8 : Word) + 4 = (0x8002EEEC : Word) from by decide] at hsd
   have hsdC := liftCode (cr' := copy192Cr) hsd (by code_mem)
   have ha0 := addi_spec_gen_same_within .x10 (src + BitVec.ofNat 64 (8 * p))
-    (8 : BitVec 12) (0x8002eedc : Word) (by decide)
+    (8 : BitVec 12) (0x8002EEEC : Word) (by decide)
   rw [addr_step8] at ha0
-  rw [show (0x8002eedc : Word) + 4 = (0x8002eee0 : Word) from by decide] at ha0
+  rw [show (0x8002EEEC : Word) + 4 = (0x8002EEF0 : Word) from by decide] at ha0
   have ha0C := liftCode (cr' := copy192Cr) ha0 (by code_mem)
   have ha1 := addi_spec_gen_same_within .x11 (dst + BitVec.ofNat 64 (8 * p))
-    (8 : BitVec 12) (0x8002eee0 : Word) (by decide)
+    (8 : BitVec 12) (0x8002EEF0 : Word) (by decide)
   rw [addr_step8] at ha1
-  rw [show (0x8002eee0 : Word) + 4 = (0x8002eee4 : Word) from by decide] at ha1
+  rw [show (0x8002EEF0 : Word) + 4 = (0x8002EEF4 : Word) from by decide] at ha1
   have ha1C := liftCode (cr' := copy192Cr) ha1 (by code_mem)
   have hcnt := addi_spec_gen_same_within .x12 (BitVec.ofNat 64 (n + 1))
-    (-1 : BitVec 12) (0x8002eee4 : Word) (by decide)
+    (-1 : BitVec 12) (0x8002EEF4 : Word) (by decide)
   rw [cnt_step_down] at hcnt
-  rw [show (0x8002eee4 : Word) + 4 = (0x8002eee8 : Word) from by decide] at hcnt
+  rw [show (0x8002EEF4 : Word) + 4 = (0x8002EEF8 : Word) from by decide] at hcnt
   have hcntC := liftCode (cr' := copy192Cr) hcnt (by code_mem)
-  have hjal := jal_x0_spec_gen_within (-24 : BitVec 21) (0x8002eee8 : Word)
-  rw [show (0x8002eee8 : Word) + signExtend21 (-24 : BitVec 21) = (0x8002eed0 : Word) from by decide] at hjal
+  have hjal := jal_x0_spec_gen_within (-24 : BitVec 21) (0x8002EEF8 : Word)
+  rw [show (0x8002EEF8 : Word) + signExtend21 (-24 : BitVec 21) = (0x8002EEE0 : Word) from by decide] at hjal
   have hjalC := liftCode (cr' := copy192Cr) hjal (by code_mem)
   have hldF := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** (Reg.x0 ↦ᵣ (0 : Word))
@@ -291,7 +291,7 @@ private theorem blsfCopyLoopBody_spec (src dst : Word) (srcWords dstWords : List
 theorem blsfCopyQuads24Flat_spec (ret src dst init5 : Word)
     (srcWords dstWords : List Word) (hs : srcWords.length = 24) (hd : dstWords.length = 24)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin (24 * (6 + 1) + 1 + 1) (0x8002eed0 : Word) ret copy192Cr
+    cpsTripleWithin (24 * (6 + 1) + 1 + 1) (0x8002EEE0 : Word) ret copy192Cr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x5 ↦ᵣ init5) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst)
         ** (.x12 ↦ᵣ BitVec.ofNat 64 24) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** dwordsIs src srcWords ** dwordsIs dst dstWords)
@@ -299,13 +299,13 @@ theorem blsfCopyQuads24Flat_spec (ret src dst init5 : Word)
         ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 192)) ** (.x11 ↦ᵣ (dst + BitVec.ofNat 64 192))
         ** (.x12 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** dwordsIs src srcWords ** dwordsIs dst srcWords) := by
-  have hloop : cpsTripleWithin (24 * (6 + 1) + 1) (0x8002eed0 : Word) (0x8002eeec : Word)
+  have hloop : cpsTripleWithin (24 * (6 + 1) + 1) (0x8002EEE0 : Word) (0x8002EEFC : Word)
       copy192Cr
       ((.x12 ↦ᵣ BitVec.ofNat 64 24) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** copyInvF src dst srcWords dstWords init5 24)
       ((.x12 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
         ** copyInvF src dst srcWords dstWords init5 0) := by
-    have h := countdownLoop_spec copy192Cr (0x8002eed0 : Word) (0x8002eeec : Word)
+    have h := countdownLoop_spec copy192Cr (0x8002EEE0 : Word) (0x8002EEFC : Word)
       .x12 (28 : BitVec 13) 6 24 (copyInvF src dst srcWords dstWords init5)
       (by decide) (by omega) (by decide)
       (fun n => pcFree_copyInvF src dst srcWords dstWords init5 n)
@@ -326,7 +326,7 @@ theorem blsfCopyQuads24Flat_spec (ret src dst init5 : Word)
         List.append_nil]
   rw [hstart, hend] at hloop
   have hloopF := cpsTripleWithin_frameR ((.x1 : Reg) ↦ᵣ ret) (by pcf) hloop
-  have hret := Fn.jalr_ret_spec (0x8002eeec : Word) ret halign
+  have hret := Fn.jalr_ret_spec (0x8002EEFC : Word) ret halign
     (P := (.x5 ↦ᵣ lastLoaded srcWords init5 24)
       ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 192)) ** (.x11 ↦ᵣ (dst + BitVec.ofNat 64 192))
       ** (.x12 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
@@ -342,7 +342,7 @@ def copy192Vals (ret : Word) : Reg → Word :=
 
 /-- Post-body `ra` is the call link; epilogue restores entry `ra`. -/
 def copy192Vals' : Reg → Word :=
-  fun r => match r with | .x1 => (0x800335c4 : Word) | _ => 0
+  fun r => match r with | .x1 => (0x800335D4 : Word) | _ => 0
 
 /-- Whole-routine ABI contract for `blsg2_copy192`. -/
 theorem blsg2Copy192Frame_spec (sp0 ret src dst init5 v12 : Word)
@@ -350,7 +350,7 @@ theorem blsg2Copy192Frame_spec (sp0 ret src dst init5 v12 : Word)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin (1 + copy192Frame.length + (1 + (1 + (24 * (6 + 1) + 1 + 1)))
         + copy192Frame.length + 1 + 1)
-      (0x800335b4 : Word) ret copy192Cr
+      (0x800335C4 : Word) ret copy192Cr
       ((.x2 ↦ᵣ sp0) ** regsAt copy192Frame (copy192Vals ret)
         ** frameSlotsOwn copy192Frame (sp0 + signExtend12 (-16 : BitVec 12))
         ** ((.x5 ↦ᵣ init5) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) ** (.x12 ↦ᵣ v12)
@@ -362,25 +362,25 @@ theorem blsg2Copy192Frame_spec (sp0 ret src dst init5 v12 : Word)
           ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 192)) ** (.x11 ↦ᵣ (dst + BitVec.ofNat 64 192))
           ** (.x12 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
           ** dwordsIs src srcWords ** dwordsIs dst srcWords)) := by
-  have hli := li_spec_gen_within .x12 v12 (24 : Word) (0x800335bc : Word) (by decide)
+  have hli := li_spec_gen_within .x12 v12 (24 : Word) (0x800335CC : Word) (by decide)
   rw [show (24 : Word) = BitVec.ofNat 64 24 from rfl] at hli
-  rw [show (0x800335bc : Word) + 4 = (0x800335c0 : Word) from by decide] at hli
+  rw [show (0x800335CC : Word) + 4 = (0x800335D0 : Word) from by decide] at hli
   have hliC := liftCode (cr' := copy192Cr) hli (by code_mem)
   have hliF := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** (.x5 ↦ᵣ init5) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst)
       ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs src srcWords ** dwordsIs dst dstWords)
     (by pcf) hliC
-  have hcallee := blsfCopyQuads24Flat_spec ((0x800335c0 : Word) + 4) src dst init5
+  have hcallee := blsfCopyQuads24Flat_spec ((0x800335D0 : Word) + 4) src dst init5
     srcWords dstWords hs hd (by decide)
-  have hcall := callWithin_spec (0x800335c0 : Word) (0x8002eed0 : Word) ret
+  have hcall := callWithin_spec (0x800335D0 : Word) (0x8002EEE0 : Word) ret
     (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_copy192 + 12))
     (24 * (6 + 1) + 1 + 1)
     (by decide) (by code_mem) (by pcf) hcallee
-  rw [show (0x800335c0 : Word) + 4 = (0x800335c4 : Word) from by decide] at hcall
+  rw [show (0x800335D0 : Word) + 4 = (0x800335D4 : Word) from by decide] at hcall
   have hbodyCore := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hcall
   have hbody : cpsTripleWithin (1 + (1 + (24 * (6 + 1) + 1 + 1)))
-      ((0x800335b4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length)))
-      ((0x800335b4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length + copy192Body.length)))
+      ((0x800335C4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length)))
+      ((0x800335C4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length + copy192Body.length)))
       copy192Cr
       ((.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12)))
         ** regsAt copy192Frame (copy192Vals ret)
@@ -396,11 +396,11 @@ theorem blsg2Copy192Frame_spec (sp0 ret src dst init5 v12 : Word)
           ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 192)) ** (.x11 ↦ᵣ (dst + BitVec.ofNat 64 192))
           ** (.x12 ↦ᵣ BitVec.ofNat 64 0) ** (Reg.x0 ↦ᵣ (0 : Word))
           ** dwordsIs src srcWords ** dwordsIs dst srcWords)) := by
-    have hentry : (0x800335b4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length))
-        = (0x800335bc : Word) := by decide
-    have hexit : (0x800335b4 : Word)
+    have hentry : (0x800335C4 : Word) + BitVec.ofNat 64 (4 * (1 + copy192Frame.length))
+        = (0x800335CC : Word) := by decide
+    have hexit : (0x800335C4 : Word)
           + BitVec.ofNat 64 (4 * (1 + copy192Frame.length + copy192Body.length))
-        = (0x800335c4 : Word) := by decide
+        = (0x800335D4 : Word) := by decide
     rw [hentry, hexit]
     simp only [copy192Frame, regsAt, frameSlotsSaved, copy192Vals, copy192Vals',
       List.foldr_cons, List.foldr_nil, sepConj_emp_right']
