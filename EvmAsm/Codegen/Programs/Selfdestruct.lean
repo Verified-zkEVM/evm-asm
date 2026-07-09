@@ -129,7 +129,6 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  mv t1, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
   "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
-
   -- SELFDESTRUCT to a new (not-alive) beneficiary with a non-zero originator
   -- balance creates the beneficiary account. Amsterdam execution-specs charges
   -- regular gas first: base(5000, dispatch) + cold access(3000, above) +
@@ -144,7 +143,6 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  sub t1, t1, t2\n" ++
   "  sd t1, 568(x20)\n" ++
   -- Mirror charge_state_gas (ChildFrameHandlerTails / Storage.lean): drain
-
   -- evm_state_gas_left, spill the remainder into the frame gas_left (568(x20)), OOG when both
   -- reservoirs are short; state_gas_used += charge. No refund snapshot -- the spec does not
   -- credit_state_gas_refund for SELFDESTRUCT; the frame-entry 624/632 state-gas snapshot already

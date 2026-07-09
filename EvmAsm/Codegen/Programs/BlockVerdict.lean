@@ -427,7 +427,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
-  multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++

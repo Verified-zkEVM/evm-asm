@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
 
 namespace EvmAsm.Codegen
@@ -260,28 +261,18 @@ theorem secp256k1FieldGetBitFunction_eq_prog :
 
 #guard secp256k1FieldGetBitFunction.startsWith "secf_get_bit_lsb:\n"
 #guard secfGetBitLsb_prog.length = 9
-/-- Return a0 = 1 iff the 32-byte BE buffer at a0 is zero. Leaf helper. -/
+/-- Return a0 = 1 iff the 32-byte BE buffer at a0 is zero. Leaf helper.
+
+    Re-emitted drop-in: the verified `Secp256k1FieldIsZeroSAsm.secfIsZero32Body`
+    flatten + `ret` (12 instructions, same length as the pre-drop-in two-exit scan). -/
 def secfIsZero32_prog : Program :=
-  [ .LI .x5 (32 : Word),
-    .MV .x6 .x10,
-    .BEQ .x5 .x0 (24 : BitVec 13),
-    .LBU .x7 .x6 (0 : BitVec 12),
-    .BNE .x7 .x0 (24 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-20 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  Secp256k1FieldIsZeroSAsm.secfIsZero32_prog
 
 def secp256k1FieldIsZeroFunction : String :=
   "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog
 
 /-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `secfIsZero32_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+    the verified re-emitted `secfIsZero32_prog` rendered under its label. -/
 theorem secp256k1FieldIsZeroFunction_eq_prog :
     secp256k1FieldIsZeroFunction = "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog := rfl
 

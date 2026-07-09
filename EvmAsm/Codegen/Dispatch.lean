@@ -474,8 +474,8 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     (`execution-specs/src/ethereum/forks/prague/vm/gas.py`): ZERO=0,
     JUMPDEST=1, BASE=2, VERYLOW=3, LOW=5, MID=8, HIGH=10, BLOCKHASH=20,
     KECCAK256 base=30, LOG base=375, warm access=100. Amsterdam/EIP-8037
-    moves the account-growth portion of CREATE/CREATE2 into state gas, so the
-    regular static base is 9000 rather than the pre-Amsterdam 32000.
+    charges CREATE/CREATE2's account-access regular component as
+    CREATE_ACCESS = ACCOUNT_WRITE(8000) + COLD_STORAGE_ACCESS(3000).
 
     **Static base costs only** — all *dynamic* components are dropped:
     memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
@@ -531,7 +531,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x5e => 3                                              -- MCOPY (base)
     | 0x5f => 2                                              -- PUSH0 (BASE)
     -- child frames (base; dynamic call/create costs dropped)
-    | 0xf0 => 9000 | 0xf5 => 9000                              -- CREATE, CREATE2
+    | 0xf0 => 11000 | 0xf5 => 11000                            -- CREATE, CREATE2
     | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
     | 0xff => 5000                                           -- SELFDESTRUCT (base)
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
@@ -761,7 +761,11 @@ def emitCreateChildFrameData : String :=
   -- drj99.1 (initcode_calls_with_value bv_fail=44): the created account's staged block-pre balance
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
-  "nse_create_pre_bal:\n  .zero 32\n"
+  "nse_create_pre_bal:\n  .zero 32\n" ++
+  -- Amsterdam generic_create computes target_alive from the current tx_state before
+  -- incorporating the child. A same-tx-created target can be alive even when its
+  -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
+  "create_target_alive_current_tx:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 

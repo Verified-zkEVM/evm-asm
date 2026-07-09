@@ -103,6 +103,8 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
 import EvmAsm.Codegen.Programs.P256LeToBeSAsm
 import EvmAsm.Codegen.Programs.P256BeToLeSAsm
 import EvmAsm.Codegen.Programs.P256CopyNSAsm
@@ -116,11 +118,13 @@ import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bls12PtCopySAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
@@ -133,6 +137,8 @@ import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 import EvmAsm.Codegen.Programs.Bls12G2Copy192SAsm
 import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages

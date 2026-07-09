@@ -391,6 +391,23 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- Snapshot execution-specs generic_create target_alive after the child frame
+    -- has staged the target's header-state balance and before constructor execution.
+    -- A nonzero block-pre balance or a prior same-tx CREATE code-effect record
+    -- makes the target alive; CREATE success then refunds NEW_ACCOUNT state gas.
+    "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
+    "  la t0, nse_create_pre_bal\n" ++
+    "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, create_address_be\n" ++
+    "  jal ra, find_code_effect_by_address\n" ++
+    "  mv t1, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  beqz t1, .Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    ".Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
+    ".Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
