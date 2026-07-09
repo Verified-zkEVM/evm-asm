@@ -129,18 +129,24 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  mv t1, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
   "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
-  -- nxio8.8 (EIP-8037 state dimension): SELFDESTRUCT to a new (not-alive) beneficiary with a
-  -- non-zero originator balance creates the beneficiary account, costing
-  -- StateGasCosts.NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530) = 183600
-  -- in the STATE dimension (spec amsterdam vm/instructions/system.py:660-671), NOT the legacy
-  -- 25000 GAS-dim surcharge that this replaces. The GAS-dim cost is only base(5000, dispatch) +
-  -- cold(3000, ee21v access gas); the new-account cost moved entirely to the state dimension under
-  -- EIP-8037. Mirror charge_state_gas (ChildFrameHandlerTails / Storage.lean): drain
+  -- SELFDESTRUCT to a new (not-alive) beneficiary with a non-zero originator
+  -- balance creates the beneficiary account. Amsterdam execution-specs charges
+  -- regular gas first: base(5000, dispatch) + cold access(3000, above) +
+  -- ACCOUNT_WRITE(8000), then charges StateGasCosts.NEW_ACCOUNT =
+  -- STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530) = 183600 in the
+  -- state-gas dimension (vm/instructions/system.py selfdestruct). Charge the
+  -- ACCOUNT_WRITE regular gas before touching the state-gas reservoir so a
+  -- regular-gas OOG does not inflate parent state gas on frame failure.
+  "  ld t1, 568(x20)\n" ++
+  "  li t2, 8000\n" ++
+  "  bltu t1, t2, .exit_outofgas\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  sd t1, 568(x20)\n" ++
+  -- Mirror charge_state_gas (ChildFrameHandlerTails / Storage.lean): drain
   -- evm_state_gas_left, spill the remainder into the frame gas_left (568(x20)), OOG when both
   -- reservoirs are short; state_gas_used += charge. No refund snapshot -- the spec does not
-  -- credit_state_gas_refund for SELFDESTRUCT (the charge is permanent within the frame, like the
-  -- 25000 it replaces; the frame-entry 624/632 state-gas snapshot already rolls it back if a parent
-  -- reverts the frame's effects).
+  -- credit_state_gas_refund for SELFDESTRUCT; the frame-entry 624/632 state-gas snapshot already
+  -- rolls it back if a parent reverts the frame's effects.
   liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
   "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
   "  bgeu t2, t0, .L_selfdestruct_csg_res\n" ++

@@ -180,7 +180,7 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x547b8`). Link-layout-dependent; the drift guard re-derives it.
+    (`readelf -S`, `0x547d4`). Link-layout-dependent; the drift guard re-derives it.
     Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
@@ -193,7 +193,7 @@ def schemeAAnchors : List GuestRegion :=
     being derived for EIP-6110 negative system requests. Grew again when the
     v0.5.0 `ProtocolFork` ordinal update shifted the Amsterdam fork check
     from `24` to `20`. Grew again when the BN254/BLS helper set landed. -/
-def textSizeBytes : Nat := 0x547b8
+def textSizeBytes : Nat := 0x547d4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Earlier it grew
