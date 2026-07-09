@@ -26,9 +26,9 @@
 #               a concrete unsupported field/path rather than a blanket
 #               "static list roots" limitation.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
-#   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
-#               chain_config (echoed from the input by the encoder).
-#   * full   -- all 105 bytes match (root AND succ AND tail).
+#   * tail   -- bytes after the success bit match the expected SSZ tail
+#               (normally u32 offset + chain_config; shorter for decode failures).
+#   * full   -- exact fixture output bytes match (105 bytes for normal Amsterdam outputs; 73 bytes for the deserialize-failure sentinel).
 #   * BUDGET -- the run exhausted the ziskemu --steps budget before halting
 #               (e.g. a sha256-heavy NPR-root merkleization). This is NOT a
 #               correctness failure (the guest never produced an answer to
@@ -1140,14 +1140,15 @@ run_case() {
       return 0
     fi
   fi
-  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-  if [[ "${#actual_hex}" -lt 210 ]]; then
+  local expected_bytes=$(( ${#expected_hex} / 2 ))
+  actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+  if [[ "${#actual_hex}" -lt "${#expected_hex}" ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
     if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
       if retry_budget_case; then
-        actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-        if [[ "${#actual_hex}" -ge 210 ]]; then
+        actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+        if [[ "${#actual_hex}" -ge "${#expected_hex}" ]]; then
           printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
           mv "$tmp_result" "$result"
           return 0
@@ -1178,12 +1179,13 @@ wait_for_one_worker() {
 }
 
 # --- classify ---------------------------------------------------------------
-# The 105-byte SszStatelessValidationResult decomposes into three
-# independently-checkable regions, so we report each separately to show
-# exactly where the guest stands (not just full-vs-not):
+# Most successful Amsterdam SszStatelessValidationResult values are 105 bytes,
+# but execution-specs' deserialize-failure sentinel is 73 bytes. Compare the
+# exact fixture-provided length; the region counters below still classify the
+# common 105-byte layout where present.
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
-#   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
+#   tail [33:]    = remaining expected SSZ tail (hex 66..)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
 # Progress tracking (--progress): RUN_START is stamped just before the run loop;
@@ -1258,7 +1260,7 @@ classify_case_result() {
     esac
     return 0
   fi
-  exp="${expected_hex:0:210}"
+  exp="$expected_hex"
 
   # Per-region matches.
   [[ "${actual_hex:0:64}"   == "${exp:0:64}"   ]] && { root=$((root + 1)); r=root; } || r=----
@@ -1443,10 +1445,10 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  errored:     $err"
   echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
-  echo "  full match:    $full   (all 105 bytes)"
+  echo "  full match:    $full   (exact fixture output bytes)"
   echo "  root match:    $root   (bytes 0:32  = new_payload_request_root)"
   echo "  succ match:    $succ   (byte 32     = successful_validation)"
-  echo "  tail match:    $tail   (bytes 33:105 = offset + chain_config)"
+  echo "  tail match:    $tail   (bytes after successful_validation)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
   echo "  fail:          $fail"
 } | tee "$BASELINE"
