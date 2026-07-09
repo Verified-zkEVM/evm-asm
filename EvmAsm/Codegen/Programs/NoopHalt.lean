@@ -93,7 +93,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- state gas under-counted -> EIP-7778/8037 state budget too lenient (false-accept on state-heavy
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
-      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
+      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x10000) so x15*1530 cannot overflow u64.
       "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++

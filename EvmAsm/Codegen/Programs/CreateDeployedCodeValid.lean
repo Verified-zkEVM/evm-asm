@@ -9,7 +9,7 @@
   process_create_message): after the init code RETURNs its output, deployment FAILS
   (the contract is not created, the CREATE pushes 0) when
 
-    * len(code) > MAX_CODE_SIZE (Amsterdam EIP-7907, 32768 / 0x8000; was EIP-170 24576), or
+    * len(code) > MAX_CODE_SIZE (Amsterdam EIP-7907, 65536 / 0x10000; was EIP-170 24576), or
     * len(code) > 0 and code[0] == 0xEF (EIP-3541: reject new 0xEF-prefixed code).
 
   The bounded init-code mini-interpreter (create_execute_initcode_frame) records the
@@ -28,9 +28,9 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Amsterdam (EIP-7907) deployed-code size limit (bytes) = 0x8000 = 32768 (raised from
+/-- Amsterdam (EIP-7907) deployed-code size limit (bytes) = 0x10000 = 65536 (raised from
     the EIP-170 0x6000 = 24576). Code longer than this fails deployment. -/
-def maxDeployedCodeSize : Nat := 32768
+def maxDeployedCodeSize : Nat := 65536
 
 /-- The `create_deployed_code_valid` body as a STRUCTURED RV64 program (a0=x10 code
     ptr + result, a1=x11 len, t0=x5 scratch, t1=x6 byte). `bgtu a1,t0`≡`bltu x5,x11`,
@@ -38,7 +38,7 @@ def maxDeployedCodeSize : Nat := 32768
     what `emitProgram` renders below — byte-identical to the former hand-written asm —
     and what `EvmAsm.Rv64.cdcv_spec` proves as a `cpsTriple`. -/
 def cdcvProgram : Program :=
-  [ .LI .x5 (32768 : Word), .BLTU .x5 .x11 (28 : BitVec 13), .BEQ .x11 .x0 (16 : BitVec 13),
+  [ .LI .x5 (65536 : Word), .BLTU .x5 .x11 (28 : BitVec 13), .BEQ .x11 .x0 (16 : BitVec 13),
     .LBU .x6 .x10 (0 : BitVec 12), .LI .x5 (0xEF : Word), .BEQ .x6 .x5 (12 : BitVec 13),
     .LI .x10 (0 : Word), .JALR .x0 .x1 0, .LI .x10 (1 : Word), .JALR .x0 .x1 0 ]
 
@@ -55,8 +55,8 @@ def createDeployedCodeValidFunction : String :=
       +0 empty (len 0)            -> 0 valid
       +8 {0x60} (len 1)           -> 0 valid
       +16 {0xEF} (len 1)          -> 1 invalid (EIP-3541)
-      +24 {0x60..} (len 32768)    -> 0 valid (boundary)
-      +32 {0x60..} (len 32769)    -> 1 invalid (Amsterdam EIP-7907) -/
+      +24 {0x60..} (len 65536)    -> 0 valid (boundary)
+      +32 {0x60..} (len 65537)    -> 1 invalid (Amsterdam EIP-7907) -/
 def ziskCreateDeployedCodeValidPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -71,10 +71,10 @@ def ziskCreateDeployedCodeValidPrologue : String :=
   "  la a0, cdcv_buf; li a1, 1; jal ra, create_deployed_code_valid; sd a0, 16(s0)\n" ++
   -- restore buf[0] = 0x60 for the size-boundary tests
   "  la t0, cdcv_buf; li t1, 0x60; sb t1, 0(t0)\n" ++
-  -- len 32768 -> valid (boundary)
-  "  la a0, cdcv_buf; li a1, 32768; jal ra, create_deployed_code_valid; sd a0, 24(s0)\n" ++
-  -- len 32769 -> invalid
-  "  la a0, cdcv_buf; li a1, 32769; jal ra, create_deployed_code_valid; sd a0, 32(s0)\n" ++
+  -- len 65536 -> valid (boundary)
+  "  la a0, cdcv_buf; li a1, 65536; jal ra, create_deployed_code_valid; sd a0, 24(s0)\n" ++
+  -- len 65537 -> invalid
+  "  la a0, cdcv_buf; li a1, 65537; jal ra, create_deployed_code_valid; sd a0, 32(s0)\n" ++
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lcdcv_done\n" ++
   createDeployedCodeValidFunction ++ "\n" ++
