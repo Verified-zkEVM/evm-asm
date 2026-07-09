@@ -114,6 +114,7 @@ import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
+import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
