@@ -286,7 +286,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  byte-identity pinned to `bncZero64_prog`. `Bn254CurveIsInfSAsm.lean` verifies
+  `bnc_is_inf64` (`bncIsInf64Fn_spec`, `a0 = 1` iff the 64-byte point encoding
+  is all-zero) as a same-length re-emitted SAsm drop-in. `Secp256k1PointZero64SAsm.lean`
   verifies the analogous `secp256k1_point_zero64` byte loop
   (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `secp256k1PointZero64_prog`.
