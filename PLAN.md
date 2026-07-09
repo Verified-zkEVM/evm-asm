@@ -2932,6 +2932,27 @@ address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
 bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
 N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
 can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
+**Shared-return-tail forward join landed** (branch
+`feat/shared-return-tail`, beads evm-asm-k2f1x + 4ch8f.59.2.1):
+`SAsm/RetForwardJoin.lean` closes the multi-guard validation-routine gap
+(`retIf` = one guard, two disjoint tails; validation routines have several
+guards CONVERGING on the same tails).  Two lemmas at `cpsTripleWithin`
+level: `sharedRetTail_spec` (the `li rd, c ; ret` return arm proven ONCE
+per tail address against the routine's single `CodeReq`, generic in
+register/value/frame — every guard targeting the tail reuses the instance,
+so no tail bytes are duplicated and byte-transparency holds) and
+`retJoinStation_spec` (one guard station: branch fact delivered to the two
+continuations as a plain HYPOTHESIS, killing the per-station
+`sepConj_pure_left` destructuring; stations chain by nesting — an outer
+station's fall-through proof IS the next station's joined triple).
+Consumer: `create_deployed_code_valid`
+(`Codegen/Programs/CreateDeployedCodeValidSAsm.lean`, bead 4ch8f.59.2) —
+the 3-guard/2-shared-tail EIP-7907/EIP-3541 gate, byte-transparent
+(`createDeployedCodeValidFunction = emitProgram cdcvProgram` kernel-checked
+in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
+else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
+two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
+separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
