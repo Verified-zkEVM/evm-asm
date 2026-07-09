@@ -491,7 +491,6 @@ def statelessVerdictV2GuestClosure : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
-  multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++

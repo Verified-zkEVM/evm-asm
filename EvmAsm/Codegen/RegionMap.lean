@@ -195,7 +195,7 @@ def schemeAAnchors : List GuestRegion :=
     from `24` to `20`. Grew again when the BN254/BLS helper set landed. Shrank when the
     self-transfer intrinsic post-helper adjustment was removed. Grew when Amsterdam
     intrinsic gas learned execution-specs sender==recipient and value branches. -/
-def textSizeBytes : Nat := 0x54b20
+def textSizeBytes : Nat := 0x54a88
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Earlier it grew
