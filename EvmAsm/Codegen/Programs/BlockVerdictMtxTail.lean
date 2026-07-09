@@ -176,13 +176,13 @@ def blockVerdictMtxValidationTail : String :=
   -- model. A forged sender post balance otherwise survives (the state-root recompute applies
   -- the BAL delta, so a matching forged header.state_root would pass).
   --
-  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only; it CANNOT
-  -- see inbound credits, so we CONSERVATIVELY SKIP (skip => never false-reject) any sender
-  -- whose final balance could include a credit the debit model misses:
+  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only. Do not
+  -- skip sender==coinbase here: if the model omits the priority-fee credit, the mismatch
+  -- must surface as a real B2.3 failure instead of being hidden by a post-fact bypass.
+  -- We still conservatively skip senders whose final balance could include a frame-local
+  -- value credit the debit model cannot distinguish yet:
   --   * effect-log overflow or any withdrawals present -> skip the whole pass (the exec
   --     effect log is then incomplete; mirrors the A2a guard below);
-  --   * sender == coinbase / fee_recipient -> the priority-fee credit is applied OUTSIDE the
-  --     EVM frame (process_transaction), absent from both the debit and the effect log;
   --   * sender present in the exec non-storage effect log -> execution touched its balance
   --     (value-in via CALL, or value-out it sent) -> potential inbound credit not modeled.
   -- The remaining PURE-PAYER senders (the common multi-tx EOA case, value=0) must satisfy
@@ -199,14 +199,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b23_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++
   "  slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3\n" ++   -- t4 = &entry (addr@0, running balance@32)
-  -- (a) skip if sender == coinbase (fee_recipient @ bv_exec_p+32)
-  "  la t5, bv_exec_p; ld t5, 0(t5); addi t5, t5, 32; li t6, 0\n" ++
-  ".Lbv_b23_cb:\n" ++
-  "  li a0, 20; beq t6, a0, .Lbv_b23_next\n" ++                 -- 20/20 bytes equal -> sender is coinbase -> skip
-  "  add a0, t4, t6; lbu a0, 0(a0); add a1, t5, t6; lbu a1, 0(a1); bne a0, a1, .Lbv_b23_notcb\n" ++
-  "  addi t6, t6, 1; j .Lbv_b23_cb\n" ++
-  ".Lbv_b23_notcb:\n" ++
-  -- (c) skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
+  -- Skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
   "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = raw count, t6 = k
   ".Lbv_b23_agg:\n" ++
   "  bgeu t6, t5, .Lbv_b23_chk\n" ++
@@ -269,11 +262,10 @@ def blockVerdictMtxValidationTail : String :=
   -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
   -- value callees / CREATE / SELFDESTRUCT) unchecked. That is unnecessary: withdrawal-recipient
   -- balances are independently validated by withdrawals_state_root (pre-state + amount, folded into
-  -- the post-state root vs the header), the FORWARD comparator runs in LENIENT mode (a BAL account
-  -- with no matching exec effect -- exactly a withdrawal recipient -- is skipped, not rejected), and
-  -- the COVERS direction only iterates EXEC effects (withdrawal recipients have none, so they are
-  -- never flagged). So running the check with withdrawals present is 0-regress for valid blocks and
-  -- ENFORCES the exec-vs-BAL consistency of every effect-having account in a withdrawals block.
+  -- the post-state root vs the header), and the FORWARD comparator still allows accounts
+  -- that declare no non-storage change. So running the check with withdrawals present is
+  -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
+  -- effect-having account in a withdrawals block.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
@@ -288,16 +280,10 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, nonstorage_effect_aggregate\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account
-  -- effects outside the CALL zero-pre path, so strict notfound remains gated until those are
-  -- complete. Value-mismatch still validates every account that DID get an effect. Reset to 0
-  -- after so nothing else observes lenient mode.
-  "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
-  "  la t0, c3ns_lenient_notfound; sd zero, 0(t0)\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- reverse (covers): every exec net-changed account is present in the BAL
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
