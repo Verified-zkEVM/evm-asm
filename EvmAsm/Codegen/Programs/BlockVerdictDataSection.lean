@@ -1333,9 +1333,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- feedebit = the u256 fee accumulator added into the sender debit.
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
-  "bv_b23_authoff:\n  .zero 8\n" ++
-  "bv_b23_authlen:\n  .zero 8\n" ++
-  "bv_b23_authcount:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_b23_feedebit:\n  .zero 32\n" ++

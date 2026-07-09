@@ -720,15 +720,6 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
-  -- The callable staged payload carries the account-witness header length in
-  -- the trailer word that overlaps env.eventLogLength in the live env layout.
-  -- If execution produced no log data and the live count is exactly that header
-  -- length, normalize it back to the empty receipt-log window before materializing
-  -- receipts. Real LOG/EIP-7708 paths either advance the count or capture data.
-  "  la t0, evm_log_data_used; ld t0, 0(t0); bnez t0, .Ldtrc_log_count_ready\n" ++
-  "  la t0, evm_env; ld t1, 472(t0); la t2, dtrc_hdr_len; ld t2, 0(t2); bne t1, t2, .Ldtrc_log_count_ready\n" ++
-  "  sd x0, 472(t0); sd x0, 480(t0)\n" ++
-  ".Ldtrc_log_count_ready:\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
