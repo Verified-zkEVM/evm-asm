@@ -60,6 +60,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_eip4788_current_fast_seen; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_recipient_credit_flag; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_created_recipient_count; sd zero, 0(t0)\n" ++
   "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n  la t0, bv_runtime_completeness_status; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
