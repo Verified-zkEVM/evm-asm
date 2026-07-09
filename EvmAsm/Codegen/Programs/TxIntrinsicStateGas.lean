@@ -209,10 +209,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv s2, a2                   # BAL ptr\n" ++
   "  mv s3, a3                   # reserved\n" ++
   "  mv s4, a4                   # chain id\n" ++
-
   "  li s10, 0                   # accumulated state refund\n" ++
   "  la t0, teer_regular_refund; sd zero, 0(t0)\n" ++
-
   "  beqz s2, .Lteer_done\n" ++
   "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
@@ -276,9 +274,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3\n" ++
-
   "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
-
   ".Lteer_existing_code_check:\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
   "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
@@ -443,14 +439,12 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld t3, 16(t2)\n" ++
   liAmsterdamNewAccountStateGas "t4" ++
   "  mul s10, s7, t4\n" ++
-
   "  li t6, 8000; mul t6, s7, t6\n" ++
   "  beqz t3, .Lteer_same_have_new_refund\n" ++
   "  sub s10, s10, t4\n" ++
   "  li t5, 8000; sub t6, t6, t5\n" ++
   ".Lteer_same_have_new_refund:\n" ++
   "  la t5, teer_regular_refund; sd t6, 0(t5)\n" ++
-
   "  la t5, teer_auth_nonce; ld t5, 0(t5)\n" ++
   "  li t4, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  mul t5, t5, t4\n" ++

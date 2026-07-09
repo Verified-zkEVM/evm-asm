@@ -94,6 +94,7 @@ def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
     B2 running-balance check does not inherit the active execution-loop cap. -/
 def bvMtxSenderBalanceEntries : Nat := bvMtxFullTxCap
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
+def bvMtxCreatedRecipientBytes : Nat := bvMtxFullTxCap * 32
 /-- Sender-count aggregation is a post-loop, keyed-by-sender table. It is sized
     to the full tx-count target so the B1 final-nonce check does not inherit the
     active execution-loop cap. -/
@@ -341,6 +342,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 
 #guard bvMtxSenderBalanceEntries = bvMtxFullTxCap
 #guard bvMtxSenderBalanceTableBytes = bvMtxFullTxCap * 64
+#guard bvMtxCreatedRecipientBytes = 304736
 #guard bvMtxSkipListEntries = 19053
 #guard bvMtxSkipListBytes = 609696
 #guard bvMtxSenderCountEntries = 9523

@@ -761,7 +761,11 @@ def emitCreateChildFrameData : String :=
   -- drj99.1 (initcode_calls_with_value bv_fail=44): the created account's staged block-pre balance
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
-  "nse_create_pre_bal:\n  .zero 32\n"
+  "nse_create_pre_bal:\n  .zero 32\n" ++
+  -- Amsterdam generic_create computes target_alive from the current tx_state before
+  -- incorporating the child. A same-tx-created target can be alive even when its
+  -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
+  "create_target_alive_current_tx:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
