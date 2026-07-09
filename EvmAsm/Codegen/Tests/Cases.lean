@@ -2476,43 +2476,43 @@ def opcodeTestCases : List OpcodeTestCase :=
       storage        := "(0x00, 0xdead)"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x00; SLOAD; STOP. PUSH1 costs 3, SLOAD pays 100 static
-    -- plus the 2000 cold storage-key delta, STOP costs 0.
+    -- plus the 2900 cold storage-key delta, STOP costs 0.
     { name           := "sload_cold_gas_exact"
       bytecode       := "0x60, 0x00, 0x54, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "2103" }
+      gasLimit       := "3003" }
   , -- One gas short of the first cold SLOAD must halt out-of-gas.
     { name             := "sload_cold_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x54, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "2102" }
+      gasLimit         := "3002" }
   , -- Repeating the same storage key is warm: PUSH1/SLOAD/POP/PUSH1/SLOAD
-    -- costs 3 + 2100 + 2 + 3 + 100 = 2208, not another cold 2000 delta.
+    -- costs 3 + 3000 + 2 + 3 + 100 = 3108, not another cold 2900 delta.
     { name           := "sload_repeat_same_key_warm_gas_exact"
       bytecode       := "0x60, 0x00, 0x54, 0x50, 0x60, 0x00, 0x54, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "2208" }
+      gasLimit       := "3108" }
   , -- PUSH1 value; PUSH1 key; SSTORE; STOP. Clean zero -> nonzero
-    -- Amsterdam SSTORE costs 2100 cold access + 2900 regular (no EIP-2200 SET
-    -- split) + 97,920 EIP-8037 state gas (64 × 1530) for the zero-origin
-    -- creation, spilled into regular gas (raw-gas tests have an empty
-    -- state-gas reservoir): 6 + 5000 + 97920 = 102,926.
+    -- Amsterdam SSTORE costs 3000 cold access + 10000 STORAGE_WRITE +
+    -- 97,920 EIP-8037 state gas (64 × 1530) for the zero-origin creation,
+    -- spilled into regular gas (raw-gas tests have an empty state-gas
+    -- reservoir): 6 + 13000 + 97920 = 110,926.
     { name                        := "sstore_cold_gas_exact"
       bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0100000000000000"
-      gasLimit                    := "102926" }
+      gasLimit                    := "110926" }
   , -- One gas short of the first cold SSTORE must halt out-of-gas before append.
     { name                        := "sstore_cold_gas_out_of_gas"
       bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind            := "0600000000000000"
       expectedPersistentLogLength := "0000000000000000"
-      gasLimit                    := "102925" }
+      gasLimit                    := "110925" }
   , -- Amsterdam SSTORE stipend rule: check_gas(CALL_STIPEND + 1) fails the op
     -- when gas_left < 2301 at instruction entry, even though this noop store
-    -- (missing slot, value 0) would only cost 2200: 6 (pushes) leave 2300.
+    -- (missing slot, value 0) would only cost 3000: 6 (pushes) leave 2300.
     { name                        := "sstore_stipend_out_of_gas"
       bytecode                    := "0x60, 0x00, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
@@ -2520,28 +2520,28 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedPersistentLogLength := "0000000000000000"
       gasLimit                    := "2306" }
   , -- One more gas passes the stipend check; the cold noop store then costs
-    -- 100 static + 2000 cold delta + 100 cold-noop branch = 2200 and appends.
+    -- 100 static + 2900 cold delta = 3000 and appends.
     { name                        := "sstore_stipend_boundary_ok"
       bytecode                    := "0x60, 0x00, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0100000000000000"
-      gasLimit                    := "2307" }
+      gasLimit                    := "3006" }
   , -- Clean nonzero -> nonzero update with a preloaded original costs
-    -- 2100 cold access + (5000 - 2100) storage write gas (no state gas: the
+    -- 3000 cold access + 10000 STORAGE_WRITE (no state gas: the
     -- original is non-zero).
     { name                        := "sstore_preloaded_nonzero_update_gas_exact"
       bytecode                    := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x00"
       storage                     := "(0x00, 0xdead)"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0200000000000000"
-      gasLimit                    := "5006" }
+      gasLimit                    := "13006" }
   , -- The second SSTORE to the same key is warm and dirty: first write costs
-    -- 3 + 3 + 5000 + 97920 (zero-origin creation), second 3 + 3 + 100, STOP 0.
+    -- 3 + 3 + 13000 + 97920 (zero-origin creation), second 3 + 3 + 100, STOP 0.
     { name                        := "sstore_repeat_same_key_warm_gas_exact"
       bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0200000000000000"
-      gasLimit                    := "103032" }
+      gasLimit                    := "111032" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
     -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
     -- appends a new current-value entry. SLOAD reads back 0xbeef.
