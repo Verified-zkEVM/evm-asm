@@ -122,6 +122,7 @@ import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bls12PtCopySAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
