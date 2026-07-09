@@ -110,10 +110,6 @@ def run (executor : TransactionExecutor) (input : BlockInput) : BlockResult :=
     transactionResults := acc.transactionResults
     stateRoot := input.header.stateRoot }
 
-/-- Validation hook for a transaction at a particular accumulator state. -/
-def transactionValidAt (header : BlockHeader) (acc : BlockAccumulator) (tx : Transaction) : Prop :=
-  tx.validatesAgainst acc.state header.baseFee acc.gasRemaining
-
 /-- Hook connecting the final state to the block header's state-root commitment. -/
 def StateRootRelation := WorldState → Hash256 → Prop
 

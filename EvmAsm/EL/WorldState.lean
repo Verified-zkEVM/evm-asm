@@ -37,31 +37,6 @@ def empty : WorldState :=
   { accounts := fun _ => none
     storage := fun _ _ => 0 }
 
-def getAccount (state : WorldState) (addr : Address) : Option Account :=
-  state.accounts addr
-
-def setAccount (state : WorldState) (addr : Address) (account : Account) : WorldState :=
-  { state with accounts := fun addr' => if addr' = addr then some account else state.accounts addr' }
-
-def deleteAccount (state : WorldState) (addr : Address) : WorldState :=
-  { state with accounts := fun addr' => if addr' = addr then none else state.accounts addr' }
-
-/-- Read an account's code bytes when the account exists. -/
-def accountCode? (state : WorldState) (addr : Address) : Option (List Byte) :=
-  (getAccount state addr).map (fun account => account.code)
-
-/-- Read an account's code hash when the account exists. -/
-def accountCodeHash? (state : WorldState) (addr : Address) : Option Hash256 :=
-  (getAccount state addr).map (fun account => account.codeHash)
-
-/-- Update an existing account's code bytes and code hash. Missing accounts are unchanged. -/
-def setAccountCode
-    (state : WorldState) (addr : Address) (codeHash : Hash256) (code : List Byte) :
-    WorldState :=
-  match getAccount state addr with
-  | none => state
-  | some account => setAccount state addr { account with codeHash := codeHash, code := code }
-
 end WorldState
 
 end EvmAsm.EL

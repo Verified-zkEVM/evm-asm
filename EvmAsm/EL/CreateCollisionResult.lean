@@ -43,17 +43,5 @@ theorem collisionResult_failed (state : WorldState) (gasRemaining : Nat) :
 theorem collisionResult_stackWord (state : WorldState) (gasRemaining : Nat) :
     CreateResultBridge.createResultStackWord (collisionResult state gasRemaining) = 0 := rfl
 
-theorem not_createAddressAvailable_of_collision
-    {state : WorldState} {addr : Address}
-    (h_collision : CreateCollision.accountHasCodeOrNonce state addr) :
-    ¬ CreateCollision.createAddressAvailable state addr :=
-  fun h_available => h_available h_collision
-
-theorem collisionResult_stackWord_of_collision
-    {state : WorldState} {addr : Address} {gasRemaining : Nat}
-    (_h_collision : CreateCollision.accountHasCodeOrNonce state addr) :
-    CreateResultBridge.createResultStackWord (collisionResult state gasRemaining) = 0 :=
-  collisionResult_stackWord state gasRemaining
-
 end CreateCollisionResult
 end EvmAsm.EL

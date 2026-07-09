@@ -27,25 +27,8 @@ namespace CallerAccountView
 def fromAccount (account : Account) : CallerAccountView :=
   { balance := account.balance }
 
-def fromState (state : WorldState) (caller : Address) : CallerAccountView :=
-  match WorldState.getAccount state caller with
-  | some account => fromAccount account
-  | none => fromAccount Account.empty
-
 @[simp] theorem fromAccount_balance (account : Account) :
     (fromAccount account).balance = account.balance := rfl
-
-theorem fromState_of_getAccount_some
-    {state : WorldState} {caller : Address} {account : Account}
-    (h_account : WorldState.getAccount state caller = some account) :
-    fromState state caller = fromAccount account := by
-  simp [fromState, h_account]
-
-theorem fromState_of_getAccount_none
-    {state : WorldState} {caller : Address}
-    (h_account : WorldState.getAccount state caller = none) :
-    fromState state caller = fromAccount Account.empty := by
-  simp [fromState, h_account]
 
 end CallerAccountView
 
@@ -63,17 +46,6 @@ structure Input where
   calleeExists : Bool
   calleeWarm : Bool
   subCallGas : Nat
-
-def inputFromState
-    (state : WorldState) (frame : CallFrame) (depth : Nat)
-    (calleeExists calleeWarm : Bool) (subCallGas : Nat) : Input :=
-  { state := state
-    frame := frame
-    depth := depth
-    caller := CallerAccountView.fromState state frame.caller
-    calleeExists := calleeExists
-    calleeWarm := calleeWarm
-    subCallGas := subCallGas }
 
 def transfersValue (frame : CallFrame) : Bool :=
   frame.transferredValue != 0
@@ -162,17 +134,6 @@ theorem staticValueViolation_staticCall
         calleeExists := calleeExists
         calleeWarm := calleeWarm
         subCallGas := subCallGas } = false := rfl
-
-theorem inputFromState_caller
-    (state : WorldState) (frame : CallFrame) (depth : Nat)
-    (calleeExists calleeWarm : Bool) (subCallGas : Nat) :
-    (inputFromState state frame depth calleeExists calleeWarm subCallGas).caller =
-      CallerAccountView.fromState state frame.caller := rfl
-
-theorem inputFromState_frame
-    (state : WorldState) (frame : CallFrame) (depth : Nat)
-    (calleeExists calleeWarm : Bool) (subCallGas : Nat) :
-    (inputFromState state frame depth calleeExists calleeWarm subCallGas).frame = frame := rfl
 
 theorem stipendEligible_iff (input : Input) :
     stipendEligible input = true ↔ input.frame.transferredValue ≠ 0 := by

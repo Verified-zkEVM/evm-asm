@@ -35,28 +35,11 @@ namespace CreatorAccountView
 def fromAccount (account : Account) : CreatorAccountView :=
   { nonce := account.nonce, balance := account.balance }
 
-def fromState (state : WorldState) (creator : Address) : CreatorAccountView :=
-  match WorldState.getAccount state creator with
-  | some account => fromAccount account
-  | none => fromAccount Account.empty
-
 @[simp] theorem fromAccount_nonce (account : Account) :
     (fromAccount account).nonce = account.nonce := rfl
 
 @[simp] theorem fromAccount_balance (account : Account) :
     (fromAccount account).balance = account.balance := rfl
-
-theorem fromState_of_getAccount_some
-    {state : WorldState} {creator : Address} {account : Account}
-    (h_account : WorldState.getAccount state creator = some account) :
-    fromState state creator = fromAccount account := by
-  simp [fromState, h_account]
-
-theorem fromState_of_getAccount_none
-    {state : WorldState} {creator : Address}
-    (h_account : WorldState.getAccount state creator = none) :
-    fromState state creator = fromAccount Account.empty := by
-  simp [fromState, h_account]
 
 end CreatorAccountView
 
@@ -71,17 +54,6 @@ structure Input where
   isStatic : Bool
   creator : CreatorAccountView
   targetCollides : Bool
-
-def inputFromState
-    (state : WorldState) (request : CreateRequest) (target : Address)
-    (depth : Nat) (isStatic targetCollides : Bool) : Input :=
-  { state := state
-    request := request
-    target := target
-    depth := depth
-    isStatic := isStatic
-    creator := CreatorAccountView.fromState state request.creator
-    targetCollides := targetCollides }
 
 def insufficientBalance (input : Input) : Prop :=
   input.creator.balance.toNat < input.request.value.toNat
@@ -127,17 +99,6 @@ def stackWordForOutcome (input : Input) (outcome : Outcome) : Word256 :=
   match outcome with
   | .execute => input.target.zeroExtend 256
   | _ => 0
-
-theorem inputFromState_creator
-    (state : WorldState) (request : CreateRequest) (target : Address)
-    (depth : Nat) (isStatic targetCollides : Bool) :
-    (inputFromState state request target depth isStatic targetCollides).creator =
-      CreatorAccountView.fromState state request.creator := rfl
-
-theorem inputFromState_target
-    (state : WorldState) (request : CreateRequest) (target : Address)
-    (depth : Nat) (isStatic targetCollides : Bool) :
-    (inputFromState state request target depth isStatic targetCollides).target = target := rfl
 
 theorem decide_static {input : Input} (h_static : input.isStatic = true) :
     decide input = .writeInStaticContext := by
@@ -216,38 +177,6 @@ theorem addressInput?_eq_fromRequest
     (input : Input) (initcodeHash : Hash256) :
     CreateAddress.fromRequest? input.request input.creator.nonce initcodeHash =
       CreateAddress.fromRequest? input.request input.creator.nonce initcodeHash := rfl
-
-theorem addressInput?_forCreate
-    (creator : Address) (value : Word256) (initcode : List Byte) (gas creatorNonce : Nat)
-    (target : Address) (depth : Nat) (isStatic targetCollides : Bool)
-    (initcodeHash : Hash256) :
-    CreateAddress.fromRequest?
-        (inputFromState WorldState.empty
-          (CreateRequest.forCreate creator value initcode gas)
-          target depth isStatic targetCollides).request
-        creatorNonce initcodeHash =
-      some
-        { creator := creator
-          nonce := creatorNonce
-          salt? := none
-          initcodeHash := initcodeHash } := by
-  simp [inputFromState, CreateAddress.fromRequest?, CreateRequest.forCreate]
-
-theorem addressInput?_forCreate2
-    (creator : Address) (value : Word256) (initcode : List Byte) (gas creatorNonce : Nat)
-    (salt : Word256) (target : Address) (depth : Nat) (isStatic targetCollides : Bool)
-    (initcodeHash : Hash256) :
-    CreateAddress.fromRequest?
-        (inputFromState WorldState.empty
-          (CreateRequest.forCreate2 creator value initcode gas salt)
-          target depth isStatic targetCollides).request
-        creatorNonce initcodeHash =
-      some
-        { creator := creator
-          nonce := creatorNonce
-          salt? := some salt
-          initcodeHash := initcodeHash } := by
-  simp [inputFromState, CreateAddress.fromRequest?, CreateRequest.forCreate2]
 
 end CreatePrecheck
 

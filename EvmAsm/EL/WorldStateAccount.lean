@@ -30,20 +30,6 @@ end Account
 
 namespace WorldState
 
-/-- Account existence as a proposition over `getAccount`. -/
-def accountExists (state : WorldState) (addr : Address) : Prop :=
-  ∃ account, getAccount state addr = some account
-
-/-- Touch an address by installing `Account.empty` when no account exists. -/
-def ensureAccount (state : WorldState) (addr : Address) : WorldState :=
-  match getAccount state addr with
-  | some _ => state
-  | none => setAccount state addr Account.empty
-
-theorem accountExists_iff_getAccount_isSome (state : WorldState) (addr : Address) :
-    accountExists state addr ↔ (getAccount state addr).isSome = true := by
-  cases h_account : getAccount state addr <;> simp [accountExists, h_account]
-
 end WorldState
 
 end EvmAsm.EL

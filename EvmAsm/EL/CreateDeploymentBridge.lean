@@ -49,33 +49,6 @@ def codeDepositFailureResult (state : WorldState) (gasRemaining : Nat) :
     returndata := []
     gasRemaining := gasRemaining }
 
-theorem callerVisibleEffect_deployResult
-    (created : CreatedAccounts.CreatedAccountSet)
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    callerVisibleEffect created
-        (CreateEffects.deployResult state request address codeHash gasRemaining) =
-      { stackWord := address.zeroExtend 256
-        state :=
-          WorldState.setAccount state address
-            (CreateEffects.deployedAccount request codeHash)
-        returndata := []
-        gasRemaining := gasRemaining
-        created := CreatedAccounts.markCreated created address } := rfl
-
-theorem callerVisibleEffect_deployResult_createdInSameTx
-    (created : CreatedAccounts.CreatedAccountSet)
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    CreatedAccounts.createdInSameTx
-        (callerVisibleEffect created
-          (CreateEffects.deployResult state request address codeHash gasRemaining)).created
-        address =
-      true := by
-  simp [callerVisibleEffect, CreateEffects.deployResult,
-    CreatedAccounts.createdInSameTx, CreatedAccounts.markCreateResult,
-    CreatedAccounts.contains_markCreated_self]
-
 theorem callerVisibleEffect_reverted
     (created : CreatedAccounts.CreatedAccountSet) (address? : Option Address)
     (state : WorldState) (returndata : List Byte) (gasRemaining : Nat) :

@@ -27,17 +27,6 @@ def deployedAccount (request : CreateRequest) (codeHash : Hash256) : Account :=
     codeHash := codeHash
     code := request.initcode }
 
-/-- Successful CREATE-family effect: install the deployed account at the
-    derived address and return a deployed result with empty returndata. -/
-def deployResult
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) : CreateResult :=
-  { status := .deployed
-    address? := some address
-    state := WorldState.setAccount state address (deployedAccount request codeHash)
-    returndata := []
-    gasRemaining := gasRemaining }
-
 theorem deployedAccountNonce (request : CreateRequest) (codeHash : Hash256) :
     (deployedAccount request codeHash).nonce = 1 := rfl
 
@@ -49,29 +38,6 @@ theorem deployedAccountCodeHash (request : CreateRequest) (codeHash : Hash256) :
 
 theorem deployedAccountCode (request : CreateRequest) (codeHash : Hash256) :
     (deployedAccount request codeHash).code = request.initcode := rfl
-
-/-- The deployed result reports the successful status. -/
-theorem deployResultDeployed
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    (deployResult state request address codeHash gasRemaining).deployed := rfl
-
-theorem deployResultAddress?
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    (deployResult state request address codeHash gasRemaining).address? =
-      some address := rfl
-
-theorem deployResultReturndata
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    (deployResult state request address codeHash gasRemaining).returndata = [] := rfl
-
-theorem deployResultGasRemaining
-    (state : WorldState) (request : CreateRequest) (address : Address)
-    (codeHash : Hash256) (gasRemaining : Nat) :
-    (deployResult state request address codeHash gasRemaining).gasRemaining =
-      gasRemaining := rfl
 
 end CreateEffects
 end EvmAsm.EL

@@ -45,9 +45,6 @@ def execute? (executor : MessageCallExecution.CallExecutor)
         { state := input.state, frame := frame }
       some (transactionCallerVisible callInput (executor callInput))
 
-def validatesInput (input : TransactionExecutionInput) : Prop :=
-  input.tx.validatesAgainst input.state input.baseFee input.blockGasRemaining
-
 theorem execute?_create_none
     (executor : MessageCallExecution.CallExecutor) (input : TransactionExecutionInput)
     (h_to : input.tx.to = none) :
@@ -78,10 +75,6 @@ theorem transactionCallerVisible_output
     (callInput : MessageCallExecution.CallExecutionInput) (callResult : CallResult) :
     (transactionCallerVisible callInput callResult).output =
       MessageCallExecution.propagatedOutput callResult := rfl
-
-theorem validatesInput_iff (input : TransactionExecutionInput) :
-    validatesInput input ↔
-      input.tx.validatesAgainst input.state input.baseFee input.blockGasRemaining := Iff.rfl
 
 end TransactionExecution
 
