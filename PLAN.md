@@ -279,7 +279,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
-  to `bnpFp2Copy_prog`.
+  to `bnpFp2Copy_prog`. `Bn254Fp2EqSAsm.lean` verifies `bnp_fp2_eq` as a
+  byte-transparent dual-read dword equality scan (`bnpFp2Eq_spec`, post `a0 = 1`
+  iff the two 64-byte buffers are byte-equal) with byte-identity pinned to
+  `bnpFp2Eq_prog`.
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
@@ -2931,13 +2934,35 @@ countdown loop reading dword `i` from buffer A (primary region) and buffer B
 to the `0` tail on first mismatch; genuine post
 `a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
 instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
-address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
-bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
+bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
+N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
 N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
 can reuse pieces 1–2 but is not this scan shape — deferred.  `blsg_eq48`
 is also an equality leaf, but byte-wise (`LBU`) rather than dword-wise
 (`LD`), so it is verified separately in `Bls12G1Eq48SAsm.lean` as a
 48-byte whileBreak drop-in.  Classical-3.
+**Shared-return-tail forward join landed** (branch
+`feat/shared-return-tail`, beads evm-asm-k2f1x + 4ch8f.59.2.1):
+`SAsm/RetForwardJoin.lean` closes the multi-guard validation-routine gap
+(`retIf` = one guard, two disjoint tails; validation routines have several
+guards CONVERGING on the same tails).  Two lemmas at `cpsTripleWithin`
+level: `sharedRetTail_spec` (the `li rd, c ; ret` return arm proven ONCE
+per tail address against the routine's single `CodeReq`, generic in
+register/value/frame — every guard targeting the tail reuses the instance,
+so no tail bytes are duplicated and byte-transparency holds) and
+`retJoinStation_spec` (one guard station: branch fact delivered to the two
+continuations as a plain HYPOTHESIS, killing the per-station
+`sepConj_pure_left` destructuring; stations chain by nesting — an outer
+station's fall-through proof IS the next station's joined triple).
+Consumer: `create_deployed_code_valid`
+(`Codegen/Programs/CreateDeployedCodeValidSAsm.lean`, bead 4ch8f.59.2) —
+the 3-guard/2-shared-tail EIP-7907/EIP-3541 gate, byte-transparent
+(`createDeployedCodeValidFunction = emitProgram cdcvProgram` kernel-checked
+in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
+else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
+two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
+separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry

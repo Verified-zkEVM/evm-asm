@@ -256,8 +256,8 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Letg_ok\n" ++
   "  la t0, bsg_to_len; ld t1, 0(t0); bnez t1, .Letg_after_initcode_limit\n" ++
-  "  # Amsterdam/EIP-7954 MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 65536.\n" ++
-  "  la t0, bsg_data_len; ld t1, 0(t0); li t2, 65536; bgtu t1, t2, .Letg_validate_fail\n" ++
+  "  # Amsterdam/EIP-7954 MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 131072.\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); li t2, 131072; bgtu t1, t2, .Letg_validate_fail\n" ++
   ".Letg_after_initcode_limit:\n" ++
   "  la t0, bsg_access_addrs; sd zero, 0(t0)\n" ++
   "  la t0, bsg_access_slots; sd zero, 0(t0)\n" ++

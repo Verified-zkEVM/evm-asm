@@ -59,9 +59,9 @@ namespace Bls12Fq12SetOneSAsm
 
 -- The two routines are adjacent in the guest text: `blq_zero` (6 slots)
 -- immediately precedes `blq_set_one`.
-#guard GuestAddrs.blq_zero = 0x80034374
-#guard GuestAddrs.blq_set_one = 0x8003438c
-#guard GuestAddrs.blq_zero + 4 * blqZero_prog.length = GuestAddrs.blq_set_one
+#guard GuestAddrs.blq_zero = 0x80034560
+#guard GuestAddrs.blq_set_one = 0x80034578
+#guard GuestAddrs.blq_zero + 4 * blqZero_prog.length = 0x80034578
 
 /-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
 def setOneFrame : FrameDesc := [(.x1, 0), (.x8, 8)]
