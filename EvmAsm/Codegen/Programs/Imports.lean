@@ -132,6 +132,7 @@ import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
+import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
