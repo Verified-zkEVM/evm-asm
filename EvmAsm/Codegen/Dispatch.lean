@@ -1289,8 +1289,23 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   "  la x5, create_target_alive_current_tx; ld x5, 0(x5); beqz x5, 4f\n" ++
-  "  la x5, evm_state_gas_left; ld x6, 0(x5); li x7, 183600; add x6, x6, x7; sd x6, 0(x5)\n" ++
-  "  la x5, evm_state_gas_used; ld x6, 0(x5); bltu x6, x7, 4f; sub x6, x6, x7; sd x6, 0(x5)\n" ++
+  -- execution-specs `credit_state_gas_refund(NEW_ACCOUNT)` refills gas_left
+  -- first when the CREATE charge spilled out of the state-gas reservoir.
+  "  li x7, 183600\n" ++
+  "  la x5, evm_state_gas_spilled; ld x6, 0(x5); li x28, 0\n" ++
+  "  beqz x6, 5f\n" ++
+  "  mv x28, x6\n" ++
+  "  bleu x6, x7, 6f\n" ++
+  "  mv x28, x7\n" ++
+  "6:\n" ++
+  "  sub x6, x6, x28; sd x6, 0(x5)\n" ++
+  "  ld x6, 568(x20); add x6, x6, x28; sd x6, 568(x20)\n" ++
+  "  sub x7, x7, x28\n" ++
+  "5:\n" ++
+  "  beqz x7, 7f\n" ++
+  "  la x5, evm_state_gas_left; ld x6, 0(x5); add x6, x6, x7; sd x6, 0(x5)\n" ++
+  "7:\n" ++
+  "  la x5, evm_state_gas_used; ld x6, 0(x5); li x7, 183600; bltu x6, x7, 4f; sub x6, x6, x7; sd x6, 0(x5)\n" ++
   "4:\n" ++
   "  j .dispatch_loop\n" ++
   s!"{label}_top:\n" ++
