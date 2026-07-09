@@ -511,13 +511,6 @@ theorem getStorage_setStorage_addr_ne
       getStorage state other key' := by
   simp [getStorage, setStorage, h_ne]
 
-theorem getStorage_setStorage_key_ne
-    (state : WorldState) (addr : Address) {key other : StorageKey} (value : Word256)
-    (h_ne : other ≠ key) :
-    getStorage (setStorage state addr key value) addr other =
-      getStorage state addr other := by
-  simp [getStorage, setStorage, h_ne]
-
 end WorldState
 
 end EvmAsm.EL

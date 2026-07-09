@@ -36,12 +36,6 @@ theorem sload_sstore_addr_ne
     sload (sstore state addr key value) other key' = sload state other key' := by
   simp [sload, sstore, WorldState.getStorage_setStorage_addr_ne, h_ne]
 
-theorem sload_sstore_key_ne
-    (state : WorldState) (addr : Address) {key other : StorageKey} (value : Word256)
-    (h_ne : other ≠ key) :
-    sload (sstore state addr key value) addr other = sload state addr other := by
-  simp [sload, sstore, WorldState.getStorage_setStorage_key_ne, h_ne]
-
 /-- SSTORE does not change account metadata. It only updates the storage map in
     this pure model. -/
 theorem getAccount_sstore
