@@ -43,9 +43,9 @@ def blockVerdictReceiptsTail : String :=
   -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
   -- records (status||cumulative_gas||bloom||logs, with the .2.1 log descriptors @56) into one
   -- RLP list, then validate header.receipts_root == MPT(indexed(receipts)) AND header.bloom ==
-  -- OR(receipt blooms) via the shared consensus validator. Unsupported capacity still
-  -- conservatively accepts, but malformed helper statuses on an enforced receipt shape reject
-  -- instead of silently accepting. Confirmed root/bloom mismatches reject as before.
+  -- OR(receipt blooms) via the shared consensus validator. Helper failures are not
+  -- normalized into acceptance; wrong or incomplete upstream values fail visibly here.
+  -- Confirmed root/bloom mismatches reject as before.
   "  bnez a0, .Lbv_receipt_logs_helper_status\n" ++
   -- `bv_block_log_overflow` is recorded separately from the helper return status because
   -- block_log_window_snapshot can set it before this tail runs. Do not accept on overflow:
@@ -100,10 +100,10 @@ def blockVerdictReceiptsTail : String :=
   "  jal ra, receipt_records_encode_no_logs\n" ++
   -- Persist the exact encoder status before branching: 0 success,
   -- 1 malformed arena, 2 missing logs descriptor, 3 output/scratch overflow,
-  -- 4 unsupported tx type, 5 record-count capacity overflow. Statuses 3/5 remain
-  -- capacity debt; statuses 1/2/4 are malformed enforced-shape data and reject.
+  -- 4 unsupported tx type, 5 record-count capacity overflow. Any nonzero status
+  -- means the enforced receipt list was not checked precisely, so fail.
   "  la t2, bv_receipts_encoder_status; sd a0, 0(t2)\n" ++
-  "  bnez a0, .Lbv_receipts_encoder_helper_status\n" ++
+  "  bnez a0, .Lbv_receipts_helper_fail\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++
   "  jal ra, block_validate_receipts_consensus_list\n" ++
@@ -118,12 +118,6 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 3; beq a0, t0, .Lbv_receipts_helper_fail\n" ++
   "  j .Lbv_receipts_accept\n" ++
   ".Lbv_receipt_logs_helper_status:\n" ++
-  "  li t0, 3; beq a0, t0, .Lbv_receipts_accept\n" ++
-  "  la t0, bv_receipts_enforce_enabled; ld t0, 0(t0); beqz t0, .Lbv_receipts_accept\n" ++
-  "  j .Lbv_receipts_helper_fail\n" ++
-  ".Lbv_receipts_encoder_helper_status:\n" ++
-  "  li t0, 3; beq a0, t0, .Lbv_receipts_accept\n" ++
-  "  li t0, 1; beq a0, t0, .Lbv_receipts_accept\n" ++
   "  j .Lbv_receipts_helper_fail\n" ++
   ".Lbv_receipts_accept:\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++

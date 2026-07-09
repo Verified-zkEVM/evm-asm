@@ -451,8 +451,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
-  -- delegation marker. Those authorities are warm for the receipt regular
-  -- dimension, so the type-4 auth regular delta is discounted by 3000 each.
+  -- delegation marker. Debug/accounting context for auth-base state refunds;
+  -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
@@ -470,6 +470,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_regular_refund:\n  .zero 8\n" ++
   "teer_predelegated_count:\n  .zero 8\n" ++
   "teer_existing_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
@@ -1322,9 +1323,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
-  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): txtype/innoff from
-  -- tx_type_dispatch; blobcount = blob hashes; feedebit = the u256 fee
-  -- accumulator added into the sender debit.
+
+  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds
+  -- type-3 blob-data-gas sender-debit terms; type-4 auth gas is already in
+  -- bvgr_receipt_gas_increments. txtype/innoff come from tx_type_dispatch;
+  -- blobcount = blob hashes; feedebit is the u256 fee accumulator added into
+  -- the sender debit.
+
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++

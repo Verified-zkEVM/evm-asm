@@ -724,10 +724,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
-  "  la t4, teer_existing_count; ld t5, 0(t4); li t6, 8000; mul t5, t5, t6\n" ++
-  "  la t4, runtime_tx_auth_regular_refund; sd t5, 0(t4)\n" ++
+
+  "  la t4, runtime_tx_auth_regular_refund; sd a1, 0(t4)\n" ++
+
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
-  "  addi t5, t5, -1; slli t5, t5, 3; la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
+  "  addi t5, t5, -1; slli t5, t5, 3\n" ++
+  "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
   "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
   ".Ldtrc_auth_predelegated_stored:\n" ++
   "  la t4, teer_auth_count; ld t5, 0(t4); la t4, runtime_tx_auth_count; sd t5, 0(t4)\n" ++

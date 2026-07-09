@@ -54,8 +54,8 @@ namespace Bls12G2EncodeSAsm
 
 -- Semantic constants: 4 elements × 48 bytes.
 -- Address anchors (`#guard`-tied to the live GuestAddrs):
-#guard GuestAddrs.blsg2_encode = 0x80033ba4
-#guard GuestAddrs.blsg_le_to_be = 0x8002ef0c
+#guard GuestAddrs.blsg2_encode = 0x80033e84
+#guard GuestAddrs.blsg_le_to_be = 0x8002f1ec
 
 /-- The caller's 4-slot frame: `ra`, `s0`, `s1`, `s2` (the loop counter is
     callee-saved — it must survive the callee's exposed-register clobber). -/
@@ -90,8 +90,8 @@ theorem encProg_eq :
     callee at its guest address (non-adjacent — a genuine cross-module
     call). -/
 def encCr : CodeReq :=
-  (CodeReq.ofProg (0x80033ba4 : Word) blsg2Encode_prog).union
-    (CodeReq.ofProg (0x8002ef0c : Word) blsgLeToBe_prog)
+  (CodeReq.ofProg (0x80033e84 : Word) blsg2Encode_prog).union
+    (CodeReq.ofProg (0x8002f1ec : Word) blsgLeToBe_prog)
 
 -- ============================================================================
 -- Word helpers.
@@ -171,7 +171,7 @@ theorem blsgLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
     (hdisj : srci.toNat + 48 ≤ dsti.toNat ∨ dsti.toNat + 48 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((blsgLeToBeFn srci dsti inb ob).body.steps + 1)
-      (0x8002ef0c : Word) ret encCr
+      (0x8002f1ec : Word) ret encCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns leScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
@@ -184,8 +184,8 @@ theorem blsgLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       (fun vf => ?_))
   -- The adapter, at the packed register file.
   have had := Fn.retSpecFlat (blsgLeToBeFn srci dsti inb ob)
-    (0x8002ef0c : Word)
-    (blsgLeToBeFn_spec srci dsti inb ob hwfR hwfW hilen (0x8002ef0c : Word))
+    (0x8002f1ec : Word)
+    (blsgLeToBeFn_spec srci dsti inb ob hwfR hwfW hilen (0x8002f1ec : Word))
     (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
     ob
@@ -208,7 +208,7 @@ theorem blsgLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       exact sepConj_mono_left
         (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
   -- The adapter's CodeReq is exactly the callee's program; lift into `encCr`.
-  rw [show (blsgLeToBeFn srci dsti inb ob).programRet (0x8002ef0c : Word)
+  rw [show (blsgLeToBeFn srci dsti inb ob).programRet (0x8002f1ec : Word)
       = blsgLeToBe_prog from rfl] at had
   have hadC := liftCode (cr' := encCr) had (by code_mem)
   -- Reshape: project the region/rw fields, unpack the register file.
@@ -241,7 +241,7 @@ theorem blsgLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
 def encRest : List Reg :=
   [.x7, .x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17]
 
-/-- One loop pass (`0x80033bc4 → 0x80033be4`): compute the 48·i offset,
+/-- One loop pass (`0x80033ea4 → 0x80033ec4`): compute the 48·i offset,
     point `a0`/`a1` at chunk `i`, CALL `blsg_le_to_be` (the adapter-derived
     contract), bump the counter, reload the bound. -/
 private theorem encStep_spec (i : Nat) (hi : i < 4) (v1 : Word)
@@ -256,14 +256,14 @@ private theorem encStep_spec (i : Nat) (hi : i < 4) (v1 : Word)
         ∨ (dst + BitVec.ofNat 64 (48 * i)).toNat + 48
           ≤ (src + BitVec.ofNat 64 (48 * i)).toNat) :
     cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 10)
-      (0x80033bc4 : Word) (0x80033be4 : Word) encCr
+      (0x80033ea4 : Word) (0x80033ec4 : Word) encCr
       ((.x18 ↦ᵣ BitVec.ofNat 64 i) ** regOwn .x5
         ** (((.x1 : Reg) ↦ᵣ v1) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
           ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
           ** bytesRegion (dst + BitVec.ofNat 64 (48 * i)) ob
           ** bytesRegion (src + BitVec.ofNat 64 (48 * i)) inb))
       ((.x18 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
-        ** (((.x1 : Reg) ↦ᵣ (0x80033bdc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+        ** (((.x1 : Reg) ↦ᵣ (0x80033ebc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
           ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
           ** bytesRegion (dst + BitVec.ofNat 64 (48 * i))
               (blsgLeToBeBytes inb)
@@ -283,44 +283,44 @@ private theorem encStep_spec (i : Nat) (hi : i < 4) (v1 : Word)
   simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
   -- ---- the five setup instructions ----
   have hs1 := slli_spec_gen_within .x5 .x18 (vf .x5) (BitVec.ofNat 64 i)
-    (4 : BitVec 6) (0x80033bc4 : Word) (by decide)
+    (4 : BitVec 6) (0x80033ea4 : Word) (by decide)
   rw [show ((4 : BitVec 6)).toNat = 4 from rfl,
       ofNat_shl i 4 16 (by norm_num) (by omega),
-      show (0x80033bc4 : Word) + 4 = (0x80033bc8 : Word) from by decide] at hs1
+      show (0x80033ea4 : Word) + 4 = (0x80033ea8 : Word) from by decide] at hs1
   have hs1C := liftCode (cr' := encCr) hs1 (by code_mem)
   have hs2 := slli_spec_gen_within .x6 .x18 (vf .x6) (BitVec.ofNat 64 i)
-    (5 : BitVec 6) (0x80033bc8 : Word) (by decide)
+    (5 : BitVec 6) (0x80033ea8 : Word) (by decide)
   rw [show ((5 : BitVec 6)).toNat = 5 from rfl,
       ofNat_shl i 5 32 (by norm_num) (by omega),
-      show (0x80033bc8 : Word) + 4 = (0x80033bcc : Word) from by decide] at hs2
+      show (0x80033ea8 : Word) + 4 = (0x80033eac : Word) from by decide] at hs2
   have hs2C := liftCode (cr' := encCr) hs2 (by code_mem)
   have hs3 := add_spec_gen_rd_eq_rs1_within .x5 .x6 (BitVec.ofNat 64 (16 * i))
-    (BitVec.ofNat 64 (32 * i)) (0x80033bcc : Word) (by decide)
+    (BitVec.ofNat 64 (32 * i)) (0x80033eac : Word) (by decide)
   rw [show BitVec.ofNat 64 (16 * i) + BitVec.ofNat 64 (32 * i)
         = BitVec.ofNat 64 (48 * i) from by
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega,
-      show (0x80033bcc : Word) + 4 = (0x80033bd0 : Word) from by decide] at hs3
+      show (0x80033eac : Word) + 4 = (0x80033eb0 : Word) from by decide] at hs3
   have hs3C := liftCode (cr' := encCr) hs3 (by code_mem)
   have hs4 := add_spec_gen_within .x10 .x8 .x5 src (BitVec.ofNat 64 (48 * i))
-    (vf .x10) (0x80033bd0 : Word) (by decide)
-  rw [show (0x80033bd0 : Word) + 4 = (0x80033bd4 : Word) from by decide] at hs4
+    (vf .x10) (0x80033eb0 : Word) (by decide)
+  rw [show (0x80033eb0 : Word) + 4 = (0x80033eb4 : Word) from by decide] at hs4
   have hs4C := liftCode (cr' := encCr) hs4 (by code_mem)
   have hs5 := add_spec_gen_within .x11 .x9 .x5 dst (BitVec.ofNat 64 (48 * i))
-    (vf .x11) (0x80033bd4 : Word) (by decide)
-  rw [show (0x80033bd4 : Word) + 4 = (0x80033bd8 : Word) from by decide] at hs5
+    (vf .x11) (0x80033eb4 : Word) (by decide)
+  rw [show (0x80033eb4 : Word) + 4 = (0x80033eb8 : Word) from by decide] at hs5
   have hs5C := liftCode (cr' := encCr) hs5 (by code_mem)
   -- ---- the cross-call ----
-  have hcallee := blsgLeToBeFlat_spec ((0x80033bd8 : Word) + 4)
+  have hcallee := blsgLeToBeFlat_spec ((0x80033eb8 : Word) + 4)
     (src + BitVec.ofNat 64 (48 * i)) (dst + BitVec.ofNat 64 (48 * i)) inb ob
     hilen holen hwfR hwfW hso hdo hdisj (by decide)
-  have hcall := callWithin_spec (0x80033bd8 : Word) (0x8002ef0c : Word) v1
+  have hcall := callWithin_spec (0x80033eb8 : Word) (0x8002f1ec : Word) v1
     (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg2_encode + 52))
     ((blsgLeToBeFn (src + BitVec.ofNat 64 (48 * i))
         (dst + BitVec.ofNat 64 (48 * i)) inb ob).body.steps + 1)
     (by decide) (by code_mem) (by pcf) hcallee
-  rw [show (0x80033bd8 : Word) + 4 = (0x80033bdc : Word) from by decide] at hcall
+  rw [show (0x80033eb8 : Word) + 4 = (0x80033ebc : Word) from by decide] at hcall
   -- hand the callee its scratch: `t0`/`t1` are concrete here, the rest owned
   have hcallW := cpsTripleWithin_weaken
     (P' := ((.x1 : Reg) ↦ᵣ v1) ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 (48 * i)))
@@ -349,12 +349,12 @@ private theorem encStep_spec (i : Nat) (hi : i < 4) (v1 : Word)
     (fun _ hq => hq) hcall
   -- ---- counter bump and bound reload ----
   have ha := addi_spec_gen_same_within .x18 (BitVec.ofNat 64 i) (1 : BitVec 12)
-    (0x80033bdc : Word) (by decide)
+    (0x80033ebc : Word) (by decide)
   rw [cnt_step_up i (by omega),
-      show (0x80033bdc : Word) + 4 = (0x80033be0 : Word) from by decide] at ha
+      show (0x80033ebc : Word) + 4 = (0x80033ec0 : Word) from by decide] at ha
   have haC := liftCode (cr' := encCr) ha (by code_mem)
-  have hli := li_spec_gen_own_within .x5 (4 : Word) (0x80033be0 : Word) (by decide)
-  rw [show (0x80033be0 : Word) + 4 = (0x80033be4 : Word) from by decide,
+  have hli := li_spec_gen_own_within .x5 (4 : Word) (0x80033ec0 : Word) (by decide)
+  rw [show (0x80033ec0 : Word) + 4 = (0x80033ec4 : Word) from by decide,
       show (4 : Word) = BitVec.ofNat 64 4 from rfl] at hli
   have hliC := liftCode (cr' := encCr) hli (by code_mem)
   -- ---- frames + chain ----
@@ -397,13 +397,13 @@ private theorem encStep_spec (i : Nat) (hi : i < 4) (v1 : Word)
     ((.x18 ↦ᵣ BitVec.ofNat 64 i) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst))
     (by pcf) hcallW
   have haF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80033bdc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+    (((.x1 : Reg) ↦ᵣ (0x80033ebc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
       ** regOwns exposedRegs
       ** bytesRegion (dst + BitVec.ofNat 64 (48 * i)) (blsgLeToBeBytes inb)
       ** bytesRegion (src + BitVec.ofNat 64 (48 * i)) inb)
     (by pcf) haC
   have hliF := cpsTripleWithin_frameR
-    ((.x18 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** ((.x1 : Reg) ↦ᵣ (0x80033bdc : Word))
+    ((.x18 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** ((.x1 : Reg) ↦ᵣ (0x80033ebc : Word))
       ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
       ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11
       ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
@@ -462,7 +462,7 @@ private theorem chunk_facts (b : Word) (n : Nat) (hn : n + 48 ≤ 192)
     first call and the (constant) link address after any call. -/
 def encInv (ret src dst : Word)
     (in0 in1 in2 in3 o0 o1 o2 o3 : List (BitVec 8)) (i : Nat) : Assertion :=
-  (if i = 0 then ((.x1 : Reg) ↦ᵣ ret) else ((.x1 : Reg) ↦ᵣ (0x80033bdc : Word)))
+  (if i = 0 then ((.x1 : Reg) ↦ᵣ ret) else ((.x1 : Reg) ↦ᵣ (0x80033ebc : Word)))
   ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
   ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
   ** bytesRegion dst (if 0 < i then blsgLeToBeBytes in0 else o0)
@@ -498,7 +498,7 @@ private theorem encLoopBody_spec
     (hdisj : src.toNat + 192 ≤ dst.toNat ∨ dst.toNat + 192 ≤ src.toNat)
     (i : Nat) (hi : i < 4) :
     cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 10)
-      (0x80033bc4 : Word) (0x80033be4 : Word) encCr
+      (0x80033ea4 : Word) (0x80033ec4 : Word) encCr
       ((.x18 ↦ᵣ BitVec.ofNat 64 i) ** regOwn .x5
         ** encInv ret src dst in0 in1 in2 in3 o0 o1 o2 o3 i)
       ((.x18 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
@@ -507,14 +507,14 @@ private theorem encLoopBody_spec
       inb.length = 48 → ob.length = 48 →
       (48 * j) % 8 = 0 → 48 * j + 48 ≤ 192 →
       cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 10)
-        (0x80033bc4 : Word) (0x80033be4 : Word) encCr
+        (0x80033ea4 : Word) (0x80033ec4 : Word) encCr
         ((.x18 ↦ᵣ BitVec.ofNat 64 j) ** regOwn .x5
           ** (((.x1 : Reg) ↦ᵣ v1) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
             ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
             ** bytesRegion (dst + BitVec.ofNat 64 (48 * j)) ob
             ** bytesRegion (src + BitVec.ofNat 64 (48 * j)) inb))
         ((.x18 ↦ᵣ BitVec.ofNat 64 (j + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
-          ** (((.x1 : Reg) ↦ᵣ (0x80033bdc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+          ** (((.x1 : Reg) ↦ᵣ (0x80033ebc : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
             ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
             ** bytesRegion (dst + BitVec.ofNat 64 (48 * j)) (blsgLeToBeBytes inb)
             ** bytesRegion (src + BitVec.ofNat 64 (48 * j)) inb)) := by
@@ -549,7 +549,7 @@ private theorem encLoopBody_spec
     · norm_num [encInv] at hq ⊢
       xperm_hyp hq
   · -- i = 1: chunk 1, link `ra`.
-    have h := hstep 1 (by omega) (0x80033bdc : Word) in1 o1 hi1 ho1
+    have h := hstep 1 (by omega) (0x80033ebc : Word) in1 o1 hi1 ho1
       (by omega) (by omega)
     rw [show (48 * 1 : Nat) = 48 from rfl] at h
     have hF := cpsTripleWithin_frameR
@@ -566,7 +566,7 @@ private theorem encLoopBody_spec
     · norm_num [encInv] at hq ⊢
       xperm_hyp hq
   · -- i = 2: chunk 2.
-    have h := hstep 2 (by omega) (0x80033bdc : Word) in2 o2 hi2 ho2
+    have h := hstep 2 (by omega) (0x80033ebc : Word) in2 o2 hi2 ho2
       (by omega) (by omega)
     rw [show (48 * 2 : Nat) = 96 from rfl] at h
     have hF := cpsTripleWithin_frameR
@@ -583,7 +583,7 @@ private theorem encLoopBody_spec
     · norm_num [encInv] at hq ⊢
       xperm_hyp hq
   · -- i = 3: chunk 3.
-    have h := hstep 3 (by omega) (0x80033bdc : Word) in3 o3 hi3 ho3
+    have h := hstep 3 (by omega) (0x80033ebc : Word) in3 o3 hi3 ho3
       (by omega) (by omega)
     rw [show (48 * 3 : Nat) = 144 from rfl] at h
     have hF := cpsTripleWithin_frameR
@@ -615,7 +615,7 @@ def encVals (ret arb8 arb9 arb18 : Word) : Reg → Word :=
     the pointer copies, `s2` the exhausted counter. -/
 def encVals' (src dst : Word) : Reg → Word :=
   fun r => match r with
-  | .x1 => (0x80033bdc : Word) | .x8 => src | .x9 => dst
+  | .x1 => (0x80033ebc : Word) | .x8 => src | .x9 => dst
   | .x18 => BitVec.ofNat 64 4 | _ => 0
 
 /-- **The whole-routine ABI contract for `blsg2_encode`.**  On return `sp`,
@@ -640,7 +640,7 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
       (1 + encFrame.length
         + (3 + 4 * ((blsgLeToBeFn 0 0 [] []).body.steps + 10 + 1))
         + encFrame.length + 1 + 1)
-      (0x80033ba4 : Word) ret encCr
+      (0x80033e84 : Word) ret encCr
       ((.x2 ↦ᵣ sp0) ** regsAt encFrame (encVals ret arb8 arb9 arb18)
         ** frameSlotsOwn encFrame (sp0 + signExtend12 (-40 : BitVec 12))
         ** ((.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst)
@@ -664,18 +664,18 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
           ** bytesRegion (src + BitVec.ofNat 64 96) in2
           ** bytesRegion (src + BitVec.ofNat 64 144) in3)) := by
   -- ---- init: mv s0,a0 ; mv s1,a1 ; li s2,0 ----
-  have hm1 := mv_spec_gen_within .x8 .x10 src arb8 (0x80033bb8 : Word) (by decide)
-  rw [show (0x80033bb8 : Word) + 4 = (0x80033bbc : Word) from by decide] at hm1
+  have hm1 := mv_spec_gen_within .x8 .x10 src arb8 (0x80033e98 : Word) (by decide)
+  rw [show (0x80033e98 : Word) + 4 = (0x80033e9c : Word) from by decide] at hm1
   have hm1C := liftCode (cr' := encCr) hm1 (by code_mem)
-  have hm2 := mv_spec_gen_within .x9 .x11 dst arb9 (0x80033bbc : Word) (by decide)
-  rw [show (0x80033bbc : Word) + 4 = (0x80033bc0 : Word) from by decide] at hm2
+  have hm2 := mv_spec_gen_within .x9 .x11 dst arb9 (0x80033e9c : Word) (by decide)
+  rw [show (0x80033e9c : Word) + 4 = (0x80033ea0 : Word) from by decide] at hm2
   have hm2C := liftCode (cr' := encCr) hm2 (by code_mem)
-  have hm3 := li_spec_gen_within .x18 arb18 (0 : Word) (0x80033bc0 : Word) (by decide)
-  rw [show (0x80033bc0 : Word) + 4 = (0x80033bc4 : Word) from by decide,
+  have hm3 := li_spec_gen_within .x18 arb18 (0 : Word) (0x80033ea0 : Word) (by decide)
+  rw [show (0x80033ea0 : Word) + 4 = (0x80033ea4 : Word) from by decide,
       show (0 : Word) = BitVec.ofNat 64 0 from rfl] at hm3
   have hm3C := liftCode (cr' := encCr) hm3 (by code_mem)
   -- ---- the count-up loop ----
-  have hloop := countupLoopBottom_spec encCr (0x80033bc4 : Word) (0x80033be4 : Word)
+  have hloop := countupLoopBottom_spec encCr (0x80033ea4 : Word) (0x80033ec4 : Word)
     .x18 .x5 (-32 : BitVec 13) ((blsgLeToBeFn 0 0 [] []).body.steps + 10) 4
     (encInv ret src dst in0 in1 in2 in3 o0 o1 o2 o3)
     (by omega) (by omega) (by decide)
@@ -683,7 +683,7 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     (by code_mem)
     (fun i hi => encLoopBody_spec ret src dst in0 in1 in2 in3 o0 o1 o2 o3
       hi0 hi1 hi2 hi3 ho0 ho1 ho2 ho3 halignS halignD hsB hdB hsv hdv hdisj i hi)
-  rw [show (0x80033be4 : Word) + 4 = (0x80033be8 : Word) from by decide] at hloop
+  rw [show (0x80033ec4 : Word) + 4 = (0x80033ec8 : Word) from by decide] at hloop
   -- ---- frames + chain into the single-exit body ----
   have STABLE := ((.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) ** regOwn .x5 ** regOwn .x6
     ** regOwns encRest
@@ -748,8 +748,8 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
   -- ---- the single-exit body triple, in `abiFrame_spec` shape ----
   have hbody : cpsTripleWithin
       (3 + 4 * ((blsgLeToBeFn 0 0 [] []).body.steps + 10 + 1))
-      ((0x80033ba4 : Word) + BitVec.ofNat 64 (4 * (1 + encFrame.length)))
-      ((0x80033ba4 : Word)
+      ((0x80033e84 : Word) + BitVec.ofNat 64 (4 * (1 + encFrame.length)))
+      ((0x80033e84 : Word)
         + BitVec.ofNat 64 (4 * (1 + encFrame.length + encBody.length)))
       encCr
       ((.x2 ↦ᵣ (sp0 + signExtend12 (-40 : BitVec 12)))
@@ -777,11 +777,11 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
           ** bytesRegion src in0 ** bytesRegion (src + BitVec.ofNat 64 48) in1
           ** bytesRegion (src + BitVec.ofNat 64 96) in2
           ** bytesRegion (src + BitVec.ofNat 64 144) in3)) := by
-    have hentry : (0x80033ba4 : Word) + BitVec.ofNat 64 (4 * (1 + encFrame.length))
-        = (0x80033bb8 : Word) := by decide
-    have hexit : (0x80033ba4 : Word)
+    have hentry : (0x80033e84 : Word) + BitVec.ofNat 64 (4 * (1 + encFrame.length))
+        = (0x80033e98 : Word) := by decide
+    have hexit : (0x80033e84 : Word)
           + BitVec.ofNat 64 (4 * (1 + encFrame.length + encBody.length))
-        = (0x80033be8 : Word) := by decide
+        = (0x80033ec8 : Word) := by decide
     rw [hentry, hexit]
     simp only [encFrame, regsAt, frameSlotsSaved, encVals, encVals',
       List.foldr_cons, List.foldr_nil, sepConj_emp_right']
@@ -800,7 +800,7 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
       hchainF
     norm_num [encInv] at hq ⊢
     have hq1 : (((.x5 : Reg) ↦ᵣ (4#64 : Word))
-        ** ((.x18 ↦ᵣ (4#64 : Word)) ** ((.x1 : Reg) ↦ᵣ (2147695580 : Word))
+        ** ((.x18 ↦ᵣ (4#64 : Word)) ** ((.x1 : Reg) ↦ᵣ (2147696316 : Word))
           ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
           ** regOwn .x6 ** regOwn .x10 ** regOwn .x11 ** regOwns encRest
           ** bytesRegion dst (blsgLeToBeBytes in0)
