@@ -262,11 +262,10 @@ def blockVerdictMtxValidationTail : String :=
   -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
   -- value callees / CREATE / SELFDESTRUCT) unchecked. That is unnecessary: withdrawal-recipient
   -- balances are independently validated by withdrawals_state_root (pre-state + amount, folded into
-  -- the post-state root vs the header), the FORWARD comparator runs in LENIENT mode (a BAL account
-  -- with no matching exec effect -- exactly a withdrawal recipient -- is skipped, not rejected), and
-  -- the COVERS direction only iterates EXEC effects (withdrawal recipients have none, so they are
-  -- never flagged). So running the check with withdrawals present is 0-regress for valid blocks and
-  -- ENFORCES the exec-vs-BAL consistency of every effect-having account in a withdrawals block.
+  -- the post-state root vs the header), and the FORWARD comparator still allows accounts
+  -- that declare no non-storage change. So running the check with withdrawals present is
+  -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
+  -- effect-having account in a withdrawals block.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
@@ -281,16 +280,10 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, nonstorage_effect_aggregate\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account
-  -- effects outside the CALL zero-pre path, so strict notfound remains gated until those are
-  -- complete. Value-mismatch still validates every account that DID get an effect. Reset to 0
-  -- after so nothing else observes lenient mode.
-  "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
-  "  la t0, c3ns_lenient_notfound; sd zero, 0(t0)\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- reverse (covers): every exec net-changed account is present in the BAL
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
