@@ -25,7 +25,7 @@ open EvmAsm.Rv64
 
     Compose sender BAL lookup with the transaction upfront gas precharge helper,
     then validate the simple-transfer sender post balance:
-      charged_balance + (tx.gas_limit - 21000) * effective_gas_price
+      charged_balance + (tx.gas_limit - gas_used) * effective_gas_price
       - blob_gas_used * blob_gas_price - tx.value.
 
     `blob_gas_price` is supplied by the caller in the global
@@ -180,10 +180,6 @@ def txGasBalPostVerifyFunction : String :=
   "  li t2, 21000\n" ++
   ".Ltgbpv_have_simple_transfer_gas_used:\n" ++
   "  bgeu t1, t2, .Ltgbpv_refund_gas_ok\n" ++
-  "  la t0, tgbpv_simple_transfer_gas_used; ld t3, 0(t0); beqz t3, .Ltgbpv_refund_gas_fail\n" ++
-  "  li t3, 21000; bltu t1, t3, .Ltgbpv_refund_gas_fail\n" ++
-  "  la t0, tgbpv_skip_value; li t3, 1; sd t3, 0(t0)\n" ++
-  "  la t0, tgbpv_simple_transfer_gas_used; sd t1, 0(t0); mv t2, t1; j .Ltgbpv_refund_gas_ok\n" ++
   ".Ltgbpv_refund_gas_fail:\n" ++
   "  li t0, 34; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
@@ -232,7 +228,6 @@ def txGasBalPostVerifyFunction : String :=
   "  li t0, 37; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_value_ok:\n" ++
-  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Ltgbpv_value_sub_ok\n" ++
   "  # Self-transfer detection. When the recipient equals the sender, the\n" ++
   "  # transferred value returns to the sender within the same transaction, so\n" ++
   "  # the sender's BAL post balance is charged + refund with NO value netting\n" ++

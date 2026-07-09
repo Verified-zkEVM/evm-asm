@@ -344,7 +344,13 @@ def blockVerdictFunction : String :=
   "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
   ".Lbv_stx_legacy_21k_verify:\n" ++
   topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
-  "  li t1, 21000; add t0, t0, t1; la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  add t0, a1, a3\n" ++
+  "  bgeu t0, a2, .Lbv_stx_intrinsic_used_ready\n" ++
+  "  mv t0, a2\n" ++
+  ".Lbv_stx_intrinsic_used_ready:\n" ++
+  "  la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
