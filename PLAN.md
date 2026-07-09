@@ -292,7 +292,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  byte-identity pinned to `bncZero64_prog`. `Bn254CurveIsInfSAsm.lean` verifies
+  `bnc_is_inf64` (`bncIsInf64Fn_spec`, `a0 = 1` iff the 64-byte point encoding
+  is all-zero) as a same-length re-emitted SAsm drop-in. `Secp256k1PointZero64SAsm.lean`
   verifies the analogous `secp256k1_point_zero64` byte loop
   (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `secp256k1PointZero64_prog`.
@@ -312,6 +314,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
   emitted rounded-word BitVec cost difference) pinned to
   `memoryExpansionGas_prog`.
+  `TxValidateAgainstBlockSAsm.lean` verifies `tx_validate_against_block` as a
+  byte-identical shared-return-tail cascade (`txvabJoin_spec`, post status 0/1/2/3
+  for ok, chain-id mismatch, gas-limit violation, nonce mismatch) pinned to
+  `txValidateAgainstBlock_prog`.
   `CallExtraGasSAsm.lean` verifies `call_extra_gas` as a byte-identical
   two-`when` branch helper (`callExtraGasFn_spec`, post `a0 =
   (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to

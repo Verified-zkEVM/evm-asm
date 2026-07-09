@@ -114,6 +114,7 @@ import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
+import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
@@ -207,6 +208,7 @@ import EvmAsm.Codegen.Programs.GasRoutinesSAsm
 import EvmAsm.Codegen.Programs.CallExtraGasSAsm
 import EvmAsm.Codegen.Programs.MemoryExpansionGasSAsm
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxValidateAgainstBlockSAsm
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
