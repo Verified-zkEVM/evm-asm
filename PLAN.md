@@ -276,7 +276,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
-  to `bnpFp2Copy_prog`.
+  to `bnpFp2Copy_prog`. `Bn254Fp2EqSAsm.lean` verifies `bnp_fp2_eq` as a
+  byte-transparent dual-read dword equality scan (`bnpFp2Eq_spec`, post `a0 = 1`
+  iff the two 64-byte buffers are byte-equal) with byte-identity pinned to
+  `bnpFp2Eq_prog`.
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
@@ -2928,8 +2931,9 @@ countdown loop reading dword `i` from buffer A (primary region) and buffer B
 to the `0` tail on first mismatch; genuine post
 `a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
 instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
-address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
-bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
+bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
+N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
 N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
 can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
 Indirect calls landed
