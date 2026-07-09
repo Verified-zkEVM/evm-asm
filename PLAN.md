@@ -2973,6 +2973,34 @@ size gate (`cisvJoin_spec`) over the emitted `cisvProgram`: one `li`, one
 `bltu`, and two shared return tails; genuine post `a0 = 1` iff
 `65536 <u len`, byte-transparent via `createInitcodeSizeValidFunction =
 emitProgram cisvProgram`, classical-3.
+**Global-data footprint model landed** (branch
+`feat/global-data-footprint`, bead evm-asm-85699; subsumes the engine half
+of 4ch8f.59.1.1): the parser/secp/field layer references global `.data`
+via the `la` idiom (`auipc`+`addi`).  `Rv64/LaResolve.lean` PROVES the
+materialization arithmetic the terminating `.conditional` specs assumed:
+`laHi`/`laLo` compute the psABI `%pcrel_hi`/`%pcrel_lo` immediates and
+`la_resolve` is the generic round-trip (in-range displacement ⇒ the
+materialized address IS the target; toNat+omega, no bv_decide), with
+`la_materialize_within` the two-instruction cpsTripleWithin.
+`SAsm/GlobalData.lean` adds the PC-aware block engine
+(`execInstrRFAt`/`execBlockAt`/`blockVCsAt` + `execBlockAt_sound`) as a
+PARALLEL engine — original defs untouched, conservativity proven
+(`execBlockAt_eq_execBlock`/`blockVCsAt_iff_blockVCs` on AUIPC-free
+blocks) — plus the global-region assertions (`globalConst` read-only
+constants, `globalCellIs`/`globalCellOwn` RW scratch cells; ordinary `**`
+atoms, composable with frames/stackFree, no ambient-`.data` hole).
+Demo `SAsm/GlobalDataDemo.lean`: la-load a const, read it, la-load an RW
+cell, write it; immediates computed by `laHi`/`laLo` and rfl-tied to the
+hand literals; genuine post.  High-value discharge
+(`Evm64/Terminating/ReturnHaltResolved.lean`): RETURN's
+`hla1`/`hla2`/`hlaSCM`/`hlaMem`/`hlaMem2` reconstruction hypotheses are
+RETIRED — `evm_return_halt_spec_resolved` and
+`evm_return_stack_spec_resolved` compute the immediates and prove the
+`la` equations via `la_resolve`; per `la` only decidable `laInRange`
+representability remains.  Stretch port not attempted: the global-data
+candidates are double-blocked on callee contracts (secf_reduce_once →
+u256_lt_be 4ch8f.38.2.4.1; mpt_* → rlp_list_nth_item; account_extract_* →
+rlp_field_to_u64 4ch8f.14.9.1).  Classical-3 throughout.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
