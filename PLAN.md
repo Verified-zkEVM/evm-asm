@@ -251,7 +251,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
+  `blsgCopy96_prog`; `Bls12G1IsZeroNSAsm.lean` verifies the dynamic-length
+  `blsg_is_zero_n` byte scan (`blsgIsZeroNFn_spec`, `a0 = 1` iff the first
+  `len` bytes are all zero) as a same-length re-emitted SAsm drop-in;
+  `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
   as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
   (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
   single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
