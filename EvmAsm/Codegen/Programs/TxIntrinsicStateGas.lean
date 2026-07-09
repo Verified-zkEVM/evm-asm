@@ -290,6 +290,21 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
   "  j .Lteer_next\n" ++
   ".Lteer_invalid_code_check_done:\n" ++
+  "  # validate_authorization also returns None when the signed nonce does not\n" ++
+  "  # equal the authority account nonce. In single-tx blocks the header-state\n" ++
+  "  # account is the live authority account at this point.\n" ++
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_nonce_check_done\n" ++
+  "  la t0, bv_witness_state_ptr; ld t0, 0(t0); beqz t0, .Lteer_nonce_check_done\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .Lteer_nonce_have_pre\n" ++
+  "  li t0, 1; bne a0, t0, .Lteer_nonce_check_done\n" ++
+  "  ld t1, 144(sp); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
+  "  j .Lteer_nonce_check_done\n" ++
+  ".Lteer_nonce_have_pre:\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0); ld t2, 144(sp); bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
+  ".Lteer_nonce_check_done:\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
   "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bne t1, t2, .Lteer_next\n" ++
   "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
