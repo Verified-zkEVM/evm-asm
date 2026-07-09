@@ -137,8 +137,8 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
     `message_call_gas` helper above takes `extra_gas` as an input but nothing
     computes it; this helper does, for the access + value-transfer components:
 
-      access   = is_cold       ? COLD_ACCOUNT_ACCESS (2600) : WARM_ACCESS (100)
-      transfer = value_nonzero ? CALL_VALUE (9000)          : 0
+      access   = is_cold       ? COLD_ACCOUNT_ACCESS (3000) : WARM_ACCESS (100)
+      transfer = value_nonzero ? CALL_VALUE (10300)          : 0
       extra_gas = access + transfer
 
     Correct for all four message-call kinds: DELEGATECALL/STATICCALL carry no
@@ -153,10 +153,10 @@ def callExtraGasFunction : String :=
   "call_extra_gas:\n" ++
   "  li t0, 100\n" ++               -- WARM_ACCESS
   "  beqz a0, .Lceg_warm\n" ++      -- is_cold == 0 -> warm
-  "  li t0, 2600\n" ++              -- COLD_ACCOUNT_ACCESS
+  "  li t0, 3000\n" ++              -- COLD_ACCOUNT_ACCESS
   ".Lceg_warm:\n" ++
   "  beqz a1, .Lceg_done\n" ++      -- value_nonzero == 0 -> no transfer
-  "  li t1, 9000\n" ++              -- CALL_VALUE
+  "  li t1, 10300\n" ++              -- CALL_VALUE
   "  add t0, t0, t1\n" ++
   ".Lceg_done:\n" ++
   "  mv a0, t0\n" ++
@@ -166,9 +166,9 @@ def callExtraGasFunction : String :=
     value_nonzero) cases.
     Output:
       +0  warm, no value   (expect 100)
-      +8  cold, no value   (expect 2600)
-      +16 warm, value      (expect 9100)
-      +24 cold, value      (expect 11600) -/
+      +8  cold, no value   (expect 3000)
+      +16 warm, value      (expect 10400)
+      +24 cold, value      (expect 13300) -/
 def ziskCallExtraGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++

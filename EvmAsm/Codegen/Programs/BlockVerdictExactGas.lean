@@ -37,6 +37,7 @@ def blockVerdictExactGasCheck : String :=
   "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
+  ".Lbv_regular_eip8037_store:\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; sd a0, 0(t6)\n" ++
   "  addi t1, t1, 1; j .Lbv_regular_eip8037_loop\n" ++
   ".Lbv_regular_eip8037_done:\n" ++

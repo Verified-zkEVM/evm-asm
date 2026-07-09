@@ -291,7 +291,7 @@ def callFrameDescendFunction : String :=
   "  ld a3, 32(s7)                  # argsLen\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
   -- 7a. EIP-150 transfer_gas_cost: a value-bearing CALL/CALLCODE charges
-  -- GAS_CALL_VALUE (9000) BEFORE the 63/64 forwarding cap (it is part of
+  -- GAS_CALL_VALUE (10300) BEFORE the 63/64 forwarding cap (it is part of
   -- extra_gas, deducted from gas_left first). The shipped CALL handler already
   -- does this before NEW_ACCOUNT state gas and arms cd_xfer_gas_precharged; consume
   -- that flag here. Direct helper probes with no precharge still charge here so
@@ -301,11 +301,11 @@ def callFrameDescendFunction : String :=
   -- OutOfGasError (an exceptional halt that burns ALL remaining gas) when the caller
   -- cannot afford it. The guest charges access (runtime_access_account_charge) and the
   -- delegation-target access (callDelegationAccessChargeAsm) incrementally before this
-  -- point, so once gas_left < 9000 here the original gas was < access + 9000, i.e. the
+  -- point, so once gas_left < 10300 here the original gas was < access + 10300, i.e. the
   -- spec's check_gas would already have OOG'd. Without this guard the bare `sub`
   -- UNDERFLOWED gas_left to ~2^64, letting the call wrongly succeed (the EIP-7702-delegated
   -- CALLCODE/CALL that the spec OOGs ran to completion, under-counting block_regular_gas by
-  -- ~the net transfer 6700 -> header.gas_used appeared to over-claim -> bv_fail=41/44/45,
+  -- ~the net transfer 8000 -> header.gas_used appeared to over-claim -> bv_fail=41/44/45,
   -- bal_callcode_7702_delegation_and_oog). Route the shortfall to the exceptional-halt path.
   "  ld a2, 88(s7)\n" ++
   "  beqz a2, .Lcfd_no_transfer\n" ++
@@ -313,7 +313,7 @@ def callFrameDescendFunction : String :=
   "  sd x0, 0(t2)\n  j .Lcfd_no_transfer\n" ++
   ".Lcfd_charge_transfer:\n" ++
   "  ld t0, 568(s3)\n" ++
-  "  li t1, 9000\n" ++
+  "  li t1, 10300\n" ++
   "  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n" ++
   "  sd t0, 568(s3)\n" ++
@@ -636,7 +636,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
       +152 evm_cur_stack_top - &arena      (expect 0x28200 = child frame stack top)
       +160 evm_cur_stack_low - &arena      (expect 0x20200 = top - 1024*32)
-      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000)
+      +168 parent env.gasRemaining        (expect 88700 = 100000 - transfer 10300 - cost 1000)
       +176/+184 state-gas snapshots       (expect 12345/67890)
       +192/+200 refund/warmth snapshots   (expect 24680/5)
       +208/+216 running bloom checkpoint  (expect word0/word31 copied) -/
@@ -713,7 +713,7 @@ def ziskCallFrameDescendPrologue : String :=
   -- frame-relative stack bounds set by the descend (child arena stack).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 152(s0)\n" ++
   "  la t0, evm_cur_stack_low; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 160(s0)\n" ++
-  -- EIP-150: parent gas deducted by transfer (9000, value-bearing) + cost (1000) -> 90000.
+  -- EIP-150: parent gas deducted by transfer (10300, value-bearing) + cost (1000) -> 88700.
   "  la t0, cfd2_penv; ld t1, 568(t0); sd t1, 168(s0)\n" ++
   "  j .Lcfd2_done\n" ++
   frameBaseFunction ++ "\n" ++

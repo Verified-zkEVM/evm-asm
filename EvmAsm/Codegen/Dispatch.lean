@@ -474,15 +474,16 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     (`execution-specs/src/ethereum/forks/prague/vm/gas.py`): ZERO=0,
     JUMPDEST=1, BASE=2, VERYLOW=3, LOW=5, MID=8, HIGH=10, BLOCKHASH=20,
     KECCAK256 base=30, LOG base=375, warm access=100. Amsterdam/EIP-8037
-    moves the account-growth portion of CREATE/CREATE2 into state gas, so the
-    regular static base is 9000 rather than the pre-Amsterdam 32000.
+    charges CREATE/CREATE2's account-access regular component as
+    CREATE_ACCESS = ACCOUNT_WRITE(8000) + COLD_STORAGE_ACCESS(3000).
 
     **Static base costs only** — all *dynamic* components are dropped:
     memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
     per-byte, and cold-access surcharges (SLOAD/BALANCE/EXTCODE*/CALL use
-    the warm floor of 100; SSTORE uses 100; cold +2600/+2100 not modeled).
-    So state-touching ops UNDER-charge — fine for the first slice, which
-    establishes the metering machinery; dynamic costs are a follow-up.
+
+    the warm floor of 100; SSTORE uses 100; cold deltas are charged in
+    opcode-specific helpers).
+
 
     Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
     not assigned a real opcode are 0, so trusted programs never spuriously
@@ -521,7 +522,7 @@ def staticGasCost (op : Nat) : Nat :=
     -- stack / memory / flow
     | 0x50 => 2                                              -- POP (BASE)
     | 0x51 | 0x52 | 0x53 => 3                                -- MLOAD,MSTORE,MSTORE8 (VERYLOW)
-    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base; dynamic dropped)
+    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base)
     | 0x56 => 8                                              -- JUMP (MID)
     | 0x57 => 10                                             -- JUMPI (HIGH)
     | 0x58 | 0x59 | 0x5a => 2                                -- PC,MSIZE,GAS (BASE)
@@ -530,7 +531,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x5e => 3                                              -- MCOPY (base)
     | 0x5f => 2                                              -- PUSH0 (BASE)
     -- child frames (base; dynamic call/create costs dropped)
-    | 0xf0 => 9000 | 0xf5 => 9000                              -- CREATE, CREATE2
+    | 0xf0 => 11000 | 0xf5 => 11000                            -- CREATE, CREATE2
     | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
     | 0xff => 5000                                           -- SELFDESTRUCT (base)
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
@@ -760,7 +761,11 @@ def emitCreateChildFrameData : String :=
   -- drj99.1 (initcode_calls_with_value bv_fail=44): the created account's staged block-pre balance
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
-  "nse_create_pre_bal:\n  .zero 32\n"
+  "nse_create_pre_bal:\n  .zero 32\n" ++
+  -- Amsterdam generic_create computes target_alive from the current tx_state before
+  -- incorporating the child. A same-tx-created target can be alive even when its
+  -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
+  "create_target_alive_current_tx:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -3125,7 +3130,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
-  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 9000 value-transfer gas
+  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 10300 value-transfer gas
   -- before NEW_ACCOUNT state gas. Descend consumes it to avoid a double charge; empty paths
   -- refund the 2300 stipend and clear it.
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++

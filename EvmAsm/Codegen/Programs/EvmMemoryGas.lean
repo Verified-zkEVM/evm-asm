@@ -254,7 +254,7 @@ def callMemoryExpansionGasAsm
   ".Lcallmem_" ++ tag ++ "_done:\n"
 
 /-- CREATE-family initcode dynamic gas. The dispatch loop already charges
-    `OPCODE_CREATE_BASE = 9000`; this charges the EIP-3860 initcode word
+    `CREATE_ACCESS = 11000`; this charges the EIP-3860 initcode word
     cost `2 * ceil32(size) / 32`, and for CREATE2 also the EIP-1014 hashcost
     `6 * ceil32(size) / 32`. Memory expansion is handled separately by
     `updateActiveMemorySizeAsm` over the same initcode range.
