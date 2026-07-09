@@ -251,10 +251,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
+  `blsgCopy96_prog`; `Bls12G1IsZeroNSAsm.lean` verifies the dynamic-length
+  `blsg_is_zero_n` byte scan (`blsgIsZeroNFn_spec`, `a0 = 1` iff the first
+  `len` bytes are all zero) as a same-length re-emitted SAsm drop-in;
+  `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
   as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
   (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
-  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  single-exit drop-in with EEST A/B parity required); `Bls12G2EqNSAsm.lean`
+  verifies the dynamic `blsg2_eq_n` read-only dual-buffer byte equality leaf
+  (`blsg2EqNFn_spec`, post keyed by `firstDiff bs1 bs2 n`, `a2 = n`), as a
+  same-length single-exit re-emitted drop-in for BLS G2 callers; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
@@ -3031,6 +3037,28 @@ beBytesToNat bs then as else bs` byte-for-byte, inputs untouched, `x5`
 still pinned at the selected base.  `u256_max` is the same shape (selector
 inverted) but has NO GuestAddrs anchor (not linked); its port is a
 mechanical mirror once linked — deferred.  Classical-3.
+**Structured-layer AUIPC bridge landed** (branch
+`feat/auipc-structured-layer`, beads evm-asm-4ch8f.56.7 + .56.7.1;
+completes #10059 into the layer ports go through): the PC-agnostic
+`execBlock`/`blockOk`/`Stmt.sound` path cannot step `AUIPC`, so
+`SAsm/BlockAtBridge.lean` bridges to #10059's PC-threaded engine:
+`blockAt_flat_spec` restates `execBlockAt_sound` at the exposed-ATOM
+granularity (`regAtoms rf exposedRegs` = the fifteen `↦ᵣ` atoms via
+`regFileIs_eq_regAtoms`), making an `AUIPC` block interchangeable with a
+`blockOk`-proven one for `abiFrame_spec`/`frame_call`/loop/join
+composition; `blockAt_regs_spec` is the memory-free (`la`
+address-arithmetic) form with `blockVCsAt_of_not_hasLoad` discharging the
+VCs.  Original engine untouched (conservativity from #10059 intact).
+Consumer `frame_base` (`Codegen/Programs/CallFrameBaseSAsm.lean`,
+`#guard`-tied GuestAddrs.frame_base = 0x8003803c, spec directly over the
+emitted `frameBase_prog` — byte-transparent): the `[ADDI, LUI, MUL, AUIPC,
+ADDI, ADD]` leaf proven through the bridge with the emitter's
+`Codegen.laHi/laLo` reloc immediates kernel-checked equal to the psABI
+`Rv64.laHi/laLo` and the arena address PROVEN via `la_resolve` (only
+decidable `laInRange` remains); genuine post `a0 = call_frame_arena +
+(depth − 1) · 0x39000`.  Classical-3.  Downstream (other blockers remain):
+the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3) and point_double
+(4ch8f.38.5).
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
