@@ -294,18 +294,21 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
                       + 128 * access_list_storage_key_count
       intrinsic       = 12000
                       + 4 * calldata_tokens
-                      + creation ? (11000 + 2 * ceil(data_len / 32)) : 3000
+                      + recipient/value regular gas from execution-specs
                       + 3000 * access_list_address_count
                       + 3000 * access_list_storage_key_count
                       + 16 * access_tokens
                       + 15816 * authorization_count
       floor           = 12000 + 16 * (4 * data_len + access_tokens)
 
-    This intentionally returns the regular intrinsic component and calldata
-    floor. Amsterdam's EIP-8037 state-gas component is handled by the caller's
-    reservoir path. The current call sites do not pass sender equality or tx
-    value, so this helper models the non-self-transfer, zero-value path used by
-    the supported block-verdict receipt accounting. -/
+    The helper receives `value_nonzero` and `is_self_transfer` in the first two
+    stack slots at entry, matching Amsterdam execution-specs
+    `calculate_intrinsic_cost(tx, sender)`: self-transfers skip recipient and
+    value regular gas; non-self value transfers add COLD_ACCOUNT_ACCESS plus
+    TRANSFER_LOG_COST+TX_VALUE_COST; creations add CREATE_ACCESS, init-code cost,
+    and TRANSFER_LOG_COST when value is nonzero. This intentionally returns the
+    regular intrinsic component and calldata floor. Amsterdam's EIP-8037
+    state-gas component is handled by the caller's reservoir path. -/
 def intrinsicGasAmsterdamCounts_prog : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x6 (0 : Word),
@@ -326,16 +329,28 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .LUI .x29 (3 : BitVec 20),
     .ADDIW .x29 .x29 (-288 : BitVec 12),
     .ADD .x31 .x31 .x29,
-    .LUI .x29 (1 : BitVec 20),
-    .ADDIW .x29 .x29 (-1096 : BitVec 12),
-    .ADD .x31 .x31 .x29,
-    .BEQ .x12 .x0 (32 : BitVec 13),
-    .LUI .x29 (2 : BitVec 20),
-    .ADDIW .x29 .x29 (-192 : BitVec 12),
+    .BEQ .x12 .x0 (52 : BitVec 13),
+    .LUI .x29 (3 : BitVec 20),
+    .ADDIW .x29 .x29 (-1288 : BitVec 12),
     .ADD .x31 .x31 .x29,
     .ADDI .x29 .x11 (31 : BitVec 12),
     .SRLI .x29 .x29 (5 : BitVec 6),
     .SLLI .x29 .x29 (1 : BitVec 6),
+    .ADD .x31 .x31 .x29,
+    .LD .x29 .x2 (0 : BitVec 12),
+    .BEQ .x29 .x0 (56 : BitVec 13),
+    .LI .x29 (1756 : Word),
+    .ADD .x31 .x31 .x29,
+    .JAL .x0 (44 : BitVec 21),
+    .LD .x29 .x2 (8 : BitVec 12),
+    .BNE .x29 .x0 (36 : BitVec 13),
+    .LUI .x29 (1 : BitVec 20),
+    .ADDIW .x29 .x29 (-1096 : BitVec 12),
+    .ADD .x31 .x31 .x29,
+    .LD .x29 .x2 (0 : BitVec 12),
+    .BEQ .x29 .x0 (16 : BitVec 13),
+    .LUI .x29 (1 : BitVec 20),
+    .ADDIW .x29 .x29 (1904 : BitVec 12),
     .ADD .x31 .x31 .x29,
     .LUI .x29 (1 : BitVec 20),
     .ADDIW .x29 .x29 (-1096 : BitVec 12),
@@ -378,7 +393,7 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
     intrinsicGasAmsterdamCountsFunction = "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog := rfl
 
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
-#guard intrinsicGasAmsterdamCounts_prog.length = 59
+#guard intrinsicGasAmsterdamCounts_prog.length = 71
 /-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
     Input layout:
       bytes  0.. 8 : data length
@@ -387,7 +402,9 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
       bytes 24..32 : access-list address count
       bytes 32..40 : access-list storage-key count
       bytes 40..48 : authorization count
-      bytes 48..   : data bytes
+      bytes 48..56 : value_nonzero
+      bytes 56..64 : is_self_transfer
+      bytes 64..   : data bytes
     Output layout:
       bytes  0.. 8 : status, 0 iff max(intrinsic, floor) <= gas_limit
                     and max(intrinsic, floor) <= TX_MAX_GAS_LIMIT
@@ -405,10 +422,15 @@ def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
   "  ld a3, 32(t0)               # access-list address count\n" ++
   "  ld a4, 40(t0)               # access-list storage-key count\n" ++
   "  ld a5, 48(t0)               # authorization count\n" ++
-  "  addi a0, t0, 56             # data ptr\n" ++
+  "  ld t5, 56(t0)               # value_nonzero\n" ++
+  "  ld t6, 64(t0)               # is_self_transfer\n" ++
+  "  addi a0, t0, 72             # data ptr\n" ++
   "  li a6, 0xa0010008           # intrinsic out\n" ++
   "  li a7, 0xa0010010           # floor out\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd t5, 0(sp); sd t6, 8(sp)\n" ++
   "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
+  "  addi sp, sp, 16\n" ++
   "  li t0, 0xa0010008\n" ++
   "  ld t2, 0(t0)                # intrinsic\n" ++
   "  li t0, 0xa0010010\n" ++

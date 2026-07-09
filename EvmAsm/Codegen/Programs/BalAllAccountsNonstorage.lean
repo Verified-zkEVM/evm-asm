@@ -126,16 +126,6 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   "  bnez a0, .Lc3ns_fail\n" ++
   "  j .Lc3ns_next\n" ++
   ".Lc3ns_notfound:\n" ++
-  -- bmvmx.5.5.1 (A2a) LENIENT mode: the multi-tx caller sets c3ns_lenient_notfound=1. A
-  -- multi-tx block can create accounts (CALL value-move / CREATE) whose pre-state has no
-  -- witness node, so account_at_header_state_root can't record an exec effect for them even
-  -- though the BAL legitimately declares their balance change -- the strict reject below
-  -- would false-reject. In lenient mode we SKIP a declared-but-unrecorded account instead
-  -- (the value-mismatch direction still validates every account that DID get an effect, and
-  -- _covers still requires every exec effect to be in the BAL). Single-tx leaves the flag 0
-  -- (strict), so its behavior is byte-identical. Strengthening this to validate created-
-  -- account balances is a follow-up (needs effect-log completeness for created accounts).
-  "  la t0, c3ns_lenient_notfound; ld t0, 0(t0); bnez t0, .Lc3ns_next\n" ++
   "  # no exec effect for this callee: only a problem if the BAL declares a non-storage change\n" ++
   "  mv a0, s7; mv a1, s8; la a2, c2nsc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
@@ -197,7 +187,6 @@ def ziskBalAllAccountsNonstorageConsistentPrologue : String :=
 def ziskBalAllAccountsNonstorageConsistentDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "c3ns_lenient_notfound:\n  .zero 8\n" ++   -- bmvmx.5.5.1 (A2a): 0 strict (single-tx), 1 lenient (multi-tx)
   ziskBalAccountNonstorageConsistentDataSection  -- c2nsc_finals + c2nsf_* + rfu scratch
 
 def ziskBalAllAccountsNonstorageConsistentProbeUnit : BuildUnit := {

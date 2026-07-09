@@ -451,8 +451,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
-  -- delegation marker. Those authorities are warm for the receipt regular
-  -- dimension, so the type-4 auth regular delta is discounted by 2600 each.
+  -- delegation marker. Debug/accounting context for auth-base state refunds;
+  -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
@@ -470,6 +470,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_regular_refund:\n  .zero 8\n" ++
   "teer_predelegated_count:\n  .zero 8\n" ++
   "teer_existing_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
@@ -765,6 +766,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_tx_gas:\n  .zero 8\n" ++
   "bsg_gas_field:\n  .zero 8\n" ++
   "bsg_to_field:\n  .zero 8\n" ++
+  "bsg_value_field:\n  .zero 8\n" ++
   "bsg_data_field:\n  .zero 8\n" ++
   "bsg_access_field:\n  .zero 8\n" ++
   "bsg_auth_field:\n  .zero 8\n" ++
@@ -803,6 +805,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tcbg_blob_fee_be:\n  .zero 32\n" ++
   "bsg_blob_price_be:\n  .zero 32\n" ++
   "bsg_blob_lt_out:\n  .zero 8\n" ++
+  "bsg_sender_addr:\n  .zero 32\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
   "bsr_change_count:\n  .zero 8\n" ++
   "sri_cur_mode:\n  .zero 8\n" ++
@@ -1270,6 +1273,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
+  -- EIP-8037 current-state aliveness for the multi-tx EOA shortcut.
+  -- top-level value transfers pay NEW_ACCOUNT state gas only when the recipient
+  -- is not alive in the transaction's current state. The header-state lookup is
+  -- not enough after an earlier tx in the same block creates/funds that recipient,
+  -- so the shortcut records recipients whose NEW_ACCOUNT charge has already been
+  -- paid and suppresses repeats. 32-byte stride, 20-byte BE address prefix.
+  ".balign 8\n" ++
+  "bv_mtx_created_recipient_count:\n  .zero 8\n" ++
+  "bv_mtx_created_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): per-account aggregation of exec_nonstorage_effect_log
   -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
@@ -1322,9 +1334,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
-  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): txtype/innoff from
-  -- tx_type_dispatch; blobcount = blob hashes; feedebit = the u256 fee
-  -- accumulator added into the sender debit.
+  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds
+  -- type-3 blob-data-gas sender-debit terms; type-4 auth gas is already in
+  -- bvgr_receipt_gas_increments. txtype/innoff come from tx_type_dispatch;
+  -- blobcount = blob hashes; feedebit is the u256 fee accumulator added into
+  -- the sender debit.
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++
@@ -1339,7 +1353,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c3ns_acct_len:\n  .zero 8\n" ++
   "c3ns_addr_off:\n  .zero 8\n" ++
   "c3ns_addr_len:\n  .zero 8\n" ++
-  "c3ns_lenient_notfound:\n  .zero 8\n" ++   -- bmvmx.5.5.1 (A2a): 0 strict (single-tx), 1 lenient (multi-tx)
   "c2nsc_finals:\n  .zero 88\n" ++
   "c2nsf_off:\n  .zero 8\n" ++
   "c2nsf_len:\n  .zero 8\n" ++

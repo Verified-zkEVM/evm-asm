@@ -34,11 +34,13 @@ open EvmAsm.Rv64
 
     Mirrors execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py:
     cold surcharge, original/current/new gas branch, and refund counter branch.
+
     Amsterdam dropped the legacy EIP-2200 SET(20000) split: clean-changing
     charges STORAGE_WRITE = 10000 regardless of the original being zero (the
     creation charge moved to EIP-8037 state gas), and the restore refund is
     STORAGE_WRITE = 10000 (the zero-restore case additionally credits state gas,
     surfaced via the +32 flag). -/
+
 def sstoreGasRefundOutcomeFunction : String :=
   "sstore_gas_refund_outcome:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -78,12 +80,14 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  addi t0, t0, 8\n" ++
   "  j .Lsgr_cmp\n" ++
   ".Lsgr_cmp_done:\n" ++
-  "  li s6, 0                    # gas_cost\n" ++
+  "  li s6, 100                  # gas_cost\n" ++
   "  li s7, 0                    # refund_delta signed\n" ++
   "  bnez a3, .Lsgr_access_warm\n" ++
+
   "  li t0, 3000\n" ++
   "  add s6, s6, t0\n" ++
   "  j .Lsgr_access_done\n" ++
+
   ".Lsgr_access_warm:\n" ++
   "  li t0, 100\n" ++
   "  add s6, s6, t0\n" ++

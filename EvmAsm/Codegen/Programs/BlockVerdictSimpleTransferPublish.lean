@@ -57,6 +57,10 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  ld t4, 16(sp)\n" ++
   "  ld t3, 32(sp)\n" ++
   "  ld t0, 40(sp)\n" ++
+  "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_state_publish_ok\n" ++
+  "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_gas_have_left\n" ++
+  ".Lbv_simple_transfer_state_publish_ok:\n" ++
   "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
   "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_gas_exhausted\n" ++

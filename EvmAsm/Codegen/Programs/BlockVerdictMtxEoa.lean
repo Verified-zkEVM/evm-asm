@@ -4,6 +4,7 @@
   Multi-tx EOA recipient settlement fragment for block_verdict.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
@@ -45,6 +46,13 @@ def blockVerdictMtxEoaSettlement : String :=
   "  jal ra, access_list_count\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_eoa_access_ready:\n" ++
+  -- This shortcut calls the low-level STOP dispatcher directly, bypassing the
+  -- full dispatch_tx_runtime_code setup reset. Reset the per-tx gas cells here
+  -- so EIP-8037 state-gas accounting starts from this transaction's state, not
+  -- the previous user/system call.
+  "  la t0, evm_refund_acc; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
@@ -82,7 +90,35 @@ def blockVerdictMtxEoaSettlement : String :=
   ".Lbv_mtx_eoa_tl7708_skip:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
   topLevelValueRecipientStateGasAsm "bv_mtx_eoa" "bv_mtx_ctx" ++
+  -- execution-specs charges this top-level NEW_ACCOUNT state gas against the
+  -- transaction's CURRENT state. If an earlier tx in this block already created
+  -- the same recipient, the header-state predicate still says absent, so suppress
+  -- the repeat using the shortcut's created-recipient table.
   "  beqz t0, .Lbv_mtx_eoa_state_done\n" ++
+  "  la t1, bv_mtx_created_recipient_count; ld t2, 0(t1); li t3, 0\n" ++
+  ".Lbv_mtx_eoa_created_scan:\n" ++
+  "  beq t3, t2, .Lbv_mtx_eoa_created_not_found\n" ++
+  "  slli t4, t3, 5; la t5, bv_mtx_created_recipient_table; add t5, t5, t4\n" ++
+  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 20\n" ++
+  ".Lbv_mtx_eoa_created_cmp:\n" ++
+  "  beqz a0, .Lbv_mtx_eoa_created_found\n" ++
+  "  lbu a1, 0(t5); lbu a2, 0(t6); bne a1, a2, .Lbv_mtx_eoa_created_next\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_mtx_eoa_created_cmp\n" ++
+  ".Lbv_mtx_eoa_created_next:\n" ++
+  "  addi t3, t3, 1; j .Lbv_mtx_eoa_created_scan\n" ++
+  ".Lbv_mtx_eoa_created_found:\n" ++
+  "  li t0, 0; j .Lbv_mtx_eoa_state_done\n" ++
+  ".Lbv_mtx_eoa_created_not_found:\n" ++
+  "  li t4, " ++ toString bvMtxFullTxCap ++ "; bgeu t2, t4, .Lbv_mtx_eoa_state_charge_ready\n" ++
+  "  slli t4, t2, 5; la t5, bv_mtx_created_recipient_table; add t5, t5, t4\n" ++
+  "  sd zero, 0(t5); sd zero, 8(t5); sd zero, 16(t5); sd zero, 24(t5)\n" ++
+  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 20\n" ++
+  ".Lbv_mtx_eoa_created_copy:\n" ++
+  "  beqz a0, .Lbv_mtx_eoa_created_stored\n" ++
+  "  lbu a1, 0(t6); sb a1, 0(t5); addi t6, t6, 1; addi t5, t5, 1; addi a0, a0, -1; j .Lbv_mtx_eoa_created_copy\n" ++
+  ".Lbv_mtx_eoa_created_stored:\n" ++
+  "  addi t2, t2, 1; la t1, bv_mtx_created_recipient_count; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_charge_ready:\n" ++
   "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
   "  bgeu t2, t0, .Lbv_mtx_eoa_state_res\n" ++
   "  sub t3, t0, t2; sd x0, 0(t1)\n" ++
