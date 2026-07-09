@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Programs.P256Eq32SAsm
 import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm

@@ -79,14 +79,14 @@ def frameOk (src dst : Word) : Prop :=
 def innerInv (src dst : Word) (inBytes : List (BitVec 8)) :
     RegFile → List (BitVec 8) → Assertion →
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf₀ ws₀ _ j rf ws _ =>
+  fun rf₀ ws₀ A₀ j rf ws A =>
     let k := (rf₀.get .x5).toNat
     rf.get .x29 = BitVec.ofNat 64 (7 - j)
     ∧ rf.get .x28 = BitVec.ofNat 64 (beBytesToNat ((inBytes.drop (24 - 8 * k)).take (j + 1)))
     ∧ rf.get .x6 = rf₀.get .x6 + BitVec.ofNat 64 (j + 1)
     ∧ rf.get .x5 = rf₀.get .x5
     ∧ rf.get .x10 = src ∧ rf.get .x11 = dst
-    ∧ ws = ws₀ ∧ frameOk src dst
+    ∧ ws = ws₀ ∧ frameOk src dst ∧ A = A₀
 
 /-- Outer limb loop invariant (plain `doWhile`, genuinely counting).  After
     the `(i+1)`-th outer body run: `x5 = i + 1` limbs are done, `x6 = 4` (the
@@ -94,12 +94,13 @@ def innerInv (src dst : Word) (inBytes : List (BitVec 8)) :
     `i+1` limbs of the writable window hold their big-endian chunk values. -/
 def outerInv (src dst : Word) (inBytes : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = BitVec.ofNat 64 (i + 1)
     ∧ rf.get .x6 = (4 : Word)
     ∧ rf.get .x10 = src ∧ rf.get .x11 = dst
     ∧ ws.length = 32 ∧ frameOk src dst
-    ∧ ∀ m, m ≤ i → wsDword ws (8 * m) = BitVec.ofNat 64 (beChunk inBytes m)
+    ∧ (∀ m, m ≤ i → wsDword ws (8 * m) = BitVec.ofNat 64 (beChunk inBytes m))
+    ∧ A = empAssertion
 
 -- ----------------------------------------------------------------------------
 -- The routine body (shape identical to DoWhileDemo.bnfOuterNestedSlice)
@@ -151,12 +152,14 @@ def bnfBeToLeFn (src dst : Word) (inBytes orig : List (BitVec 8)) : Fn where
   name := "bnfBeToLe"
   region := ⟨src, inBytes⟩
   rw := ⟨dst, 32⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ ws = orig ∧ orig.length = 32 ∧
     inBytes.length = 32 ∧
     src.toNat + 32 < 2 ^ 64 ∧ dst.toNat + 32 < 2 ^ 64 ∧
-    (src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat)
-  post := fun _ ws _ => wsNat256 ws 0 = beBytesToNat inBytes ∧ ws.length = 32
+    (src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat) ∧
+    A = empAssertion
+  post := fun _ ws A => wsNat256 ws 0 = beBytesToNat inBytes ∧ ws.length = 32 ∧
+    A = empAssertion
   body := bnfBeToLeBody src dst inBytes
 
 /-- Generalized-accumulator unfolding of the `beBytesToNat` foldl (local
@@ -447,13 +450,13 @@ private theorem snap_facts (src dst : Word) (inBytes orig : List (BitVec 8))
         ∧ (∀ m, m < k → wsDword ws₀ (8 * m) = BitVec.ofNat 64 (beChunk inBytes m)) := by
     rcases hreach with hinit | ⟨i, hi, houter, hguard⟩
     · obtain ⟨rfi, wsi, hwsi, hpre, rfl, rfl⟩ := hinit
-      obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj⟩ := hpre
+      obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj, -⟩ := hpre
       refine ⟨0, by omega, ?_, ?_, ?_, ?_, ⟨hnws, hnwd, hdisj⟩, by intro m hm; omega⟩
       all_goals simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
         not_false_eq_true, hx10, hx11, holen]
       rfl
-    · obtain ⟨hx5, hx6, hx10, hx11, hwslen, hfr, hlimbs⟩ := houter
+    · obtain ⟨hx5, hx6, hx10, hx11, hwslen, hfr, hlimbs, -⟩ := houter
       exact ⟨i + 1, by omega, hx5, hx10, hx11, hwslen, hfr, fun m hm => hlimbs m (by omega)⟩
   obtain ⟨he5, he6, he28, he29, he10, he11, he2⟩ :=
     setup_exec ⟨src, inBytes⟩ dst src rfp ws₀ k hk hpx5 hpx10
@@ -530,7 +533,7 @@ private theorem inner_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     (hInv : innerInv src dst inBytes rf₀ ws₀ A₀ i rf ws A) :
     innerInv src dst inBytes rf₀ ws₀ A₀ (i + 1)
       (execBlock ⟨src, inBytes⟩ dst rf ws innerBodyInstrs).1 ws A := by
-  obtain ⟨hp29, hp28, hp6, hp5, hp10, hp11, hpws, hpfr⟩ := hInv
+  obtain ⟨hp29, hp28, hp6, hp5, hp10, hp11, hpws, hpfr, hpA⟩ := hInv
   rw [hkeq] at hp28
   have hpx6 : rf.get .x6 = src + BitVec.ofNat 64 (24 - 8 * k + (i + 1)) := by
     rw [hp6, hs6, add_ofNat_add]
@@ -543,7 +546,7 @@ private theorem inner_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     exact lt_of_lt_of_le hlt (Nat.pow_le_pow_right (by norm_num) (by omega))
   dsimp only [innerInv]
   rw [hkeq]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hpws, hfr⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hpws, hfr, hpA⟩
   · rw [e29, hp29, show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
     have hi1 : 7 - i < 2 ^ 64 := by omega
     have hi2 : 7 - (i + 1) < 2 ^ 64 := by omega
@@ -577,11 +580,12 @@ private theorem outer_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     (rf2 : RegFile) (ws2 : List (BitVec 8)) (A' : Assertion) (k : Nat)
     (hk : k < 4) (hs5 : rf₀.get .x5 = BitVec.ofNat 64 k) (hws0len : ws₀.length = 32)
     (hlimbs : ∀ m, m < k → wsDword ws₀ (8 * m) = BitVec.ofNat 64 (beChunk inBytes m))
+    (hA0 : A₀ = empAssertion)
     (hInv : innerInv src dst inBytes rf₀ ws₀ A₀ 7 rf2 ws2 A') :
     outerInv src dst inBytes k
       (execBlock ⟨src, inBytes⟩ dst rf2 ws2 storeLimbInstrs).1
       (execBlock ⟨src, inBytes⟩ dst rf2 ws2 storeLimbInstrs).2 A' := by
-  obtain ⟨_, hp28, _, hp5, hp10, hp11, hpws, hfr⟩ := hInv
+  obtain ⟨_, hp28, _, hp5, hp10, hp11, hpws, hfr, hpA⟩ := hInv
   have hkeq : (rf₀.get .x5).toNat = k := by rw [hs5, BitVec.toNat_ofNat]; omega
   rw [hkeq] at hp28
   have hx28 : rf2.get .x28 = BitVec.ofNat 64 (beChunk inBytes k) := by
@@ -591,7 +595,7 @@ private theorem outer_step_engine (src dst : Word) (inBytes : List (BitVec 8))
   obtain ⟨se2, se5, se6, se10, se11⟩ :=
     storeLimb_exec ⟨src, inBytes⟩ dst rf2 ws2 k hk hx5 hp11
   dsimp only [outerInv]
-  refine ⟨se5, se6, se10.trans hp10, se11, ?_, hfr, ?_⟩
+  refine ⟨se5, se6, se10.trans hp10, se11, ?_, hfr, ?_, hpA.trans hA0⟩
   · rw [se2, length_setBytes]; exact hws2
   · intro m hm
     rw [se2]
@@ -614,7 +618,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     show (BitVec.ofNat 64 (7 - 7) : Word) = (0 : Word)
     decide
   case bnfBeToLe.outer.exhausted =>
-    rintro rf ws A ⟨hx5, hx6, -, -, -, -, -⟩
+    rintro rf ws A ⟨hx5, hx6, -, -, -, -, -, -⟩
     intro hc
     apply hc
     rw [hx5, hx6]
@@ -627,7 +631,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       exact inner_blockVCs src dst inBytes ws rf (24 - 8 * k) (by omega) hilen hs6 hlen hfr
     · obtain ⟨k, hk, _, hs6, _, _, _, _, _, _, _⟩ :=
         snap_facts src dst inBytes orig rf₀ ws₀ A₀ hsnap
-      obtain ⟨_, _, hp6, _, _, _, _, hpfr⟩ := hInv
+      obtain ⟨_, _, hp6, _, _, _, _, hpfr, -⟩ := hInv
       have hx6 : rf.get .x6 = src + BitVec.ofNat 64 (24 - 8 * k + (i + 1)) := by
         rw [hp6, hs6, add_ofNat_add]
       exact inner_blockVCs src dst inBytes ws rf (24 - 8 * k + (i + 1)) (by omega) hilen hx6
@@ -636,10 +640,10 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     rintro rf ws A hlen ⟨rf₀, ws₀, A₀, hsnap, ⟨j, hj, hInv⟩, hng⟩
     obtain ⟨k, hk, hs5, _, _, _, _, _, _, _, _⟩ :=
       snap_facts src dst inBytes orig rf₀ ws₀ A₀ hsnap
-    obtain ⟨_, _, _, hp5, _, hp11, _, _⟩ := hInv
+    obtain ⟨_, _, _, hp5, _, hp11, _, _, -⟩ := hInv
     exact storeLimb_blockVCs ⟨src, inBytes⟩ dst rf ws k hk (by rw [hp5, hs5]) hp11 hlen
   case bnfBeToLe.post =>
-    rintro rf ws A ⟨⟨i, hile, hx5, hx6, _, _, hwslen, _, hlimbs⟩, hng⟩
+    rintro rf ws A ⟨⟨i, hile, hx5, hx6, _, _, hwslen, _, hlimbs, hA⟩, hng⟩
     have hi3 : i = 3 := by
       dsimp only [Cond.holds] at hng
       rw [hx5, hx6] at hng
@@ -648,7 +652,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       rw [BitVec.toNat_ofNat, show ((4 : Word)).toNat = 4 from by decide] at this
       omega
     subst hi3
-    refine ⟨?_, hwslen⟩
+    refine ⟨?_, hwslen, hA⟩
     have l0 := hlimbs 0 (by omega)
     have l1 := hlimbs 1 (by omega)
     have l2 := hlimbs 2 (by omega)
@@ -659,7 +663,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       show (0 : Nat) + 24 = 24 from rfl, l0, l1, l2, l3]
     exact leLimbs_chunks_eq_beBytesToNat inBytes hilen
   case bnfBeToLe.outer.body.inner.inv_init =>
-    rintro rf₀ ws₀ A₀ hsnap rf' ws' A' ⟨rfp, wsp, hwsp, ⟨hrp, hwp, -⟩, rfl, rfl⟩
+    rintro rf₀ ws₀ A₀ hsnap rf' ws' A' ⟨rfp, wsp, hwsp, ⟨hrp, hwp, hAeq⟩, rfl, rfl⟩
     subst hrp hwp
     obtain ⟨k, hk, hs5, hs6, hs28, hs29, hs10, hs11, hswslen, hfr, _⟩ :=
       snap_facts src dst inBytes orig rfp ws' A₀ hsnap
@@ -669,7 +673,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     show innerInv src dst inBytes rfp ws' A₀ 0
       (execBlock ⟨src, inBytes⟩ dst rfp ws' innerBodyInstrs).1 ws' A'
     dsimp only [innerInv]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, rfl, hfr⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, rfl, hfr, hAeq⟩
     · rw [e29, hs29]; decide
     · rw [e28, hs28, hkeq, show (0 : Word) = BitVec.ofNat 64 0 from rfl,
         shiftOr_eq 0 (inBytes.getD (24 - 8 * k) 0) (by norm_num),
@@ -702,7 +706,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     subst hj7
     obtain ⟨rfpre, wspre, -, hinit, hrf0, hws0⟩ := hsetup
     obtain ⟨rfi, wsi, -, hpre, hrfpre, hwspre⟩ := hinit
-    obtain ⟨hx10, -, hwseq, holen, -, -, -, -⟩ := hpre
+    obtain ⟨hx10, -, hwseq, holen, -, -, -, -, hA0⟩ := hpre
     have hpre5 : rfpre.get .x5 = BitVec.ofNat 64 0 := by
       rw [hrfpre]
       simp [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
@@ -719,7 +723,7 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       setup_exec ⟨src, inBytes⟩ dst src rfpre wspre 0 (by omega) hpre5 hpre10
     subst hrf0 hws0
     exact outer_step_engine src dst inBytes _ _ A₀ rf2 ws2 A' 0 (by omega)
-      he5 (he2 ▸ hprelen) (fun m hm => by omega) hInv
+      he5 (he2 ▸ hprelen) (fun m hm => by omega) hA0 hInv
   case bnfBeToLe.outer.inv_step =>
     rintro i hi rf' ws' A'
       ⟨rf2, ws2, hws2len, ⟨rf₀, ws₀, A₀, hsetup, ⟨j, hj, hInv⟩, hng⟩, rfl, rfl⟩
@@ -733,11 +737,11 @@ theorem bnfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       omega
     subst hj7
     obtain ⟨rfpre, wspre, -, ⟨houter, -⟩, rfl, rfl⟩ := hsetup
-    obtain ⟨ho5, -, ho10, -, howslen, -, holimbs⟩ := houter
+    obtain ⟨ho5, -, ho10, -, howslen, -, holimbs, hA0⟩ := houter
     obtain ⟨he5, -, -, -, -, -, -⟩ :=
       setup_exec ⟨src, inBytes⟩ dst src rfpre ws₀ (i + 1) (by omega) ho5 ho10
     exact outer_step_engine src dst inBytes _ ws₀ A₀ rf2 ws2 A' (i + 1) (by omega) he5
-      howslen (fun m hm => holimbs m (by omega)) hInv
+      howslen (fun m hm => holimbs m (by omega)) hA0 hInv
 
 end Bn254FieldConvSAsm
 
@@ -767,7 +771,7 @@ namespace Bn254FieldConvSAsm
 def innerInvLE (src dst : Word) (inBytes : List (BitVec 8)) :
     RegFile → List (BitVec 8) → Assertion →
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf₀ ws₀ _ i rf ws _ =>
+  fun rf₀ ws₀ A₀ i rf ws A =>
     let k := (rf₀.get .x5).toNat
     let V := wsDword inBytes (8 * k)
     rf.get .x29 = BitVec.ofNat 64 (7 - i)
@@ -778,6 +782,7 @@ def innerInvLE (src dst : Word) (inBytes : List (BitVec 8)) :
     ∧ ws.length = ws₀.length ∧ frameOk src dst
     ∧ (∀ m, m ≤ i → getByteAt ws (31 - 8 * k - m) = extractByte V m)
     ∧ (∀ j, j < 24 - 8 * k ∨ 31 - 8 * k < j → getByteAt ws j = getByteAt ws₀ j)
+    ∧ A = A₀
 
 /-- Outer limb loop invariant (inverse converter).  After the `(i+1)`-th
     outer body run: `x5 = i + 1` limbs are dispersed, `x6 = 4`, pointers
@@ -785,13 +790,14 @@ def innerInvLE (src dst : Word) (inBytes : List (BitVec 8)) :
     of the corresponding source limbs. -/
 def outerInvLE (src dst : Word) (inBytes : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = BitVec.ofNat 64 (i + 1)
     ∧ rf.get .x6 = (4 : Word)
     ∧ rf.get .x10 = src ∧ rf.get .x11 = dst
     ∧ ws.length = 32 ∧ frameOk src dst
-    ∧ ∀ k m, k ≤ i → m < 8 →
-        getByteAt ws (31 - 8 * k - m) = extractByte (wsDword inBytes (8 * k)) m
+    ∧ (∀ k m, k ≤ i → m < 8 →
+        getByteAt ws (31 - 8 * k - m) = extractByte (wsDword inBytes (8 * k)) m)
+    ∧ A = empAssertion
 
 /-- The LE→BE converter body: `init` prologue, then the outer limb `doWhile`
     whose body is a setup block (load limb, set up dest pointer), the inner
@@ -835,15 +841,16 @@ def bnfLeToBeFn (src dst : Word) (inBytes orig : List (BitVec 8)) : Fn where
   name := "bnfLeToBe"
   region := ⟨src, inBytes⟩
   rw := ⟨dst, 32⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ ws = orig ∧ orig.length = 32 ∧
     inBytes.length = 32 ∧
     src.toNat + 32 < 2 ^ 64 ∧ dst.toNat + 32 < 2 ^ 64 ∧
-    (src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat)
-  post := fun _ ws _ =>
+    (src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat) ∧
+    A = empAssertion
+  post := fun _ ws A =>
     beBytesToNat ws = Accel.leLimbsToNat
       [wsDword inBytes 0, wsDword inBytes 8, wsDword inBytes 16, wsDword inBytes 24]
-    ∧ ws.length = 32
+    ∧ ws.length = 32 ∧ A = empAssertion
   body := bnfLeToBeBody src dst inBytes
 
 -- ----------------------------------------------------------------------------
@@ -1073,13 +1080,13 @@ private theorem snapLE_facts (src dst : Word) (inBytes orig : List (BitVec 8))
             getByteAt ws₀ (31 - 8 * k' - m) = extractByte (wsDword inBytes (8 * k')) m) := by
     rcases hreach with hinit | ⟨i, hi, houter, hguard⟩
     · obtain ⟨rfi, wsi, hwsi, hpre, rfl, rfl⟩ := hinit
-      obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj⟩ := hpre
+      obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj, -⟩ := hpre
       refine ⟨0, by omega, ?_, ?_, ?_, ?_, ⟨hnws, hnwd, hdisj⟩, by intros; omega⟩
       all_goals simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
         not_false_eq_true, hx10, hx11, holen]
       rfl
-    · obtain ⟨hx5, hx6, hx10, hx11, hwslen, hfr, hlimbs⟩ := houter
+    · obtain ⟨hx5, hx6, hx10, hx11, hwslen, hfr, hlimbs, -⟩ := houter
       refine ⟨i + 1, by omega, hx5, hx10, hx11, hwslen, hfr,
         fun k' m hk' hm => hlimbs k' m (by omega) hm⟩
   obtain ⟨he5, he6, he28, he29, he10, he11, he2⟩ :=
@@ -1168,7 +1175,7 @@ private theorem innerLE_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     innerInvLE src dst inBytes rf₀ ws₀ A₀ (i + 1)
       (execBlock ⟨src, inBytes⟩ dst rf ws innerLEBodyInstrs).1
       (execBlock ⟨src, inBytes⟩ dst rf ws innerLEBodyInstrs).2 A := by
-  obtain ⟨hp29, hp28, hp6, hp5, hp10, hp11, hpws, hpfr, hpSlot, hpOut⟩ := hInv
+  obtain ⟨hp29, hp28, hp6, hp5, hp10, hp11, hpws, hpfr, hpSlot, hpOut, hpA⟩ := hInv
   rw [hkeq] at hp28 hpSlot hpOut
   have hoff : (31 - 8 * k) - (i + 1) < 2 ^ 64 := by omega
   have hpx6 : rf.get .x6 = dst + BitVec.ofNat 64 (31 - 8 * k - (i + 1)) := by
@@ -1177,7 +1184,7 @@ private theorem innerLE_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     innerLE_body_exec ⟨src, inBytes⟩ dst rf ws (31 - 8 * k - (i + 1)) hoff hpx6
   dsimp only [innerInvLE]
   rw [hkeq]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hpfr, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hpfr, ?_, ?_, hpA⟩
   · have h1 : (7 - i : Nat) < 2 ^ 64 := by omega
     have h2 : 0 < 7 - i := by omega
     rw [e29, hp29, signExtend12_neg1, ofNat_add_neg_one (7 - i) h1 h2]
@@ -1305,11 +1312,12 @@ private theorem outerLE_step_engine (src dst : Word) (inBytes : List (BitVec 8))
     (hws0len : ws₀.length = 32)
     (hlimbs : ∀ k' m, k' < k → m < 8 →
         getByteAt ws₀ (31 - 8 * k' - m) = extractByte (wsDword inBytes (8 * k')) m)
+    (hA0 : A₀ = empAssertion)
     (hInv : innerInvLE src dst inBytes rf₀ ws₀ A₀ 7 rf2 ws2 A') :
     outerInvLE src dst inBytes k
       (execBlock ⟨src, inBytes⟩ dst rf2 ws2 bumpLEInstrs).1
       (execBlock ⟨src, inBytes⟩ dst rf2 ws2 bumpLEInstrs).2 A' := by
-  obtain ⟨_, hp28, _, hp5, hp10, hp11, hpws, hpfr, hpSlot, hpOut⟩ := hInv
+  obtain ⟨_, hp28, _, hp5, hp10, hp11, hpws, hpfr, hpSlot, hpOut, hpA⟩ := hInv
   have hkeq : (rf₀.get .x5).toNat = k := by rw [hs5, BitVec.toNat_ofNat]; omega
   rw [hkeq] at hp28 hpSlot hpOut
   have hx5 : rf2.get .x5 = BitVec.ofNat 64 k := by rw [hp5, hs5]
@@ -1317,7 +1325,8 @@ private theorem outerLE_step_engine (src dst : Word) (inBytes : List (BitVec 8))
   obtain ⟨be5, be6, be10, be11, be2⟩ :=
     bumpLE_exec ⟨src, inBytes⟩ dst rf2 ws2 k hk hx5
   dsimp only [outerInvLE]
-  refine ⟨be5, be6, be10.trans hp10, be11.trans hp11, be2.symm ▸ hws2, hpfr, ?_⟩
+  refine ⟨be5, be6, be10.trans hp10, be11.trans hp11, be2.symm ▸ hws2, hpfr, ?_,
+    hpA.trans hA0⟩
   intros k' m hk' hm
   by_cases hkeq' : k' = k
   · subst hkeq'; rw [be2, hpSlot m (by omega)]
@@ -1331,11 +1340,11 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, hrww⟩
   case bnfLeToBe.outer.body.inner.exhausted =>
-    rintro rf₀ ws₀ A₀ hreach₀ rf ws A ⟨hx29, -, -, -, -, -, -, -, -, -⟩
+    rintro rf₀ ws₀ A₀ hreach₀ rf ws A ⟨hx29, -, -, -, -, -, -, -, -, -, -⟩
     intro hc; apply hc
     rw [hx29]; show (BitVec.ofNat 64 (7 - 7) : Word) = (0 : Word); decide
   case bnfLeToBe.outer.exhausted =>
-    rintro rf ws A ⟨hx5, hx6, -, -, -, -, -⟩
+    rintro rf ws A ⟨hx5, hx6, -, -, -, -, -, -⟩
     intro hc; apply hc
     rw [hx5, hx6]; decide
   case bnfLeToBe.outer.body.setup.mem =>
@@ -1345,7 +1354,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
           frameOk src dst := by
       rcases hreach with hinit | ⟨i, hi, houter, hguard⟩
       · obtain ⟨rfi, wsi, hwsi, hpre, rfl, rfl⟩ := hinit
-        obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj⟩ := hpre
+        obtain ⟨hx10, hx11, rfl, holen, hilen, hnws, hnwd, hdisj, -⟩ := hpre
         refine ⟨0, by omega, ?_, ?_, ⟨hnws, hnwd, hdisj⟩⟩
         · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
           exact RegFile.get_set_self rfi .x5 (0 : Word) (by decide)
@@ -1364,7 +1373,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       exact innerLE_blockVCs dst ws rf (31 - 8 * k) hlen hpx6 (by omega)
     · obtain ⟨k, hk, _, hs6, _, _, _, _, _, _, _⟩ :=
         snapLE_facts src dst inBytes orig rf₀ ws₀ A₀ hsnap
-      obtain ⟨_, _, hp6, _, _, _, _, _, _⟩ := hInv
+      obtain ⟨_, _, hp6, _, _, _, _, _, _, -⟩ := hInv
       have hpx6 : rf.get .x6 = dst + BitVec.ofNat 64 (31 - 8 * k - (i + 1)) := by
         rw [hp6, hs6]
         apply BitVec.eq_of_toNat_eq
@@ -1372,7 +1381,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
         omega
       exact innerLE_blockVCs dst ws rf (31 - 8 * k - (i + 1)) hlen hpx6 (by omega)
   case bnfLeToBe.post =>
-    rintro rf ws A ⟨⟨i, hile, hx5, hx6, _, _, hwslen, _, hlimbs⟩, hng⟩
+    rintro rf ws A ⟨⟨i, hile, hx5, hx6, _, _, hwslen, _, hlimbs, hA⟩, hng⟩
     have hi3 : i = 3 := by
       dsimp only [Cond.holds] at hng
       rw [hx5, hx6] at hng
@@ -1381,11 +1390,11 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       rw [BitVec.toNat_ofNat, show ((4 : Word)).toNat = 4 from by decide] at this
       omega
     subst hi3
-    refine ⟨?_, hwslen⟩
+    refine ⟨?_, hwslen, hA⟩
     exact beBytesToNat_leDispersed ws inBytes hwslen hilen
       (fun k m hk' hm => hlimbs k m (by omega) hm)
   case bnfLeToBe.outer.body.inner.inv_init =>
-    rintro rf₀ ws₀ A₀ hsnap rf' ws' A' ⟨rfp, wsp, hwsp, ⟨hrp, hwp, -⟩, rfl, rfl⟩
+    rintro rf₀ ws₀ A₀ hsnap rf' ws' A' ⟨rfp, wsp, hwsp, ⟨hrp, hwp, hAeq⟩, rfl, rfl⟩
     subst hrp hwp
     obtain ⟨k, hk, hs5, hs6, hs28, hs29, hs10, hs11, hswslen, hfr, _⟩ :=
       snapLE_facts src dst inBytes orig rfp wsp A₀ hsnap
@@ -1398,7 +1407,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       (execBlock ⟨src, inBytes⟩ dst rfp wsp innerLEBodyInstrs).2 A'
     dsimp only [innerInvLE]
     rw [hkeq]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hfr, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hfr, ?_, ?_, hAeq⟩
     · rw [e29, hs29]; decide
     · rw [e28, hs28]
     · rw [e6, hs6, signExtend12_neg1, add_neg_one_eq_sub_one]
@@ -1444,7 +1453,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     subst hj7
     obtain ⟨rfpre, wspre, -, hinit, hrf0, hws0⟩ := hsetup
     obtain ⟨rfi, wsi, -, hpre, hrfpre, hwspre⟩ := hinit
-    obtain ⟨hx10, hx11pre, hwseq, holen, -, hnws, hnwd, hdisj⟩ := hpre
+    obtain ⟨hx10, hx11pre, hwseq, holen, -, hnws, hnwd, hdisj, hA0⟩ := hpre
     have hpre5 : rfpre.get .x5 = BitVec.ofNat 64 0 := by
       rw [hrfpre]
       simp [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
@@ -1468,7 +1477,7 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     have hws0len : ws₀.length = 32 := by rw [hws0.trans he2]; exact hprelen
     rw [hrf, hws]
     exact outerLE_step_engine src dst inBytes rf₀ ws₀ A₀ rf2 ws2 A' 0 (by omega)
-      (hrf0 ▸ he5) hws0len (fun k' m hk' hm => by omega) hInv
+      (hrf0 ▸ he5) hws0len (fun k' m hk' hm => by omega) hA0 hInv
   case bnfLeToBe.outer.inv_step =>
     rintro i hi rf' ws' A'
       ⟨rf2, ws2, hws2len, ⟨rf₀, ws₀, A₀, hsetup, ⟨j, hj, hInv⟩, hng⟩, hrf, hws⟩
@@ -1482,13 +1491,13 @@ theorem bnfLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       omega
     subst hj7
     obtain ⟨rfpre, wspre, -, ⟨houter, -⟩, rfl, rfl⟩ := hsetup
-    obtain ⟨ho5, ho6, ho10, ho11, howslen, hofr, holimbs⟩ := houter
+    obtain ⟨ho5, ho6, ho10, ho11, howslen, hofr, holimbs, hA0⟩ := houter
     obtain ⟨he5, _, _, _, _, _, _⟩ :=
       setupLE_exec src dst inBytes rfpre ws₀ (i + 1) (by omega) ho5 ho10 ho11
         howslen hofr
     rw [hrf, hws]
     exact outerLE_step_engine src dst inBytes _ ws₀ A₀ rf2 ws2 A' (i + 1) (by omega)
-      he5 howslen (fun k' m hk' hm => holimbs k' m (by omega) hm) hInv
+      he5 howslen (fun k' m hk' hm => holimbs k' m (by omega) hm) hA0 hInv
 end Bn254FieldConvSAsm
 
 end EvmAsm.Codegen
