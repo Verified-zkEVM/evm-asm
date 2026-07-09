@@ -51,29 +51,29 @@ namespace U256LtBeSAsm
 open U256MinSAsm (beBytesToNat_lt_of_prefix_lt bytes_eq_of_prefix_all)
 
 -- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.u256_lt_be = 0x80005154
+#guard GuestAddrs.u256_lt_be = 0x800052c4
 
 /-
-  Emitted layout (base 0x80005154):
-    +0  0x80005154  li   x5, 32
-    +4  0x80005158  mv   x6, x10
-    +8  0x8000515C  mv   x7, x11
-    +12 0x80005160  beq  x5, x0, +52   → 0x80005194 (tail 0)   [hdr]
-    +16 0x80005164  lbu  x28, 0(x6)
-    +20 0x80005168  lbu  x29, 0(x7)
-    +24 0x8000516C  bltu x28, x29, +24 → 0x80005184 (tail 1)
-    +28 0x80005170  bltu x29, x28, +36 → 0x80005194 (tail 0)
-    +32 0x80005174  addi x6, x6, 1
-    +36 0x80005178  addi x7, x7, 1
-    +40 0x8000517C  addi x5, x5, -1
-    +44 0x80005180  jal  x0, -32       → 0x80005160
-    +48 0x80005184  li   x30, 1                                [tail 1]
-    +52 0x80005188  sd   x30, 0(x12)
-    +56 0x8000518C  li   x10, 0
-    +60 0x80005190  jalr x0, x1, 0
-    +64 0x80005194  sd   x0, 0(x12)                            [tail 0]
-    +68 0x80005198  li   x10, 0
-    +72 0x8000519C  jalr x0, x1, 0
+  Emitted layout (base 0x800052c4):
+    +0  0x800052c4  li   x5, 32
+    +4  0x800052c8  mv   x6, x10
+    +8  0x800052cc  mv   x7, x11
+    +12 0x800052d0  beq  x5, x0, +52   → 0x80005304 (tail 0)   [hdr]
+    +16 0x800052d4  lbu  x28, 0(x6)
+    +20 0x800052d8  lbu  x29, 0(x7)
+    +24 0x800052dc  bltu x28, x29, +24 → 0x800052f4 (tail 1)
+    +28 0x800052e0  bltu x29, x28, +36 → 0x80005304 (tail 0)
+    +32 0x800052e4  addi x6, x6, 1
+    +36 0x800052e8  addi x7, x7, 1
+    +40 0x800052ec  addi x5, x5, -1
+    +44 0x800052f0  jal  x0, -32       → 0x800052d0
+    +48 0x800052f4  li   x30, 1                                [tail 1]
+    +52 0x800052f8  sd   x30, 0(x12)
+    +56 0x800052fc  li   x10, 0
+    +60 0x80005300  jalr x0, x1, 0
+    +64 0x80005304  sd   x0, 0(x12)                            [tail 0]
+    +68 0x80005308  li   x10, 0
+    +72 0x8000530c  jalr x0, x1, 0
 -/
 
 -- ============================================================================
@@ -151,19 +151,19 @@ private def ltPost : Assertion :=
     dword `1` to the owned output cell and returns `a0 = 0`. -/
 private theorem tail1_spec (a0Old : Word)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 4 (0x80005184 : Word) ret
-      (CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog)
+    cpsTripleWithin 4 (0x800052f4 : Word) ret
+      (CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog)
       (regOwn .x30 ** ((.x12 : Reg) ↦ᵣ outPtr) ** memOwn outPtr **
         ((.x10 : Reg) ↦ᵣ a0Old) ** ((.x1 : Reg) ↦ᵣ ret))
       (((.x30 : Reg) ↦ᵣ (1 : Word)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
         (outPtr ↦ₘ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ ret)) := by
-  set CR := CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog with hCR
+  set CR := CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog with hCR
   have hli := liftCode (cr' := CR)
-    (li_spec_gen_own_within .x30 (1 : Word) (0x80005184 : Word) (by decide))
+    (li_spec_gen_own_within .x30 (1 : Word) (0x800052f4 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80005184 : Word) + 4 = (0x80005188 : Word) from by decide] at hli
-  have htail := storeRetTail_spec CR (0x80005188 : Word) ret .x12 .x30 .x10
+  rw [show (0x800052f4 : Word) + 4 = (0x800052f8 : Word) from by decide] at hli
+  have htail := storeRetTail_spec CR (0x800052f8 : Word) ret .x12 .x30 .x10
     (0 : BitVec 12) outPtr (1 : Word) a0Old (0 : Word) (by decide) halignRet
     (by rw [hCR]; code_mem) (by rw [hCR]; code_mem) (by rw [hCR]; code_mem)
   rw [show outPtr + signExtend12 (0 : BitVec 12) = outPtr from by
@@ -181,15 +181,15 @@ private theorem tail1_spec (a0Old : Word)
     hardwired zero register is the stored source) and returns `a0 = 0`. -/
 private theorem tail0_spec (a0Old : Word)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 3 (0x80005194 : Word) ret
-      (CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog)
+    cpsTripleWithin 3 (0x80005304 : Word) ret
+      (CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog)
       (((.x12 : Reg) ↦ᵣ outPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         memOwn outPtr ** ((.x10 : Reg) ↦ᵣ a0Old) ** ((.x1 : Reg) ↦ᵣ ret))
       (((.x12 : Reg) ↦ᵣ outPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (outPtr ↦ₘ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ ret)) := by
-  set CR := CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog with hCR
-  have htail := storeRetTail_spec CR (0x80005194 : Word) ret .x12 .x0 .x10
+  set CR := CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog with hCR
+  have htail := storeRetTail_spec CR (0x80005304 : Word) ret .x12 .x0 .x10
     (0 : BitVec 12) outPtr (0 : Word) a0Old (0 : Word) (by decide) halignRet
     (by rw [hCR]; code_mem) (by rw [hCR]; code_mem) (by rw [hCR]; code_mem)
   rw [show outPtr + signExtend12 (0 : BitVec 12) = outPtr from by
@@ -213,12 +213,12 @@ private theorem ltIter_spec
     (hvalidB : ∀ k, k < 32 → isValidByteAccess (bPtr + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret)
     (i : Nat) (hi : i < 32) :
-    cpsBranchWithin 9 (0x80005160 : Word)
-      (CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog)
+    cpsBranchWithin 9 (0x800052d0 : Word)
+      (CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog)
       (ltInv aPtr bPtr outPtr ret as bs i)
       ret (ltPost aPtr bPtr outPtr ret as bs)
-      (0x80005160 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) := by
-  set CR := CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog with hCR
+      (0x800052d0 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) := by
+  set CR := CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog with hCR
   have hia : i < as.length := by omega
   have hib : i < bs.length := by omega
   set aByte := (as[i]'hia).zeroExtend 64 with haByte
@@ -273,7 +273,7 @@ private theorem ltIter_spec
       (fun v29 => ?_))
   -- canonical working set, x28/x29 concrete
   suffices hmain :
-      cpsBranchWithin 9 (0x80005160 : Word) CR
+      cpsBranchWithin 9 (0x800052d0 : Word) CR
         (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
          ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
          ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 i)) **
@@ -283,20 +283,20 @@ private theorem ltIter_spec
          ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) ** regOwn .x30 **
          bytesRegion aPtr as ** bytesRegion bPtr bs ** memOwn outPtr)
         ret (ltPost aPtr bPtr outPtr ret as bs)
-        (0x80005160 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) by
+        (0x800052d0 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) by
     exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun _ hq => hq) (fun _ hq => hq) hmain
-  -- ---- the two LBU loads (0x80005164, 0x80005168) ----
+  -- ---- the two LBU loads (0x800052d4, 0x800052d8) ----
   have hlbuA := liftCode (cr' := CR)
-    (bytesRegion_lbu_within .x28 .x6 aPtr v28 (0x80005164 : Word) as i
+    (bytesRegion_lbu_within .x28 .x6 aPtr v28 (0x800052d4 : Word) as i
       (by decide) halignA hia (by omega) (hvalidA i hi))
     (by rw [hCR]; code_mem)
-  rw [show (0x80005164 : Word) + 4 = (0x80005168 : Word) from by decide] at hlbuA
+  rw [show (0x800052d4 : Word) + 4 = (0x800052d8 : Word) from by decide] at hlbuA
   have hlbuB := liftCode (cr' := CR)
-    (bytesRegion_lbu_within .x29 .x7 bPtr v29 (0x80005168 : Word) bs i
+    (bytesRegion_lbu_within .x29 .x7 bPtr v29 (0x800052d8 : Word) bs i
       (by decide) halignB hib (by omega) (hvalidB i hi))
     (by rw [hCR]; code_mem)
-  rw [show (0x80005168 : Word) + 4 = (0x8000516C : Word) from by decide] at hlbuB
+  rw [show (0x800052d8 : Word) + 4 = (0x800052dc : Word) from by decide] at hlbuB
   have hlbuAF := cpsTripleWithin_frameR
     (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
       ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 i)) **
@@ -317,7 +317,7 @@ private theorem ltIter_spec
     (by pcf) hlbuB
   have hpre1 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) hlbuAF hlbuBF
-  -- ---- the header BEQ station (0x80005160; never taken at i < 32) ----
+  -- ---- the header BEQ station (0x800052d0; never taken at i < 32) ----
   have hbrHdr := cpsBranchWithin_frameR
     (((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
       ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 i)) **
@@ -328,13 +328,13 @@ private theorem ltIter_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (52 : BitVec 13)
-        (BitVec.ofNat 64 (32 - i)) (0 : Word) (0x80005160 : Word))
+        (BitVec.ofNat 64 (32 - i)) (0 : Word) (0x800052d0 : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80005160 : Word) + signExtend13 (52 : BitVec 13)
-        = (0x80005194 : Word) from by decide,
-      show (0x80005160 : Word) + 4 = (0x80005164 : Word) from by decide]
+  rw [show (0x800052d0 : Word) + signExtend13 (52 : BitVec 13)
+        = (0x80005304 : Word) from by decide,
+      show (0x800052d0 : Word) + 4 = (0x800052d4 : Word) from by decide]
     at hbrHdr
-  -- ---- break station A: bltu x28, x29 → tail 1 (0x8000516C) ----
+  -- ---- break station A: bltu x28, x29 → tail 1 (0x800052dc) ----
   have hbrA := cpsBranchWithin_frameR
     (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
       ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -346,13 +346,13 @@ private theorem ltIter_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := bltu_spec_gen_within .x28 .x29 (24 : BitVec 13) aByte bByte
-        (0x8000516C : Word))
+        (0x800052dc : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x8000516C : Word) + signExtend13 (24 : BitVec 13)
-        = (0x80005184 : Word) from by decide,
-      show (0x8000516C : Word) + 4 = (0x80005170 : Word) from by decide]
+  rw [show (0x800052dc : Word) + signExtend13 (24 : BitVec 13)
+        = (0x800052f4 : Word) from by decide,
+      show (0x800052dc : Word) + 4 = (0x800052e0 : Word) from by decide]
     at hbrA
-  -- ---- break station B: bltu x29, x28 → tail 0 (0x80005170) ----
+  -- ---- break station B: bltu x29, x28 → tail 0 (0x800052e0) ----
   have hbrB := cpsBranchWithin_frameR
     (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
       ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 i)) **
@@ -364,11 +364,11 @@ private theorem ltIter_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := bltu_spec_gen_within .x29 .x28 (36 : BitVec 13) bByte aByte
-        (0x80005170 : Word))
+        (0x800052e0 : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80005170 : Word) + signExtend13 (36 : BitVec 13)
-        = (0x80005194 : Word) from by decide,
-      show (0x80005170 : Word) + 4 = (0x80005174 : Word) from by decide]
+  rw [show (0x800052e0 : Word) + signExtend13 (36 : BitVec 13)
+        = (0x80005304 : Word) from by decide,
+      show (0x800052e0 : Word) + 4 = (0x800052e4 : Word) from by decide]
     at hbrB
   -- the canonical post-load working set (used as both stations' PT/PF)
   set WSL : Assertion :=
@@ -382,7 +382,7 @@ private theorem ltIter_spec
     bytesRegion aPtr as ** bytesRegion bPtr bs ** memOwn outPtr with hWSL
   -- ---- break arm A: tail 1 writes 1 (a < b decided) ----
   have htail1 : BitVec.ult aByte bByte →
-      cpsTripleWithin 5 (0x80005184 : Word) ret CR WSL
+      cpsTripleWithin 5 (0x800052f4 : Word) ret CR WSL
         (ltPost aPtr bPtr outPtr ret as bs) := by
     intro hc
     have hltN : (as[i]'hia).toNat < (bs[i]'hib).toNat := by
@@ -426,7 +426,7 @@ private theorem ltIter_spec
     xperm_hyp hq2
   -- ---- break arm B: tail 0 writes 0 (b < a decided) ----
   have htail0 : BitVec.ult bByte aByte →
-      cpsTripleWithin 4 (0x80005194 : Word) ret CR WSL
+      cpsTripleWithin 4 (0x80005304 : Word) ret CR WSL
         (ltPost aPtr bPtr outPtr ret as bs) := by
     intro hc
     have hltN : (bs[i]'hib).toNat < (as[i]'hia).toNat := by
@@ -472,7 +472,7 @@ private theorem ltIter_spec
     xperm_hyp hq2
   -- ---- continue segment: 3 × addi ; jal → header with inv (i+1) ----
   have hcont : ¬ BitVec.ult aByte bByte → ¬ BitVec.ult bByte aByte →
-      cpsTripleWithin 4 (0x80005174 : Word) (0x80005160 : Word) CR WSL
+      cpsTripleWithin 4 (0x800052e4 : Word) (0x800052d0 : Word) CR WSL
         (ltInv aPtr bPtr outPtr ret as bs (i + 1)) := by
     intro hnAB hnBA
     have hEqByte : as[i]'hia = bs[i]'hib := by
@@ -493,30 +493,30 @@ private theorem ltIter_spec
         rw [hgdA, hgdB, hEqByte]
     have haddi6 := liftCode (cr' := CR)
       (addi_spec_gen_same_within .x6 (aPtr + BitVec.ofNat 64 i) (1 : BitVec 12)
-        (0x80005174 : Word) (by decide))
+        (0x800052e4 : Word) (by decide))
       (by rw [hCR]; code_mem)
     rw [cursor_advance aPtr i,
-        show (0x80005174 : Word) + 4 = (0x80005178 : Word) from by decide]
+        show (0x800052e4 : Word) + 4 = (0x800052e8 : Word) from by decide]
       at haddi6
     have haddi7 := liftCode (cr' := CR)
       (addi_spec_gen_same_within .x7 (bPtr + BitVec.ofNat 64 i) (1 : BitVec 12)
-        (0x80005178 : Word) (by decide))
+        (0x800052e8 : Word) (by decide))
       (by rw [hCR]; code_mem)
     rw [cursor_advance bPtr i,
-        show (0x80005178 : Word) + 4 = (0x8000517C : Word) from by decide]
+        show (0x800052e8 : Word) + 4 = (0x800052ec : Word) from by decide]
       at haddi7
     have haddi5 := liftCode (cr' := CR)
       (addi_spec_gen_same_within .x5 (BitVec.ofNat 64 (32 - i)) (-1 : BitVec 12)
-        (0x8000517C : Word) (by decide))
+        (0x800052ec : Word) (by decide))
       (by rw [hCR]; code_mem)
     rw [counter_dec i hi,
-        show (0x8000517C : Word) + 4 = (0x80005180 : Word) from by decide]
+        show (0x800052ec : Word) + 4 = (0x800052f0 : Word) from by decide]
       at haddi5
     have hjal := liftCode (cr' := CR)
-      (jal_x0_spec_gen_within (-32 : BitVec 21) (0x80005180 : Word))
+      (jal_x0_spec_gen_within (-32 : BitVec 21) (0x800052f0 : Word))
       (by rw [hCR]; code_mem)
-    rw [show (0x80005180 : Word) + signExtend21 (-32 : BitVec 21)
-          = (0x80005160 : Word) from by decide] at hjal
+    rw [show (0x800052f0 : Word) + signExtend21 (-32 : BitVec 21)
+          = (0x800052d0 : Word) from by decide] at hjal
     have haddi6F := cpsTripleWithin_frameR
       (((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 i)) **
         ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
@@ -583,9 +583,9 @@ private theorem ltIter_spec
     xperm_hyp hq2
   -- ---- station B (bltu x29, x28): break → tail 0, fall → continue ----
   have hstB : ¬ BitVec.ult aByte bByte →
-      cpsBranchWithin (1 + 4) (0x80005170 : Word) CR WSL
+      cpsBranchWithin (1 + 4) (0x800052e0 : Word) CR WSL
         ret (ltPost aPtr bPtr outPtr ret as bs)
-        (0x80005160 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) :=
+        (0x800052d0 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) :=
     fun hnAB =>
       breakStation_spec (cond := BitVec.ult bByte aByte)
         (PT := WSL) (PF := WSL)
@@ -598,9 +598,9 @@ private theorem ltIter_spec
         (fun hnBA => cpsTripleWithin_as_cpsBranchWithin_right ret
           (ltPost aPtr bPtr outPtr ret as bs) (hcont hnAB hnBA))
   -- ---- station A (bltu x28, x29): break → tail 1, fall → station B ----
-  have hstA : cpsBranchWithin (1 + 5) (0x8000516C : Word) CR WSL
+  have hstA : cpsBranchWithin (1 + 5) (0x800052dc : Word) CR WSL
       ret (ltPost aPtr bPtr outPtr ret as bs)
-      (0x80005160 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) :=
+      (0x800052d0 : Word) (ltInv aPtr bPtr outPtr ret as bs (i + 1)) :=
     breakStation_spec (cond := BitVec.ult aByte bByte)
       (PT := WSL) (PF := WSL)
       (cpsBranchWithin_weaken
@@ -647,11 +647,11 @@ private theorem ltIter_spec
 private theorem ltExh_spec
     (hlenA : as.length = 32) (hlenB : bs.length = 32)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 4 (0x80005160 : Word) ret
-      (CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog)
+    cpsTripleWithin 4 (0x800052d0 : Word) ret
+      (CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog)
       (ltInv aPtr bPtr outPtr ret as bs 32)
       (ltPost aPtr bPtr outPtr ret as bs) := by
-  set CR := CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog with hCR
+  set CR := CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog with hCR
   unfold ltInv
   refine cpsTripleWithin_pure_pre (fun hpref => ?_)
   have hEq : as = bs := bytes_eq_of_prefix_all as bs (by omega)
@@ -669,14 +669,14 @@ private theorem ltExh_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (52 : BitVec 13)
-        (BitVec.ofNat 64 (32 - 32)) (0 : Word) (0x80005160 : Word))
+        (BitVec.ofNat 64 (32 - 32)) (0 : Word) (0x800052d0 : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80005160 : Word) + signExtend13 (52 : BitVec 13)
-        = (0x80005194 : Word) from by decide,
-      show (0x80005160 : Word) + 4 = (0x80005164 : Word) from by decide]
+  rw [show (0x800052d0 : Word) + signExtend13 (52 : BitVec 13)
+        = (0x80005304 : Word) from by decide,
+      show (0x800052d0 : Word) + 4 = (0x800052d4 : Word) from by decide]
     at hbrHdr
   -- taken arm: tail 0 writes 0 (framed, converted, if-resolved)
-  have htail : cpsTripleWithin 3 (0x80005194 : Word) ret CR
+  have htail : cpsTripleWithin 3 (0x80005304 : Word) ret CR
       (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - 32)) **
        ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 32)) **
        ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 32)) **
@@ -756,8 +756,8 @@ theorem u256LtBe_spec (aPtr bPtr outPtr ret : Word) (as bs : List (BitVec 8))
     (hvalidA : ∀ k, k < 32 → isValidByteAccess (aPtr + BitVec.ofNat 64 k) = true)
     (hvalidB : ∀ k, k < 32 → isValidByteAccess (bPtr + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 295 (0x80005154 : Word) ret
-      (CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog)
+    cpsTripleWithin 295 (0x800052c4 : Word) ret
+      (CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog)
       (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -772,7 +772,7 @@ theorem u256LtBe_spec (aPtr bPtr outPtr ret : Word) (as bs : List (BitVec 8))
        bytesRegion aPtr as ** bytesRegion bPtr bs **
        (outPtr ↦ₘ (if beBytesToNat as < beBytesToNat bs
          then (1 : Word) else (0 : Word)))) := by
-  set CR := CodeReq.ofProg (0x80005154 : Word) u256LtBe_prog with hCR
+  set CR := CodeReq.ofProg (0x800052c4 : Word) u256LtBe_prog with hCR
   -- peel the MV destinations x6, x7
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
@@ -796,19 +796,19 @@ theorem u256LtBe_spec (aPtr bPtr outPtr ret : Word) (as bs : List (BitVec 8))
       (fun v7 => ?_))
   -- ---- init: li x5, 32 ; mv x6, a0 ; mv x7, a1 ----
   have hli5 := liftCode (cr' := CR)
-    (li_spec_gen_own_within .x5 (32 : Word) (0x80005154 : Word) (by decide))
+    (li_spec_gen_own_within .x5 (32 : Word) (0x800052c4 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80005154 : Word) + 4 = (0x80005158 : Word) from by decide] at hli5
+  rw [show (0x800052c4 : Word) + 4 = (0x800052c8 : Word) from by decide] at hli5
   have hmv6 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x6 .x10 aPtr v6 (0x80005158 : Word) (by decide))
+    (mv_spec_gen_within .x6 .x10 aPtr v6 (0x800052c8 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80005158 : Word) + 4 = (0x8000515C : Word) from by decide] at hmv6
+  rw [show (0x800052c8 : Word) + 4 = (0x800052cc : Word) from by decide] at hmv6
   have hmv7 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x7 .x11 bPtr v7 (0x8000515C : Word) (by decide))
+    (mv_spec_gen_within .x7 .x11 bPtr v7 (0x800052cc : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x8000515C : Word) + 4 = (0x80005160 : Word) from by decide] at hmv7
+  rw [show (0x800052cc : Word) + 4 = (0x800052d0 : Word) from by decide] at hmv7
   -- ---- the two-break writable-output loop ----
-  have hloop := twoBreakRetLoop_spec (hdr := (0x80005160 : Word)) (ret := ret)
+  have hloop := twoBreakRetLoop_spec (hdr := (0x800052d0 : Word)) (ret := ret)
     (cr := CR) (Q := ltPost aPtr bPtr outPtr ret as bs) 32 9 4
     (ltInv aPtr bPtr outPtr ret as bs)
     (fun i hi => ltIter_spec aPtr bPtr outPtr ret as bs hlenA hlenB
