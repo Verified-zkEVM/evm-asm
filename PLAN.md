@@ -257,7 +257,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
   as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
   (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
-  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  single-exit drop-in with EEST A/B parity required); `Bls12G2EqNSAsm.lean`
+  verifies the dynamic `blsg2_eq_n` read-only dual-buffer byte equality leaf
+  (`blsg2EqNFn_spec`, post keyed by `firstDiff bs1 bs2 n`, `a2 = n`), as a
+  same-length single-exit re-emitted drop-in for BLS G2 callers; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
@@ -3083,6 +3086,31 @@ bBE) c₀ m₀` (`(a·b+c₀) mod m₀`, `c₀`/`m₀` the staged addend/modulus
 framed.  Both converters (`Bn254FieldConvSAsm`) retrofitted with ambient-`A`
 pinning (`A = empAssertion`) to satisfy `Fn.retSpecFlat`'s side condition.
 Classical-3.
+**Two-break writable-output combinator + `u256_lt_be` landed** (branch
+`feat/two-break-writable-lt`, bead evm-asm-i177q; porting-agent feedback —
+`retWhileBreak` has one mid-loop return break, `while2BreakJoin`
+reconverges at a join; neither routes TWO break guards to TWO
+writable-output return tails with DISTINCT stored values).
+`SAsm/TwoBreakWritable.lean` (cpsTripleWithin level, additive):
+`storeRetTail_spec` — the `SD rb, rs, ofs ; LI rd, c ; ret` tail storing
+the `rs`-held value into an OWNED output dword cell, register/offset/
+value-agnostic, proven once per tail address; `breakStation_spec` — a
+break-guard station whose taken arm runs a return tail to the shared
+`ret` continuation and whose fall-through continues the iteration
+(chaining = nesting, `retJoinStation_spec`-style); `twoBreakRetLoop_spec`
+— the return-terminating loop (each iteration breaks-to-`ret` with the
+final post or re-enters the header with the invariant advanced;
+exhaustion returns too); plus branch-level glue (`cpsBranchWithin_pure_pre`,
+triple↔branch coercions, `cpsBranchWithin_merge_branch_same_cr`).
+Consumer `u256_lt_be` (`Codegen/Programs/U256LtBeSAsm.lean`, `#guard`-tied
+GuestAddrs.u256_lt_be = 0x80005154, spec directly over the emitted
+`u256LtBe_prog` — byte-transparent, no A/B): the 32-iteration dual
+byte-walk with two `BLTU` break stations (a<b → tail writes `1`; b<a and
+exhaustion → tail writes `0`, the `x0`-sourced store) and
+`U256MinSAsm.beBytesToNat_lt_of_prefix_lt` (de-privatized, reused from
+#10060) gives the GENUINE post `[a2] = if beBytesToNat as < beBytesToNat
+bs then 1 else 0` (dword), `a0 = 0`, inputs untouched.  Classical-3.
+Unblocks secf_reduce_once (4ch8f.38.2.4.1).
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry

@@ -69,9 +69,6 @@ def frameReturnFunction : String :=
   "  mv s0, a0                      # success word\n" ++
   "  mv s1, a1                      # child returndata ptr\n" ++
   "  mv s2, a2                      # returndata len\n" ++
-  -- Capture the child frame's leftover gas (x20 = child env at entry) for the
-  -- EIP-150 refund below; held in s7 across the x20 repoint.
-  "  ld s7, 568(x20)\n" ++
   -- Capture the child frame's committed log cursors. On success these become
   -- the parent's live cursors; on REVERT/exceptional failure the parent keeps
   -- its pre-child checkpoint values.
@@ -87,36 +84,54 @@ def frameReturnFunction : String :=
   -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
   -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
   "  bnez s0, .Lfr_sgas_done\n" ++
-  -- On child error, execution-specs returns the child state-gas allocation to
-  -- the parent's state reservoir, not to regular gas. If a child state-gas
-  -- charge spilled into `gas_left`, that regular gas remains spent; do not add
-  -- it back to the child leftover before the EIP-150 gas merge.
-  "  ld t0, 632(x20)                 # used0\n" ++
-  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
-  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left, including child refunds\n" ++
-  "  bleu t2, t0, .Lfr_sgas_restore_left\n" ++
-  "  sub t2, t2, t0                 # child used allocation rolls back into left\n" ++
-  "  add t3, t3, t2\n" ++
-  ".Lfr_sgas_restore_left:\n" ++
-  "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
-  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
-  -- coc3g.9.3.4: CREATE-specific state gas credit on child failure. The CREATE charge
-  -- (amsterdamStateBytesPerNewAccountV2 = 120*1530 = 183600) is refunded to
-  -- state_gas_left and subtracted from state_gas_used, matching execution-specs
-  -- credit_state_gas_refund(evm, create_account_state_gas). This MUST NOT touch
-  -- gas_left; the spec credits state_gas_left only. Check create_frame_flag[child_depth]
-  -- (set by create_frame_descend).
-  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
-  "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
-  "  ld t0, 0(t0)\n" ++
-  "  beqz t0, .Lfr_create_credit_done\n" ++
-  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
-  "  li t2, 183600\n" ++
-  "  add t1, t1, t2; sd t1, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used; ld t1, 0(t0)\n" ++
-  "  bltu t1, t2, .Lfr_create_credit_done\n" ++
-  "  sub t1, t1, t2; sd t1, 0(t0)\n" ++
-  ".Lfr_create_credit_done:\n" ++
+  -- On child error, execution-specs `refill_frame_state_gas` returns the
+  -- child state-gas allocation in LIFO order: the portion that spilled into
+  -- `gas_left` is credited back to the child frame gas first, and only the
+  -- non-spilled remainder returns to the state reservoir.
+  "  ld t0, 632(x20)                 # used0
+" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used
+" ++
+  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left, including child refunds
+" ++
+  "  la t1, evm_state_gas_spilled; ld t4, 0(t1)
+" ++
+  "  ld t5, 760(x20)                 # spilled0
+" ++
+  "  bleu t4, t5, .Lfr_sgas_no_spill_delta
+" ++
+  "  sub t4, t4, t5                 # child spilled allocation
+" ++
+  "  ld t6, 568(x20); add t6, t6, t4; sd t6, 568(x20)
+" ++
+  "  j .Lfr_sgas_have_spill_delta
+" ++
+  ".Lfr_sgas_no_spill_delta:
+" ++
+  "  li t4, 0
+" ++
+  ".Lfr_sgas_have_spill_delta:
+" ++
+  "  bleu t2, t0, .Lfr_sgas_restore_left
+" ++
+  "  sub t2, t2, t0                 # child used allocation
+" ++
+  "  bleu t2, t4, .Lfr_sgas_restore_left
+" ++
+  "  sub t2, t2, t4                 # non-spilled remainder rolls back into left
+" ++
+  "  add t3, t3, t2
+" ++
+  ".Lfr_sgas_restore_left:
+" ++
+  "  la t1, evm_state_gas_left; sd t3, 0(t1)
+" ++
+  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)
+" ++
+  "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)
+" ++
+  ".Lfr_create_credit_done:
+" ++
   -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
   -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
   -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
@@ -160,6 +175,9 @@ def frameReturnFunction : String :=
   "  j .Lfr_bloom_restore_loop\n" ++
   ".Lfr_bloom_restore_done:\n" ++
   ".Lfr_sgas_done:\n" ++
+  -- Capture child leftover gas after possible state-gas LIFO refill; held in
+  -- s7 across the x20 repoint for the EIP-150 merge below.
+  "  ld s7, 568(x20)\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
@@ -438,6 +456,7 @@ def ziskFrameReturnDataSection : String :=
   -- the guest dispatcher data section; stubbed here so the probe links).
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_state_gas_spilled:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++

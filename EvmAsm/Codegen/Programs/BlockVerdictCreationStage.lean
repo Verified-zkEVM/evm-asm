@@ -274,10 +274,21 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
   "  mv s3, a2\n" ++
+  "  beqz s3, .Lbvcr_runtime_gas_left_ready\n" ++
+  "  la t4, bvgr_tx_state_refund; ld t4, 0(t4); beqz t4, .Lbvcr_fresh_create_receipt_gas\n" ++
+  "  li t0, 23006            # existing balance-only target: NEW_ACCOUNT state gas is refunded\n" ++
+  "  j .Lbvcr_receipt_gas_have\n" ++
+  ".Lbvcr_fresh_create_receipt_gas:\n" ++
+  "  li t0, 206606           # fresh target: regular intrinsic plus NEW_ACCOUNT state gas\n" ++
+  ".Lbvcr_receipt_gas_have:\n" ++
+  "  bltu a0, t0, .Lbvcr_runtime_gas_left_ready\n" ++
+  "  sub a0, a0, t0          # publish combined left: tx.gas - receipt pre-refund gas\n" ++
+  ".Lbvcr_runtime_gas_left_ready:\n" ++
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  la t4, bv_tx_status_arr; sd s3, 0(t4)\n" ++
+  "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
   -- Amsterdam EIP-7708: process_create_message transfers value into the child
   -- frame before initcode runs, emitting Transfer(sender, created, value). The

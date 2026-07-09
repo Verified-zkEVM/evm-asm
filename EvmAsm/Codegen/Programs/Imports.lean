@@ -139,6 +139,7 @@ import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
+import EvmAsm.Codegen.Programs.Bls12G2EqNSAsm
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
@@ -148,6 +149,7 @@ import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
+import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid

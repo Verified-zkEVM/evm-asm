@@ -34,7 +34,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace CallFrameBaseSAsm
 
 -- Address anchors.
-#guard GuestAddrs.frame_base = 0x8003803c
+#guard GuestAddrs.frame_base = 0x800380f8
 #guard GuestAddrs.call_frame_arena = 0xac463940
 
 /-- The 6-instruction body (everything but the `ret`). -/
@@ -56,22 +56,22 @@ theorem frameBase_prog_tie :
     materialized address is `la_resolve`-proven. -/
 theorem fb_laHi_agree :
     laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)
-      = EvmAsm.Rv64.laHi (0x80038048 : Word) (0xac463940 : Word) := by decide
+      = EvmAsm.Rv64.laHi (0x80038104 : Word) (0xac463940 : Word) := by decide
 
 theorem fb_laLo_agree :
     laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)
-      = EvmAsm.Rv64.laLo (0x80038048 : Word) (0xac463940 : Word) := by decide
+      = EvmAsm.Rv64.laLo (0x80038104 : Word) (0xac463940 : Word) := by decide
 
 /-- The `AUIPC`/`ADDI` arithmetic, PROVEN via `la_resolve` (only the
     decidable `laInRange` representability is discharged). -/
 theorem fb_la_resolved :
-    (0x80038048 : Word)
+    (0x80038104 : Word)
       + (((laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)).zeroExtend 32
           : BitVec 32) <<< 12).signExtend 64
       + signExtend12 (laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12))
       = (0xac463940 : Word) := by
   rw [fb_laHi_agree, fb_laLo_agree]
-  exact la_resolve (0x80038048 : Word) (0xac463940 : Word) (by decide)
+  exact la_resolve (0x80038104 : Word) (0xac463940 : Word) (by decide)
 
 /-- Every exposed register except the argument/result `a0`. -/
 def fbRest : List Reg :=
@@ -83,8 +83,8 @@ def fbRest : List Reg :=
     arithmetic, with the arena address `la_resolve`-proven. -/
 theorem frameBase_spec (depth ret : Word)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 7 (0x8003803c : Word) ret
-      (CodeReq.ofProg (0x8003803c : Word) frameBase_prog)
+    cpsTripleWithin 7 (0x800380f8 : Word) ret
+      (CodeReq.ofProg (0x800380f8 : Word) frameBase_prog)
       (((.x10 : Reg) ↦ᵣ depth) ** ((.x1 : Reg) ↦ᵣ ret) ** regOwns fbRest)
       (((.x10 : Reg) ↦ᵣ ((0xac463940 : Word) + (depth - 1) * (0x39000 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns fbRest) := by
@@ -96,20 +96,20 @@ theorem frameBase_spec (depth ret : Word)
   set rf : RegFile := (fun r => if r = .x10 then depth else vf r) with hrf
   -- ---- the 6-instruction block, through the PC-threaded bridge ----
   have hblk := cpsTripleWithin_extend_code
-    (hmono := CodeReq.ofProg_mono_sub (0x8003803c : Word) (0x8003803c : Word)
+    (hmono := CodeReq.ofProg_mono_sub (0x800380f8 : Word) (0x800380f8 : Word)
       frameBase_prog fbBlock 0 (by decide) (by decide) (by decide) (by decide))
-    (blockAt_regs_spec fbBlock rf (0x8003803c : Word)
+    (blockAt_regs_spec fbBlock rf (0x800380f8 : Word)
       (by decide) (by decide) (by decide))
-  rw [show (0x8003803c : Word) + BitVec.ofNat 64 (4 * fbBlock.length)
-        = (0x80038054 : Word) from by decide] at hblk
+  rw [show (0x800380f8 : Word) + BitVec.ofNat 64 (4 * fbBlock.length)
+        = (0x80038110 : Word) from by decide] at hblk
   -- ---- the engine image as an explicit set-chain ----
-  set rf' := (execBlockAt Region.empty RwRegion.empty.base (0x8003803c : Word)
+  set rf' := (execBlockAt Region.empty RwRegion.empty.base (0x800380f8 : Word)
     rf [] fbBlock).1 with hrf'
   set s1 := rf.set .x5 (rf.get .x10 + signExtend12 (-1 : BitVec 12)) with hs1
   set s2 := s1.set .x6
     ((((57 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64) with hs2
   set s3 := s2.set .x5 (s2.get .x5 * s2.get .x6) with hs3
-  set s4 := s3.set .x6 ((0x80038048 : Word)
+  set s4 := s3.set .x6 ((0x80038104 : Word)
     + (((laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)).zeroExtend 32
         : BitVec 32) <<< 12).signExtend 64) with hs4
   set s5 := s4.set .x6 (s4.get .x6
@@ -281,8 +281,8 @@ theorem frameBase_spec (depth ret : Word)
     exact regAtomsOf_congr _ _ exposedRegs hvals
   rw [hpost] at hblk
   -- ---- the ret ----
-  have hret := liftCode (cr' := CodeReq.ofProg (0x8003803c : Word) frameBase_prog)
-    (EvmAsm.Evm64.ret_spec_within' (0x80038054 : Word) ret)
+  have hret := liftCode (cr' := CodeReq.ofProg (0x800380f8 : Word) frameBase_prog)
+    (EvmAsm.Evm64.ret_spec_within' (0x80038110 : Word) ret)
     (by code_mem)
   rw [halign] at hret
   -- ---- frames + chain ----

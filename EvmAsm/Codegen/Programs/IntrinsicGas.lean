@@ -567,10 +567,9 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
     Mirror execution-specs Amsterdam `process_transaction` per-tx state-gas
     accounting (fork.py ~1122-1130, 1194-1202):
 
-      if tx_output.error is not None:
-          tx_output.state_gas_left += tx_output.state_gas_used
-          tx_output.state_gas_used = Uint(0)
-          if isinstance(tx.to, Bytes0):              # creation
+      if isinstance(tx.to, Bytes0) and (
+          tx_output.error is not None or tx_output.created_target_alive
+      ):                                                # creation
               new_account_refund =
                   STATE_BYTES_PER_NEW_ACCOUNT * COST_PER_STATE_BYTE   # 183600
               tx_output.state_gas_left  += new_account_refund
@@ -587,8 +586,8 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
     `state_gas_used` / `state_refund` from SSTORE/CREATE are NOT derivable here;
     they are supplied by the caller's conservative model (zero in the common
     BAL-replay path). This helper implements the BAL-derivable subset:
-    `intrinsic_state_gas` plus the error-path restore (zero out
-    `state_gas_used`, add the new-account refund for a reverted creation),
+    `intrinsic_state_gas`, runtime `state_gas_used`, and the top-level
+    creation new-account refund when execution-specs applies it,
     then forms `tx_state_gas`. `state_refund` exceeding
     `intrinsic_state_gas + state_gas_used` (a Uint underflow in Python) is
     reported as a nonzero status rather than wrapping. -/
@@ -597,7 +596,6 @@ def eip8037TxStateGasFunction : String :=
   "  # a0=intrinsic_state_gas, a1=state_gas_used, a2=state_refund,\n" ++
   "  # a3=error_flag, a4=creation_error_refund_eligible, a5=tx_state_gas_out\n" ++
   "  beq a3, zero, .Le8037sg_settle\n" ++
-  "  li a1, 0                   # error: state_gas_used = 0\n" ++
   "  beq a4, zero, .Le8037sg_settle\n" ++
   liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
   "  add a2, a2, t0            # creation revert: state_refund += new_account_refund\n" ++
@@ -658,9 +656,8 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
 
       tx_state_gas = intrinsic_state_gas + state_gas_used - state_refund
 
-    with the transaction-error rule handled by `eip8037_tx_state_gas`:
-    on error, `state_gas_used = 0`, and creation errors that entered process_create_message add the new-account
-    refund before the subtraction.
+    with the top-level creation refund rule handled by `eip8037_tx_state_gas`:
+    creation errors or already-alive creation targets add the new-account refund before the subtraction.
 
     ABI:
       a0 = intrinsic_state_gas array ptr

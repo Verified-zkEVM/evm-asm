@@ -45,6 +45,14 @@ def callFrameEnterFunction : String :=
   "call_frame_enter:\n" ++
   "  addi sp, sp, -16\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  la t0, evm_sparse_memory_next_epoch\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  addi t2, t1, 1\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  la t0, evm_sparse_memory_epoch_by_depth\n" ++
+  "  slli t2, a0, 3\n" ++
+  "  add t0, t0, t2\n" ++
+  "  sd t1, 0(t0)\n" ++
   "  jal ra, frame_base                 # a0 = call_frame_arena + (d-1)*0x39000\n" ++
   "  mv s0, a0                          # s0 = child slot base (frameMemOff = 0)\n" ++
   -- Zero-init the child's 128 KiB EVM memory [base, base + 0x20000).
@@ -433,14 +441,17 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
   ".Lcfd_lbov_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
-  -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used) into the
-  -- child env so a child REVERT / exceptional halt can restore it in frame_return,
+  -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used,
+  -- evm_state_gas_spilled = state gas drawn from gas_left) into the child env
+  -- so a child REVERT / exceptional halt can restore it in frame_return,
   -- matching execution-specs incorporate_child_on_error (the reverted child's
   -- entire state-gas allocation is returned to the parent and state_gas_used is
   -- NOT accumulated). s9 = child env; env offsets 624/632 are free (the env is
   -- frameEnvBytes=768 and its fields end at 616). Mirrors persistentLogCheckpoint.
   "  la t1, evm_state_gas_left; ld t0, 0(t1); sd t0, 624(s9)   # state_gas_left snapshot\n" ++
   "  la t1, evm_state_gas_used; ld t0, 0(t1); sd t0, 632(s9)   # state_gas_used snapshot\n" ++
+  "  la t1, evm_state_gas_spilled; ld t0, 0(t1); sd t0, 760(s9) # state_gas_spilled snapshot\n" ++
+  "  la t1, cd_new_account_charged_current; ld t0, 0(t1); sd t0, 752(s9); sd zero, 0(t1) # CALL new-account charge flag\n" ++
   -- nxio8.4.2: also snapshot the EIP-3529 refund accumulator (evm_refund_acc) so a
   -- child REVERT discards the child's refund_counter additions, matching
   -- incorporate_child_on_error (which does NOT add child.refund_counter to the
@@ -749,6 +760,7 @@ def ziskCallFrameDescendDataSection : String :=
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
+  "cd_new_account_charged_current:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
