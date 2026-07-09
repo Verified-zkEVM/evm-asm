@@ -7,9 +7,11 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
 import EvmAsm.Rv64.SAsm.MultiRead
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 
 namespace EvmAsm.Codegen
 
@@ -534,6 +536,158 @@ theorem blsg2EqNFn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) (n : Nat)
 
 
 #print axioms blsg2EqNFn_spec
+
+/-! ## The byte-transparent whole-routine spec (genuine byte-equality post)
+
+    `blsg2EqN_spec` supersedes the `firstDiff`-shaped `Fn` post above: it is
+    stated at the `#guard`-tied `GuestAddrs.blsg2_eq_n` directly over the
+    emitted `blsg2EqN_prog` (byte-transparent — the program IS the 3-`MV`
+    init followed by `DualReadByteScan.byteScanProg` at the emitted
+    registers, kernel-checked below), with the REAL dynamic-length
+    byte-equality verdict:
+
+    `a0 = (if bs1 = bs2 then 1 else 0)`, both `n`-byte inputs untouched
+    (`n` the entry value of `a2`), via `DualReadByteScan.scan_spec` and its
+    per-byte → byte-list bridge `bytes_eq_of_prefix_eq`. -/
+
+-- Address anchor (fails the build if the guest link moves).
+#guard GuestAddrs.blsg2_eq_n = 0x80033b80
+
+/-- Byte-tie: the emitted `blsg2_eq_n` IS the `mv;mv;mv` init followed by
+    the dynamic-length byte dual-read scan at the emitted registers. -/
+theorem blsg2EqN_prog_eq_scan :
+    [Instr.MV .x6 .x10, .MV .x7 .x11, .MV .x5 .x12]
+      ++ DualReadByteScan.byteScanProg .x5 .x28 .x29 .x6 .x7
+      = blsg2EqN_prog := rfl
+
+#guard [Instr.MV .x6 .x10, .MV .x7 .x11, .MV .x5 .x12]
+  ++ DualReadByteScan.byteScanProg .x5 .x28 .x29 .x6 .x7 = blsg2EqN_prog
+
+/-- **`blsg2_eq_n` at its linked address** (genuine post): `a0 = 1` iff the
+    two `n`-byte buffers at `a0`/`a1` are byte-equal (`n` = the entry value
+    of `a2`), else `a0 = 0`; both inputs untouched. -/
+theorem blsg2EqN_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
+    (n : Nat)
+    (hlen1 : bs1.length = n) (hlen2 : bs2.length = n)
+    (halign1 : ptr1.toNat % 8 = 0) (halign2 : ptr2.toNat % 8 = 0)
+    (hov1 : ptr1.toNat + n < 2 ^ 64) (hov2 : ptr2.toNat + n < 2 ^ 64)
+    (hvalid1 : ∀ k, k < n → isValidByteAccess (ptr1 + BitVec.ofNat 64 k) = true)
+    (hvalid2 : ∀ k, k < n → isValidByteAccess (ptr2 + BitVec.ofNat 64 k) = true)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (n * 8 + 7) (0x80033b80 : Word) ret
+      (CodeReq.ofProg (0x80033b80 : Word) blsg2EqN_prog)
+      (((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
+       ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x1 : Reg) ↦ᵣ ret) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+       bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+      (((.x10 : Reg) ↦ᵣ (if bs1 = bs2 then (1 : Word) else (0 : Word))) **
+       ((.x11 : Reg) ↦ᵣ ptr2) ** ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+       bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2) := by
+  set CR := CodeReq.ofProg (0x80033b80 : Word) blsg2EqN_prog with hCR
+  -- peel the MV destinations x6, x7, x5
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
+      (P := ((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
+        ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+      (fun v6 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7)
+      (P := ((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
+        ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** ((.x6 : Reg) ↦ᵣ v6) ** regOwn .x28 ** regOwn .x29 **
+        bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+      (fun v7 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+      (P := ((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
+        ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+        regOwn .x28 ** regOwn .x29 **
+        bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+      (fun v5 => ?_))
+  -- ---- init: mv x6, a0 ; mv x7, a1 ; mv x5, a2 ----
+  have hmv6 := liftCode (cr' := CR)
+    (mv_spec_gen_within .x6 .x10 ptr1 v6 (0x80033b80 : Word) (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show (0x80033b80 : Word) + 4 = (0x80033b84 : Word) from by decide] at hmv6
+  have hmv7 := liftCode (cr' := CR)
+    (mv_spec_gen_within .x7 .x11 ptr2 v7 (0x80033b84 : Word) (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show (0x80033b84 : Word) + 4 = (0x80033b88 : Word) from by decide] at hmv7
+  have hmv5 := liftCode (cr' := CR)
+    (mv_spec_gen_within .x5 .x12 (BitVec.ofNat 64 n) v5 (0x80033b88 : Word)
+      (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show (0x80033b88 : Word) + 4 = (0x80033b8c : Word) from by decide] at hmv5
+  -- ---- the dynamic-length byte dual-read scan (lifted into CR) ----
+  have hscan := cpsTripleWithin_extend_code (cr' := CR)
+    (hmono := by
+      rw [hCR]
+      exact CodeReq.ofProg_mono_sub (0x80033b80 : Word) (0x80033b8c : Word)
+        blsg2EqN_prog (DualReadByteScan.byteScanProg .x5 .x28 .x29 .x6 .x7) 3
+        (by decide) (by decide) (by decide) (by decide))
+    (h := DualReadByteScan.scan_spec .x5 .x28 .x29 .x6 .x7
+      (0x80033b8c : Word) ret ptr1 ptr2 bs1 bs2 n
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+      hlen1 hlen2 halign1 halign2 hov1 hov2 hvalid1 hvalid2 halignRet)
+  -- ---- frames + chain ----
+  have hmv6F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ ptr2) ** ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+      ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x5 : Reg) ↦ᵣ v5) ** ((.x7 : Reg) ↦ᵣ v7) **
+      regOwn .x28 ** regOwn .x29 **
+      bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+    (by pcf) hmv6
+  have hmv7F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ ptr1) ** ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+      ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ ptr1) **
+      regOwn .x28 ** regOwn .x29 **
+      bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+    (by pcf) hmv7
+  have hmv5F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
+      ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x6 : Reg) ↦ᵣ ptr1) ** ((.x7 : Reg) ↦ᵣ ptr2) **
+      regOwn .x28 ** regOwn .x29 **
+      bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2)
+    (by pcf) hmv5
+  have hscanF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ ptr2) ** ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n))
+    (by pcf) hscan
+  have hc1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hmv6F hmv7F
+  have hc2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hc1 hmv5F
+  have hc3 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hp1 : (((.x10 : Reg) ↦ᵣ ptr1) **
+          (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x6 : Reg) ↦ᵣ ptr1) **
+           ((.x7 : Reg) ↦ᵣ ptr2) ** ((.x1 : Reg) ↦ᵣ ret) **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2 **
+           regOwn .x28 ** regOwn .x29 **
+           ((.x11 : Reg) ↦ᵣ ptr2) ** ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n))) h := by
+        xperm_hyp hp
+      have hp2 := sepConj_mono (regIs_to_regOwn .x10 _)
+        (fun _ hh => hh) h hp1
+      xperm_hyp hp2) hc2 hscanF
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    (cpsTripleWithin_mono_nSteps (by omega) hc3)
+
+#print axioms blsg2EqN_spec
 
 end Bls12G2EqNSAsm
 
