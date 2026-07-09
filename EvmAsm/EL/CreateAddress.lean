@@ -43,9 +43,6 @@ abbrev AddressDeriver := CreateAddressInput → Address
 def derivedAddress (deriver : AddressDeriver) (input : CreateAddressInput) : Address :=
   deriver input
 
-def resultAddressMatches (result : CreateResult) (address : Address) : Prop :=
-  result.status = .deployed ∧ result.address? = some address
-
 theorem fromRequest?_forCreate
     (creator : Address) (value : Word256) (initcode : List Byte) (gas creatorNonce : Nat)
     (initcodeHash : Hash256) :
@@ -68,28 +65,6 @@ theorem fromRequest?_forCreate2
 
 theorem derivedAddress_eq (deriver : AddressDeriver) (input : CreateAddressInput) :
     derivedAddress deriver input = deriver input := rfl
-
-theorem resultAddressMatches_mk
-    (address : Address) (state : WorldState) (returndata : List Byte) (gasRemaining : Nat) :
-    resultAddressMatches
-      { status := .deployed
-        address? := some address
-        state := state
-        returndata := returndata
-        gasRemaining := gasRemaining }
-      address := by
-  exact ⟨rfl, rfl⟩
-
-theorem not_resultAddressMatches_failed
-    (address : Address) (state : WorldState) (returndata : List Byte) (gasRemaining : Nat) :
-    ¬ resultAddressMatches
-      { status := .failed
-        address? := none
-        state := state
-        returndata := returndata
-        gasRemaining := gasRemaining }
-      address := by
-  simp [resultAddressMatches]
 
 end CreateAddress
 

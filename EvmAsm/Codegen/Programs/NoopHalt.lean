@@ -44,6 +44,14 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, .Lrr_call_" ++ toString kind ++ "\n" ++
     "  sd x0, 0(t1)\n" ++
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
@@ -163,15 +171,15 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- A successful CREATE exposes empty returndata to the parent (execution-specs
       -- generic_create sets return_data = b"" after incorporate_child_on_success);
       -- the returned constructor bytes were already consumed as deployed code above.
+      "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+      "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+      "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       -- execution-specs generic_create credits the CREATE NEW_ACCOUNT state-gas
-      -- charge back when the CREATE target was already alive. At this point
-      -- code/nonzero-nonce targets would have failed the deployable check, so
-      -- target_alive also includes same-tx prior CREATE deposits captured in create_target_alive_current_tx.
-      "  la t0, nse_create_pre_bal\n" ++
-      "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-      "  la t0, create_target_alive_current_tx\n  ld t2, 0(t0)\n  or t1, t1, t2\n" ++
+      -- charge back when the CREATE target was already alive before child execution.
+      -- The depth-scoped flag was copied to create_target_alive_current_tx before frame_return.
+      "  la t0, create_target_alive_current_tx\n  ld t1, 0(t0)\n" ++
       "  beqz t1, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
       "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
       "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
@@ -360,10 +368,11 @@ private def selfdestructTailAsm : String :=
   -- exec_code_effect_log (the CREATE deposit recorded the deployed code there); on a hit set
   -- evm_selfdestruct_created_in_tx=1 so the downstream balance-transfer / EIP-7708 log / beneficiary
   -- nonstorage record (Selfdestruct.lean) take the created-in-tx paths (emit a Burn for self-destruct
-  -- to-self; record the child's deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
-  -- built sdai_origin_address = env.ADDRESS (BE) only when an account-witness ctx (584(x20)) is present;
-  -- guard on that. find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
-  "  ld t0, 584(x20)\n  beqz t0, .L_selfdestruct_created_in_tx_done\n" ++
+  -- to-self; record the child deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
+  -- now always builds sdai_origin_address = env.ADDRESS (BE), even when the header witness ctx
+  -- is absent, so the same-tx code-effect cleanup can still run on unsupported runtime rows.
+  -- find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
+
   -- coc3g.6.2: a contract whose constructor SELFDESTRUCTs (initcode `..ff`) NEVER deposits code,
   -- so exec_code_effect_log has NO record for it and find_code_effect_by_address below would MISS
   -- -> created_in_tx stays 0 -> the SD took the witness-present path which BAILS (the child is
@@ -425,6 +434,21 @@ private def selfdestructTailAsm : String :=
   -- which is itself depth-aware).
   dispatchHaltRet 4 ++ "\n" ++
   ".L_sd_create_return:\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_address_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_address_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_sender_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_sender_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_value_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_value_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_nonce_by_depth; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  la t1, create_nonce; ld t2, 0(t0); sd t2, 0(t1)\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   -- Constructor SELFDESTRUCT is a successful CREATE child exit. Mirror generic_create's

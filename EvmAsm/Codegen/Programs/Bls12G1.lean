@@ -35,6 +35,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
 import EvmAsm.Codegen.Programs.Bls12Field
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 
@@ -190,23 +191,13 @@ theorem bls12G1IsZeroFunction_eq_prog :
 /-- The local generated Program block is the verified SAsm drop-in. -/
 theorem blsgIsZeroN_prog_eq_verified :
     blsgIsZeroN_prog = Bls12G1IsZeroNSAsm.blsgIsZeroN_prog := rfl
-/-- a0 = 1 iff the two 48-byte buffers at a0 / a1 are equal. Leaf. -/
+
+/-- a0 = 1 iff the two 48-byte buffers at a0 / a1 are equal. Leaf helper.
+
+    Re-emitted drop-in: the verified `Bls12G1Eq48SAsm.blsgEq48Body`
+    flatten + `ret` (15 instructions, same length as the pre-drop-in two-exit compare). -/
 def blsgEq48_prog : Program :=
-  [ .LI .x5 (48 : Word),
-    .MV .x6 .x10,
-    .MV .x7 .x11,
-    .BEQ .x5 .x0 (32 : BitVec 13),
-    .LBU .x28 .x6 (0 : BitVec 12),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x28 .x29 (28 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  Bls12G1Eq48SAsm.blsgEq48_prog
 
 def bls12G1Eq48Function : String :=
   "blsg_eq48:\n" ++ emitProgram blsgEq48_prog

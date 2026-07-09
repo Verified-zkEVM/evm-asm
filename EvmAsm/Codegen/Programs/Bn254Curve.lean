@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bn254Field
+import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
 
 namespace EvmAsm.Codegen
 
@@ -105,18 +106,20 @@ theorem bn254PointZero64Function_eq_prog :
 
 #guard bn254PointZero64Function.startsWith "bnc_zero64:\n"
 #guard bncZero64_prog.length = 7
-/-- Return a0 = 1 iff the 64-byte point at a0 is (0,0) (infinity). -/
+/-- Return a0 = 1 iff the 64-byte point at a0 is (0,0) (infinity).
+    Re-emitted drop-in: the verified SAsm body has the same instruction count
+    as the original two-exit byte scan, but different branch layout. -/
 def bncIsInf64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .MV .x6 .x10,
     .BEQ .x5 .x0 (24 : BitVec 13),
     .LBU .x7 .x6 (0 : BitVec 12),
-    .BNE .x7 .x0 (24 : BitVec 13),
+    .BNE .x7 .x0 (16 : BitVec 13),
     .ADDI .x6 .x6 (1 : BitVec 12),
     .ADDI .x5 .x5 (-1 : BitVec 12),
     .JAL .x0 (-20 : BitVec 21),
     .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
+    .BEQ .x5 .x0 (8 : BitVec 13),
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -132,6 +135,11 @@ theorem bn254PointIsInfFunction_eq_prog :
 
 #guard bn254PointIsInfFunction.startsWith "bnc_is_inf64:\n"
 #guard bncIsInf64_prog.length = 12
+
+/-- The local generated Program block is the verified SAsm drop-in. -/
+theorem bncIsInf64_prog_eq_verified :
+    bncIsInf64_prog = Bn254CurveIsInfSAsm.bncIsInf64_prog := rfl
+
 /-- Double an affine point. a0 = input x||y (BE), a1 = output x||y.
     Returns a0 = 1 when the result is infinity (y = 0 input, which also
     covers the (0,0) infinity encoding), output zeroed; else 0. -/

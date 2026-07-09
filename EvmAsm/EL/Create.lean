@@ -112,43 +112,7 @@ inductive CreateStatus where
   | failed
   deriving DecidableEq, Repr
 
-/-- Pure output of a CREATE-family operation. -/
-structure CreateResult where
-  status : CreateStatus
-  address? : Option Address
-  state : WorldState
-  returndata : List Byte
-  gasRemaining : Nat
-
 namespace CreateResult
-
-def deployed (result : CreateResult) : Prop :=
-  result.status = .deployed
-
-def reverted (result : CreateResult) : Prop :=
-  result.status = .reverted
-
-def failed (result : CreateResult) : Prop :=
-  result.status = .failed
-
-theorem deployed_mk
-    (address : Address) (state : WorldState) (returndata : List Byte) (gasRemaining : Nat) :
-    deployed
-      { status := .deployed
-        address? := some address
-        state := state
-        returndata := returndata
-        gasRemaining := gasRemaining } := rfl
-
-theorem not_deployed_failed
-    (state : WorldState) (returndata : List Byte) (gasRemaining : Nat) :
-    ¬ deployed
-      { status := .failed
-        address? := none
-        state := state
-        returndata := returndata
-        gasRemaining := gasRemaining } := by
-  simp [deployed]
 
 end CreateResult
 

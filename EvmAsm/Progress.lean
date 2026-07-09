@@ -88,6 +88,7 @@ import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
 import EvmAsm.Evm64.Terminating.ReturnHaltSpec
 import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltResolved
 import EvmAsm.Evm64.Terminating.RevertSpec
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
