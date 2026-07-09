@@ -180,7 +180,7 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x54728`). Link-layout-dependent; the drift guard re-derives it.
+    (`readelf -S`, `0x54804`). Link-layout-dependent; the drift guard re-derives it.
     Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
@@ -193,8 +193,9 @@ def schemeAAnchors : List GuestRegion :=
     being derived for EIP-6110 negative system requests. Grew again when the
     v0.5.0 `ProtocolFork` ordinal update shifted the Amsterdam fork check
     from `24` to `20`. Grew again when the BN254/BLS helper set landed. Shrank when the
-    self-transfer intrinsic post-helper adjustment was removed. -/
-def textSizeBytes : Nat := 0x54728
+    self-transfer intrinsic post-helper adjustment was removed. Grew when Amsterdam
+    intrinsic gas learned execution-specs sender==recipient and value branches. -/
+def textSizeBytes : Nat := 0x5495c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528090`). Link-layout-dependent. Earlier it grew
@@ -202,7 +203,7 @@ def textSizeBytes : Nat := 0x54728
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x19528090
+def dataSizeBytes : Nat := 0x195726f0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

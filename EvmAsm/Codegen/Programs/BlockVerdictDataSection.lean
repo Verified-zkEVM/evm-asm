@@ -1277,6 +1277,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
+  -- EIP-8037 current-state aliveness for the multi-tx EOA shortcut.
+  -- top-level value transfers pay NEW_ACCOUNT state gas only when the recipient
+  -- is not alive in the transaction's current state. The header-state lookup is
+  -- not enough after an earlier tx in the same block creates/funds that recipient,
+  -- so the shortcut records recipients whose NEW_ACCOUNT charge has already been
+  -- paid and suppresses repeats. 32-byte stride, 20-byte BE address prefix.
+  ".balign 8\n" ++
+  "bv_mtx_created_recipient_count:\n  .zero 8\n" ++
+  "bv_mtx_created_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): per-account aggregation of exec_nonstorage_effect_log
   -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
