@@ -8,7 +8,7 @@
   The gate is a 3-guard forward-join DAG over TWO shared return tails:
 
   ```
-        li   t0, 32768
+        li   t0, 65536
         bltu t0, a1, .invalid     -- guard 1: len > MAX_CODE_SIZE
         beqz a1,     .valid       -- guard 2: empty code is valid
         lbu  t1, 0(a0)
@@ -28,7 +28,7 @@
 
   Genuine post (the real EIP-7907/EIP-3541 predicate, 0 = valid/deploy,
   1 = invalid):
-    `a0 = if 32768 <u len then 1
+    `a0 = if 65536 <u len then 1
           else if len = 0 then 0
           else if code[0] = 0xEF then 1 else 0`.
 -/
@@ -63,7 +63,7 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
     cpsTripleWithin 8 base ret (cdcvCode base)
       ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) **
         (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) ** (dwordAddr ↦ₘ wordVal))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+      ((.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = (0 : Word) then (0 : Word)
                  else if (extractByte wordVal
                      (byteOffset (codePtr + signExtend12 (0 : BitVec 12)))).zeroExtend 64
@@ -140,10 +140,10 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
       [.LBU .x6 .x10 (0 : BitVec 12)] 3 (by bv_omega) (by decide) (by decide) (by decide))
   rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega] at hlbu
   have hlbuF := cpsTripleWithin_frameR
-    ((.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    ((.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
       ((.x1 : Reg) ↦ᵣ ret)) (by pcf) hlbu
   have hli5 := cpsTripleWithin_extend_code
-    (h := li_spec_gen_within .x5 (32768 : Word) (0xEF : Word) (base + 16) (by decide))
+    (h := li_spec_gen_within .x5 (65536 : Word) (0xEF : Word) (base + 16) (by decide))
     (hmono := CodeReq.ofProg_mono_sub base (base + 16) cdcvProgram
       [.LI .x5 (0xEF : Word)] 4 (by bv_omega) (by decide) (by decide) (by decide))
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at hli5
@@ -153,7 +153,7 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
   have hseg := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hlbuF hli5F
   have hchain3 : cpsTripleWithin 5 (base + 12) ret (cdcvCode base)
-      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768 : Word)) **
+      ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536 : Word)) **
         (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
         (dwordAddr ↦ₘ wordVal))
       ((.x10 ↦ᵣ (if byte0 = (0xEF : Word) then (1 : Word) else (0 : Word))) **
@@ -163,7 +163,7 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
         hseg hstation3)
   -- ---- station 2: `beq x11, x0, +16` at base+8 (empty code is valid) ----
   have hbr2 := cpsBranchWithin_frameR
-    ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (32768 : Word)) ** (.x6 ↦ᵣ v6old) **
+    ((.x10 ↦ᵣ codePtr) ** (.x5 ↦ᵣ (65536 : Word)) ** (.x6 ↦ᵣ v6old) **
       ((.x1 : Reg) ↦ᵣ ret) ** (dwordAddr ↦ₘ wordVal)) (by pcf)
     (cpsBranchWithin_extend_code
       (h := beq_spec_gen_within .x11 .x0 (16 : BitVec 13) len (0 : Word) (base + 8))
@@ -174,16 +174,16 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
       show (base + 8 : Word) + 4 = base + 12 from by bv_omega] at hbr2
   have hstation2 : cpsTripleWithin 6 (base + 8) ret (cdcvCode base)
       ((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ codePtr) **
-        (.x5 ↦ᵣ (32768 : Word)) ** (.x6 ↦ᵣ v6old) ** ((.x1 : Reg) ↦ᵣ ret) **
+        (.x5 ↦ᵣ (65536 : Word)) ** (.x6 ↦ᵣ v6old) ** ((.x1 : Reg) ↦ᵣ ret) **
         (dwordAddr ↦ₘ wordVal))
       ((.x10 ↦ᵣ (if len = (0 : Word) then (0 : Word)
                  else if byte0 = (0xEF : Word) then (1 : Word) else (0 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** Ptail) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
-      (retJoinStation_spec (PT := (.x5 ↦ᵣ (32768 : Word)) ** (.x6 ↦ᵣ v6old) **
+      (retJoinStation_spec (PT := (.x5 ↦ᵣ (65536 : Word)) ** (.x6 ↦ᵣ v6old) **
           (.x10 ↦ᵣ codePtr) ** ((.x1 : Reg) ↦ᵣ ret) ** (.x11 ↦ᵣ len) **
           (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
-        (PF := (.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (32768 : Word)) **
+        (PF := (.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x5 ↦ᵣ (65536 : Word)) **
           (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
           (dwordAddr ↦ₘ wordVal))
         hbr2
@@ -207,26 +207,26 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
     ((.x10 ↦ᵣ codePtr) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0 : Word)) **
       ((.x1 : Reg) ↦ᵣ ret) ** (dwordAddr ↦ₘ wordVal)) (by pcf)
     (cpsBranchWithin_extend_code
-      (h := bltu_spec_gen_within .x5 .x11 (28 : BitVec 13) (32768 : Word) len (base + 4))
+      (h := bltu_spec_gen_within .x5 .x11 (28 : BitVec 13) (65536 : Word) len (base + 4))
       (hmono := CodeReq.ofProg_mono_sub base (base + 4) cdcvProgram
         [.BLTU .x5 .x11 (28 : BitVec 13)] 1 (by bv_omega) (by decide) (by decide) (by decide)))
   rw [show (base + 4 : Word) + signExtend13 (28 : BitVec 13) = base + 32 from by
         rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega,
       show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at hbr1
   have hstation1 : cpsTripleWithin 7 (base + 4) ret (cdcvCode base)
-      ((.x5 ↦ᵣ (32768 : Word)) ** (.x11 ↦ᵣ len) ** (.x10 ↦ᵣ codePtr) **
+      ((.x5 ↦ᵣ (65536 : Word)) ** (.x11 ↦ᵣ len) ** (.x10 ↦ᵣ codePtr) **
         (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
         (dwordAddr ↦ₘ wordVal))
-      ((.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+      ((.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word)
                  else if len = (0 : Word) then (0 : Word)
                  else if byte0 = (0xEF : Word) then (1 : Word) else (0 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** Ptail) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
-      (retJoinStation_spec (PT := (.x5 ↦ᵣ (32768 : Word)) ** (.x6 ↦ᵣ v6old) **
+      (retJoinStation_spec (PT := (.x5 ↦ᵣ (65536 : Word)) ** (.x6 ↦ᵣ v6old) **
           (.x10 ↦ᵣ codePtr) ** ((.x1 : Reg) ↦ᵣ ret) ** (.x11 ↦ᵣ len) **
           (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
         (PF := (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ codePtr) **
-          (.x5 ↦ᵣ (32768 : Word)) ** (.x6 ↦ᵣ v6old) ** ((.x1 : Reg) ↦ᵣ ret) **
+          (.x5 ↦ᵣ (65536 : Word)) ** (.x6 ↦ᵣ v6old) ** ((.x1 : Reg) ↦ᵣ ret) **
           (dwordAddr ↦ₘ wordVal))
         hbr1
         (fun h hq => by xperm_hyp hq)
@@ -244,11 +244,11 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
           (fun h hp => by xperm_hyp hp)
           (fun h hq => by rw [if_neg hc]; exact hq)
           hstation2))
-  -- ---- prologue: `li x5, 32768` at base ----
+  -- ---- prologue: `li x5, 65536` at base ----
   have hpro := cpsTripleWithin_extend_code
-    (h := li_spec_gen_within .x5 v5old (32768 : Word) base (by decide))
+    (h := li_spec_gen_within .x5 v5old (65536 : Word) base (by decide))
     (hmono := CodeReq.ofProg_mono_sub base base cdcvProgram
-      [.LI .x5 (32768 : Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
+      [.LI .x5 (65536 : Word)] 0 (by bv_omega) (by decide) (by decide) (by decide))
   have hproF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ codePtr) ** (.x11 ↦ᵣ len) ** (.x6 ↦ᵣ v6old) ** (.x0 ↦ᵣ (0 : Word)) **
       ((.x1 : Reg) ↦ᵣ ret) ** (dwordAddr ↦ₘ wordVal)) (by pcf) hpro
