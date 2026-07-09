@@ -308,7 +308,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_finals; ld t4, 48(t0); addi t3, t2, 1; bne t4, t3, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_nonce_check_done:\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
-  "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bne t1, t2, .Lteer_next\n" ++
+  "  # Later execution can increment the same authority nonce again (e.g. delegated CREATE2).\n" ++
+  "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bltu t1, t2, .Lteer_next\n" ++
   "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
   "  # account already exists, even if delegating to NULL_ADDRESS causes no code change.\n" ++
   "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
@@ -473,7 +474,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  # Later execution can increment the same authority nonce again after the auth chain.\n" ++
+  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bltu t2, t1, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_same_final_no_code\n" ++
   "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
   "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
