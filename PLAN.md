@@ -2996,6 +2996,11 @@ in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
 else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
 two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
 separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
+`CreateInitcodeSizeValidSAsm.lean` verifies the sibling EIP-3860 init-code
+size gate (`cisvJoin_spec`) over the emitted `cisvProgram`: one `li`, one
+`bltu`, and two shared return tails; genuine post `a0 = 1` iff
+`65536 <u len`, byte-transparent via `createInitcodeSizeValidFunction =
+emitProgram cisvProgram`, classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
