@@ -2912,6 +2912,26 @@ adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
 the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
 inputs untouched).  First loop-of-calls port; callee steps kept symbolic
 (`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
+**Dual-read dword equality scan + the equality family landed** (branch
+`feat/dual-read-scan`, bead evm-asm-4ch8f.58.3.25.1):
+`SAsm/DualReadScan.lean` packages three reusable pieces — (1) focused
+dword-read primitives (`Region.loadOk_slot`/`dwordAt_slot`: an `LD` at
+`base + 8·i` is in-region and yields dword slot `i`; `Region.wf_dropSuffix`
+keeps an advancing `readAt` cursor focusable; offset-generic zero-immediate
+variants), (2) the per-dword ⇔ byte-list bridge
+(`bytes_eq_of_dwordSlots_eq`: two `8·N`-byte lists agreeing on every dword
+slot are EQUAL — what makes equality posts genuine), and (3) the
+register-agnostic scan itself (`DualReadScan.scanBody`/`scan_spec`: any five
+distinct exposed registers for counter/temps/cursors, a `retWhileBreak`
+countdown loop reading dword `i` from buffer A (primary region) and buffer B
+(`readAt`-focused suffix split of the ambient via `focus_split`), breaking
+to the `0` tail on first mismatch; genuine post
+`a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
+instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
+address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
+bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
+can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
