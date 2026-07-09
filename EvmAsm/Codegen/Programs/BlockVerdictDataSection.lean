@@ -770,6 +770,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_tx_gas:\n  .zero 8\n" ++
   "bsg_gas_field:\n  .zero 8\n" ++
   "bsg_to_field:\n  .zero 8\n" ++
+  "bsg_value_field:\n  .zero 8\n" ++
   "bsg_data_field:\n  .zero 8\n" ++
   "bsg_access_field:\n  .zero 8\n" ++
   "bsg_auth_field:\n  .zero 8\n" ++
@@ -808,6 +809,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tcbg_blob_fee_be:\n  .zero 32\n" ++
   "bsg_blob_price_be:\n  .zero 32\n" ++
   "bsg_blob_lt_out:\n  .zero 8\n" ++
+  "bsg_sender_addr:\n  .zero 32\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
   "bsr_change_count:\n  .zero 8\n" ++
   "sri_cur_mode:\n  .zero 8\n" ++

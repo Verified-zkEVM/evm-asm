@@ -211,12 +211,14 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_type_legacy:\n" ++
   "  li t0, 2; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
   "  li t0, 3; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
+  "  li t0, 4; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
   "  li t0, 5; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
   "  li t0, -1; la t1, bsg_access_field; sd t0, 0(t1); la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
   "  j .Letg_have_fields\n" ++
   ".Letg_type_2930:\n" ++
   "  li t0, 3; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
   "  li t0, 4; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
+  "  li t0, 5; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
   "  li t0, 6; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
   "  li t0, 7; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
   "  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
@@ -225,6 +227,7 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_type_4844:\n" ++
   "  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
   "  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
+  "  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
   "  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
   "  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
   "  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
@@ -232,6 +235,7 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_type_7702:\n" ++
   "  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
   "  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
+  "  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
   "  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
   "  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
   "  li t0, 9; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
@@ -240,6 +244,9 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Letg_ok\n" ++
   "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
+  "  la t0, bsg_value_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_value_off; la a4, bsg_value_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Letg_ok\n" ++
   "  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Letg_ok\n" ++
@@ -350,8 +357,24 @@ def eip8037TxGasGateFunction : String :=
   "  mul t2, t2, t3; add t6, t6, t2\n" ++
   ".Letg_intrinsic_done:\n" ++
   "  la t0, bsg_state_gas; sd t6, 0(t0)\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
+  "  # execution-specs calculate_intrinsic_cost: sender==to self-transfers skip\n" ++
+  "  # COLD_ACCOUNT_ACCESS and, for nonzero value, TRANSFER_LOG_COST+TX_VALUE_COST.\n" ++
+  "  la t0, bsg_to_len; ld t0, 0(t0); li t1, 20; bne t0, t1, .Letg_after_self_intrinsic_adjust\n" ++
+  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); beqz t0, .Letg_after_self_intrinsic_adjust\n" ++
+  "  slli t1, s8, 6; add t1, t1, s8; add t0, t0, t1; addi a0, t0, 1\n" ++
+  "  la a1, bsg_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bsg_sender_addr; la t1, bsg_to_off; ld t1, 0(t1); add t1, s9, t1; li t2, 20\n" ++
+  ".Letg_self_cmp:\n" ++
+  "  beqz t2, .Letg_self_match\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Letg_after_self_intrinsic_adjust\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Letg_self_cmp\n" ++
+  ".Letg_self_match:\n" ++
+  "  li t4, 3000; bltu s11, t4, .Letg_after_self_intrinsic_adjust; sub s11, s11, t4\n" ++
+  "  la t0, bsg_value_len; ld t0, 0(t0); beqz t0, .Letg_after_self_intrinsic_adjust\n" ++
+  "  li t4, 6000; bltu s11, t4, .Letg_after_self_intrinsic_adjust; sub s11, s11, t4\n" ++
+  ".Letg_after_self_intrinsic_adjust:\n" ++
+  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
   "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
   "  mv t0, t6\n" ++
