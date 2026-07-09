@@ -128,7 +128,6 @@ import EvmAsm.EL.Conformance.All
 import EvmAsm.EL.WorldState
 import EvmAsm.EL.WorldStateAccount
 import EvmAsm.EL.WorldStateFrame
-import EvmAsm.EL.Storage
 import EvmAsm.EL.StorageAccessBridge
 import EvmAsm.EL.StorageStackBridge
 import EvmAsm.EL.StorageEcallBridge

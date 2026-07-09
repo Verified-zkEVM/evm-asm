@@ -85,18 +85,6 @@ theorem deriveRequestAddress?_eq_some_iff
   | some input =>
       simp [CreateAddress.derivedAddress]
 
-theorem result_address?_eq_deriveRequestAddress?_of_matches
-    {deriver : CreateAddress.AddressDeriver} {request : CreateRequest}
-    {creatorNonce : Nat} {initcodeHash : Hash256} {result : CreateResult}
-    {address : Address}
-    (h_derive :
-      deriveRequestAddress? deriver request creatorNonce initcodeHash = some address)
-    (h_match : CreateAddress.resultAddressMatches result address) :
-    result.address? =
-      deriveRequestAddress? deriver request creatorNonce initcodeHash := by
-  rw [h_derive]
-  exact h_match.2
-
 end CreateAddressExecutableBridge
 
 end EvmAsm.EL
