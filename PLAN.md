@@ -312,6 +312,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
   emitted rounded-word BitVec cost difference) pinned to
   `memoryExpansionGas_prog`.
+  `CallExtraGasSAsm.lean` verifies `call_extra_gas` as a byte-identical
+  two-`when` branch helper (`callExtraGasFn_spec`, post `a0 =
+  (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
+  `callExtraGas_prog`, after converting the raw asm string to a `Program`
+  rendered by `emitProgram`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
