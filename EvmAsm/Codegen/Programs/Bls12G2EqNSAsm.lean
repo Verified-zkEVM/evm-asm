@@ -551,7 +551,7 @@ theorem blsg2EqNFn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) (n : Nat)
     per-byte → byte-list bridge `bytes_eq_of_prefix_eq`. -/
 
 -- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.blsg2_eq_n = 0x80033b80
+#guard GuestAddrs.blsg2_eq_n = 0x80033d74
 
 /-- Byte-tie: the emitted `blsg2_eq_n` IS the `mv;mv;mv` init followed by
     the dynamic-length byte dual-read scan at the emitted registers. -/
