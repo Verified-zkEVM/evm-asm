@@ -349,15 +349,13 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   ".L_selfdestruct_transfer_done:\n"
 
 /--
-Append the EIP-7708 synthetic Transfer/Burn log for a successful
-SELFDESTRUCT balance transfer.
+Append the EIP-7708 synthetic Transfer log for a successful SELFDESTRUCT balance
+transfer.
 
 The runtime already has the pre-transfer origin account RLP, beneficiary,
 same-address relation, and created-in-transaction marker. This mirrors
-execution-specs:
-  * created-in-tx selfdestruct-to-self emits Burn(origin, balance);
-  * different beneficiary emits Transfer(origin, beneficiary, balance);
-  * zero balance and pre-existing selfdestruct-to-self emit no log.
+execution-specs `selfdestruct`: emit a Transfer only when beneficiary differs
+from originator; zero balance and selfdestruct-to-self emit no log.
 
 `evm_selfdestruct_log_status` records 0 success/no-log, 1 skipped because the
 account-transfer stage did not run, 2 origin balance parse failure, 3 synthetic
@@ -368,8 +366,8 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  sd t1, 0(t0)\n" ++
   -- coc3g.6 CAUSE 1: a contract CREATEd-in-this-tx is absent from the block-pre witness, so the
   -- account-transfer stage never ran (sdai_transfer_status=3) and account_extract_balance(origin_rlp)
-  -- would parse the wrong/empty RLP. EIP-7708 still requires the synthetic Transfer/Burn log for the
-  -- live balance moved out of the destroyed child. Branch here: read the child's LIVE balance (its
+  -- would parse the wrong/empty RLP. EIP-7708 still requires the synthetic Transfer log when the
+  -- live balance moves to a different beneficiary. Branch here: read the child's LIVE balance (its
   -- latest recorded non-storage post_balance, BE) via nonstorage_effect_latest_balance keyed on
   -- sdai_origin_address, bypassing the transfer-status gate. Runs BEFORE selfdestructBeneficiaryNonstorageAsm
   -- records the child's deletion (which resets the latest to 0), so the live balance is present.
@@ -459,22 +457,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   ".L_selfdestruct_eip7708_not_same:\n" ++
   "  li t3, 0\n" ++
   ".L_selfdestruct_eip7708_same_ready:\n" ++
-  "  beqz t3, .L_selfdestruct_eip7708_transfer\n" ++
-  "  la t0, evm_selfdestruct_created_in_tx\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  beqz t1, .L_selfdestruct_eip7708_success\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd x10, 0(sp)\n" ++
-  "  sd x12, 8(sp)\n" ++
-  "  la a0, sd_eip7708_from_sw\n" ++
-  "  la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, eip7708_append_burn_log\n" ++
-  "  mv t6, a0\n" ++
-  "  ld x10, 0(sp)\n" ++
-  "  ld x12, 8(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  bnez t6, .L_selfdestruct_eip7708_append_fail\n" ++
-  "  j .L_selfdestruct_eip7708_success\n" ++
+  "  bnez t3, .L_selfdestruct_eip7708_success\n" ++
   ".L_selfdestruct_eip7708_transfer:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
