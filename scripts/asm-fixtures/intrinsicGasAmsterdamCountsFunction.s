@@ -1,6 +1,7 @@
 intrinsic_gas_amsterdam_counts:
   # a0=data ptr, a1=data len, a2=is_creation, a3=access addrs,
   # a4=access slots, a5=authorization count, a6=intrinsic out, a7=floor out
+  # 0(sp)=value_nonzero, 8(sp)=is_self_transfer at helper entry
   li t0, 0                    # zero_count
   li t1, 0                    # non_zero_count
   mv t2, a0                   # cursor
@@ -23,16 +24,28 @@ intrinsic_gas_amsterdam_counts:
   slli t6, t5, 2              # data cost = tokens * 4
   li t4, 12000
   add t6, t6, t4              # intrinsic = base + data
-  li t4, 3000
-  add t6, t6, t4              # non-create recipient access; creation adds the remaining CREATE_ACCESS
-  beqz a2, .Ligac_after_creation
-  li t4, 8000
+  beqz a2, .Ligac_not_creation
+  li t4, 11000                # CREATE_ACCESS
   add t6, t6, t4
   addi t4, a1, 31
   srli t4, t4, 5
   slli t4, t4, 1              # init code cost = 2 * ceil(len / 32)
   add t6, t6, t4
-.Ligac_after_creation:
+  ld t4, 0(sp)                # value_nonzero
+  beqz t4, .Ligac_after_recipient
+  li t4, 1756                 # TRANSFER_LOG_COST for creation with value
+  add t6, t6, t4
+  j .Ligac_after_recipient
+.Ligac_not_creation:
+  ld t4, 8(sp)                # is_self_transfer
+  bnez t4, .Ligac_after_recipient
+  li t4, 3000                 # COLD_ACCOUNT_ACCESS for non-self call
+  add t6, t6, t4
+  ld t4, 0(sp)                # value_nonzero
+  beqz t4, .Ligac_after_recipient
+  li t4, 6000                 # TRANSFER_LOG_COST + TX_VALUE_COST
+  add t6, t6, t4
+.Ligac_after_recipient:
   li t4, 3000
   mul t4, a3, t4
   add t6, t6, t4
