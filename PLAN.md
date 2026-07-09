@@ -3059,6 +3059,33 @@ decidable `laInRange` remains); genuine post `a0 = call_frame_arena +
 (depth − 1) · 0x39000`.  Classical-3.  Downstream (other blockers remain):
 the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3) and point_double
 (4ch8f.38.5).
+**Multi-RW-subwindow callee adapter landed** (branch
+`feat/multi-rw-subwindow`, bead evm-asm-4ch8f.38.5 — converter+arithMod
+caller layer; the point_double inline-CSRS-2052 half stays open): the
+writable analog of `callAt`'s read-only focusing.  `SAsm/RwSubwindow.lean`:
+`bytesRegion_window_focus`/`bytesRegion_window_update` carve subwindow
+`[j, j+n)` out of ONE arena atom and reassemble it around a replaced window
+(`setBytes` merge — a callee that wrote only its window provably left every
+other subwindow untouched); `cpsTripleWithin_rwWindow` lifts a
+focused-window callee triple to the whole arena;
+`cpsTripleWithin_seq_exists_same_cr` threads ∃-posts (callees that pin only
+a PROPERTY of the written bytes) through a call sequence;
+`wsNat256_setBytes_low/inside/high` decode the accumulated splice image.
+Acceptance consumer `bnf_mul_mod_p`
+(`Codegen/Programs/Bn254FieldMulModPSAsm.lean`, `#guard`-tied
+GuestAddrs.bnf_mul_mod_p = 0x8002ff5c, byte-transparent `abiFrameProg` rfl
+tie, no A/B): an sp-frame (ra/s0/s1) around two `bnf_be_to_le` calls (each
+writing its own arena subwindow `_a`@0 / `_b`@0x20 of the 232-byte LE
+staging arena), the inline CSR-2050 arithMod accelerator step at arena-atom
+granularity (`csrs_arith256Mod_spec_within` decoding operands from the
+accumulated image, writing `_d`@0x40), and a final `bnf_le_to_be` call
+reading the focused `_d` window out to the external output — GENUINE post
+`beBytesToNat out' = Accel.arith256Mod (beBytesToNat aBE) (beBytesToNat
+bBE) c₀ m₀` (`(a·b+c₀) mod m₀`, `c₀`/`m₀` the staged addend/modulus cells),
+`sp`/`ra`/`s0`/`s1` restored, inputs and every non-written arena subwindow
+framed.  Both converters (`Bn254FieldConvSAsm`) retrofitted with ambient-`A`
+pinning (`A = empAssertion`) to satisfy `Fn.retSpecFlat`'s side condition.
+Classical-3.
 **Two-break writable-output combinator + `u256_lt_be` landed** (branch
 `feat/two-break-writable-lt`, bead evm-asm-i177q; porting-agent feedback —
 `retWhileBreak` has one mid-loop return break, `while2BreakJoin`
