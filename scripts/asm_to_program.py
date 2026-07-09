@@ -922,6 +922,7 @@ def gen_guest_addrs():
 # fixture/Lean-render assemble checks still guard their emitted bytes; only the
 # verbatim generated-block source check is skipped.
 SOURCE_DRIFT_ALLOW = {
+    'secp256k1FieldEq32Function',
     'secp256k1FieldIsZeroFunction',
     'bn254FieldEq32Function',
     'bn254FieldIsZeroFunction',

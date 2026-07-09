@@ -243,7 +243,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
   "  jal ra, rlp_content_to_u64\n" ++
   "  bnez a1, .Lteer_next\n" ++
-  "  mv t1, a0; beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_next\n" ++
+  "  mv t1, a0; beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_chain_ok:\n" ++
   "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lteer_next\n" ++
@@ -254,17 +254,42 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
   "  jal ra, rlp_content_to_u64\n" ++
   "  bnez a1, .Lteer_next\n" ++
-  "  mv t1, a0; li t2, -1; beq t1, t2, .Lteer_next\n" ++
+  "  mv t1, a0; li t2, -1; beq t1, t2, .Lteer_invalid_auth_full_refund\n" ++
   "  sd t1, 144(sp)              # signed authorization nonce\n" ++
   "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_next\n" ++
+  "  bnez a0, .Lteer_invalid_auth_full_refund\n" ++
   "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lteer_next\n" ++
   "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lteer_next\n" ++
+  "  # execution-specs validate_authorization returns None when recovered authority\n" ++
+  "  # has non-empty ordinary code, and set_delegation refunds the full auth state\n" ++
+  "  # charge plus ACCOUNT_WRITE for every None case. In single-tx blocks the header\n" ++
+  "  # pre-state code is the live authority code at set_delegation time.\n" ++
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_invalid_code_check_done\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_invalid_code_check_done\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority\n" ++
+  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lteer_invalid_code_check_done\n" ++
+  "  la t0, cahsr_code_length; ld t1, 0(t0); beqz t1, .Lteer_invalid_code_check_done\n" ++
+  "  li t2, 23; bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
+  "  j .Lteer_invalid_code_check_done\n" ++
+  ".Lteer_invalid_auth_full_refund:\n" ++
+  liAmsterdamAuthStateGasPerAuth "t3" ++
+  "  add s10, s10, t3\n" ++
+  "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
+  "  j .Lteer_next\n" ++
+  ".Lteer_invalid_code_check_done:\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
   "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bne t1, t2, .Lteer_next\n" ++
   "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
@@ -382,7 +407,10 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz t1, .Lteer_same_target_ready\n" ++
   "  lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lteer_same_target_or\n" ++
   ".Lteer_same_target_ready:\n" ++
-  "  snez t2, t2; la t0, teer_auth_chain; sd t2, 0(t0)\n" ++
+  "  snez t2, t2; bnez t2, .Lteer_same_target_store\n" ++
+  "  la t0, teer_auth_nonce; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteer_same_target_store:\n" ++
+  "  la t0, teer_auth_chain; sd t2, 0(t0)\n" ++
   "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lteer_single_loop_setup\n" ++
   "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++

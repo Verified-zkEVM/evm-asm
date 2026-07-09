@@ -3349,10 +3349,10 @@ aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 `secf_le_to_be`, which are nested bottom-test do-while converters BLOCKED
 on `.11.7`/`.68`; PATH A verifies `secfMulModP` `SpecR` conditional on
 assumed be/le `FnHandleS` hypotheses (genuinely instantiates the merged
-`.11.6` `arithModHandle`, the wave-1 point). The remaining compare/scan leaves (`secfEq32`/`secfCmpP`, `.38.2.2`)
+`.11.6` `arithModHandle`, the wave-1 point). The remaining compare/scan leaf (`secfCmpP`, `.38.2.2`)
 and the pow/inv/sqrt ladders (`.38.2.5`–`.7`) still need their own
-mid-exit/do-while ports or drop-ins; `secfIsZero32` is handled by the
-same-length whileBreak drop-in below.
+mid-exit/do-while ports or drop-ins; `secfEq32` and `secfIsZero32` are
+handled by the whileBreak drop-ins below.
 LANDED (`.38.2.1`, `EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean`,
 the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
@@ -3361,6 +3361,10 @@ straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
 `secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
 the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
+`Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
+(`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
+emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
+refreshed by Lean render.
 `Secp256k1FieldIsZeroSAsm.lean` verifies `secf_is_zero32` as a same-length
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
