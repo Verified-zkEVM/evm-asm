@@ -13,9 +13,6 @@ bal_account_change_descriptor:
   mv s7, a3                   # AccountChanges len
   la t0, baacd_fail_code; sd zero, 0(t0)
   la t0, baap_force_storage_clear; sd zero, 0(t0)
-  li t1, 4; bne s0, t1, .Lbaacd_mode_ready
-  li s0, 0                    # legacy post-wipe marker: state-trie MODIFY
-.Lbaacd_mode_ready:
   mv a0, s4; mv a1, s5; mv a2, s6; mv a3, s7
   mv a4, s2; mv a5, s3; la a6, baacd_value_len
   jal ra, bal_account_change_value
