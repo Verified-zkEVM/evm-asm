@@ -710,10 +710,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
-  -- message state-gas reservoir when the recovered authority already exists.
-  -- The callable dispatcher resets its state-gas cells during setup, so compute
-  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
+  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
+  -- the recovered authority already exists. The callable dispatcher resets its
+  -- state-gas cells during setup, so compute both refunds here and stage them.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
   "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
   "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++

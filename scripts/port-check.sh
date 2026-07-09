@@ -49,10 +49,15 @@ rm -f /tmp/port-check-build.$$
 # ------------------------------------------------------- 2. zero warnings
 step "2/5 warning-free re-elaboration"
 ELAB_OUT="$(lake env lean "$FILE" 2>&1)"
-if [[ -n "$ELAB_OUT" ]]; then
+# `#print axioms foo` emits informational lines. Those are part of the port
+# checklist, so allow the classical-only forms and still fail on warnings/errors.
+ELAB_BAD="$(printf '%s\n' "$ELAB_OUT" | grep -vE "^'[^']+' depends on axioms: \[(propext, )?(Classical\.choice, )?Quot\.sound\]$" || true)"
+if [[ -n "$ELAB_BAD" ]]; then
   echo "$ELAB_OUT"
   echo "port-check: FAIL — output (warnings/errors) during elaboration"
   FAIL=1
+elif [[ -n "$ELAB_OUT" ]]; then
+  echo "OK (only classical #print axioms output)"
 else
   echo "OK (no output)"
 fi

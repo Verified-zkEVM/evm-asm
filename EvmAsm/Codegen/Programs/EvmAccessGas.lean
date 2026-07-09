@@ -5,7 +5,7 @@
   costs. Consumers pass a bounded 32-byte-stride table of 20-byte canonical
   big-endian addresses. The dispatcher static gas table already charges the
   100-gas warm floor for account opcodes, so this helper charges only the
-  2900-gas cold delta and records newly cold addresses.
+  2900-gas Amsterdam cold delta and records newly cold addresses.
 -/
 
 import EvmAsm.Rv64.Program
@@ -60,7 +60,7 @@ def runtimeAccessAccountOutcomeData : String :=
       a0 (output) : 0 if warm/precompile, 1 if cold and inserted
 
     Exceptional paths jump to `.exit_outofgas`:
-      - cold access when `gasRemaining < 2900`
+      - cold access when `gasRemaining < 2500`
       - table is full and the target is not already warm
 
     Active precompiles are always warm and are not inserted. The active set

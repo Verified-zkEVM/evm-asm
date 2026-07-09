@@ -878,6 +878,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_auth_count:\n  .zero 8\n" ++
   "teer_regular_refund:\n  .zero 8\n" ++
   "teer_predelegated_count:\n  .zero 8\n" ++
+  "teer_existing_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++

@@ -121,7 +121,7 @@ def blockVerdictMtxValidationTail : String :=
   -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
   -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain,
   -- which is why this block runs AFTER the gas-result gate (reached via .Lbv_b2_entry from
-  -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
+  -- ReceiptsTail). This replaces the old raw-runtime-gas debit helper plus flat
   -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
   -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
   -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is

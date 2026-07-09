@@ -104,6 +104,8 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 | Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
+| Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
+| Persistent storage | SLOAD (0x54) | 47 | 🟡 `.conditional` stage-1 (`Storage.evm_sload_stack_spec_within`, `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean`). Structural clone of the proven TLOAD reverse scan on the **persistent** log (base `0xa0630000`, length cell `env+448`); body-as-Program `evm_sload`, byte-identical re-encoding (`li 0xa0630000` → `lui/addiw/slli 99`; `#guard` pins emission, region map/ELF unchanged). Witness: stack top := `persistentLookup addrHash slotKey entries` in place, budget `7 + 34n`. `.conditional` (not `.proven`) because miss→0 is EVM-sound only relative to the `committedStorageIs` snapshot — MPT-witness verification deferred to stage-2 (post-Phase-10). `coverRef := sload_precondition_reachable` (decide-checked hit-antecedent). **conditionalCount 0→1, execSpecCount 19→18; provenCount unchanged (66).** SSTORE is the append+original-scan sibling. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -157,6 +159,39 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   **TLOAD** is the reverse-scan sibling: same layout/assertions, scans the log
   from the end for the matching `(addrHash, slotKey)` and pushes `current`
   (0 if absent) — reuse `storageLogIs_split_at` for the isolate-entry shape.
+- **Transient load recipe** (`EvmAsm/Evm64/Transient/Load{Program,Spec}.lean`,
+  TLOAD done — the first genuinely loopy `.proven` opcode):
+  - **Pseudo-instruction expansion for byte-identity with branches**: the old
+    inline scan used numeric labels + `li x14, 0xa0830000`; `li` assembles to
+    THREE instructions (`lui x14, 0xa ; addiw x14, x14, 131 ; slli x14, x14, 16`),
+    so a `Program` using the 1-instruction `LI` model would emit wrong `.+N`
+    branch offsets for any branch crossing it. Fix: write the exact GNU-as
+    expansion into the `Program` (model layout = machine layout, all branch
+    offsets concrete); verify with `riscv64-elf-as` + `objdump` diff.
+  - **Loop induction at the composition level**: prove ONE iteration over the
+    loop slice (`evm_tload_loop`, ∀ entry `b2`; compare block / copy arm /
+    decrement tail as separate ∀-base sub-slice lemmas glued by
+    `CodeReq.ofProg_mono_append_{left,right}`/`ofProg_mono_subrange` +
+    `cpsTripleWithin_extend_code`), then close the loop by **snoc induction**
+    (`List.reverseRecOn`) — the entry appended LAST is scanned FIRST, so
+    `transientLookup` unfolds via `transientLookup_snoc` and
+    `storageLogIs_snoc` isolates exactly the scanned entry; no index
+    bookkeeping. Budget `34*m` per invariant, `cpsTripleWithin_mono_nSteps`
+    absorbs the per-path slack (27/31/34).
+  - **Scratch registers across iterations**: iteration posts clobber `x16`/`x17`
+    differently per exit path — merge to `regOwn` (8-way mismatch `by_cases`
+    + `sepConj_own2/own4` at fixed leading positions), and state the loop
+    invariant pre with `regOwn .x16 ** regOwn .x17`, discharged via
+    `cpsTripleWithin_regOwn2_pre` (∀-quantified concrete pre → `regOwn` pre).
+  - **NEW runBlock gotcha (d)**: the per-instruction spec's operands must be
+    SYNTACTICALLY identical to the Program's spelling — `ld_spec_gen_within …
+    (BitVec.ofNat 12 464)` silently fails against a Program written with
+    `BitVec.ofNat 12 transientLogLengthOff` ("don't know how to synthesize
+    placeholder" at the `have`). Pass the def-name form and `decide` the
+    `signExtend12` fold, exactly as the Program spells it.
+  - 8-way limb mismatch merged via one `hne : ¬(8-conjunction)` hypothesis;
+    word↔limb bridge `evmWord_eq_of_limbs_eq` (via `fromLimbs_getLimb`
+    round-trip) converts `¬(e.addrHash = a ∧ e.slotKey = k)` to the limb form.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
@@ -178,7 +213,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   32-byte digest byte-reverse as an emitted SAsm-shaped `Program` with
   flattening guards. `BalValueReverseSAsm.lean` now provides the BAL tuple
   value byte-reverse as a genuine bounded SAsm `while` loop with a proved
-  `Fn.Spec`; `AccountTupleSequencesConsistent.lean` splices the emitted
+  `Fn.Spec`; `Blake2fStoreLe64SAsm.lean` verifies the byte-identical `blk2_st_le64` fixed byte-store loop (`a1` stored as little-endian `dwordBytes` at `a0`). `AccountTupleSequencesConsistent.lean` splices the emitted
   PC-relative branch program into the per-record BAL value normalization.
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
@@ -197,7 +232,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   reduction).
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
-  `bgvU64le_prog`.  Big-endian writers (`whileS` loops over a writable
+  `bgvU64le_prog`.  `Blake2fLoadLe64SAsm.lean` verifies `blk2_ld_le64`
+  (`blk2LdLe64Fn_spec`, post `a0 := leU64 (bytes@a0)`) as a byte-identical
+  fixed eight-iteration descending `doWhile` byte-load loop pinned to
+  `blk2LdLe64_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
   beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops
@@ -213,7 +251,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`;
+  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
+  byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
   (`blqZeroFn_spec`, post `ws = replicate 576 0`) with byte-identity pinned to
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
@@ -2580,6 +2620,30 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   host-delegated syscalls.
 - RETURN and REVERT halt the current frame with output data.
 
+##### RETURN/REVERT (0xf3/0xfd) full-tail proof — status
+- **Halt core** (`Terminating/ReturnHaltSpec.evm_return_halt_spec_within`): DONE
+  (`dispatchHaltRet 2` → `.exit_no_epilogue`; STOP/INVALID clone, routing code 2).
+- **Descriptor-window loops** (`Terminating/ReturnWindowLoopSpec.lean`, all
+  classical-3): DONE
+  - `bytesRegion_sd_within` — reusable dword-store analog of
+    `bytesRegion_sb_within` (SD into a dword slot → `setBytes bs (8*q) (dwordBytes v)`).
+  - `returnZeroLoop_spec_within` — 22-word descriptor-body zeroing loop
+    (`zeroDwords` model), induction on the word countdown.
+  - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
+    loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
+    copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
+- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
+  straight-line glue as a single descriptor-window `Program` from the post-gas
+  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
+  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
+  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
+  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
+  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
+  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
+  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
+  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
+  stitched, so the registry is NOT flipped).
+
 ### Phase 9: Gas Metering
 
 #### 9.1 Static Gas
@@ -2728,9 +2792,114 @@ arbitrary single-exit body supplied as a `cpsTripleWithin` hypothesis —
 concluding `sp`/`ra`/every saved `s`-reg restored to entry + slots hold saved
 values + caller rw-effect preserved. `demoFrame_spec` is now derived as a
 one-shot `abiFrame_spec` instantiation. Same axioms; both CI checkers pass.
-A survey of the emitted guest found **no clean sp-frame leaf** to port via
-`abiFrame_spec` (all 231 sp-frame programs have a cross-call or a loop), so
-the real-routine port remains deferred.
+**s-register-exposed loop bridge + synthetic loop-leaf demo landed** (branch
+`port/abi-frame-loop-leaf`, stacks on `feat/abi-frame-spec`, bead
+evm-asm-4ch8f.76 follow-up): the prior "no clean sp-frame leaf" note conflated
+single-exit with straight-line — a body with an *internal* fall-through loop is
+still single-exit at the frame boundary. `SAsm/AbiFrameLoop.lean` adds
+`countdownLoop_spec`, a general, register-agnostic bottom-decrement countdown
+loop at the `cpsTripleWithin` level (analogue of the RLP `cu64_loop`, but the
+counter register and the invariant family `inv : Nat → Assertion` are free, so
+they may reference callee-saved `s`-registers — the capability the structured
+`while`/`doWhile` combinators lack since `Reg.isExposed` excludes s-regs).
+`SAsm/AbiFrameLoopDemo.lean` instantiates it for a synthetic software-multiply
+leaf (`acc = inc*kw` by repeated addition, `s0`/`s1` as loop-local
+accumulator/counter): `mulFrame_spec` composes prefix·loop·suffix into the
+`abiFrame_spec` body hypothesis and concludes `sp`/`ra`/`s0`/`s1` restored to
+entry + the rw dword at `[a0]` holds `inc*kw`, with a genuine loop invariant
+(`s0 = inc*(K−n)` at remaining count `n`), byte-identical (`#guard`/`rfl`) to a
+hand-written 16-instruction prog, axioms `[propext, Classical.choice,
+Quot.sound]`. This proves frame+loop composition end-to-end.
+**First REAL sp-frame guest routine landed** (bead evm-asm-ffziu, branch
+`port/abi-frame-reemit-complete`): `parent_header_matches_witness_first`
+re-emitted as a verified `abiFrameProg` drop-in
+(`SAsm/ParentHeaderFrame.lean`, 84 instrs; byte-CHANGED, not byte-matched —
+the original's `lwu` offset-table reads are misaligned whenever the section
+pointer is 4-unaligned, so the re-emission byte-reconstructs both u32-LE
+offsets via `lbu`+`slli`+`add`, and the early-exit byte loop is reshaped into
+the branch-free memcmp countdown the verified `memcmpLoop_spec` core proves;
+functionally identical outputs on every input, validated by the dedicated
+ziskemu probe A/B). `phmwCore_spec` is the unified single-exit body triple
+(all branches — empty / `N = 0` / single-vs-multi element / length-mismatch /
+match — reconverge to one exit; genuine disjunctive post `phmwStatus` /
+`phmwIsMatch`), and `phmwFrame_spec` derives the whole-routine ABI contract
+via `abiFrame_spec` (sp/ra/all seven saved s-regs restored). The routine is
+anchored at `0xF18` so the memcmp core's `0x1000` loop anchor lands exactly on
+the loop header (no base-generalization needed). Byte-tie:
+`parentHeaderMatchesWitnessFirst_prog = phmwProgList` by `rfl` in
+`BlockHashPredicates.lean`; drift guards re-tied (`#guard length = 84`),
+fixture + GuestAddrs + coverage doc regenerated. Axioms `[propext,
+Classical.choice, Quot.sound]`. Remaining candidates for the same treatment:
+`witnessCodesValidateLengths_prog`, `hpDecodeNibbles_prog`.
+**Frame + cross-call composition landed** (bead evm-asm-4ch8f.76.2, branch
+`feat/abi-frame-call`): `SAsm/AbiFrameCall.lean` adds `stackFree sp k` (the
+free-stack region below `sp`: `k` genuinely owned `memOwn` dwords a callee
+carves its own frame from — no arbitrary-stack hole; `stackFree_split` frames
+the unused depth), `jal_link_spec_within` (the linking `jal ra` step), and the
+call rules `callWithin_spec`/`abiFrameCall_spec` (compose a `jal ra` with a
+callee whole-routine `cpsTripleWithin` contract — the `abiFrame_spec` /
+`FnHandle.sound` shape at `ret := A + 4`; the caller's frame slots + saved-ra
+slot are framed out of the callee footprint, so their preservation across the
+call is PROVEN by separation; sequences of calls chain by ordinary
+sequencing, each `jal` re-clobbering `ra` via the free `vOld`).  Notably
+`abiFrame_spec` needed NO generalization: its `vals'` is already free
+(including `.x1`), so the epilogue restores a call-clobbered `ra` from the
+slot.  `SAsm/AbiFrameCallDemo.lean`: a framed caller (`twice`, saves only
+`ra`) calls a framed callee (`bump`, own 16-byte frame carved from the
+caller's `stackFree`, increments `[a0]`, clobbers `s0`) TWICE via real
+`jal`s; `twiceFrame_spec` restores `sp`/`ra` to entry with `[a0] = v + 2`.
+Byte-transparent (`#guard`/`rfl`), additive, classical-3 axioms.  This is the
+bridge the pre-existing blocker beads (4ch8f.58.3.17.1 "FnHandle call bridge
+with s-register locals", 4ch8f.58.3.22.1 "exact-ra call bridge") were waiting
+on; porting a real cross-calling routine additionally needs its callees'
+whole-routine contracts (each its own port).
+**Port-automation + first real cross-call port landed** (branch
+`feat/frame-port-tactic`): `SAsm/FramePort.lean` collapses the sp-frame port
+boilerplate into tactics — `pcf` (pcFree over all atoms + region/stack/frame
+combinators), `code_mem` (code membership by kernel evaluation:
+`CodeReq.sub_ofProg_of_lookup` + `singleton_mono (by decide)` — replaces the
+manual `ofProg_mono_sub`/`ofProg_lookup_addr`/`memAt` plumbing),
+`lift_code`/`liftCode`, and the apply-and-discharge wrappers `abi_frame` /
+`countdown_loop` / `countdown_loop_bottom` / `frame_call` (all
+`abiFrame_spec`/loop/call side-conditions auto-closed; only the genuine body
+triple/invariant remains).  `SAsm/AbiFrameLoopBottom.lean` adds the
+`do-while` loop lemma `countdownLoopBottom_spec` + the writable dword-array
+region `dwordsIs`/`dwordsIs_at_set` (the store-loop analogue of
+`bytesRegion`).  Re-derived via the tactics with identical statements:
+`mulFrame_spec`/`mulLoop_spec`, `bumpCall_spec`/`twiceFrame_spec`.  First
+REAL cross-call sp-frame port: `bnq_set_one`
+(`Codegen/Programs/Bn254Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.17,
+byte-TRANSPARENT — the emitted `bnqSetOne_prog` IS the `abiFrameProg`
+flatten, `#guard`/`rfl`, no guest-byte change, no A/B needed): the callee
+`bnq_zero` gets a flat whole-routine contract (`bnqZeroFlat_spec`,
+bottom-test store loop over `dwordsIs`, genuine zero-prefix invariant)
+consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
+restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
+blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
+contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
+BLS12-381 analogue `blq_set_one` now follows the same framework path
+(`Codegen/Programs/Bls12Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.23,
+byte-TRANSPARENT): flat `blq_zero` contract over 72 dwords/576 bytes,
+`callWithin_spec` from the frame body, and postcondition ONE = dword 0 set to
+1 with the remaining 71 dwords zero.
+**Count-up call-loop lemma + blsg2_encode port landed** (branch
+`feat/countup-call-loop`, beads evm-asm-ipt7m + 4ch8f.58.3.24.2):
+`SAsm/AbiFrameLoopBottom.lean` adds `countupLoopBottom_spec` — the
+bottom-tested count-up analogue of `countdownLoopBottom_spec` (counter
+`0 → N` against a nonzero bound REGISTER that the body reloads each pass,
+`… ; addi ctr,ctr,1 ; li bnd,N ; bne ctr,bnd,back`), register/bound/offset
+agnostic, arbitrary per-iteration body triple (verified to admit a
+`callWithin_spec` composition) — plus the `countup_loop` FramePort macro.
+Consumer: `blsg2_encode` (`Codegen/Programs/Bls12G2EncodeSAsm.lean`,
+byte-TRANSPARENT `abiFrameProg (-40)/(+40)`, frame ra/s0/s1/s2): the loop
+body computes `48·i` (two shifts + add), points `a0`/`a1` at chunk `i`, and
+REALLY calls `blsg_le_to_be` — the callee contract is DERIVED with the
+adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
+`blsgLeToBeFn_spec`, ambient-pinned per §5a) and consumed by
+`callWithin_spec`; `blsg2Encode_spec` concludes sp/ra/s0/s1/s2 restored and
+the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
+inputs untouched).  First loop-of-calls port; callee steps kept symbolic
+(`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
