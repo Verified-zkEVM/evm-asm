@@ -27,12 +27,12 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace Secp256k1FieldReduceOnceSAsm
 
 -- Address anchors for byte-transparent proof.
-#guard GuestAddrs.secf_reduce_once = 0x8001fcf8
-#guard GuestAddrs.u256_lt_be = 0x80005154
-#guard GuestAddrs.u256_sub_be = 0x800050d8
-#guard GuestAddrs.secf_copy32 = 0x8001fb34
-#guard GuestAddrs.secp256k1_p_be = 0xa3c05270
-#guard GuestAddrs.secf_cmp = 0xa3c05390
+#guard GuestAddrs.secf_reduce_once = 0x8001fe68
+#guard GuestAddrs.u256_lt_be = 0x800052c4
+#guard GuestAddrs.u256_sub_be = 0x80005248
+#guard GuestAddrs.secf_copy32 = 0x8001fca4
+#guard GuestAddrs.secp256k1_p_be = 0xa3c052c0
+#guard GuestAddrs.secf_cmp = 0xa3c053e0
 
 /-- secp256k1 field prime, as 32 big-endian bytes. -/
 def secp256k1PBytes : List (BitVec 8) :=
