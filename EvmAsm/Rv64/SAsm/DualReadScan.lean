@@ -233,7 +233,7 @@ section Scan
 
 -- Word-arithmetic helpers for the countdown counter and advancing cursors.
 
-private theorem cursor_advance (p : Word) (i : Nat) (h : 8 * (i + 1) < 2 ^ 64) :
+private theorem cursor_advance (p : Word) (i : Nat) :
     p + BitVec.ofNat 64 (8 * i) + signExtend12 (8 : BitVec 12)
       = p + BitVec.ofNat 64 (8 * (i + 1)) := by
   rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
@@ -245,7 +245,7 @@ private theorem cursor_advance (p : Word) (i : Nat) (h : 8 * (i + 1) < 2 ^ 64) :
   rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat]
   omega
 
-private theorem counter_dec (N i : Nat) (hi : i < N) (hN : N < 2 ^ 64) :
+private theorem counter_dec (N i : Nat) (hi : i < N) :
     BitVec.ofNat 64 (N - i) + signExtend12 (-1 : BitVec 12)
       = BitVec.ofNat 64 (N - (i + 1)) := by
   have hsem : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
@@ -359,7 +359,7 @@ private theorem scan_vcs
     hbeforeMem | hreadOk | hfocus | hreadMem | hafterOk | heqOk | hneOk
   · -- init.ok
     subst vc
-    simp [blockOk, instrOk, aluSem, hEc]
+    simp [instrOk, aluSem, hEc]
   · -- scan.inv_init
     subst vc
     rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hpA, hpB, _hlA, _hlB, hA⟩, hrf, hws⟩
@@ -457,19 +457,19 @@ private theorem scan_vcs
       rw [RegFile.get_set_self _ _ _ hcx0,
         RegFile.get_set_ne _ _ _ _ hcpB,
         RegFile.get_set_ne _ _ _ _ hcpA, hrfa_ctr, hctr]
-      exact counter_dec N i hi (by omega)
+      exact counter_dec N i hi
     · rw [hrf']
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
       rw [RegFile.get_set_ne _ _ _ _ (Ne.symm hcpA),
         RegFile.get_set_ne _ _ _ _ hpApB,
         RegFile.get_set_self _ _ _ hpAx0, hrfa_pA, hpA]
-      exact cursor_advance ptrA i (by omega)
+      exact cursor_advance ptrA i
     · rw [hrf']
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
       rw [RegFile.get_set_ne _ _ _ _ (Ne.symm hcpB),
         RegFile.get_set_self _ _ _ hpBx0,
         RegFile.get_set_ne _ _ _ _ (Ne.symm hpApB), hrfa_pB, hpB]
-      exact cursor_advance ptrB i (by omega)
+      exact cursor_advance ptrB i
     · intro j hj
       by_cases hji : j < i
       · exact hpref j hji
@@ -490,7 +490,7 @@ private theorem scan_vcs
     rfl
   · -- before.ldA.ok
     subst vc
-    simp [blockOk, instrOk, aluSem, loadSem, hEtA, hEpA]
+    simp [instrOk, aluSem, loadSem, hEtA, hEpA]
   · -- before.ldA.mem
     subst vc
     rintro rf ws A hws i hi hinv _hg
@@ -498,14 +498,14 @@ private theorem scan_vcs
     obtain rfl := List.eq_nil_of_length_eq_zero hws
     unfold scanInv at hinv
     obtain ⟨-, hpA, -, -, -, -⟩ := hinv
-    simp only [blockVCs, loadSem, storeSem]
+    simp only [blockVCs, loadSem]
     refine ⟨?_, trivial⟩
     rw [if_neg (by simp [inRw])]
     rw [hpA]
     exact loadOk_slot_ofs ptrA bsA i _ (by decide) (by omega) (by omega)
   · -- before.ldB.ok
     subst vc
-    simp [blockOk, instrOk, aluSem, loadSem, hEtB, hEpB]
+    simp [instrOk, aluSem, loadSem, hEtB, hEpB]
   · -- before.ldB.focus
     subst vc
     rintro rf ws A hsp _hApc hp hhp
@@ -539,7 +539,7 @@ private theorem scan_vcs
       (by rw [hrob]; simp only [List.length_drop]; omega)
   · -- after.ok
     subst vc
-    simp [blockOk, instrOk, aluSem, hEpA, hEpB, hEc]
+    simp [instrOk, aluSem, hEpA, hEpB, hEc]
   · -- guardTail.ok
     subst vc
     decide
@@ -548,12 +548,8 @@ private theorem scan_vcs
     decide
 
 private theorem scan_sp_post
-    (hEc : Reg.isExposed ctr = true) (hEtA : Reg.isExposed tA = true)
-    (hEtB : Reg.isExposed tB = true) (hEpA : Reg.isExposed pA = true)
-    (hEpB : Reg.isExposed pB = true)
-    (hctA : ctr ≠ tA) (hctB : ctr ≠ tB) (hcpA : ctr ≠ pA) (hcpB : ctr ≠ pB)
-    (htAtB : tA ≠ tB) (htApA : tA ≠ pA) (htApB : tA ≠ pB)
-    (htBpA : tB ≠ pA) (htBpB : tB ≠ pB) (hpApB : pA ≠ pB)
+    (hEtA : Reg.isExposed tA = true) (hEtB : Reg.isExposed tB = true)
+    (htAtB : tA ≠ tB) (htApB : tA ≠ pB)
     (hlenA : bsA.length = 8 * N) (hlenB : bsB.length = 8 * N)
     (hNlt : 8 * N < 2 ^ 64) :
     ∀ rf ws A,
@@ -690,8 +686,7 @@ theorem scan_spec (base ret : Word)
     (scan_vcs hEc hEtA hEtB hEpA hEpB hctA hctB hcpA hcpB htAtB htApA htApB
       htBpA htBpB hpApB hwfB hlenA hlenB hNlt)
   exact cpsTripleWithin_weaken (fun _ hp => hp)
-    (sepConj_mono_right (asrtM_mono (scan_sp_post hEc hEtA hEtB hEpA hEpB
-      hctA hctB hcpA hcpB htAtB htApA htApB htBpA htBpB hpApB
+    (sepConj_mono_right (asrtM_mono (scan_sp_post hEtA hEtB htAtB htApB
       hlenA hlenB hNlt)))
     hsound
 
