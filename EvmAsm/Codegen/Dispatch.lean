@@ -3182,6 +3182,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_regular_refund:\n" ++
+  "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
    -- t1iqb: 64-byte zero-pad staging window for the VERIFIED arena-free

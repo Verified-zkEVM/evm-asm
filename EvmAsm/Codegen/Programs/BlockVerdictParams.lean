@@ -246,10 +246,10 @@ def bvBlockLogFullDataBytes : Nat :=
     (`block_receipt_logs_materialize`, `materialize_log_records`,
     `parse_deposit_requests`) must walk the packed stride. The runtime
     dispatcher's `evm_event_logs` 256 B source format is unchanged. Closing this
-    makes `bv_block_log_overflow -> .Lbv_receipts_accept` (BlockVerdictReceiptsTail
-    line ~95) and the receipt-logs status-3 capacity skip UNREACHABLE under 200M,
-    removing the shared class-D (receipts-enforce) and class-E (deposit-derivation)
-    capacity skip. -/
+    keeps `bv_block_log_overflow` unreachable under 200M. If it is reached anyway,
+    BlockVerdictReceiptsTail now fails visibly instead of accepting through a
+    capacity skip, so class-D receipt enforcement and class-E deposit derivation do
+    not normalize incomplete log materialization into success. -/
 def bvBlockLogPackedUnitBytes : Nat := 32
 def bvBlockLogPackedDescBytes : Nat :=
   bvBlockLogPackedUnitBytes * bvBlockLogFullDescTarget
