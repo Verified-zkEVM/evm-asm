@@ -324,6 +324,23 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_type34_create_check:\n" ++
   "  la t0, bsg_to_len; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
   ".Letg_after_type34_checks:\n" ++
+  "  li t0, 1; bne s7, t0, .Letg_generic_intrinsic_counts\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 0(t0); bnez t1, .Letg_generic_intrinsic_counts\n" ++
+  "  ld t1, 176(t0); bne t1, s9, .Letg_generic_intrinsic_counts\n" ++
+  "  ld t1, 184(t0); bne t1, s10, .Letg_generic_intrinsic_counts\n" ++
+  "  ld t1, 160(t0); la t2, bsg_tx_type; ld t2, 0(t2); bne t1, t2, .Letg_generic_intrinsic_counts\n" ++
+  "  ld t1, 40(t0); la t2, bsg_tx_gas; ld t2, 0(t2); bne t1, t2, .Letg_generic_intrinsic_counts\n" ++
+  "  mv a0, t0; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Letg_generic_intrinsic_counts\n" ++
+  "  la t0, bsg_intrinsic_gas; sd a1, 0(t0)\n" ++
+  "  la t0, bsg_floor_gas; sd a2, 0(t0)\n" ++
+  "  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)\n" ++
+  "  bgeu t4, a2, .Letg_simple_floor_stored\n" ++
+  "  sd a2, 0(t3)\n" ++
+  ".Letg_simple_floor_stored:\n" ++
+  "  mv t6, a3\n" ++
+  "  j .Letg_intrinsic_done\n" ++
+  ".Letg_generic_intrinsic_counts:\n" ++
   "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
   "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
   "  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2\n" ++

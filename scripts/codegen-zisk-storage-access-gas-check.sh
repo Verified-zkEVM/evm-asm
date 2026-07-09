@@ -2,7 +2,7 @@
 # codegen-zisk-storage-access-gas-check.sh -- runtime storage-key warmth helper.
 #
 # Exercises evm_storage_access_charge_key directly:
-#   - first touch of slot A charges the 2000 cold delta and inserts it;
+#   - first touch of slot A charges the 2900 cold delta and inserts it;
 #   - repeating slot A is warm and charges nothing;
 #   - touching slot B is cold and charges the delta again;
 #   - insufficient gas returns status 2 without inserting.
@@ -74,9 +74,9 @@ PY
 EXPECTED_OK="$(python3 - <<'PY'
 import struct
 parts = [
-    (1, 3000, 1),  # cold slot A: charge 2000
-    (0, 3000, 1),  # warm slot A: no charge
-    (1, 1000, 2),  # cold slot B: charge 2000
+    (1, 3100, 1),  # cold slot A: charge 2900
+    (0, 3100, 1),  # warm slot A: no charge
+    (1, 200, 2),  # cold slot B: charge 2900
 ]
 print(b"".join(struct.pack("<Q", x) for triple in parts for x in triple).hex())
 PY
@@ -85,17 +85,17 @@ PY
 EXPECTED_OOG="$(python3 - <<'PY'
 import struct
 parts = [
-    (2, 1999, 0),  # cold slot A: not enough gas, no insert
-    (2, 1999, 0),  # still cold and still no insert
-    (2, 1999, 0),  # slot B also cannot insert
+    (2, 2899, 0),  # cold slot A: not enough gas, no insert
+    (2, 2899, 0),  # still cold and still no insert
+    (2, 2899, 0),  # slot B also cannot insert
 ]
 print(b"".join(struct.pack("<Q", x) for triple in parts for x in triple).hex())
 PY
 )"
 
 FAILED=0
-run_case "cold_warm_cold" 5000 "$EXPECTED_OK" || FAILED=1
-run_case "out_of_gas" 1999 "$EXPECTED_OOG" || FAILED=1
+run_case "cold_warm_cold" 6000 "$EXPECTED_OK" || FAILED=1
+run_case "out_of_gas" 2899 "$EXPECTED_OOG" || FAILED=1
 
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1
