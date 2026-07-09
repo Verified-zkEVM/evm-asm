@@ -3084,6 +3084,26 @@ exhaustion → tail writes `0`, the `x0`-sourced store) and
 #10060) gives the GENUINE post `[a2] = if beBytesToNat as < beBytesToNat
 bs then 1 else 0` (dword), `a0 = 0`, inputs untouched.  Classical-3.
 Unblocks secf_reduce_once (4ch8f.38.2.4.1).
+**Dynamic-length byte dual-read scan + `blsg2_eq_n` landed** (branch
+`feat/dual-read-byte-scan`, bead evm-asm-v1ad3; porting-agent feedback —
+`DualReadScan` #10038 covers fixed dword `LD` scans only).
+`SAsm/DualReadByteScan.lean` (cpsTripleWithin level, additive):
+`byteScanProg` — the 12-instruction dynamic-length LBU dual-read equality
+scan generator (five generic scan registers, `a2`-style dynamic count,
+counter-verdict join `li a0,1; beq ctr,x0; li a0,0; ret`);
+`bytes_eq_of_prefix_eq` — the per-byte → byte-list equality bridge (the
+byte-level analogue of #10038's `bytes_eq_of_dwordSlots_eq`);
+`scan_spec` — the whole scan, register- AND length-agnostic at a SYMBOLIC
+base, built from `twoBreakRetLoop_spec`/`breakStation_spec` (#10067) with
+the two loop exits routed through the join (`joinEq_spec`/`joinNe_spec`);
+`CodeReq.ofProg_mem_at` — symbolic-base per-instruction code membership
+(`code_mem` needs concrete bases).  Consumer `blsg2_eq_n`
+(`Bls12G2EqNSAsm.lean`, `#guard`-tied GuestAddrs.blsg2_eq_n = 0x80033b80):
+the emitted `blsg2EqN_prog` IS `[mv;mv;mv] ++ byteScanProg x5 x28 x29 x6
+x7` (kernel `rfl`), so `blsg2EqN_spec` is byte-transparent (no re-emit, no
+A/B) with the GENUINE post `a0 = (if bs1 = bs2 then 1 else 0)`, inputs
+untouched — superseding the `firstDiff`-shaped `Fn` post.  Completes the
+equality-scan family (fixed-dword #10038 + dynamic-byte).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
