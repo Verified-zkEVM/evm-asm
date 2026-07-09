@@ -51,7 +51,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace U256MinSAsm
 
 -- Address anchor.
-#guard GuestAddrs.u256_min = 0x80024be8
+#guard GuestAddrs.u256_min = 0x80024c34
 
 -- The shared copy tail of the emitted program IS the combinator's
 -- generator (kernel-checked byte tie).
