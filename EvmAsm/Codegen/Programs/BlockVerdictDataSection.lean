@@ -55,7 +55,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_block_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bv_block_hash_check_enabled:\n  .zero 8\n" ++
+  "bv_block_hash_check_enabled:\n  .dword 1\n" ++
   ".balign 8\n" ++
   "svf_tx_count:\n  .zero 8\n" ++
   "svf_tx_descriptors:\n  .zero 32768\n" ++
@@ -472,6 +472,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_count:\n  .zero 8\n" ++
   "teer_regular_refund:\n  .zero 8\n" ++
   "teer_predelegated_count:\n  .zero 8\n" ++
+  "teer_existing_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
@@ -511,11 +512,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
   "ta77es_offset:\n  .zero 8\n" ++
   "ta77es_length:\n  .zero 8\n" ++
-  "bvrga_type:\n  .zero 8\n" ++
-  "bvrga_inner_off:\n  .zero 8\n" ++
-  "bvrga_auth_off:\n  .zero 8\n" ++
-  "bvrga_auth_len:\n  .zero 8\n" ++
-  "bvrga_auth_count:\n  .zero 8\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
@@ -1327,11 +1323,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
+
   -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds
   -- type-3 blob-data-gas sender-debit terms; type-4 auth gas is already in
   -- bvgr_receipt_gas_increments. txtype/innoff come from tx_type_dispatch;
   -- blobcount = blob hashes; feedebit is the u256 fee accumulator added into
   -- the sender debit.
+
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++

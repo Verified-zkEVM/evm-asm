@@ -343,6 +343,7 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
   "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
   ".Lbv_stx_legacy_21k_verify:\n" ++
+
   "  la t1, tgbpv_failed_oog; sd zero, 0(t1)\n" ++
   "  la t1, tgbpv_skip_value; sd zero, 0(t1)\n" ++
   topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
@@ -362,6 +363,7 @@ def blockVerdictFunction : String :=
   "  add t0, t0, t6\n" ++
   ".Lbv_stx_gas_used_ready:\n" ++
   "  la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
+
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
@@ -1372,9 +1374,11 @@ def blockVerdictFunction : String :=
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
+
   "  beqz a0, .Lbv_eip7778_gate_ok\n" ++
   "  j .Lbv_eip7778_block_gas_fail\n" ++
   ".Lbv_eip7778_gate_ok:\n" ++
+
   blockVerdictExactGasCheck ++
   blockVerdictReceiptsTail
 

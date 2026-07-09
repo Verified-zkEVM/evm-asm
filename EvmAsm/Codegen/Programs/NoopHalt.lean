@@ -289,8 +289,10 @@ private def selfdestructTailAsm : String :=
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
   -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (3000) for a COLD beneficiary and 0
+
   -- when warm (spec amsterdam vm/instructions/system.py:646-650; unlike CALL, it
   -- adds NO warm-access cost). runtime_access_account_charge only debited the
+
   -- 2900 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
   -- SELFDESTRUCT's 5000 base lacks), so add the missing 100 ONLY on the cold path
   -- (helper a0==1) to reach the full 3000; a warm beneficiary stays at 0. Without

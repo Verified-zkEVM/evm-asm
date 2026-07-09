@@ -34,10 +34,13 @@ open EvmAsm.Rv64
 
     Mirrors execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py:
     cold surcharge, original/current/new gas branch, and refund counter branch.
-    Amsterdam charges the access cost (cold 3000 or warm 100) and, on the first
-    change to a slot in the transaction, STORAGE_WRITE = 10000. Restore refunds
-    STORAGE_WRITE, and first-time clears use REFUND_STORAGE_CLEAR = 12480. The
-    zero-restore case additionally credits state gas, surfaced via the +32 flag. -/
+
+    Amsterdam dropped the legacy EIP-2200 SET(20000) split: clean-changing
+    charges STORAGE_WRITE = 10000 regardless of the original being zero (the
+    creation charge moved to EIP-8037 state gas), and the restore refund is
+    STORAGE_WRITE = 10000 (the zero-restore case additionally credits state gas,
+    surfaced via the +32 flag). -/
+
 def sstoreGasRefundOutcomeFunction : String :=
   "sstore_gas_refund_outcome:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -80,8 +83,15 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  li s6, 100                  # gas_cost\n" ++
   "  li s7, 0                    # refund_delta signed\n" ++
   "  bnez a3, .Lsgr_access_warm\n" ++
-  "  li s6, 3000\n" ++
+
+  "  li t0, 3000\n" ++
+  "  add s6, s6, t0\n" ++
+  "  j .Lsgr_access_done\n" ++
+
   ".Lsgr_access_warm:\n" ++
+  "  li t0, 100\n" ++
+  "  add s6, s6, t0\n" ++
+  ".Lsgr_access_done:\n" ++
   "  beqz s3, .Lsgr_warm_access_cost\n" ++
   "  bnez s4, .Lsgr_warm_access_cost\n" ++
   "  li t0, 10000                # clean-changing: STORAGE_WRITE\n" ++

@@ -86,7 +86,12 @@ import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
 import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.RevertSpec
 import EvmAsm.Evm64.Transient.StoreSpec
+import EvmAsm.Evm64.Transient.LoadSpec
+import EvmAsm.Evm64.Storage.LoadSpec
 
 namespace EvmAsm.Progress
 
@@ -286,7 +291,18 @@ def registry : List OpcodeEntry := [
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
       "aligned spec proven; unaligned _public variants in progress",
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
-  entry "SLOAD" .execSpec none "Storage*.lean; ECALL → host",
+  entry "SLOAD" .conditional (some "Storage.evm_sload_stack_spec_within")
+      ("stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan " ++
+       "(byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, " ++
+       "length cell env+448) is proven to replace the stack top in place with " ++
+       "persistentLookup — the `current` of the most-recent committedStorageIs " ++
+       "entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` " ++
+       "because the miss→0 branch is EVM-sound only RELATIVE to the " ++
+       "committedStorageIs snapshot supplied in the precondition; full MPT-" ++
+       "witness verification that the snapshot faithfully reflects state root " ++
+       "is deferred to stage-2 (post-Phase-10). Structural clone of the proven " ++
+       "TLOAD reverse scan on the transient log.")
+      (coverRef := some "sload_precondition_reachable"),
   entry "SSTORE" .execSpec none "Storage*.lean; ECALL → host",
   entry "JUMP" .proven (some "ControlFlow.evm_jump_stack_spec_within")
       (cycleBound := some 13),
@@ -297,7 +313,7 @@ def registry : List OpcodeEntry := [
   entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within"),
   entry "JUMPDEST" .proven (some "ControlFlow.evm_jumpdest_stack_spec_within")
       (cycleBound := some 0),
-  entry "TLOAD" .execSpec none "EIP-1153 (Cancun); transient-log scan handler (Codegen Storage.lean)",
+  entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within"),
   entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within"),
   entry "MCOPY" .execSpec none "EIP-5656 (Cancun); overlap-aware memmove handler (EvmMcopyHandlers)",
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
@@ -323,11 +339,42 @@ def registry : List OpcodeEntry := [
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
   entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
-  entry "RETURN" .execSpec none "TerminatingArgs + TerminatingExecutionBridge",
+  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + halt core, from " ++
+       "the post-gas handler entry through the 0xa0010000 descriptor (header/22-" ++
+       "dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core " ++
+       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). `.conditional` " ++
+       "because (1) it is gated on the reachable precondition system_call_mode=0 " ++
+       "(the ordinary non-system-call tx case; the capture block is present for " ++
+       "layout but skipped) and (2) the memory-gas `preBody` (its .exit_outofgas " ++
+       "branch) is framed OUT as a decision-1 TCB boundary — the triple is stated " ++
+       "from the framed post-gas entry. The five `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+      (coverRef := some "return_precondition_reachable"),
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
-  entry "REVERT" .execSpec none "TerminatingArgs",
+  entry "REVERT" .conditional (some "Terminating.evm_revert_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + rollback + halt " ++
+       "core, from the post-gas handler entry through the 0xa0010000 descriptor " ++
+       "(header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores " ++
+       "on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared " ++
+       "dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to " ++
+       "resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + " ++
+       "halt core verbatim (only the code layout shifts down 80 bytes with no " ++
+       "capture block, the kind-store value is 2, and the rollback is appended). " ++
+       "`.conditional` NOT because of a system_call_mode gate (REVERT has no " ++
+       "capture block — that is kind==1/RETURN-only — so it is strictly more " ++
+       "general than RETURN) but because (1) the memory-gas `preBody` (its " ++
+       ".exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and " ++
+       "(2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict " ++
+       "the input domain, exactly as in RETURN. The four `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+      (coverRef := some "revert_window_nondegenerate"),
   entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
       ("halt-triple over the verified `evm_invalid` program (byte image of the "
        ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
@@ -351,10 +398,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 65 := by decide
+theorem provenCount_eq      : provenCount      = 66 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 20 := by decide
+theorem conditionalCount_eq : conditionalCount = 3  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 16 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -385,10 +432,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 125 := by decide
+theorem provenBytes_eq      : provenBytes      = 126 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 24  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 20  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -471,12 +518,31 @@ private noncomputable abbrev _codecopy_witness :=
   @EvmAsm.Evm64.Code.evm_codecopy_stack_spec_within
 private noncomputable abbrev _returndatasize_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
+private noncomputable abbrev _tload_witness :=
+  @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
+private noncomputable abbrev _sload_witness :=
+  @EvmAsm.Evm64.Storage.evm_sload_stack_spec_within
+private noncomputable abbrev _sload_cover :=
+  @EvmAsm.Evm64.Storage.sload_precondition_reachable
 private noncomputable abbrev _tstore_witness :=
   @EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
 private noncomputable abbrev _stop_witness :=
   @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
 private noncomputable abbrev _invalid_witness :=
   @EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
+-- Shared RETURN/REVERT halt core (`dispatchHaltRet 2` → `.exit_no_epilogue`).
+private noncomputable abbrev _return_halt_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
+-- Full RETURN (0xf3) return-data window + halt core (see the registry note).
+private noncomputable abbrev _return_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within
+private noncomputable abbrev _return_cover :=
+  @EvmAsm.Evm64.Terminating.return_precondition_reachable
+-- Full REVERT (0xfd) return-data window + rollback + halt core (see the note).
+private noncomputable abbrev _revert_witness :=
+  @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within
+private noncomputable abbrev _revert_cover :=
+  @EvmAsm.Evm64.Terminating.revert_window_nondegenerate
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within

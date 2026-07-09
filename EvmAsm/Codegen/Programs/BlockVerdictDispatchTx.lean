@@ -710,10 +710,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
-  -- message state-gas reservoir when the recovered authority already exists.
-  -- The callable dispatcher resets its state-gas cells during setup, so compute
-  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
+  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
+  -- the recovered authority already exists. The callable dispatcher resets its
+  -- state-gas cells during setup, so compute both refunds here and stage them.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
   "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
   "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
@@ -724,7 +724,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+
   "  la t4, runtime_tx_auth_regular_refund; sd a1, 0(t4)\n" ++
+
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++

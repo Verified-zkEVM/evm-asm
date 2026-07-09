@@ -107,10 +107,11 @@ theorem zero_engine (reg : Region) (dst : Word) (rf : RegFile)
 
 def zeroInv (dst : Word) (orig : List (BitVec 8)) :
     Nat -> RegFile -> List (BitVec 8) -> Assertion -> Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = dst + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x7 = BitVec.ofNat 64 (72 - (i + 1)) ∧
-    i < 72 ∧ orig.length = 576 ∧ ws = zeroWin576 orig (i + 1)
+    i < 72 ∧ orig.length = 576 ∧ ws = zeroWin576 orig (i + 1) ∧
+    A = empAssertion
 
 def blqZeroBody (dst : Word) (orig : List (BitVec 8)) : Stmt :=
   .block "init" [.LI .x7 (72 : Word)] ;;;
@@ -120,8 +121,11 @@ def blqZeroBody (dst : Word) (orig : List (BitVec 8)) : Stmt :=
 def blqZeroFn (dst : Word) (orig : List (BitVec 8)) : Fn where
   name := "blqZero"
   rw := ⟨dst, 576⟩
-  pre := fun rf ws _ => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 576
-  post := fun _ ws _ => ws = List.replicate 576 (0 : BitVec 8)
+  pre := fun rf ws A =>
+    rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 576 ∧ A = empAssertion
+  post := fun rf ws A =>
+    rf.get .x10 = dst + BitVec.ofNat 64 576 ∧ rf.get .x7 = 0 ∧
+    ws = List.replicate 576 (0 : BitVec 8) ∧ A = empAssertion
   body := blqZeroBody dst orig
 
 def blqZero_verified : Program :=
@@ -141,14 +145,14 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, rfl, hlen⟩
+    rcases hpre with ⟨hx10, rfl, hlen, hA⟩
     simp only [hbase]
     have hx10Init : (execBlock (blqZeroFn dst ws0).region dst rfInit ws0
         [Instr.LI Reg.x7 72]).1.get .x10 = dst := by
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
         ne_eq, reduceCtorEq, not_false_eq_true, hx10]
     rw [zero_engine _ dst _ ws0 0 (by omega) (by simpa using hx10Init)]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · rw [zeroStepRf_get_x10, hx10Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       bv_omega
     · rw [zeroStepRf_get_x7]
@@ -158,10 +162,10 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
     · change setBytes ws0 (8 * 0) (dwordBytes (0 : Word)) = zeroWin576 ws0 (0 + 1)
       simpa [zeroWin576_zero ws0] using zeroWin576_step ws0 0 hlen (by omega)
   case blqZero.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     simp only [hbase]
     rw [zero_engine _ dst rf₀ ws₀ (i + 1) (by omega) hx10]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · rw [zeroStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (8 : Word).toNat = 8 from by decide]
@@ -170,12 +174,12 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
       interval_cases i <;> decide
     · rw [hws₀, zeroWin576_step orig (i + 1) hlen (by omega)]
   case blqZero.loop.exhausted =>
-    rintro rf ws A ⟨-, hx5, -, -, -⟩
+    rintro rf ws A ⟨-, hx5, -, -, -, -⟩
     simp only [Cond.holds, hx5, not_not, RegFile.get_x0]
     decide
   case blqZero.loop.body.zero.mem =>
     rintro rf ws A hlen (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen⟩, rfl, rfl⟩
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen, -⟩, rfl, rfl⟩
       have hlen576 : ws.length = 576 := by
         change ws.length = 576 at hlen
         exact hlen
@@ -188,7 +192,7 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
       constructor
       · omega
       · exact Nat.dvd_zero 8
-    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws⟩, hcond⟩
+    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws, -⟩, hcond⟩
       have haddr : (rf.get .x10 + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * (i + 1) := by
         rw [hx10, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
         bv_omega
@@ -201,14 +205,17 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
       · omega
       · exact Nat.dvd_mul_right 8 (i + 1)
   case blqZero.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws, hA⟩, hncond⟩
     have hi71 : i = 71 := by
       simp only [Cond.holds, hx5, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
     subst hi71
-    rw [hws, zeroWin576_72_eq orig hlen]
-    rfl
+    refine ⟨?_, ?_, ?_, hA⟩
+    · rw [hx10]
+    · rw [hx5]
+      decide
+    · rw [hws, zeroWin576_72_eq orig hlen]
 
 end Bls12Fq12Zero576SAsm
 

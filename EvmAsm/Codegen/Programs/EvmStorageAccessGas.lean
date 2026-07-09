@@ -3,7 +3,7 @@
 
   Runtime storage-key warmth table for EIP-2929 SLOAD/SSTORE gas.
   The dispatcher already charges the 100-gas warm/static floor for
-  SLOAD and SSTORE; this helper charges the missing 2000-gas cold
+  SLOAD and SSTORE; this helper charges the missing 2900-gas cold
   storage-key delta on first touch and records the key as warm.
 -/
 

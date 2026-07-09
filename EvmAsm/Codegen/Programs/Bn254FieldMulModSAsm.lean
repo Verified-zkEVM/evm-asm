@@ -87,6 +87,7 @@ private theorem winRw_wf : winRw.wf := by
   intro k hk
   rw [winBase]
   show isValidMemAddr (BitVec.ofNat 64 GuestAddrs.bnf_le_a + BitVec.ofNat 64 k) = true
+
   rw [show GuestAddrs.bnf_le_a = 3142660848 from rfl]
   have : (BitVec.ofNat 64 3142660848 + BitVec.ofNat 64 k).toNat = 3142660848 + k := by
     rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
@@ -103,6 +104,7 @@ private theorem winRw_wf : winRw.wf := by
     exact decide_eq_true_iff.mpr (by omega)
   have h2 : decide (3142660848 + k ≤ Rv64.RAM_MEM_END) = true := by
     show decide (3142660848 + k ≤ 3221225472) = true
+
     exact decide_eq_true_iff.mpr (by omega)
   simp only [h1, h2, Bool.true_and, Bool.or_true]
 
