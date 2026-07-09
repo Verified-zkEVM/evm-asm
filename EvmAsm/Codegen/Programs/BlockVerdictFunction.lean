@@ -343,15 +343,34 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
   "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
   ".Lbv_stx_legacy_21k_verify:\n" ++
+  "  la t1, tgbpv_failed_oog; sd zero, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd zero, 0(t1)\n" ++
   topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
-  "  li t1, 21000; add t0, t0, t1; la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_top_state_gas; ld t6, 0(t1)\n" ++
+  "  add t0, a1, a3\n" ++
+  "  bgeu t0, a2, .Lbv_stx_intrinsic_used_ready\n" ++
+  "  mv t0, a2\n" ++
+  ".Lbv_stx_intrinsic_used_ready:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t4, 40(t2); add t5, t0, t6; bgeu t4, t5, .Lbv_stx_not_failed_oog\n" ++
+  "  la t1, tgbpv_failed_oog; li t3, 1; sd t3, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd t3, 0(t1)\n" ++
+  "  mv t0, t4; j .Lbv_stx_gas_used_ready\n" ++
+  ".Lbv_stx_not_failed_oog:\n" ++
+  "  add t0, t0, t6\n" ++
+  ".Lbv_stx_gas_used_ready:\n" ++
+  "  la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
   "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
   "  jal ra, tx_gas_bal_post_verify\n" ++
-  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); li t1, 39; beq t0, t1, .Lbv_st_sender_coinbase_maybe\n" ++
+  "  bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  ".Lbv_st_sender_bal_ok:\n" ++
   "  # Non-overlapping EOA simple transfers must also expose recipient and\n" ++
   "  # fee-recipient BAL post balances matching value and priority-fee effects.\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
@@ -362,19 +381,8 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_recipient_distinct\n" ++
   "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_recipient_sender_cmp\n" ++
   ".Lbv_st_recipient_distinct:\n" ++
-  "  # Skip the strict recipient BAL balance check when the simple-transfer\n" ++
-  "  # recipient is the block coinbase: that account's BAL post balance also\n" ++
-  "  # folds in the priority fee (transaction_fee), so pre+value != post and\n" ++
-  "  # the EIP-7708 coinbase-recipient case would false-reject even though the\n" ++
-  "  # recomputed post-state root still anchors the coinbase balance. Mirrors\n" ++
-  "  # the fee-recipient coinbase-overlap skip below.\n" ++
-  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
-  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n" ++
-  "  li t5, 20\n" ++
-  ".Lbv_st_recipient_coinbase_cmp:\n" ++
-  "  beqz t5, .Lbv_st_skip_recipient_overlap\n" ++
-  "  lbu t6, 0(t0); lbu a0, 0(t1); bne t6, a0, .Lbv_st_recipient_do_verify\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t5, t5, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
+  "  # Recipient==coinbase is verified by folding the priority-fee credit into\n" ++
+  "  # strv_wd_credit below, so the strict check uses the full post balance.\n" ++
   ".Lbv_st_recipient_do_verify:\n" ++
   "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lbv_st_skip_recipient_overlap\n" ++
   "  # EIP-7928/4895 (evm-asm-ouis9): like the fee-recipient skip below, the strict\n" ++
@@ -395,6 +403,20 @@ def blockVerdictFunction : String :=
   "  la a3, strv_wd_credit\n" ++
   "  jal ra, bv_sum_withdrawals_to_address\n" ++
   ".Lbv_st_recipient_wd_done:\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
+  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_st_recipient_coinbase_cmp:\n" ++
+  "  beqz t2, .Lbv_st_recipient_add_fee_credit\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_st_recipient_extra_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
+  ".Lbv_st_recipient_add_fee_credit:\n" ++
+  "  la a0, txup_priority_fee; la t0, tgbpv_simple_transfer_gas_used; ld a1, 0(t0); la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_simple_transfer_recipient_fail\n" ++
+  "  la a0, strv_wd_credit; la a1, bv_upfront_blob_cost; la a2, strv_wd_credit\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_simple_transfer_recipient_fail\n" ++
+  ".Lbv_st_recipient_extra_done:\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; addi a1, t2, 96\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
@@ -539,10 +561,15 @@ def blockVerdictFunction : String :=
   -- shortcut. The resulting before-refund value is regular + state, which the
   -- exact EIP-8037 block-gas check later splits back into its two dimensions.
   topLevelValueRecipientStateGasAsm "bv_st_direct" "bv_simple_transfer_tx" ++
-  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t0, evm_state_gas_used; ld t0, 0(t0)\n" ++
+  "  la t0, tgbpv_top_state_gas; ld t0, 0(t0)\n" ++
+  "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_direct_state_publish_ok\n" ++
+  "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
+  ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
+  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
   "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
@@ -567,6 +594,23 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   "  j .Lbv_after_tx_gas_precharge       # EOA runtime done; skip the contract-dispatch block\n" ++
+  ".Lbv_st_sender_coinbase_maybe:\n" ++
+  "  la t0, bv_tx_gas_precharge; addi t0, t0, 104; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
+  ".Lbv_st_sender_coinbase_cmp:\n" ++
+  "  beqz t2, .Lbv_st_sender_coinbase_credit\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_tx_gas_precharge_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_st_sender_coinbase_cmp\n" ++
+  ".Lbv_st_sender_coinbase_credit:\n" ++
+  "  la a0, txup_priority_fee; la t0, tgbpv_simple_transfer_gas_used; ld a1, 0(t0); la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la a0, bv_tx_gas_precharge; addi a0, a0, 128; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_tx_gas_precharge; addi a1, a1, 160\n" ++
+  "  jal ra, u256_eq\n" ++
+  "  beqz a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  j .Lbv_st_sender_bal_ok\n" ++
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.1: contract-recipient execution. Reached only
   -- from the early contract-vs-EOA branch. The runtime gas-measurement tail (stage
   -- bytecode + BAL recipient storage preload, run the callable dispatcher, read

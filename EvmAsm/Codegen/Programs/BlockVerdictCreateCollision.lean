@@ -27,13 +27,22 @@ def blockVerdictCreateCollisionBranch : String :=
   "  jal ra, has_code_or_nonce_at_header_state_root\n" ++
   "  bnez a0, .Lbv_creation_runtime_try\n" ++
   "  la t0, hcon_predicate; ld t0, 0(t0); beqz t0, .Lbv_creation_runtime_try\n" ++
-  "  # Top-level CREATE collision: execution-specs returns an error output before\n" ++
-  "  # process_create_message with gas_left=0, state_gas_left=state_gas_reservoir,\n" ++
-  "  # regular_gas_used=message.gas, and zero state_gas_used/state_refund.\n" ++
-  "  # The guest gas-result arena has one gas_left scalar, so encode the unspent\n" ++
-  "  # state reservoir there; tx_gas_result_increments then sees only regular gas\n" ++
-  "  # as consumed, and eip8037_tx_state_gas nets intrinsic state gas back to zero.\n" ++
+  "  # Top-level CREATE collision: execution-specs returns an error output with\n" ++
+  "  # gas_left=0, state_gas_left=state_gas_reservoir, then fork.py adds the\n" ++
+  "  # NEW_ACCOUNT refund before tx gas settlement. The guest gas-result arena has\n" ++
+  "  # one gas_left scalar, so fold state_gas_reservoir + NEW_ACCOUNT into it.\n" ++
+  "  # For CREATE, this is max(NEW_ACCOUNT_STATE_GAS, tx.gas - TX_MAX_GAS_LIMIT).\n" ++
+  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4)\n" ++
+  "  li t4, 16777216\n" ++
+  "  bgeu t5, t4, .Lbv_creation_collision_high_gas\n" ++
   liAmsterdamNewAccountStateGas "t5" ++
+  "  j .Lbv_creation_collision_gas_left_ready\n" ++
+  ".Lbv_creation_collision_high_gas:\n" ++
+  "  sub t5, t5, t4\n" ++
+  "  li t4, " ++ toString (amsterdamStateBytesPerNewAccountV2 * amsterdamCostPerStateByte) ++ "\n" ++
+  "  bgeu t5, t4, .Lbv_creation_collision_gas_left_ready\n" ++
+  "  mv t5, t4\n" ++
+  ".Lbv_creation_collision_gas_left_ready:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd zero, 0(t4)\n" ++
