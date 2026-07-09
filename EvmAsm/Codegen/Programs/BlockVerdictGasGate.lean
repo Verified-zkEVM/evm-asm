@@ -358,22 +358,6 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_intrinsic_done:\n" ++
   "  la t0, bsg_state_gas; sd t6, 0(t0)\n" ++
   "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
-  "  # execution-specs calculate_intrinsic_cost: sender==to self-transfers skip\n" ++
-  "  # COLD_ACCOUNT_ACCESS and, for nonzero value, TRANSFER_LOG_COST+TX_VALUE_COST.\n" ++
-  "  la t0, bsg_to_len; ld t0, 0(t0); li t1, 20; bne t0, t1, .Letg_after_self_intrinsic_adjust\n" ++
-  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); beqz t0, .Letg_after_self_intrinsic_adjust\n" ++
-  "  slli t1, s8, 6; add t1, t1, s8; add t0, t0, t1; addi a0, t0, 1\n" ++
-  "  la a1, bsg_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  la t0, bsg_sender_addr; la t1, bsg_to_off; ld t1, 0(t1); add t1, s9, t1; li t2, 20\n" ++
-  ".Letg_self_cmp:\n" ++
-  "  beqz t2, .Letg_self_match\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Letg_after_self_intrinsic_adjust\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Letg_self_cmp\n" ++
-  ".Letg_self_match:\n" ++
-  "  li t4, 3000; bltu s11, t4, .Letg_after_self_intrinsic_adjust; sub s11, s11, t4\n" ++
-  "  la t0, bsg_value_len; ld t0, 0(t0); beqz t0, .Letg_after_self_intrinsic_adjust\n" ++
-  "  li t4, 6000; bltu s11, t4, .Letg_after_self_intrinsic_adjust; sub s11, s11, t4\n" ++
-  ".Letg_after_self_intrinsic_adjust:\n" ++
   "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
   "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
