@@ -303,7 +303,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld t1, 144(sp); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
   "  j .Lteer_nonce_check_done\n" ++
   ".Lteer_nonce_have_pre:\n" ++
-  "  la t0, teer_pre_acct; ld t1, 0(t0); ld t2, 144(sp); bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0); ld t2, 144(sp); beq t1, t2, .Lteer_nonce_check_done\n" ++
+  "  addi t3, t1, 1; bne t2, t3, .Lteer_invalid_auth_full_refund\n" ++
+  "  la t0, teer_finals; ld t4, 48(t0); addi t3, t2, 1; bne t4, t3, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_nonce_check_done:\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
   "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bne t1, t2, .Lteer_next\n" ++
@@ -316,7 +318,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  add s10, s10, t3\n" ++
   "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
   ".Lteer_existing_code_check:\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_final_no_code\n" ++
   "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
   "  li t3, 23; bne t2, t3, .Lteer_next\n" ++
   "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
@@ -328,6 +330,12 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz t5, .Lteer_marker_match\n" ++
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
+  ".Lteer_final_no_code:\n" ++
+  "  mv t2, s11; li t3, 20\n" ++
+  ".Lteer_null_target_check:\n" ++
+  "  beqz t3, .Lteer_refund_match\n" ++
+  "  lbu t4, 0(t2); bnez t4, .Lteer_next\n" ++
+  "  addi t2, t2, 1; addi t3, t3, -1; j .Lteer_null_target_check\n" ++
   ".Lteer_marker_match:\n" ++
   "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
   "  # BLOCK -- its delegation indicator is in the PRE-state, not this block's BAL. Spec\n" ++
@@ -356,6 +364,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
   ".Lteer_prestate_no:\n" ++
+  "  # In a single-tx block, a final delegation marker was written by this auth,\n" ++
+  "  # not by an earlier same-block tx, so it must not refund AUTH_BASE.\n" ++
+  "  ld t0, 104(sp); li t1, 1; beq t0, t1, .Lteer_next\n" ++
   "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
   "  # AUTH_BASE is refunded only when a prior transaction already installed delegation code;\n" ++
   "  # this tx's own set_delegation write is not pre-existing authority_code.\n" ++
