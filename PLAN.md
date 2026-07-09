@@ -3384,6 +3384,11 @@ refreshed by Lean render.
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
 verified body and requires EEST A/B parity as the byte-changing drop-in gate.
+`P256IsZeroNSAsm.lean` verifies `p256_is_zero_n` as a dynamic-length
+single-exit `whileBreak` drop-in (`p256IsZeroNFn_spec`, `a0 = 1` iff the first
+`len` input bytes are all-zero); the emitted P256VERIFY helper is rewired to
+the verified body, keeps the 12-instruction footprint, and requires EEST A/B
+parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
