@@ -133,6 +133,8 @@ import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 import EvmAsm.Codegen.Programs.Bls12G2Copy192SAsm
 import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
