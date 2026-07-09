@@ -144,6 +144,17 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  ld x14, 32(x12)
 " ++
+    "  ld t0, 568(x20)
+" ++
+    "  li t1, 100
+" ++
+    "  bltu t0, t1, .exit_outofgas
+" ++
+    "  sub t0, t0, t1
+" ++
+    "  sd t0, 568(x20)
+" ++
+
     "  ld x15, 96(x12)
 " ++
     "  add x19, x13, x14
