@@ -60,7 +60,7 @@ def runtimeAccessAccountOutcomeData : String :=
       a0 (output) : 0 if warm/precompile, 1 if cold and inserted
 
     Exceptional paths jump to `.exit_outofgas`:
-      - cold access when `gasRemaining < 2500`
+      - cold access when `gasRemaining < 2900`
       - table is full and the target is not already warm
 
     Active precompiles are always warm and are not inserted. The active set
