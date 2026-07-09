@@ -229,7 +229,7 @@ def runtimeCreateInitcodeFrameProbeDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x10000\n" ++
+  "  .zero 0x20000\n" ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++

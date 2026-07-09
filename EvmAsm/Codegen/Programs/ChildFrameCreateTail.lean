@@ -45,14 +45,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     -- fhsxz.2.4.2.61.8.3.6 / EIP-3860 + EIP-7907: init-code size > MAX_INIT_CODE_SIZE is an
     -- exceptional abort consuming all gas (execution-specs amsterdam system.py:85-86 raises
-    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x8000 = 0x10000 = 65536, per
-    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x8000, so the bound is 65536,
-    -- NOT the pre-Amsterdam 49152: init-code in (49152, 65536] is VALID and must execute, not
+    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x10000 = 0x20000 = 131072, per
+    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x10000, so the bound is 131072,
+    -- NOT the pre-Amsterdam 49152: init-code in (49152, 131072] is VALID and must execute, not
     -- be rejected). x16 is the full size (high limbs confirmed 0 above). The bound equals
-    -- create_child_initcode's size (.zero 0x10000 = 65536), so a valid init-code (<= 65536) fits
+    -- create_child_initcode's size (.zero 0x20000 = 131072), so a valid init-code (<= 131072) fits
     -- the staging buffer exactly while any larger (invalid) one is OOG-rejected before the copy,
     -- preventing the overflow into adjacent .data (create_child_returndata / create_child_code).
-    "  li x18, 65536; bgtu x16, x18, .exit_outofgas\n" ++
+    "  li x18, 131072; bgtu x16, x18, .exit_outofgas\n" ++
     "  beqz x16, 1f\n" ++
     "  ld x18, 40(x12)\n" ++
     "  bnez x18, .exit_outofgas\n" ++
@@ -62,7 +62,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     "  add x18, x15, x16\n" ++
     "  bltu x18, x15, .exit_outofgas\n" ++
-    "  li x19, 0x10000\n" ++
+    "  li x19, 0x20000\n" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "1:\n" ++
     createInitcodeGasAsm
