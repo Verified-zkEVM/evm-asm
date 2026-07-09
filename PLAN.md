@@ -251,7 +251,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
+  as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
+  (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
+  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
@@ -276,7 +279,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
-  to `bnpFp2Copy_prog`.
+  to `bnpFp2Copy_prog`. `Bn254Fp2EqSAsm.lean` verifies `bnp_fp2_eq` as a
+  byte-transparent dual-read dword equality scan (`bnpFp2Eq_spec`, post `a0 = 1`
+  iff the two 64-byte buffers are byte-equal) with byte-identity pinned to
+  `bnpFp2Eq_prog`.
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
@@ -286,7 +292,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  byte-identity pinned to `bncZero64_prog`. `Bn254CurveIsInfSAsm.lean` verifies
+  `bnc_is_inf64` (`bncIsInf64Fn_spec`, `a0 = 1` iff the 64-byte point encoding
+  is all-zero) as a same-length re-emitted SAsm drop-in. `Secp256k1PointZero64SAsm.lean`
   verifies the analogous `secp256k1_point_zero64` byte loop
   (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
   byte-identity pinned to `secp256k1PointZero64_prog`.
@@ -310,6 +318,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identical shared-return-tail cascade (`txvabJoin_spec`, post status 0/1/2/3
   for ok, chain-id mismatch, gas-limit violation, nonce mismatch) pinned to
   `txValidateAgainstBlock_prog`.
+  `CallExtraGasSAsm.lean` verifies `call_extra_gas` as a byte-identical
+  two-`when` branch helper (`callExtraGasFn_spec`, post `a0 =
+  (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
+  `callExtraGas_prog`, after converting the raw asm string to a `Program`
+  rendered by `emitProgram`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -2932,10 +2945,14 @@ countdown loop reading dword `i` from buffer A (primary region) and buffer B
 to the `0` tail on first mismatch; genuine post
 `a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
 instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
-address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
-bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
+bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
+N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
 N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
-can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
+can reuse pieces 1–2 but is not this scan shape — deferred.  `blsg_eq48`
+is also an equality leaf, but byte-wise (`LBU`) rather than dword-wise
+(`LD`), so it is verified separately in `Bls12G1Eq48SAsm.lean` as a
+48-byte whileBreak drop-in.  Classical-3.
 **Shared-return-tail forward join landed** (branch
 `feat/shared-return-tail`, beads evm-asm-k2f1x + 4ch8f.59.2.1):
 `SAsm/RetForwardJoin.lean` closes the multi-guard validation-routine gap
@@ -2957,6 +2974,63 @@ in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
 else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
 two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
 separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
+`CreateInitcodeSizeValidSAsm.lean` verifies the sibling EIP-3860 init-code
+size gate (`cisvJoin_spec`) over the emitted `cisvProgram`: one `li`, one
+`bltu`, and two shared return tails; genuine post `a0 = 1` iff
+`65536 <u len`, byte-transparent via `createInitcodeSizeValidFunction =
+emitProgram cisvProgram`, classical-3.
+**Global-data footprint model landed** (branch
+`feat/global-data-footprint`, bead evm-asm-85699; subsumes the engine half
+of 4ch8f.59.1.1): the parser/secp/field layer references global `.data`
+via the `la` idiom (`auipc`+`addi`).  `Rv64/LaResolve.lean` PROVES the
+materialization arithmetic the terminating `.conditional` specs assumed:
+`laHi`/`laLo` compute the psABI `%pcrel_hi`/`%pcrel_lo` immediates and
+`la_resolve` is the generic round-trip (in-range displacement ⇒ the
+materialized address IS the target; toNat+omega, no bv_decide), with
+`la_materialize_within` the two-instruction cpsTripleWithin.
+`SAsm/GlobalData.lean` adds the PC-aware block engine
+(`execInstrRFAt`/`execBlockAt`/`blockVCsAt` + `execBlockAt_sound`) as a
+PARALLEL engine — original defs untouched, conservativity proven
+(`execBlockAt_eq_execBlock`/`blockVCsAt_iff_blockVCs` on AUIPC-free
+blocks) — plus the global-region assertions (`globalConst` read-only
+constants, `globalCellIs`/`globalCellOwn` RW scratch cells; ordinary `**`
+atoms, composable with frames/stackFree, no ambient-`.data` hole).
+Demo `SAsm/GlobalDataDemo.lean`: la-load a const, read it, la-load an RW
+cell, write it; immediates computed by `laHi`/`laLo` and rfl-tied to the
+hand literals; genuine post.  High-value discharge
+(`Evm64/Terminating/ReturnHaltResolved.lean`): RETURN's
+`hla1`/`hla2`/`hlaSCM`/`hlaMem`/`hlaMem2` reconstruction hypotheses are
+RETIRED — `evm_return_halt_spec_resolved` and
+`evm_return_stack_spec_resolved` compute the immediates and prove the
+`la` equations via `la_resolve`; per `la` only decidable `laInRange`
+representability remains.  Stretch port not attempted: the global-data
+candidates are double-blocked on callee contracts (secf_reduce_once →
+u256_lt_be 4ch8f.38.2.4.1; mpt_* → rlp_list_nth_item; account_extract_* →
+rlp_field_to_u64 4ch8f.14.9.1).  Classical-3 throughout.
+**Dynamic selected-read / copy-tail landed** (branch
+`feat/dynamic-selected-read`, bead evm-asm-otbab; resolves the 4ch8f.13.6.1
+/ .13.6.2 blockers): after a compare/select join a pointer holds ONE OF two
+region bases chosen at runtime (`x5 = a<b ? aPtr : bPtr`) and a shared tail
+`LD`s through it — inexpressible with static `readAt` routing.
+`SAsm/SelectedRead.lean`: the post-join region choice is the pointer pinned
+to an `if`-value with both candidate regions as `**` atoms (no wrong-region
+read derivable — the copy lemma consumes `bytesRegion sel selBs` for the
+pointer's actual value); `selectedDwordCopy_spec` is the shared copy tail
+PROVEN ONCE (generic registers / chunk range / selected region; one
+instance per selector case, other region framed) with `copyDwords_covers`
+(full-width copy IS the source list — the byte-for-byte post).  Reusable
+primitives: `bytesRegion_ld_within` / `bytesRegion_sd_within` (dword-chunk
+read/write through a base-pinned register, the LD/SD analogues of the
+LBU/SB keystones).  Consumer `u256_min`
+(`Codegen/Programs/U256MinSAsm.lean`, `#guard`-tied GuestAddrs.u256_min =
+0x80024be8, spec directly over the emitted `u256Min_prog` — byte-
+transparent, no A/B): the 32-iteration byte-walk (3-exit forward join via
+`retJoinStation_spec`) + `beBytesToNat_lt_of_prefix_lt` (BE lex order IS
+numeric order) give the GENUINE post `out = if beBytesToNat as ≤
+beBytesToNat bs then as else bs` byte-for-byte, inputs untouched, `x5`
+still pinned at the selected base.  `u256_max` is the same shape (selector
+inverted) but has NO GuestAddrs anchor (not linked); its port is a
+mechanical mirror once linked — deferred.  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3373,6 +3447,18 @@ refreshed by Lean render.
 single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
 32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
 verified body and requires EEST A/B parity as the byte-changing drop-in gate.
+`P256Eq32SAsm.lean` verifies `p256_eq32` as the same 32-byte byte-equality
+`whileBreak` drop-in by reusing the `secf_eq32` body/proof wrapper
+(`p256Eq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal);
+`P256Verify.lean` now re-emits `p256Eq32_prog` from that verified body. Gates
+run: `lake build`, `port-check`, forbidden tactics, axioms, layering,
+unimported, no-warnings, focused `codegen-zisk-p256verify-check.sh`, and
+`tests-zkevm@v0.5.0` stateless EEST smoke limit=1 full match.
+`P256IsZeroNSAsm.lean` verifies `p256_is_zero_n` as a dynamic-length
+single-exit `whileBreak` drop-in (`p256IsZeroNFn_spec`, `a0 = 1` iff the first
+`len` input bytes are all-zero); the emitted P256VERIFY helper is rewired to
+the verified body, keeps the 12-instruction footprint, and requires EEST A/B
+parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic

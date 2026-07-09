@@ -108,13 +108,17 @@ import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
 import EvmAsm.Codegen.Programs.P256LeToBeSAsm
 import EvmAsm.Codegen.Programs.P256BeToLeSAsm
 import EvmAsm.Codegen.Programs.P256CopyNSAsm
+import EvmAsm.Codegen.Programs.P256Eq32SAsm
+import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
+import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2EqSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
@@ -132,6 +136,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
+import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
@@ -140,6 +145,8 @@ import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
+import EvmAsm.Codegen.Programs.U256MinSAsm
+import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalGasValidSAsm
 import EvmAsm.Codegen.Programs.BalCodePreimages
@@ -198,6 +205,7 @@ import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256IsZeroSAsm
 import EvmAsm.Codegen.Programs.GasRoutinesSAsm
+import EvmAsm.Codegen.Programs.CallExtraGasSAsm
 import EvmAsm.Codegen.Programs.MemoryExpansionGasSAsm
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxValidateAgainstBlockSAsm

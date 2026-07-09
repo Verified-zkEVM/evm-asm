@@ -27,14 +27,6 @@ def terminatingDataFromMemory
     (readByte : MemoryReader) (args : TerminatingArgs) : List Byte :=
   (List.range (dataSize args)).map (fun i => readByte (dataStart args + i))
 
-/-- Build the terminating call result directly from stack args and memory.
-    Distinctive token: TerminatingDataMemory.resultFromMemory. -/
-def resultFromMemory
-    (kind : TerminatingKind) (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) : CallResult :=
-  TerminatingArgsBridge.mkResultFromArgs
-    kind state (terminatingDataFromMemory readByte args) gasRemaining args
-
 theorem dataStart_eq (args : TerminatingArgs) :
     dataStart args = (TerminatingArgsBridge.dataRange args).offset.toNat := rfl
 
@@ -63,58 +55,6 @@ theorem terminatingDataFromMemory_get
     (readByte : MemoryReader) (rangeOffset : EvmAsm.Evm64.EvmWord) :
     terminatingDataFromMemory readByte
         (EvmAsm.Evm64.TerminatingArgs.revertArgs rangeOffset 0) = [] := rfl
-
-theorem resultFromMemory_eq
-    (kind : TerminatingKind) (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    resultFromMemory kind state readByte gasRemaining args =
-      TerminatingArgsBridge.mkResultFromArgs
-        kind state (terminatingDataFromMemory readByte args) gasRemaining args := rfl
-
-theorem resultFromMemory_status
-    (kind : TerminatingKind) (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    (resultFromMemory kind state readByte gasRemaining args).status =
-      match kind with
-      | .stop => .success
-      | .return_ => .success
-      | .revert => .revert
-      | .invalid => .failure
-      | .selfdestruct => .success := by
-  exact TerminatingArgsBridge.mkResultFromArgs_status
-    kind state (terminatingDataFromMemory readByte args) gasRemaining args
-
-theorem resultFromMemory_output
-    (kind : TerminatingKind) (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    (resultFromMemory kind state readByte gasRemaining args).output =
-      match kind with
-      | .stop => []
-      | .return_ => terminatingDataFromMemory readByte args
-      | .revert => terminatingDataFromMemory readByte args
-      | .invalid => []
-      | .selfdestruct => [] := by
-  exact TerminatingArgsBridge.mkResultFromArgs_output
-    kind state (terminatingDataFromMemory readByte args) gasRemaining args
-
-theorem resultFromMemory_return_output
-    (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    (resultFromMemory .return_ state readByte gasRemaining args).output =
-      terminatingDataFromMemory readByte args := rfl
-
-theorem resultFromMemory_revert_output
-    (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    (resultFromMemory .revert state readByte gasRemaining args).output =
-      terminatingDataFromMemory readByte args := rfl
-
-theorem resultFromMemory_gasRemaining
-    (kind : TerminatingKind) (state : WorldState) (readByte : MemoryReader)
-    (gasRemaining : Nat) (args : TerminatingArgs) :
-    (resultFromMemory kind state readByte gasRemaining args).gasRemaining =
-      gasRemaining := by
-  cases kind <;> rfl
 
 end TerminatingDataMemory
 
