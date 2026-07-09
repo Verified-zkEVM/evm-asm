@@ -59,9 +59,9 @@ namespace Bn254Fq12SetOneSAsm
 
 -- The two routines are adjacent in the guest text: `bnq_zero` (6 slots)
 -- immediately precedes `bnq_set_one`.
-#guard GuestAddrs.bnq_zero = 0x8003095c
-#guard GuestAddrs.bnq_set_one = 0x80030974
-#guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = GuestAddrs.bnq_set_one
+#guard GuestAddrs.bnq_zero = 0x80030a68
+#guard GuestAddrs.bnq_set_one = 0x80030a80
+#guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = 0x80030a80
 
 /-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
 def setOneFrame : FrameDesc := [(.x1, 0), (.x8, 8)]
