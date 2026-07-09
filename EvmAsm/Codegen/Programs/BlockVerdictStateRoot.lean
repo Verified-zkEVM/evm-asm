@@ -600,10 +600,6 @@ def statelessVerdictV2Function : String :=
   "  jal ra, block_access_list_hash\n" ++
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
   "  # General transaction and withdrawal trie roots have already been computed above.\n" ++
-  -- WIP: BAL system-request rows expose a header-reconstruction block_hash mismatch
-  -- even after state root/exact gas match. Keep the verdict on state/BAL/receipt checks
-  -- until the Prague header field reconstruction is repaired (tracked in beads).
-  "  la t1, bv_block_hash_check_enabled; sd zero, 0(t1)\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++

@@ -22,7 +22,7 @@ open EvmAsm.Rv64
 def storageAccessGasMaxKeys : Nat := 512
 def storageAccessOutcomeMaxRecords : Nat := 512
 def storageAccessOutcomeRecordSize : Nat := 96
-def storageAccessColdDeltaGas : Nat := 2000
+def storageAccessColdDeltaGas : Nat := 2900
 
 /-- Data labels consumed by `evm_storage_access_charge_key`. -/
 def storageAccessGasData : String :=
@@ -112,19 +112,19 @@ def storageAccessKeyInsertAsm (doneLabel : String) : String :=
       a2 input  : gasRemaining cell ptr.
       a0 output : status:
                     0 = already warm, no gas charged;
-                    1 = cold, charged 2000 and inserted;
+                    1 = cold, charged 2900 and inserted;
                     2 = out of gas, table unchanged;
                     3 = table full, table/gas unchanged.
 
     The dispatcher's opcode table charges SLOAD/SSTORE 100 before the
     handler runs, so this helper only charges the EIP-2929 cold delta
-    (`COLD_SLOAD_COST - WARM_STORAGE_READ_COST = 2100 - 100 = 2000`).
+    (`COLD_STORAGE_ACCESS - WARM_ACCESS = 3000 - 100 = 2900`).
 
     Register note: the charged gas delta is held in `a4` (recorded into the
     access-outcome log), NOT `a3` — because `a3` is the dispatcher's per-frame
     memory base (`x13`) and SLOAD/SSTORE call this helper from the dispatch tail
     WITHOUT saving x13 (they save only x1/x10/x12, the regs the arg setup
-    clobbers). Using `a3` for the delta would corrupt x13 to 0/2000, so any
+    clobbers). Using `a3` for the delta would corrupt x13 to 0/2900, so any
     SLOAD/SSTORE followed by a memory-touching opcode (MLOAD/MSTORE/CREATE/CALL)
     would read/write at the bogus base (e.g. the double-CREATE ziskemu panic,
     fhsxz.2.4.2.61.8.3.4). a4 is caller-saved and not a dispatcher invariant.

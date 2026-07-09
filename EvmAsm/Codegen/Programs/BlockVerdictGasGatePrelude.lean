@@ -55,18 +55,6 @@ def blockVerdictGasGatePrelude : String :=
   "  li a5, " ++ toString bvMtxFullTxCap ++ "\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
   bvRuntimeCompletenessSetFromArenaStatus ++
-  -- WIP: Amsterdam storage-clear invalid multi-tx fixtures can otherwise false-accept when
-  -- runtime staging bails before gas-result materialization. Keep this reject pinned to the
-  -- observed status-2/shape-61/two-tx BAL signature so valid EIP-7708 burn-log rows with the
-  -- same incomplete-arena status continue through the authenticated state-root path.
-  "  li t0, 2; bne a0, t0, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 2; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 61; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bv_dispatch_runtime_status; ld t1, 0(t0); li t2, 6; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bsr_bal_count; ld t1, 0(t0); li t2, 7; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bsr_change_count; ld t1, 0(t0); li t2, 5; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  la t0, bsr_wl_v; ld t1, 0(t0); li t2, 1971; bne t1, t2, .Lbv_status2_storage_clear_wip_done\n" ++
-  "  j .Lbv_eip7778_block_gas_fail\n" ++
-  ".Lbv_status2_storage_clear_wip_done:\n"
+  ""
 
 end EvmAsm.Codegen

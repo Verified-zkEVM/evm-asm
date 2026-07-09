@@ -452,7 +452,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
   -- delegation marker. Those authorities are warm for the receipt regular
-  -- dimension, so the type-4 auth regular delta is discounted by 2600 each.
+  -- dimension, so the type-4 auth regular delta is discounted by 3000 each.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
@@ -1333,9 +1333,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- feedebit = the u256 fee accumulator added into the sender debit.
   "bv_b23_txtype:\n  .zero 8\n" ++
   "bv_b23_innoff:\n  .zero 8\n" ++
-  "bv_b23_authoff:\n  .zero 8\n" ++
-  "bv_b23_authlen:\n  .zero 8\n" ++
-  "bv_b23_authcount:\n  .zero 8\n" ++
   "bv_b23_blobcount:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_b23_feedebit:\n  .zero 32\n" ++
