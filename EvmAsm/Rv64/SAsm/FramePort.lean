@@ -224,6 +224,21 @@ macro "countdown_loop_bottom" backOff:term:max hbody:term:max : tactic =>
       (hguardMem := by code_mem)
       (hbody := $hbody))
 
+/-- `countup_loop backOff hbody` — the count-up (`for i in 0..N`) analogue
+    of `countdown_loop_bottom`, closing a `countupLoopBottom_spec`-shaped
+    goal given the per-iteration body triple family (whose body may itself
+    be a `callWithin_spec` composition). -/
+macro "countup_loop" backOff:term:max hbody:term:max : tactic =>
+  `(tactic| exact countupLoopBottom_spec (backOff := $backOff) (cr := _)
+      (hdr := _) (tst := _) (ctr := _) (bnd := _) (bodyStep := _) (N := _)
+      (inv := _)
+      (hN1 := by first | assumption | omega)
+      (hNbound := by first | assumption | exact BitVec.isLt _ | omega)
+      (hback := by decide)
+      (hpcFree := fun n => by pcf)
+      (hguardMem := by code_mem)
+      (hbody := $hbody))
+
 /-- `frame_call hcallee` closes a single-call goal in the
     `abiFrameCall_spec` conclusion shape, given the callee's whole-routine
     contract `hcallee` (at `ret := A + 4`): the `jal` target arithmetic,
