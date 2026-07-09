@@ -173,12 +173,12 @@ def txGasBalPostVerifyFunction : String :=
   "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  la t0, tgbpv_skip_value; sd zero, 0(t0)\n" ++
   "  la t0, txup_gas_limit; ld t1, 0(t0)\n" ++
   "  la t0, tgbpv_simple_transfer_gas_used; ld t2, 0(t0)\n" ++
   "  bnez t2, .Ltgbpv_have_simple_transfer_gas_used\n" ++
   "  li t2, 21000\n" ++
   ".Ltgbpv_have_simple_transfer_gas_used:\n" ++
+  "  la t0, tgbpv_failed_oog; ld t3, 0(t0); bnez t3, .Ltgbpv_refund_add_ok\n" ++
   "  bgeu t1, t2, .Ltgbpv_refund_gas_ok\n" ++
   ".Ltgbpv_refund_gas_fail:\n" ++
   "  li t0, 34; sd t0, 0(s7)\n" ++
@@ -228,6 +228,7 @@ def txGasBalPostVerifyFunction : String :=
   "  li t0, 37; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_value_ok:\n" ++
+  "  la t0, tgbpv_failed_oog; ld t0, 0(t0); bnez t0, .Ltgbpv_value_sub_ok\n" ++
   "  # Self-transfer detection. When the recipient equals the sender, the\n" ++
   "  # transferred value returns to the sender within the same transaction, so\n" ++
   "  # the sender's BAL post balance is charged + refund with NO value netting\n" ++
@@ -422,6 +423,8 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "tgbpv_nonce:\n  .zero 8\n" ++
   "tgbpv_simple_transfer_gas_used:\n  .zero 8\n" ++
   "tgbpv_skip_value:\n  .zero 8\n" ++
+  "tgbpv_failed_oog:\n  .zero 8\n" ++
+  "tgbpv_top_state_gas:\n  .zero 8\n" ++
   "tgbpv_tx_type:\n  .zero 8\n" ++
   "tgbpv_inner_off:\n  .zero 8\n" ++
   "tgbpv_blob_count:\n  .zero 8\n" ++
