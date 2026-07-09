@@ -207,3 +207,7 @@ import EvmAsm.Evm64.Calldata.CopyMemory
 import EvmAsm.Evm64.Calldata.CopyProgram
 import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
+
+-- Terminating full-tail proofs
+import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.RevertSpec

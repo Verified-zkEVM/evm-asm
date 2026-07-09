@@ -52,6 +52,7 @@ precondition; the excluded domain is **unverified**.
 |---|---|
 | `SLOAD` | stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan (byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, length cell env+448) is proven to replace the stack top in place with persistentLookup — the `current` of the most-recent committedStorageIs entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` because the miss→0 branch is EVM-sound only RELATIVE to the committedStorageIs snapshot supplied in the precondition; full MPT-witness verification that the snapshot faithfully reflects state root is deferred to stage-2 (post-Phase-10). Structural clone of the proven TLOAD reverse scan on the transient log. |
 | `RETURN` | full standalone (depthAware=false) return-data window + halt core, from the post-gas handler entry through the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). `.conditional` because (1) it is gated on the reachable precondition system_call_mode=0 (the ordinary non-system-call tx case; the capture block is present for layout but skipped) and (2) the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary — the triple is stated from the framed post-gas entry. The five `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
+| `REVERT` | full standalone (depthAware=false) revert-data window + rollback + halt core, from the post-gas handler entry through the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=2@+32), then rollback of persistent/transient/event log length cells via x20, to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). `.conditional` because the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary — the triple is stated from the framed post-gas entry. The four `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
 
@@ -63,10 +64,10 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 17 opcodes have executable-spec / handler / host-bridge
+These 16 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL, REVERT, SELFDESTRUCT.
+KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL, SELFDESTRUCT.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 
