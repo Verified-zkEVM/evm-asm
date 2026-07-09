@@ -2912,6 +2912,26 @@ adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
 the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
 inputs untouched).  First loop-of-calls port; callee steps kept symbolic
 (`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
+**Dual-read dword equality scan + the equality family landed** (branch
+`feat/dual-read-scan`, bead evm-asm-4ch8f.58.3.25.1):
+`SAsm/DualReadScan.lean` packages three reusable pieces — (1) focused
+dword-read primitives (`Region.loadOk_slot`/`dwordAt_slot`: an `LD` at
+`base + 8·i` is in-region and yields dword slot `i`; `Region.wf_dropSuffix`
+keeps an advancing `readAt` cursor focusable; offset-generic zero-immediate
+variants), (2) the per-dword ⇔ byte-list bridge
+(`bytes_eq_of_dwordSlots_eq`: two `8·N`-byte lists agreeing on every dword
+slot are EQUAL — what makes equality posts genuine), and (3) the
+register-agnostic scan itself (`DualReadScan.scanBody`/`scan_spec`: any five
+distinct exposed registers for counter/temps/cursors, a `retWhileBreak`
+countdown loop reading dword `i` from buffer A (primary region) and buffer B
+(`readAt`-focused suffix split of the ambient via `focus_split`), breaking
+to the `0` tail on first mismatch; genuine post
+`a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
+instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
+address): `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`, N = 48,
+bead 4ch8f.58.3.25) and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
+can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3308,9 +3328,10 @@ aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 `secf_le_to_be`, which are nested bottom-test do-while converters BLOCKED
 on `.11.7`/`.68`; PATH A verifies `secfMulModP` `SpecR` conditional on
 assumed be/le `FnHandleS` hypotheses (genuinely instantiates the merged
-`.11.6` `arithModHandle`, the wave-1 point). The compare/scan leaves
-(`secfIsZero32`/`Eq32`/`CmpP`, `.38.2.2`) and the pow/inv/sqrt ladders
-(`.38.2.5`–`.7`) are likewise `.68`-blocked (mid-exit/do-while loops).
+`.11.6` `arithModHandle`, the wave-1 point). The remaining compare/scan leaf (`secfCmpP`, `.38.2.2`)
+and the pow/inv/sqrt ladders (`.38.2.5`–`.7`) still need their own
+mid-exit/do-while ports or drop-ins; `secfEq32` and `secfIsZero32` are
+handled by the whileBreak drop-ins below.
 LANDED (`.38.2.1`, `EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean`,
 the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
@@ -3319,6 +3340,14 @@ straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
 `secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
 the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
+`Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
+(`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
+emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
+refreshed by Lean render.
+`Secp256k1FieldIsZeroSAsm.lean` verifies `secf_is_zero32` as a same-length
+single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
+32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
+verified body and requires EEST A/B parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
