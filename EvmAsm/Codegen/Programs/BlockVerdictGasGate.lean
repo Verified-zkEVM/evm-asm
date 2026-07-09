@@ -331,6 +331,25 @@ def eip8037TxGasGateFunction : String :=
   ".Letg_type34_create_check:\n" ++
   "  la t0, bsg_to_len; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
   ".Letg_after_type34_checks:\n" ++
+  "  # execution-specs calculate_intrinsic_cost(tx, sender): sender==to\n" ++
+  "  # self-transfers skip recipient/value intrinsic charges inside the helper.\n" ++
+  "  li t6, 0\n" ++
+  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Letg_intrinsic_self_ready\n" ++
+  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); beqz t0, .Letg_intrinsic_self_ready\n" ++
+  "  slli t1, s8, 6; add t1, t1, s8; add t0, t0, t1; addi a0, t0, 1\n" ++
+  "  la a1, bsg_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bsg_sender_addr; la t1, bsg_to_off; ld t1, 0(t1); add t1, s9, t1; li t2, 20\n" ++
+  ".Letg_intrinsic_self_cmp:\n" ++
+  "  beqz t2, .Letg_intrinsic_self_match\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Letg_intrinsic_self_ready\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Letg_intrinsic_self_cmp\n" ++
+  ".Letg_intrinsic_self_match:\n" ++
+  "  li t6, 1\n" ++
+  ".Letg_intrinsic_self_ready:\n" ++
+  "  li t5, 0\n" ++
+  "  la t0, bsg_value_len; ld t1, 0(t0); beqz t1, .Letg_intrinsic_value_ready\n" ++
+  "  li t5, 1\n" ++
+  ".Letg_intrinsic_value_ready:\n" ++
   "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
   "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
   "  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2\n" ++
@@ -338,7 +357,10 @@ def eip8037TxGasGateFunction : String :=
   "  la t0, bsg_access_slots; ld a4, 0(t0)\n" ++
   "  la t0, bsg_auth_count; ld a5, 0(t0)\n" ++
   "  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd t5, 0(sp); sd t6, 8(sp)\n" ++
   "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
+  "  addi sp, sp, 16\n" ++
   "  bnez a0, .Letg_ok\n" ++
   "  la t0, bsg_floor_gas; ld t1, 0(t0)\n" ++
   "  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)\n" ++
