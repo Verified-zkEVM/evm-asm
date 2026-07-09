@@ -193,7 +193,7 @@ def schemeAAnchors : List GuestRegion :=
     being derived for EIP-6110 negative system requests. Grew again when the
     v0.5.0 `ProtocolFork` ordinal update shifted the Amsterdam fork check
     from `24` to `20`. Grew again when the BN254/BLS helper set landed. -/
-def textSizeBytes : Nat := 0x54414
+def textSizeBytes : Nat := 0x54564
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x19528050`). Link-layout-dependent. Earlier it grew
