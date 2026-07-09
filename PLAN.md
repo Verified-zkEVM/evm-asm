@@ -3001,6 +3001,30 @@ representability remains.  Stretch port not attempted: the global-data
 candidates are double-blocked on callee contracts (secf_reduce_once →
 u256_lt_be 4ch8f.38.2.4.1; mpt_* → rlp_list_nth_item; account_extract_* →
 rlp_field_to_u64 4ch8f.14.9.1).  Classical-3 throughout.
+**Dynamic selected-read / copy-tail landed** (branch
+`feat/dynamic-selected-read`, bead evm-asm-otbab; resolves the 4ch8f.13.6.1
+/ .13.6.2 blockers): after a compare/select join a pointer holds ONE OF two
+region bases chosen at runtime (`x5 = a<b ? aPtr : bPtr`) and a shared tail
+`LD`s through it — inexpressible with static `readAt` routing.
+`SAsm/SelectedRead.lean`: the post-join region choice is the pointer pinned
+to an `if`-value with both candidate regions as `**` atoms (no wrong-region
+read derivable — the copy lemma consumes `bytesRegion sel selBs` for the
+pointer's actual value); `selectedDwordCopy_spec` is the shared copy tail
+PROVEN ONCE (generic registers / chunk range / selected region; one
+instance per selector case, other region framed) with `copyDwords_covers`
+(full-width copy IS the source list — the byte-for-byte post).  Reusable
+primitives: `bytesRegion_ld_within` / `bytesRegion_sd_within` (dword-chunk
+read/write through a base-pinned register, the LD/SD analogues of the
+LBU/SB keystones).  Consumer `u256_min`
+(`Codegen/Programs/U256MinSAsm.lean`, `#guard`-tied GuestAddrs.u256_min =
+0x80024be8, spec directly over the emitted `u256Min_prog` — byte-
+transparent, no A/B): the 32-iteration byte-walk (3-exit forward join via
+`retJoinStation_spec`) + `beBytesToNat_lt_of_prefix_lt` (BE lex order IS
+numeric order) give the GENUINE post `out = if beBytesToNat as ≤
+beBytesToNat bs then as else bs` byte-for-byte, inputs untouched, `x5`
+still pinned at the selected base.  `u256_max` is the same shape (selector
+inverted) but has NO GuestAddrs anchor (not linked); its port is a
+mechanical mirror once linked — deferred.  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
