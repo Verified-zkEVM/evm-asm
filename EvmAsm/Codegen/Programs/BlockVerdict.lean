@@ -423,13 +423,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
-  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
-  blockVerdictFailedType4AuthRegularAdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
-  multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++

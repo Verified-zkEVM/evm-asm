@@ -114,8 +114,8 @@ theorem CodeReq.sub_ofProg_of_lookup {cr : CodeReq} (A : Word) (seg : List Instr
 macro "code_mem" : tactic =>
   `(tactic| first
     | (with_reducible exact fun a i h => h)
-    | (with_reducible exact CodeReq.singleton_mono (by decide))
-    | (with_reducible exact CodeReq.sub_ofProg_of_lookup _ _ (by decide) (by decide)))
+    | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+    | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
 
 -- ============================================================================
 -- pcFree automation.
@@ -217,6 +217,21 @@ macro "countdown_loop_bottom" backOff:term:max hbody:term:max : tactic =>
   `(tactic| exact countdownLoopBottom_spec (backOff := $backOff) (cr := _)
       (hdr := _) (tst := _) (ctr := _) (bodyStep := _) (N := _) (inv := _)
       (_hctr_ne := by decide)
+      (hN1 := by first | assumption | omega)
+      (hNbound := by first | assumption | exact BitVec.isLt _ | omega)
+      (hback := by decide)
+      (hpcFree := fun n => by pcf)
+      (hguardMem := by code_mem)
+      (hbody := $hbody))
+
+/-- `countup_loop backOff hbody` — the count-up (`for i in 0..N`) analogue
+    of `countdown_loop_bottom`, closing a `countupLoopBottom_spec`-shaped
+    goal given the per-iteration body triple family (whose body may itself
+    be a `callWithin_spec` composition). -/
+macro "countup_loop" backOff:term:max hbody:term:max : tactic =>
+  `(tactic| exact countupLoopBottom_spec (backOff := $backOff) (cr := _)
+      (hdr := _) (tst := _) (ctr := _) (bnd := _) (bodyStep := _) (N := _)
+      (inv := _)
       (hN1 := by first | assumption | omega)
       (hNbound := by first | assumption | exact BitVec.isLt _ | omega)
       (hback := by decide)

@@ -210,5 +210,115 @@ theorem countdownLoopBottom_spec
       rw [hstep]
       exact s2
 
+-- ============================================================================
+-- The bottom-test count-up loop (bead evm-asm-ipt7m).
+-- ============================================================================
+
+private theorem ofNat_ne_ofNat {a b : Nat} (hne : a ≠ b)
+    (ha : a < 18446744073709551616) (hb : b < 18446744073709551616) :
+    BitVec.ofNat 64 a ≠ BitVec.ofNat 64 b := by
+  intro heq
+  have h2 := congrArg BitVec.toNat heq
+  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha,
+      Nat.mod_eq_of_lt hb] at h2
+  exact hne h2
+
+/-- **General s-register-exposed bottom-test COUNT-UP loop lemma** (bead
+    evm-asm-ipt7m): the `for i in 0..N` shape whose body may itself be an
+    `abiFrameCall_spec`/`callWithin_spec` composition (a call in the loop):
+
+    ```
+      hdr:  <body>                   -- counts ctr up (i → i+1); reloads bnd
+      tst:  bne  ctr, bnd, backOff   -- back-edge while ctr ≠ N
+      exit:                          -- tst + 4
+    ```
+
+    The bound register `bnd` is scratch inside the body (owned on entry) and
+    must hold `N` at the test — the emitted pattern reloads it with `li`
+    every iteration, so the body postcondition pins it.  Given a
+    per-iteration body triple from `hdr` to `tst` taking `ctr` from `i` to
+    `i + 1` and the invariant from `inv i` to `inv (i + 1)` — the body being
+    an arbitrary `cpsTripleWithin`, e.g. a `callWithin_spec` composition —
+    the whole loop runs from `hdr` to `tst + 4` with `ctr` counting `0 → N`,
+    for any `N ≥ 1` (a do-while runs its body at least once).  `ctr`, `bnd`,
+    and the invariant family are FREE (they may reference `s`-registers). -/
+theorem countupLoopBottom_spec
+    (cr : CodeReq) (hdr tst : Word) (ctr bnd : Reg) (backOff : BitVec 13)
+    (bodyStep N : Nat) (inv : Nat → Assertion)
+    (hN1 : 1 ≤ N)
+    (hNbound : N < 18446744073709551616)
+    (hback : tst + signExtend13 backOff = hdr)
+    (hpcFree : ∀ n, (inv n).pcFree)
+    (hguardMem : ∀ a i,
+      CodeReq.singleton tst (.BNE ctr bnd backOff) a = some i → cr a = some i)
+    (hbody : ∀ i, i < N →
+      cpsTripleWithin bodyStep hdr tst cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 i) ** regOwn bnd ** inv i)
+        ((ctr ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (bnd ↦ᵣ BitVec.ofNat 64 N)
+          ** inv (i + 1))) :
+    cpsTripleWithin (N * (bodyStep + 1)) hdr (tst + 4) cr
+      ((ctr ↦ᵣ BitVec.ofNat 64 0) ** regOwn bnd ** inv 0)
+      ((ctr ↦ᵣ BitVec.ofNat 64 N) ** (bnd ↦ᵣ BitVec.ofNat 64 N) ** inv N) := by
+  -- Strengthened statement over the REMAINING count `k` (`i + k = N`).
+  suffices h : ∀ k, 1 ≤ k → ∀ i, i + k = N →
+      cpsTripleWithin (k * (bodyStep + 1)) hdr (tst + 4) cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 i) ** regOwn bnd ** inv i)
+        ((ctr ↦ᵣ BitVec.ofNat 64 N) ** (bnd ↦ᵣ BitVec.ofNat 64 N) ** inv N) from
+    h N hN1 0 (by omega)
+  intro k
+  induction k with
+  | zero => intro h1 _ _; exact absurd h1 (by omega)
+  | succ m ih =>
+    intro _ i hiN
+    have hiL : i < N := by omega
+    -- One body pass: i → i+1.
+    have hbodyi := hbody i hiL
+    -- The bottom test with ctr = ofNat (i+1), bnd = ofNat N.
+    have hbne := bne_spec_gen_within ctr bnd backOff (BitVec.ofNat 64 (i + 1))
+      (BitVec.ofNat 64 N) tst
+    rw [hback] at hbne
+    have hbr := cpsBranchWithin_extend_code hguardMem
+      (cpsBranchWithin_frameR (inv (i + 1)) (hpcFree (i + 1)) hbne)
+    rcases Nat.eq_zero_or_pos m with hm0 | hmpos
+    · -- m = 0: i + 1 = N, the test falls through to the exit.
+      subst hm0
+      have hiN' : i + 1 = N := by omega
+      have hexit := cpsBranchWithin_ntakenPath hbr
+        (fun hp hQt => by
+          obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQt
+          exact ((sepConj_pure_right _).1 h_pure).2 (by rw [hiN']))
+      have hstep := cpsTripleWithin_seq_perm_same_cr
+        (fun _ hp => by xperm_hyp hp) hbodyi hexit
+      rw [show (0 + 1) * (bodyStep + 1) = bodyStep + 1 from by omega]
+      refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hstep
+      have hq1 := sepConj_mono_left
+        (sepConj_mono_right (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
+      rw [hiN'] at hq1
+      xperm_hyp hq1
+    · -- m ≥ 1: i + 1 < N, the test takes the back edge; recurse.
+      have hne : BitVec.ofNat 64 (i + 1) ≠ BitVec.ofNat 64 N :=
+        ofNat_ne_ofNat (by omega) (by omega) hNbound
+      have htaken := cpsBranchWithin_takenPath hbr
+        (fun hp hQf => by
+          obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+          exact hne ((sepConj_pure_right _).1 h_pure).2)
+      have ihk := ih hmpos (i + 1) (by omega)
+      -- body ; test(back-edge) — plain perm glue.
+      have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+        hbodyi htaken
+      -- (body ; test) ; tail — strip the taken pure `≠`, release `bnd`.
+      have s2 := cpsTripleWithin_seq_perm_same_cr
+        (fun h hp => by
+          have hp2 := sepConj_mono_left
+            (sepConj_mono_right (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+          have hp3 := sepConj_mono_left (sepConj_mono_right
+            (regIs_to_regOwn bnd (BitVec.ofNat 64 N))) h hp2
+          xperm_hyp hp3) s1 ihk
+      have hstep : (m + 1) * (bodyStep + 1)
+          = bodyStep + 1 + m * (bodyStep + 1) := by
+        rw [Nat.add_mul, Nat.one_mul]; omega
+      rw [hstep]
+      exact s2
+
 end SAsm
 end EvmAsm.Rv64

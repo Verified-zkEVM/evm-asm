@@ -8,17 +8,18 @@
   Per execution-specs amsterdam `vm/instructions/storage.py` (sstore) + `vm/gas.py`:
 
       gas_cost = 0
-      if cold:                              gas_cost += COLD_STORAGE_ACCESS   (2100)
-      if original == current and current != new:
-                                            gas_cost += COLD_STORAGE_WRITE
-                                                        - COLD_STORAGE_ACCESS  (2900)
+      if cold:                              gas_cost += COLD_STORAGE_ACCESS   (3000)
       else:                                 gas_cost += WARM_ACCESS            (100)
+      if original == current and current != new:
+
+                                            gas_cost += STORAGE_WRITE         (10000)
 
   So the four cases are:
-      cold  + clean-changing : 2100 + 2900 = 5000
-      cold  + otherwise      : 2100 +  100 = 2200
-      warm  + clean-changing :    0 + 2900 = 2900
-      warm  + otherwise      :    0 +  100 =  100
+      cold  + clean-changing : 3000 + 10000 = 13000
+      cold  + otherwise      : 3000
+      warm  + clean-changing :  100 + 10000 = 10100
+      warm  + otherwise      :  100
+
 
   where "clean-changing" = the slot is unmodified this tx (original == current)
   AND the store changes it (current != new). Note Amsterdam dropped the legacy
@@ -56,18 +57,24 @@ def sstoreRegularGasFunction : String :=
   "  jal ra, u256_eq              # a0,a1 = original,current -> a0 = original_eq_current\n" ++
   "  mv s3, a0                    # s3 = original_eq_current\n" ++
   "  mv a0, s0; mv a1, s1; jal ra, u256_eq   # a0 = current_eq_new\n" ++
-  -- gas = (is_cold ? COLD_STORAGE_ACCESS : 0)
+  -- gas = (is_cold ? COLD_STORAGE_ACCESS : WARM_ACCESS)
+
   "  li t0, 0\n" ++
-  "  beqz s2, .Lsrg_cold_done\n" ++
-  "  li t0, 2100\n" ++                              -- COLD_STORAGE_ACCESS
+  "  beqz s2, .Lsrg_warm_access\n" ++
+  "  li t0, 3000\n" ++                              -- COLD_STORAGE_ACCESS
+  "  j .Lsrg_cold_done\n" ++
+  ".Lsrg_warm_access:\n" ++
+  "  li t0, 100\n" ++                               -- WARM_ACCESS
+
   ".Lsrg_cold_done:\n" ++
   -- clean-changing = original_eq_current && !current_eq_new
   "  beqz s3, .Lsrg_warm\n" ++                      -- original != current -> warm-access branch
   "  bnez a0, .Lsrg_warm\n" ++                      -- current == new (no change) -> warm-access branch
-  "  li t1, 2900; add t0, t0, t1\n" ++              -- COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS (>2047 -> li+add)
+
+  "  li t1, 10000; add t0, t0, t1\n" ++             -- STORAGE_WRITE
+
   "  j .Lsrg_done\n" ++
   ".Lsrg_warm:\n" ++
-  "  addi t0, t0, 100\n" ++                         -- WARM_ACCESS
   ".Lsrg_done:\n" ++
   "  mv a0, t0\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++

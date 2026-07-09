@@ -284,7 +284,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
+  as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
+  (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
+  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
@@ -292,31 +295,40 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`; `Bn254Fp2IsZeroSAsm.lean` verifies `bnp_fp2_is_zero`
-  (`bnpFp2IsZeroFn_spec`, post `a0` is the emitted `SLTIU` result over the OR
-  of the eight 64-bit limbs) with byte-identity pinned to `bnpFp2IsZero_prog`.
-  `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`; `Bls12PtCopySAsm.lean` verifies the `blq_pt_copy` fixed
+  projective-point copy loop (`blqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1728-byte source/destination disjointness precondition and
+  byte-identity pinned to `blqPtCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fq12IsZeroSAsm.lean` verifies `bnq_is_zero`
-  (`bnqIsZeroFn_spec`, post `a0 = 1` iff the OR of all 48 dword limbs is zero)
-  with byte-identity pinned to `bnqIsZero_prog`. `Bn254Fp2ZeroSAsm.lean`
-  verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254PtCopySAsm.lean` verifies the `bnq_pt_copy` fixed
+  projective-point copy loop (`bnqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1152-byte source/destination disjointness precondition and
+  byte-identity pinned to `bnqPtCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line
   `bnp_fp2_copy` leaf (`bnpFp2CopyFn_spec`, post `ws = srcBytes`) with a static
   64-byte source/destination disjointness precondition and byte-identity pinned
-  to `bnpFp2Copy_prog`.
+  to `bnpFp2Copy_prog`. `Bn254Fp2EqSAsm.lean` verifies `bnp_fp2_eq` as a
+  byte-transparent dual-read dword equality scan (`bnpFp2Eq_spec`, post `a0 = 1`
+  iff the two 64-byte buffers are byte-equal) with byte-identity pinned to
+  `bnpFp2Eq_prog`.
   `Bn254CurveCopySAsm.lean` verifies the alignment-free
   `bnc_copy64` byte loop (`bncCopy64Fn_spec`, post `ws = srcBytes`) with a
   static 64-byte source/destination disjointness precondition and byte-identity
-  pinned to `bncCopy64_prog`.
+  pinned to `bncCopy64_prog`. `Secp256k1PointCopy64SAsm.lean` verifies the
+  analogous `secp256k1_point_copy64` byte loop (`secp256k1PointCopy64Fn_spec`,
+  post `ws = srcBytes`) with the same static disjointness precondition and
+  byte-identity pinned to `secp256k1PointCopy64_prog`.
   `Bn254CurveZeroSAsm.lean` verifies the alignment-free
   `bnc_zero64` byte loop (`bncZero64Fn_spec`, post `ws = replicate 64 0`) with
-  byte-identity pinned to `bncZero64_prog`.
+  byte-identity pinned to `bncZero64_prog`. `Secp256k1PointZero64SAsm.lean`
+  verifies the analogous `secp256k1_point_zero64` byte loop
+  (`secp256k1PointZero64Fn_spec`, post `ws = replicate 64 0`) with
+  byte-identity pinned to `secp256k1PointZero64_prog`.
   `RunningBloomCopySAsm.lean` verifies `running_bloom_copy`,
   a fixed 32-dword copy loop over a 256-byte bloom/checkpoint buffer, with
   byte-identity pinned to `runningBloomCopy_prog`.  `CallFrameSetCalldataSAsm.lean`
@@ -2659,6 +2671,30 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   host-delegated syscalls.
 - RETURN and REVERT halt the current frame with output data.
 
+##### RETURN/REVERT (0xf3/0xfd) full-tail proof — status
+- **Halt core** (`Terminating/ReturnHaltSpec.evm_return_halt_spec_within`): DONE
+  (`dispatchHaltRet 2` → `.exit_no_epilogue`; STOP/INVALID clone, routing code 2).
+- **Descriptor-window loops** (`Terminating/ReturnWindowLoopSpec.lean`, all
+  classical-3): DONE
+  - `bytesRegion_sd_within` — reusable dword-store analog of
+    `bytesRegion_sb_within` (SD into a dword slot → `setBytes bs (8*q) (dwordBytes v)`).
+  - `returnZeroLoop_spec_within` — 22-word descriptor-body zeroing loop
+    (`zeroDwords` model), induction on the word countdown.
+  - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
+    loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
+    copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
+- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
+  straight-line glue as a single descriptor-window `Program` from the post-gas
+  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
+  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
+  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
+  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
+  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
+  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
+  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
+  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
+  stitched, so the registry is NOT flipped).
+
 ### Phase 9: Gas Metering
 
 #### 9.1 Static Gas
@@ -2892,6 +2928,74 @@ consumed by `callWithin_spec`; `bnqSetOneFrame_spec` concludes sp/ra/s0
 restored + the FQ12 at entry `a0` = ONE (dword 0 = 1, rest 0) — resolving
 blocker bead 4ch8f.58.3.17.1 (the "FnHandle call bridge" gap) via the flat
 contract route.  All classical-3; recipe in `FramePort.lean`'s module doc.
+BLS12-381 analogue `blq_set_one` now follows the same framework path
+(`Codegen/Programs/Bls12Fq12SetOneSAsm.lean`, bead 4ch8f.58.3.23,
+byte-TRANSPARENT): flat `blq_zero` contract over 72 dwords/576 bytes,
+`callWithin_spec` from the frame body, and postcondition ONE = dword 0 set to
+1 with the remaining 71 dwords zero.
+**Count-up call-loop lemma + blsg2_encode port landed** (branch
+`feat/countup-call-loop`, beads evm-asm-ipt7m + 4ch8f.58.3.24.2):
+`SAsm/AbiFrameLoopBottom.lean` adds `countupLoopBottom_spec` — the
+bottom-tested count-up analogue of `countdownLoopBottom_spec` (counter
+`0 → N` against a nonzero bound REGISTER that the body reloads each pass,
+`… ; addi ctr,ctr,1 ; li bnd,N ; bne ctr,bnd,back`), register/bound/offset
+agnostic, arbitrary per-iteration body triple (verified to admit a
+`callWithin_spec` composition) — plus the `countup_loop` FramePort macro.
+Consumer: `blsg2_encode` (`Codegen/Programs/Bls12G2EncodeSAsm.lean`,
+byte-TRANSPARENT `abiFrameProg (-40)/(+40)`, frame ra/s0/s1/s2): the loop
+body computes `48·i` (two shifts + add), points `a0`/`a1` at chunk `i`, and
+REALLY calls `blsg_le_to_be` — the callee contract is DERIVED with the
+adapter (`blsgLeToBeFlat_spec` := `Fn.retSpecFlat` on the #9994-strengthened
+`blsgLeToBeFn_spec`, ambient-pinned per §5a) and consumed by
+`callWithin_spec`; `blsg2Encode_spec` concludes sp/ra/s0/s1/s2 restored and
+the genuine 4×48-byte record post (output chunk k = `blsgLeToBeBytes in_k`,
+inputs untouched).  First loop-of-calls port; callee steps kept symbolic
+(`(blsgLeToBeFn …).body.steps + 1`, guide §5a note).  Classical-3.
+**Dual-read dword equality scan + the equality family landed** (branch
+`feat/dual-read-scan`, bead evm-asm-4ch8f.58.3.25.1):
+`SAsm/DualReadScan.lean` packages three reusable pieces — (1) focused
+dword-read primitives (`Region.loadOk_slot`/`dwordAt_slot`: an `LD` at
+`base + 8·i` is in-region and yields dword slot `i`; `Region.wf_dropSuffix`
+keeps an advancing `readAt` cursor focusable; offset-generic zero-immediate
+variants), (2) the per-dword ⇔ byte-list bridge
+(`bytes_eq_of_dwordSlots_eq`: two `8·N`-byte lists agreeing on every dword
+slot are EQUAL — what makes equality posts genuine), and (3) the
+register-agnostic scan itself (`DualReadScan.scanBody`/`scan_spec`: any five
+distinct exposed registers for counter/temps/cursors, a `retWhileBreak`
+countdown loop reading dword `i` from buffer A (primary region) and buffer B
+(`readAt`-focused suffix split of the ambient via `focus_split`), breaking
+to the `0` tail on first mismatch; genuine post
+`a0 = (if bsA = bsB then 1 else 0)`).  Consumers, both byte-TRANSPARENT
+instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
+address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
+bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
+N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
+N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
+can reuse pieces 1–2 but is not this scan shape — deferred.  `blsg_eq48`
+is also an equality leaf, but byte-wise (`LBU`) rather than dword-wise
+(`LD`), so it is verified separately in `Bls12G1Eq48SAsm.lean` as a
+48-byte whileBreak drop-in.  Classical-3.
+**Shared-return-tail forward join landed** (branch
+`feat/shared-return-tail`, beads evm-asm-k2f1x + 4ch8f.59.2.1):
+`SAsm/RetForwardJoin.lean` closes the multi-guard validation-routine gap
+(`retIf` = one guard, two disjoint tails; validation routines have several
+guards CONVERGING on the same tails).  Two lemmas at `cpsTripleWithin`
+level: `sharedRetTail_spec` (the `li rd, c ; ret` return arm proven ONCE
+per tail address against the routine's single `CodeReq`, generic in
+register/value/frame — every guard targeting the tail reuses the instance,
+so no tail bytes are duplicated and byte-transparency holds) and
+`retJoinStation_spec` (one guard station: branch fact delivered to the two
+continuations as a plain HYPOTHESIS, killing the per-station
+`sepConj_pure_left` destructuring; stations chain by nesting — an outer
+station's fall-through proof IS the next station's joined triple).
+Consumer: `create_deployed_code_valid`
+(`Codegen/Programs/CreateDeployedCodeValidSAsm.lean`, bead 4ch8f.59.2) —
+the 3-guard/2-shared-tail EIP-7907/EIP-3541 gate, byte-transparent
+(`createDeployedCodeValidFunction = emitProgram cdcvProgram` kernel-checked
+in-file), genuine post `a0 = if 32768 <u len then 1 else if len = 0 then 0
+else if code[0] = 0xEF then 1 else 0`, both tails single `have`s reused at
+two stations each.  Classical-3.  Queued follow-up (bead evm-asm-otbab,
+separate PR): dynamic selected-read / copy-tail for `u256_min`/`u256_max`.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3288,9 +3392,10 @@ aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 `secf_le_to_be`, which are nested bottom-test do-while converters BLOCKED
 on `.11.7`/`.68`; PATH A verifies `secfMulModP` `SpecR` conditional on
 assumed be/le `FnHandleS` hypotheses (genuinely instantiates the merged
-`.11.6` `arithModHandle`, the wave-1 point). The compare/scan leaves
-(`secfIsZero32`/`Eq32`/`CmpP`, `.38.2.2`) and the pow/inv/sqrt ladders
-(`.38.2.5`–`.7`) are likewise `.68`-blocked (mid-exit/do-while loops).
+`.11.6` `arithModHandle`, the wave-1 point). The remaining compare/scan leaf (`secfCmpP`, `.38.2.2`)
+and the pow/inv/sqrt ladders (`.38.2.5`–`.7`) still need their own
+mid-exit/do-while ports or drop-ins; `secfEq32` and `secfIsZero32` are
+handled by the whileBreak drop-ins below.
 LANDED (`.38.2.1`, `EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean`,
 the only immediately-unblocked routines): verified SAsm triples for the
 straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
@@ -3299,6 +3404,14 @@ straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
 `secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
 the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
+`Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
+(`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
+emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
+refreshed by Lean render.
+`Secp256k1FieldIsZeroSAsm.lean` verifies `secf_is_zero32` as a same-length
+single-exit `whileBreak` drop-in (`secfIsZero32Fn_spec`, `a0 = 1` iff the
+32-byte input is all-zero); the emitted `secfIsZero32_prog` is rewired to the
+verified body and requires EEST A/B parity as the byte-changing drop-in gate.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic

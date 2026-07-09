@@ -45,14 +45,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     -- fhsxz.2.4.2.61.8.3.6 / EIP-3860 + EIP-7907: init-code size > MAX_INIT_CODE_SIZE is an
     -- exceptional abort consuming all gas (execution-specs amsterdam system.py:85-86 raises
-    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x8000 = 0x10000 = 65536, per
-    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x8000, so the bound is 65536,
-    -- NOT the pre-Amsterdam 49152: init-code in (49152, 65536] is VALID and must execute, not
+    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x10000 = 0x20000 = 131072, per
+    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x10000, so the bound is 131072,
+    -- NOT the pre-Amsterdam 49152: init-code in (49152, 131072] is VALID and must execute, not
     -- be rejected). x16 is the full size (high limbs confirmed 0 above). The bound equals
-    -- create_child_initcode's size (.zero 0x10000 = 65536), so a valid init-code (<= 65536) fits
+    -- create_child_initcode's size (.zero 0x20000 = 131072), so a valid init-code (<= 131072) fits
     -- the staging buffer exactly while any larger (invalid) one is OOG-rejected before the copy,
     -- preventing the overflow into adjacent .data (create_child_returndata / create_child_code).
-    "  li x18, 65536; bgtu x16, x18, .exit_outofgas\n" ++
+    "  li x18, 131072; bgtu x16, x18, .exit_outofgas\n" ++
     "  beqz x16, 1f\n" ++
     "  ld x18, 40(x12)\n" ++
     "  bnez x18, .exit_outofgas\n" ++
@@ -62,7 +62,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     "  add x18, x15, x16\n" ++
     "  bltu x18, x15, .exit_outofgas\n" ++
-    "  li x19, 0x10000\n" ++
+    "  li x19, 0x20000\n" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "1:\n" ++
     createInitcodeGasAsm
@@ -71,6 +71,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     updateActiveMemorySizeAsm
       (if hasSalt then "create2_init" else "create_init")
       "x15" "x16" "x18" "x19" "x23" "x6" true ++
+    -- The dispatcher precharge already includes Amsterdam execution-specs'
+    -- CREATE_ACCESS = ACCOUNT_WRITE(8000) + COLD_STORAGE_ACCESS(3000).
+    -- Do not debit an additional cold-access delta here; generic_create's
+    -- insufficient-balance branch refunds only child-call/state reservoirs, not
+    -- any duplicate pre-execution CREATE_ACCESS charge.
     -- Convert env.ADDRESS from stack-word representation to the canonical
     -- 20-byte big-endian input expected by address_compute_create*.
     "  la x18, create_sender_be\n" ++
@@ -261,7 +266,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
     -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
     -- contract address is WARM for the rest of the tx, so a later CALL/SELFDESTRUCT to it pays the
-    -- WARM floor (100), not COLD_ACCOUNT_ACCESS (2600). Without this, a same-tx value-CALL to the
+    -- WARM floor (100), not COLD_ACCOUNT_ACCESS (3000). Without this, a same-tx value-CALL to the
     -- just-created child charged the 2500 cold delta (verified: selfdestruct_same_tx_via_call
     -- to_other receipt cumulativeGasUsed over-counted by exactly 2500 -> bv_fail=53). The warm
     -- table is a single global (evm_access_account_table, capacity 100000, reset only at tx setup),
@@ -382,6 +387,23 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- Snapshot execution-specs generic_create target_alive after the child frame
+    -- has staged the target's header-state balance and before constructor execution.
+    -- A nonzero block-pre balance or a prior same-tx CREATE code-effect record
+    -- makes the target alive; CREATE success then refunds NEW_ACCOUNT state gas.
+    "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
+    "  la t0, nse_create_pre_bal\n" ++
+    "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, create_address_be\n" ++
+    "  jal ra, find_code_effect_by_address\n" ++
+    "  mv t1, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  beqz t1, .Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    ".Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
+    ".Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++

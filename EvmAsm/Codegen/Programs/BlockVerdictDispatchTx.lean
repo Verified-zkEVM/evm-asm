@@ -570,7 +570,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a3, 20; mv a4, s0; mv a5, s1\n" ++       -- addr len + witness state ptr/len
   "  la a6, csce_bal_struct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
-  "  bnez a0, .Ldtrc_no_selfbal\n" ++             -- lookup miss/error -> leave SELFBALANCE 0
+  "  bnez a0, .Ldtrc_selfbal_base_zero\n" ++       -- lookup miss/error -> start from zero
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 32\n" ++                   -- t2 = &SELFBALANCE word (env_base+32)
@@ -584,6 +584,33 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t3, csce_bal_struct; addi t3, t3, 39; mv t4, t2; li t5, 32\n" ++
   ".Ldtrc_selfbal_rev:\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
+  "  la t0, csce_bal_struct; addi t0, t0, 8; la t1, bv_pending_recipient_pre\n" ++
+  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, csce_bal_struct; ld t2, 0(t0); la t1, bv_pending_recipient_nonce; sd t2, 0(t1)\n" ++
+  "  j .Ldtrc_selfbal_base_ready\n" ++
+  ".Ldtrc_selfbal_base_zero:\n" ++
+  "  la t0, bv_pending_recipient_pre; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, bv_pending_recipient_nonce; sd zero, 0(t0)\n" ++
+  ".Ldtrc_selfbal_base_ready:\n" ++
+  -- Multi-tx execution starts each transaction from the world state produced by
+  -- earlier transactions, not always the block-start trie. Mirror the nested
+  -- frame live-balance overlay: if a prior value-flow record touched this
+  -- recipient, use its latest post-balance for top-level SELFBALANCE and as the
+  -- base for this tx's recipient-credit record.
+  "  la t0, bv_pending_recipient_addr; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  addi t1, s2, 72; li t2, 20\n" ++
+  ".Ldtrc_selfbal_addr_copy:\n" ++
+  "  beqz t2, .Ldtrc_selfbal_addr_done\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_selfbal_addr_copy\n" ++
+  ".Ldtrc_selfbal_addr_done:\n" ++
+  "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
+  "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
+  "  la t3, bv_pending_recipient_pre; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  ".Ldtrc_selfbal_live_rev:\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_live_rev\n" ++
+  ".Ldtrc_selfbal_live_done:\n" ++
   -- Stage the top-level recipient value credit into the live non-storage log after
   -- runtime setup resets it. This lets BALANCE(recipient) observe tx.value during
   -- recipient execution. Self-transfers are already represented by the sender
@@ -601,12 +628,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz t2, .Ldtrc_recipient_addr_done\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_recipient_addr_copy\n" ++
   ".Ldtrc_recipient_addr_done:\n" ++
-  "  la t0, csce_bal_struct; addi t0, t0, 8; la t1, bv_pending_recipient_pre\n" ++
-  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   "  la a0, bv_pending_recipient_pre; addi a1, s2, 96; la a2, bv_pending_recipient_post\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Ldtrc_recipient_credit_done\n" ++
-  "  la t0, csce_bal_struct; ld t2, 0(t0); la t1, bv_pending_recipient_nonce; sd t2, 0(t1)\n" ++
   "  li t2, 1; la t1, bv_pending_recipient_credit_flag; sd t2, 0(t1)\n" ++
   ".Ldtrc_recipient_credit_done:\n" ++
   ".Ldtrc_no_selfbal:\n" ++
@@ -686,21 +710,24 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
-  -- message state-gas reservoir when the recovered authority already exists.
-  -- The callable dispatcher resets its state-gas cells during setup, so compute
-  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
+  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
+  -- the recovered authority already exists. The callable dispatcher resets its
+  -- state-gas cells during setup, so compute both refunds here and stage them.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
   "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
   "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; sd zero, 0(t4)\n" ++
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; sd a1, 0(t4)\n" ++
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
-  "  addi t5, t5, -1; slli t5, t5, 3; la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
+  "  addi t5, t5, -1; slli t5, t5, 3\n" ++
+  "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
   "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
   ".Ldtrc_auth_predelegated_stored:\n" ++
   "  la t4, teer_auth_count; ld t5, 0(t4); la t4, runtime_tx_auth_count; sd t5, 0(t4)\n" ++
@@ -720,15 +747,6 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
-  -- The callable staged payload carries the account-witness header length in
-  -- the trailer word that overlaps env.eventLogLength in the live env layout.
-  -- If execution produced no log data and the live count is exactly that header
-  -- length, normalize it back to the empty receipt-log window before materializing
-  -- receipts. Real LOG/EIP-7708 paths either advance the count or capture data.
-  "  la t0, evm_log_data_used; ld t0, 0(t0); bnez t0, .Ldtrc_log_count_ready\n" ++
-  "  la t0, evm_env; ld t1, 472(t0); la t2, dtrc_hdr_len; ld t2, 0(t2); bne t1, t2, .Ldtrc_log_count_ready\n" ++
-  "  sd x0, 472(t0); sd x0, 480(t0)\n" ++
-  ".Ldtrc_log_count_ready:\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
@@ -738,6 +756,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv s0, a0                    # effective gas_left\n" ++
   "  mv s1, a1                    # effective refund_counter\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; ld t5, 0(t4); add s1, s1, t5\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena

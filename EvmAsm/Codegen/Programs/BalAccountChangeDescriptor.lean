@@ -31,9 +31,9 @@ open EvmAsm.Rv64
 
     Descriptor layout matches `mpt_state_root_ins`:
       +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 mode.
-    Modes are 0=modify, 1=insert, 2=delete, 3=no-op. Caller flag 4 is
-    normalized to mode 0 for compatibility with older BAL classifiers; storage
-    roots are still derived only from explicit storage_changes. -/
+    Modes are 0=modify, 1=insert, 2=delete, 3=no-op. Unknown caller modes are
+    passed through so downstream state-root handling fails instead of silently
+    normalizing a post-decode marker. -/
 def balAccountChangeDescriptor_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -59,29 +59,26 @@ def balAccountChangeDescriptor_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.baap_force_storage_clear (GuestAddrs.bal_account_change_descriptor + 84)),
     .ADDI .x5 .x5 (laLo GuestAddrs.baap_force_storage_clear (GuestAddrs.bal_account_change_descriptor + 84)),
     .SD .x5 .x0 (0 : BitVec 12),
-    .LI .x6 (4 : Word),
-    .BNE .x8 .x6 (8 : BitVec 13),
-    .LI .x8 (0 : Word),
     .MV .x10 .x20,
     .MV .x11 .x21,
     .MV .x12 .x22,
     .MV .x13 .x23,
     .MV .x14 .x18,
     .MV .x15 .x19,
-    .AUIPC .x16 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 132)),
-    .ADDI .x16 .x16 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 132)),
-    .JAL .x1 (jalOff GuestAddrs.bal_account_change_value (GuestAddrs.bal_account_change_descriptor + 140)),
+    .AUIPC .x16 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 120)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 120)),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_change_value (GuestAddrs.bal_account_change_descriptor + 128)),
     .BNE .x10 .x0 (112 : BitVec 13),
     .MV .x10 .x19,
-    .AUIPC .x5 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 152)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 152)),
+    .AUIPC .x5 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 140)),
     .LD .x11 .x5 (0 : BitVec 12),
-    .AUIPC .x12 (laHi GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 164)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 164)),
-    .JAL .x1 (jalOff GuestAddrs.account_is_eip161_empty (GuestAddrs.bal_account_change_descriptor + 172)),
+    .AUIPC .x12 (laHi GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 152)),
+    .JAL .x1 (jalOff GuestAddrs.account_is_eip161_empty (GuestAddrs.bal_account_change_descriptor + 160)),
     .BNE .x10 .x0 (80 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 180)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 180)),
+    .AUIPC .x5 (laHi GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_is_empty (GuestAddrs.bal_account_change_descriptor + 168)),
     .LD .x5 .x5 (0 : BitVec 12),
     .BEQ .x5 .x0 (20 : BitVec 13),
     .BEQ .x8 .x0 (12 : BitVec 13),
@@ -92,16 +89,16 @@ def balAccountChangeDescriptor_prog : Program :=
     .LI .x5 (64 : Word),
     .SD .x9 .x5 (8 : BitVec 12),
     .SD .x9 .x19 (16 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 228)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 228)),
+    .AUIPC .x5 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 216)),
     .LD .x5 .x5 (0 : BitVec 12),
     .SD .x9 .x5 (24 : BitVec 12),
     .SD .x9 .x8 (32 : BitVec 12),
     .LI .x10 (0 : Word),
     .JAL .x0 (20 : BitVec 21),
     .LI .x5 (301 : Word),
-    .AUIPC .x6 (laHi GuestAddrs.baacd_fail_code (GuestAddrs.bal_account_change_descriptor + 260)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.baacd_fail_code (GuestAddrs.bal_account_change_descriptor + 260)),
+    .AUIPC .x6 (laHi GuestAddrs.baacd_fail_code (GuestAddrs.bal_account_change_descriptor + 248)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baacd_fail_code (GuestAddrs.bal_account_change_descriptor + 248)),
     .SD .x6 .x5 (0 : BitVec 12),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -121,14 +118,14 @@ def balAccountChangeDescriptor_prog : Program :=
 def balAccountChangeDescriptor_relocs : RelocTable :=
   [ (18, .la .x5 "baacd_fail_code"),
     (21, .la .x5 "baap_force_storage_clear"),
-    (33, .la .x16 "baacd_value_len"),
-    (35, .jal .x1 "bal_account_change_value"),
-    (38, .la .x5 "baacd_value_len"),
-    (41, .la .x12 "baacd_is_empty"),
-    (43, .jal .x1 "account_is_eip161_empty"),
-    (45, .la .x5 "baacd_is_empty"),
-    (57, .la .x5 "baacd_value_len"),
-    (65, .la .x6 "baacd_fail_code") ]
+    (30, .la .x16 "baacd_value_len"),
+    (32, .jal .x1 "bal_account_change_value"),
+    (35, .la .x5 "baacd_value_len"),
+    (38, .la .x12 "baacd_is_empty"),
+    (40, .jal .x1 "account_is_eip161_empty"),
+    (42, .la .x5 "baacd_is_empty"),
+    (54, .la .x5 "baacd_value_len"),
+    (62, .la .x6 "baacd_fail_code") ]
 
 def balAccountChangeDescriptorFunction : String :=
   "bal_account_change_descriptor:\n" ++ emitProgramR balAccountChangeDescriptor_prog balAccountChangeDescriptor_relocs
@@ -142,7 +139,7 @@ theorem balAccountChangeDescriptorFunction_eq_prog :
     balAccountChangeDescriptorFunction = "bal_account_change_descriptor:\n" ++ emitProgramR balAccountChangeDescriptor_prog balAccountChangeDescriptor_relocs := rfl
 
 #guard balAccountChangeDescriptorFunction.startsWith "bal_account_change_descriptor:\n"
-#guard balAccountChangeDescriptor_prog.length = 79
+#guard balAccountChangeDescriptor_prog.length = 76
 /-- `zisk_bal_account_change_descriptor`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account RLP length (u64)

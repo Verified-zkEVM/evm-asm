@@ -114,7 +114,7 @@ def seedTxAccessListFunction : String :=
   -- account warm table. execution-specs warms access_list_addresses before
   -- execution (fork.py:1085-1091), so the first account-touching opcode
   -- (BALANCE/EXTCODE*/CALL/EIP-7702 delegation access/...) on a listed account is
-  -- charged WARM (100), not COLD (2600). Without this the guest over-charges the
+  -- charged WARM (100), not COLD (3000). Without this the guest over-charges the
   -- regular gas by the 2500 cold delta vs the spec on any tx with an access list.
   -- stal_token holds the 20-byte BE address in bytes 0..19, matching
   -- runtime_access_account_seed's expectation; the seed preserves s4..s9 (saves

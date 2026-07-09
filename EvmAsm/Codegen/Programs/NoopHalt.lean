@@ -93,7 +93,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- state gas under-counted -> EIP-7778/8037 state budget too lenient (false-accept on state-heavy
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
-      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
+      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x10000) so x15*1530 cannot overflow u64.
       "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
@@ -106,6 +106,36 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+      -- Capture execution-specs generic_create target_alive current-tx evidence BEFORE
+      -- appending this CREATE's own code-effect record. A previous same-tx CREATE deposit
+      -- leaves a code-effect record even if the block-pre balance is zero; the later refund
+      -- decision combines this flag with nse_create_pre_bal.
+      "  la t0, create_target_alive_current_tx
+  sd x0, 0(t0)
+" ++
+      "  addi sp, sp, -16
+  sd x10, 0(sp)
+  sd x12, 8(sp)
+" ++
+      "  la a0, exec_code_effect_log
+  la t0, exec_code_effect_count
+  ld a1, 0(t0)
+  la a2, create_address_be
+" ++
+      "  jal ra, find_code_effect_by_address
+" ++
+      "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
+" ++
+      "  la t0, create_target_alive_current_tx
+  li t1, 1
+  sd t1, 0(t0)
+" ++
+      ".Lrr_cralive_scan_done_" ++ toString kind ++ ":
+" ++
+      "  ld x10, 0(sp)
+  ld x12, 8(sp)
+  addi sp, sp, 16
+" ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
       -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre absent 0/0;
@@ -135,6 +165,20 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- the returned constructor bytes were already consumed as deployed code above.
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
+      -- execution-specs generic_create credits the CREATE NEW_ACCOUNT state-gas
+      -- charge back when the CREATE target was already alive. At this point
+      -- code/nonzero-nonce targets would have failed the deployable check, so
+      -- target_alive also includes same-tx prior CREATE deposits captured in create_target_alive_current_tx.
+      "  la t0, nse_create_pre_bal\n" ++
+      "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+      "  la t0, create_target_alive_current_tx\n  ld t2, 0(t0)\n  or t1, t1, t2\n" ++
+      "  beqz t1, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
+      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+      "  bltu t1, t2, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
+      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      ".Lrr_cralive_refund_done_" ++ toString kind ++ ":\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
       "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
@@ -288,12 +332,14 @@ private def selfdestructTailAsm : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
-  -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (2600) for a COLD beneficiary and 0
+  -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (3000) for a COLD beneficiary and 0
+
   -- when warm (spec amsterdam vm/instructions/system.py:646-650; unlike CALL, it
   -- adds NO warm-access cost). runtime_access_account_charge only debited the
-  -- 2500 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
+
+  -- 2900 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
   -- SELFDESTRUCT's 5000 base lacks), so add the missing 100 ONLY on the cold path
-  -- (helper a0==1) to reach the full 2600; a warm beneficiary stays at 0. Without
+  -- (helper a0==1) to reach the full 3000; a warm beneficiary stays at 0. Without
   -- this the cold-beneficiary SELFDESTRUCT under-charged regular gas by 100,
   -- corrupting the type-4 receipt cumulative (bv_fail=53). Check a0 before the
   -- x10 restore clobbers it.
@@ -381,6 +427,12 @@ private def selfdestructTailAsm : String :=
   ".L_sd_create_return:\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
+  -- Constructor SELFDESTRUCT is a successful CREATE child exit. Mirror generic_create's
+  -- target_alive refund using the flag captured before child execution.
+  "  la t0, create_target_alive_current_tx\n  ld t0, 0(t0)\n  beqz t0, .L_sd_create_alive_refund_done\n" ++
+  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n  bltu t1, t2, .L_sd_create_alive_refund_done\n  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".L_sd_create_alive_refund_done:\n" ++
   "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
   ".L_sd_create_addr_loop:\n" ++
   "  beqz t3, .L_sd_create_addr_done\n" ++

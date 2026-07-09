@@ -94,7 +94,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b1_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
   ".Lbv_b1_done:\n" ++
-  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the receipt-gas EIP-8037 adjust
+  -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the gas-result gate
   -- (BlockVerdictReceiptsTail), where bvgr_receipt_gas_increments[i] holds the spec-exact
   -- (regular+state, refund+EIP-7623-floor) per-tx gas_used. The B2.2 sender debit needs that
   -- exact gas, which is 0 here (the gas chain runs later). So skip the B2 block at this early
@@ -119,9 +119,9 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_b2_next\n" ++
   -- bmvmx.5.5.2.2.12: sender GAS debit = bvgr_receipt_gas_increments[i] * eff_price (+ value below).
   -- bvgr_receipt_gas_increments[i] is the SPEC-EXACT per-tx gas_used (regular + EIP-8037 state,
-  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain + the receipt-gas
-  -- adjust -- which is why this block runs AFTER that adjust (reached via .Lbv_b2_entry from
-  -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
+  -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain,
+  -- which is why this block runs AFTER the gas-result gate (reached via .Lbv_b2_entry from
+  -- ReceiptsTail). This replaces the old raw-runtime-gas debit helper plus flat
   -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
   -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
   -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is
@@ -134,30 +134,9 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_mtx_skip_ctx; addi a1, a1, 96; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_add_be\n" ++                                               -- debit += tx.value
   "  bnez a0, .Lbv_b2_next\n" ++
-  ".Lbv_b2_after_auth:\n" ++
+  ".Lbv_b2_after_value:\n" ++
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_type4_auth\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_innoff; ld t1, 0(t0); la t2, bv_mtx_skip_ctx; ld t2, 8(t2); add t1, t2, t1\n" ++
-  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_type4_auth\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
-  "  la t0, bvgr_receipt_gas_increments; add t0, t0, t1; ld t2, 0(t0)\n" ++
-  "  la t0, bvgr_tx_total_state_gas; add t0, t0, t1; ld t3, 0(t0); bgeu t2, t3, .Lbv_b2_after_type4_auth\n" ++
-  "  li t2, " ++ toString (amsterdamAuthStateGas + 7500) ++ "; mul a1, a1, t2\n" ++
-  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lbv_b2_next\n" ++
-  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
-  "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
   ".Lbv_b2_after_type4_auth:\n" ++
   "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
@@ -197,13 +176,13 @@ def blockVerdictMtxValidationTail : String :=
   -- model. A forged sender post balance otherwise survives (the state-root recompute applies
   -- the BAL delta, so a matching forged header.state_root would pass).
   --
-  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only; it CANNOT
-  -- see inbound credits, so we CONSERVATIVELY SKIP (skip => never false-reject) any sender
-  -- whose final balance could include a credit the debit model misses:
+  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only. Do not
+  -- skip sender==coinbase here: if the model omits the priority-fee credit, the mismatch
+  -- must surface as a real B2.3 failure instead of being hidden by a post-fact bypass.
+  -- We still conservatively skip senders whose final balance could include a frame-local
+  -- value credit the debit model cannot distinguish yet:
   --   * effect-log overflow or any withdrawals present -> skip the whole pass (the exec
   --     effect log is then incomplete; mirrors the A2a guard below);
-  --   * sender == coinbase / fee_recipient -> the priority-fee credit is applied OUTSIDE the
-  --     EVM frame (process_transaction), absent from both the debit and the effect log;
   --   * sender present in the exec non-storage effect log -> execution touched its balance
   --     (value-in via CALL, or value-out it sent) -> potential inbound credit not modeled.
   -- The remaining PURE-PAYER senders (the common multi-tx EOA case, value=0) must satisfy
@@ -213,19 +192,6 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- WIP: exact-gas/state-root-authenticated multi-tx rows below still trip the cumulative
-  -- pure-payer sender-balance model. Skip only these known signatures while B2.3 is repaired;
-  -- the state root, receipt root, and exact block gas remain enforced by the surrounding verdict.
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
-  "  li t3, 2; bne t1, t3, .Lbv_b23_wip_bal_all_types\n" ++
-  "  li t3, 42000; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92120; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 92056; beq t2, t3, .Lbv_b23_done\n" ++
-  "  li t3, 861418; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_bal_all_types:\n" ++
-  "  li t3, 5; bne t1, t3, .Lbv_b23_wip_done\n" ++
-  "  li t3, 524790; beq t2, t3, .Lbv_b23_done\n" ++
-  ".Lbv_b23_wip_done:\n" ++
   -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
   -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
   -- per-block tx-type pre-scan is needed here.)
@@ -233,14 +199,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b23_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++
   "  slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3\n" ++   -- t4 = &entry (addr@0, running balance@32)
-  -- (a) skip if sender == coinbase (fee_recipient @ bv_exec_p+32)
-  "  la t5, bv_exec_p; ld t5, 0(t5); addi t5, t5, 32; li t6, 0\n" ++
-  ".Lbv_b23_cb:\n" ++
-  "  li a0, 20; beq t6, a0, .Lbv_b23_next\n" ++                 -- 20/20 bytes equal -> sender is coinbase -> skip
-  "  add a0, t4, t6; lbu a0, 0(a0); add a1, t5, t6; lbu a1, 0(a1); bne a0, a1, .Lbv_b23_notcb\n" ++
-  "  addi t6, t6, 1; j .Lbv_b23_cb\n" ++
-  ".Lbv_b23_notcb:\n" ++
-  -- (c) skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
+  -- Skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
   "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = raw count, t6 = k
   ".Lbv_b23_agg:\n" ++
   "  bgeu t6, t5, .Lbv_b23_chk\n" ++
@@ -269,7 +228,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b23_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
   ".Lbv_b23_done:\n" ++
-  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the receipt-gas adjust)
+  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the gas-result gate)
   ".Lbv_mtx_storage:\n" ++        -- storage/tuples/A2a run at .Lbv_mtx_done (B2 skipped there via the .Lbv_b1_done jump)
   -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
   -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
@@ -296,18 +255,17 @@ def blockVerdictMtxValidationTail : String :=
   -- here, consuming the A1 skip-list. CONSERVATIVE guard: effect-log overflow (skip -> never
   -- false-reject). NOTE (bmvmx.5.5.7.3): with nonstorageEffectLogCap = 32768 the overflow guard is
   -- now UNREACHABLE under the 200M block-gas envelope (cheapest record-producing op is a value-CALL
-  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=9100 regular gas, so <= 200M/9100 ~= 21978 < 32768 raw
+  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=10400 regular gas, so <= 200M/10400 ~= 19230 < 32768 raw
   -- records), so it no longer skips any in-scope block.
   -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
   -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
   -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
   -- value callees / CREATE / SELFDESTRUCT) unchecked. That is unnecessary: withdrawal-recipient
   -- balances are independently validated by withdrawals_state_root (pre-state + amount, folded into
-  -- the post-state root vs the header), the FORWARD comparator runs in LENIENT mode (a BAL account
-  -- with no matching exec effect -- exactly a withdrawal recipient -- is skipped, not rejected), and
-  -- the COVERS direction only iterates EXEC effects (withdrawal recipients have none, so they are
-  -- never flagged). So running the check with withdrawals present is 0-regress for valid blocks and
-  -- ENFORCES the exec-vs-BAL consistency of every effect-having account in a withdrawals block.
+  -- the post-state root vs the header), and the FORWARD comparator still allows accounts
+  -- that declare no non-storage change. So running the check with withdrawals present is
+  -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
+  -- effect-having account in a withdrawals block.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
@@ -322,16 +280,10 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, nonstorage_effect_aggregate\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account
-  -- effects outside the CALL zero-pre path, so strict notfound remains gated until those are
-  -- complete. Value-mismatch still validates every account that DID get an effect. Reset to 0
-  -- after so nothing else observes lenient mode.
-  "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
-  "  la t0, c3ns_lenient_notfound; sd zero, 0(t0)\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- reverse (covers): every exec net-changed account is present in the BAL
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
