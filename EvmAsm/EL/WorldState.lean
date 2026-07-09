@@ -473,44 +473,6 @@ theorem accountCode?_setAccountNonce
         simp [accountCode?, h_account]
       · simp [accountCode?_setAccount_ne _ _ h_eq]
 
-theorem accountCodeHash?_setAccountNonce
-    (state : WorldState) (addr other : Address) (nonce : Nat) :
-    accountCodeHash? (setAccountNonce state addr nonce) other =
-      accountCodeHash? state other := by
-  unfold setAccountNonce
-  cases h_account : getAccount state addr with
-  | none => rfl
-  | some account =>
-      by_cases h_eq : other = addr
-      · subst h_eq
-        simp [accountCodeHash?, h_account]
-      · simp [accountCodeHash?_setAccount_ne _ _ h_eq]
-
-theorem accountBalance?_setAccountNonce
-    (state : WorldState) (addr other : Address) (nonce : Nat) :
-    accountBalance? (setAccountNonce state addr nonce) other =
-      accountBalance? state other := by
-  unfold setAccountNonce
-  cases h_account : getAccount state addr with
-  | none => rfl
-  | some account =>
-      by_cases h_eq : other = addr
-      · subst h_eq
-        simp [accountBalance?, h_account]
-      · simp [accountBalance?_setAccount_ne _ _ h_eq]
-
-@[simp] theorem getStorage_setStorage_same
-    (state : WorldState) (addr : Address) (key : StorageKey) (value : Word256) :
-    getStorage (setStorage state addr key value) addr key = value := by
-  simp [getStorage, setStorage]
-
-theorem getStorage_setStorage_addr_ne
-    (state : WorldState) {addr other : Address} (key key' : StorageKey) (value : Word256)
-    (h_ne : other ≠ addr) :
-    getStorage (setStorage state addr key value) other key' =
-      getStorage state other key' := by
-  simp [getStorage, setStorage, h_ne]
-
 end WorldState
 
 end EvmAsm.EL

@@ -22,26 +22,5 @@ def sstore
     WorldState :=
   state.setStorage addr key value
 
-@[simp] theorem sload_empty (addr : Address) (key : StorageKey) :
-    sload WorldState.empty addr key = 0 := rfl
-
-@[simp] theorem sload_sstore_same
-    (state : WorldState) (addr : Address) (key : StorageKey) (value : Word256) :
-    sload (sstore state addr key value) addr key = value := by
-  simp [sload, sstore]
-
-theorem sload_sstore_addr_ne
-    (state : WorldState) {addr other : Address} (key key' : StorageKey) (value : Word256)
-    (h_ne : other ≠ addr) :
-    sload (sstore state addr key value) other key' = sload state other key' := by
-  simp [sload, sstore, WorldState.getStorage_setStorage_addr_ne, h_ne]
-
-/-- SSTORE does not change account metadata. It only updates the storage map in
-    this pure model. -/
-theorem getAccount_sstore
-    (state : WorldState) (addr storageAddr : Address) (key : StorageKey) (value : Word256) :
-    WorldState.getAccount (sstore state storageAddr key value) addr =
-      WorldState.getAccount state addr := rfl
-
 end Storage
 end EvmAsm.EL

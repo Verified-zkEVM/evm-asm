@@ -134,26 +134,6 @@ theorem transferTransactionValue_state
           sender (senderNonce + 1))
         recipient (recipientBalance + value) := rfl
 
-theorem transferTransactionValue_senderBalance?
-    {state : WorldState} {sender recipient : Address}
-    {senderAccount : Account}
-    (senderBalance recipientBalance value : Word256) (senderNonce : Nat)
-    (h_sender : WorldState.getAccount state sender = some senderAccount)
-    (h_ne : sender ≠ recipient) :
-    WorldState.accountBalance?
-        (transferTransactionValue state sender recipient senderBalance recipientBalance value
-          senderNonce)
-        sender =
-      some (senderBalance - value) := by
-  rw [transferTransactionValue_state]
-  rw [WorldState.accountBalance?_setAccountBalance_ne (h_ne := h_ne)]
-  rw [WorldState.accountBalance?_setAccountNonce]
-  exact WorldState.accountBalance?_setAccountBalance_same
-    (by
-      rw [WorldState.getAccount_ensureAccount_ne]
-      · exact h_sender
-      · exact h_ne)
-
 theorem transferTransactionValue_senderNonce?
     {state : WorldState} {sender recipient : Address}
     {senderAccount : Account}
