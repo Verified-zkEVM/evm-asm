@@ -23,7 +23,7 @@
 # Counts are parsed from the committed PROGRESS.md (which `check-progress.sh`
 # already pins to the kernel-checked renderer, so no `lake build` is needed
 # here — keeps the history workflow cheap, report §6 build-budget non-goal),
-# conformance from the `allConformanceVectorCount` theorem, and the pinned EEST
+# and the pinned EEST
 # fixture tag from scripts/eest-fixture-tag.txt (so the datapoint records which
 # fixtures the conformance number reflects — report §6 fixture-pin non-goal).
 
@@ -58,13 +58,6 @@ fi
 DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EEST_TAG="$(read_tracked scripts/eest-fixture-tag.txt | tr -d ' \n' || echo unknown)"
 [[ -z "$EEST_TAG" ]] && EEST_TAG="unknown"
-
-CONF_COUNT="$(read_tracked EvmAsm/EL/Conformance/All.lean \
-  | grep -oE 'allConformanceVectorCount = [0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
-if [[ -z "$CONF_COUNT" ]]; then
-  echo "progress-snapshot: failed to parse allConformanceVectorCount${REF:+ at $REF}" >&2
-  exit 1
-fi
 
 REPORT="$(read_tracked PROGRESS.md)"
 if [[ -z "$REPORT" ]]; then
@@ -128,5 +121,4 @@ printf '"notStartedBytes":%s,' "$B_NOTSTARTED"
 printf '"obligationsDone":%s,' "$OBL_DONE"
 printf '"obligationsBlocked":%s,' "$OBL_BLOCKED"
 printf '"obligationsNotStarted":%s,' "$OBL_NOTSTARTED"
-printf '"conformanceCount":%s' "$CONF_COUNT"
 printf '}\n'

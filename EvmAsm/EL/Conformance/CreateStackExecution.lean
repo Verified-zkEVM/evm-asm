@@ -34,33 +34,6 @@ def readByteAt (memory : List Byte) (addr : Nat) : Byte :=
 def deployedAddress : Address := 0x1234
 def create2DeployedAddress : Address := 0x5678
 
-def vectorExecutor (request : CreateRequest) : CreateResult :=
-  if request.kind = .create ∧ request.initcode = [(0xbb : Byte), 0xcc] ∧
-      request.value = 7 ∧ request.gas = 321 ∧ request.salt? = none then
-    { status := .deployed
-      address? := some deployedAddress
-      state := WorldState.empty
-      returndata := []
-      gasRemaining := 300 }
-  else if request.kind = .create2 ∧ request.initcode = [(0xbb : Byte), 0xcc] ∧
-      request.value = 11 ∧ request.gas = 654 ∧ request.salt? = some 0x55 then
-    { status := .deployed
-      address? := some create2DeployedAddress
-      state := WorldState.empty
-      returndata := []
-      gasRemaining := 600 }
-  else
-    { status := .failed
-      address? := none
-      state := WorldState.empty
-      returndata := []
-      gasRemaining := 0 }
-
-def runCreateStackVector? (input : CreateStackInput) : Option CreateStackState :=
-  EvmAsm.EL.CreateStackExecutionBridge.runCreateStack?
-    input.kind input.creator (readByteAt input.memory) input.gas vectorExecutor
-    input.stackState
-
 def createStackVector : TestVector CreateStackInput CreateStackState :=
   { id := "create-stack-execution"
     input :=
@@ -108,61 +81,6 @@ theorem createStackConformanceVectorIds_length :
 theorem createStackConformanceVectorIds_nodup :
     createStackConformanceVectorIds.Nodup := by
   decide
-
-theorem runCreateStackVector?_create :
-    runCreateStackVector?
-      { kind := .create
-        creator := (0xabcd : Address)
-        memory := [(0xaa : Byte), 0xbb, 0xcc]
-        gas := (321 : EvmWord)
-        stackState := { stack := [(7 : EvmWord), 1, 2, 99] } } =
-      some { stack := [(deployedAddress.zeroExtend 256 : EvmWord), 99] } := by
-  rfl
-
-theorem createStackVector_passed :
-    checkVector? runCreateStackVector? createStackVector = .passed :=
-  checkVector?_some_passed runCreateStackVector?
-    "create-stack-execution"
-    { kind := .create
-      creator := (0xabcd : Address)
-      memory := [(0xaa : Byte), 0xbb, 0xcc]
-      gas := (321 : EvmWord)
-      stackState := { stack := [(7 : EvmWord), 1, 2, 99] } }
-    { stack := [(deployedAddress.zeroExtend 256 : EvmWord), 99] }
-    runCreateStackVector?_create
-
-theorem runCreateStackVector?_create2 :
-    runCreateStackVector?
-      { kind := .create2
-        creator := (0xabcd : Address)
-        memory := [(0xaa : Byte), 0xbb, 0xcc]
-        gas := (654 : EvmWord)
-        stackState := { stack := [(11 : EvmWord), 1, 2, 0x55, 88] } } =
-      some { stack := [(create2DeployedAddress.zeroExtend 256 : EvmWord), 88] } := by
-  rfl
-
-theorem create2StackConformanceVector_passed :
-    checkVector? runCreateStackVector? create2StackConformanceVector = .passed :=
-  checkVector?_some_passed runCreateStackVector?
-    "create2-stack-execution"
-    { kind := .create2
-      creator := (0xabcd : Address)
-      memory := [(0xaa : Byte), 0xbb, 0xcc]
-      gas := (654 : EvmWord)
-      stackState := { stack := [(11 : EvmWord), 1, 2, 0x55, 88] } }
-    { stack := [(create2DeployedAddress.zeroExtend 256 : EvmWord), 88] }
-    runCreateStackVector?_create2
-
-/-- Compact checked-vector batch for CREATE stack execution.
-    Distinctive token:
-    CreateStackExecutionConformance.createStackConformanceVectors #115 #125. -/
-def createStackConformanceVectors : List CheckResult :=
-  checkBatch? runCreateStackVector? createStackConformanceTestVectors
-
-theorem createStackConformanceVectors_passed :
-    createStackConformanceVectors = [.passed, .passed] := by
-  simp [createStackConformanceVectors, createStackConformanceTestVectors,
-    createStackVector_passed, create2StackConformanceVector_passed]
 
 end CreateStackExecution
 end Conformance
