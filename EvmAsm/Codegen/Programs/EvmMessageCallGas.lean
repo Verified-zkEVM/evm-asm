@@ -137,8 +137,8 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
     `message_call_gas` helper above takes `extra_gas` as an input but nothing
     computes it; this helper does, for the access + value-transfer components:
 
-      access   = is_cold       ? COLD_ACCOUNT_ACCESS (3000) : WARM_ACCESS (100)
-      transfer = value_nonzero ? CALL_VALUE (10300)          : 0
+      access   = is_cold       ? COLD_ACCOUNT_ACCESS (2600) : WARM_ACCESS (100)
+      transfer = value_nonzero ? CALL_VALUE (9000)          : 0
       extra_gas = access + transfer
 
     Correct for all four message-call kinds: DELEGATECALL/STATICCALL carry no
@@ -149,18 +149,26 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
 
     Calling convention:  a0 = is_cold, a1 = value_nonzero  ->  a0 = extra_gas.
     Clobbers t0/t1. -/
+def callExtraGas_prog : Program :=
+  [ .ADDI .x5 .x0 (100 : BitVec 12),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LUI .x5 (1 : BitVec 20),
+    .ADDIW .x5 .x5 (-1496 : BitVec 12),
+    .BEQ .x11 .x0 (16 : BitVec 13),
+    .LUI .x6 (2 : BitVec 20),
+    .ADDIW .x6 .x6 (808 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def callExtraGasFunction : String :=
-  "call_extra_gas:\n" ++
-  "  li t0, 100\n" ++               -- WARM_ACCESS
-  "  beqz a0, .Lceg_warm\n" ++      -- is_cold == 0 -> warm
-  "  li t0, 3000\n" ++              -- COLD_ACCOUNT_ACCESS
-  ".Lceg_warm:\n" ++
-  "  beqz a1, .Lceg_done\n" ++      -- value_nonzero == 0 -> no transfer
-  "  li t1, 10300\n" ++              -- CALL_VALUE
-  "  add t0, t0, t1\n" ++
-  ".Lceg_done:\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+  "call_extra_gas:\n" ++ emitProgram callExtraGas_prog
+
+theorem callExtraGasFunction_eq_prog :
+    callExtraGasFunction = "call_extra_gas:\n" ++ emitProgram callExtraGas_prog := rfl
+
+#guard callExtraGasFunction.startsWith "call_extra_gas:\n"
+#guard callExtraGas_prog.length = 10
 
 /-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
     value_nonzero) cases.
