@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
 
 namespace EvmAsm.Codegen
@@ -277,31 +278,18 @@ theorem secp256k1FieldIsZeroFunction_eq_prog :
 
 #guard secp256k1FieldIsZeroFunction.startsWith "secf_is_zero32:\n"
 #guard secfIsZero32_prog.length = 12
-/-- Return a0 = 1 iff the two 32-byte BE buffers at a0 and a1 are equal. Leaf helper. -/
+/-- Return a0 = 1 iff the two 32-byte BE buffers at a0 and a1 are equal. Leaf helper.
+
+    Re-emitted drop-in: the verified `Secp256k1FieldEq32SAsm.secfEq32Body`
+    flatten + `ret` (15 instructions, same length as the pre-drop-in two-exit compare). -/
 def secfEq32_prog : Program :=
-  [ .LI .x5 (32 : Word),
-    .MV .x6 .x10,
-    .MV .x7 .x11,
-    .BEQ .x5 .x0 (32 : BitVec 13),
-    .LBU .x28 .x6 (0 : BitVec 12),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x28 .x29 (28 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  Secp256k1FieldEq32SAsm.secfEq32_prog
 
 def secp256k1FieldEq32Function : String :=
   "secf_eq32:\n" ++ emitProgram secfEq32_prog
 
 /-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `secfEq32_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+    the verified re-emitted `secfEq32_prog` rendered under its label. -/
 theorem secp256k1FieldEq32Function_eq_prog :
     secp256k1FieldEq32Function = "secf_eq32:\n" ++ emitProgram secfEq32_prog := rfl
 
