@@ -259,12 +259,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blqZero_prog`; `Bls12Fq12CopySAsm.lean` verifies the `blq_copy` dword copy
   loop (`blqCopyFn_spec`, post `ws = srcBytes`) with a static 576-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blqCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
+  `blqCopy_prog`; `Bls12PtCopySAsm.lean` verifies the `blq_pt_copy` fixed
+  projective-point copy loop (`blqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1728-byte source/destination disjointness precondition and
+  byte-identity pinned to `blqPtCopy_prog`; `Bn254Fq12ZeroSAsm.lean` verifies `bnq_zero`
   (`bnqZeroFn_spec`, post `ws = replicate 384 0`) with byte-identity pinned to
   `bnqZero_prog`.  `Bn254Fq12CopySAsm.lean` verifies the `bnq_copy` dword copy
   loop (`bnqCopyFn_spec`, post `ws = srcBytes`) with a static 384-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `bnqCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
+  `bnqCopy_prog`. `Bn254PtCopySAsm.lean` verifies the `bnq_pt_copy` fixed
+  projective-point copy loop (`bnqPtCopyFn_spec`, post `ws = srcBytes`) with a
+  static 1152-byte source/destination disjointness precondition and
+  byte-identity pinned to `bnqPtCopy_prog`. `Bn254Fp2ZeroSAsm.lean` verifies `bnp_fp2_zero`
   (`bnpFp2ZeroFn_spec`, post `ws = replicate 64 0`) as eight straight-line
   dword stores with byte-identity pinned to `bnpFp2Zero_prog`.
   `Bn254Fp2CopySAsm.lean` verifies the straight-line

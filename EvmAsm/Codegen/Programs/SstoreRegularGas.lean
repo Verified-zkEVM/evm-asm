@@ -11,6 +11,7 @@
       if cold:                              gas_cost += COLD_STORAGE_ACCESS   (3000)
       else:                                 gas_cost += WARM_ACCESS            (100)
       if original == current and current != new:
+
                                             gas_cost += STORAGE_WRITE         (10000)
 
   So the four cases are:
@@ -18,6 +19,7 @@
       cold  + otherwise      : 3000
       warm  + clean-changing :  100 + 10000 = 10100
       warm  + otherwise      :  100
+
 
   where "clean-changing" = the slot is unmodified this tx (original == current)
   AND the store changes it (current != new). Note Amsterdam dropped the legacy
@@ -56,17 +58,21 @@ def sstoreRegularGasFunction : String :=
   "  mv s3, a0                    # s3 = original_eq_current\n" ++
   "  mv a0, s0; mv a1, s1; jal ra, u256_eq   # a0 = current_eq_new\n" ++
   -- gas = (is_cold ? COLD_STORAGE_ACCESS : WARM_ACCESS)
+
   "  li t0, 0\n" ++
   "  beqz s2, .Lsrg_warm_access\n" ++
   "  li t0, 3000\n" ++                              -- COLD_STORAGE_ACCESS
   "  j .Lsrg_cold_done\n" ++
   ".Lsrg_warm_access:\n" ++
   "  li t0, 100\n" ++                               -- WARM_ACCESS
+
   ".Lsrg_cold_done:\n" ++
   -- clean-changing = original_eq_current && !current_eq_new
   "  beqz s3, .Lsrg_warm\n" ++                      -- original != current -> warm-access branch
   "  bnez a0, .Lsrg_warm\n" ++                      -- current == new (no change) -> warm-access branch
+
   "  li t1, 10000; add t0, t0, t1\n" ++             -- STORAGE_WRITE
+
   "  j .Lsrg_done\n" ++
   ".Lsrg_warm:\n" ++
   ".Lsrg_done:\n" ++
