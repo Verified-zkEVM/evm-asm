@@ -190,6 +190,10 @@ def sstoreValueTransitionGasAsm : String :=
   "  sd x0, 0(x15)\n" ++
   "  sub x17, x17, x14\n" ++
   "  sd x17, 568(x20)\n" ++
+  "  la x15, evm_state_gas_spilled\n" ++
+  "  ld x16, 0(x15)\n" ++
+  "  add x16, x16, x14\n" ++
+  "  sd x16, 0(x15)\n" ++
   "  j .Lsstore_state_charged\n" ++
   ".Lsstore_state_from_reservoir:\n" ++
   "  sub x16, x16, x14\n" ++
@@ -364,7 +368,19 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv x15, x16\n" ++                            -- applied = min(97920, used)
         "10:\n" ++
         "  ld x16, 0(x14); sub x16, x16, x15; sd x16, 0(x14)\n" ++
-        "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x15; sd x16, 0(x14)\n" ++
+        "  la x14, evm_state_gas_spilled; ld x18, 0(x14)\n" ++
+        "  mv x17, x15\n" ++
+        "  bleu x18, x17, .Lsstore_refund_spill_le\n" ++
+        "  mv x16, x17\n" ++
+        "  j .Lsstore_refund_spill_have\n" ++
+        ".Lsstore_refund_spill_le:\n" ++
+        "  mv x16, x18\n" ++
+        ".Lsstore_refund_spill_have:\n" ++
+        "  sub x18, x18, x16; sd x18, 0(x14)\n" ++
+        "  ld x18, 568(x20); add x18, x18, x16; sd x18, 568(x20)\n" ++
+        "  sub x17, x17, x16\n" ++
+        "  beqz x17, 11f\n" ++
+        "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x17; sd x16, 0(x14)\n" ++
         "11:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); addi sp, sp, 32\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length

@@ -526,6 +526,7 @@ def evm_env : Nat := 0xbb5aa720
 def evm_refund_acc : Nat := 0xbb55d820
 def evm_state_gas_left : Nat := 0xbb56a6a8
 def evm_state_gas_used : Nat := 0xbb56a6b0
+def evm_state_gas_spilled : Nat := 0xbb56a6b8
 def exec_log_latest_value : Nat := 0x800223e8
 def exec_nonstorage_effect_count : Nat := 0xbb7b6a68
 def exec_nonstorage_effect_log : Nat := 0xbb7b6a80

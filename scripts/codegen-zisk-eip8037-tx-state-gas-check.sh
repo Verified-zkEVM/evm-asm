@@ -3,9 +3,7 @@
 #
 # Focused EIP-8037 Amsterdam per-tx state-gas settlement probe. Mirrors
 # execution-specs fork.py process_transaction (~1122-1130, 1194-1202):
-#   if tx_output.error is not None:
-#       tx_output.state_gas_used = 0
-#       if creation:
+#   if creation and (tx_output.error is not None or tx_output.created_target_alive):
 #           state_refund += STATE_BYTES_PER_NEW_ACCOUNT * COST_PER_STATE_BYTE
 #   tx_state_gas = intrinsic_state_gas + state_gas_used - state_refund
 #
@@ -82,10 +80,8 @@ sgu = $sgu
 srf = $srf
 err = $err
 crt = $crt
-if err != 0:
-    sgu = 0
-    if crt != 0:
-        srf += NEW_ACCOUNT_REFUND
+if err != 0 and crt != 0:
+    srf += NEW_ACCOUNT_REFUND
 total = isg + sgu
 if total < srf:
     print(1, 0)
@@ -119,9 +115,9 @@ run_case "success_intrinsic_only"        183600 0 0 0 0 0 || FAILED=1
 run_case "success_zero_all"              0 0 0 0 0 0 || FAILED=1
 run_case "success_with_runtime_used"     183600 97920 0 0 0 0 || FAILED=1
 run_case "success_with_refund"           183600 97920 64000 0 0 0 || FAILED=1
-# error path, non-creation: state_gas_used zeroed, no new-account refund
-run_case "error_call_zeroes_used"        183600 97920 0 1 0 0 || FAILED=1
-# error path, creation: state_gas_used zeroed, refund += 183600
+# error path, non-creation: state_gas_used is still counted, no new-account refund
+run_case "error_call_keeps_used"        183600 97920 0 1 0 0 || FAILED=1
+# error path, creation: state_gas_used kept, refund += 183600
 run_case "error_create_refund"           183600 97920 0 1 1 0 || FAILED=1
 # error creation where refund cancels intrinsic exactly
 run_case "error_create_cancel"           183600 0 0 1 1 0 || FAILED=1

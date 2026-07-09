@@ -6,7 +6,8 @@
 //   - installs the M-mode trap handler at 0x60000000 and points mtvec at it
 //     (services read_input t0=0xF2 and halt a7=93 — the guest's only 2 ecalls);
 //   - registers the zisk_accel crypto-CSR extension;
-//   - runs to HTIF exit, then writes 256 bytes from 0xa0010000 to <output-file>.
+//   - runs to HTIF exit, then writes SPIKE_OUTPUT_LEN bytes (default 256) from
+//     0xa0010000 to <output-file>.
 #include <sys/syscall.h>
 #include "sim.h"
 #include "cfg.h"
@@ -24,16 +25,30 @@
 #include <string>
 #include <fstream>
 #include <iterator>
+#include <cstdlib>
 
 extern extension_t* make_zisk_accel_extension();
 
 static const reg_t INPUT_ADDR    = 0x40000000ULL;
 static const reg_t OUTPUT_ADDR   = 0xa0010000ULL;
-static const size_t OUTPUT_LEN   = 256;
+static const size_t DEFAULT_OUTPUT_LEN = 256;
 static const reg_t HANDLER_ADDR  = 0x60000000ULL;
 static const reg_t HALT_FLAG     = 0x60008000ULL;  // handler writes nonzero here on halt
 static const uint64_t STEP_CAP   = 20000000000ULL; // safety cap on total instructions
 static const size_t STEP_BATCH   = 2000000;
+
+
+static size_t output_len() {
+  const char* raw = getenv("SPIKE_OUTPUT_LEN");
+  if (!raw || !*raw) return DEFAULT_OUTPUT_LEN;
+  char* end = nullptr;
+  unsigned long long n = strtoull(raw, &end, 0);
+  if (!end || *end != '\0' || n == 0) {
+    fprintf(stderr, "spike_run: invalid SPIKE_OUTPUT_LEN=%s\n", raw);
+    exit(2);
+  }
+  return (size_t)n;
+}
 
 static void wr(simif_t* s, reg_t a, const uint8_t* d, size_t n) {
   for (size_t i = 0; i < n; ++i) {
@@ -133,10 +148,11 @@ int main(int argc, char** argv) {
   }
   bool halted = (flagv == 1);
 
-  uint8_t out[OUTPUT_LEN];
-  rd(&sim, OUTPUT_ADDR, out, OUTPUT_LEN);
+  size_t out_len = output_len();
+  std::vector<uint8_t> out(out_len);
+  rd(&sim, OUTPUT_ADDR, out.data(), out_len);
   std::ofstream of(argv[3], std::ios::binary);
-  of.write((const char*)out, OUTPUT_LEN);
+  of.write((const char*)out.data(), out_len);
   for (auto& m : mems) delete m.second;
   return halted ? 0 : 3;
 }

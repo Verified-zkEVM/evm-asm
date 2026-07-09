@@ -16,6 +16,13 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+private def createFailedStateGasRefundAsm : String :=
+  -- execution-specs `generic_create` credits NEW_ACCOUNT state gas on child error.
+  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+  "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+  "  bltu t1, t2, .+12\n  sub t1, t1, t2\n  sd t1, 0(t0)\n"
+
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
     `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
@@ -56,13 +63,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE new-account state gas (183600) after frame_return.
-      -- Flag was cleared above so CallFrameReturn's credit doesn't fire; apply here.
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crrev_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ++
       ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n"
      else
@@ -105,11 +106,14 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
-      "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0
-      "  ld t2, 568(x20)\n  bgeu t2, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
-      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: consume all child gas, CREATE fails
+      "  sub t3, t0, t2\n" ++                                             -- reservoir short: spill = charge - reservoir
+      "  ld t4, 568(x20)\n  bgeu t4, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
+      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: charge_state_gas raises before mutating reservoir/used
       ".Lrr_csg_spill_" ++ toString kind ++ ":\n" ++
-      "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
+      "  sd x0, 0(t1)\n" ++                                                -- reservoir = 0 only after sufficiency is known
+      "  sub t4, t4, t3\n  sd t4, 568(x20)\n" ++
+      "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+      "  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
       ".Lrr_csg_res_" ++ toString kind ++ ":\n" ++
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
@@ -218,16 +222,33 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- exceptional CREATE failure. execution-specs process_create_message
       -- restores the child state snapshot and sets child gas_left = 0 before
       -- incorporate_child_on_error, so the parent does not get the forwarded
-      -- gas back through frame_return.
+      -- gas back through frame_return. Refill the child frame's state gas
+      -- into the global reservoir in LIFO order, but burn the gas-left portion
+      -- by keeping env+568 at zero before frame_return observes it.
+      "  ld t0, 632(x20)                 # used0\n" ++
+      "  la t1, evm_state_gas_used; ld t2, 0(t1)\n" ++
+      "  la t1, evm_state_gas_left; ld t3, 0(t1)\n" ++
+      "  la t1, evm_state_gas_spilled; ld t4, 0(t1)\n" ++
+      "  ld t5, 760(x20)                 # spilled0\n" ++
+      "  bleu t4, t5, .Lrr_crinv_no_spill_delta_" ++ toString kind ++ "\n" ++
+      "  sub t4, t4, t5\n" ++
+      "  j .Lrr_crinv_have_spill_delta_" ++ toString kind ++ "\n" ++
+      ".Lrr_crinv_no_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  li t4, 0\n" ++
+      ".Lrr_crinv_have_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  bleu t2, t0, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t0\n" ++
+      "  bleu t2, t4, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t4\n" ++
+      "  add t3, t3, t2\n" ++
+      ".Lrr_crinv_refill_done_" ++ toString kind ++ ":\n" ++
+      "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
+      "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+      "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)\n" ++
       "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE state gas (same as REVERT path above).
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crinv_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ++
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
