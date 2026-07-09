@@ -31,12 +31,4 @@ structure WorldState where
   accounts : Address → Option Account
   storage : Address → StorageKey → Word256
 
-namespace WorldState
-
-def empty : WorldState :=
-  { accounts := fun _ => none
-    storage := fun _ _ => 0 }
-
-end WorldState
-
 end EvmAsm.EL

@@ -39,10 +39,6 @@ def callResultFromPrecompile (state : WorldState) (result : PrecompileResult) :
         output := []
         gasRemaining := result.gasRemaining }
 
-/-- Stack word pushed by CALL/STATICCALL after a precompile dispatch. -/
-def stackResultFromPrecompile (result : PrecompileResult) : List Word256 :=
-  CallStackBridge.callStackResult (callResultFromPrecompile WorldState.empty result)
-
 /-- Caller-visible CALL result for a precompile dispatch. -/
 def callerVisibleFromPrecompile
     (input : MessageCallExecution.CallExecutionInput) (result : PrecompileResult) :
@@ -83,13 +79,6 @@ theorem callResultFromPrecompile_failure
         state := state
         output := []
         gasRemaining := gasRemaining } := rfl
-
-theorem stackResultFromPrecompile_success
-    (out : List Byte) (gasRemaining : Nat) :
-    stackResultFromPrecompile (EvmAsm.Evm64.PrecompileResult.ok out gasRemaining) = [1] := rfl
-
-theorem stackResultFromPrecompile_failure (gasRemaining : Nat) :
-    stackResultFromPrecompile (EvmAsm.Evm64.PrecompileResult.fail gasRemaining) = [0] := rfl
 
 theorem callerVisibleFromPrecompile_success
     (input : MessageCallExecution.CallExecutionInput)

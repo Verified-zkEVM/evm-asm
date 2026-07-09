@@ -106,22 +106,6 @@ theorem transfersValue_forDelegateCall
     transfersValue
       (CallFrame.forDelegateCall caller callee apparentValue inputBytes gas isStatic) = false := rfl
 
-theorem staticValueViolation_call
-    (caller callee : Address) (value : Word256) (inputBytes : List Byte)
-    (gas : Nat) (h_value : value ≠ 0) :
-    staticValueViolation
-      { state := WorldState.empty
-        frame := CallFrame.forCall caller callee value inputBytes gas true
-        depth := 0
-        caller := CallerAccountView.fromAccount Account.empty
-        calleeExists := false
-        calleeWarm := false
-        subCallGas := gas } = true := by
-  by_cases h_zero : value = 0
-  · exact False.elim (h_value h_zero)
-  · simp [staticValueViolation, transfersValue]
-    exact ⟨⟨rfl, rfl⟩, h_zero⟩
-
 theorem staticValueViolation_staticCall
     (state : WorldState) (caller callee : Address) (inputBytes : List Byte)
     (gas depth subCallGas : Nat) (calleeExists calleeWarm : Bool)
