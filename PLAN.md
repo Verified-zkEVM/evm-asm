@@ -251,7 +251,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
   (`blsgCopy96Fn_spec`, post `ws = srcBytes`) with a static 96-byte
   source/destination disjointness precondition and byte-identity pinned to
-  `blsgCopy96_prog`; `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
+  `blsgCopy96_prog`; `Bls12G1Eq48SAsm.lean` verifies `blsg_eq48`
+  as a 48-byte read-only dual-buffer equality leaf used by BLS G1 callers
+  (`blsgEq48Fn_spec`, genuine `firstDiff`-based post, re-emitted
+  single-exit drop-in with EEST A/B parity required); `Bls12G2Zero192SAsm.lean` verifies the `blsg2_zero192`
   dword zero-loop (`blsg2Zero192Fn_spec`, post `ws = replicate 192 0`) with
   byte-identity pinned to `blsg2Zero192_prog`;
   `Bls12Fq12ZeroSAsm.lean` verifies the analogous `blq_zero` dword zero-loop
@@ -2935,7 +2938,10 @@ address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
 bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
 N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
 N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
-can reuse pieces 1–2 but is not this scan shape — deferred.  Classical-3.
+can reuse pieces 1–2 but is not this scan shape — deferred.  `blsg_eq48`
+is also an equality leaf, but byte-wise (`LBU`) rather than dword-wise
+(`LD`), so it is verified separately in `Bls12G1Eq48SAsm.lean` as a
+48-byte whileBreak drop-in.  Classical-3.
 **Shared-return-tail forward join landed** (branch
 `feat/shared-return-tail`, beads evm-asm-k2f1x + 4ch8f.59.2.1):
 `SAsm/RetForwardJoin.lean` closes the multi-guard validation-routine gap
