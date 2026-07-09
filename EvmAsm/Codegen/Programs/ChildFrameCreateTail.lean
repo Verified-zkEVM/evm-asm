@@ -261,7 +261,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
     -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
     -- contract address is WARM for the rest of the tx, so a later CALL/SELFDESTRUCT to it pays the
-    -- WARM floor (100), not COLD_ACCOUNT_ACCESS (2600). Without this, a same-tx value-CALL to the
+    -- WARM floor (100), not COLD_ACCOUNT_ACCESS (3000). Without this, a same-tx value-CALL to the
     -- just-created child charged the 2500 cold delta (verified: selfdestruct_same_tx_via_call
     -- to_other receipt cumulativeGasUsed over-counted by exactly 2500 -> bv_fail=53). The warm
     -- table is a single global (evm_access_account_table, capacity 100000, reset only at tx setup),
