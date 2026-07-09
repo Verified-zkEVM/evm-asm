@@ -400,9 +400,18 @@ def eip8037TxGasGateFunction : String :=
   "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
   "  bltu s3, t2, .Letg_regular_reject\n" ++
   "  sub t3, s3, t2\n" ++
-  "  # EIP-8037 permits the declared tx gas limit to exceed regular remaining\n" ++
-  "  # when the 2D regular/state split still fits; only the required minimum\n" ++
-  "  # gas is a safe pre-execution block availability rejection here.\n" ++
+  "  # Spec pre-execution inclusion uses min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
+  "  # against remaining regular gas. Prior runtime gas is unknown in the\n" ++
+  "  # conservative multi-tx path, but prior mandatory regular gas is a lower\n" ++
+  "  # bound; if even that leaves too little room, rejection is certain.\n" ++
+  "  mv t4, t1\n" ++
+  "  li t6, 16777216\n" ++
+  "  bleu t4, t6, .Letg_declared_regular_have\n" ++
+  "  mv t4, t6\n" ++
+  ".Letg_declared_regular_have:\n" ++
+  "  bgtu t4, t3, .Letg_regular_reject\n" ++
+  "  # The required minimum regular gas is also accumulated so later txs get\n" ++
+  "  # the same lower-bound availability check.\n" ++
   "  bgtu t0, t3, .Letg_regular_reject\n" ++
   "  add t2, t2, t0; sd t2, 0(t5)\n" ++
   "  la t0, bsg_state_gas; ld t6, 0(t0)\n" ++
