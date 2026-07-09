@@ -108,6 +108,7 @@ import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
 import EvmAsm.Codegen.Programs.P256LeToBeSAsm
 import EvmAsm.Codegen.Programs.P256BeToLeSAsm
 import EvmAsm.Codegen.Programs.P256CopyNSAsm
+import EvmAsm.Codegen.Programs.P256Eq32SAsm
 import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
