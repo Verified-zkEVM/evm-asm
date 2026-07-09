@@ -16,12 +16,30 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-private def createFailedStateGasRefundAsm : String :=
+private def createFailedStateGasRefundAsm (site : String) : String :=
   -- execution-specs `generic_create` credits NEW_ACCOUNT state gas on child error.
-  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+  -- `credit_state_gas_refund` is LIFO: refund gas_left spill first, then the
+  -- state-gas reservoir.
+  "  li t2, 183600\n" ++
+  "  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n" ++
+  "  beqz t1, .Lcr_failed_refund_no_spill_" ++ site ++ "\n" ++
+  "  mv t3, t1\n" ++
+  "  bleu t1, t2, .Lcr_failed_refund_spill_le_" ++ site ++ "\n" ++
+  "  mv t3, t2\n" ++
+  ".Lcr_failed_refund_spill_le_" ++ site ++ ":\n" ++
+  "  sub t1, t1, t3\n  sd t1, 0(t0)\n" ++
+  "  ld t4, 568(x20)\n  add t4, t4, t3\n  sd t4, 568(x20)\n" ++
+  "  sub t2, t2, t3\n" ++
+  ".Lcr_failed_refund_no_spill_" ++ site ++ ":\n" ++
+  "  beqz t2, .Lcr_failed_refund_used_" ++ site ++ "\n" ++
+  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n" ++
   "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_used_" ++ site ++ ":\n" ++
   "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-  "  bltu t1, t2, .+12\n  sub t1, t1, t2\n  sd t1, 0(t0)\n"
+  "  li t2, 183600\n" ++
+  "  bltu t1, t2, .Lcr_failed_refund_done_" ++ site ++ "\n" ++
+  "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_done_" ++ site ++ ":\n"
 
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
@@ -63,7 +81,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
-      createFailedStateGasRefundAsm ++
+      createFailedStateGasRefundAsm ("revert_" ++ toString kind) ++
       ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n"
      else
@@ -248,7 +266,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      createFailedStateGasRefundAsm ++
+      createFailedStateGasRefundAsm ("invalid_" ++ toString kind) ++
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
