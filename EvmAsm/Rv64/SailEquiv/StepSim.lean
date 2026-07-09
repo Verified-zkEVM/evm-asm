@@ -20,8 +20,11 @@
     and `JAL`/`JALR` (PC/`nextPC`/`misa` agreement + jump-target alignment). Covered
     by the per-instruction lemmas in `BranchProofs`/`ALUProofs` under their explicit
     hypotheses; folding them in needs a strengthened invariant (PC + CSR agreement).
-  * **Memory (11)** — `LOAD`/`STORE`. The `MemProofs` lemmas are conditional on an
-    `h_exec` hypothesis (the deep bare-mode `vmem_read/write` reduction is deferred).
+  * **Memory (11)** — `LOAD`/`STORE`. All eleven are unconditional per-instruction
+    theorems under `StateRel` + `BareModeInv` + per-access facts (loads in
+    `VmemReduction.lean` / `VmemReductionLoads.lean`, stores in
+    `VmemReductionStores.lean`); folding them in needs the strengthened invariant
+    plus the per-access side conditions.
 
   See `docs/agents/sail-phase4-bootstrap.md` and the adversarial review for the
   precondition map and the planned strengthened-invariant design for the other tiers.
@@ -44,9 +47,9 @@ namespace EvmAsm.Rv64
 
     Excludes: the 7 system/pseudo constructors (`ECALL`/`EBREAK`/`FENCE`/`MV`/`LI`/
     `NOP`/`CSRS` — the last is the ZisK accelerator call, outside the SAIL bridge);
-    the 11 memory ops (need the bare-mode `vmem` discharge); and the 9
-    control-flow ops (`AUIPC`, the conditional branches, `JAL`, `JALR` — need PC/CSR
-    agreement and jump-target alignment). -/
+    the 11 memory ops (unconditional, but under `BareModeInv` + per-access facts);
+    and the 9 control-flow ops (`AUIPC`, the conditional branches, `JAL`, `JALR` —
+    need PC/CSR agreement and jump-target alignment). -/
 def Instr.simulableUncond : Instr → Bool
   | .ECALL | .EBREAK | .FENCE | .MV .. | .LI .. | .NOP | .CSRS .. => false
   | .LD .. | .LW .. | .LWU .. | .LB .. | .LBU .. | .LH .. | .LHU .. => false

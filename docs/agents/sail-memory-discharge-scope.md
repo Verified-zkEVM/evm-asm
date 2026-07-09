@@ -1,13 +1,26 @@
 # Sail memory `h_exec` discharge — grounded scope (2026-06-26)
 
+> **UPDATE 2026-07-09 — ALL TIERS DONE; `h_exec` is fully eliminated.**
+> Tier A (`ld_sail_equiv`, `VmemReduction.lean`) and Tier C (the six sub-dword loads,
+> `VmemReductionLoads.lean`) landed with PR #9535. Tier B (the four stores) is now
+> discharged too: the `mem_agree` align-restrict decision (Option A below) was adopted
+> on main, and `sd/sw/sh/sb_sail_equiv` are unconditional theorems in
+> `EvmAsm/Rv64/SailEquiv/VmemReductionStores.lean`, built on the store-side write chain
+> in `VmemWriteReduction.lean` (`writeBytes → write_ram → checked_mem_write →
+> mem_write_value → vmem_write_addr → vmem_write`, plus `Store Data` twins of the
+> bare-mode leaves). The `mem_agree` rebuild uses `reconstructDword_of_bytes` /
+> `reconstructDword_congr` (`MemReduce.lean`) + per-width read-modify-write bridges
+> (`replaceWord32/Halfword/Byte`). Stores need **no byte-presence hypotheses**
+> (`writeByte` is `mem.insert`). `MemProofs.lean` retains no conditional lemmas.
+> The analysis below is kept as the historical reference. Remaining follow-ups:
+> the consolidated-theorem fold (§Final fold) and the `BareModeInv`
+> precondition-construction glue.
+
 > **UPDATE 2026-06-29 — Tier A (LD) is DONE.** `ld_sail_equiv` is now an unconditional
 > theorem (no `h_exec`) in `EvmAsm/Rv64/SailEquiv/VmemReduction.lean`, committed
 > `e34e4b918` (build 2987/2987). The full `execute_LOAD`→`vmem_read`→`mem_read` chain is
 > proven against a `BareModeInv` bundle + per-access facts; the vacuous `h_exec`
-> `ld_sail_equiv` was removed from `MemProofs.lean`. The analysis below remains the
-> reference for the **remaining** tiers. **Next = Tier C-load** (6 sub-doubleword loads) —
-> see `docs/agents/sail-tier-c-bootstrap.md`. The 🛑 store `mem_agree` decision (Tier B)
-> is still OPEN. The other 10 `MemProofs.*_sail_equiv` remain `h_exec` placeholders.
+> `ld_sail_equiv` was removed from `MemProofs.lean`.
 
 Fresh adversarial review + full call-chain trace of the Sail RV64 model
 (`vendor/sail-riscv-zkvm-lean/Out/`) and the toy model (`EvmAsm/Rv64/`).
