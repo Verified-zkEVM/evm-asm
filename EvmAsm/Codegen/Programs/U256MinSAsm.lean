@@ -97,8 +97,9 @@ private theorem beBytesToNat_bound (bs : List (BitVec 8)) :
   omega
 
 /-- **BE lexicographic < implies numeric <**: equal prefixes and a smaller
-    byte at the first difference give a smaller value. -/
-private theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
+    byte at the first difference give a smaller value.  (Public: also
+    consumed by `U256LtBeSAsm`.) -/
+theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
     (hlen : as.length = bs.length) (i : Nat) (hia : i < as.length)
     (hpref : ∀ j, j < i → as.getD j 0 = bs.getD j 0)
     (hlt : (as.getD i 0).toNat < (bs.getD i 0).toNat) :
@@ -166,8 +167,9 @@ private theorem beBytesToNat_lt_of_prefix_lt (as bs : List (BitVec 8))
       = (bs.getD i 0 :: bs.drop (i + 1)).length := hlenTail
   exact Nat.add_lt_add_left hstep _
 
-/-- All bytes equal (equal lengths) means equal lists. -/
-private theorem bytes_eq_of_prefix_all (as bs : List (BitVec 8))
+/-- All bytes equal (equal lengths) means equal lists.  (Public: also
+    consumed by `U256LtBeSAsm`.) -/
+theorem bytes_eq_of_prefix_all (as bs : List (BitVec 8))
     (hlen : as.length = bs.length)
     (hpref : ∀ j, j < as.length → as.getD j 0 = bs.getD j 0) :
     as = bs := by
