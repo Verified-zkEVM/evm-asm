@@ -29,6 +29,19 @@ def runtimeMemoryArenaLimitBytes : Nat := 0x20000
     every nested frame slot. -/
 def rootRuntimeMemoryArenaLimitBytes : Nat := 0x50000
 
+/-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
+
+    Must be ≥ the largest length any staging path can write at `+8`, so the
+    full returndata is always staged and RETURNDATACOPY's
+    `start + size ≤ retlen` guard alone keeps reads inside staged bytes
+    (matching execution-specs, with no implementation cap and no reads of
+    unstaged bytes). The bound is architectural: a child RETURN/REVERT is
+    limited to `runtimeMemoryArenaLimitBytes` by `returnRevertMemoryGasAsm`,
+    and the IDENTITY precompile echoes an input bounded by the caller's arena
+    — up to `rootRuntimeMemoryArenaLimitBytes` when called from depth 0 —
+    which dominates (MODEXP ≤ 1024, all other precompiles ≤ 256). -/
+def precompileFrameReturndataCapBytes : Nat := rootRuntimeMemoryArenaLimitBytes
+
 /-- Load the materialized memory-arena bound for the current frame into `limitReg`.
     Depth 0 uses the larger root arena; nested frames use the fixed call-frame
     layout bound. -/

@@ -30,7 +30,7 @@
 -/
 
 import EvmAsm.Stateless.SpecRef.Ssz
-import EvmAsm.Stateless.SpecRef.WitnessState
+import EvmAsm.Stateless.SpecRef.WitnessReads
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -138,13 +138,6 @@ def validate_chain_config (chain_config : ChainConfig) (npr : NewPayloadRequest)
   pure active_fork
 
 /-! ## The execution seam -/
-
-/-- Witness-backed pre-state passed to execution (`WitnessState.__init__`). -/
-structure WitnessPreState where
-  nodeDb : List (Hash32 × Bytes)
-  stateRoot : Root
-  codeDb : List (Hash32 × Bytes)
-  deriving Repr
 
 /-- `ChainContext(chain_id, block_hashes, parent_header)` (`fork.py`). -/
 structure ChainContext where
