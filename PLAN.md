@@ -102,7 +102,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
-| Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
+| Terminating | STOP, INVALID, RETURN, REVERT | 7 / 7; full RETURN/REVERT tails | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`). RETURN is `.conditional` via `Terminating.evm_return_stack_spec_within_with_capture` (full standalone tail, including system-call capture, descriptor window, halt core; memory-gas preBody/domain hyps remain). REVERT is `.conditional` via `Terminating.evm_revert_stack_spec_within` (descriptor window + rollback + halt core; same post-gas/domain boundary). |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 | Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
 | Persistent storage | SLOAD (0x54) | 47 | 🟡 `.conditional` stage-1 (`Storage.evm_sload_stack_spec_within`, `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean`). Structural clone of the proven TLOAD reverse scan on the **persistent** log (base `0xa0630000`, length cell `env+448`); body-as-Program `evm_sload`, byte-identical re-encoding (`li 0xa0630000` → `lui/addiw/slli 99`; `#guard` pins emission, region map/ELF unchanged). Witness: stack top := `persistentLookup addrHash slotKey entries` in place, budget `7 + 34n`. `.conditional` (not `.proven`) because miss→0 is EVM-sound only relative to the `committedStorageIs` snapshot — MPT-witness verification deferred to stage-2 (post-Phase-10). `coverRef := sload_precondition_reachable` (decide-checked hit-antecedent). **conditionalCount 0→1, execSpecCount 19→18; provenCount unchanged (66).** SSTORE is the append+original-scan sibling. |
@@ -2644,17 +2644,16 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
     loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
     copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
-- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
-  straight-line glue as a single descriptor-window `Program` from the post-gas
-  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
-  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
-  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
-  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
-  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
-  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
-  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
-  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
-  stitched, so the registry is NOT flipped).
+- **Full-tail composition**: DONE as `.conditional` registry entries.
+  - RETURN: `Terminating.evm_return_stack_spec_within_with_capture` covers the
+    ordinary `system_call_mode=0` skip, nonzero oversized skip (`size > 4096`),
+    and nonzero small capture (`system_call_returndata_len := size` plus full
+    returndata copy), then the descriptor window and halt core.
+  - REVERT: `Terminating.evm_revert_stack_spec_within` covers the descriptor
+    window, rollback env-cell stores, and halt core.
+- **Remaining for `.proven`**: the memory-gas `preBody` / `.exit_outofgas`
+  branch is still outside both triples, so they carry post-gas memory-domain
+  hypotheses (`hOff`/`hOff32`, and RETURN's branch-conditional capture bounds).
 
 ### Phase 9: Gas Metering
 
