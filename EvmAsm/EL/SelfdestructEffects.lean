@@ -23,10 +23,10 @@
     balance is **not** zeroed here (end-of-tx deletion preserves the balance).
 
   NOTE on the pinned revision: v0.5.0 has **no burn log and no balance zeroing**
-  (`git grep 'emit_burn_log\\|BURN_TOPIC' bd8c673 -- amsterdam` is empty). A
-  *newer* execution-specs revision (`a0c182656`) adds `emit_burn_log`/`BURN_TOPIC`
+  (`git grep 'emit_burn_log\\|BURN_TOPIC' bd8c673 -- amsterdam` is empty). An
+  *older* execution-specs revision (`a0c182656`) had `emit_burn_log`/`BURN_TOPIC`
   + balance zeroing; the emitted guest `selfdestructTailAsm` briefly implemented
-  that newer behavior, and the guest-side repair aligning it back to v0.5.0
+  that newer behavior, and the guest-side repair aligning it to v0.5.0
   (no burn log, balance preserved) is PR #10145 — after which guest, oracle,
   and this model agree, as the guest-realizes-model phase requires.
 -/
