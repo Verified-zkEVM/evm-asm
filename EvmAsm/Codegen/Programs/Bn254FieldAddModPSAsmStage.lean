@@ -29,9 +29,9 @@ namespace Bn254FieldAddModPSAsm
 open Bn254FieldConvSAsm (bnfBeToLeFn bnfBeToLeFn_spec bnfLeToBeFn bnfLeToBeFn_spec)
 
 -- Address anchors (routine, callees, and the LE staging arena).
-#guard GuestAddrs.bnf_add_mod_p = 0x800308a4
-#guard GuestAddrs.bnf_be_to_le = 0x800306f0
-#guard GuestAddrs.bnf_le_to_be = 0x80030740
+#guard GuestAddrs.bnf_add_mod_p = 0x80030954
+#guard GuestAddrs.bnf_be_to_le = 0x800307a0
+#guard GuestAddrs.bnf_le_to_be = 0x800307f0
 #guard GuestAddrs.bnf_le_a = 0xbb565e30
 #guard GuestAddrs.bnf_le_b = 0xbb565e50
 #guard GuestAddrs.bnf_le_d = 0xbb565e70

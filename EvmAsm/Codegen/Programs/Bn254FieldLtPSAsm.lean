@@ -68,7 +68,7 @@ def ltPBase : Word := (GuestAddrs.bnf_lt_p : Word)
 def pConstAddr : Word := (GuestAddrs.bnf_p_be : Word)
 
 -- Address anchors (fail the build if the guest link moves).
-#guard GuestAddrs.bnf_lt_p = 0x800307f8
+#guard GuestAddrs.bnf_lt_p = 0x800308a8
 #guard GuestAddrs.bnf_p_be = 0xbb565df0
 #guard bnfLtP_prog.length = 17
 
