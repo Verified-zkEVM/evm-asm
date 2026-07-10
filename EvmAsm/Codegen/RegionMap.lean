@@ -205,7 +205,7 @@ def schemeAAnchors : List GuestRegion :=
     landed (bead evm-asm-eip7702-cross-tx). Grew further after EIP-8037 prefix
     admission enforcement, parallel EEST worker result-file isolation, and the
     self-funded EIP-7702 authorization refund fix landed. -/
-def textSizeBytes : Nat := 0x5683c
+def textSizeBytes : Nat := 0x56924
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
