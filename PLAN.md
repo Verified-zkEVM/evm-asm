@@ -3285,6 +3285,18 @@ lemmas — the payload-dependent `while` is `twoBreakRetLoop_spec` at
 `N := u64ByteLen v`, with the new `u64ByteLen` +
 `u64ByteLen_shift_zero`/`_ne` bridges as the long-tail extraction; post
 `a0 = (if v <u 56 then v + 1 else v + u64ByteLen v + 1)`.
+**`bnf_lt_p` + `blsg_lt_p` landed** (stacked PRs, beads
+evm-asm-4ch8f.58.3.35/.36): the EIP-196 BN254 and EIP-2537 BLS12-381
+coordinate range checks (`Codegen/Programs/Bn254FieldLtPSAsm.lean`,
+`Bls12G1LtPSAsm.lean`), the `secf_cmp_p` shape with the two `bltu`
+breaks and the exhaustion exit routed onto TWO shared `li a0,c ; ret`
+tails (`sharedRetTail_spec` ×2, `triCmpStoreJoin_spec` station,
+`twoBreakRetLoop_spec` at N=32/48); `la`-materialized `globalConst`
+prime regions (`beBytesToNat` `#guard`-pinned to the true primes),
+SYMBOLIC `GuestAddrs` bases per 6agnq, spec directly over the emitted
+`bnfLtP_prog`/`blsgLtP_prog` — byte-transparent, no A/B.  GENUINE post
+`a0 = if beBytesToNat in < p then 1 else 0`; input and const regions
+untouched.  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
