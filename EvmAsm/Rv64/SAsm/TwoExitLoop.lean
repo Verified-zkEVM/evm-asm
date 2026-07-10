@@ -127,8 +127,37 @@ theorem bytesRegion_ld_cursor_imm_within (rd rs1 : Reg) (regionBase vOld : Word)
     (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_frameR (front ** rest) (pcFree_sepConj hf hr) hld)
 
+/-- Range-separated `ofProg`s are disjoint: if the two 4-byte-per-slot code
+    windows `[base1, base1 + 4·len1)` and `[base2, base2 + 4·len2)` do not
+    overlap (as non-wrapping `toNat` ranges), the code requirements are
+    disjoint — ONE range argument instead of `len1 × len2` per-pair address
+    inequalities (the `crDisjoint` blow-up on 100+-instruction routines).
+    At concrete linked addresses all three side conditions are
+    `decide +kernel`. -/
+theorem _root_.EvmAsm.Rv64.CodeReq.Disjoint.ofProg_ranges (base1 base2 : Word)
+    (p1 p2 : List Instr)
+    (hw1 : base1.toNat + 4 * p1.length ≤ 2 ^ 64)
+    (hw2 : base2.toNat + 4 * p2.length ≤ 2 ^ 64)
+    (hsep : base1.toNat + 4 * p1.length ≤ base2.toNat ∨
+            base2.toNat + 4 * p2.length ≤ base1.toNat) :
+    (CodeReq.ofProg base1 p1).Disjoint (CodeReq.ofProg base2 p2) := by
+  intro a
+  by_cases h1 : ∃ k, k < p1.length ∧ a = base1 + BitVec.ofNat 64 (4 * k)
+  · right
+    obtain ⟨k, hk, rfl⟩ := h1
+    apply CodeReq.ofProg_none_range
+    intro k' hk' heq
+    have := congrArg BitVec.toNat heq
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at this
+    omega
+  · left
+    apply CodeReq.ofProg_none_range
+    intro k hk heq
+    exact h1 ⟨k, hk, heq⟩
+
 #print axioms twoExitRetLoop_spec
 #print axioms twoExitRetLoopBottom_spec
 #print axioms bytesRegion_ld_cursor_imm_within
+#print axioms EvmAsm.Rv64.CodeReq.Disjoint.ofProg_ranges
 
 end EvmAsm.Rv64.SAsm
