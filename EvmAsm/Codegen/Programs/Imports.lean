@@ -429,3 +429,5 @@ import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
 import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
 import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan

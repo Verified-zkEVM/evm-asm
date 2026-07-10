@@ -265,12 +265,14 @@ case_identity() {
 }
 
 # --- run + classify ---------------------------------------------------------
-# The 105-byte SszStatelessValidationResult decomposes into three regions:
+# A normal 105-byte SszStatelessValidationResult decomposes into three regions:
 #   root  [0:32]   (hex chars 0..64)   = new_payload_request_root
 #   succ  [32]     (hex chars 64..66)  = successful_validation
 #   tail  [33:105] (hex chars 66..210) = u32 offset + 68-byte chain_config
+# Failed-input sentinel results may be shorter because the nested ChainConfig
+# has an empty optional blob schedule. Compare those encodings byte-for-byte.
 # See the file header for why `succ` diverges (placeholder execution seam).
-total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0
+total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 malformed=0
 
 # Worker: invoke the exe and write a per-case result TSV so the dispatcher
 # can run many cases in parallel and the classifier can read them back in
@@ -288,11 +290,7 @@ run_worker() {
     return 0
   fi
   local actual_hex
-  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-  if [[ "${#actual_hex}" -lt 210 ]]; then
-    printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$result"
-    return 0
-  fi
+  actual_hex="$(xxd -p "$out" 2>/dev/null | tr -d '\n' || true)"
   printf 'OK\t%s\n' "$actual_hex" > "$result"
 }
 
@@ -320,9 +318,24 @@ classify_case() {
     err=$((err + 1))
     case "$actual_hex" in
       spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $RUN_DIR/$label.log)" ;;
-      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${actual_hex#short:} hex chars)" ;;
       *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
     esac
+    return 0
+  fi
+
+  if [[ "${#expected_hex}" -ne 210 || "${#actual_hex}" -ne 210 ]]; then
+    if [[ "$expected_hex" == "$actual_hex" ]]; then
+      full=$((full + 1))
+      malformed=$((malformed + 1))
+      if [[ "$QUIET_PASSES" -eq 0 ]]; then
+        echo "  PASS(malformed) $(case_identity "$label" "$relpath")"
+      fi
+    else
+      echo "  FAIL[malformed] $(case_identity "$label" "$relpath")"
+      echo "    expected: $expected_hex"
+      echo "    actual:   $actual_hex"
+      err=$((err + 1))
+    fi
     return 0
   fi
 
@@ -404,6 +417,7 @@ echo "  root match  : $root   (pre-execution NPR-root hashing)   [gateable]"
 echo "  tail match  : $tail   (chain-config echo)                [gateable]"
 echo "  succ match  : $succ   (only on fixtures whose real EVM execution succeeded)"
 echo "  succ diverg : $succdiv  (expected: placeholder execution seam on succ=0 fixtures)"
+echo "  malformed   : $malformed  (variable-length failed sentinel; exact-byte match)"
 echo "  ERROR/FAIL  : $err    (pre-execution disagreement -- a real SpecRef bug)"
 echo "============================================================"
 
