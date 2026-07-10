@@ -209,6 +209,87 @@ inductive ReadsOk (bytes : List (BitVec 8)) (base endPtr : Word)
       (hrest : ReadsOk bytes base endPtr log count addr (next - base).toNat) :
       ReadsOk bytes base endPtr log count addr off
 
+/-! ## §3  The verdict stubs
+
+    Both stubs end at the shared epilogue entry (slot 101, `base + 404`) —
+    the BODY exit in the `abiFrame_spec` architecture, so these are plain
+    two/one instruction triples, not `ret`-reaching tails. -/
+
+/-- The accept stub (slots 98–99): `li a0, 0 ; j +8` jumps over the reject
+    stub into the shared epilogue with the verdict pinned. -/
+theorem bsre_matchTail_spec (base vOld : Word)
+    (hbound : 4 * bsreProg.length < 2 ^ 64) :
+    cpsTripleWithin 2 (base + 392) (base + 404)
+      (CodeReq.ofProg base bsreProg)
+      ((.x10 : Reg) ↦ᵣ vOld) ((.x10 : Reg) ↦ᵣ (0 : Word)) := by
+  have hli := liftCode (cr' := CodeReq.ofProg base bsreProg)
+    (li_spec_gen_within .x10 vOld (0 : Word) (base + 392) (by decide))
+    (CodeReq.ofProg_mem_at base (base + 392) bsreProg 98 (.LI .x10 (0 : Word))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [show base + 392 + 4 = base + 396 from by bv_omega] at hli
+  have hjal := liftCode (cr' := CodeReq.ofProg base bsreProg)
+    (jal_x0_spec_gen_within (8 : BitVec 21) (base + 396))
+    (CodeReq.ofProg_mem_at base (base + 396) bsreProg 99 (.JAL .x0 (8 : BitVec 21))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [show base + 396 + signExtend21 (8 : BitVec 21) = base + 404 from by
+    rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]
+    bv_omega] at hjal
+  have hjalF := cpsTripleWithin_frameL ((.x10 : Reg) ↦ᵣ (0 : Word))
+    pcFree_regIs hjal
+  rw [sepConj_emp_right'] at hjalF
+  exact cpsTripleWithin_seq_same_cr hli hjalF
+
+/-- The reject stub (slot 100): `li a0, 1`, falling through into the shared
+    epilogue with the verdict pinned. -/
+theorem bsre_rejectTail_spec (base vOld : Word)
+    (hbound : 4 * bsreProg.length < 2 ^ 64) :
+    cpsTripleWithin 1 (base + 400) (base + 404)
+      (CodeReq.ofProg base bsreProg)
+      ((.x10 : Reg) ↦ᵣ vOld) ((.x10 : Reg) ↦ᵣ (1 : Word)) := by
+  have hli := liftCode (cr' := CodeReq.ofProg base bsreProg)
+    (li_spec_gen_within .x10 vOld (1 : Word) (base + 400) (by decide))
+    (CodeReq.ofProg_mem_at base (base + 400) bsreProg 100 (.LI .x10 (1 : Word))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [show base + 400 + 4 = base + 404 from by bv_omega] at hli
+  exact hli
+
+#print axioms bsre_matchTail_spec
+#print axioms bsre_rejectTail_spec
+
+/-! ## §4  The byte-reverse loop (slots 55–61)
+
+    Materialises `keyRev32 key` in the (pre-zeroed) `bsr_krev` scratch: the
+    `klen`-byte big-endian key content is copied byte-reversed into the low
+    bytes; the zero suffix from the pre-zeroing survives. -/
+
+/-- The reverse-copy scratch state after `i` copied bytes. -/
+def revState (key : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
+  key.reverse.take i ++ List.replicate (32 - i) 0
+
+@[simp] theorem revState_zero (key : List (BitVec 8)) :
+    revState key 0 = List.replicate 32 0 := by
+  simp [revState]
+
+theorem revState_full (key : List (BitVec 8)) (_h : key.length ≤ 32) :
+    revState key key.length = keyRev32 key := by
+  simp [revState, keyRev32, List.take_of_length_le,
+    List.length_reverse]
+
+/-- The loop invariant at the header (slot 55), after `i` of `klen` bytes.
+    `contentOff`/`klen` locate the key inside the AccountChanges bytes;
+    `key` is that content window. -/
+def revInv (acctBase krevBase : Word) (acctBytes : List (BitVec 8))
+    (contentOff klen : Nat) (F : Assertion) (i : Nat) : Assertion :=
+  ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen - 1 - i))) **
+  ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+  ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x15 **
+  bytesRegion acctBase acctBytes **
+  bytesRegion krevBase
+    (revState ((acctBytes.drop contentOff).take klen) i) **
+  F
+
 end BalStorageReadsExecLogSpec
 
 end EvmAsm.Codegen
