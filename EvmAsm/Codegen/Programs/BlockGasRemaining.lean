@@ -39,9 +39,9 @@ open EvmAsm.Rv64.Program
     The check mirrors execution-specs Amsterdam `check_transaction`:
       gas_available = block_env.block_gas_limit - block_output.block_gas_used
       if min(TX_MAX_GAS_LIMIT, tx.gas) > gas_available: raise GasUsedExceedsLimitError
-    (EIP-7825 caps the worst-case regular contribution at TX_MAX_GAS_LIMIT; the spec's
-     full per-tx 2D test is min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) -- the
-     intrinsic.state subtraction is tracked by .6.5.2.)
+    (EIP-7825 caps the worst-case regular contribution at TX_MAX_GAS_LIMIT.
+     EIP-8037 keeps this regular-dimension check on the full declared
+     `tx.gas`; intrinsic state gas is checked independently.)
 
     The helper intentionally takes block-gas-used increments as input rather
     than deriving them from tx gas limits. EIP-7778 increments
@@ -51,7 +51,7 @@ def eip7778RemainingBlockGasCheckFunction : String :=
   "eip7778_remaining_block_gas_check:\n" ++
   "  addi sp, sp, -16\n" ++
   "  sd s0, 0(sp)\n" ++
-  "  mv s0, a4                   # a4 = intrinsic_state ptr (0 = none; .6.5.2 regular-dim refinement)\n" ++
+  "  mv s0, a4                   # a4 reserved for callers' intrinsic-state array\n" ++
   "  mv t0, a0                   # block_gas_limit\n" ++
   "  mv t1, a1                   # tx_gas ptr\n" ++
   "  mv t2, a2                   # block_gas_used_in_tx ptr\n" ++
@@ -64,27 +64,12 @@ def eip7778RemainingBlockGasCheckFunction : String :=
   "  slli t6, t4, 3\n" ++
   "  add a4, t1, t6\n" ++
   "  ld a5, 0(a4)                # tx.gas\n" ++
-  -- .57.11.6.5.2: spec amsterdam/fork.py:591 is the 2D REGULAR test
-  --   min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) > regular_gas_available -> reject.
-  -- Subtract the per-tx intrinsic.state (the component accounted in the STATE dimension,
-  -- enforced separately by eip8037_tx_gas_gate) BEFORE the TX_MAX cap when the caller
-  -- supplies the array; saturate at 0 (tx.gas < intrinsic.state is rejected by the
-  -- intrinsic-sufficiency gate, so it never legitimately reaches here). intrinsic_state == 0
-  -- keeps the legacy min(TX_MAX, tx.gas) 1D over-approx (probes / pre-.6.5.2 callers).
-  -- fhsxz.2.4.2.57.18.11: the TX_MAX cap (EIP-7825) stays -- it bounds the worst-case
-  -- regular contribution so a high declared tx.gas that still fits is not false-rejected.
-  "  beqz s0, .Le7778_istate_done\n" ++
-  "  add a4, s0, t6\n" ++
-  "  ld a6, 0(a4)                # intrinsic.state[i]\n" ++
-  "  bltu a5, a6, .Le7778_istate_zero\n" ++
-  "  sub a5, a5, a6              # tx.gas - intrinsic.state\n" ++
-  "  j .Le7778_istate_done\n" ++
-  ".Le7778_istate_zero:\n" ++
-  "  li a5, 0\n" ++
-  ".Le7778_istate_done:\n" ++
+  -- execution-specs EIP-8037 regular-dimension admission is intentionally
+  -- `min(TX_MAX_GAS_LIMIT, tx.gas)`: do not subtract intrinsic.state here.
+  -- The state dimension has its own independent admission check.
   "  li a7, 16777216             # TX_MAX_GAS_LIMIT (2^24)\n" ++
   "  bleu a5, a7, .Le7778_cap_done\n" ++
-  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state)\n" ++
+  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
   ".Le7778_cap_done:\n" ++
   "  sub a6, t0, t5              # gas_available\n" ++
   "  bgtu a5, a6, .Le7778_tx_fail\n" ++

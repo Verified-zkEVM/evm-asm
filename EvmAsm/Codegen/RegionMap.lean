@@ -203,8 +203,10 @@ def schemeAAnchors : List GuestRegion :=
     delegation code was rebased directly from the caller's staged codes base.
     Grew by `0x848` after the cross-transaction authorization-nonce validation
     landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
-    dropped its 256-byte cap guard (evm-asm-pwqhw). -/
-def textSizeBytes : Nat := 0x56830
+    dropped its 256-byte cap guard (evm-asm-pwqhw). Grew further after EIP-8037
+    prefix admission enforcement, parallel EEST worker result-file isolation,
+    and the self-funded EIP-7702 authorization refund fix landed. -/
+def textSizeBytes : Nat := 0x56918
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
