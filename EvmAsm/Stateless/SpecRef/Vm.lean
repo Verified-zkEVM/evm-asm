@@ -134,6 +134,11 @@ structure BlockOutput where
   blobGasUsed : U64 := 0
   requests : List Bytes := []
   blockAccessList : BlockAccessList := []
+  /-- Modeling-only: the decoded logs of each receipt in order, kept so
+      `parse_deposit_requests` need not re-decode the trie values (the
+      Python stores `Bytes | Receipt` objects and decodes on read —
+      observationally equal). -/
+  decodedReceiptLogs : List (List Log) := []
   deriving Repr
 
 /-- `TransactionEnvironment` (class `TransactionEnvironment`), minus
@@ -228,6 +233,8 @@ def liftSpec (m : Except SpecError α) : EvmM α := fun s =>
   | .ok a => .ok (.ok a, s)
 
 def getEvm : EvmM Evm := fun s => .ok (.ok s.evm, s)
+
+def getBlockState : EvmM BlockState := fun s => .ok (.ok s.txState.parent, s)
 
 def modifyEvm (f : Evm → Evm) : EvmM Unit := fun s =>
   .ok (.ok (), { s with evm := f s.evm })
