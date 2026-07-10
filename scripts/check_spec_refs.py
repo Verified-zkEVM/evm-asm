@@ -18,9 +18,10 @@ Outcome classes:
     (they are prose shorthand, not links).
 
 Self-test (`--self-test`): scans a synthetic file containing one good, one
-dead-path, and one dead-symbol citation and exits non-zero unless the checker
-flags exactly the two bad ones — a checker that cannot demonstrate catching a
-planted violation is itself unaudited.
+dead-path, and one dead-symbol citation and fails unless the scan reports a
+violation (the planted findings are printed for eyeball confirmation) — a
+checker that cannot demonstrate catching a planted violation is itself
+unaudited.
 """
 
 from __future__ import annotations
