@@ -194,8 +194,16 @@ def schemeAAnchors : List GuestRegion :=
     `0x7b0` after CREATE2 selfdestruct-collision handling simplified
     `ChildFrameHandlers` dispatch. Grew by `0x58` when
     `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
-    cursor helpers (bead evm-asm-22pwv.4). -/
-def textSizeBytes : Nat := 0x55ff4
+    cursor helpers (bead evm-asm-22pwv.4). Grew by `0xc` when the
+    precompile fast path began returning successful value-call stipends while
+    emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
+    payload staging paths began reversing PREVRANDAO into EVM word order. Grew
+    by `0x64` when same-transaction CREATE code became available to delegated
+    calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
+    delegation code was rebased directly from the caller's staged codes base.
+    Grew by `0x848` after the cross-transaction authorization-nonce validation
+    landed (bead evm-asm-eip7702-cross-tx). -/
+def textSizeBytes : Nat := 0x5683c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -203,7 +211,7 @@ def textSizeBytes : Nat := 0x55ff4
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x1982c7f0
+def dataSizeBytes : Nat := 0x19834c70
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

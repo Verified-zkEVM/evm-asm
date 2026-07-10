@@ -133,28 +133,34 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     ".L" ++ tag ++ "_precompile_xlog_selfcmp:\n" ++
     "  beqz t2, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
     "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
-    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_prev_start\n" ++
+    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  j .L" ++ tag ++ "_precompile_xlog_selfcmp\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_start:\n" ++
-    "  ld t1, 472(x20); beqz t1, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
-    "  li t2, 0; la t3, evm_event_logs\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_scan:\n" ++
-    "  beq t2, t1, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
-    "  ld t4, 0(t3); li t5, 3; bne t4, t5, .L" ++ tag ++ "_precompile_xlog_prev_next\n" ++
-    "  addi t4, t3, 96; addi t5, x12, 32; li t6, 20\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_cmp:\n" ++
-    "  beqz t6, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
-    "  lbu x16, 0(t4); lbu x17, 0(t5); bne x16, x17, .L" ++ tag ++ "_precompile_xlog_prev_next\n" ++
-    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .L" ++ tag ++ "_precompile_xlog_prev_cmp\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_next:\n" ++
-    "  addi t3, t3, 256; addi t2, t2, 1; j .L" ++ tag ++ "_precompile_xlog_prev_scan\n" ++
     ".L" ++ tag ++ "_precompile_xlog_emit:\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".L" ++ tag ++ "_precompile_xlog_skip:\n"
+
+def refundSuccessfulPrecompileValueStipendAsm (tag : String) (valueOff? : Option Nat) : String :=
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    -- execution-specs funds every value-bearing CALL/CALLCODE child with the
+    -- 2300-gas stipend after charging CALL_VALUE (10300). A successful
+    -- precompile consumes only its own inner gas, so the unused stipend is
+    -- returned with the rest of the child allotment. The fast path has no
+    -- child frame and charged the full 10300 in precompileValueBalanceGateAsm;
+    -- return the stipend at the shared success join to preserve the same net
+    -- 8000 value-transfer charge. Zero-value calls receive no stipend.
+    "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_stipend_done\n" ++
+    "  ld t0, 568(x20)\n  li t1, 2300\n  add t0, t0, t1\n  sd t0, 568(x20)\n" ++
+    ".L" ++ tag ++ "_precompile_stipend_done:\n"
 
 def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option Nat) : String :=
   if tag != "call_target" then "" else
@@ -475,6 +481,7 @@ def basicPrecompileCallTail
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 6b\n" ++
     "7:\n" ++
+    refundSuccessfulPrecompileValueStipendAsm tag valueOff? ++
     emitSuccessfulPrecompileValueLogAsm tag valueOff? ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++
