@@ -106,6 +106,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 | Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
 | Persistent storage | SLOAD (0x54) | 47 | 🟡 `.conditional` stage-1 (`Storage.evm_sload_stack_spec_within`, `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean`). Structural clone of the proven TLOAD reverse scan on the **persistent** log (base `0xa0630000`, length cell `env+448`); body-as-Program `evm_sload`, byte-identical re-encoding (`li 0xa0630000` → `lui/addiw/slli 99`; `#guard` pins emission, region map/ELF unchanged). Witness: stack top := `persistentLookup addrHash slotKey entries` in place, budget `7 + 34n`. `.conditional` (not `.proven`) because miss→0 is EVM-sound only relative to the `committedStorageIs` snapshot — MPT-witness verification deferred to stage-2 (post-Phase-10). `coverRef := sload_precondition_reachable` (decide-checked hit-antecedent). **conditionalCount 0→1, execSpecCount 19→18; provenCount unchanged (66).** SSTORE is the append+original-scan sibling. |
+| Memory copy | MCOPY (0x5e) | 21 | ✅ Proved (`Mcopy.evm_mcopy_stack_spec_within`, `EvmAsm/Evm64/Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean`). First **memory→memory / overlap-aware** opcode and first **two-directional** loop proof. Body-as-Program `evm_mcopy` = byte-identical copy core of the `h_MCOPY` handler tail (verified against `riscv64-elf-as`+`objdump`; no `li`, so Program layout = machine layout by construction). TOTAL over all `(destOff,srcOff,len)`: two `BGEU` offset comparisons (sound on offsets since both pointers share base `x13`) dispatch to a **forward** low→high loop (`destOff≤srcOff ∨ srcOff+len≤destOff`) or a **backward** high→low loop (`srcOff<destOff<srcOff+len`), both proven — by countdown induction — to land on the same direction-independent `mcopyResult` (memmove: dst window ← ORIGINAL src slice). Crux vs CALLDATACOPY: src and dst are the SAME `evmMemoryIs` slab, so one evolving `memBytes` list is threaded with a per-direction *read-sees-original* invariant (`mcopy{Fwd,Bwd}Content_getElem_src`) instead of two `**`-disjoint regions. Budget `7·len+8`. Stack decode + gas/MSIZE/range-guard glue unverified per DRIFT (as CALLDATACOPY/CODECOPY). **provenCount 66→67, execSpecCount 18→17.** See "MCOPY memmove recipe" below. |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -192,6 +193,38 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   - 8-way limb mismatch merged via one `hne : ¬(8-conjunction)` hypothesis;
     word↔limb bridge `evmWord_eq_of_limbs_eq` (via `fromLimbs_getLimb`
     round-trip) converts `¬(e.addrHash = a ∧ e.slotKey = k)` to the limb form.
+- **MCOPY memmove recipe** (`EvmAsm/Evm64/Mcopy/`, done — first overlap-aware,
+  first two-directional-loop opcode):
+  - **Single-slab, not two `**`-disjoint regions.** Unlike CALLDATACOPY/CODECOPY
+    (src=calldata/code region, dst=EVM memory, framed as two separate
+    `bytesRegion`s), MCOPY reads and writes the SAME `evmMemoryIs memBase`
+    buffer with possibly-overlapping windows. Separation logic can't split an
+    overlapping window, so the proof threads ONE evolving `memBytes` list
+    (`Result.lean`: `mcopyFwdContent` / `mcopyBwdContent`, each with
+    `_getElem` characterization + `_zero`/`_set`/`_full` window lemmas proven by
+    `List.ext_getElem`), and correctness rests on a *read-sees-original*
+    invariant per direction (`mcopy{Fwd,Bwd}Content_getElem_src`): the byte about
+    to be read is still the original source byte because the chosen direction
+    only ever wrote positions the read has already passed.
+  - **Two loops, one endpoint.** `ForwardLoopSpec` (low→high, no oob/zero arm —
+    all bytes in-bounds) and `BackwardLoopSpec` (high→low, decrement-BOTH-pointers-
+    first) are each closed by countdown induction (mirror of the CALLDATACOPY
+    loop; the backward body needs elevated `maxHeartbeats`). Both reach the same
+    `mcopyResult mem destOff srcOff len` (`take destOff ++ (drop srcOff).take len
+    ++ drop (destOff+len)`), so the top-level spec is TOTAL — no overlap
+    precondition. `mcopy{Fwd,Bwd}Content_result` collapse the loop endpoint to
+    `mcopyResult`.
+  - **Overlap dispatch** (`Spec.lean`): setup 3 ADDs (`base+0→+12`), then two
+    `BGEU`s comparing OFFSETS `x14/x15/x19` (sound because dstPtr/srcPtr share
+    base `x13`), `by_cases` on `destOff≤srcOff ∨ srcOff+len≤destOff` selecting
+    forward vs backward via `ult_ofNat` + `cpsBranchWithin_{taken,ntaken}StripPure2`.
+    Scratch `x17/x18` (final pointers differ by direction) shed to `regOwn`
+    (`mcopy_shed2`); `x16↦0` common. `evmMemoryIs` wrapper via
+    `evmMemoryIs_eq_bytesRegion` + `mcopyResult_length`.
+  - **Byte-identity** pinned by `#guard` on `evm_mcopy_length`/`_byte_length`;
+    the emitted core has no `li`, so the 1-instr Program model = machine layout
+    directly (no GNU-as expansion needed, unlike TLOAD/SLOAD). Verified against
+    `riscv64-elf-as` + `objdump`. Gas/MSIZE/range-guard/stack-decode stay glue.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
