@@ -25,11 +25,10 @@
   NOTE on the pinned revision: v0.5.0 has **no burn log and no balance zeroing**
   (`git grep 'emit_burn_log\\|BURN_TOPIC' bd8c673 -- amsterdam` is empty). A
   *newer* execution-specs revision (`a0c182656`) adds `emit_burn_log`/`BURN_TOPIC`
-  + balance zeroing, and the emitted guest `selfdestructTailAsm` currently
-  implements that newer behavior — so the guest diverges from this v0.5.0
-  reference on the created-in-tx self-destruct-to-self case. That divergence is
-  tracked separately (guest fix vs. oracle bump) and must be settled before the
-  guest-realizes-model phase.
+  + balance zeroing; the emitted guest `selfdestructTailAsm` briefly implemented
+  that newer behavior, and the guest-side repair aligning it back to v0.5.0
+  (no burn log, balance preserved) is PR #10145 — after which guest, oracle,
+  and this model agree, as the guest-realizes-model phase requires.
 -/
 
 import EvmAsm.EL.CallValueTransfer
