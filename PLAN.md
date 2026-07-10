@@ -356,6 +356,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   state leaf: it materializes `evm_call_depth`, increments the owned dword with
   RV64 wrapping semantics, writes it back, and returns the new depth in `a0`,
   with byte identity pinned to `frameDepthPush_prog`.
+  `FrameDepthPopSAsm.lean` verifies the linked-PC `frame_depth_pop` global
+  state leaf: materialize `evm_call_depth`, decrement its owned dword with
+  exact RV64 wrapping, write it back, and return the new depth in `a0`.
   `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
