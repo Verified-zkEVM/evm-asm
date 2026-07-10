@@ -59,8 +59,8 @@ namespace Bn254Fq12SetOneSAsm
 
 -- The two routines are adjacent in the guest text: `bnq_zero` (6 slots)
 -- immediately precedes `bnq_set_one`.
-#guard GuestAddrs.bnq_zero = 0x80030d84
-#guard GuestAddrs.bnq_set_one = 0x80030d9c
+#guard GuestAddrs.bnq_zero = 0x80030f00
+#guard GuestAddrs.bnq_set_one = 0x80030f18
 #guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = GuestAddrs.bnq_set_one
 
 /-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
