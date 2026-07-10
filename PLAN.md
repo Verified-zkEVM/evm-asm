@@ -368,6 +368,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   disjointness — reverse-copy into a separate buffer) and `BhrRevLeBeSAsm.lean`
   (`bhrRevLeBeFn_spec`, reuses the generic core since `bhrRevLeBe_prog` is
   byte-identical to `swrRevLeBe_prog`).
+  `BytesToNibblesSAsm.lean` verifies the byte-identical `bytes_to_nibbles`
+  leaf (`bytesToNibblesFn_spec`): for each byte in the read-only source prefix,
+  the writable destination receives its high then low nibble, and `a0` returns
+  exactly twice the input length. The proof uses a two-byte window splice and
+  a named one-iteration execution/VC engine.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
