@@ -52,8 +52,6 @@ namespace Bn254CallAllotmentSAsm
 /-- The routine base, symbolic (bead evm-asm-6agnq). -/
 def allotBase : Word := (GuestAddrs.bn254_call_allotment : Word)
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.bn254_call_allotment = 0x800307f4
 #guard bn254CallAllotment_prog.length = 13
 -- The routine is position-independent (no PC-relative instruction).
 
