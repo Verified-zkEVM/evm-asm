@@ -1,13 +1,13 @@
 /-
-  EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
+  EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsmStage
 
-  Split out of `Bn254FieldMulModPSAsm.lean` (file-size guardrail): the
-  staging infrastructure for `bnf_mul_mod_p` — the emitted routine
-  (`mulBody`/`mulFrame`/`mulProg_tie`), its code map (`mulCr`), the two
+  Split out of `Bn254FieldAddModPSAsm.lean` (file-size guardrail): the
+  staging infrastructure for `bnf_add_mod_p` — the emitted routine
+  (`addBody`/`addFrame`/`addProg_tie`), its code map (`addCr`), the two
   converter-callee focused adapters (`bnfBeToLeFlat_spec` /
   `bnfLeToBeFlat_spec`), the inline CSR-2050 arithMod step
   (`csrsStep_spec`), and the accumulated-splice `stageC_spec`.  The
-  capstone `bnfMulModP_spec` lives in `Bn254FieldMulModPSAsm`, which
+  capstone `bnfAddModP_spec` lives in `Bn254FieldAddModPSAsm`, which
   imports this file.  See that file's header for the full design notes.
 -/
 
@@ -24,46 +24,46 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 
-namespace Bn254FieldMulModPSAsm
+namespace Bn254FieldAddModPSAsm
 
 open Bn254FieldConvSAsm (bnfBeToLeFn bnfBeToLeFn_spec bnfLeToBeFn bnfLeToBeFn_spec)
 
-/-- The arena base (`bnf_le_a`) and its 232-byte extent
-    (`_a/_b/_d/_zero/_one/_p` 32-byte cells + the 40-byte `mul_params`). -/
+/-- The arena base (`bnf_le_a`) and its 272-byte extent
+    (`_a/_b/_d/_zero/_one/_p` 32-byte cells + the 40-byte `add_params`). -/
 def arenaB : Word := 0xbb565e30
 
 /-- The frame and body of the emitted routine. -/
-def mulFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
+def addFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
 
-def mulBody : List Instr :=
+def addBody : List Instr :=
   [ .MV .x8 .x11,
     .MV .x9 .x12,
-    .AUIPC .x11 (laHi GuestAddrs.bnf_le_a (GuestAddrs.bnf_mul_mod_p + 24)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_a (GuestAddrs.bnf_mul_mod_p + 24)),
-    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_mul_mod_p + 32)),
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_a (GuestAddrs.bnf_add_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_a (GuestAddrs.bnf_add_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_add_mod_p + 32)),
     .MV .x10 .x8,
-    .AUIPC .x11 (laHi GuestAddrs.bnf_le_b (GuestAddrs.bnf_mul_mod_p + 40)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_b (GuestAddrs.bnf_mul_mod_p + 40)),
-    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_mul_mod_p + 48)),
-    .AUIPC .x5 (laHi GuestAddrs.bnf_mul_params (GuestAddrs.bnf_mul_mod_p + 52)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bnf_mul_params (GuestAddrs.bnf_mul_mod_p + 52)),
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_b (GuestAddrs.bnf_add_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_b (GuestAddrs.bnf_add_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_add_mod_p + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.bnf_add_params (GuestAddrs.bnf_add_mod_p + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnf_add_params (GuestAddrs.bnf_add_mod_p + 52)),
     .CSRS (2050 : BitVec 12) .x5,
-    .AUIPC .x10 (laHi GuestAddrs.bnf_le_d (GuestAddrs.bnf_mul_mod_p + 64)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnf_le_d (GuestAddrs.bnf_mul_mod_p + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.bnf_le_d (GuestAddrs.bnf_add_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnf_le_d (GuestAddrs.bnf_add_mod_p + 64)),
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_mul_mod_p + 76)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_add_mod_p + 76)),
     .LI .x10 (0 : Word) ]
 
 /-- Byte tie (kernel-checked): the emitted routine IS the ABI frame over
     the body — byte-transparent, no A/B. -/
-theorem mulProg_tie :
-    abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) mulFrame mulBody
-      = bnfMulModP_prog := rfl
+theorem addProg_tie :
+    abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) addFrame addBody
+      = bnfAddModP_prog := rfl
 
 /-- The routine's single code map: its own program plus the two converter
     callees'. -/
-def mulCr : CodeReq :=
-  (CodeReq.ofProg (GuestAddrs.bnf_mul_mod_p : Word) bnfMulModP_prog).union
+def addCr : CodeReq :=
+  (CodeReq.ofProg (GuestAddrs.bnf_add_mod_p : Word) bnfAddModP_prog).union
     ((CodeReq.ofProg (GuestAddrs.bnf_be_to_le : Word) bnfBeToLe_prog).union
       (CodeReq.ofProg (GuestAddrs.bnf_le_to_be : Word) bnfLeToBe_prog))
 
@@ -93,7 +93,7 @@ theorem bnfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
     (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((bnfBeToLeFn srci dsti inb ob).body.steps + 1)
-      (GuestAddrs.bnf_be_to_le : Word) ret mulCr
+      (GuestAddrs.bnf_be_to_le : Word) ret addCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun hp => ∃ ws',
@@ -136,7 +136,7 @@ theorem bnfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       xperm_hyp hpure)
   rw [show (bnfBeToLeFn srci dsti inb ob).programRet (GuestAddrs.bnf_be_to_le : Word)
       = bnfBeToLe_prog from rfl] at had
-  have hadC := liftCode (cr' := mulCr) had (by code_mem)
+  have hadC := liftCode (cr' := addCr) had (by code_mem)
   rw [show (bnfBeToLeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
       show (bnfBeToLeFn srci dsti inb ob).rw.base = dsti from rfl] at hadC
   rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
@@ -175,7 +175,7 @@ theorem bnfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
     (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((bnfLeToBeFn srci dsti inb ob).body.steps + 1)
-      (GuestAddrs.bnf_le_to_be : Word) ret mulCr
+      (GuestAddrs.bnf_le_to_be : Word) ret addCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun hp => ∃ ws',
@@ -218,7 +218,7 @@ theorem bnfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       xperm_hyp hpure)
   rw [show (bnfLeToBeFn srci dsti inb ob).programRet (GuestAddrs.bnf_le_to_be : Word)
       = bnfLeToBe_prog from rfl] at had
-  have hadC := liftCode (cr' := mulCr) had (by code_mem)
+  have hadC := liftCode (cr' := addCr) had (by code_mem)
   rw [show (bnfLeToBeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
       show (bnfLeToBeFn srci dsti inb ob).rw.base = dsti from rfl] at hadC
   rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
@@ -271,51 +271,51 @@ private theorem x5_notin_csrsRest : (.x5 : Reg) ∉ csrsRest := by decide
     subwindow becomes the `arith256Mod` result — nothing else (registers or
     other subwindows) moves. -/
 theorem csrsStep_spec (img : List (BitVec 8))
-    (hlen : img.length = 232)
-    (hvalid : ∀ j, j < 232 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
-    (hpa : wsDword img 0xC0 = arenaB + BitVec.ofNat 64 0)
-    (hpb : wsDword img 0xC8 = arenaB + BitVec.ofNat 64 0x20)
-    (hpc : wsDword img 0xD0 = arenaB + BitVec.ofNat 64 0x60)
-    (hpm : wsDword img 0xD8 = arenaB + BitVec.ofNat 64 0xA0)
-    (hpd : wsDword img 0xE0 = arenaB + BitVec.ofNat 64 0x40)
+    (hlen : img.length = 272)
+    (hvalid : ∀ j, j < 272 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
+    (hpa : wsDword img 0xE8 = arenaB + BitVec.ofNat 64 0)
+    (hpb : wsDword img 0xF0 = arenaB + BitVec.ofNat 64 0x80)
+    (hpc : wsDword img 0xF8 = arenaB + BitVec.ofNat 64 0x20)
+    (hpm : wsDword img 0x100 = arenaB + BitVec.ofNat 64 0xA0)
+    (hpd : wsDword img 0x108 = arenaB + BitVec.ofNat 64 0x40)
     (hmne : wsNat256 img 0xA0 ≠ 0) :
-    cpsTripleWithin 1 ((GuestAddrs.bnf_mul_mod_p + 60) : Word) ((GuestAddrs.bnf_mul_mod_p + 64) : Word) mulCr
-      (((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** regOwns csrsRest
+    cpsTripleWithin 1 ((GuestAddrs.bnf_add_mod_p + 60) : Word) ((GuestAddrs.bnf_add_mod_p + 64) : Word) addCr
+      (((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** regOwns csrsRest
         ** bytesRegion arenaB img)
-      (((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** regOwns csrsRest
+      (((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** regOwns csrsRest
         ** bytesRegion arenaB
           (setBytes img 0x40 (leBytes32 (Accel.arith256Mod
-            (wsNat256 img 0) (wsNat256 img 0x20)
-            (wsNat256 img 0x60) (wsNat256 img 0xA0))))) := by
+            (wsNat256 img 0) (wsNat256 img 0x80)
+            (wsNat256 img 0x20) (wsNat256 img 0xA0))))) := by
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns csrsRest (by decide)
-      (P := ((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** bytesRegion arenaB img)
+      (P := ((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** bytesRegion arenaB img)
       (fun vf => ?_))
-  have hcs := csrs_arith256Mod_spec_within ((GuestAddrs.bnf_mul_mod_p + 60) : Word) .x5 (by decide)
-    arenaB 232 img
-    (fun r => if r = .x5 then (GuestAddrs.bnf_mul_params : Word) else vf r)
+  have hcs := csrs_arith256Mod_spec_within ((GuestAddrs.bnf_add_mod_p + 60) : Word) .x5 (by decide)
+    arenaB 272 img
+    (fun r => if r = .x5 then (0xbb565f18 : Word) else vf r)
     hlen (by decide) hvalid
-    0xC0 0 0x20 0x60 0xA0 0x40
+    0xE8 0 0x80 0x20 0xA0 0x40
     (by
-      show RegFile.get _ .x5 = arenaB + BitVec.ofNat 64 0xC0
+      show RegFile.get _ .x5 = arenaB + BitVec.ofNat 64 0xE8
       rw [RegFile.get, if_neg (by decide : (Reg.x5 : Reg) ≠ .x0)]
-      show (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.bnf_mul_params : Word) else vf .x5) = _
+      show (if (Reg.x5 : Reg) = .x5 then (0xbb565f18 : Word) else vf .x5) = _
       rw [if_pos rfl]
       decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     hpa hpb hpc hpm hpd hmne
-  have hcsC := liftCode (cr' := mulCr) hcs (by code_mem)
-  rw [show ((GuestAddrs.bnf_mul_mod_p + 60) : Word) + 4 = ((GuestAddrs.bnf_mul_mod_p + 64) : Word) from by decide] at hcsC
+  have hcsC := liftCode (cr' := addCr) hcs (by code_mem)
+  rw [show ((GuestAddrs.bnf_add_mod_p + 60) : Word) + 4 = ((GuestAddrs.bnf_add_mod_p + 64) : Word) from by decide] at hcsC
   -- unpack the register file on both sides (same file — the step moves nothing)
   rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
     exposedRegs_split5,
-    show (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.bnf_mul_params : Word) else vf .x5)
-      = (GuestAddrs.bnf_mul_params : Word) from if_pos rfl,
+    show (if (Reg.x5 : Reg) = .x5 then (0xbb565f18 : Word) else vf .x5)
+      = (0xbb565f18 : Word) from if_pos rfl,
     regAtomsOf_congr
-      (fun r => if r = .x5 then (GuestAddrs.bnf_mul_params : Word) else vf r) vf csrsRest
+      (fun r => if r = .x5 then (0xbb565f18 : Word) else vf r) vf csrsRest
       (fun r hr => by
-        show (if r = .x5 then (GuestAddrs.bnf_mul_params : Word) else vf r) = vf r
+        show (if r = .x5 then (0xbb565f18 : Word) else vf r) = vf r
         rw [if_neg (fun (hc : r = .x5) => x5_notin_csrsRest (hc ▸ hr))])]
     at hcsC
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -403,44 +403,44 @@ private theorem ownsSplit10 :
     subwindow (read-only focused) out to the caller's window. -/
 theorem stageC_spec (aPtr bPtr outPtr : Word)
     (aBE bBE outOld img₂ : List (BitVec 8))
-    (hilen : img₂.length = 232) (holen : outOld.length = 32)
+    (hilen : img₂.length = 272) (holen : outOld.length = 32)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 32 < 2 ^ 64)
     (hovalid : ∀ k, k < 32 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
-    (harval : ∀ j, j < 232 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
+    (harval : ∀ j, j < 272 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
     (hdO : (0xbb565e90 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xbb565e70 : Nat))
-    (hpa₂ : wsDword img₂ 0xC0 = arenaB + BitVec.ofNat 64 0)
-    (hpb₂ : wsDword img₂ 0xC8 = arenaB + BitVec.ofNat 64 0x20)
-    (hpc₂ : wsDword img₂ 0xD0 = arenaB + BitVec.ofNat 64 0x60)
-    (hpm₂ : wsDword img₂ 0xD8 = arenaB + BitVec.ofNat 64 0xA0)
-    (hpd₂ : wsDword img₂ 0xE0 = arenaB + BitVec.ofNat 64 0x40)
+    (hpa₂ : wsDword img₂ 0xE8 = arenaB + BitVec.ofNat 64 0)
+    (hpb₂ : wsDword img₂ 0xF0 = arenaB + BitVec.ofNat 64 0x80)
+    (hpc₂ : wsDword img₂ 0xF8 = arenaB + BitVec.ofNat 64 0x20)
+    (hpm₂ : wsDword img₂ 0x100 = arenaB + BitVec.ofNat 64 0xA0)
+    (hpd₂ : wsDword img₂ 0x108 = arenaB + BitVec.ofNat 64 0x40)
     (hmne₂ : wsNat256 img₂ 0xA0 ≠ 0) :
     cpsTripleWithin (7 + ((bnfLeToBeFn 0 0 [] []).body.steps + 1) + 1)
-      ((GuestAddrs.bnf_mul_mod_p + 52) : Word) ((GuestAddrs.bnf_mul_mod_p + 84) : Word) mulCr
-      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+      ((GuestAddrs.bnf_add_mod_p + 52) : Word) ((GuestAddrs.bnf_add_mod_p + 84) : Word) addCr
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
         ** regOwns exposedRegs
         ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
         ** bytesRegion outPtr outOld ** bytesRegion arenaB img₂)
       (fun hp => ∃ out',
         ((⌜beBytesToNat out'
-            = Accel.arith256Mod (wsNat256 img₂ 0) (wsNat256 img₂ 0x20)
-                (wsNat256 img₂ 0x60) (wsNat256 img₂ 0xA0)
+            = Accel.arith256Mod (wsNat256 img₂ 0) (wsNat256 img₂ 0x80)
+                (wsNat256 img₂ 0x20) (wsNat256 img₂ 0xA0)
           ∧ out'.length = 32⌝
-          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
           ** (.x9 ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns outRest
           ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
           ** bytesRegion outPtr out'
           ** bytesRegion arenaB
             (setBytes img₂ 0x40 (leBytes32 (Accel.arith256Mod
-              (wsNat256 img₂ 0) (wsNat256 img₂ 0x20)
-              (wsNat256 img₂ 0x60) (wsNat256 img₂ 0xA0)))))) hp) := by
-  set r := Accel.arith256Mod (wsNat256 img₂ 0) (wsNat256 img₂ 0x20)
-    (wsNat256 img₂ 0x60) (wsNat256 img₂ 0xA0) with hr
+              (wsNat256 img₂ 0) (wsNat256 img₂ 0x80)
+              (wsNat256 img₂ 0x20) (wsNat256 img₂ 0xA0)))))) hp) := by
+  set r := Accel.arith256Mod (wsNat256 img₂ 0) (wsNat256 img₂ 0x80)
+    (wsNat256 img₂ 0x20) (wsNat256 img₂ 0xA0) with hr
   set img₃ := setBytes img₂ 0x40 (leBytes32 r) with himg₃
   have hrlt : r < 2 ^ 256 := by
     rw [hr]
     unfold Accel.arith256Mod
     exact lt_trans (Nat.mod_lt _ (Nat.pos_of_ne_zero hmne₂)) (wsNat256_lt img₂ 0xA0)
-  have himg₃len : img₃.length = 232 := by
+  have himg₃len : img₃.length = 272 := by
     rw [himg₃, length_setBytes]
     exact hilen
   -- the d-window of the accelerator image is the fresh LE result
@@ -449,78 +449,78 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
     have := window_readback img₂ (leBytes32 r) 0x40
       (by rw [length_leBytes32]; omega)
     rwa [length_leBytes32] at this
-  -- ---- la t0, bnf_mul_params ----
+  -- ---- la t0, bnf_add_params ----
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns exposedRegs (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+      (P := ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
         ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
         ** bytesRegion outPtr outOld ** bytesRegion arenaB img₂)
       (fun vf => ?_))
-  have hla5 := la_materialize_within .x5 (vf .x5) ((GuestAddrs.bnf_mul_mod_p + 52) : Word)
-    (GuestAddrs.bnf_mul_params : Word) (cr := mulCr) (by decide) (by decide)
+  have hla5 := la_materialize_within .x5 (vf .x5) ((GuestAddrs.bnf_add_mod_p + 52) : Word)
+    (0xbb565f18 : Word) (cr := addCr) (by decide) (by decide)
     (by code_mem) (by code_mem)
-  rw [show ((GuestAddrs.bnf_mul_mod_p + 52) : Word) + 8 = ((GuestAddrs.bnf_mul_mod_p + 60) : Word) from by decide] at hla5
+  rw [show ((GuestAddrs.bnf_add_mod_p + 52) : Word) + 8 = ((GuestAddrs.bnf_add_mod_p + 60) : Word) from by decide] at hla5
   -- CSRS over the whole arena atom
   have hcsrs := csrsStep_spec img₂ hilen harval hpa₂ hpb₂ hpc₂ hpm₂ hpd₂ hmne₂
   rw [← hr, ← himg₃] at hcsrs
   -- the rest of the stage, from the CSRS exit, with the register file owned
   have hrest : cpsTripleWithin
       (4 + ((bnfLeToBeFn 0 0 [] []).body.steps + 1) + 1)
-      ((GuestAddrs.bnf_mul_mod_p + 64) : Word) ((GuestAddrs.bnf_mul_mod_p + 84) : Word) mulCr
-      (((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** regOwns csrsRest
-        ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+      ((GuestAddrs.bnf_add_mod_p + 64) : Word) ((GuestAddrs.bnf_add_mod_p + 84) : Word) addCr
+      (((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** regOwns csrsRest
+        ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
         ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
         ** bytesRegion outPtr outOld ** bytesRegion arenaB img₃)
       (fun hp => ∃ out',
         ((⌜beBytesToNat out' = r ∧ out'.length = 32⌝
-          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
           ** (.x9 ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns outRest
           ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
           ** bytesRegion outPtr out'
           ** bytesRegion arenaB img₃)) hp) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
       (cpsTripleWithin_peel_regOwns csrsRest (by decide)
-        (P := ((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word))
-          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+        (P := ((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word))
+          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
           ** bytesRegion outPtr outOld ** bytesRegion arenaB img₃)
         (fun vg => ?_))
     -- la a0, bnf_le_d
-    have hla10 := la_materialize_within .x10 (vg .x10) ((GuestAddrs.bnf_mul_mod_p + 64) : Word)
-      (GuestAddrs.bnf_le_d : Word) (cr := mulCr) (by decide) (by decide)
+    have hla10 := la_materialize_within .x10 (vg .x10) ((GuestAddrs.bnf_add_mod_p + 64) : Word)
+      (0xbb565e70 : Word) (cr := addCr) (by decide) (by decide)
       (by code_mem) (by code_mem)
-    rw [show ((GuestAddrs.bnf_mul_mod_p + 64) : Word) + 8 = ((GuestAddrs.bnf_mul_mod_p + 72) : Word) from by decide] at hla10
+    rw [show ((GuestAddrs.bnf_add_mod_p + 64) : Word) + 8 = ((GuestAddrs.bnf_add_mod_p + 72) : Word) from by decide] at hla10
     -- a1 := s1
-    have hmv := liftCode (cr' := mulCr)
-      (mv_spec_gen_within .x11 .x9 outPtr (vg .x11) ((GuestAddrs.bnf_mul_mod_p + 72) : Word) (by decide))
+    have hmv := liftCode (cr' := addCr)
+      (mv_spec_gen_within .x11 .x9 outPtr (vg .x11) ((GuestAddrs.bnf_add_mod_p + 72) : Word) (by decide))
       (by code_mem)
-    rw [show ((GuestAddrs.bnf_mul_mod_p + 72) : Word) + 4 = ((GuestAddrs.bnf_mul_mod_p + 76) : Word) from by decide] at hmv
+    rw [show ((GuestAddrs.bnf_add_mod_p + 72) : Word) + 4 = ((GuestAddrs.bnf_add_mod_p + 76) : Word) from by decide] at hmv
     -- the final conversion call over the FOCUSED d-window
-    have hflat := bnfLeToBeFlat_spec ((GuestAddrs.bnf_mul_mod_p + 80) : Word) (GuestAddrs.bnf_le_d : Word)
+    have hflat := bnfLeToBeFlat_spec ((GuestAddrs.bnf_add_mod_p + 80) : Word) (0xbb565e70 : Word)
       outPtr (leBytes32 r) outOld (by rw [length_leBytes32]) holen
       (by
         refine ⟨?_, ?_, ?_⟩
-        · show ((GuestAddrs.bnf_le_d : Word)).toNat % 8 = 0
+        · show ((0xbb565e70 : Word)).toNat % 8 = 0
           decide
-        · show ((GuestAddrs.bnf_le_d : Word)).toNat + (leBytes32 r).length < 2 ^ 64
+        · show ((0xbb565e70 : Word)).toNat + (leBytes32 r).length < 2 ^ 64
           rw [length_leBytes32]
           decide
         · intro k hk
           rw [length_leBytes32] at hk
-          rw [show (GuestAddrs.bnf_le_d : Word) + BitVec.ofNat 64 k
+          rw [show (0xbb565e70 : Word) + BitVec.ofNat 64 k
               = arenaB + BitVec.ofNat 64 (0x40 + k) from by
             show _ = arenaB + BitVec.ofNat 64 (0x40 + k)
             apply BitVec.eq_of_toNat_eq
             rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
               BitVec.toNat_ofNat,
-              show ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbb565e70 from by decide,
+              show ((0xbb565e70 : Word)).toNat = 0xbb565e70 from by decide,
               show (arenaB).toNat = 0xbb565e30 from by decide]
             omega]
           exact harval (0x40 + k) (by omega))
       ⟨hoal, by omega, hovalid⟩
       (by decide) (by omega)
       (by
-        have hsrc : ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbb565e70 := by decide
+        have hsrc : ((0xbb565e70 : Word)).toNat = 0xbb565e70 := by decide
         rcases hdO with h | h
         · left
           rw [hsrc]
@@ -530,40 +530,40 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
           omega)
       (by decide)
     -- massage into callWithin shape: pull `ra` out of the ∃-post
-    have hcallee : cpsTripleWithin ((bnfLeToBeFn (GuestAddrs.bnf_le_d : Word) outPtr
+    have hcallee : cpsTripleWithin ((bnfLeToBeFn (0xbb565e70 : Word) outPtr
         (leBytes32 r) outOld).body.steps + 1)
-        (GuestAddrs.bnf_le_to_be : Word) ((GuestAddrs.bnf_mul_mod_p + 80) : Word) mulCr
-        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word))
-          ** ((.x10 ↦ᵣ (GuestAddrs.bnf_le_d : Word)) ** (.x11 ↦ᵣ outPtr)
+        (GuestAddrs.bnf_le_to_be : Word) ((GuestAddrs.bnf_add_mod_p + 80) : Word) addCr
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word))
+          ** ((.x10 ↦ᵣ (0xbb565e70 : Word)) ** (.x11 ↦ᵣ outPtr)
             ** regOwns convScratch ** bytesRegion outPtr outOld
-            ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r)))
-        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word))
+            ** bytesRegion (0xbb565e70 : Word) (leBytes32 r)))
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word))
           ** (fun hp => ∃ ws',
             ((⌜beBytesToNat ws' = wsNat256 (leBytes32 r) 0 ∧ ws'.length = 32⌝
               ** regOwns exposedRegs ** bytesRegion outPtr ws'
-              ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r))) hp)) := by
+              ** bytesRegion (0xbb565e70 : Word) (leBytes32 r))) hp)) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun h hq => ?_) hflat
       obtain ⟨ws', hin⟩ := hq
       refine exists_pull h ⟨ws', ?_⟩
       xperm_hyp hin
-    have hcall := callWithin_spec ((GuestAddrs.bnf_mul_mod_p + 76) : Word) (GuestAddrs.bnf_le_to_be : Word)
-      ((GuestAddrs.bnf_mul_mod_p + 52) : Word)
-      (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_mul_mod_p + 76))
-      ((bnfLeToBeFn (GuestAddrs.bnf_le_d : Word) outPtr (leBytes32 r) outOld).body.steps + 1)
+    have hcall := callWithin_spec ((GuestAddrs.bnf_add_mod_p + 76) : Word) (GuestAddrs.bnf_le_to_be : Word)
+      ((GuestAddrs.bnf_add_mod_p + 52) : Word)
+      (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_add_mod_p + 76))
+      ((bnfLeToBeFn (0xbb565e70 : Word) outPtr (leBytes32 r) outOld).body.steps + 1)
       (by decide) (by code_mem) (by pcf) hcallee
-    rw [show ((GuestAddrs.bnf_mul_mod_p + 76) : Word) + 4 = ((GuestAddrs.bnf_mul_mod_p + 80) : Word) from by decide] at hcall
-    rw [show (bnfLeToBeFn (GuestAddrs.bnf_le_d : Word) outPtr
+    rw [show ((GuestAddrs.bnf_add_mod_p + 76) : Word) + 4 = ((GuestAddrs.bnf_add_mod_p + 80) : Word) from by decide] at hcall
+    rw [show (bnfLeToBeFn (0xbb565e70 : Word) outPtr
         (leBytes32 r) outOld).body.steps
       = (bnfLeToBeFn 0 0 [] []).body.steps from rfl] at hcall
     -- a0 := 0
-    have hli := liftCode (cr' := mulCr)
-      (li_spec_gen_own_within .x10 (0 : Word) ((GuestAddrs.bnf_mul_mod_p + 80) : Word) (by decide))
+    have hli := liftCode (cr' := addCr)
+      (li_spec_gen_own_within .x10 (0 : Word) ((GuestAddrs.bnf_add_mod_p + 80) : Word) (by decide))
       (by code_mem)
-    rw [show ((GuestAddrs.bnf_mul_mod_p + 80) : Word) + 4 = ((GuestAddrs.bnf_mul_mod_p + 84) : Word) from by decide] at hli
+    rw [show ((GuestAddrs.bnf_add_mod_p + 80) : Word) + 4 = ((GuestAddrs.bnf_add_mod_p + 84) : Word) from by decide] at hli
     -- ---- frames + chain ----
     have hla10F := cpsTripleWithin_frameR
-      (((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word))
+      (((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word))
         ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr) ** (.x11 ↦ᵣ vg .x11)
         ** (.x6 ↦ᵣ vg .x6) ** (.x7 ↦ᵣ vg .x7) ** (.x28 ↦ᵣ vg .x28)
         ** (.x29 ↦ᵣ vg .x29) ** (.x30 ↦ᵣ vg .x30) ** (.x31 ↦ᵣ vg .x31)
@@ -573,8 +573,8 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         ** bytesRegion outPtr outOld ** bytesRegion arenaB img₃)
       (by pcf) hla10
     have hmvF := cpsTripleWithin_frameR
-      (((.x5 : Reg) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word))
-        ** (.x8 ↦ᵣ bPtr) ** (.x10 ↦ᵣ (GuestAddrs.bnf_le_d : Word))
+      (((.x5 : Reg) ↦ᵣ (0xbb565f18 : Word)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word))
+        ** (.x8 ↦ᵣ bPtr) ** (.x10 ↦ᵣ (0xbb565e70 : Word))
         ** (.x6 ↦ᵣ vg .x6) ** (.x7 ↦ᵣ vg .x7) ** (.x28 ↦ᵣ vg .x28)
         ** (.x29 ↦ᵣ vg .x29) ** (.x30 ↦ᵣ vg .x30) ** (.x31 ↦ᵣ vg .x31)
         ** (.x12 ↦ᵣ vg .x12) ** (.x13 ↦ᵣ vg .x13) ** (.x14 ↦ᵣ vg .x14)
@@ -598,19 +598,19 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         -- split the accelerator image: focus the d-window (read-only src)
         rw [bytesRegion_window_focus arenaB img₃ 0x40 32 (by omega)
               (by norm_num) (by norm_num), hdwin,
-            show arenaB + BitVec.ofNat 64 0x40 = (GuestAddrs.bnf_le_d : Word) from by decide]
+            show arenaB + BitVec.ofNat 64 0x40 = (0xbb565e70 : Word) from by decide]
           at hp
         -- release the scratch file to ownership for the callee
         have hp1 : ((.x6 ↦ᵣ vg .x6) ** (.x7 ↦ᵣ vg .x7) ** (.x28 ↦ᵣ vg .x28)
             ** (.x29 ↦ᵣ vg .x29) ** (.x30 ↦ᵣ vg .x30) ** (.x31 ↦ᵣ vg .x31)
             ** (.x12 ↦ᵣ vg .x12) ** (.x13 ↦ᵣ vg .x13) ** (.x14 ↦ᵣ vg .x14)
             ** (.x15 ↦ᵣ vg .x15) ** (.x16 ↦ᵣ vg .x16) ** (.x17 ↦ᵣ vg .x17)
-            ** (((.x5 : Reg)) ↦ᵣ (GuestAddrs.bnf_mul_params : Word))
-            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x10 ↦ᵣ (GuestAddrs.bnf_le_d : Word))
+            ** (((.x5 : Reg)) ↦ᵣ (0xbb565f18 : Word))
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x10 ↦ᵣ (0xbb565e70 : Word))
               ** (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** bytesRegion outPtr outOld
-              ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r)
+              ** bytesRegion (0xbb565e70 : Word) (leBytes32 r)
               ** windowRest arenaB img₃ 0x40 32)) h := by
           xperm_hyp hp
         have hp2 := sepConj_mono (regIs_to_regOwn .x6 _)
@@ -628,11 +628,11 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
                                 (sepConj_mono (regIs_to_regOwn .x5 _)
                                   (fun _ hh => hh))))))))))))) h hp1
         have hp3 : (regOwns convScratch **
-            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x10 ↦ᵣ (GuestAddrs.bnf_le_d : Word))
+            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x10 ↦ᵣ (0xbb565e70 : Word))
               ** (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** bytesRegion outPtr outOld
-              ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r)
+              ** bytesRegion (0xbb565e70 : Word) (leBytes32 r)
               ** windowRest arenaB img₃ 0x40 32)) h := by
           simp only [convScratch, regOwns_cons, regOwns_nil, sepConj_emp_right']
           xperm_hyp hp2
@@ -643,23 +643,23 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         have hq1 : (((fun hp => ∃ ws',
             ((⌜beBytesToNat ws' = wsNat256 (leBytes32 r) 0 ∧ ws'.length = 32⌝
               ** regOwns exposedRegs ** bytesRegion outPtr ws'
-              ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r))) hp) : Assertion)
-            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+              ** bytesRegion (0xbb565e70 : Word) (leBytes32 r))) hp) : Assertion)
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
               ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** windowRest arenaB img₃ 0x40 32)) h := by
           xperm_hyp hq
         exact (sepConj_exists_left h).mp hq1) hchain2
     have hcont : ∀ ws' : List (BitVec 8),
-        cpsTripleWithin 1 ((GuestAddrs.bnf_mul_mod_p + 80) : Word) ((GuestAddrs.bnf_mul_mod_p + 84) : Word) mulCr
+        cpsTripleWithin 1 ((GuestAddrs.bnf_add_mod_p + 80) : Word) ((GuestAddrs.bnf_add_mod_p + 84) : Word) addCr
           ((⌜beBytesToNat ws' = wsNat256 (leBytes32 r) 0 ∧ ws'.length = 32⌝
             ** regOwns exposedRegs ** bytesRegion outPtr ws'
-            ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r))
-            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+            ** bytesRegion (0xbb565e70 : Word) (leBytes32 r))
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
               ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** windowRest arenaB img₃ 0x40 32))
           (fun hp => ∃ out',
             ((⌜beBytesToNat out' = r ∧ out'.length = 32⌝
-              ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+              ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
               ** (.x9 ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns outRest
               ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** bytesRegion outPtr out'
@@ -670,15 +670,15 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         (cpsTripleWithin_pure_pre
           (P := beBytesToNat ws' = wsNat256 (leBytes32 r) 0 ∧ ws'.length = 32)
           (H := regOwns exposedRegs ** bytesRegion outPtr ws'
-            ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r)
-            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+            ** bytesRegion (0xbb565e70 : Word) (leBytes32 r)
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
               ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** windowRest arenaB img₃ 0x40 32))
           (fun hfacts => ?_))
       have hliF := cpsTripleWithin_frameR
-        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
           ** regOwns outRest ** bytesRegion outPtr ws'
-          ** bytesRegion (GuestAddrs.bnf_le_d : Word) (leBytes32 r)
+          ** bytesRegion (0xbb565e70 : Word) (leBytes32 r)
           ** windowRest arenaB img₃ 0x40 32
           ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE)
         (by
@@ -697,7 +697,7 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         have hval : beBytesToNat ws' = r := by
           rw [hfacts.1, wsNat256_leBytes32 r hrlt]
         have hq1 : ((⌜beBytesToNat ws' = r ∧ ws'.length = 32⌝ : Assertion)
-            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
               ** (.x9 ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns outRest
               ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
               ** bytesRegion outPtr ws'
@@ -705,7 +705,7 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
                     ((img₃.drop 0x40).take 32)
                 ** windowRest arenaB img₃ 0x40 32))) h := by
           refine (sepConj_pure_left h).mpr ⟨⟨hval, hfacts.2⟩, ?_⟩
-          rw [hdwin, show arenaB + BitVec.ofNat 64 0x40 = (GuestAddrs.bnf_le_d : Word)
+          rw [hdwin, show arenaB + BitVec.ofNat 64 0x40 = (0xbb565e70 : Word)
             from by decide]
           xperm_hyp hq
         rw [← bytesRegion_window_focus arenaB img₃ 0x40 32 (by omega)
@@ -720,7 +720,7 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
         (cpsTripleWithin_seq_exists_same_cr hchain2' hcont))
   -- ---- assemble stage C: la ; csrs ; rest ----
   have hla5F := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
       ** (.x6 ↦ᵣ vf .x6) ** (.x7 ↦ᵣ vf .x7) ** (.x28 ↦ᵣ vf .x28)
       ** (.x29 ↦ᵣ vf .x29) ** (.x30 ↦ᵣ vf .x30) ** (.x31 ↦ᵣ vf .x31)
       ** (.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** (.x12 ↦ᵣ vf .x12)
@@ -730,7 +730,7 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
       ** bytesRegion outPtr outOld ** bytesRegion arenaB img₂)
     (by pcf) hla5
   have hcsrsF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
       ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE ** bytesRegion outPtr outOld)
     (by pcf) hcsrs
   have hc1 := cpsTripleWithin_seq_perm_same_cr
@@ -741,8 +741,8 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
           ** (.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** (.x12 ↦ᵣ vf .x12)
           ** (.x13 ↦ᵣ vf .x13) ** (.x14 ↦ᵣ vf .x14) ** (.x15 ↦ᵣ vf .x15)
           ** (.x16 ↦ᵣ vf .x16) ** (.x17 ↦ᵣ vf .x17)
-          ** ((((.x5 : Reg)) ↦ᵣ (GuestAddrs.bnf_mul_params : Word))
-            ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr)
+          ** ((((.x5 : Reg)) ↦ᵣ (0xbb565f18 : Word))
+            ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
             ** bytesRegion outPtr outOld
@@ -763,9 +763,9 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
                               (sepConj_mono (regIs_to_regOwn .x16 _)
                                 (sepConj_mono (regIs_to_regOwn .x17 _)
                                   (fun _ hh => hh)))))))))))))) h hp1
-      have hp3 : ((((.x5 : Reg)) ↦ᵣ (GuestAddrs.bnf_mul_params : Word)) ** regOwns csrsRest
+      have hp3 : ((((.x5 : Reg)) ↦ᵣ (0xbb565f18 : Word)) ** regOwns csrsRest
           ** bytesRegion arenaB img₂
-          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr)
+          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnf_add_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion aPtr aBE ** bytesRegion bPtr bBE
             ** bytesRegion outPtr outOld)) h := by
@@ -783,6 +783,6 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
 
 
 
-end Bn254FieldMulModPSAsm
+end Bn254FieldAddModPSAsm
 
 end EvmAsm.Codegen

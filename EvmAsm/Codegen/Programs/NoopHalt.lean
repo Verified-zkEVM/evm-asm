@@ -456,6 +456,7 @@ private def selfdestructTailAsm : String :=
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
   selfdestructBeneficiaryNonstorageAsm ++
+  selfdestructRecordSeenOriginAsm ++
   -- coc3g.6.2: a CREATE child frame that halts via SELFDESTRUCT (constructor `..ff`) goes to
   -- .exit_selfdestruct, which (unlike RETURN/REVERT/STOP) does NOT clear create_frame_flag[depth].
   -- Now that the created-in-tx detection above CONSUMES this flag, a stale 1 left in this depth's

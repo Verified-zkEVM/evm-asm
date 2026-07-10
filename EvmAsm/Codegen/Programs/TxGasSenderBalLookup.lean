@@ -321,6 +321,8 @@ def ziskTxGasSenderBalLookupPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_nonce/_balance decode via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++

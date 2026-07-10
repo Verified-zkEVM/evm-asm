@@ -865,6 +865,7 @@ def ziskTxPubkeyEcrecoverStageMaterialPrologue : String :=
   "  j .Ltpes_probe_done\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
@@ -905,6 +906,7 @@ def ziskTxPubkeySignatureMaterialPrologue : String :=
   "  j .Ltps_pdone\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
@@ -1020,6 +1022,7 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
   "  j .Ltprrs_pdone\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
@@ -1101,6 +1104,7 @@ def ziskTxPubkeyPublicKeyMatchesStatusPrologue : String :=
   "  j .Ltpms_pdone\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++

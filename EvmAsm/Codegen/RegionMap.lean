@@ -190,9 +190,21 @@ def schemeAAnchors : List GuestRegion :=
     began preferring same-block delegation markers over stale pre-state markers.
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
-    being derived for EIP-6110 negative system requests. Shrank by `0xc` when
-    RETURNDATACOPY dropped its 256-byte cap guard (evm-asm-pwqhw). -/
-def textSizeBytes : Nat := 0x55ce8
+    being derived for EIP-6110 negative system requests. Shrank net
+    `0x7b0` after CREATE2 selfdestruct-collision handling simplified
+    `ChildFrameHandlers` dispatch. Grew by `0x58` when
+    `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
+    cursor helpers (bead evm-asm-22pwv.4). Grew by `0xc` when the
+    precompile fast path began returning successful value-call stipends while
+    emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
+    payload staging paths began reversing PREVRANDAO into EVM word order. Grew
+    by `0x64` when same-transaction CREATE code became available to delegated
+    calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
+    delegation code was rebased directly from the caller's staged codes base.
+    Grew by `0x848` after the cross-transaction authorization-nonce validation
+    landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
+    dropped its 256-byte cap guard (evm-asm-pwqhw). -/
+def textSizeBytes : Nat := 0x56830
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -203,7 +215,7 @@ def textSizeBytes : Nat := 0x55ce8
     (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
     `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
     return (evm-asm-pwqhw). -/
-def dataSizeBytes : Nat := 0x196782d0
+def dataSizeBytes : Nat := 0x19884770
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

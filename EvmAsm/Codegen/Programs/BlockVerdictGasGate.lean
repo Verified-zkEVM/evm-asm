@@ -153,7 +153,7 @@ def eip8037TxGasGateFunction : String :=
   "  mv s1, a1                   # BAL ptr\n" ++
   "  mv s2, a2                   # BAL len\n" ++
   "  mv s3, a3                   # gas_limit\n" ++
-  "  li s4, 0                    # accumulated worst regular gas\n" ++
+  "  li s4, 0                    # reserved (keeps the stable frame/register shape)\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
   "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
@@ -411,17 +411,12 @@ def eip8037TxGasGateFunction : String :=
   "  # the same lower-bound availability check.\n" ++
   "  bgtu t0, t3, .Letg_regular_reject\n" ++
   "  add t2, t2, t0; sd t2, 0(t5)\n" ++
-  "  # Block regular gas accounting follows check_transaction's inclusion\n" ++
-  "  # guard exactly: min(TX_MAX_GAS_LIMIT, tx.gas), with no state subtraction.\n" ++
-  "  mv t2, t1\n" ++
-  "  li t3, 16777216\n" ++
-  "  bleu t2, t3, .Letg_regular_have\n" ++
-  "  mv t2, t3\n" ++
-  ".Letg_regular_have:\n" ++
-  "  bltu s3, s4, .Letg_regular_fail\n" ++
-  "  sub t4, s3, s4\n" ++
-  "  bgtu t2, t4, .Letg_regular_fail\n" ++
-  "  add s4, s4, t2\n" ++
+  "  # Do not accumulate declared gas limits across transactions here.\n" ++
+  "  # execution-specs releases each reservation after execution and advances\n" ++
+  "  # block_gas_used by the settled regular gas.  The later exact\n" ++
+  "  # eip7778_remaining_block_gas_from_results gate checks that prefix using\n" ++
+  "  # the runtime increments; summing declarations here false-rejects blocks\n" ++
+  "  # whose transactions individually fit after earlier transactions settle.\n" ++
   "  bltu t1, s11, .Letg_ok\n" ++
   "  sub t2, t1, s11             # tx.gas - intrinsic.regular\n" ++
   "  la t0, bsg_worst_state; sd t2, 0(t0)\n" ++
@@ -439,8 +434,6 @@ def eip8037TxGasGateFunction : String :=
   "  # execution-specs check_transaction: tx.gas > state_gas_available rejects.\n" ++
   "  bgtu t1, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
-  ".Letg_regular_fail:\n" ++
-  "  j .Letg_regular_reject\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++

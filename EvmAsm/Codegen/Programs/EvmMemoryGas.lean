@@ -192,6 +192,30 @@ def memDynamicArenaOogGuardAsm
   "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
   ".Lmemarena_" ++ tag ++ "_done:\n"
 
+/-- Reject COPY-family memory ranges that cannot be represented by the
+    runtime's low-u64 `(destination, size)` registers. The full words remain on
+    the EVM stack. A nonzero high size limb always means an enormous nonzero
+    range and therefore OOG. Only after proving the full size is nonzero do we
+    inspect the destination high limbs: EVM copy operations ignore every
+    destination bit for a genuinely zero-size range. -/
+def memDynamicU256RangeOogGuardAsm
+    (tag baseReg lengthReg scratchReg tmpReg : String)
+    (destinationOff sizeOff : Nat) : String :=
+  "  ld " ++ scratchReg ++ ", " ++ toString (sizeOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  beqz " ++ lengthReg ++ ", .Lmemu256_" ++ tag ++ "_done\n" ++
+  "  ld " ++ scratchReg ++ ", " ++ toString (destinationOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  ".Lmemu256_" ++ tag ++ "_done:\n"
+
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.
 
