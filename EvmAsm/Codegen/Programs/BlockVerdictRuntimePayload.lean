@@ -108,12 +108,16 @@ def stageRuntimePayloadFunction : String :=
   "  ld t2, 404(a2); sd t2, 344(s0)\n" ++
   -- TIMESTAMP (word 7 -> +312): exec u64 @428.
   "  ld t2, 428(a2); sd t2, 312(s0)\n" ++
-  -- PREVRANDAO (word 9 -> +376): 32-byte direct copy from exec+372.
-  "  addi t1, a2, 372\n" ++
-  "  ld t2, 0(t1); sd t2, 376(s0)\n" ++
-  "  ld t2, 8(t1); sd t2, 384(s0)\n" ++
-  "  ld t2, 16(t1); sd t2, 392(s0)\n" ++
-  "  ld t2, 24(t1); sd t2, 400(s0)\n" ++
+  -- PREVRANDAO (word 9 -> +376): exec+372 is a canonical Bytes32 (big-endian
+  -- integer), while EVM stack words use low limbs first. Reverse all 32 bytes;
+  -- a direct copy makes PREVRANDAO byte-swapped for arithmetic consumers.
+  "  addi t1, a2, 372; addi t3, s0, 376; li t4, 0\n" ++
+  ".Lsrp_prevrandao_loop:\n" ++
+  "  li t5, 32; beq t4, t5, .Lsrp_prevrandao_done\n" ++
+  "  add t6, t1, t4; lbu t5, 0(t6)\n" ++
+  "  li t6, 31; sub t6, t6, t4; add t6, t3, t6; sb t5, 0(t6)\n" ++
+  "  addi t4, t4, 1; j .Lsrp_prevrandao_loop\n" ++
+  ".Lsrp_prevrandao_done:\n" ++
   -- GASLIMIT (word 10 -> +408): exec u64 @412.
   "  ld t2, 412(a2); sd t2, 408(s0)\n" ++
   -- 6121j.1: CHAINID (word 12 -> +472): bv_chain_id (u64, set by chain_config_valid during the

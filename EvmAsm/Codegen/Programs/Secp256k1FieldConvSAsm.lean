@@ -611,7 +611,7 @@ theorem secfBeToLeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, hrww⟩
   case secfBeToLe.outer.body.inner.exhausted =>
-    rintro rf₀ ws₀ A₀ hreach₀ rf ws A ⟨hx29, -, -, -, -, -, -, -⟩
+    rintro rf₀ ws₀ A₀ hreach₀ rf ws A ⟨hx29, -, -, -, -, -, -, -, -⟩
     intro hc
     apply hc
     rw [hx29]

@@ -500,6 +500,46 @@ theorem u32sToDwords_dwordsToU32s_pair (w : Word) :
     intro _
     omega
 
+/-- Unpacking dwords yields two u32s per dword. -/
+theorem length_dwordsToU32s (ws : List Word) :
+    (dwordsToU32s ws).length = 2 * ws.length := by
+  induction ws with
+  | nil => rfl
+  | cons w rest ih =>
+      simp only [dwordsToU32s, List.flatMap_cons] at ih ⊢
+      simp only [List.length_append, List.length_cons, List.length_nil]
+      omega
+
+/-- Packing u32 pairs halves the length (an odd tail is dropped). -/
+theorem length_u32sToDwords : ∀ us : List (BitVec 32),
+    (u32sToDwords us).length = us.length / 2
+  | [] => by simp [u32sToDwords]
+  | [_] => by simp [u32sToDwords]
+  | _ :: _ :: rest => by
+      simp only [u32sToDwords, List.length_cons, length_u32sToDwords rest]
+      omega
+
+/-- A fold whose body always returns an `n`-element list stays at `n`. -/
+theorem foldl_length_fixed {α β : Type _} {f : List α → β → List α} {n : Nat}
+    (hf : ∀ st t, (f st t).length = n) :
+    ∀ (l : List β) (st : List α), st.length = n → (l.foldl f st).length = n
+  | [], _, h => h
+  | t :: rest, st, _ => foldl_length_fixed hf rest (f st t) (hf st t)
+
+/-- One compression always yields the 8-word state: each round body
+    materializes exactly 8 words, and the Davies–Meyer feed-forward zips
+    two 8-word lists. -/
+theorem sha256Compress_length (hs w : List (BitVec 32)) (h8 : 8 ≤ hs.length) :
+    (sha256Compress hs w).length = 8 := by
+  have htake : (hs.take 8).length = 8 := by rw [List.length_take]; omega
+  have hzip : ∀ fin : List (BitVec 32), fin.length = 8 →
+      (List.zipWith (· + ·) (hs.take 8) fin).length = 8 := fun fin hfin => by
+    rw [List.length_zipWith, htake, hfin]; omega
+  show (List.zipWith (· + ·) (hs.take 8) _).length = 8
+  refine hzip _ (foldl_length_fixed ?_ _ _ htake)
+  intro st t
+  rfl
+
 end Accel
 
 -- ============================================================================

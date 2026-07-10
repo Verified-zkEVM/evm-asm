@@ -480,6 +480,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_invalid_auth_count:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
@@ -1470,6 +1471,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "batsc_key:\n  .zero 32\n" ++ "\n" ++
   accountTupleSequencesConsistentData ++ "\n" ++
   balSlotTupleSequenceData ++ "\n" ++
-  execLogSlotTuplesData
+  execLogSlotTuplesData ++ "\n" ++
+  -- Keep the large authorization replay table last so growing it cannot move
+  -- any established data symbol or arena anchor.
+  ".balign 8\n" ++
+  "teer_success_count:\n  .zero 8\n" ++
+  "teer_success_table:\n  .zero 33920\n"
 
 end EvmAsm.Codegen

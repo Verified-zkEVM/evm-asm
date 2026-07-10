@@ -26,14 +26,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 
 namespace Secp256k1FieldReduceOnceSAsm
 
--- Address anchors for byte-transparent proof.
-#guard GuestAddrs.secf_reduce_once = 0x8001fe68
-#guard GuestAddrs.u256_lt_be = 0x800052c4
-#guard GuestAddrs.u256_sub_be = 0x80005248
-#guard GuestAddrs.secf_copy32 = 0x8001fca4
-#guard GuestAddrs.secp256k1_p_be = 0xa3c052c0
-#guard GuestAddrs.secf_cmp = 0xa3c053e0
-
 /-- secp256k1 field prime, as 32 big-endian bytes. -/
 def secp256k1PBytes : List (BitVec 8) :=
   [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -689,7 +681,7 @@ private theorem exposedRegs_split_sub (vf : Reg → Word) :
   simp only [subScratch, regAtomsOf_cons, regAtomsOf_nil]
   xperm
 
-private theorem secfCopy32Direct_spec (ret src dst : Word)
+theorem secfCopy32Direct_spec (ret src dst : Word)
     (srcBytes orig : List (BitVec 8))
     (hlenSrc : srcBytes.length = 32) (hlenOrig : orig.length = 32)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
@@ -902,7 +894,7 @@ private theorem secfCopy32FlatAsrt_spec (ret src dst : Word)
       (GuestAddrs.secf_copy32 : Word) = secfCopy32_prog from rfl] at had
   exact liftCode (cr' := secfReduceOnceCr) had (by unfold secfReduceOnceCr; code_mem)
 
-private theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
+theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
     (aBytes bBytes orig : List (BitVec 8))
     (hrw : RwRegion.wf ⟨outPtr, 32⟩)
     (hroA : Region.wf ⟨aPtr, aBytes⟩) (hroB : Region.wf ⟨bPtr, bBytes⟩)

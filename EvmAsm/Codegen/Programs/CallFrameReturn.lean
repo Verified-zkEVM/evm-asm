@@ -112,7 +112,23 @@ def frameReturnFunction : String :=
 " ++
   ".Lfr_sgas_have_spill_delta:
 " ++
-  "  bleu t2, t0, .Lfr_sgas_restore_left
+  "  bleu t0, t2, .Lfr_sgas_used_ge_snapshot
+" ++
+  "  sub t2, t0, t2                 # child net state-gas credit
+" ++
+  "  bleu t3, t2, .Lfr_sgas_credit_zero_left
+" ++
+  "  sub t3, t3, t2                 # discard reverted child credit
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_credit_zero_left:
+" ++
+  "  li t3, 0
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_used_ge_snapshot:
 " ++
   "  sub t2, t2, t0                 # child used allocation
 " ++
@@ -153,6 +169,9 @@ def frameReturnFunction : String :=
   "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
   "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
   "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
+  "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
+  "  la t0, evm_selfdestruct_seen_overflow_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_overflow; sd t3, 0(t1)\n" ++
   "  ld t0, 728(x20); la t1, evm_selfdestruct_destroyed_count; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
   -- child-depth checkpoint captured by call_frame_descend. Success leaves the

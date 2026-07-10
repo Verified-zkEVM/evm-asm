@@ -26,13 +26,10 @@ open EvmAsm.Rv64
     EIP-2930, EIP-1559, EIP-4844, and EIP-7702 transactions that this gate can
     parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <= tx.gas`.
     The EIP-8037 `TX_MAX_GAS_LIMIT` cap is also enforced as a
-    transaction-validity rule. Malformed tx lists, unknown tx types. The gate
-    also mirrors the execution-spec pre-execution block-gas
-    availability check when it can prove rejection from the intrinsic/floor gas
-    lower bound of prior transactions. Single-transaction overflow is always
-    invalid. Multi-transaction worst-regular overflow is not a safe
-    pre-runtime rejection because prior transactions may return unused gas; it
-    is deferred to the post-runtime exact gas-used check for supported rows. -/
+    transaction-validity rule. Malformed tx lists and unknown tx types leave
+    this gate neutral. The gate mirrors the execution-spec pre-execution
+    per-dimension block-gas availability checks: regular inclusion uses
+    `min(TX_MAX_GAS_LIMIT, tx.gas)` and state inclusion uses full `tx.gas`. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -156,7 +153,7 @@ def eip8037TxGasGateFunction : String :=
   "  mv s1, a1                   # BAL ptr\n" ++
   "  mv s2, a2                   # BAL len\n" ++
   "  mv s3, a3                   # gas_limit\n" ++
-  "  li s4, 0                    # accumulated worst regular gas\n" ++
+  "  li s4, 0                    # reserved (keeps the stable frame/register shape)\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
   "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
@@ -414,18 +411,12 @@ def eip8037TxGasGateFunction : String :=
   "  # the same lower-bound availability check.\n" ++
   "  bgtu t0, t3, .Letg_regular_reject\n" ++
   "  add t2, t2, t0; sd t2, 0(t5)\n" ++
-  "  la t0, bsg_state_gas; ld t6, 0(t0)\n" ++
-  "  li t2, 0\n" ++
-  "  bltu t1, t6, .Letg_regular_have\n" ++
-  "  sub t2, t1, t6              # tx.gas - intrinsic.state\n" ++
-  "  li t3, 16777216\n" ++
-  "  bleu t2, t3, .Letg_regular_have\n" ++
-  "  mv t2, t3\n" ++
-  ".Letg_regular_have:\n" ++
-  "  bltu s3, s4, .Letg_regular_fail\n" ++
-  "  sub t4, s3, s4\n" ++
-  "  bgtu t2, t4, .Letg_regular_fail\n" ++
-  "  add s4, s4, t2\n" ++
+  "  # Do not accumulate declared gas limits across transactions here.\n" ++
+  "  # execution-specs releases each reservation after execution and advances\n" ++
+  "  # block_gas_used by the settled regular gas.  The later exact\n" ++
+  "  # eip7778_remaining_block_gas_from_results gate checks that prefix using\n" ++
+  "  # the runtime increments; summing declarations here false-rejects blocks\n" ++
+  "  # whose transactions individually fit after earlier transactions settle.\n" ++
   "  bltu t1, s11, .Letg_ok\n" ++
   "  sub t2, t1, s11             # tx.gas - intrinsic.regular\n" ++
   "  la t0, bsg_worst_state; sd t2, 0(t0)\n" ++
@@ -436,17 +427,13 @@ def eip8037TxGasGateFunction : String :=
   "  mv a0, s1; mv a1, s2; la a3, bsg_prior_state\n" ++
   "  jal ra, eip8037_state_used_before_tx\n" ++
   ".Letg_prior_state_have:\n" ++
-  "  la t0, bsg_worst_state; ld t2, 0(t0)\n" ++
+  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_prior_state; ld t3, 0(t0)\n" ++
   "  bltu s3, t3, .Letg_state_fail\n" ++
   "  sub t4, s3, t3\n" ++
-  "  bgtu t2, t4, .Letg_state_fail\n" ++
+  "  # execution-specs check_transaction: tx.gas > state_gas_available rejects.\n" ++
+  "  bgtu t1, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
-  ".Letg_regular_fail:\n" ++
-  "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  # Multi-tx worst-regular overflow is only an upper bound before runtime.\n" ++
-  "  # Supported rows are checked exactly after gas-result arena materializes.\n" ++
-  "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++

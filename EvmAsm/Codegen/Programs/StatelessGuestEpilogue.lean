@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
+import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -901,26 +903,12 @@ def statelessGuestEpilogue : String :=
   -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
   -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
   "sg_load_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret\n" ++
+  emitProgram SgLoadU32leSAsm.sgLoadU32le_prog ++ "\n" ++
   -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
   -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
   -- preserves all s-registers and ra.
   "sg_memcpy:\n" ++
-  ".Lsgmc_loop:\n" ++
-  "  beqz a2, .Lsgmc_done\n" ++
-  "  lbu t0, 0(a1)\n" ++
-  "  sb  t0, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lsgmc_loop\n" ++
-  ".Lsgmc_done:\n" ++
-  "  ret\n" ++
+  emitProgram SgMemcpySAsm.sgMemcpy_prog ++ "\n" ++
   -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
   -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
   -- fixed 44-byte container; its root = merkleize([index|pad,

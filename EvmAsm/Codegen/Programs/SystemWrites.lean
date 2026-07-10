@@ -89,7 +89,7 @@ def swdWriteBe32U64_prog : Program :=
     .ADD .x7 .x11 .x5,
     .SB .x7 .x0 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-20 : BitVec 21),
+    .JAL .x0 (-16 : BitVec 21),
     .LI .x5 (0 : Word),
     .LI .x6 (8 : Word),
     .BEQ .x5 .x6 (44 : BitVec 13),
@@ -102,7 +102,7 @@ def swdWriteBe32U64_prog : Program :=
     .ADD .x30 .x30 .x5,
     .SB .x30 .x29 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-44 : BitVec 21),
+    .JAL .x0 (-40 : BitVec 21),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def swdWriteBe32U64Function : String :=
@@ -130,7 +130,7 @@ def swdWriteBe8_prog : Program :=
     .ADD .x30 .x11 .x5,
     .SB .x30 .x29 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-40 : BitVec 21),
+    .JAL .x0 (-36 : BitVec 21),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def swdWriteBe8Function : String :=

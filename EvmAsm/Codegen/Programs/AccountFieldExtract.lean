@@ -7,6 +7,10 @@
     K121  account_extract_nonce    (field 0, u64)
     K120  account_extract_balance  (field 1, u256 BE)
 
+  Both decode through the verified cursor-walk helpers from
+  `Programs/RlpWalk.lean` (bead evm-asm-22pwv.4) instead of the
+  legacy `rlp_field_to_*` / `rlp_list_nth_item` re-walkers.
+
   No proofs yet -- these are codegen `String` defs only.
 -/
 
@@ -16,6 +20,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -39,8 +44,12 @@ open EvmAsm.Rv64
     `check_transaction`, or to thread the nonce-mismatch error path
     without unpacking balance / storage_root / code_hash).
 
-    Composes the existing `rlp_field_to_u64` helper (which in turn
-    uses PR-K20 `rlp_list_nth_item`).
+    Composes the verified cursor-walk helpers (`rlp_walk_init` ->
+    `rlp_walk_next` for field 0 -> `rlp_content_to_u64`) from
+    `Programs/RlpWalk.lean` instead of the legacy index-based
+    `rlp_field_to_u64` / `rlp_list_nth_item` re-walk (bead
+    evm-asm-22pwv.4). The content decode is canonical-strict
+    (execution-specs `_deserialize_to_uint`).
 
     Calling convention:
       a0 (input)  : account_rlp ptr
@@ -49,17 +58,26 @@ open EvmAsm.Rv64
       ra (input)  : return
       a0 (output) :
         0 : success
-        1 : RLP parse failure / field 0 missing / > 64 bits -/
+        1 : RLP parse failure / field 0 missing / > 64 bits /
+            non-canonical scalar -/
 def accountExtractNonce_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .MV .x8 .x12,
     .SD .x8 .x0 (0 : BitVec 12),
-    .LI .x12 (0 : Word),
-    .MV .x13 .x8,
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.account_extract_nonce + 28)),
-    .BEQ .x10 .x0 (12 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.account_extract_nonce + 20)),
+    .BNE .x12 .x0 (44 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.account_extract_nonce + 28)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.account_extract_nonce + 48)),
+    .BNE .x11 .x0 (16 : BitVec 13),
+    .SD .x8 .x10 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
     .SD .x8 .x0 (0 : BitVec 12),
     .LI .x10 (1 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -71,7 +89,9 @@ def accountExtractNonce_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def accountExtractNonce_relocs : RelocTable :=
-  [ (7, .jal .x1 "rlp_field_to_u64") ]
+  [ (5, .jal .x1 "rlp_walk_init"),
+    (7, .jal .x1 "rlp_walk_next"),
+    (12, .jal .x1 "rlp_content_to_u64") ]
 
 def accountExtractNonceFunction : String :=
   "account_extract_nonce:\n" ++ emitProgramR accountExtractNonce_prog accountExtractNonce_relocs
@@ -85,7 +105,7 @@ theorem accountExtractNonceFunction_eq_prog :
     accountExtractNonceFunction = "account_extract_nonce:\n" ++ emitProgramR accountExtractNonce_prog accountExtractNonce_relocs := rfl
 
 #guard accountExtractNonceFunction.startsWith "account_extract_nonce:\n"
-#guard accountExtractNonce_prog.length = 15
+#guard accountExtractNonce_prog.length = 23
 /-- `zisk_account_extract_nonce`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, nonce u64) to
     OUTPUT (16 bytes). -/
@@ -99,8 +119,7 @@ def ziskAccountExtractNoncePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Laen_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   ".Laen_pdone:"
 
@@ -134,8 +153,12 @@ def ziskAccountExtractNonceProbeUnit : BuildUnit := {
     K120 (with PR-K119 `account_extract_storage_root`) is the
     narrower accessor for callers that only need a single field.
 
-    Composes the existing `rlp_field_to_u256_be` helper (which in
-    turn uses PR-K20 `rlp_list_nth_item`).
+    Composes the verified cursor-walk helpers (`rlp_walk_init` ->
+    `rlp_walk_next` x2 for field 1 -> `rlp_content_to_u256_be`)
+    from `Programs/RlpWalk.lean` instead of the legacy index-based
+    `rlp_field_to_u256_be` / `rlp_list_nth_item` re-walk (bead
+    evm-asm-22pwv.4). The content decode is canonical-strict
+    (execution-specs `_deserialize_to_uint`).
 
     Calling convention:
       a0 (input)  : account_rlp ptr
@@ -144,20 +167,34 @@ def ziskAccountExtractNonceProbeUnit : BuildUnit := {
       ra (input)  : return
       a0 (output) :
         0 : success
-        1 : RLP parse failure / field 1 missing / > 256 bits -/
+        1 : RLP parse failure / field 1 missing / > 256 bits /
+            non-canonical scalar -/
 def accountExtractBalance_prog : Program :=
-  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x12,
     .SD .x8 .x0 (0 : BitVec 12),
     .SD .x8 .x0 (8 : BitVec 12),
     .SD .x8 .x0 (16 : BitVec 12),
     .SD .x8 .x0 (24 : BitVec 12),
-    .LI .x12 (1 : Word),
-    .MV .x13 .x8,
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u256_be (GuestAddrs.account_extract_balance + 40)),
-    .BEQ .x10 .x0 (24 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.account_extract_balance + 36)),
+    .BNE .x12 .x0 (60 : BitVec 13),
+    .MV .x9 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.account_extract_balance + 48)),
+    .BNE .x11 .x0 (48 : BitVec 13),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.account_extract_balance + 60)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be (GuestAddrs.account_extract_balance + 84)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
     .SD .x8 .x0 (0 : BitVec 12),
     .SD .x8 .x0 (8 : BitVec 12),
     .SD .x8 .x0 (16 : BitVec 12),
@@ -165,14 +202,18 @@ def accountExtractBalance_prog : Program :=
     .LI .x10 (1 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
-    .ADDI .x2 .x2 (16 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `accountExtractBalance_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def accountExtractBalance_relocs : RelocTable :=
-  [ (10, .jal .x1 "rlp_field_to_u256_be") ]
+  [ (9, .jal .x1 "rlp_walk_init"),
+    (12, .jal .x1 "rlp_walk_next"),
+    (15, .jal .x1 "rlp_walk_next"),
+    (21, .jal .x1 "rlp_content_to_u256_be") ]
 
 def accountExtractBalanceFunction : String :=
   "account_extract_balance:\n" ++ emitProgramR accountExtractBalance_prog accountExtractBalance_relocs
@@ -186,7 +227,7 @@ theorem accountExtractBalanceFunction_eq_prog :
     accountExtractBalanceFunction = "account_extract_balance:\n" ++ emitProgramR accountExtractBalance_prog accountExtractBalance_relocs := rfl
 
 #guard accountExtractBalanceFunction.startsWith "account_extract_balance:\n"
-#guard accountExtractBalance_prog.length = 21
+#guard accountExtractBalance_prog.length = 35
 /-- `zisk_account_extract_balance`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, 32-byte balance
     BE) to OUTPUT (40 bytes). -/
@@ -200,8 +241,7 @@ def ziskAccountExtractBalancePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Laeb_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   ".Laeb_pdone:"
 

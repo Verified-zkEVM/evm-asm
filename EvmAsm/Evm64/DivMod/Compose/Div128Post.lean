@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.DivMod.Compose.Base
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
 
 /-!
 # DivMod Compose: div128 postcondition bundle

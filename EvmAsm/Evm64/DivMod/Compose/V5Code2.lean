@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+import EvmAsm.Rv64.CPSSpec
 
 open EvmAsm.Rv64.Tactics
 

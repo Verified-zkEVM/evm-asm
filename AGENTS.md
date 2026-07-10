@@ -304,6 +304,7 @@ hard-gate noisy heuristics):
 | Gate | Invariant enforced |
 |------|--------------------|
 | `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
+| `check-no-hardcoded-guest-pc.sh` | SAsm wrappers reference linked PCs through `GuestAddrs.*`, with one literal anchor guard per routine |
 | `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
 | `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
 | `check-conformance-floor.sh` | conformance-vector count never silently drops |

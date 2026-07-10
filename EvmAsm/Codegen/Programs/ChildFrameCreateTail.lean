@@ -258,7 +258,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez t0, 7f\n" ++
+    -- A nonzero helper status means the header-state witness lookup could not
+    -- classify the derived address. Execution-specs has the live tx state here;
+    -- for a missing/unknown header account the closest faithful behavior is to
+    -- treat the header predicate as false (the helper initializes it to 0),
+    -- still run the same-tx collision scan below, and otherwise take the normal
+    -- CREATE descend path. A cheap push-0 skipped child execution gas.
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -496,9 +501,21 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the burned 63/64 child allotment. Compute:
     --   spill = max(0, NEW_ACCOUNT - state_gas_left)
     --   gas_after_state = gas_left - spill
-    --   final_parent_gas = spill + floor(gas_after_state / 64)
-    -- without mutating state-gas globals; collision has net-zero state gas.
+    --   final_parent_gas = floor(gas_after_state / 64) + spill.
+    -- The +spill term is execution-specs credit_state_gas_refund: because this
+    -- synthetic collision branch leaves the state-gas globals unchanged, the
+    -- spill refund must be included directly in the final gas_left value.
+    -- Collision has net-zero state gas.
     ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    -- Amsterdam generic_create warms contract_address before account_deployable; the
+    -- successful path seeds at label 6 above, while collision jumps bypass that label.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_seed\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++

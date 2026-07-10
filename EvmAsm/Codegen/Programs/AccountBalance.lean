@@ -376,14 +376,14 @@ def ziskAccountSetUintFieldProbeUnit : BuildUnit := {
 
     Apply the balance mutation from post-Cancun SELFDESTRUCT to already-loaded
     originator and beneficiary account RLP values. This mirrors
-    execution-specs' `move_ether(originator, beneficiary, originator_balance)`
-    plus the same-transaction-created burn rule:
+    execution-specs v0.5.0's
+    `move_ether(originator, beneficiary, originator_balance)`:
 
     * different beneficiary: originator balance becomes zero; beneficiary is
       credited by the originator's pre-transfer balance;
-    * same beneficiary, not created in this transaction: net no-op;
-    * same beneficiary, created in this transaction: balance is burned, so the
-      returned account has zero balance.
+    * same beneficiary: net no-op, including when the originator was created
+      in this transaction. End-of-transaction deletion clears the account
+      while preserving this balance.
 
     Calling convention:
       a0 = origin account ptr       a1 = origin account len
@@ -459,7 +459,7 @@ def selfdestructBalanceTransfer_prog : Program :=
     .BNE .x10 .x0 (156 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (152 : BitVec 21),
-    .BNE .x21 .x0 (52 : BitVec 13),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .SD .x22 .x9 (0 : BitVec 12),
     .SD .x22 .x9 (8 : BitVec 12),
     .MV .x10 .x23,
@@ -575,6 +575,8 @@ def ziskSelfdestructBalanceTransferPrologue : String :=
   rlpItemSpanFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountAddBalanceFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
