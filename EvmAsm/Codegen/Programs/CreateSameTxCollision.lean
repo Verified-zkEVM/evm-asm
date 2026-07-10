@@ -54,7 +54,7 @@ def createSameTxCollisionScanAsm (hasSalt : Bool) : String :=
   "  la t4, create_address_be\n" ++
   "  li t5, 20\n" ++
   ".Lcr_same_tx_sd_cmp_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-  "  beqz t5, 7f\n" ++
+  "  beqz t5, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
   "  lbu x18, 0(t3)\n" ++
   "  lbu x19, 0(t4)\n" ++
   "  bne x18, x19, .Lcr_same_tx_sd_next_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
