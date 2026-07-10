@@ -412,3 +412,4 @@ import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
 import EvmAsm.Codegen.Programs.CopyWordGasSAsm
+import EvmAsm.Codegen.Programs.Keccak256WordGasSAsm
