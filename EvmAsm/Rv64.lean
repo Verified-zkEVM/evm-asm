@@ -58,6 +58,8 @@ import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
 import EvmAsm.Rv64.SailEquiv.VmemWriteReduction
 -- VmemReductionStores: unconditional SD/SW/SH/SB equivalence lemmas (Tier B).
 import EvmAsm.Rv64.SailEquiv.VmemReductionStores
+-- VmemConstruction: concrete bare-mode/PMA witnesses for memory side conditions.
+import EvmAsm.Rv64.SailEquiv.VmemConstruction
 -- StepSim consolidates the per-instruction lemmas into one step-simulation theorem.
 import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs
