@@ -3120,6 +3120,26 @@ bBE) c₀ m₀` (`(a·b+c₀) mod m₀`, `c₀`/`m₀` the staged addend/modulus
 framed.  Both converters (`Bn254FieldConvSAsm`) retrofitted with ambient-`A`
 pinning (`A = empAssertion`) to satisfy `Fn.retSpecFlat`'s side condition.
 Classical-3.
+**Sha256f (CSR 0x805) accelerator handle landed** (branch
+`feat/sha256-csr-handle`, bead evm-asm-4ch8f.18.1): the missing member of
+the AccelStep seam-handle family, unblocking the `zkvm_sha256` port
+(4ch8f.18) and the sha256/keccak accelerator-consumer family.
+`csrs_sha256Compress_spec_within` (one-step triple over a `[state*,
+input*]` parameter block: the 32-byte state slice becomes the REAL
+`Accel.sha256Compress` of the entry window's decoded state/block —
+`sha256Dwords`/`sha256Bytes`, decode-valued so aliasing needs no side
+conditions), `csrs_sha256Compress_ret_spec` (the `jalr` epilogue shape via
+`csrs_ret_spec_of_step`), `sha256CompressHandle` (`FnHandleS` via
+`csrs_handleS_sound`; pre = exactly the accelerator's `csrsValid` operand
+conditions, no value-domain guard).  New dword-LIST window vocabulary for
+u32-packed operands: `wsDwords` (+ `_setBytes_low/high`,
+`wsDwords_setBytes_flatMap` write-back decode).  Supporting `Accel` length
+lemmas (`length_dwordsToU32s`/`length_u32sToDwords`/
+`sha256Compress_length`/`foldl_length_fixed`).  Classical-3; existing
+handles untouched.  Remaining for 4ch8f.18: the 121-instruction
+`zkvm_sha256` ABI-frame wrapper (frame + full-block loop + padding loop +
+three CSRS 0x805 calls; needs MD-padding byte-list lemmas and the final
+`xori`-index endian swap).
 **`secp256k1_point_double` landed** (branch `feat/point-double`, bead
 evm-asm-4ch8f.38.5 CLOSED — the inline-CSRS half, completing the crypto
 caller layer with `bnf_mul_mod_p` #10069): the first branching ABI-frame
