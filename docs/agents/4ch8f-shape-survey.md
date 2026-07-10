@@ -228,6 +228,25 @@ This is the *only* place the survey finds a shape that no current combinator
 byte-matches. It is narrow (2 routines, same family) and both options are
 one-session.
 
+> **RESOLVED (bead .70.2): option 1 — whileBreak-to-epilogue, byte-transparent.**
+> Byte-level inspection of the emitted programs (`mptSetAcc_prog` /
+> `mptInsertAcc_prog`, the linked-image variants beads .29/.31 target) shows the
+> "mid-loop `ret`" is not a second `ret` at all: each routine has exactly ONE
+> `ret` and one frame restore, and the loop break targets a 2-instruction fail
+> stub `li a0, 2 ; j <epilogue>` that jumps *backward* into the shared epilogue
+> — so "both paths restore the same frame" holds by construction.
+> `EvmAsm/Rv64/SAsm/RetFromLoop.lean` adds the missing piece at
+> `cpsTripleWithin` level (additive): `liJumpTailProg`/`multiRegJumpTail_spec`
+> (the `li* ; j join` tail — `multiRegRetTail_spec` with the terminal `ret`
+> replaced by the jump) and `jumpJoinTail_spec` (tail ∘ shared-epilogue
+> continuation), plus an end-to-end demo (`EarlyRetLoop.earlyRetLoop_spec`).
+> The loop itself is the existing `breakStation_spec`/`twoBreakRetLoop_spec`.
+> `EvmAsm/Codegen/Programs/MptEarlyRetShape.lean` is the kernel-checked byte
+> check on the real programs: `prog.drop failIdx = liJumpTailProg [(a0, 2)]
+> (-56)`, single-`ret` count, all break/back-edge/epilogue offsets (relative,
+> symbolic base, no address pins), and the reusable
+> `mptSetAcc_failTail_spec`/`mptInsertAcc_failTail_spec` break-arm triples.
+
 ### 4.3 The unresolved back-edge
 
 1 of 628 back-edges (inside `blockVerdictFunction`, the 38-loop verdict monolith)

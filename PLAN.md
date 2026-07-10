@@ -3290,6 +3290,31 @@ lemmas — the payload-dependent `while` is `twoBreakRetLoop_spec` at
 `N := u64ByteLen v`, with the new `u64ByteLen` +
 `u64ByteLen_shift_zero`/`_ne` bridges as the long-tail extraction; post
 `a0 = (if v <u 56 then v + 1 else v + u64ByteLen v + 1)`.
+**Early-return-from-loop shape RESOLVED — option 1, byte-transparent**
+(branch `feat/mpt-early-ret-shape`, bead evm-asm-4ch8f.70.2, unblocks the
+MPT beads .29/.31; shape-survey §4.2 addendum records the verdict).  Byte
+inspection of `mptSetAcc_prog`/`mptInsertAcc_prog` shows the "mid-loop
+`ret`" is NOT a second `ret`: each routine has exactly ONE `ret`/frame
+restore, and the loop break targets a 2-instruction fail stub
+`li a0, 2 ; j <epilogue>` jumping BACKWARD into the shared epilogue — the
+same-frame side condition holds by construction.  `SAsm/RetFromLoop.lean`
+(cpsTripleWithin, additive): `liJumpTailProg`/`multiRegJumpTail_spec` (the
+`li* ; j join` tail — `multiRegRetTail_spec` with the terminal `ret`
+replaced by the unconditional jump, induction on the assignment list) and
+`jumpJoinTail_spec` (tail ∘ shared-epilogue continuation ⇒ triple to the
+function's ret continuation — the break arm for
+`breakStation_spec`/`twoBreakRetLoop_spec`), plus the end-to-end
+mechanism demo `EarlyRetLoop.earlyRetLoop_spec` (8-instr routine with the
+exact mpt shape at a symbolic base; genuine post: status 2 + counter
+untouched on the mid-loop return, else status 0 + counter exhausted).
+`Codegen/Programs/MptEarlyRetShape.lean`: the byte-identity check on the
+REAL programs — `#guard prog.drop failIdx = liJumpTailProg [(a0,2)] (-56)`
+(the emitted stub IS the combinator's bytes), single-`ret` counts, all
+break/back-edge/epilogue offsets (relative, no address pins), and the
+symbolic-base `mptSetAcc_failTail_spec`/`mptInsertAcc_failTail_spec`
+break-arm triples (deep-index side conditions on the 121/689-instr
+programs discharged by `decide +kernel` — kernel reduction, no
+`maxRecDepth`, axioms `[propext]`).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
