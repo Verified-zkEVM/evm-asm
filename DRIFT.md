@@ -64,10 +64,10 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 16 opcodes have executable-spec / handler / host-bridge
+These 15 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, MCOPY, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL, SELFDESTRUCT.
+KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL, SELFDESTRUCT.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 

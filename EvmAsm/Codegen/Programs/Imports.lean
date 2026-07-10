@@ -160,6 +160,7 @@ import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
 import EvmAsm.Codegen.Programs.BloomEqSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
