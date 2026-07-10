@@ -1,0 +1,315 @@
+/-
+  EvmAsm.Stateless.SpecRef.SeamShell
+
+  The seam shell (bead `evm-asm-s1d19.3`): the
+  `execute_new_payload_request` pre-checks and `execute_block`'s
+  pre-execution frame, wired as the first *partial* execution seam
+  under the monotone sound-for-accepts discipline
+  (docs/agents/specref-execution-seam-scope.md §3).  Ports, at
+  `@tests-zkevm@v0.5.0` (`bd8c673`):
+
+  * `execution_engine/requests.py`: `_encode_deposit`,
+    `_encode_withdrawal`, `_encode_consolidation`,
+    `encode_execution_requests` (functions of the same names)
+  * `requests.py`: `compute_requests_hash` (function
+    `compute_requests_hash`)
+  * `execution_engine/validation_helpers.py`: `_payload_header`,
+    `_payload_block` (functions of the same names)
+  * `execution_engine/new_payload.py`: `is_valid_block_hash`,
+    `is_valid_versioned_hashes`, and the pre-check prefix of
+    `execute_new_payload_request` (functions of the same names)
+  * `fork.py`: `MAX_RLP_BLOCK_SIZE`, `EMPTY_OMMER_HASH`,
+    `check_gas_limit`, `calculate_base_fee_per_gas`, `validate_header`
+    (functions/constants of the same names)
+
+  ## The partial seam (`executeSeamShell`)
+
+  A partial seam may reject ONLY on checks the real spec's *accepting*
+  path unconditionally performs (scope doc §3).  `executeSeamShell`
+  rejects exactly on: the `execute_new_payload_request` pre-checks
+  (empty-tx, block-hash, versioned-hashes), `execute_block`'s
+  pre-execution frame (public-key count, `MAX_RLP_BLOCK_SIZE`,
+  `validate_header`, ommers-empty — ommers are empty by construction
+  from `_payload_block`), and root-anchored witness authentication
+  (`decode_witness_to_mpt` on `pre_state.stateRoot` — the accepting
+  path always decodes the state trie for the post-root computation).
+  `apply_body` and the eight post-execution root checks remain the
+  accepted stub until Stack C (`s1d19.5`) supplies them.
+
+  The tx/withdrawals tries in `_payload_header` are Python
+  `Trie(secured=False, default=None)` + `root(trie)`; here
+  `build_mpt`/`mpt_root` (`IncrementalMptWrite.lean`), whose
+  equivalence with `patricialize` is `#guard`-pinned there.
+-/
+
+import EvmAsm.Stateless.SpecRef.Seam
+import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Stateless.SpecRef.BlocksRlp
+import EvmAsm.Stateless.SpecRef.Transactions
+import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+
+namespace EvmAsm.Stateless.SpecRef
+
+open EvmAsm.EL.RLP (RLPItem)
+
+private def encS (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
+
+/-! ## Request encoding (`execution_engine/requests.py`) -/
+
+/-- 8-byte little-endian (`U64.to_le_bytes8`). -/
+private def leBytes8 (n : Nat) : Bytes :=
+  (List.range 8).map (fun i => BitVec.ofNat 8 (n >>> (8 * i)))
+
+/-- `_encode_deposit(d)`. -/
+def _encode_deposit (d : DepositRequest) : Bytes :=
+  d.pubkey ++ d.withdrawalCredentials ++ leBytes8 d.amount
+    ++ d.signature ++ leBytes8 d.index
+
+/-- `_encode_withdrawal(w)`. -/
+def _encode_withdrawal (w : WithdrawalRequest) : Bytes :=
+  w.sourceAddress ++ w.validatorPubkey ++ leBytes8 w.amount
+
+/-- `_encode_consolidation(c)`. -/
+def _encode_consolidation (c : ConsolidationRequest) : Bytes :=
+  c.sourceAddress ++ c.sourcePubkey ++ c.targetPubkey
+
+/-- `encode_execution_requests(requests)`: each non-empty list becomes
+    one `TYPE_BYTE ++ concat(items)` blob, ascending type order
+    (deposit `0x00`, withdrawal `0x01`, consolidation `0x02`); empty
+    lists are omitted. -/
+def encode_execution_requests (requests : ExecutionRequests) : List Bytes :=
+  (if requests.deposits.isEmpty then [] else
+    [0x00 :: (requests.deposits.flatMap _encode_deposit)])
+  ++ (if requests.withdrawals.isEmpty then [] else
+    [0x01 :: (requests.withdrawals.flatMap _encode_withdrawal)])
+  ++ (if requests.consolidations.isEmpty then [] else
+    [0x02 :: (requests.consolidations.flatMap _encode_consolidation)])
+
+/-! ## `compute_requests_hash` (`requests.py`, function `compute_requests_hash`) -/
+
+/-- `sha256(concat(sha256(request) for request))` (EIP-7685). -/
+def compute_requests_hash (requests : List Bytes) : Hash32 :=
+  sha256 (requests.flatMap sha256)
+
+/-! ## `_payload_header` / `_payload_block`
+(`execution_engine/validation_helpers.py`, functions `_payload_header`
+and `_payload_block`) -/
+
+/-- `EMPTY_OMMER_HASH = keccak256(rlp.encode([]))` (`fork.py`). -/
+def EMPTY_OMMER_HASH : Hash32 := keccak256 (encS (.list []))
+
+/-- The unsecured rlp-indexed trie root over a list of encoded values
+    (the `Trie(secured=False, default=None)` + `trie_set` + `root`
+    pattern of `_payload_header`). -/
+def indexedTrieRoot (values : List Bytes) : Except SpecError Root := do
+  let data := values.zipIdx.map (fun (v, i) =>
+    (encS (.bytes (EvmAsm.EL.RLP.Nat.toBytesBE i)), MptValue.bytes v))
+  mpt_root (← build_mpt data false none)
+
+/-- `_payload_header(execution_payload, parent_beacon_block_root,
+    execution_requests)`. -/
+def _payload_header (payload : ExecutionPayload)
+    (parent_beacon_block_root : Root)
+    (execution_requests : ExecutionRequests) : Except SpecError Header := do
+  let transactions_root ← indexedTrieRoot payload.transactions
+  let withdrawals_root ← indexedTrieRoot
+    (payload.withdrawals.map (fun w => encS (withdrawalToRlpItem w)))
+  let requests_hash :=
+    compute_requests_hash (encode_execution_requests execution_requests)
+  pure { isCurrentFork := true
+         parentHash := payload.parentHash
+         ommersHash := EMPTY_OMMER_HASH
+         coinbase := payload.feeRecipient
+         stateRoot := payload.stateRoot
+         transactionsRoot := transactions_root
+         receiptRoot := payload.receiptsRoot
+         bloom := payload.logsBloom
+         difficulty := 0
+         number := payload.blockNumber
+         gasLimit := payload.gasLimit
+         gasUsed := payload.gasUsed
+         timestamp := payload.timestamp
+         extraData := payload.extraData
+         prevRandao := payload.prevRandao
+         nonce := List.replicate 8 0x00
+         baseFeePerGas := payload.baseFeePerGas
+         withdrawalsRoot := withdrawals_root
+         blobGasUsed := payload.blobGasUsed
+         excessBlobGas := payload.excessBlobGas
+         parentBeaconBlockRoot := parent_beacon_block_root
+         requestsHash := requests_hash
+         blockAccessListHash := keccak256 payload.blockAccessList
+         slotNumber := payload.slotNumber }
+
+/-- `_payload_block(...)`: the header plus the payload's raw
+    transactions/withdrawals, no ommers. -/
+def _payload_block (payload : ExecutionPayload)
+    (parent_beacon_block_root : Root)
+    (execution_requests : ExecutionRequests) : Except SpecError Block := do
+  pure { header := ← _payload_header payload parent_beacon_block_root execution_requests
+         transactions := payload.transactions
+         ommers := []
+         withdrawals := payload.withdrawals }
+
+/-! ## `is_valid_block_hash` / `is_valid_versioned_hashes`
+(`execution_engine/new_payload.py`, functions of the same names) -/
+
+/-- `is_valid_block_hash`: the payload's `block_hash` is
+    `keccak256(rlp.encode(header))` of the implied header; any failure
+    building the header is `False`. -/
+def is_valid_block_hash (payload : ExecutionPayload)
+    (parent_beacon_block_root : Root)
+    (execution_requests : ExecutionRequests) : Bool :=
+  match _payload_header payload parent_beacon_block_root execution_requests with
+  | .error _ => false
+  | .ok header => headerHash header == payload.blockHash
+
+/-- `is_valid_versioned_hashes`: blob-transaction versioned hashes, in
+    payload order, equal the request's list; any decode failure is
+    `False`. -/
+def is_valid_versioned_hashes (npr : NewPayloadRequest) : Bool :=
+  let computed : Except SpecError (List VersionedHash) :=
+    npr.executionPayload.transactions.foldlM (init := []) (fun acc encoded_tx => do
+      match ← decode_transaction encoded_tx with
+      | .blob tx => pure (acc ++ tx.blobVersionedHashes)
+      | _ => pure acc)
+  match computed with
+  | .error _ => false
+  | .ok hashes => hashes == npr.versionedHashes
+
+/-! ## `fork.py` pre-execution frame -/
+
+/-- `MAX_RLP_BLOCK_SIZE = MAX_BLOCK_SIZE - SAFETY_MARGIN` (`fork.py`,
+    constant `MAX_RLP_BLOCK_SIZE`). -/
+def MAX_RLP_BLOCK_SIZE : Nat := 10485760 - 2097152
+
+/-- `check_gas_limit(gas_limit, parent_gas_limit)` (`fork.py`, function
+    `check_gas_limit`). -/
+def check_gas_limit (gas_limit parent_gas_limit : Uint) : Bool :=
+  let max_adjustment_delta := parent_gas_limit / GasCosts.LIMIT_ADJUSTMENT_FACTOR
+  if gas_limit ≥ parent_gas_limit + max_adjustment_delta then false
+  else if gas_limit + max_adjustment_delta ≤ parent_gas_limit then false
+  else if gas_limit < GasCosts.LIMIT_MINIMUM then false
+  else true
+
+/-- `calculate_base_fee_per_gas(...)` (`fork.py`, function
+    `calculate_base_fee_per_gas`).  The gas-limit check failure is the
+    Python `InvalidBlock` raise. -/
+def calculate_base_fee_per_gas (block_gas_limit parent_gas_limit
+    parent_gas_used parent_base_fee_per_gas : Uint) : Except SpecError Uint := do
+  let parent_gas_target := parent_gas_limit / 2  -- ELASTICITY_MULTIPLIER
+  if !check_gas_limit block_gas_limit parent_gas_limit then
+    throw (.invalidBlock "gas limit out of bounds")
+  if parent_gas_used == parent_gas_target then
+    pure parent_base_fee_per_gas
+  else if parent_gas_used > parent_gas_target then
+    let gas_used_delta := parent_gas_used - parent_gas_target
+    let parent_fee_gas_delta := parent_base_fee_per_gas * gas_used_delta
+    let target_fee_gas_delta := parent_fee_gas_delta / parent_gas_target
+    let base_fee_per_gas_delta := max (target_fee_gas_delta / 8) 1
+    pure (parent_base_fee_per_gas + base_fee_per_gas_delta)
+  else
+    let gas_used_delta := parent_gas_target - parent_gas_used
+    let parent_fee_gas_delta := parent_base_fee_per_gas * gas_used_delta
+    let target_fee_gas_delta := parent_fee_gas_delta / parent_gas_target
+    let base_fee_per_gas_delta := target_fee_gas_delta / 8
+    pure (parent_base_fee_per_gas - base_fee_per_gas_delta)
+
+/-- `validate_header(parent_header, header)` (`fork.py`, function
+    `validate_header`): every failed check is an `InvalidBlock`. -/
+def validate_header (parent_header header : Header) :
+    Except SpecError Unit := do
+  if header.number < 1 then throw (.invalidBlock "block number < 1")
+  let excess_blob_gas ← calculate_excess_blob_gas parent_header
+  if header.excessBlobGas ≠ excess_blob_gas then
+    throw (.invalidBlock "excess blob gas mismatch")
+  if header.gasUsed > header.gasLimit then
+    throw (.invalidBlock "gas used exceeds limit")
+  let expected_base_fee ← calculate_base_fee_per_gas header.gasLimit
+    parent_header.gasLimit parent_header.gasUsed parent_header.baseFeePerGas
+  if expected_base_fee ≠ header.baseFeePerGas then
+    throw (.invalidBlock "base fee mismatch")
+  if header.timestamp ≤ parent_header.timestamp then
+    throw (.invalidBlock "timestamp not after parent")
+  if header.number ≠ parent_header.number + 1 then
+    throw (.invalidBlock "block number not parent + 1")
+  if header.extraData.length > 32 then
+    throw (.invalidBlock "extra data too long")
+  if header.difficulty ≠ 0 then throw (.invalidBlock "difficulty nonzero")
+  if header.nonce ≠ List.replicate 8 0x00 then
+    throw (.invalidBlock "nonce nonzero")
+  if header.ommersHash ≠ EMPTY_OMMER_HASH then
+    throw (.invalidBlock "ommers hash not empty")
+  if header.parentHash ≠ headerHash parent_header then
+    throw (.invalidBlock "parent hash mismatch")
+
+/-! ## The partial seam -/
+
+/-- The pre-check prefix of `execute_new_payload_request`
+    (`new_payload.py`) + `execute_block`'s pre-execution frame
+    (`fork.py`) + root-anchored witness authentication, with
+    `apply_body` and the post-execution checks still stubbed to accept
+    (sound-for-accepts; see the header). -/
+def executeSeamShell : ExecutionSeam := fun input => do
+  let npr := input.newPayloadRequest
+  let payload := npr.executionPayload
+  -- execute_new_payload_request pre-checks
+  if payload.transactions.any (·.isEmpty) then
+    throw (.invalidBlock "Empty transaction in payload")
+  if !is_valid_block_hash payload npr.parentBeaconBlockRoot npr.executionRequests then
+    throw (.invalidBlock "Invalid block hash")
+  if !is_valid_versioned_hashes npr then
+    throw (.invalidBlock "Invalid versioned hashes")
+  let block ← _payload_block payload npr.parentBeaconBlockRoot npr.executionRequests
+  -- execute_block pre-execution frame
+  if (encS (blockToRlpItem block)).length > MAX_RLP_BLOCK_SIZE then
+    throw (.invalidBlock "Block rlp size exceeds MAX_RLP_BLOCK_SIZE")
+  if input.transactionPublicKeys.length ≠ block.transactions.length then
+    throw (.invalidBlock "Transaction public key count mismatch")
+  validate_header input.chainContext.parentHeader block.header
+  if !block.ommers.isEmpty then throw (.invalidBlock "ommers not empty")
+  -- Root-anchored witness authentication (obligation #7): the accepting
+  -- path always decodes the state trie from the witness.
+  let _ ← decode_witness_to_mpt input.preState.nodeDb input.preState.stateRoot
+  -- apply_body + post-execution root checks: Stack C (s1d19.5).
+  pure ()
+
+/-! ## Sanity checks -/
+
+-- compute_requests_hash: empty list = sha256("") vector; a two-blob
+-- sample matches the Python spec.
+#guard bytesBEtoNat (compute_requests_hash [])
+  == 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+#guard bytesBEtoNat (compute_requests_hash
+    [0x00 :: List.replicate 192 0x11, 0x01 :: List.replicate 76 0x22])
+  == 0xb4930207a285f011d2c070d9e18d2691eac3054b5c2bed5cbe2690b175e1d694
+
+-- encode_execution_requests: empty container → no blobs; a single
+-- withdrawal request gets the 0x01 type byte and 76-byte body.
+#guard encode_execution_requests { deposits := [], withdrawals := [], consolidations := [] } == []
+#guard
+  let w : WithdrawalRequest :=
+    { sourceAddress := List.replicate 20 0xAA,
+      validatorPubkey := List.replicate 48 0xBB, amount := 5 }
+  encode_execution_requests { deposits := [], withdrawals := [w], consolidations := [] }
+    == [0x01 :: (List.replicate 20 0xAA ++ List.replicate 48 0xBB
+          ++ [0x05, 0, 0, 0, 0, 0, 0, 0])]
+
+-- check_gas_limit boundaries.
+-- max_adjustment_delta = 30000000/1024 = 29296: strict bounds both sides.
+#guard check_gas_limit 30000000 30000000 == true
+#guard check_gas_limit (30000000 + 29295) 30000000 == true
+#guard check_gas_limit (30000000 + 29296) 30000000 == false
+#guard check_gas_limit (30000000 - 29296) 30000000 == false
+#guard check_gas_limit (30000000 - 29295) 30000000 == true
+#guard check_gas_limit 4999 30000000 == false
+
+-- calculate_base_fee_per_gas: at target → unchanged; full blocks → +12.5%.
+#guard (calculate_base_fee_per_gas 30000000 30000000 15000000 1000000000).toOption
+  == some 1000000000
+#guard (calculate_base_fee_per_gas 30000000 30000000 30000000 1000000000).toOption
+  == some 1125000000
+#guard (calculate_base_fee_per_gas 30000000 30000000 0 1000000000).toOption
+  == some 875000000
+
+end EvmAsm.Stateless.SpecRef

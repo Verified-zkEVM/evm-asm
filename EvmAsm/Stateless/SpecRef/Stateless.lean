@@ -30,7 +30,7 @@
 -/
 
 import EvmAsm.Stateless.SpecRef.Ssz
-import EvmAsm.Stateless.SpecRef.WitnessReads
+import EvmAsm.Stateless.SpecRef.SeamShell
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -137,38 +137,22 @@ def validate_chain_config (chain_config : ChainConfig) (npr : NewPayloadRequest)
     throw (.unsupportedForkConfig "blob_schedule does not match Amsterdam")
   pure active_fork
 
-/-! ## The execution seam -/
+/-! ## The execution seam
 
-/-- `ChainContext(chain_id, block_hashes, parent_header)` (`fork.py`). -/
-structure ChainContext where
-  chainId : U64
-  blockHashes : List Hash32
-  parentHeader : Header
-  deriving Repr
-
-/-- The exact argument bundle passed to `execute_new_payload_request`
-    (`stateless.py:378`). -/
-structure ExecutionSeamInput where
-  newPayloadRequest : NewPayloadRequest
-  preState : WitnessPreState
-  chainContext : ChainContext
-  transactionPublicKeys : List Bytes
-
-/-- The execution engine, abstracted at the seam. `ok ()` mirrors Python
-    returning normally; `error _` mirrors any raised exception. -/
-abbrev ExecutionSeam := ExecutionSeamInput → Except SpecError Unit
-
-/-- Placeholder seam that accepts every payload, so the shell runs under
-    `#eval`. NOT a validation claim — the real engine is supplied by the
-    `.8` design session. -/
-def executeAlwaysOk : ExecutionSeam := fun _ => .ok ()
+The seam interface (`ChainContext`, `ExecutionSeamInput`,
+`ExecutionSeam`, `executeAlwaysOk`) lives in `Seam.lean`; the default
+below is the `s1d19.3` partial seam `executeSeamShell`
+(`SeamShell.lean`): the `execute_new_payload_request` pre-checks +
+`execute_block`'s pre-execution frame + root-anchored witness
+authentication, with `apply_body` still stubbed to accept
+(sound-for-accepts, scope doc §3). -/
 
 /-! ## `verify_stateless_new_payload` (`stateless.py:344`) -/
 
 /-- Statelessly validate the execution payload. Every exception the Python
     `try` would catch is folded into `successful_validation = false`. -/
 def verify_stateless_new_payload (si : StatelessInput)
-    (execute : ExecutionSeam := executeAlwaysOk) : StatelessValidationResult :=
+    (execute : ExecutionSeam := executeSeamShell) : StatelessValidationResult :=
   let new_payload_request_root := compute_new_payload_request_root si
   let witness := si.witness
   let attempt : Except SpecError Unit := do

@@ -4241,9 +4241,19 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   spec run on the submodule) and `WitnessStateRoot.lean` ports
   `compute_state_root_and_trie_changes` with the v0.5.0
   `storage_clears` parameter (`_storage_root_cache` threaded explicitly
-  — it is observable there). Next: `.3` seam shell, `.5` EVM core
-  (maintainer green-light given: full pure port), `.6`
-  `eest-specref-check` succ gate (baseline 974/25,474 divergences).
+  — it is observable there). Fourth increment (`s1d19.3`): the seam
+  shell — `Seam.lean` (interface types moved from `Stateless.lean`),
+  `Transactions.lean` (envelope decode, strict `rlp.decode_to`
+  semantics), `Gas.lean` (blob-gas/gas-limit slice incl.
+  `taylor_exponential`), `BlocksRlp.lean` (header/block/withdrawal
+  encode), `SeamShell.lean` (`execute_new_payload_request` pre-checks,
+  `_payload_header`/`_payload_block`, `compute_requests_hash`,
+  `validate_header`/`calculate_base_fee_per_gas`, `MAX_RLP_BLOCK_SIZE`,
+  root-anchored witness authentication) — wired as the DEFAULT partial
+  seam (`executeSeamShell`, sound-for-accepts). EEST sample: 300/300
+  root+tail, 0 false-rejects. Next: `.5` EVM core (maintainer
+  green-light given: full pure port), `.6` `eest-specref-check` succ
+  gate (baseline 974/25,474 divergences).
 
 ### Cross-references
 

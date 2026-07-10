@@ -182,8 +182,13 @@ cache-free over the `.1` decoder); `.4` landed
 (`IncrementalMptWrite.lean` — the full `incremental_mpt.py` write side —
 and `WitnessStateRoot.lean` — `compute_state_root_and_trie_changes`
 with `storage_clears`, obligation #8; roots cross-checked against the
-Python spec). The `.5` maintainer decision is **resolved**: proceed
-with the full pure port (see the bead comment on `s1d19.5`).
+Python spec); `.3` landed (`Seam.lean`/`Transactions.lean`/`Gas.lean`/
+`BlocksRlp.lean`/`SeamShell.lean` — the `execute_new_payload_request`
+pre-checks + `execute_block` pre-execution frame + root-anchored
+witness authentication, wired as the default partial seam
+`executeSeamShell` per §3). The `.5` maintainer decision is
+**resolved**: proceed with the full pure port (see the bead comment on
+`s1d19.5`).
 
 ### Maintainer checkpoint (STOP-and-report, per the bead — since resolved)
 
