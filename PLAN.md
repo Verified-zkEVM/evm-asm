@@ -376,6 +376,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `LogDataGasSAsm.lean` verifies `log_data_gas` as a byte-identical
   straight-line leaf (`logDataGasFn_spec`, post `a0 = topics * 375 + 375 +
   dataBytes * 8` with exact RV64 wrapping semantics).
+  `InitCodeCostSAsm.lean` verifies `init_code_cost` byte-identically with a
+  writable dword post (`a0 = 0`, output `= gasPerWord * ((len + 31) >> 5)`
+  under exact RV64 wrapping semantics).
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
