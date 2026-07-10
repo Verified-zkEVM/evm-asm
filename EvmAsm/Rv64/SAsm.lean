@@ -61,6 +61,7 @@ import EvmAsm.Rv64.SAsm.TwoBreakWritable
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.MultiRegRetTail
 import EvmAsm.Rv64.SAsm.ContForwardJoin
+import EvmAsm.Rv64.SAsm.TriCmpStoreJoin
 import EvmAsm.Rv64.SAsm.FnFlatAmbientDemo
 import EvmAsm.Rv64.SAsm.AccumLoop
 import EvmAsm.Rv64.SAsm.ZeroPadLoop
