@@ -367,6 +367,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
   `callExtraGas_prog`, after converting the raw asm string to a `Program`
   rendered by `emitProgram`.
+  `LogDataGasSAsm.lean` verifies `log_data_gas` as a byte-identical
+  straight-line leaf (`logDataGasFn_spec`, post `a0 = topics * 375 + 375 +
+  dataBytes * 8` with exact RV64 wrapping semantics).
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
