@@ -373,6 +373,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   the writable destination receives its high then low nibble, and `a0` returns
   exactly twice the input length. The proof uses a two-byte window splice and
   a named one-iteration execution/VC engine.
+  `NibblesCommonPrefixLenSAsm.lean` verifies the byte-identical
+  `nibbles_common_prefix_len` leaf (`nibblesCommonPrefixLenFn_spec`): it scans
+  two read-only nibble prefixes up to the smaller caller-supplied length,
+  stores their exact first-difference index as a u64, and returns status zero.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
