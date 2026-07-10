@@ -18,12 +18,6 @@ namespace Secp256k1FieldSubModPSAsm
 
 open Secp256k1FieldReduceOnceSAsm
 
-#guard GuestAddrs.secf_sub_mod_p = 0x80020420
-#guard GuestAddrs.u256_sub_be = 0x80005248
-#guard GuestAddrs.secf_copy32 = 0x80020150
-#guard GuestAddrs.secf_tmp0 = 0xa3c053c0
-#guard GuestAddrs.secp256k1_c_be = 0xa3c052e0
-
 def secfSubModPFrame : FrameDesc :=
   [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
 

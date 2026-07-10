@@ -11,10 +11,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace DispatcherCaptureExecStateGasSAsm
 
-#guard GuestAddrs.dispatcher_capture_exec_state_gas = 0x8002a6b4
-#guard GuestAddrs.evm_state_gas_used = 0xbb572b90
-#guard GuestAddrs.bvgr_tx_exec_state_gas = 0xaa25dbc8
-
 def captureBody : List Instr := dispatcherCaptureExecStateGas_prog.dropLast
 
 theorem capture_byte_tie :
