@@ -3156,6 +3156,31 @@ consumed by both stations).  `message_call_gas` has no GuestAddrs anchor
 `messageCallGas_prog` — byte-transparent, no A/B, consumable wherever a
 closure links it.  Completes the shared-return-tail family (single-reg
 #10041, store #10067, multi-reg + branch-over here).  Classical-3.
+**Overnight framework stack landed** (2026-07-10, five stacked PRs
+#10075→#10076→#10077→#10080→#10082; beads 4ch8f.33.2, l0w4a, pr5lu,
+db2jq, 8tw0t — the 4ch8f.76 porting-agent worklist).  All at
+`cpsTripleWithin` level, additive, classical-3, byte-transparent at
+`#guard`-tied addresses: **ContForwardJoin** (`contJoinStation_spec` —
+the plain forward-join to a shared continuation; the station exit was
+never return-specific — + `cpsTripleWithin_stay`) with consumer
+`check_gas_limit` (`cglStatus` post: 5000-minimum / parent>>>10
+elasticity / status 2); **`Fn.retSpecFlatAmbient`** in `FnFlat.lean`
+(multi-read callees flatten with an arbitrary FIXED pc-free ambient;
+witness `FnFlatAmbientDemo.multiReadFlat_spec` over `multiReadFn`);
+**AccumLoop** (`retLoop_spec` single-exit countdown, `xorAcc`
+accumulator with the `xorAcc_eq_zero_iff_bytes_eq` result bridge,
+`bytesRegion_ld_cursor_within`) with consumer `bloom_eq` (out dword =
+genuine 256-byte equality, invariant pure-conjunct-free);
+**ZeroPadLoop** (`zeroPadLoop_spec` — the sb/addi/addi/bne byte-zeroing
+countdown once, post `replicate N 0` — plus the documented
+nested-loop-in-count-up template) with consumer `blsk_g2_wire`
+(`abiFrameProg` rfl tie at the LIVE addresses; each 64-byte record =
+zero pad ++ `blsgLeToBeBytes`; callee adapter-derived); and
+**`rlp_list_encoded_size`** WITHOUT the requested retSound split
+lemmas — the payload-dependent `while` is `twoBreakRetLoop_spec` at
+`N := u64ByteLen v`, with the new `u64ByteLen` +
+`u64ByteLen_shift_zero`/`_ne` bridges as the long-tail extraction; post
+`a0 = (if v <u 56 then v + 1 else v + u64ByteLen v + 1)`.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
