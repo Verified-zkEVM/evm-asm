@@ -718,8 +718,9 @@ def callDescendFallThrough
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- new-account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
     "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
-    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  sub t3, t0, t2\n" ++
     "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+    "  sd x0, 0(t1)\n" ++
     "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
     "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
     "  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
@@ -916,14 +917,15 @@ def callDescendFallThrough
   -- (`evm.gas_left += message_call_gas.sub_call`), so the NET regular consumed for the value
   -- transfer is 10300 - 2300 = 8000 (access is already charged via runtime_access_account_charge
   -- before the gate; the value!=0 gate guard guarantees value>0 here so the 8000 is
-  -- unconditional). Without it the reconstructed block_regular_gas under-counts by 8000 ->
-  -- header.gas_used appears to over-claim -> .Lbv_block_gas_used_over_fail (bv_fail=41:
-  -- failed_inner_operation_no_log call_insufficient_balance). The spec's prior
-  -- charge_gas(extra_gas) would have OOG'd if gas_left < 8000, so bailing to .exit_outofgas
-  -- matches the spec. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
+  -- unconditional). Charge the full 10300 before the duplicated NEW_ACCOUNT state-gas
+  -- check below, then return the 2300 stipend only after that check survives; this matches
+  -- execution-specs' order (`charge_gas(extra_gas)`, `charge_state_gas`, then the
+  -- insufficient-balance branch returns `message_call_gas.sub_call`). Without that order a
+  -- one-gas-short state charge can incorrectly survive because the stipend was returned too
+  -- early. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
-     "  li t0, 8000\n" ++
+     "  li t0, 10300\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      -- bbow4.2.2 (bv41): the NEW_ACCOUNT state-gas charge (nxio8.8, below) lives in the
@@ -981,8 +983,9 @@ def callDescendFallThrough
        liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- NEW_ACCOUNT state gas = 120*1530 = 183600
        "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
        "  bgeu t2, t0, .Lcd_ibnacc_res_" ++ tag ++ "\n" ++
-       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+       "  sub t3, t0, t2\n" ++
        "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+       "  sd x0, 0(t1)\n" ++
        "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
        "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
        "  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
@@ -992,6 +995,8 @@ def callDescendFallThrough
        "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
        refundNewAccountStateGas "ib" ++
        ".Lcd_ibnacc_done_" ++ tag ++ ":\n") ++
+     "  li t0, 2300\n" ++
+     "  ld t1, 568(x20)\n  add t1, t1, t0\n  sd t1, 568(x20)\n" ++
      "  j .Lcd_fail_" ++ tag ++ "\n"
    else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1

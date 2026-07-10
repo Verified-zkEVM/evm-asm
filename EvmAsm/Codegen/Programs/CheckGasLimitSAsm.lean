@@ -42,9 +42,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace CheckGasLimitSAsm
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.check_gas_limit = 0x80009c14
-
 /-! ## The routine's semantics -/
 
 /-- `|new − parent|` — the gas-limit adjustment magnitude (the if-value

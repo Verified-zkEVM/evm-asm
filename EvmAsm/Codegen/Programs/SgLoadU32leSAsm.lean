@@ -69,6 +69,20 @@ def sgLoadU32le_verified : Program :=
 #guard (sgLoadU32le_verified : List Instr).length = 11
 #guard sgLoadU32leBody.flatten 0 = sgLoadU32leBody.flatten 0x80000000
 
+/-- The complete verified routine, including its leaf `ret`.  This is the
+    program consumed by `StatelessGuestEpilogue` so the emitted guest and the
+    proved body cannot drift independently. -/
+def sgLoadU32le_prog : Program :=
+  sgLoadU32leBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+
+/-- Kernel correspondence between the structured body and emitted routine. -/
+theorem sgLoadU32le_body_eq_prog :
+    sgLoadU32leBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = sgLoadU32le_prog := by
+  rfl
+
+#guard sgLoadU32le_prog.length = 12
+
 /-- Engine lemma (own heartbeat budget): stepping the four byte loads leaves
     `a0` holding the little-endian u32 assembled from `reg`'s first 4 bytes. -/
 private theorem sgLoadU32le_engine (reg : Region) (rwb : Word) (rf : RegFile)
@@ -118,6 +132,8 @@ theorem sgLoadU32leFn_spec (p : Word) (bs : List (BitVec 8))
     show RegFile.get _ .x10 = leU32 bs 0
     exact sgLoadU32le_engine (sgLoadU32leFn p bs).region
       (sgLoadU32leFn p bs).rw.base rf₀ hx10
+
+#print axioms sgLoadU32leFn_spec
 
 end SgLoadU32leSAsm
 
