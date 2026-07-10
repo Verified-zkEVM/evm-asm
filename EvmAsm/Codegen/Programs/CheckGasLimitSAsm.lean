@@ -65,15 +65,15 @@ def cglStatus (nl pl : Word) : Word :=
     `a0 = cglStatus new parent`, the parent input untouched. -/
 theorem checkGasLimit_spec (nl pl ret : Word)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 10 (0x80009c14 : Word) ret
-      (CodeReq.ofProg (0x80009c14 : Word) checkGasLimit_prog)
+    cpsTripleWithin 10 (GuestAddrs.check_gas_limit : Word) ret
+      (CodeReq.ofProg (GuestAddrs.check_gas_limit : Word) checkGasLimit_prog)
       (((.x10 : Reg) ↦ᵣ nl) ** ((.x11 : Reg) ↦ᵣ pl) **
         ((.x1 : Reg) ↦ᵣ ret) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7)
       (((.x10 : Reg) ↦ᵣ cglStatus nl pl) ** ((.x11 : Reg) ↦ᵣ pl) **
         ((.x1 : Reg) ↦ᵣ ret) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
-  set CR := CodeReq.ofProg (0x80009c14 : Word) checkGasLimit_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.check_gas_limit : Word) checkGasLimit_prog with hCR
   -- peel the scratch registers
   refine cpsTripleWithin_weaken
     (fun h hp => by
@@ -87,21 +87,21 @@ theorem checkGasLimit_spec (nl pl ret : Word)
   simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
   -- ---- materialize GAS_LIMIT_MINIMUM = 5000 ----
   have hlui := liftCode (cr' := CR)
-    (lui_spec_gen_within .x5 (vf .x5) (1 : BitVec 20) (0x80009c14 : Word)
+    (lui_spec_gen_within .x5 (vf .x5) (1 : BitVec 20) (GuestAddrs.check_gas_limit : Word)
       (by decide))
     (by rw [hCR]; code_mem)
   rw [show ((((1 : BitVec 20).zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
         : Word) = (4096 : Word) from by decide,
-      show (0x80009c14 : Word) + 4 = (0x80009c18 : Word) from by decide]
+      show (GuestAddrs.check_gas_limit : Word) + 4 = ((GuestAddrs.check_gas_limit + 4) : Word) from by decide]
     at hlui
   have haddiw := liftCode (cr' := CR)
     (addiw_spec_gen_same_within .x5 (4096 : Word) (904 : BitVec 12)
-      (0x80009c18 : Word) (by decide))
+      ((GuestAddrs.check_gas_limit + 4) : Word) (by decide))
     (by rw [hCR]; code_mem)
   rw [show ((((4096 : Word).truncate 32 : BitVec 32)
           + ((signExtend12 (904 : BitVec 12)).truncate 32 : BitVec 32)
           : BitVec 32).signExtend 64 : Word) = (5000 : Word) from by decide,
-      show (0x80009c18 : Word) + 4 = (0x80009c1c : Word) from by decide]
+      show ((GuestAddrs.check_gas_limit + 4) : Word) + 4 = ((GuestAddrs.check_gas_limit + 8) : Word) from by decide]
     at haddiw
   -- ---- the minimum guard (BLTU a0, t0 at +8) ----
   have hbrMin := cpsBranchWithin_frameR
@@ -110,15 +110,15 @@ theorem checkGasLimit_spec (nl pl ret : Word)
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := bltu_spec_gen_within .x10 .x5 (36 : BitVec 13) nl (5000 : Word)
-        (0x80009c1c : Word))
+        ((GuestAddrs.check_gas_limit + 8) : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80009c1c : Word) + signExtend13 (36 : BitVec 13)
-        = (0x80009c40 : Word) from by decide,
-      show (0x80009c1c : Word) + 4 = (0x80009c20 : Word) from by decide]
+  rw [show ((GuestAddrs.check_gas_limit + 8) : Word) + signExtend13 (36 : BitVec 13)
+        = ((GuestAddrs.check_gas_limit + 44) : Word) from by decide,
+      show ((GuestAddrs.check_gas_limit + 8) : Word) + 4 = ((GuestAddrs.check_gas_limit + 12) : Word) from by decide]
     at hbrMin
   -- ---- tail 1 (status 1) ----
   have htail1 : BitVec.ult nl (5000 : Word) →
-      cpsTripleWithin 7 (0x80009c40 : Word) ret CR
+      cpsTripleWithin 7 ((GuestAddrs.check_gas_limit + 44) : Word) ret CR
         (((.x10 : Reg) ↦ᵣ nl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
           (((.x11 : Reg) ↦ᵣ pl) ** ((.x1 : Reg) ↦ᵣ ret) **
             ((.x6 : Reg) ↦ᵣ vf .x6) ** ((.x7 : Reg) ↦ᵣ vf .x7)))
@@ -126,7 +126,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
           ((.x1 : Reg) ↦ᵣ ret) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
     intro h1
-    have h := sharedRetTail_spec CR (0x80009c40 : Word) ret .x10 (1 : Word)
+    have h := sharedRetTail_spec CR ((GuestAddrs.check_gas_limit + 44) : Word) ret .x10 (1 : Word)
       nl
       (((.x11 : Reg) ↦ᵣ pl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
         ((.x6 : Reg) ↦ᵣ vf .x6) ** ((.x7 : Reg) ↦ᵣ vf .x7))
@@ -149,7 +149,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
     xperm_hyp hq2
   -- ---- fall: srli ; abs-delta join ; BGEU cascade ----
   have hfallMin : ¬ BitVec.ult nl (5000 : Word) →
-      cpsTripleWithin 7 (0x80009c20 : Word) ret CR
+      cpsTripleWithin 7 ((GuestAddrs.check_gas_limit + 12) : Word) ret CR
         (((.x10 : Reg) ↦ᵣ nl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
           (((.x11 : Reg) ↦ᵣ pl) ** ((.x1 : Reg) ↦ᵣ ret) **
             ((.x6 : Reg) ↦ᵣ vf .x6) ** ((.x7 : Reg) ↦ᵣ vf .x7)))
@@ -160,10 +160,10 @@ theorem checkGasLimit_spec (nl pl ret : Word)
     -- srli t1, a1, 10
     have hsrli := liftCode (cr' := CR)
       (srli_spec_gen_within .x6 .x11 (vf .x6) pl (10 : BitVec 6)
-        (0x80009c20 : Word) (by decide))
+        ((GuestAddrs.check_gas_limit + 12) : Word) (by decide))
       (by rw [hCR]; code_mem)
     rw [show ((10 : BitVec 6)).toNat = 10 from rfl,
-        show (0x80009c20 : Word) + 4 = (0x80009c24 : Word) from by decide]
+        show ((GuestAddrs.check_gas_limit + 12) : Word) + 4 = ((GuestAddrs.check_gas_limit + 16) : Word) from by decide]
       at hsrli
     have hsrliF := cpsTripleWithin_frameR
       (((.x10 : Reg) ↦ᵣ nl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
@@ -176,15 +176,15 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       (by pcf)
       (cpsBranchWithin_extend_code (cr' := CR)
         (h := bltu_spec_gen_within .x11 .x10 (12 : BitVec 13) pl nl
-          (0x80009c24 : Word))
+          ((GuestAddrs.check_gas_limit + 16) : Word))
         (hmono := by rw [hCR]; code_mem))
-    rw [show (0x80009c24 : Word) + signExtend13 (12 : BitVec 13)
-          = (0x80009c30 : Word) from by decide,
-        show (0x80009c24 : Word) + 4 = (0x80009c28 : Word) from by decide]
+    rw [show ((GuestAddrs.check_gas_limit + 16) : Word) + signExtend13 (12 : BitVec 13)
+          = ((GuestAddrs.check_gas_limit + 28) : Word) from by decide,
+        show ((GuestAddrs.check_gas_limit + 16) : Word) + 4 = ((GuestAddrs.check_gas_limit + 20) : Word) from by decide]
       at hbrAbs
     -- grow arm: sub t2, a0, a1 (falls into the join)
     have hgrow : BitVec.ult pl nl →
-        cpsTripleWithin 2 (0x80009c30 : Word) (0x80009c34 : Word) CR
+        cpsTripleWithin 2 ((GuestAddrs.check_gas_limit + 28) : Word) ((GuestAddrs.check_gas_limit + 32) : Word) CR
           (((.x10 : Reg) ↦ᵣ nl) ** ((.x11 : Reg) ↦ᵣ pl) **
             (((.x5 : Reg) ↦ᵣ (5000 : Word)) **
               ((.x6 : Reg) ↦ᵣ (pl >>> 10)) ** ((.x7 : Reg) ↦ᵣ vf .x7) **
@@ -196,9 +196,9 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       intro hc
       have hsub := liftCode (cr' := CR)
         (sub_spec_gen_within .x7 .x10 .x11 nl pl (vf .x7)
-          (0x80009c30 : Word) (by decide))
+          ((GuestAddrs.check_gas_limit + 28) : Word) (by decide))
         (by rw [hCR]; code_mem)
-      rw [show (0x80009c30 : Word) + 4 = (0x80009c34 : Word) from by decide]
+      rw [show ((GuestAddrs.check_gas_limit + 28) : Word) + 4 = ((GuestAddrs.check_gas_limit + 32) : Word) from by decide]
         at hsub
       have hsubF := cpsTripleWithin_frameR
         (((.x5 : Reg) ↦ᵣ (5000 : Word)) ** ((.x6 : Reg) ↦ᵣ (pl >>> 10)) **
@@ -212,7 +212,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       xperm_hyp hq
     -- shrink arm: sub t2, a1, a0 ; j .join
     have hshrink : ¬ BitVec.ult pl nl →
-        cpsTripleWithin 2 (0x80009c28 : Word) (0x80009c34 : Word) CR
+        cpsTripleWithin 2 ((GuestAddrs.check_gas_limit + 20) : Word) ((GuestAddrs.check_gas_limit + 32) : Word) CR
           (((.x10 : Reg) ↦ᵣ nl) ** ((.x11 : Reg) ↦ᵣ pl) **
             (((.x5 : Reg) ↦ᵣ (5000 : Word)) **
               ((.x6 : Reg) ↦ᵣ (pl >>> 10)) ** ((.x7 : Reg) ↦ᵣ vf .x7) **
@@ -224,15 +224,15 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       intro hnc
       have hsub := liftCode (cr' := CR)
         (sub_spec_gen_within .x7 .x11 .x10 pl nl (vf .x7)
-          (0x80009c28 : Word) (by decide))
+          ((GuestAddrs.check_gas_limit + 20) : Word) (by decide))
         (by rw [hCR]; code_mem)
-      rw [show (0x80009c28 : Word) + 4 = (0x80009c2c : Word) from by decide]
+      rw [show ((GuestAddrs.check_gas_limit + 20) : Word) + 4 = ((GuestAddrs.check_gas_limit + 24) : Word) from by decide]
         at hsub
       have hjal := liftCode (cr' := CR)
-        (jal_x0_spec_gen_within (8 : BitVec 21) (0x80009c2c : Word))
+        (jal_x0_spec_gen_within (8 : BitVec 21) ((GuestAddrs.check_gas_limit + 24) : Word))
         (by rw [hCR]; code_mem)
-      rw [show (0x80009c2c : Word) + signExtend21 (8 : BitVec 21)
-        = (0x80009c34 : Word) from by decide] at hjal
+      rw [show ((GuestAddrs.check_gas_limit + 24) : Word) + signExtend21 (8 : BitVec 21)
+        = ((GuestAddrs.check_gas_limit + 32) : Word) from by decide] at hjal
       have hsubF := cpsTripleWithin_frameR
         (((.x5 : Reg) ↦ᵣ (5000 : Word)) ** ((.x6 : Reg) ↦ᵣ (pl >>> 10)) **
           ((.x1 : Reg) ↦ᵣ ret))
@@ -273,15 +273,15 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       (by pcf)
       (cpsBranchWithin_extend_code (cr' := CR)
         (h := bgeu_spec_gen_within .x7 .x6 (20 : BitVec 13)
-          (cglDelta nl pl) (pl >>> 10) (0x80009c34 : Word))
+          (cglDelta nl pl) (pl >>> 10) ((GuestAddrs.check_gas_limit + 32) : Word))
         (hmono := by rw [hCR]; code_mem))
-    rw [show (0x80009c34 : Word) + signExtend13 (20 : BitVec 13)
-          = (0x80009c48 : Word) from by decide,
-        show (0x80009c34 : Word) + 4 = (0x80009c38 : Word) from by decide]
+    rw [show ((GuestAddrs.check_gas_limit + 32) : Word) + signExtend13 (20 : BitVec 13)
+          = ((GuestAddrs.check_gas_limit + 52) : Word) from by decide,
+        show ((GuestAddrs.check_gas_limit + 32) : Word) + 4 = ((GuestAddrs.check_gas_limit + 36) : Word) from by decide]
       at hbrGe
     -- tail 2 (status 2)
     have htail2 : ¬ BitVec.ult (cglDelta nl pl) (pl >>> 10) →
-        cpsTripleWithin 2 (0x80009c48 : Word) ret CR
+        cpsTripleWithin 2 ((GuestAddrs.check_gas_limit + 52) : Word) ret CR
           (((.x7 : Reg) ↦ᵣ cglDelta nl pl) ** ((.x6 : Reg) ↦ᵣ (pl >>> 10)) **
             (((.x10 : Reg) ↦ᵣ nl) ** ((.x11 : Reg) ↦ᵣ pl) **
               ((.x5 : Reg) ↦ᵣ (5000 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)))
@@ -289,7 +289,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
             ((.x1 : Reg) ↦ᵣ ret) **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
       intro hge
-      have h := sharedRetTail_spec CR (0x80009c48 : Word) ret .x10 (2 : Word)
+      have h := sharedRetTail_spec CR ((GuestAddrs.check_gas_limit + 52) : Word) ret .x10 (2 : Word)
         nl
         (((.x11 : Reg) ↦ᵣ pl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
           ((.x6 : Reg) ↦ᵣ (pl >>> 10)) ** ((.x7 : Reg) ↦ᵣ cglDelta nl pl))
@@ -312,7 +312,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
       xperm_hyp hq2
     -- success tail
     have hsucc : BitVec.ult (cglDelta nl pl) (pl >>> 10) →
-        cpsTripleWithin 2 (0x80009c38 : Word) ret CR
+        cpsTripleWithin 2 ((GuestAddrs.check_gas_limit + 36) : Word) ret CR
           (((.x7 : Reg) ↦ᵣ cglDelta nl pl) ** ((.x6 : Reg) ↦ᵣ (pl >>> 10)) **
             (((.x10 : Reg) ↦ᵣ nl) ** ((.x11 : Reg) ↦ᵣ pl) **
               ((.x5 : Reg) ↦ᵣ (5000 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)))
@@ -320,7 +320,7 @@ theorem checkGasLimit_spec (nl pl ret : Word)
             ((.x1 : Reg) ↦ᵣ ret) **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
       intro hlt
-      have h := sharedRetTail_spec CR (0x80009c38 : Word) ret .x10 (0 : Word)
+      have h := sharedRetTail_spec CR ((GuestAddrs.check_gas_limit + 36) : Word) ret .x10 (0 : Word)
         nl
         (((.x11 : Reg) ↦ᵣ pl) ** ((.x5 : Reg) ↦ᵣ (5000 : Word)) **
           ((.x6 : Reg) ↦ᵣ (pl >>> 10)) ** ((.x7 : Reg) ↦ᵣ cglDelta nl pl))

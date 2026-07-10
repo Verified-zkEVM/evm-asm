@@ -106,8 +106,8 @@ theorem wireProg_eq :
 /-- The verification `CodeReq`: the caller at its guest address plus the
     callee at its guest address. -/
 def wireCr : CodeReq :=
-  (CodeReq.ofProg (0x80032da4 : Word) blskG2Wire_prog).union
-    (CodeReq.ofProg (0x8002f648 : Word) blsgLeToBe_prog)
+  (CodeReq.ofProg (GuestAddrs.blsk_g2_wire : Word) blskG2Wire_prog).union
+    (CodeReq.ofProg (GuestAddrs.blsg_le_to_be : Word) blsgLeToBe_prog)
 
 -- ============================================================================
 -- Word helpers.
@@ -193,7 +193,7 @@ theorem blsgLeToBeWireFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8)
     (hdisj : srci.toNat + 48 ≤ dsti.toNat ∨ dsti.toNat + 48 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((blsgLeToBeFn srci dsti inb ob).body.steps + 1)
-      (0x8002f648 : Word) ret wireCr
+      (GuestAddrs.blsg_le_to_be : Word) ret wireCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns leScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
@@ -204,8 +204,8 @@ theorem blsgLeToBeWireFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8)
         ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun vf => ?_))
   have had := Fn.retSpecFlat (blsgLeToBeFn srci dsti inb ob)
-    (0x8002f648 : Word)
-    (blsgLeToBeFn_spec srci dsti inb ob hwfR hwfW hilen (0x8002f648 : Word))
+    (GuestAddrs.blsg_le_to_be : Word)
+    (blsgLeToBeFn_spec srci dsti inb ob hwfR hwfW hilen (GuestAddrs.blsg_le_to_be : Word))
     (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
     ob
@@ -227,7 +227,7 @@ theorem blsgLeToBeWireFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8)
       rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
       exact sepConj_mono_left
         (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
-  rw [show (blsgLeToBeFn srci dsti inb ob).programRet (0x8002f648 : Word)
+  rw [show (blsgLeToBeFn srci dsti inb ob).programRet (GuestAddrs.blsg_le_to_be : Word)
       = blsgLeToBe_prog from rfl] at had
   have hadC := liftCode (cr' := wireCr) had (by code_mem)
   rw [show (blsgLeToBeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
@@ -285,7 +285,7 @@ variable (p0 p1 p2 p3 o0 o1 o2 o3 : List (BitVec 8))
     (zero pad, big-endian encoding); the rest hold their original
     contents; the input chunks ride unchanged. -/
 def wireInv (i : Nat) : Assertion :=
-  (if i = 0 then ((.x1 : Reg) ↦ᵣ ret) else ((.x1 : Reg) ↦ᵣ (0x80032e00 : Word)))
+  (if i = 0 then ((.x1 : Reg) ↦ᵣ ret) else ((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92)))
   ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
   ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11
   ** regOwns wireRest
@@ -314,7 +314,7 @@ private theorem pcFree_wireInv (i : Nat) :
   unfold wireInv
   split_ifs <;> pcf
 
-/-- One loop pass at chunk `j` (`0x80032dc4 → 0x80032e08`): pad-cursor
+/-- One loop pass at chunk `j` (the body entry through body exit): pad-cursor
     setup, the NESTED 16-byte zero pad (`zeroPadLoop_spec`), the source /
     record-body address computation, the CALL, counter bump, bound
     reload. -/
@@ -334,7 +334,7 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
     (hpv : ∀ k, k < 16 → isValidMemAddr
       ((dst + BitVec.ofNat 64 (64 * j)) + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 79)
-      (0x80032dc4 : Word) (0x80032e08 : Word) wireCr
+      ((GuestAddrs.blsk_g2_wire : Word) + 32) ((GuestAddrs.blsk_g2_wire : Word) + 100) wireCr
       ((.x18 ↦ᵣ BitVec.ofNat 64 j)
         ** (((.x1 : Reg) ↦ᵣ v1) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
           ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
@@ -344,7 +344,7 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
           ** bytesRegion (dst + BitVec.ofNat 64 (64 * j + 16)) ob
           ** bytesRegion (src + BitVec.ofNat 64 (48 * j)) inb))
       ((.x18 ↦ᵣ BitVec.ofNat 64 (j + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
-        ** (((.x1 : Reg) ↦ᵣ (0x80032e00 : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+        ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
           ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
           ** regOwn .x6 ** regOwn .x7
           ** regOwn .x10 ** regOwn .x11 ** regOwns wireRest
@@ -370,78 +370,78 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
   simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
   -- ---- pad-cursor setup: slli t0, s2, 6 ; add t1, s1, t0 ; li t2, 16 ----
   have hs1 := slli_spec_gen_within .x5 .x18 (vf .x5) (BitVec.ofNat 64 j)
-    (6 : BitVec 6) (0x80032dc4 : Word) (by decide)
+    (6 : BitVec 6) ((GuestAddrs.blsk_g2_wire : Word) + 32) (by decide)
   rw [show ((6 : BitVec 6)).toNat = 6 from rfl,
       ofNat_shl j 6 64 (by norm_num) (by omega),
-      show (0x80032dc4 : Word) + 4 = (0x80032dc8 : Word) from by decide] at hs1
+      show ((GuestAddrs.blsk_g2_wire : Word) + 32) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 36) from by decide] at hs1
   have hs1C := liftCode (cr' := wireCr) hs1 (by code_mem)
   have hs2 := add_spec_gen_within .x6 .x9 .x5 dst (BitVec.ofNat 64 (64 * j))
-    (vf .x6) (0x80032dc8 : Word) (by decide)
-  rw [show (0x80032dc8 : Word) + 4 = (0x80032dcc : Word) from by decide] at hs2
+    (vf .x6) ((GuestAddrs.blsk_g2_wire : Word) + 36) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 36) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 40) from by decide] at hs2
   have hs2C := liftCode (cr' := wireCr) hs2 (by code_mem)
-  have hs3 := li_spec_gen_within .x7 (vf .x7) (16 : Word) (0x80032dcc : Word)
+  have hs3 := li_spec_gen_within .x7 (vf .x7) (16 : Word) ((GuestAddrs.blsk_g2_wire : Word) + 40)
     (by decide)
-  rw [show (0x80032dcc : Word) + 4 = (0x80032dd0 : Word) from by decide,
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 40) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 44) from by decide,
       show (16 : Word) = BitVec.ofNat 64 16 from rfl] at hs3
   have hs3C := liftCode (cr' := wireCr) hs3 (by code_mem)
   -- ---- the NESTED 16-byte zero pad (the reusable lemma) ----
-  have hpad := zeroPadLoop_spec wireCr (0x80032dd0 : Word) .x6 .x7
+  have hpad := zeroPadLoop_spec wireCr ((GuestAddrs.blsk_g2_wire : Word) + 44) .x6 .x7
     (dst + BitVec.ofNat 64 (64 * j)) pb 16 (by decide) (by decide)
     (by omega) hplen halignP (by omega)
     (fun k hk => hpv k hk)
     (by code_mem) (by code_mem) (by code_mem) (by code_mem)
-  rw [show (0x80032dd0 : Word) + 16 = (0x80032de0 : Word) from by decide] at hpad
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 44) + 16 = ((GuestAddrs.blsk_g2_wire : Word) + 60) from by decide] at hpad
   -- ---- source / record-body address computation ----
   have hs4 := slli_spec_gen_within .x5 .x18 (BitVec.ofNat 64 (64 * j))
-    (BitVec.ofNat 64 j) (4 : BitVec 6) (0x80032de0 : Word) (by decide)
+    (BitVec.ofNat 64 j) (4 : BitVec 6) ((GuestAddrs.blsk_g2_wire : Word) + 60) (by decide)
   rw [show ((4 : BitVec 6)).toNat = 4 from rfl,
       ofNat_shl j 4 16 (by norm_num) (by omega),
-      show (0x80032de0 : Word) + 4 = (0x80032de4 : Word) from by decide] at hs4
+      show ((GuestAddrs.blsk_g2_wire : Word) + 60) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 64) from by decide] at hs4
   have hs4C := liftCode (cr' := wireCr) hs4 (by code_mem)
   have hs5 := slli_spec_gen_within .x7 .x18 (BitVec.ofNat 64 0)
-    (BitVec.ofNat 64 j) (5 : BitVec 6) (0x80032de4 : Word) (by decide)
+    (BitVec.ofNat 64 j) (5 : BitVec 6) ((GuestAddrs.blsk_g2_wire : Word) + 64) (by decide)
   rw [show ((5 : BitVec 6)).toNat = 5 from rfl,
       ofNat_shl j 5 32 (by norm_num) (by omega),
-      show (0x80032de4 : Word) + 4 = (0x80032de8 : Word) from by decide] at hs5
+      show ((GuestAddrs.blsk_g2_wire : Word) + 64) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 68) from by decide] at hs5
   have hs5C := liftCode (cr' := wireCr) hs5 (by code_mem)
   have hs6 := add_spec_gen_rd_eq_rs1_within .x5 .x7 (BitVec.ofNat 64 (16 * j))
-    (BitVec.ofNat 64 (32 * j)) (0x80032de8 : Word) (by decide)
+    (BitVec.ofNat 64 (32 * j)) ((GuestAddrs.blsk_g2_wire : Word) + 68) (by decide)
   rw [show BitVec.ofNat 64 (16 * j) + BitVec.ofNat 64 (32 * j)
         = BitVec.ofNat 64 (48 * j) from by
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega,
-      show (0x80032de8 : Word) + 4 = (0x80032dec : Word) from by decide] at hs6
+      show ((GuestAddrs.blsk_g2_wire : Word) + 68) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 72) from by decide] at hs6
   have hs6C := liftCode (cr' := wireCr) hs6 (by code_mem)
   have hs7 := add_spec_gen_within .x10 .x8 .x5 src (BitVec.ofNat 64 (48 * j))
-    (vf .x10) (0x80032dec : Word) (by decide)
-  rw [show (0x80032dec : Word) + 4 = (0x80032df0 : Word) from by decide] at hs7
+    (vf .x10) ((GuestAddrs.blsk_g2_wire : Word) + 72) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 72) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 76) from by decide] at hs7
   have hs7C := liftCode (cr' := wireCr) hs7 (by code_mem)
   have hs8 := slli_spec_gen_within .x5 .x18 (BitVec.ofNat 64 (48 * j))
-    (BitVec.ofNat 64 j) (6 : BitVec 6) (0x80032df0 : Word) (by decide)
+    (BitVec.ofNat 64 j) (6 : BitVec 6) ((GuestAddrs.blsk_g2_wire : Word) + 76) (by decide)
   rw [show ((6 : BitVec 6)).toNat = 6 from rfl,
       ofNat_shl j 6 64 (by norm_num) (by omega),
-      show (0x80032df0 : Word) + 4 = (0x80032df4 : Word) from by decide] at hs8
+      show ((GuestAddrs.blsk_g2_wire : Word) + 76) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 80) from by decide] at hs8
   have hs8C := liftCode (cr' := wireCr) hs8 (by code_mem)
   have hs9 := add_spec_gen_within .x11 .x9 .x5 dst (BitVec.ofNat 64 (64 * j))
-    (vf .x11) (0x80032df4 : Word) (by decide)
-  rw [show (0x80032df4 : Word) + 4 = (0x80032df8 : Word) from by decide] at hs9
+    (vf .x11) ((GuestAddrs.blsk_g2_wire : Word) + 80) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 80) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 84) from by decide] at hs9
   have hs9C := liftCode (cr' := wireCr) hs9 (by code_mem)
   have hs10 := addi_spec_gen_same_within .x11 (dst + BitVec.ofNat 64 (64 * j))
-    (16 : BitVec 12) (0x80032df8 : Word) (by decide)
+    (16 : BitVec 12) ((GuestAddrs.blsk_g2_wire : Word) + 84) (by decide)
   rw [addi16_fold dst (64 * j),
-      show (0x80032df8 : Word) + 4 = (0x80032dfc : Word) from by decide] at hs10
+      show ((GuestAddrs.blsk_g2_wire : Word) + 84) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 88) from by decide] at hs10
   have hs10C := liftCode (cr' := wireCr) hs10 (by code_mem)
   -- ---- the cross-call ----
-  have hcallee := blsgLeToBeWireFlat_spec ((0x80032dfc : Word) + 4)
+  have hcallee := blsgLeToBeWireFlat_spec (((GuestAddrs.blsk_g2_wire : Word) + 88) + 4)
     (src + BitVec.ofNat 64 (48 * j)) (dst + BitVec.ofNat 64 (64 * j + 16))
     inb ob hilen holen hwfR hwfW hso hdo hdisj (by decide)
-  have hcall := callWithin_spec (0x80032dfc : Word) (0x8002f648 : Word) v1
+  have hcall := callWithin_spec ((GuestAddrs.blsk_g2_wire : Word) + 88) (GuestAddrs.blsg_le_to_be : Word) v1
     (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_g2_wire + 88))
     ((blsgLeToBeFn (src + BitVec.ofNat 64 (48 * j))
         (dst + BitVec.ofNat 64 (64 * j + 16)) inb ob).body.steps + 1)
     (by decide) (by code_mem) (by pcf) hcallee
-  rw [show (0x80032dfc : Word) + 4 = (0x80032e00 : Word) from by decide] at hcall
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 88) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 92) from by decide] at hcall
   -- hand the callee its scratch: `t0`/`t1`/`t2` concrete, the rest owned
   have hcallW := cpsTripleWithin_weaken
     (P' := ((.x1 : Reg) ↦ᵣ v1) ** (.x10 ↦ᵣ (src + BitVec.ofNat 64 (48 * j)))
@@ -474,12 +474,12 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
     (fun _ hq => hq) hcall
   -- ---- counter bump and bound reload ----
   have ha := addi_spec_gen_same_within .x18 (BitVec.ofNat 64 j) (1 : BitVec 12)
-    (0x80032e00 : Word) (by decide)
+    ((GuestAddrs.blsk_g2_wire : Word) + 92) (by decide)
   rw [cnt_step_up j (by omega),
-      show (0x80032e00 : Word) + 4 = (0x80032e04 : Word) from by decide] at ha
+      show ((GuestAddrs.blsk_g2_wire : Word) + 92) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 96) from by decide] at ha
   have haC := liftCode (cr' := wireCr) ha (by code_mem)
-  have hli := li_spec_gen_own_within .x5 (4 : Word) (0x80032e04 : Word) (by decide)
-  rw [show (0x80032e04 : Word) + 4 = (0x80032e08 : Word) from by decide,
+  have hli := li_spec_gen_own_within .x5 (4 : Word) ((GuestAddrs.blsk_g2_wire : Word) + 96) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 96) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 100) from by decide,
       show (4 : Word) = BitVec.ofNat 64 4 from rfl] at hli
   have hliC := liftCode (cr' := wireCr) hli (by code_mem)
   -- ---- frames + chain ----
@@ -603,7 +603,7 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
           (List.replicate 16 (0 : BitVec 8)))
     (by pcf) hcallW
   have haF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80032e00 : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
       ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs
       ** bytesRegion (dst + BitVec.ofNat 64 (64 * j))
           (List.replicate 16 (0 : BitVec 8))
@@ -612,7 +612,7 @@ private theorem wireStep_spec (j : Nat) (hj : j < 4) (v1 : Word)
       ** bytesRegion (src + BitVec.ofNat 64 (48 * j)) inb)
     (by pcf) haC
   have hliF := cpsTripleWithin_frameR
-    ((.x18 ↦ᵣ BitVec.ofNat 64 (j + 1)) ** ((.x1 : Reg) ↦ᵣ (0x80032e00 : Word))
+    ((.x18 ↦ᵣ BitVec.ofNat 64 (j + 1)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92))
       ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
       ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11
       ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
@@ -671,7 +671,7 @@ private theorem wireLoopBody_spec
     (hdisj : src.toNat + 192 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat)
     (i : Nat) (hi : i < 4) :
     cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 79)
-      (0x80032dc4 : Word) (0x80032e08 : Word) wireCr
+      ((GuestAddrs.blsk_g2_wire : Word) + 32) ((GuestAddrs.blsk_g2_wire : Word) + 100) wireCr
       ((.x18 ↦ᵣ BitVec.ofNat 64 i) ** regOwn .x5
         ** wireInv ret src dst in0 in1 in2 in3 p0 p1 p2 p3 o0 o1 o2 o3 i)
       ((.x18 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
@@ -682,7 +682,7 @@ private theorem wireLoopBody_spec
       (48 * j) % 8 = 0 → 48 * j + 48 ≤ 192 →
       (64 * j) % 8 = 0 → 64 * j + 64 ≤ 256 →
       cpsTripleWithin ((blsgLeToBeFn 0 0 [] []).body.steps + 79)
-        (0x80032dc4 : Word) (0x80032e08 : Word) wireCr
+        ((GuestAddrs.blsk_g2_wire : Word) + 32) ((GuestAddrs.blsk_g2_wire : Word) + 100) wireCr
         ((.x18 ↦ᵣ BitVec.ofNat 64 j)
           ** (((.x1 : Reg) ↦ᵣ v1) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
             ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
@@ -692,7 +692,7 @@ private theorem wireLoopBody_spec
             ** bytesRegion (dst + BitVec.ofNat 64 (64 * j + 16)) ob
             ** bytesRegion (src + BitVec.ofNat 64 (48 * j)) inb))
         ((.x18 ↦ᵣ BitVec.ofNat 64 (j + 1)) ** (.x5 ↦ᵣ BitVec.ofNat 64 4)
-          ** (((.x1 : Reg) ↦ᵣ (0x80032e00 : Word)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
+          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92)) ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst)
             ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
             ** regOwn .x6 ** regOwn .x7
             ** regOwn .x10 ** regOwn .x11 ** regOwns wireRest
@@ -742,7 +742,7 @@ private theorem wireLoopBody_spec
     · norm_num [wireInv] at hq ⊢
       xperm_hyp hq
   · -- i = 1: record 1, link `ra`.
-    have h := hstep 1 (by omega) (0x80032e00 : Word) in1 p1 o1 hi1 hp1 ho1
+    have h := hstep 1 (by omega) ((GuestAddrs.blsk_g2_wire : Word) + 92) in1 p1 o1 hi1 hp1 ho1
       (by omega) (by omega) (by omega) (by omega)
     simp only [Nat.reduceMul, Nat.reduceAdd] at h
     have hF := cpsTripleWithin_frameR
@@ -762,7 +762,7 @@ private theorem wireLoopBody_spec
     · norm_num [wireInv] at hq ⊢
       xperm_hyp hq
   · -- i = 2: record 2.
-    have h := hstep 2 (by omega) (0x80032e00 : Word) in2 p2 o2 hi2 hp2 ho2
+    have h := hstep 2 (by omega) ((GuestAddrs.blsk_g2_wire : Word) + 92) in2 p2 o2 hi2 hp2 ho2
       (by omega) (by omega) (by omega) (by omega)
     simp only [Nat.reduceMul, Nat.reduceAdd] at h
     have hF := cpsTripleWithin_frameR
@@ -782,7 +782,7 @@ private theorem wireLoopBody_spec
     · norm_num [wireInv] at hq ⊢
       xperm_hyp hq
   · -- i = 3: record 3.
-    have h := hstep 3 (by omega) (0x80032e00 : Word) in3 p3 o3 hi3 hp3 ho3
+    have h := hstep 3 (by omega) ((GuestAddrs.blsk_g2_wire : Word) + 92) in3 p3 o3 hi3 hp3 ho3
       (by omega) (by omega) (by omega) (by omega)
     simp only [Nat.reduceMul, Nat.reduceAdd] at h
     have hF := cpsTripleWithin_frameR
@@ -817,7 +817,7 @@ def wireVals (ret arb8 arb9 arb18 : Word) : Reg → Word :=
     the pointer copies, `s2` the exhausted counter. -/
 def wireVals' (src dst : Word) : Reg → Word :=
   fun r => match r with
-  | .x1 => (0x80032e00 : Word) | .x8 => src | .x9 => dst
+  | .x1 => ((GuestAddrs.blsk_g2_wire : Word) + 92) | .x8 => src | .x9 => dst
   | .x18 => BitVec.ofNat 64 4 | _ => 0
 
 /-- **The whole-routine ABI contract for `blsk_g2_wire`.**  On return
@@ -844,7 +844,7 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
       (1 + wireFrame.length
         + (3 + 4 * ((blsgLeToBeFn 0 0 [] []).body.steps + 79 + 1))
         + wireFrame.length + 1 + 1)
-      (0x80032da4 : Word) ret wireCr
+      (GuestAddrs.blsk_g2_wire : Word) ret wireCr
       ((.x2 ↦ᵣ sp0) ** regsAt wireFrame (wireVals ret arb8 arb9 arb18)
         ** frameSlotsOwn wireFrame (sp0 + signExtend12 (-32 : BitVec 12))
         ** ((.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
@@ -879,18 +879,18 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
           ** bytesRegion (src + BitVec.ofNat 64 96) in2
           ** bytesRegion (src + BitVec.ofNat 64 144) in3)) := by
   -- ---- init: mv s0,a0 ; mv s1,a1 ; li s2,0 ----
-  have hm1 := mv_spec_gen_within .x8 .x10 src arb8 (0x80032db8 : Word) (by decide)
-  rw [show (0x80032db8 : Word) + 4 = (0x80032dbc : Word) from by decide] at hm1
+  have hm1 := mv_spec_gen_within .x8 .x10 src arb8 ((GuestAddrs.blsk_g2_wire : Word) + 20) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 20) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 24) from by decide] at hm1
   have hm1C := liftCode (cr' := wireCr) hm1 (by code_mem)
-  have hm2 := mv_spec_gen_within .x9 .x11 dst arb9 (0x80032dbc : Word) (by decide)
-  rw [show (0x80032dbc : Word) + 4 = (0x80032dc0 : Word) from by decide] at hm2
+  have hm2 := mv_spec_gen_within .x9 .x11 dst arb9 ((GuestAddrs.blsk_g2_wire : Word) + 24) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 24) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 28) from by decide] at hm2
   have hm2C := liftCode (cr' := wireCr) hm2 (by code_mem)
-  have hm3 := li_spec_gen_within .x18 arb18 (0 : Word) (0x80032dc0 : Word) (by decide)
-  rw [show (0x80032dc0 : Word) + 4 = (0x80032dc4 : Word) from by decide,
+  have hm3 := li_spec_gen_within .x18 arb18 (0 : Word) ((GuestAddrs.blsk_g2_wire : Word) + 28) (by decide)
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 28) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 32) from by decide,
       show (0 : Word) = BitVec.ofNat 64 0 from rfl] at hm3
   have hm3C := liftCode (cr' := wireCr) hm3 (by code_mem)
   -- ---- the count-up loop ----
-  have hloop := countupLoopBottom_spec wireCr (0x80032dc4 : Word) (0x80032e08 : Word)
+  have hloop := countupLoopBottom_spec wireCr ((GuestAddrs.blsk_g2_wire : Word) + 32) ((GuestAddrs.blsk_g2_wire : Word) + 100)
     .x18 .x5 (-68 : BitVec 13) ((blsgLeToBeFn 0 0 [] []).body.steps + 79) 4
     (wireInv ret src dst in0 in1 in2 in3 p0 p1 p2 p3 o0 o1 o2 o3)
     (by omega) (by omega) (by decide)
@@ -899,7 +899,7 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     (fun i hi => wireLoopBody_spec ret src dst in0 in1 in2 in3 p0 p1 p2 p3
       o0 o1 o2 o3 hi0 hi1 hi2 hi3 hp0 hp1 hp2 hp3 ho0 ho1 ho2 ho3
       halignS halignD hsB hdB hsv hdv hdisj i hi)
-  rw [show (0x80032e08 : Word) + 4 = (0x80032e0c : Word) from by decide] at hloop
+  rw [show ((GuestAddrs.blsk_g2_wire : Word) + 100) + 4 = ((GuestAddrs.blsk_g2_wire : Word) + 104) from by decide] at hloop
   -- ---- frames + chain into the single-exit body ----
   have hm1F := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** (.x9 ↦ᵣ arb9) ** (.x18 ↦ᵣ arb18)
@@ -974,8 +974,8 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
   -- ---- the single-exit body triple, in `abiFrame_spec` shape ----
   have hbody : cpsTripleWithin
       (3 + 4 * ((blsgLeToBeFn 0 0 [] []).body.steps + 79 + 1))
-      ((0x80032da4 : Word) + BitVec.ofNat 64 (4 * (1 + wireFrame.length)))
-      ((0x80032da4 : Word)
+      ((GuestAddrs.blsk_g2_wire : Word) + BitVec.ofNat 64 (4 * (1 + wireFrame.length)))
+      ((GuestAddrs.blsk_g2_wire : Word)
         + BitVec.ofNat 64 (4 * (1 + wireFrame.length + wireBody.length)))
       wireCr
       ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12)))
@@ -1014,11 +1014,11 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
           ** bytesRegion src in0 ** bytesRegion (src + BitVec.ofNat 64 48) in1
           ** bytesRegion (src + BitVec.ofNat 64 96) in2
           ** bytesRegion (src + BitVec.ofNat 64 144) in3)) := by
-    have hentry : (0x80032da4 : Word) + BitVec.ofNat 64 (4 * (1 + wireFrame.length))
-        = (0x80032db8 : Word) := by decide
-    have hexit : (0x80032da4 : Word)
+    have hentry : (GuestAddrs.blsk_g2_wire : Word) + BitVec.ofNat 64 (4 * (1 + wireFrame.length))
+        = ((GuestAddrs.blsk_g2_wire : Word) + 20) := by decide
+    have hexit : (GuestAddrs.blsk_g2_wire : Word)
           + BitVec.ofNat 64 (4 * (1 + wireFrame.length + wireBody.length))
-        = (0x80032e0c : Word) := by decide
+        = ((GuestAddrs.blsk_g2_wire : Word) + 104) := by decide
     rw [hentry, hexit]
     simp only [wireFrame, regsAt, frameSlotsSaved, wireVals, wireVals',
       List.foldr_cons, List.foldr_nil, sepConj_emp_right']
@@ -1035,9 +1035,9 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
       (by pcf) c3
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
       hchainF
-    norm_num [wireInv] at hq ⊢
+    norm_num [wireInv, GuestAddrs.blsk_g2_wire] at hq ⊢
     have hq1 : (((.x5 : Reg) ↦ᵣ (4#64 : Word))
-        ** ((.x18 ↦ᵣ (4#64 : Word)) ** ((.x1 : Reg) ↦ᵣ (0x80032e00 : Word))
+        ** ((.x18 ↦ᵣ (4#64 : Word)) ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.blsk_g2_wire : Word) + 92))
           ** (.x8 ↦ᵣ src) ** (.x9 ↦ᵣ dst) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word))
           ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11
           ** regOwns wireRest
@@ -1060,8 +1060,10 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
           ** ((sp0 + signExtend12 (-32 : BitVec 12) + (8 : Word)) ↦ₘ arb8)
           ** ((sp0 + signExtend12 (-32 : BitVec 12) + (16 : Word)) ↦ₘ arb9)
           ** ((sp0 + signExtend12 (-32 : BitVec 12) + (24 : Word)) ↦ₘ arb18))) h := by
+      norm_num [GuestAddrs.blsk_g2_wire] at hq ⊢
       xperm_hyp hq
     have hq2 := sepConj_mono (regIs_to_regOwn .x5 _) (fun _ hh => hh) h hq1
+    norm_num [GuestAddrs.blsk_g2_wire] at hq2 ⊢
     xperm_hyp hq2
   abi_frame (32 : BitVec 12) halign hbody
 
