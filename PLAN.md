@@ -274,12 +274,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blk2LdLe64_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
-  beBytes a0`, two sequential loops). `swd_write_be8` is re-emitted from its
-  verified structured loop (back-edge → guard), with exact identity pinned to
-  `swdWriteBe8_prog`; the guest-byte change requires EEST A/B. Byte-identity
-  caveat remains for `swd_write_be32_u64`: its emitted loops re-init the limit
-  register inside the loop (back-`JAL` targets the `LI`), so structured `while`
-  differs by one offset field per loop; the divergence is documented.
+  beBytes a0`, two sequential loops). Both writers are now re-emitted from
+  their verified structured loops: `swd_write_be8` (back-edge → guard), with
+  exact identity pinned to `swdWriteBe8_prog`, and `swd_write_be32_u64` (two
+  sequential loops), with exact identity pinned to `swdWriteBe32U64_prog`;
+  both guest-byte changes require EEST A/B. No remaining byte-identity
+  divergence for either.
   `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
