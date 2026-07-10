@@ -22,8 +22,9 @@
 
   See the SSZ spec at
   https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md#merkleization
-  and `compute_zero_hashes` in
-  `execution-specs/src/ethereum/forks/amsterdam/_serialize.py`.
+  The pinned execution-specs tree does not expose a fork-local helper for this
+  table; the construction above is the SSZ merkleization rule.  See the
+  consensus-specs reference linked above.
 
   ## Layout
 
