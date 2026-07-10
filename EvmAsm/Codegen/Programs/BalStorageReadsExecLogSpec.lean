@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.RetFromLoop
 import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.SAsm.AccumLoop
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.WP.Call
@@ -277,10 +278,14 @@ theorem revState_full (key : List (BitVec 8)) (_h : key.length ≤ 32) :
 
 /-- The loop invariant at the header (slot 55), after `i` of `klen` bytes.
     `contentOff`/`klen` locate the key inside the AccountChanges bytes;
-    `key` is that content window. -/
+    `key` is that content window.  The `x28` source cursor is stated in
+    all-`BitVec` arithmetic (`… - 1 - ofNat i`, not `ofNat (… - 1 - i)`):
+    the final `ADDI x28, x28, -1` at `i + 1 = klen` steps the cursor to
+    `acctBase + contentOff - 1`, which underflows the NAT subtraction when
+    `contentOff = 0` but is perfectly consistent as a `BitVec` value. -/
 def revInv (acctBase krevBase : Word) (acctBytes : List (BitVec 8))
     (contentOff klen : Nat) (F : Assertion) (i : Nat) : Assertion :=
-  ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen - 1 - i))) **
+  ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1 - BitVec.ofNat 64 i)) **
   ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
   ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -289,6 +294,516 @@ def revInv (acctBase krevBase : Word) (acctBytes : List (BitVec 8))
   bytesRegion krevBase
     (revState ((acctBytes.drop contentOff).take klen) i) **
   F
+
+/-! ### §4.1  List-layer helpers -/
+
+theorem revState_length (key : List (BitVec 8)) (i : Nat)
+    (h1 : i ≤ key.length) (h2 : i ≤ 32) :
+    (revState key i).length = 32 := by
+  simp [revState]
+  omega
+
+/-- Truncating a zero-extended byte recovers the byte (the `LBU`→`SB`
+    value round-trip). -/
+theorem zext64_truncate8 (b : BitVec 8) :
+    ((b.zeroExtend 64).truncate 8) = b := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro j
+  simp
+
+/-- Writing byte `i` of the reverse-copy state stores `key.reverse[i]`
+    and advances the state. -/
+theorem revState_set (key : List (BitVec 8)) (i : Nat) (hi : i < key.length)
+    (hlen : key.length ≤ 32) :
+    (revState key i).set i (key.reverse[i]'(by simpa using hi))
+      = revState key (i + 1) := by
+  have hrev : i < key.reverse.length := by simpa using hi
+  have hlen_take : (key.reverse.take i).length = i := by
+    simp
+    omega
+  have htake : key.reverse.take (i + 1)
+      = key.reverse.take i ++ [key.reverse[i]'hrev] := by
+    rw [List.take_add_one, List.getElem?_eq_getElem hrev]
+    rfl
+  have hrep : List.replicate (32 - i) (0 : BitVec 8)
+      = (0 : BitVec 8) :: List.replicate (32 - (i + 1)) 0 := by
+    rw [← List.replicate_succ]
+    congr 1
+    omega
+  unfold revState
+  rw [hrep, htake, List.set_append, if_neg (by omega), hlen_take,
+    Nat.sub_self, List.set_cons_zero, List.append_assoc]
+  rfl
+
+/-- The byte the loop reads at iteration `i` IS `key.reverse[i]` for
+    `key` the content window. -/
+theorem rev_key_byte (acctBytes : List (BitVec 8)) (contentOff klen i : Nat)
+    (hi : i < klen) (hcw : contentOff + klen ≤ acctBytes.length) :
+    ((acctBytes.drop contentOff).take klen).reverse[i]'(by simp; omega)
+      = acctBytes[contentOff + klen - 1 - i]'(by omega) := by
+  rw [List.getElem_reverse]
+  rw [List.getElem_take, List.getElem_drop]
+  congr 1
+  simp
+  omega
+
+/-- The `SB` step at iteration `i` (value = the `LBU`-loaded, zero-extended
+    source byte) advances the reverse-copy state. -/
+theorem revState_set_byte (acctBytes : List (BitVec 8)) (contentOff klen i : Nat)
+    (hi : i < klen) (hklen : klen ≤ 32) (hcw : contentOff + klen ≤ acctBytes.length) :
+    (revState ((acctBytes.drop contentOff).take klen) i).set i
+      (((acctBytes[contentOff + klen - 1 - i]'(by omega)).zeroExtend 64).truncate 8)
+      = revState ((acctBytes.drop contentOff).take klen) (i + 1) := by
+  rw [zext64_truncate8,
+    ← rev_key_byte acctBytes contentOff klen i hi hcw]
+  exact revState_set _ i (by simp; omega) (by simp; omega)
+
+/-! ### §4.2  Address / counter bridges (symbolic base) -/
+
+private theorem rev_ctr_ne_zero (klen i : Nat) (hi : i < klen) (hk : klen ≤ 32) :
+    ¬ (BitVec.ofNat 64 (klen - i) = (0 : Word)) := by
+  intro h
+  have := congrArg BitVec.toNat h
+  rw [BitVec.toNat_ofNat, show ((0 : Word)).toNat = 0 from rfl] at this
+  omega
+
+private theorem rev_ctr_dec (klen i : Nat) (hi : i < klen) :
+    BitVec.ofNat 64 (klen - i) + signExtend12 (-1 : BitVec 12)
+      = BitVec.ofNat 64 (klen - (i + 1)) := by
+  rw [show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+    show ((-1 : Word)).toNat = 18446744073709551615 from rfl]
+  omega
+
+/-- The `BitVec`-form source cursor equals the `Nat`-index form WHILE the
+    loop is running (`i < klen`; the two diverge only at `i = klen` with
+    `contentOff = 0`, where the `Nat` subtraction truncates). -/
+private theorem rev_src_eq (acctBase : Word) (contentOff klen i : Nat)
+    (hi : i < klen) :
+    acctBase + BitVec.ofNat 64 (contentOff + klen) - 1 - BitVec.ofNat 64 i
+      = acctBase + BitVec.ofNat 64 (contentOff + klen - 1 - i) := by
+  bv_omega
+
+private theorem rev_src_dec (acctBase : Word) (contentOff klen i : Nat)
+    (_hi : i < klen) (_hk : klen ≤ 32) :
+    acctBase + BitVec.ofNat 64 (contentOff + klen) - 1 - BitVec.ofNat 64 i
+        + signExtend12 (-1 : BitVec 12)
+      = acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 (i + 1) := by
+  rw [show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+  bv_omega
+
+private theorem rev_dst_advance (p : Word) (i : Nat) :
+    p + BitVec.ofNat 64 i + signExtend12 (1 : BitVec 12)
+      = p + BitVec.ofNat 64 (i + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  bv_omega
+
+/-! ### §4.3  One loop iteration (slots 55–61, header back to header) -/
+
+/-- One byte-reverse iteration: header guard (never taken at `i < klen`),
+    `LBU` from the descending source cursor, `SB` to the ascending dest
+    cursor, three `ADDI` cursor/counter updates, `JAL` back — invariant
+    advanced. -/
+theorem bsre_revIter_spec (base acctBase krevBase : Word)
+    (acctBytes : List (BitVec 8)) (contentOff klen : Nat) (F : Assertion)
+    (hF : F.pcFree)
+    (halignA : acctBase.toNat % 8 = 0) (halignK : krevBase.toNat % 8 = 0)
+    (hcw : contentOff + klen ≤ acctBytes.length) (hklen : klen ≤ 32)
+    (hoverA : acctBase.toNat + acctBytes.length ≤ 2 ^ 64)
+    (hoverK : krevBase.toNat + 32 ≤ 2 ^ 64)
+    (hvalidA : ∀ k, k < acctBytes.length →
+      isValidByteAccess (acctBase + BitVec.ofNat 64 k) = true)
+    (hvalidK : ∀ k, k < 32 →
+      isValidByteAccess (krevBase + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * bsreProg.length < 2 ^ 64)
+    (i : Nat) (hi : i < klen) :
+    cpsTripleWithin 7 (base + 220) (base + 220)
+      (CodeReq.ofProg base bsreProg)
+      (revInv acctBase krevBase acctBytes contentOff klen F i)
+      (revInv acctBase krevBase acctBytes contentOff klen F (i + 1)) := by
+  set CR := CodeReq.ofProg base bsreProg with hCR
+  have hidx : contentOff + klen - 1 - i < acctBytes.length := by omega
+  have hrkl : (revState ((acctBytes.drop contentOff).take klen) i).length = 32 :=
+    revState_length _ i (by simp; omega) (by omega)
+  unfold revInv
+  -- peel this iteration's scratch register x15
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x15)
+      (P := ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+              - BitVec.ofNat 64 i)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) i) **
+        F)
+      (fun v15 => ?_))
+  -- ---- the body instructions ----
+  have hlbu := liftCode (cr' := CR)
+    (bytesRegion_lbu_within .x15 .x28 acctBase v15 (base + 224) acctBytes
+      (contentOff + klen - 1 - i) (by decide) halignA hidx (by omega)
+      (hvalidA _ hidx))
+    (CodeReq.ofProg_mem_at base (base + 224) bsreProg 56
+      (.LBU .x15 .x28 (0 : BitVec 12))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [← rev_src_eq acctBase contentOff klen i hi,
+      show base + 224 + 4 = base + 228 from by bv_omega] at hlbu
+  have hsb := liftCode (cr' := CR)
+    (bytesRegion_sb_within .x29 .x15 krevBase
+      ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64) (base + 228)
+      (revState ((acctBytes.drop contentOff).take klen) i) i halignK
+      (by omega) (by omega) (hvalidK i (by omega)))
+    (CodeReq.ofProg_mem_at base (base + 228) bsreProg 57
+      (.SB .x29 .x15 (0 : BitVec 12))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [revState_set_byte acctBytes contentOff klen i hi hklen hcw,
+      show base + 228 + 4 = base + 232 from by bv_omega] at hsb
+  have haddi28 := liftCode (cr' := CR)
+    (addi_spec_gen_same_within .x28
+      (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1 - BitVec.ofNat 64 i)
+      (-1 : BitVec 12) (base + 232) (by decide))
+    (CodeReq.ofProg_mem_at base (base + 232) bsreProg 58
+      (.ADDI .x28 .x28 (-1 : BitVec 12))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [rev_src_dec acctBase contentOff klen i hi hklen,
+      show base + 232 + 4 = base + 236 from by bv_omega] at haddi28
+  have haddi29 := liftCode (cr' := CR)
+    (addi_spec_gen_same_within .x29 (krevBase + BitVec.ofNat 64 i)
+      (1 : BitVec 12) (base + 236) (by decide))
+    (CodeReq.ofProg_mem_at base (base + 236) bsreProg 59
+      (.ADDI .x29 .x29 (1 : BitVec 12))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [rev_dst_advance krevBase i,
+      show base + 236 + 4 = base + 240 from by bv_omega] at haddi29
+  have haddi30 := liftCode (cr' := CR)
+    (addi_spec_gen_same_within .x30 (BitVec.ofNat 64 (klen - i))
+      (-1 : BitVec 12) (base + 240) (by decide))
+    (CodeReq.ofProg_mem_at base (base + 240) bsreProg 60
+      (.ADDI .x30 .x30 (-1 : BitVec 12))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [rev_ctr_dec klen i hi,
+      show base + 240 + 4 = base + 244 from by bv_omega] at haddi30
+  have hjal := liftCode (cr' := CR)
+    (jal_x0_spec_gen_within (-24 : BitVec 21) (base + 244))
+    (CodeReq.ofProg_mem_at base (base + 244) bsreProg 61
+      (.JAL .x0 (-24 : BitVec 21))
+      rfl (by decide +kernel) (by decide +kernel) hbound)
+  rw [show base + 244 + signExtend21 (-24 : BitVec 21) = base + 220 from by
+    rw [show signExtend21 (-24 : BitVec 21) = (-24 : Word) from by decide]
+    bv_omega] at hjal
+  -- ---- frames + chain of the body (from base + 224) ----
+  have hlbuF := cpsTripleWithin_frameR
+    (((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) i) **
+      F)
+    (by pcf; exact hF) hlbu
+  have hsbF := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 i)) **
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion acctBase acctBytes **
+      F)
+    (by pcf; exact hF) hsb
+  have haddi28F := cpsTripleWithin_frameR
+    (((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x15 : Reg) ↦ᵣ ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64)) **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) (i + 1)) **
+      F)
+    (by pcf; exact hF) haddi28
+  have haddi29F := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 (i + 1))) **
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x15 : Reg) ↦ᵣ ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64)) **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) (i + 1)) **
+      F)
+    (by pcf; exact hF) haddi29
+  have haddi30F := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 (i + 1))) **
+      ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 (i + 1))) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x15 : Reg) ↦ᵣ ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64)) **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) (i + 1)) **
+      F)
+    (by pcf; exact hF) haddi30
+  have hjalF := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 (i + 1))) **
+      ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 (i + 1))) **
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - (i + 1))) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x15 : Reg) ↦ᵣ ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64)) **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) (i + 1)) **
+      F)
+    (by pcf; exact hF) hjal
+  have hc1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hlbuF hsbF
+  have hc2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hc1 haddi28F
+  have hc3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hc2 haddi29F
+  have hc4 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hc3 haddi30F
+  have hc5 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      rw [sepConj_emp_left']
+      xperm_hyp hp) hc4 hjalF
+  -- ---- header guard station (never taken at i < klen) ----
+  have hbrHdr := cpsBranchWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 i)) **
+      ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+      ((.x15 : Reg) ↦ᵣ v15) **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) i) **
+      F)
+    (by pcf; exact hF)
+    (cpsBranchWithin_extend_code (cr' := CR)
+      (h := beq_spec_gen_within .x30 .x0 (28 : BitVec 13)
+        (BitVec.ofNat 64 (klen - i)) (0 : Word) (base + 220))
+      (hmono := CodeReq.ofProg_mem_at base (base + 220) bsreProg 55
+        (.BEQ .x30 .x0 (28 : BitVec 13))
+        rfl (by decide +kernel) (by decide +kernel) hbound))
+  rw [show base + 220 + signExtend13 (28 : BitVec 13) = base + 248 from by
+        rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]
+        bv_omega,
+      show base + 220 + 4 = base + 224 from by bv_omega] at hbrHdr
+  -- the body must re-own x15 into the invariant
+  have hbody : cpsTripleWithin 6 (base + 224) (base + 220) CR
+      (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 i)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x15 : Reg) ↦ᵣ v15) **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) i) **
+        F)
+      (revInv acctBase krevBase acctBytes contentOff klen F (i + 1)) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun h hq => ?_) hc5
+    rw [sepConj_emp_left'] at hq
+    unfold revInv
+    have hq1 : (((.x15 : Reg) ↦ᵣ
+          ((acctBytes[contentOff + klen - 1 - i]'hidx).zeroExtend 64)) **
+        (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+            - BitVec.ofNat 64 (i + 1))) **
+          ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 (i + 1))) **
+          ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - (i + 1))) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion acctBase acctBytes **
+          bytesRegion krevBase
+            (revState ((acctBytes.drop contentOff).take klen) (i + 1)) **
+          F)) h := by
+      xperm_hyp hq
+    have hq2 := sepConj_mono (regIs_to_regOwn .x15 _)
+      (fun _ hh => hh) h hq1
+    xperm_hyp hq2
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (retJoinStation_spec
+      (cond := (BitVec.ofNat 64 (klen - i) = (0 : Word)))
+      (PT := ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 i)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x15 : Reg) ↦ᵣ v15) **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) i) **
+        F)
+      (PF := ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 i)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 i)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - i)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x15 : Reg) ↦ᵣ v15) **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) i) **
+        F)
+      hbrHdr
+      (fun h hq => by xperm_hyp hq)
+      (fun h hq => by xperm_hyp hq)
+      (fun hc => absurd hc (rev_ctr_ne_zero klen i hi hklen))
+      (fun _ => cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => hq) hbody))
+
+#print axioms bsre_revIter_spec
+
+/-! ### §4.4  Exhaustion (header BEQ taken at `i = klen`) and the whole loop -/
+
+/-- Exhaustion: at `i = klen` the counter is zero, the header `BEQ` exits to
+    the post-loop station (`base + 248`) with `keyRev32` of the key content
+    materialised in the scratch region. -/
+theorem bsre_revExh_spec (base acctBase krevBase : Word)
+    (acctBytes : List (BitVec 8)) (contentOff klen : Nat) (F : Assertion)
+    (hF : F.pcFree) (hklen : klen ≤ 32)
+    (hcw : contentOff + klen ≤ acctBytes.length)
+    (hbound : 4 * bsreProg.length < 2 ^ 64) :
+    cpsTripleWithin 1 (base + 220) (base + 248)
+      (CodeReq.ofProg base bsreProg)
+      (revInv acctBase krevBase acctBytes contentOff klen F klen)
+      (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+       ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+       ((.x30 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x15 **
+       bytesRegion acctBase acctBytes **
+       bytesRegion krevBase (keyRev32 ((acctBytes.drop contentOff).take klen)) **
+       F) := by
+  set CR := CodeReq.ofProg base bsreProg with hCR
+  have hkeylen : ((acctBytes.drop contentOff).take klen).length = klen := by
+    simp
+    omega
+  have hctr0 : (BitVec.ofNat 64 (klen - klen) : Word) = (0 : Word) := by
+    rw [Nat.sub_self]
+    rfl
+  have hfull : revState ((acctBytes.drop contentOff).take klen) klen
+      = keyRev32 ((acctBytes.drop contentOff).take klen) := by
+    have h := revState_full ((acctBytes.drop contentOff).take klen) (by omega)
+    rwa [hkeylen] at h
+  unfold revInv
+  -- header guard station (taken: counter = 0)
+  have hbrHdr := cpsBranchWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+        - BitVec.ofNat 64 klen)) **
+      ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+      regOwn .x15 **
+      bytesRegion acctBase acctBytes **
+      bytesRegion krevBase
+        (revState ((acctBytes.drop contentOff).take klen) klen) **
+      F)
+    (by pcf; exact hF)
+    (cpsBranchWithin_extend_code (cr' := CR)
+      (h := beq_spec_gen_within .x30 .x0 (28 : BitVec 13)
+        (BitVec.ofNat 64 (klen - klen)) (0 : Word) (base + 220))
+      (hmono := CodeReq.ofProg_mem_at base (base + 220) bsreProg 55
+        (.BEQ .x30 .x0 (28 : BitVec 13))
+        rfl (by decide +kernel) (by decide +kernel) hbound))
+  rw [show base + 220 + signExtend13 (28 : BitVec 13) = base + 248 from by
+        rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]
+        bv_omega,
+      show base + 220 + 4 = base + 224 from by bv_omega] at hbrHdr
+  -- the taken arm: 0 steps, entail into the stated post
+  have hid : cpsTripleWithin 0 (base + 248) (base + 248) CR
+      (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - klen)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x15 **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) klen) **
+        F)
+      (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - klen)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x15 **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) klen) **
+        F) :=
+    fun R hR s hcr hPR hpc => ⟨0, Nat.le_refl 0, s, rfl, hpc, hPR⟩
+  have htaken := cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      rw [hfull, hctr0] at hq
+      exact hq) hid
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (retJoinStation_spec
+      (cond := (BitVec.ofNat 64 (klen - klen) = (0 : Word)))
+      (PT := ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - klen)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x15 **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) klen) **
+        F)
+      (PF := ((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+        ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+        ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (klen - klen)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x15 **
+        bytesRegion acctBase acctBytes **
+        bytesRegion krevBase
+          (revState ((acctBytes.drop contentOff).take klen) klen) **
+        F)
+      hbrHdr
+      (fun h hq => by xperm_hyp hq)
+      (fun h hq => by xperm_hyp hq)
+      (fun _ => htaken)
+      (fun hc => absurd hctr0 hc))
+
+#print axioms bsre_revExh_spec
+
+/-- **The whole byte-reverse loop** (header entry to post-loop station):
+    `klen` iterations then the taken exit, materialising `keyRev32` of the
+    key content window in the pre-zeroed scratch. -/
+theorem bsre_revLoop_spec (base acctBase krevBase : Word)
+    (acctBytes : List (BitVec 8)) (contentOff klen : Nat) (F : Assertion)
+    (hF : F.pcFree)
+    (halignA : acctBase.toNat % 8 = 0) (halignK : krevBase.toNat % 8 = 0)
+    (hcw : contentOff + klen ≤ acctBytes.length) (hklen : klen ≤ 32)
+    (hoverA : acctBase.toNat + acctBytes.length ≤ 2 ^ 64)
+    (hoverK : krevBase.toNat + 32 ≤ 2 ^ 64)
+    (hvalidA : ∀ k, k < acctBytes.length →
+      isValidByteAccess (acctBase + BitVec.ofNat 64 k) = true)
+    (hvalidK : ∀ k, k < 32 →
+      isValidByteAccess (krevBase + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * bsreProg.length < 2 ^ 64) :
+    cpsTripleWithin (klen * 7 + 1) (base + 220) (base + 248)
+      (CodeReq.ofProg base bsreProg)
+      (revInv acctBase krevBase acctBytes contentOff klen F 0)
+      (((.x28 : Reg) ↦ᵣ (acctBase + BitVec.ofNat 64 (contentOff + klen) - 1
+          - BitVec.ofNat 64 klen)) **
+       ((.x29 : Reg) ↦ᵣ (krevBase + BitVec.ofNat 64 klen)) **
+       ((.x30 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x15 **
+       bytesRegion acctBase acctBytes **
+       bytesRegion krevBase (keyRev32 ((acctBytes.drop contentOff).take klen)) **
+       F) :=
+  retLoop_spec klen 7 1
+    (revInv acctBase krevBase acctBytes contentOff klen F)
+    (fun i hi => bsre_revIter_spec base acctBase krevBase acctBytes
+      contentOff klen F hF halignA halignK hcw hklen hoverA hoverK
+      hvalidA hvalidK hbound i hi)
+    (bsre_revExh_spec base acctBase krevBase acctBytes contentOff klen F
+      hF hklen hcw hbound)
+
+#print axioms bsre_revLoop_spec
 
 end BalStorageReadsExecLogSpec
 
