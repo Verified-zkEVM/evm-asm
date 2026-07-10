@@ -551,7 +551,7 @@ theorem blsg2EqNFn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) (n : Nat)
     per-byte → byte-list bridge `bytes_eq_of_prefix_eq`. -/
 
 -- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.blsg2_eq_n = 0x80033cf0
+#guard GuestAddrs.blsg2_eq_n = 0x80033d74
 
 /-- Byte-tie: the emitted `blsg2_eq_n` IS the `mv;mv;mv` init followed by
     the dynamic-length byte dual-read scan at the emitted registers. -/
@@ -574,8 +574,8 @@ theorem blsg2EqN_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
     (hvalid1 : ∀ k, k < n → isValidByteAccess (ptr1 + BitVec.ofNat 64 k) = true)
     (hvalid2 : ∀ k, k < n → isValidByteAccess (ptr2 + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin (n * 8 + 7) (0x80033cf0 : Word) ret
-      (CodeReq.ofProg (0x80033cf0 : Word) blsg2EqN_prog)
+    cpsTripleWithin (n * 8 + 7) (0x80033d74 : Word) ret
+      (CodeReq.ofProg (0x80033d74 : Word) blsg2EqN_prog)
       (((.x10 : Reg) ↦ᵣ ptr1) ** ((.x11 : Reg) ↦ᵣ ptr2) **
        ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x1 : Reg) ↦ᵣ ret) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -586,7 +586,7 @@ theorem blsg2EqN_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
        ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
        bytesRegion ptr1 bs1 ** bytesRegion ptr2 bs2) := by
-  set CR := CodeReq.ofProg (0x80033cf0 : Word) blsg2EqN_prog with hCR
+  set CR := CodeReq.ofProg (0x80033d74 : Word) blsg2EqN_prog with hCR
   -- peel the MV destinations x6, x7, x5
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
@@ -618,27 +618,27 @@ theorem blsg2EqN_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
       (fun v5 => ?_))
   -- ---- init: mv x6, a0 ; mv x7, a1 ; mv x5, a2 ----
   have hmv6 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x6 .x10 ptr1 v6 (0x80033cf0 : Word) (by decide))
+    (mv_spec_gen_within .x6 .x10 ptr1 v6 (0x80033d74 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80033cf0 : Word) + 4 = (0x80033cf4 : Word) from by decide] at hmv6
+  rw [show (0x80033d74 : Word) + 4 = (0x80033d78 : Word) from by decide] at hmv6
   have hmv7 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x7 .x11 ptr2 v7 (0x80033cf4 : Word) (by decide))
+    (mv_spec_gen_within .x7 .x11 ptr2 v7 (0x80033d78 : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80033cf4 : Word) + 4 = (0x80033cf8 : Word) from by decide] at hmv7
+  rw [show (0x80033d78 : Word) + 4 = (0x80033d7c : Word) from by decide] at hmv7
   have hmv5 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x5 .x12 (BitVec.ofNat 64 n) v5 (0x80033cf8 : Word)
+    (mv_spec_gen_within .x5 .x12 (BitVec.ofNat 64 n) v5 (0x80033d7c : Word)
       (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80033cf8 : Word) + 4 = (0x80033cfc : Word) from by decide] at hmv5
+  rw [show (0x80033d7c : Word) + 4 = (0x80033d80 : Word) from by decide] at hmv5
   -- ---- the dynamic-length byte dual-read scan (lifted into CR) ----
   have hscan := cpsTripleWithin_extend_code (cr' := CR)
     (hmono := by
       rw [hCR]
-      exact CodeReq.ofProg_mono_sub (0x80033cf0 : Word) (0x80033cfc : Word)
+      exact CodeReq.ofProg_mono_sub (0x80033d74 : Word) (0x80033d80 : Word)
         blsg2EqN_prog (DualReadByteScan.byteScanProg .x5 .x28 .x29 .x6 .x7) 3
         (by decide) (by decide) (by decide) (by decide))
     (h := DualReadByteScan.scan_spec .x5 .x28 .x29 .x6 .x7
-      (0x80033cfc : Word) ret ptr1 ptr2 bs1 bs2 n
+      (0x80033d80 : Word) ret ptr1 ptr2 bs1 bs2 n
       (by decide) (by decide) (by decide) (by decide) (by decide)
       hlen1 hlen2 halign1 halign2 hov1 hov2 hvalid1 hvalid2 halignRet)
   -- ---- frames + chain ----
