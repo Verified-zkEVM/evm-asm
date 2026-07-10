@@ -215,12 +215,12 @@ theorem curveDbl_lt (x y : Nat) :
 /-- The 64-byte staging point splits into its two coordinate halves. -/
 theorem arena_pair (v : Nat × Nat) :
     bytesRegion arenaB (pairBytes 4 v)
-      = (bytesRegion (0xa3c05618 : Word) (leBytes32 v.1)
-        ** bytesRegion (0xa3c05638 : Word) (leBytes32 v.2)) := by
+      = (bytesRegion (GuestAddrs.secc_le_p1 : Word) (leBytes32 v.1)
+        ** bytesRegion (arenaB + 32) (leBytes32 v.2)) := by
   show bytesRegion arenaB (leBytes32 v.1 ++ leBytes32 v.2) = _
   rw [bytesRegion_append _ _ _ ⟨4, by rw [length_leBytes32]⟩, length_leBytes32,
-    show arenaB + BitVec.ofNat 64 32 = (0xa3c05638 : Word) from by decide,
-    show arenaB = (0xa3c05618 : Word) from by decide]
+    show arenaB + BitVec.ofNat 64 32 = (arenaB + 32) from by decide,
+    show arenaB = (GuestAddrs.secc_le_p1 : Word) from by decide]
 
 -- ============================================================================
 -- Owned-destination instruction steps (the incumbent value is immaterial)
@@ -263,13 +263,13 @@ def pdVals (ret v8 v9 : Word) : Reg → Word :=
     link, `s0`/`s1` the pointer copies. -/
 def pdValsInf (inPtr outPtr : Word) : Reg → Word :=
   fun r => match r with
-  | .x1 => (0x800205ac : Word) | .x8 => inPtr | .x9 => outPtr | _ => 0
+  | .x1 => ((GuestAddrs.secp256k1_point_double + 52) : Word) | .x8 => inPtr | .x9 => outPtr | _ => 0
 
 /-- Body-exit values on the accelerator path: `ra` = the last
     `secf_le_to_be` link. -/
 def pdValsReg (inPtr outPtr : Word) : Reg → Word :=
   fun r => match r with
-  | .x1 => (0x80020608 : Word) | .x8 => inPtr | .x9 => outPtr | _ => 0
+  | .x1 => ((GuestAddrs.secp256k1_point_double + 144) : Word) | .x8 => inPtr | .x9 => outPtr | _ => 0
 
 end Secp256k1PointDoubleSAsm
 

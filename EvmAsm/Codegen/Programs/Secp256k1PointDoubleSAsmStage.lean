@@ -44,7 +44,7 @@ open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz nlz_le nlz_spec nlz_boundary)
 
 /-- The staging-point base (`secc_le_p1`): a 64-byte LE point image
     `x || y`, four u64 limbs per coordinate. -/
-def arenaB : Word := 0xa3c05618
+def arenaB : Word := GuestAddrs.secc_le_p1
 
 /-- The frame and body of the emitted routine. -/
 def pdFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
@@ -92,11 +92,11 @@ theorem pdProg_tie :
 
 /-- The routine's single code map: its own program plus the four callees'. -/
 def pdCr : CodeReq :=
-  (CodeReq.ofProg (0x80020578 : Word) secp256k1PointDouble_prog).union
-    ((CodeReq.ofProg (0x8001fd9c : Word) secfIsZero32_prog).union
-      ((CodeReq.ofProg (0x8001fcc8 : Word) secfZero32_prog).union
-        ((CodeReq.ofProg (0x8001fcdc : Word) secfBeToLe_prog).union
-          (CodeReq.ofProg (0x8001fd2c : Word) secfLeToBe_prog))))
+  (CodeReq.ofProg (GuestAddrs.secp256k1_point_double : Word) secp256k1PointDouble_prog).union
+    ((CodeReq.ofProg (GuestAddrs.secf_is_zero32 : Word) secfIsZero32_prog).union
+      ((CodeReq.ofProg (GuestAddrs.secf_zero32 : Word) secfZero32_prog).union
+        ((CodeReq.ofProg (GuestAddrs.secf_be_to_le : Word) secfBeToLe_prog).union
+          (CodeReq.ofProg (GuestAddrs.secf_le_to_be : Word) secfLeToBe_prog))))
 
 /-- The exposed registers the converter contracts clobber beyond `a0`/`a1`. -/
 def convScratch : List Reg :=
@@ -140,7 +140,7 @@ theorem secfIsZero32Flat_spec (ret ptr : Word) (bs : List (BitVec 8))
     (hso : ptr.toNat + 32 < 2 ^ 64)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((secfIsZero32Fn ptr bs).body.steps + 1)
-      (0x8001fd9c : Word) ret pdCr
+      (GuestAddrs.secf_is_zero32 : Word) ret pdCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) ** regOwns a0Rest
         ** bytesRegion ptr bs)
       (((.x1 : Reg) ↦ᵣ ret)
@@ -151,8 +151,8 @@ theorem secfIsZero32Flat_spec (ret ptr : Word) (bs : List (BitVec 8))
       (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) ** bytesRegion ptr bs)
       (fun vf => ?_))
   have had := Fn.retSpecFlat (secfIsZero32Fn ptr bs)
-    (0x8001fd9c : Word)
-    (secfIsZero32Fn_spec ptr bs hwfR (0x8001fd9c : Word))
+    (GuestAddrs.secf_is_zero32 : Word)
+    (secfIsZero32Fn_spec ptr bs hwfR (GuestAddrs.secf_is_zero32 : Word))
     (by show 4 * (11 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then ptr else vf r)
     []
@@ -178,7 +178,7 @@ theorem secfIsZero32Flat_spec (ret ptr : Word) (bs : List (BitVec 8))
             at h10] at hh
       exact sepConj_mono_right (regAtomsOf_to_regOwns (fun r => rf' r) a0Rest)
         hp hh)
-  rw [show (secfIsZero32Fn ptr bs).programRet (0x8001fd9c : Word)
+  rw [show (secfIsZero32Fn ptr bs).programRet (GuestAddrs.secf_is_zero32 : Word)
       = secfIsZero32_prog from rfl] at had
   have hadC := liftCode (cr' := pdCr) had (by code_mem)
   rw [show (secfIsZero32Fn ptr bs).region = (⟨ptr, bs⟩ : Region) from rfl,
@@ -205,7 +205,7 @@ theorem secfZero32Flat_spec (ret dst : Word) (ob : List (BitVec 8))
     (holen : ob.length = 32) (hrww : RwRegion.wf ⟨dst, 32⟩)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((secfZero32Fn 0 []).body.steps + 1)
-      (0x8001fcc8 : Word) ret pdCr
+      (GuestAddrs.secf_zero32 : Word) ret pdCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns a0Rest
         ** bytesRegion dst ob)
       (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
@@ -215,8 +215,8 @@ theorem secfZero32Flat_spec (ret dst : Word) (ob : List (BitVec 8))
       (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** bytesRegion dst ob)
       (fun vf => ?_))
   have had := Fn.retSpecFlat (secfZero32Fn dst ob)
-    (0x8001fcc8 : Word)
-    (secfZero32Fn_spec dst ob hrww (0x8001fcc8 : Word))
+    (GuestAddrs.secf_zero32 : Word)
+    (secfZero32Fn_spec dst ob hrww (GuestAddrs.secf_zero32 : Word))
     (by show 4 * (4 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then dst else vf r)
     ob
@@ -233,7 +233,7 @@ theorem secfZero32Flat_spec (ret dst : Word) (ob : List (BitVec 8))
       rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
       exact sepConj_mono_left
         (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
-  rw [show (secfZero32Fn dst ob).programRet (0x8001fcc8 : Word)
+  rw [show (secfZero32Fn dst ob).programRet (GuestAddrs.secf_zero32 : Word)
       = secfZero32_prog from rfl] at had
   have hadC := liftCode (cr' := pdCr) had (by code_mem)
   rw [show (secfZero32Fn dst ob).region = Region.empty from rfl,
@@ -265,7 +265,7 @@ theorem secfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
     (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((secfBeToLeFn srci dsti inb ob).body.steps + 1)
-      (0x8001fcdc : Word) ret pdCr
+      (GuestAddrs.secf_be_to_le : Word) ret pdCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun hp => ∃ ws',
@@ -278,8 +278,8 @@ theorem secfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
         ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun vf => ?_))
   have had := Fn.retSpecFlat (secfBeToLeFn srci dsti inb ob)
-    (0x8001fcdc : Word)
-    (secfBeToLeFn_spec srci dsti inb ob hwfR hrww hilen (0x8001fcdc : Word))
+    (GuestAddrs.secf_be_to_le : Word)
+    (secfBeToLeFn_spec srci dsti inb ob hwfR hrww hilen (GuestAddrs.secf_be_to_le : Word))
     (by show 4 * (19 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
     ob
@@ -306,7 +306,7 @@ theorem secfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
           ** (regOwns exposedRegs ** bytesRegion dsti ws')) hp :=
         (sepConj_pure_left hp).mpr ⟨⟨hpost'.1, hlen'⟩, hh2⟩
       xperm_hyp hpure)
-  rw [show (secfBeToLeFn srci dsti inb ob).programRet (0x8001fcdc : Word)
+  rw [show (secfBeToLeFn srci dsti inb ob).programRet (GuestAddrs.secf_be_to_le : Word)
       = secfBeToLe_prog from rfl] at had
   have hadC := liftCode (cr' := pdCr) had (by code_mem)
   rw [show (secfBeToLeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
@@ -346,7 +346,7 @@ theorem secfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
     (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((secfLeToBeFn srci dsti inb ob).body.steps + 1)
-      (0x8001fd2c : Word) ret pdCr
+      (GuestAddrs.secf_le_to_be : Word) ret pdCr
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun hp => ∃ ws',
@@ -359,8 +359,8 @@ theorem secfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
         ** bytesRegion dsti ob ** bytesRegion srci inb)
       (fun vf => ?_))
   have had := Fn.retSpecFlat (secfLeToBeFn srci dsti inb ob)
-    (0x8001fd2c : Word)
-    (secfLeToBeFn_spec srci dsti inb ob hwfR hrww hilen (0x8001fd2c : Word))
+    (GuestAddrs.secf_le_to_be : Word)
+    (secfLeToBeFn_spec srci dsti inb ob hwfR hrww hilen (GuestAddrs.secf_le_to_be : Word))
     (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) ret halign
     (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
     ob
@@ -391,7 +391,7 @@ theorem secfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
           ** (regOwns exposedRegs ** bytesRegion dsti ws')) hp :=
         (sepConj_pure_left hp).mpr ⟨⟨hpost'.1, hlen'⟩, hh2⟩
       xperm_hyp hpure)
-  rw [show (secfLeToBeFn srci dsti inb ob).programRet (0x8001fd2c : Word)
+  rw [show (secfLeToBeFn srci dsti inb ob).programRet (GuestAddrs.secf_le_to_be : Word)
       = secfLeToBe_prog from rfl] at had
   have hadC := liftCode (cr' := pdCr) had (by code_mem)
   rw [show (secfLeToBeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
@@ -483,26 +483,26 @@ theorem curveStep_spec (img : List (BitVec 8))
     (hx : wsNat256 img 0 < Accel.secpP)
     (hy : wsNat256 img 0x20 < Accel.secpP)
     (hyne : wsNat256 img 0x20 ≠ 0) :
-    cpsTripleWithin 1 (0x800205e0 : Word) (0x800205e4 : Word) pdCr
-      (((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word)) ** regOwns csrsRest
+    cpsTripleWithin 1 ((GuestAddrs.secp256k1_point_double + 104) : Word) ((GuestAddrs.secp256k1_point_double + 108) : Word) pdCr
+      (((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** regOwns csrsRest
         ** bytesRegion arenaB img)
-      (((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word)) ** regOwns csrsRest
+      (((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** regOwns csrsRest
         ** bytesRegion arenaB
           (setBytes img 0 (pairBytes 4 (Accel.curveDbl Accel.secpP
             (wsNat256 img 0) (wsNat256 img 0x20))))) := by
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns csrsRest (by decide)
-      (P := ((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word)) ** bytesRegion arenaB img)
+      (P := ((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** bytesRegion arenaB img)
       (fun vf => ?_))
-  have hcs := csrs_curveDbl_spec_within .secp256k1 (0x800205e0 : Word) .x5
+  have hcs := csrs_curveDbl_spec_within .secp256k1 ((GuestAddrs.secp256k1_point_double + 104) : Word) .x5
     (by decide) arenaB 64 img
-    (fun r => if r = .x5 then (0xa3c05618 : Word) else vf r)
+    (fun r => if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r)
     hlen (by decide) hvalid
     0
     (by
       show RegFile.get _ .x5 = arenaB + BitVec.ofNat 64 0
       rw [RegFile.get, if_neg (by decide : (Reg.x5 : Reg) ≠ .x0)]
-      show (if (Reg.x5 : Reg) = .x5 then (0xa3c05618 : Word) else vf .x5) = _
+      show (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf .x5) = _
       rw [if_pos rfl]
       decide)
     ⟨0, rfl⟩ (by decide)
@@ -516,19 +516,19 @@ theorem curveStep_spec (img : List (BitVec 8))
         show (0 + 8 * 4 : Nat) = 0x20 from rfl]
       exact hyne)
   have hcsC := liftCode (cr' := pdCr) hcs (by code_mem)
-  rw [show (0x800205e0 : Word) + 4 = (0x800205e4 : Word) from by decide,
+  rw [show ((GuestAddrs.secp256k1_point_double + 104) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 108) : Word) from by decide,
     show CurveId.p .secp256k1 = Accel.secpP from rfl,
     show CurveId.nl .secp256k1 = 4 from rfl,
     wsNat_four, show (0 + 8 * 4 : Nat) = 0x20 from rfl, wsNat_four] at hcsC
   -- unpack the register file on both sides (same file — the step moves nothing)
   rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
     exposedRegs_split5,
-    show (if (Reg.x5 : Reg) = .x5 then (0xa3c05618 : Word) else vf .x5)
-      = (0xa3c05618 : Word) from if_pos rfl,
+    show (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf .x5)
+      = (GuestAddrs.secc_le_p1 : Word) from if_pos rfl,
     regAtomsOf_congr
-      (fun r => if r = .x5 then (0xa3c05618 : Word) else vf r) vf csrsRest
+      (fun r => if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r) vf csrsRest
       (fun r hr => by
-        show (if r = .x5 then (0xa3c05618 : Word) else vf r) = vf r
+        show (if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r) = vf r
         rw [if_neg (fun (hc : r = .x5) => x5_notin_csrsRest (hc ▸ hr))])]
     at hcsC
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
