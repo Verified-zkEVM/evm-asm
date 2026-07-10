@@ -87,7 +87,7 @@ theorem cmpP_laLo_agree :
       = EvmAsm.Rv64.laLo cmpPBase pConstAddr := by decide
 
 /-
-  Emitted layout (base = GuestAddrs.secf_cmp_p = 0x8001fe08):
+  Emitted layout relative to `GuestAddrs.secf_cmp_p`:
     +0   auipc x5, %pcrel_hi(secp256k1_p_be)
     +4   addi  x5, x5, %pcrel_lo
     +8   li    x6, 32
