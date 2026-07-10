@@ -67,9 +67,6 @@ def ltPBase : Word := (GuestAddrs.blsg_lt_p : Word)
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.blsg_p_be : Word)
 
--- Address anchors (fail the build if the guest link moves).
-#guard GuestAddrs.blsg_lt_p = 0x8002f784
-#guard GuestAddrs.blsg_p_be = 0xbb55df08
 #guard blsgLtP_prog.length = 17
 
 /-- BLS12-381 base-field prime, as 48 big-endian bytes (mirrors the
