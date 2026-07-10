@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.SDiv.Compose.BaseCode
+import EvmAsm.Evm64.SDiv.LimbSpec
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

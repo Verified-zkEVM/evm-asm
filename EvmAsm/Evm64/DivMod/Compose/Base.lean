@@ -5,10 +5,8 @@
   program length lemmas, and the skipBlock tactic macro.
 -/
 
--- `LimbSpec` re-exports several sub-files that import `DivMod.AddrNorm`
--- (CLZ, TrialQuotient, TrialStoreComposed, SubCarryStoreQj), which in
--- turn imports `Rv64.AddrNorm`.
-import EvmAsm.Evm64.DivMod.LimbSpec
+import EvmAsm.Rv64.AddrNorm
+import EvmAsm.Rv64.Tactics.XPerm
 import EvmAsm.Evm64.DivMod.Compose.Offsets
 
 open EvmAsm.Rv64.Tactics
@@ -1163,7 +1161,9 @@ theorem normBFullPost_unfold {sp b0 b1 b2 b3 shift antiShift : Word} :
 -- in PhaseAB.lean and `mod_phB_off_28` in ModPhaseB.lean.
 -- ============================================================================
 
-theorem phB_off_28 {base : Word} : (base + phaseBOff : Word) + 28 = base + phaseBInit2Off := by bv_addr
+theorem phB_off_28 {base : Word} : (base + phaseBOff : Word) + 28 = base + phaseBInit2Off := by
+  change (base + 32 : Word) + 28 = base + 60
+  bv_omega
 
 -- n=4 special: x1 = signExtend12 4 - 4 = 0, used by the shift-0 fast path
 -- and the main `FullPathN4` path. Shared here so the two consumer files

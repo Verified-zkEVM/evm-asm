@@ -60,6 +60,7 @@ import EvmAsm.Evm64.Multiply
 import EvmAsm.Evm64.Exp
 
 -- DivMod (Knuth Algorithm D)
+import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 import EvmAsm.Evm64.DivMod
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableBzeroV4
