@@ -195,7 +195,7 @@ def schemeAAnchors : List GuestRegion :=
     `ChildFrameHandlers` dispatch. Grew by `0x58` when
     `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
     cursor helpers (bead evm-asm-22pwv.4). -/
-def textSizeBytes : Nat := 0x56924
+def textSizeBytes : Nat := 0x56954
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
