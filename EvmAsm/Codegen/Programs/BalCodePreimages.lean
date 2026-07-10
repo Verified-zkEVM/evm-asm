@@ -1151,12 +1151,12 @@ def balCodePreimagesValidFunction : String :=
   "  addi a2, s9, 3             # single-hop target address ptr\n" ++
   "  la a3, bsbd_tgt_ptr; la a4, bsbd_tgt_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++                          -- target not a BAL account / parse error
+  "  bnez a0, .Lbsbd_target_create_effect\n" ++        -- target absent from final BAL: try same-tx CREATE code
   "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++   -- target has no same-block code
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_no\n" ++   -- empty code -> EOA, not a code descent
+  "  bnez a0, .Lbsbd_target_create_effect\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
   -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus svf_codes_ptr (608(x20), the descend base).
   "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
@@ -1165,6 +1165,24 @@ def balCodePreimagesValidFunction : String :=
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)
+  "  li a0, 0\n" ++
+  "  j .Lbsbd_ret\n" ++
+  -- A delegation target may have been CREATEd earlier in this transaction and
+  -- SELFDESTRUCTed before the delegated CALL.  EIP-6780 deletes that account at
+  -- transaction finalization; it does not erase its code during message
+  -- execution.  Its final BAL row therefore has empty/deleted code, while the
+  -- CREATE code-effect log still contains the code that get_code observes.
+  -- Resolve that exact same-tx code here instead of treating the delegated CALL
+  -- as an empty-code success.  Storage context remains the delegating authority:
+  -- only cahsr_code_* is redirected to the target's code bytes.
+  ".Lbsbd_target_create_effect:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); addi a2, s9, 3\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  beqz a0, .Lbsbd_no\n" ++
+  "  ld t1, 40(a0); la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
+  "  addi t1, a0, 48; ld t2, 104(sp); ld t2, 608(t2); sub t1, t1, t2\n" ++
+  "  la t2, cahsr_code_offset; sd t1, 0(t2)\n" ++
+  "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_precompile_empty:\n" ++

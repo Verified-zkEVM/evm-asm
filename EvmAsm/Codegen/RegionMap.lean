@@ -193,8 +193,10 @@ def schemeAAnchors : List GuestRegion :=
     being derived for EIP-6110 negative system requests. Grew by `0xc` when the
     precompile fast path began returning successful value-call stipends while
     emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
-    payload staging paths began reversing PREVRANDAO into EVM word order. -/
-def textSizeBytes : Nat := 0x56c4c
+    payload staging paths began reversing PREVRANDAO into EVM word order. Grew
+    by `0x64` when same-transaction CREATE code became available to delegated
+    calls before EIP-6780 deletion is finalized. -/
+def textSizeBytes : Nat := 0x56cb0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

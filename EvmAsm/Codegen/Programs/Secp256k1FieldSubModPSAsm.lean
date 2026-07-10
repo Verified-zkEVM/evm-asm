@@ -18,9 +18,9 @@ namespace Secp256k1FieldSubModPSAsm
 
 open Secp256k1FieldReduceOnceSAsm
 
-#guard GuestAddrs.secf_sub_mod_p = 0x80020178
+#guard GuestAddrs.secf_sub_mod_p = 0x800201dc
 #guard GuestAddrs.u256_sub_be = 0x80005248
-#guard GuestAddrs.secf_copy32 = 0x8001fea8
+#guard GuestAddrs.secf_copy32 = 0x8001ff0c
 #guard GuestAddrs.secf_tmp0 = 0xa3c053c0
 #guard GuestAddrs.secp256k1_c_be = 0xa3c052e0
 
