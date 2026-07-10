@@ -104,8 +104,13 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldCmpPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsmStage
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsmBody
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsmReg
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
 import EvmAsm.Codegen.Programs.P256LeToBeSAsm
 import EvmAsm.Codegen.Programs.P256BeToLeSAsm
 import EvmAsm.Codegen.Programs.P256CopyNSAsm
@@ -155,6 +160,9 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
+import EvmAsm.Codegen.Programs.BloomEqSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
+import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
