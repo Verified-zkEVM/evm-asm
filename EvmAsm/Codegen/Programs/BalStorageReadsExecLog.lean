@@ -22,6 +22,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -38,85 +41,145 @@ open EvmAsm.Rv64
            exec log keyed on the account; 1 on any claimed read absent from the log
            (or parse failure → conservative reject). An empty/absent storage_reads
            list trivially returns 0. -/
-def balStorageReadsInExecLogFunction : String :=
-  "bal_storage_reads_in_exec_log:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                    # account addr ptr (addrHash)\n" ++
-  "  mv s1, a3                    # log base\n" ++
-  "  mv s2, a4                    # log length\n" ++
-  "  mv s6, a1                    # AccountChanges ptr\n" ++
-  -- storage_reads = AccountChanges item 2.
-  "  mv a0, a1; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbsre_reject        # malformed AccountChanges -> conservative\n" ++
-  "  mv s6, a1                    # AccountChanges end\n" ++
-  "  jal ra, rlp_walk_next        # item 0 = address\n" ++
-  "  bnez a1, .Lbsre_reject\n" ++
-  "  mv a1, s6; jal ra, rlp_walk_next          # item 1 = storage_changes\n" ++
-  "  bnez a1, .Lbsre_reject\n" ++
-  "  mv a1, s6; jal ra, rlp_walk_next          # item 2 = storage_reads\n" ++
-  "  bnez a1, .Lbsre_reject\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbsre_reject\n" ++
-  "  mv s3, a0                    # storage_reads cursor\n" ++
-  "  mv s4, a1                    # storage_reads end\n" ++
-  ".Lbsre_loop:\n" ++
-  "  beq s3, s4, .Lbsre_match\n" ++
-  -- Next read key (a canonical minimal big-endian U256 byte string).
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbsre_reject\n" ++
-  "  mv s3, a0\n" ++
-  "  sub t1, a0, a2                                   # content ptr (BE, MSB first)\n" ++
-  "  mv t2, a2                                        # content length\n" ++
-  "  li t0, 32; bgtu t2, t0, .Lbsre_reject\n" ++
-  "  beqz t2, .Lbsre_key_canon\n" ++
-  "  lbu t0, 0(t1); beqz t0, .Lbsre_reject             # non-canonical scalar\n" ++
-  ".Lbsre_key_canon:\n" ++
-  -- Build the stack-word key in bsr_krev: zero 32 B, then for the klen content bytes
-  -- (big-endian at s3+koff) write reversed into the low bytes (LE limbs).
-  "  la t0, bsr_krev\n" ++
-  "  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
-  "  add t3, t1, t2; addi t3, t3, -1                   # last content byte (LSB)\n" ++
-  "  mv t4, t0                                          # dst = bsr_krev (low byte first)\n" ++
-  "  mv t5, t2\n" ++
-  ".Lbsre_rev:\n" ++
-  "  beqz t5, .Lbsre_revd\n  lbu a5, 0(t3); sb a5, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; j .Lbsre_rev\n" ++
-  ".Lbsre_revd:\n" ++
-  -- Scan the exec log for (addrHash == s0, slotKey == bsr_krev).
-  "  mv t2, s2\n" ++
-  "  beqz t2, .Lbsre_reject        # empty log but a read claimed\n" ++
-  "  slli t3, t2, 7; add t3, s1, t3      # past last entry\n" ++
-  "  la t6, bsr_krev\n" ++
-  ".Lbsre_scan:\n" ++
-  "  addi t3, t3, -128            # entry ptr\n" ++
-  "  ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 24(t3); ld t5, 24(s0); bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 32(t3); ld t5, 0(t6);  bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 40(t3); ld t5, 8(t6);  bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 48(t3); ld t5, 16(t6); bne t4, t5, .Lbsre_next\n" ++
-  "  ld t4, 56(t3); ld t5, 24(t6); bne t4, t5, .Lbsre_next\n" ++
-  "  j .Lbsre_advance              # this read slot was accessed -> next read\n" ++
-  ".Lbsre_next:\n" ++
-  "  mv t4, s1; bne t3, t4, .Lbsre_scan   # not yet at the first entry -> keep scanning\n" ++
-  "  j .Lbsre_reject               # scanned whole log, slot never accessed\n" ++
-  ".Lbsre_advance:\n" ++
-  "  j .Lbsre_loop\n" ++
-  ".Lbsre_match:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbsre_ret\n" ++
-  ".Lbsre_reject:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsre_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def balStorageReadsInExecLog_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .MV .x22 .x11,
+    .MV .x10 .x11,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 60)),
+    .BNE .x12 .x0 (336 : BitVec 13),
+    .MV .x22 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 72)),
+    .BNE .x11 .x0 (324 : BitVec 13),
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 84)),
+    .BNE .x11 .x0 (312 : BitVec 13),
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 96)),
+    .BNE .x11 .x0 (300 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 112)),
+    .BNE .x12 .x0 (284 : BitVec 13),
+    .MV .x19 .x10,
+    .MV .x20 .x11,
+    .BEQ .x19 .x20 (264 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 140)),
+    .BNE .x11 .x0 (256 : BitVec 13),
+    .MV .x19 .x10,
+    .SUB .x6 .x10 .x12,
+    .MV .x7 .x12,
+    .LI .x5 (32 : Word),
+    .BLTU .x5 .x7 (236 : BitVec 13),
+    .BEQ .x7 .x0 (12 : BitVec 13),
+    .LBU .x5 .x6 (0 : BitVec 12),
+    .BEQ .x5 .x0 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .MV .x29 .x5,
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x15 .x28 (0 : BitVec 12),
+    .SB .x29 .x15 (0 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x7 .x18,
+    .BEQ .x7 .x0 (148 : BitVec 13),
+    .SLLI .x28 .x7 (7 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .AUIPC .x31 (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264)),
+    .ADDI .x28 .x28 (-128 : BitVec 12),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .LD .x30 .x8 (0 : BitVec 12),
+    .BNE .x29 .x30 (92 : BitVec 13),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .LD .x30 .x8 (8 : BitVec 12),
+    .BNE .x29 .x30 (80 : BitVec 13),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .LD .x30 .x8 (16 : BitVec 12),
+    .BNE .x29 .x30 (68 : BitVec 13),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .LD .x30 .x8 (24 : BitVec 12),
+    .BNE .x29 .x30 (56 : BitVec 13),
+    .LD .x29 .x28 (32 : BitVec 12),
+    .LD .x30 .x31 (0 : BitVec 12),
+    .BNE .x29 .x30 (44 : BitVec 13),
+    .LD .x29 .x28 (40 : BitVec 12),
+    .LD .x30 .x31 (8 : BitVec 12),
+    .BNE .x29 .x30 (32 : BitVec 13),
+    .LD .x29 .x28 (48 : BitVec 12),
+    .LD .x30 .x31 (16 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .LD .x29 .x28 (56 : BitVec 12),
+    .LD .x30 .x31 (24 : BitVec 12),
+    .BNE .x29 .x30 (8 : BitVec 13),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x29 .x9,
+    .BNE .x28 .x29 (-108 : BitVec 13),
+    .JAL .x0 (16 : BitVec 21),
+    .JAL .x0 (-260 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balStorageReadsInExecLog_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balStorageReadsInExecLog_relocs : RelocTable :=
+  [ (15, .jal .x1 "rlp_walk_init"),
+    (18, .jal .x1 "rlp_walk_next"),
+    (21, .jal .x1 "rlp_walk_next"),
+    (24, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_init"),
+    (35, .jal .x1 "rlp_walk_next"),
+    (45, .la .x5 "bsr_krev"),
+    (66, .la .x31 "bsr_krev") ]
+
+def balStorageReadsInExecLogFunction : String :=
+  "bal_storage_reads_in_exec_log:\n" ++ emitProgramR balStorageReadsInExecLog_prog balStorageReadsInExecLog_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balStorageReadsInExecLog_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balStorageReadsInExecLogFunction_eq_prog :
+    balStorageReadsInExecLogFunction = "bal_storage_reads_in_exec_log:\n" ++ emitProgramR balStorageReadsInExecLog_prog balStorageReadsInExecLog_relocs := rfl
+
+#guard balStorageReadsInExecLogFunction.startsWith "bal_storage_reads_in_exec_log:\n"
+#guard balStorageReadsInExecLog_prog.length = 111
 /-- Scratch for `bal_storage_reads_in_exec_log`. -/
 def balStorageReadsInExecLogData : String :=
   ".balign 8\n" ++

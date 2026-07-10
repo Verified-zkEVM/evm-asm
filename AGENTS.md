@@ -191,6 +191,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ### SAsm Proof Repair Notes
 
+- When adapting a verified leaf for use through `Fn.retSpecFlat`, ensure the leaf `Fn.pre` and `Fn.post` pin the ambient assertion (`A = empAssertion`) and that loop invariants preserve that ambient equality. Otherwise the leaf may build standalone, but the flat caller adapter cannot discharge its `hpostEmp` side condition; this came up when reusing the secp256k1 BE/LE converters inside `secf_mul_mod_p`.
 - When `rfl` on a generated SAsm equality times out or spins, assume the equality
   is nontrivial before increasing budgets. Split the proof into named helper
   lemmas that expose the exact register/memory update being used, then rewrite
@@ -245,6 +246,16 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   `execInstrRF_sd_dword`, then run `simp only` to collapse pair projections
   before applying the semantic `setBytes` lemma. Avoid `subst` on huge
   `execBlock` equalities; rewrite with the equality instead.
+- For branchy ABI-frame callers whose arms return with different current `ra`
+  values, avoid forcing the standard body post into exact saved-register values.
+  A stable pattern is to merge the branch arms into a post with `regOwn .x1`,
+  then prove the restore/deallocate/ret tail directly with `loadSeq_spec`; the
+  restore sequence needs ownership of the saved registers, not their current
+  branch-specific values.
+- For large caller/callee branch merges, keep compare-branch framing, each arm's
+  semantic adapter, and the final `cpsBranchWithin_merge_same_cr` as separate
+  named lemmas. Padding step bounds only at the tiny final merge avoids `whnf`
+  timeouts from elaborating one monolithic branch theorem type.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
@@ -293,6 +304,7 @@ hard-gate noisy heuristics):
 | Gate | Invariant enforced |
 |------|--------------------|
 | `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
+| `check-no-hardcoded-guest-pc.sh` | SAsm wrappers reference linked PCs through `GuestAddrs.*`, with one literal anchor guard per routine |
 | `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
 | `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
 | `check-conformance-floor.sh` | conformance-vector count never silently drops |

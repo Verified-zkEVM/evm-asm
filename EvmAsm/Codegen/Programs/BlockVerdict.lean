@@ -420,6 +420,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++

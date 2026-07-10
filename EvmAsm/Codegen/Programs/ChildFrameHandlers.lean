@@ -199,7 +199,6 @@ def callDescendFallThrough
   -- fva3w: EIP-7708 value-CALL transfer log emission is DEFERRED (see below); reset the
   -- per-CALL pending flag so a prior CALL's value transfer does not leak into this one.
   -- The snippet that emits one pending Transfer(cd_caller_be, cd_callee_be, cd_value_be)
-  -- and, for deleted same-tx-created callees, an additional Burn(cd_callee_be, cd_value_be)
   -- log into the CURRENT frame's env (env+472 count, via eip7708_append_transfer_log) and
   -- clears the flag. Used at .Lcd_descend (child env) and .Lcd_empty (parent env).
   let emitPendingXferLog : String → String := fun site =>
@@ -220,38 +219,61 @@ def callDescendFallThrough
     "  la t0, cd_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
     ".Lcd_xlog_val_" ++ site ++ tag ++ ":\n" ++
     "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_val_" ++ site ++ tag ++ "\n" ++
-    "  la t0, cd_xfer_log_burn\n  ld t1, 0(t0)\n  sd x0, 0(t0)\n  sd t1, 120(sp)\n" ++
     "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
-    "  ld t1, 120(sp)\n" ++
-    "  beqz t1, .Lcd_xlog_restore_" ++ site ++ tag ++ "\n" ++
-    ".Lcd_xlog_burn_" ++ site ++ tag ++ ":\n" ++
-    "  addi a0, sp, 32\n  addi a1, sp, 64\n" ++
-    "  jal ra, eip7708_append_burn_log\n" ++
     ".Lcd_xlog_restore_" ++ site ++ tag ++ ":\n" ++
     "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
     ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
-  let emitPendingBurnLog : String → String := fun site =>
-    "  la t0, cd_burn_log_pending\n  ld t0, 0(t0)\n  beqz t0, .Lcd_blog_skip_" ++ site ++ tag ++ "\n" ++
-    "  la t0, cd_burn_log_pending\n  sd x0, 0(t0)\n" ++
-    -- Build topic1/value stack-word forms from the canonical-BE globals. This mirrors
-    -- emitPendingXferLog above; eip7708_append_burn_log reverses the amount into descriptor BE.
-    "  addi sp, sp, -96\n  sd x10, 64(sp)\n  sd x12, 72(sp)\n  sd x13, 80(sp)\n" ++
-    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-    "  la t0, cd_callee_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
-    ".Lcd_blog_addr_" ++ site ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_blog_addr_" ++ site ++ tag ++ "\n" ++
-    "  la t0, cd_value_be; addi t0, t0, 31; addi t1, sp, 32; li t2, 32\n" ++
-    ".Lcd_blog_val_" ++ site ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_blog_val_" ++ site ++ tag ++ "\n" ++
-    "  addi a0, sp, 0\n  addi a1, sp, 32\n" ++
-    "  jal ra, eip7708_append_burn_log\n" ++
-    "  ld x10, 64(sp)\n  ld x12, 72(sp)\n  ld x13, 80(sp)\n  addi sp, sp, 96\n" ++
-    ".Lcd_blog_skip_" ++ site ++ tag ++ ":\n"
+  let refundNewAccountStateGas : String → String := fun site =>
+    -- execution-specs `credit_state_gas_refund(NEW_ACCOUNT)`: refund in LIFO
+    -- order (gas_left spill first, then state reservoir) and reduce state_gas_used.
+    "  li t2, 183600
+" ++
+    "  la t0, evm_state_gas_spilled
+  ld t1, 0(t0)
+  li t3, 0
+" ++
+    "  beqz t1, .Lcd_nacc_refund_no_spill_" ++ site ++ tag ++ "
+" ++
+    "  mv t3, t1
+  bleu t1, t2, .Lcd_nacc_refund_spill_le_" ++ site ++ tag ++ "
+  mv t3, t2
+" ++
+    ".Lcd_nacc_refund_spill_le_" ++ site ++ tag ++ ":
+" ++
+    "  sub t1, t1, t3
+  sd t1, 0(t0)
+  ld t4, 568(x20)
+  add t4, t4, t3
+  sd t4, 568(x20)
+  sub t2, t2, t3
+" ++
+    ".Lcd_nacc_refund_no_spill_" ++ site ++ tag ++ ":
+" ++
+    "  beqz t2, .Lcd_nacc_refund_used_" ++ site ++ tag ++ "
+" ++
+    "  la t0, evm_state_gas_left
+  ld t1, 0(t0)
+  add t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".Lcd_nacc_refund_used_" ++ site ++ tag ++ ":
+" ++
+    "  la t0, evm_state_gas_used
+  ld t1, 0(t0)
+  li t2, 183600
+" ++
+    "  bltu t1, t2, .Lcd_nacc_refund_done_" ++ site ++ tag ++ "
+" ++
+    "  sub t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".Lcd_nacc_refund_done_" ++ site ++ tag ++ ":
+"
   "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
-  "  la t0, cd_burn_log_pending\n  sd x0, 0(t0)\n" ++
-  "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_xfer_gas_precharged\n  sd x0, 0(t0)\n" ++
+  "  la t0, cd_new_account_charged_current\n  sd x0, 0(t0)\n" ++
+  "  la t0, cd_callee_alive_before_value\n  sd x0, 0(t0)\n" ++
   "  mv s10, x10                           # preserve parent PC through CALL fallthrough helpers\n" ++
   -- drj99.1 (failed-inner rollback): DISARM the value-CALL non-storage-effect pre-snapshot at every
   -- CALL entry. A value-bearing CALL records the caller-debit + callee-credit NON-STORAGE effects in
@@ -473,12 +495,22 @@ def callDescendFallThrough
     "  jal ra, account_at_header_state_root\n" ++
     "  mv t0, a0\n" ++                                  -- status (capture before restoring x10=a0)
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  beqz t0, .Lcd_nse_have_pre_" ++ tag ++ "\n" ++
+    "  beqz t0, .Lcd_nse_header_found_" ++ tag ++ "\n" ++
     "  li t1, 1\n  beq t0, t1, .Lcd_nse_zero_pre_" ++ tag ++ "\n" ++
     "  li t1, 2\n  beq t0, t1, .Lcd_nse_zero_pre_" ++ tag ++ "\n" ++
-    "  j .Lcd_nse_done_" ++ tag ++ "\n" ++       -- decode/header errors -> skip (conservative)
+    "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0); j .Lcd_nse_done_" ++ tag ++ "\n" ++
+                                                        -- decode/header errors -> skip charge (conservative)
+    ".Lcd_nse_header_found_" ++ tag ++ ":\n" ++
+    "  la t0, nse_acct; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lcd_nse_header_alive_" ++ tag ++ "\n" ++
+    "  la t1, cd_empty_code_hash; ld t2, 72(t0); ld t3, 0(t1); bne t2, t3, .Lcd_nse_header_alive_" ++ tag ++ "\n" ++
+    "  ld t2, 80(t0); ld t3, 8(t1); bne t2, t3, .Lcd_nse_header_alive_" ++ tag ++ "\n" ++
+    "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Lcd_nse_header_alive_" ++ tag ++ "\n" ++
+    "  ld t2, 96(t0); ld t3, 24(t1); beq t2, t3, .Lcd_nse_have_pre_" ++ tag ++ "\n" ++
+    ".Lcd_nse_header_alive_" ++ tag ++ ":\n" ++
+    "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0); j .Lcd_nse_have_pre_" ++ tag ++ "\n" ++
     ".Lcd_nse_zero_pre_" ++ tag ++ ":\n" ++
-    "  la t0, nse_acct\n  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
+    "  la t0, nse_acct\n  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0)\n" ++
     ".Lcd_nse_have_pre_" ++ tag ++ ":\n" ++
     -- sr5m3.1: overlay the callee credit's pre_balance with the latest same-transaction
     -- non-storage effect when one exists. Header pre-state alone is stale for a pre-existing
@@ -489,8 +521,13 @@ def callDescendFallThrough
     -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
-    "  jal ra, nonstorage_effect_latest_balance\n" ++
+    "  jal ra, nonstorage_effect_latest_balance\n  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  beqz t6, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
+    "  la t0, nse_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
+    "  beqz t1, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
+    "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0)\n" ++
+    ".Lcd_nse_prior_alive_done_" ++ tag ++ ":\n" ++
     -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
@@ -502,30 +539,9 @@ def callDescendFallThrough
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    -- c83ty.1: value sent to an account already queued for same-tx EIP-6780 deletion is burned at
-    -- transaction end. The credit above is real live-state behavior, but the final BAL balance is
-    -- zero, so append a second effect (credited balance -> 0, nonce unchanged) when the callee is in
-    -- the SELFDESTRUCT-created-in-tx deletion table.
-    "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_sdburn_done_" ++ tag ++ "\n" ++
-    "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_sdburn_done_" ++ tag ++ "\n" ++
-    "  la t2, evm_selfdestruct_destroyed_table\n" ++
-    ".Lcd_sdburn_scan_" ++ tag ++ ":\n" ++
-    "  mv t3, t2; la t4, nse_callee_be; li t5, 20\n" ++
-    ".Lcd_sdburn_cmp_" ++ tag ++ ":\n" ++
-    "  beqz t5, .Lcd_sdburn_found_" ++ tag ++ "\n" ++
-    "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lcd_sdburn_next_" ++ tag ++ "\n" ++
-    "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lcd_sdburn_cmp_" ++ tag ++ "\n" ++
-    ".Lcd_sdburn_next_" ++ tag ++ ":\n" ++
-    "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_sdburn_scan_" ++ tag ++ "\n" ++
-    "  j .Lcd_sdburn_done_" ++ tag ++ "\n" ++
-    ".Lcd_sdburn_found_" ++ tag ++ ":\n" ++
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la t0, nse_acct; ld a3, 0(t0); mv a4, a3\n" ++
-    "  la a0, nse_callee_be\n  la a1, nse_post_bal\n  la a2, nse_zero_bal\n" ++
-    "  jal ra, record_nonstorage_effect\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  la t0, cd_burn_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
-    ".Lcd_sdburn_done_" ++ tag ++ ":\n" ++
+    -- Pinned execution-specs v0.5.0 clears a same-tx SELFDESTRUCTed account while
+    -- preserving its balance. A later value CALL therefore leaves the credit above
+    -- intact; do not append a synthetic zero-balance effect or Burn log.
     -- fhsxz.2.4.2.63.1.6.2.6: EIP-7708 emit_transfer_log for this CALL value move, so the
     -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0),
     -- to = callee (x12+32), value = value word (x12+valueOff), ALL passed as raw EVM stack
@@ -561,7 +577,6 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_tl_selfchk_" ++ tag ++ "\n" ++
     ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
     "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
-    "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n")) ++
   -- bbow4.1.1 / bbow4.2.5.8: EIP-150 value-transfer gas charge. Amsterdam
   -- `generic_call` charges `access_gas + transfer_gas + extend_memory` before
@@ -599,10 +614,21 @@ def callDescendFallThrough
     "  ld t3, 584(x20)\n  beqz t3, .Lcd_nacc_done_" ++ tag ++ "\n" ++   -- no account-witness ctx: skip
     -- callee (`to`) word at x12+32: build cd_callee_be = reverse(mem[x12+32 .. x12+51]) = canonical
     -- 20-byte big-endian (stack words are LE-stored; mirrors the SELFDESTRUCT beneficiary / cd_caller_be).
-    "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+    "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
     ".Lcd_nacc_addr_" ++ tag ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_nacc_addr_" ++ tag ++ "\n" ++
+    -- EIP-7702: authorization processing runs before message execution. A same-block
+    -- delegation marker therefore makes the original CALL recipient alive even when it was
+    -- absent from the block-pre witness. execution-specs tests is_account_alive(to), not the
+    -- delegated code address. Resolve the BAL marker without charging; status 0 (code target)
+    -- or 2 (precompile target) proves the recipient is alive, while status 1 is a miss.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 0\n" ++
+    "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+    "  mv t6, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
     -- coc3g.6.5: a callee CREATEd earlier in THIS tx is ALIVE (has code/nonce), so is_account_alive(to)
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
@@ -616,8 +642,21 @@ def callDescendFallThrough
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
+    -- SELFDESTRUCT moves the origin balance to zero but leaves the account alive until tx end.
+    "  la t0, evm_selfdestruct_seen_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
+    "  la t0, evm_selfdestruct_seen_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
+    "  la t2, evm_selfdestruct_seen_table\n" ++
+    ".Lcd_nacc_seen_scan_" ++ tag ++ ":\n" ++
+    "  mv t3, t2; la t4, cd_callee_be; li t5, 20\n" ++
+    ".Lcd_nacc_seen_cmp_" ++ tag ++ ":\n" ++
+    "  beqz t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lcd_nacc_seen_next_" ++ tag ++ "\n" ++
+    "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lcd_nacc_seen_cmp_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_seen_next_" ++ tag ++ ":\n" ++
+    "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_nacc_seen_scan_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_seen_done_" ++ tag ++ ":\n" ++
     -- c83ty.2: a constructor-SELFDESTRUCTed same-tx account has no code-effect record, but it is
-    -- still alive until transaction end; a later value CALL to it burns value at deletion time and
+    -- still alive until transaction end; a later value CALL to it preserves the credited balance and
     -- must not pay a second NEW_ACCOUNT state-gas charge.
     "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_sdskip_done_" ++ tag ++ "\n" ++
     "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_sdskip_done_" ++ tag ++ "\n" ++
@@ -631,66 +670,41 @@ def callDescendFallThrough
     ".Lcd_nacc_sdskip_next_" ++ tag ++ ":\n" ++
     "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_nacc_sdskip_scan_" ++ tag ++ "\n" ++
     ".Lcd_nacc_sdskip_done_" ++ tag ++ ":\n" ++
-    -- A previous same-tx value transfer makes an absent callee alive for EIP-8037 new-account charging.
-    -- The current CALL has already appended its own callee-credit record immediately before this block,
-    -- so scan all but the last non-storage effect entry. First CALL to a fresh address still charges;
-    -- the second CALL to that address skips the charge.
-    "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
-    "  addi t1, t1, -1; beqz t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
-    "  li t2, 0; la t3, exec_nonstorage_effect_log\n" ++
-    ".Lcd_nacc_prev_scan_" ++ tag ++ ":\n" ++
-    "  beq t2, t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
-    "  mv t4, t3; la t5, cd_callee_be; li t6, 20\n" ++
-    ".Lcd_nacc_prev_cmp_" ++ tag ++ ":\n" ++
-    "  beqz t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++
-    "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lcd_nacc_prev_next_" ++ tag ++ "\n" ++
-    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lcd_nacc_prev_cmp_" ++ tag ++ "\n" ++
-    ".Lcd_nacc_prev_next_" ++ tag ++ ":\n" ++
-    "  addi t3, t3, 112; addi t2, t2, 1; j .Lcd_nacc_prev_scan_" ++ tag ++ "\n" ++
-    ".Lcd_nacc_prev_done_" ++ tag ++ ":\n" ++
-    -- account_exists_at_header_state_root(callee) -> aex_predicate (helper clobbers a-regs aliasing x10/x12/x13)
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
-    "  jal ra, account_exists_at_header_state_root\n" ++
-    "  mv t6, a0\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- lookup err -> conservative skip (no charge)
-    "  la t0, aex_predicate\n  ld t1, 0(t0)\n" ++
-    "  beqz t1, .Lcd_nacc_charge_" ++ tag ++ "\n" ++         -- not exists -> not alive -> charge
-    -- exists: account_is_empty_at_header_state_root(callee) -> aie_predicate
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
-    "  jal ra, account_is_empty_at_header_state_root\n" ++
-    "  mv t6, a0\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- lookup err -> skip
-    "  la t0, aie_predicate\n  ld t1, 0(t0)\n" ++
-    "  beqz t1, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- exists & not empty = alive -> no charge
+    -- A previous same-tx value transfer makes an absent callee alive. The flag was
+    -- captured before appending this CALL's own credit, so the current transfer cannot
+    -- falsely satisfy its own precondition.
+    "  la t0, cd_callee_alive_before_value; ld t1, 0(t0); bnez t1, .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    -- Header/live balance, nonce, and code liveness was captured before this CALL appended
+    -- its own credit. A zero flag therefore means the recipient is absent or EIP-161-empty.
     ".Lcd_nacc_charge_" ++ tag ++ ":\n" ++
     -- charge_state_gas(112 * runtime cost): drain evm_state_gas_left, spill remainder into the frame
     -- gas_left (568(x20)), OOG -> .exit_outofgas when both reservoirs short; state_gas_used += charge.
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- new-account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
     "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
-    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  sub t3, t0, t2\n" ++
     "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
+    "  sd x0, 0(t1)\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+    "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+    "  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
     ".Lcd_nacc_res_" ++ tag ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_used_" ++ tag ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  la t1, cd_new_account_charged_current\n  li t2, 1\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   -- `account_at_address` expects a canonical 20-byte big-endian address, while
   -- the EVM stack word stores the low 20 address bytes in word order. Mirror the
   -- new-account helper's conversion before code lookup for every CALL-family mode.
-  "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+  "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
   -- c83ty.3: a same-tx-created account that SELFDESTRUCTed is queued for deletion and must not
   -- be resurrected by the same-tx code-effect fallback below. Treat later CALLs to that address as
-  -- empty-code success. This also preserves the value-transfer/burn effects already recorded above.
+  -- empty-code success. This also preserves the value-transfer effects already recorded above.
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
   "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
   "  la t2, evm_selfdestruct_destroyed_table\n" ++
@@ -804,11 +818,11 @@ def callDescendFallThrough
   -- not double-count them; the child's own SELFDESTRUCT records the deletion / beneficiary credit
   -- separately. find_code_effect_by_address clobbers t0-t6 + a0(=x10); save x10/x12/x13.
   "  addi sp, sp, -32\n" ++
-  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, cd_callee_be\n" ++
   "  jal ra, find_code_effect_by_address\n" ++
   "  mv t4, a0\n" ++                                   -- t4 = record ptr or 0
-  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  beqz t4, .Lcd_callee_nocreate_" ++ tag ++ "\n" ++ -- no code-effect record -> fall through to status check
   "  ld t5, 40(t4); la t6, cahsr_code_length; sd t5, 0(t6)\n" ++  -- cahsr_code_length = record.code_len
@@ -843,7 +857,7 @@ def callDescendFallThrough
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   (if valueBearing then
      "  la t0, cd_xfer_gas_precharged\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_xfer_done_" ++ tag ++ "\n" ++
-     "  sd x0, 0(t0)\n  li t1, 10300\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
+     "  sd x0, 0(t0)\n  li t1, 2300\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
      ".Lcd_fail_xfer_done_" ++ tag ++ ":\n"
    else "") ++
   "  mv x10, s10                           # restore parent PC before direct CALL failure resume\n" ++
@@ -854,22 +868,23 @@ def callDescendFallThrough
   -- coc3g.7 (bv_fail=41): a value-bearing CALL (mode 0/2) whose caller balance < value
   -- still pays the value-transfer REGULAR gas, then fails (push 0). The balance gate jumps
   -- here (NOT to the shared .Lcd_fail_) so this charge does NOT touch the depth-gate or the
-  -- code-resolution-failure (status 2/3/4/5) arrivals, which the spec does NOT bill the
-  -- value-transfer gas. Spec vm/instructions/system.py: charge_gas(extra_gas = access +
+  -- code-resolution-failure arrivals: Amsterdam charges CALL_VALUE before resolution and
+  -- returns only the 2300 stipend, so the 8000 ACCOUNT_WRITE portion remains billed. Spec vm/instructions/system.py: charge_gas(extra_gas = access +
   -- CALL_VALUE(10300)) and charge_gas(message_call_gas.cost) run BEFORE the
   -- `sender_balance < value` check (system.py:464/477/488); on insufficient balance only the
   -- sub-call gas (forwarded gas + GAS_CALL_STIPEND(2300)) is returned
   -- (`evm.gas_left += message_call_gas.sub_call`), so the NET regular consumed for the value
   -- transfer is 10300 - 2300 = 8000 (access is already charged via runtime_access_account_charge
   -- before the gate; the value!=0 gate guard guarantees value>0 here so the 8000 is
-  -- unconditional). Without it the reconstructed block_regular_gas under-counts by 8000 ->
-  -- header.gas_used appears to over-claim -> .Lbv_block_gas_used_over_fail (bv_fail=41:
-  -- failed_inner_operation_no_log call_insufficient_balance). The spec's prior
-  -- charge_gas(extra_gas) would have OOG'd if gas_left < 8000, so bailing to .exit_outofgas
-  -- matches the spec. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
+  -- unconditional). Charge the full 10300 before the duplicated NEW_ACCOUNT state-gas
+  -- check below, then return the 2300 stipend only after that check survives; this matches
+  -- execution-specs' order (`charge_gas(extra_gas)`, `charge_state_gas`, then the
+  -- insufficient-balance branch returns `message_call_gas.sub_call`). Without that order a
+  -- one-gas-short state charge can incorrectly survive because the stipend was returned too
+  -- early. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
-     "  li t0, 8000\n" ++
+     "  li t0, 10300\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      -- bbow4.2.2 (bv41): the NEW_ACCOUNT state-gas charge (nxio8.8, below) lives in the
@@ -883,7 +898,7 @@ def callDescendFallThrough
      -- bvgr_tx_exec_state_gas under-counts by 183600 -> block_state under-count -> bv41.
      (if mode != 0 then "" else
        "  ld t3, 584(x20)\n  beqz t3, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++   -- no witness ctx -> conservative skip
-       "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+       "  la t0, cd_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
        ".Lcd_ibnacc_addr_" ++ tag ++ ":\n" ++
        "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
@@ -927,14 +942,20 @@ def callDescendFallThrough
        liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- NEW_ACCOUNT state gas = 120*1530 = 183600
        "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
        "  bgeu t2, t0, .Lcd_ibnacc_res_" ++ tag ++ "\n" ++
-       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+       "  sub t3, t0, t2\n" ++
        "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-       "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
+       "  sd x0, 0(t1)\n" ++
+       "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+       "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+       "  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
        ".Lcd_ibnacc_res_" ++ tag ++ ":\n" ++
        "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
        ".Lcd_ibnacc_used_" ++ tag ++ ":\n" ++
        "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       refundNewAccountStateGas "ib" ++
        ".Lcd_ibnacc_done_" ++ tag ++ ":\n") ++
+     "  li t0, 2300\n" ++
+     "  ld t1, 568(x20)\n  add t1, t1, t0\n  sd t1, 568(x20)\n" ++
      "  j .Lcd_fail_" ++ tag ++ "\n"
    else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1
@@ -972,7 +993,6 @@ def callDescendFallThrough
   -- EIP-7708 log) is committed. Emit the deferred log in the PARENT env (x20 unchanged here).
   -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.
   emitPendingXferLog "empty_" ++
-  emitPendingBurnLog "empty_" ++
   "  mv x10, s10                           # restore parent PC before empty CALL resume\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  li t0, 1\n" ++
@@ -1020,7 +1040,6 @@ def callDescendFallThrough
   -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
   -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
   emitPendingXferLog "desc_" ++
-  emitPendingBurnLog "desc_" ++
   dispatchContinueRet
 
 end EvmAsm.Codegen

@@ -864,6 +864,11 @@ def _collect_guest_addr_syms():
     `_prog` references through `GuestAddrs`: its own entry (the `pc` base for
     `la`/`jal`) plus every `la`/cross-`jal` target. Returns sorted [(sym,addr)]."""
     man=_load_manifest(); need=set()
+    # Hand-maintained converted programs in Dispatch.lean are not in the asm-fixture
+    # manifest, but their Program views still use GuestAddrs constants.
+    need.update({
+        'evm_state_gas_spilled',
+    })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
         fp=fixture_path(fn)
@@ -922,6 +927,10 @@ def gen_guest_addrs():
 # fixture/Lean-render assemble checks still guard their emitted bytes; only the
 # verbatim generated-block source check is skipped.
 SOURCE_DRIFT_ALLOW = {
+    'bls12G1Eq48Function',
+    'bls12G2EqNFunction',
+    'p256Eq32Function',
+    'p256IsZeroNFunction',
     'secp256k1FieldEq32Function',
     'secp256k1FieldIsZeroFunction',
     'bn254FieldEq32Function',

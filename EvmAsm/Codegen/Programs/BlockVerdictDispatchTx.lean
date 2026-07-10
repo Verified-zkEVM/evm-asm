@@ -230,22 +230,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
-  -- fhsxz.2.4.2.57.11.6.5: resolve the witness-lookup header ONCE (mtx-gated). Default
-  -- (dtrc_use_pre_header=0, single-tx) = sv_this_rlp (this block's POST-state header,
-  -- whose root is NOT in the pre-rooted witness -> lookups bail -> conservative, byte-
-  -- identical to #8686). The mtx loop sets the flag=1 to use the PRE-state (parent)
-  -- header whose root IS the witness root, enabling real multi-tx contract dispatch.
-  "  la t0, dtrc_use_pre_header; ld t0, 0(t0); bnez t0, .Ldtrc_hdr_pre\n" ++
-  "  la t1, sv_this_rlp; la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
-  "  la t0, sv_this_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
-  "  j .Ldtrc_hdr_done\n" ++
-  ".Ldtrc_hdr_pre:\n" ++
+  -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
+  -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
+  -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
+  -- the post-state header makes CREATE see its own target after deployment and falsely collide.
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
-  ".Ldtrc_hdr_done:\n" ++
   "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
@@ -287,6 +281,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
+  "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_same_block_empty_code:\n" ++
+  "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
+  "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++

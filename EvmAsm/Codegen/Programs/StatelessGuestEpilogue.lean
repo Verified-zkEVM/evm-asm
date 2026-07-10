@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
+import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -155,6 +157,38 @@ def statelessGuestValidatorPipeline : String :=
 def statelessGuestEpilogue : String :=
   statelessGuestValidatorPipeline ++ "\n" ++
   ".Lsg_hash:\n" ++
+  "  # Match execution-specs run_stateless_guest: deserialize the schema-\n" ++
+  "  # prefixed SSZ input before computing any NPR root. Decode failures return\n" ++
+  "  # _default_failed_stateless_output(), whose root is zero and whose\n" ++
+  "  # ChainConfig is Frontier/empty. These guards cover the malformed EEST\n" ++
+  "  # statelessInputBytes fixtures: bad schema, non-canonical outer offset,\n" ++
+  "  # and fixed-size public key list length not divisible by 65.\n" ++
+  "  li t0, 0x40000008; ld t6, 0(t0)      # host blob len includes schema id\n" ++
+  "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
+  "  bnez t2, .Lsg_default_failed_output\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_default_failed_output\n" ++
+  "  addi t6, t6, -2                     # SSZ_len\n" ++
+  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_default_failed_output\n" ++
+  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  sub t5, t6, t3                      # public_keys section length\n" ++
+  "  li t4, 65; remu t5, t5, t4\n" ++
+  "  bnez t5, .Lsg_default_failed_output\n" ++
   "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
   "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
   "  # field roots:\n" ++
@@ -846,6 +880,16 @@ def statelessGuestEpilogue : String :=
   "  ld t1, 0(t1)\n" ++
   "  sd t1, 0(t0)\n" ++
   "  j .Lsg_done\n" ++
+  ".Lsg_default_failed_output:\n" ++
+  "  li t0, 0xa0010000; la t1, default_failed_stateless_output; li t2, 0\n" ++
+  ".Lsg_dfo_copy:\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1; li t3, 73; bltu t2, t3, .Lsg_dfo_copy\n" ++
+  "  li t4, 0\n" ++
+  ".Lsg_dfo_zero_tail:\n" ++
+  "  add t3, t0, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1; li t3, 112; bltu t2, t3, .Lsg_dfo_zero_tail\n" ++
+  "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
   -- SSZ merkleization helpers for the dynamic transactions_root /
   -- block_access_list_root (zkvm_sha256 already emitted just above, so it
@@ -859,26 +903,12 @@ def statelessGuestEpilogue : String :=
   -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
   -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
   "sg_load_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret\n" ++
+  emitProgram SgLoadU32leSAsm.sgLoadU32le_prog ++ "\n" ++
   -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
   -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
   -- preserves all s-registers and ra.
   "sg_memcpy:\n" ++
-  ".Lsgmc_loop:\n" ++
-  "  beqz a2, .Lsgmc_done\n" ++
-  "  lbu t0, 0(a1)\n" ++
-  "  sb  t0, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lsgmc_loop\n" ++
-  ".Lsgmc_done:\n" ++
-  "  ret\n" ++
+  emitProgram SgMemcpySAsm.sgMemcpy_prog ++ "\n" ++
   -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
   -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
   -- fixed 44-byte container; its root = merkleize([index|pad,

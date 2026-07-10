@@ -45,14 +45,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     -- fhsxz.2.4.2.61.8.3.6 / EIP-3860 + EIP-7907: init-code size > MAX_INIT_CODE_SIZE is an
     -- exceptional abort consuming all gas (execution-specs amsterdam system.py:85-86 raises
-    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x8000 = 0x10000 = 65536, per
-    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x8000, so the bound is 65536,
-    -- NOT the pre-Amsterdam 49152: init-code in (49152, 65536] is VALID and must execute, not
+    -- OutOfGasError; MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 2 * 0x10000 = 0x20000 = 131072, per
+    -- vm/interpreter.py — EIP-7907 doubled MAX_CODE_SIZE 0x6000->0x10000, so the bound is 131072,
+    -- NOT the pre-Amsterdam 49152: init-code in (49152, 131072] is VALID and must execute, not
     -- be rejected). x16 is the full size (high limbs confirmed 0 above). The bound equals
-    -- create_child_initcode's size (.zero 0x10000 = 65536), so a valid init-code (<= 65536) fits
+    -- create_child_initcode's size (.zero 0x20000 = 131072), so a valid init-code (<= 131072) fits
     -- the staging buffer exactly while any larger (invalid) one is OOG-rejected before the copy,
     -- preventing the overflow into adjacent .data (create_child_returndata / create_child_code).
-    "  li x18, 65536; bgtu x16, x18, .exit_outofgas\n" ++
+    "  li x18, 131072; bgtu x16, x18, .exit_outofgas\n" ++
     "  beqz x16, 1f\n" ++
     "  ld x18, 40(x12)\n" ++
     "  bnez x18, .exit_outofgas\n" ++
@@ -62,7 +62,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez x18, .exit_outofgas\n" ++
     "  add x18, x15, x16\n" ++
     "  bltu x18, x15, .exit_outofgas\n" ++
-    "  li x19, 0x10000\n" ++
+    "  li x19, 0x20000\n" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "1:\n" ++
     createInitcodeGasAsm
@@ -114,6 +114,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t1, 568(x20)\n" ++                                         -- regular gas_left
     "  bltu t1, t0, .exit_outofgas\n" ++                             -- reservoir + gas_left < 183600 -> exceptional halt
     ".Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t1, create_state_gas_charged_current\n  sd x0, 0(t1)\n" ++
     -- With account-witness context, enforce the executable-spec
     -- insufficient-balance zero-result branch before deriving success.
     "  ld a1, 584(x20)\n" ++
@@ -257,7 +258,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez t0, 7f\n" ++
+    -- A nonzero helper status means the header-state witness lookup could not
+    -- classify the derived address. Execution-specs has the live tx state here;
+    -- for a missing/unknown header account the closest faithful behavior is to
+    -- treat the header predicate as false (the helper initializes it to 0),
+    -- still run the same-tx collision scan below, and otherwise take the normal
+    -- CREATE descend path. A cheap push-0 skipped child execution gas.
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -353,11 +359,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  sub t3, t0, t2\n  ld t2, 568(x20)\n  bltu t2, t3, 7f\n  sd x0, 0(t1)\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+    "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+    "  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  la t1, create_state_gas_charged_current\n  li t2, 1\n  sd t2, 0(t1)\n" ++
     -- CREATE uses the same call-frame arena as CALL. Mirror CALL's depth gate before
     -- create_frame_descend so recursive constructors at depth 1024 push zero instead of
     -- attempting to enter a non-protocol child frame.
@@ -404,6 +413,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_target_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
     ".Lcr_target_alive_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+    "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+    "  la t2, create_target_alive_current_tx; ld t2, 0(t2); sd t2, 0(t0)\n" ++
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -489,9 +501,21 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the burned 63/64 child allotment. Compute:
     --   spill = max(0, NEW_ACCOUNT - state_gas_left)
     --   gas_after_state = gas_left - spill
-    --   final_parent_gas = spill + floor(gas_after_state / 64)
-    -- without mutating state-gas globals; collision has net-zero state gas.
+    --   final_parent_gas = floor(gas_after_state / 64) + spill.
+    -- The +spill term is execution-specs credit_state_gas_refund: because this
+    -- synthetic collision branch leaves the state-gas globals unchanged, the
+    -- spill refund must be included directly in the final gas_left value.
+    -- Collision has net-zero state gas.
     ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    -- Amsterdam generic_create warms contract_address before account_deployable; the
+    -- successful path seeds at label 6 above, while collision jumps bypass that label.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_seed\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
@@ -508,6 +532,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  add t3, t3, t2\n" ++
     "  sd t3, 568(x20)\n" ++
     "7:\n" ++
+    "  la t0, create_state_gas_charged_current\n  ld t1, 0(t0)\n  beqz t1, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n  sd x0, 0(t0)\n" ++
+    "  li t2, 183600\n  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n  beqz t1, .Lcr_no_spill_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  mv t3, t1\n  bleu t1, t2, .Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ "\n  mv t3, t2\n.Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  sub t1, t1, t3\n  sd t1, 0(t0)\n  ld t4, 568(x20)\n  add t4, t4, t3\n  sd t4, 568(x20)\n  sub t2, t2, t3\n" ++
+    ".Lcr_no_spill_refund_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  beqz t2, .Lcr_refund_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+    ".Lcr_refund_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n  li t2, 183600\n  bltu t1, t2, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+    ".Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  sd x0, 0(x12)\n" ++
     "  sd x0, 8(x12)\n" ++

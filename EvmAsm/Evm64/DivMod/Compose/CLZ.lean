@@ -7,6 +7,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
 
 open EvmAsm.Rv64.Tactics
 

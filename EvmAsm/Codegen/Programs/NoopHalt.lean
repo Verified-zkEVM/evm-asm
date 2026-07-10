@@ -16,6 +16,31 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+private def createFailedStateGasRefundAsm (site : String) : String :=
+  -- execution-specs `generic_create` credits NEW_ACCOUNT state gas on child error.
+  -- `credit_state_gas_refund` is LIFO: refund gas_left spill first, then the
+  -- state-gas reservoir.
+  "  li t2, 183600\n" ++
+  "  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n" ++
+  "  beqz t1, .Lcr_failed_refund_no_spill_" ++ site ++ "\n" ++
+  "  mv t3, t1\n" ++
+  "  bleu t1, t2, .Lcr_failed_refund_spill_le_" ++ site ++ "\n" ++
+  "  mv t3, t2\n" ++
+  ".Lcr_failed_refund_spill_le_" ++ site ++ ":\n" ++
+  "  sub t1, t1, t3\n  sd t1, 0(t0)\n" ++
+  "  ld t4, 568(x20)\n  add t4, t4, t3\n  sd t4, 568(x20)\n" ++
+  "  sub t2, t2, t3\n" ++
+  ".Lcr_failed_refund_no_spill_" ++ site ++ ":\n" ++
+  "  beqz t2, .Lcr_failed_refund_used_" ++ site ++ "\n" ++
+  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n" ++
+  "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_used_" ++ site ++ ":\n" ++
+  "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+  "  li t2, 183600\n" ++
+  "  bltu t1, t2, .Lcr_failed_refund_done_" ++ site ++ "\n" ++
+  "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_done_" ++ site ++ ":\n"
+
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
     `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
@@ -44,17 +69,19 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, .Lrr_call_" ++ toString kind ++ "\n" ++
     "  sd x0, 0(t1)\n" ++
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE new-account state gas (183600) after frame_return.
-      -- Flag was cleared above so CallFrameReturn's credit doesn't fire; apply here.
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crrev_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ("revert_" ++ toString kind) ++
       ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n"
      else
@@ -93,15 +120,18 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- state gas under-counted -> EIP-7778/8037 state budget too lenient (false-accept on state-heavy
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
-      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
+      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x10000) so x15*1530 cannot overflow u64.
       "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
-      "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0
-      "  ld t2, 568(x20)\n  bgeu t2, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
-      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: consume all child gas, CREATE fails
+      "  sub t3, t0, t2\n" ++                                             -- reservoir short: spill = charge - reservoir
+      "  ld t4, 568(x20)\n  bgeu t4, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
+      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: charge_state_gas raises before mutating reservoir/used
       ".Lrr_csg_spill_" ++ toString kind ++ ":\n" ++
-      "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
+      "  sd x0, 0(t1)\n" ++                                                -- reservoir = 0 only after sufficiency is known
+      "  sub t4, t4, t3\n  sd t4, 568(x20)\n" ++
+      "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+      "  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
       ".Lrr_csg_res_" ++ toString kind ++ ":\n" ++
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
@@ -163,15 +193,15 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- A successful CREATE exposes empty returndata to the parent (execution-specs
       -- generic_create sets return_data = b"" after incorporate_child_on_success);
       -- the returned constructor bytes were already consumed as deployed code above.
+      "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+      "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+      "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       -- execution-specs generic_create credits the CREATE NEW_ACCOUNT state-gas
-      -- charge back when the CREATE target was already alive. At this point
-      -- code/nonzero-nonce targets would have failed the deployable check, so
-      -- target_alive also includes same-tx prior CREATE deposits captured in create_target_alive_current_tx.
-      "  la t0, nse_create_pre_bal\n" ++
-      "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-      "  la t0, create_target_alive_current_tx\n  ld t2, 0(t0)\n  or t1, t1, t2\n" ++
+      -- charge back when the CREATE target was already alive before child execution.
+      -- The depth-scoped flag was copied to create_target_alive_current_tx before frame_return.
+      "  la t0, create_target_alive_current_tx\n  ld t1, 0(t0)\n" ++
       "  beqz t1, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
       "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
       "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
@@ -210,16 +240,33 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- exceptional CREATE failure. execution-specs process_create_message
       -- restores the child state snapshot and sets child gas_left = 0 before
       -- incorporate_child_on_error, so the parent does not get the forwarded
-      -- gas back through frame_return.
+      -- gas back through frame_return. Refill the child frame's state gas
+      -- into the global reservoir in LIFO order, but burn the gas-left portion
+      -- by keeping env+568 at zero before frame_return observes it.
+      "  ld t0, 632(x20)                 # used0\n" ++
+      "  la t1, evm_state_gas_used; ld t2, 0(t1)\n" ++
+      "  la t1, evm_state_gas_left; ld t3, 0(t1)\n" ++
+      "  la t1, evm_state_gas_spilled; ld t4, 0(t1)\n" ++
+      "  ld t5, 760(x20)                 # spilled0\n" ++
+      "  bleu t4, t5, .Lrr_crinv_no_spill_delta_" ++ toString kind ++ "\n" ++
+      "  sub t4, t4, t5\n" ++
+      "  j .Lrr_crinv_have_spill_delta_" ++ toString kind ++ "\n" ++
+      ".Lrr_crinv_no_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  li t4, 0\n" ++
+      ".Lrr_crinv_have_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  bleu t2, t0, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t0\n" ++
+      "  bleu t2, t4, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t4\n" ++
+      "  add t3, t3, t2\n" ++
+      ".Lrr_crinv_refill_done_" ++ toString kind ++ ":\n" ++
+      "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
+      "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+      "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)\n" ++
       "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE state gas (same as REVERT path above).
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crinv_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ("invalid_" ++ toString kind) ++
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
@@ -360,10 +407,11 @@ private def selfdestructTailAsm : String :=
   -- exec_code_effect_log (the CREATE deposit recorded the deployed code there); on a hit set
   -- evm_selfdestruct_created_in_tx=1 so the downstream balance-transfer / EIP-7708 log / beneficiary
   -- nonstorage record (Selfdestruct.lean) take the created-in-tx paths (emit a Burn for self-destruct
-  -- to-self; record the child's deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
-  -- built sdai_origin_address = env.ADDRESS (BE) only when an account-witness ctx (584(x20)) is present;
-  -- guard on that. find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
-  "  ld t0, 584(x20)\n  beqz t0, .L_selfdestruct_created_in_tx_done\n" ++
+  -- to-self; record the child deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
+  -- now always builds sdai_origin_address = env.ADDRESS (BE), even when the header witness ctx
+  -- is absent, so the same-tx code-effect cleanup can still run on unsupported runtime rows.
+  -- find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
+
   -- coc3g.6.2: a contract whose constructor SELFDESTRUCTs (initcode `..ff`) NEVER deposits code,
   -- so exec_code_effect_log has NO record for it and find_code_effect_by_address below would MISS
   -- -> created_in_tx stays 0 -> the SD took the witness-present path which BAILS (the child is
@@ -408,6 +456,7 @@ private def selfdestructTailAsm : String :=
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
   selfdestructBeneficiaryNonstorageAsm ++
+  selfdestructRecordSeenOriginAsm ++
   -- coc3g.6.2: a CREATE child frame that halts via SELFDESTRUCT (constructor `..ff`) goes to
   -- .exit_selfdestruct, which (unlike RETURN/REVERT/STOP) does NOT clear create_frame_flag[depth].
   -- Now that the created-in-tx detection above CONSUMES this flag, a stale 1 left in this depth's
@@ -425,6 +474,21 @@ private def selfdestructTailAsm : String :=
   -- which is itself depth-aware).
   dispatchHaltRet 4 ++ "\n" ++
   ".L_sd_create_return:\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_address_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_address_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_sender_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_sender_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_value_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_value_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_nonce_by_depth; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  la t1, create_nonce; ld t2, 0(t0); sd t2, 0(t1)\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   -- Constructor SELFDESTRUCT is a successful CREATE child exit. Mirror generic_create's

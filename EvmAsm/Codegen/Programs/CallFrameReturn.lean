@@ -38,6 +38,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
 
@@ -50,10 +51,11 @@ open EvmAsm.Rv64
     Writes the parent stack: `success` (a0) at the post-pop stack top. For
     RETURN/REVERT, `a1`/`a2` describe the child's returndata so up to `outsize`
     bytes are copied into the caller's output memory window (`outoff_abs` from the
-    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts. The full
-    returndata (capped at the 256-byte frame) is ALSO staged into
-    `evm_precompile_frame` (size@+8, data@+16) so the parent's
-    RETURNDATASIZE/RETURNDATACOPY observe this sub-call's return.
+    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts. The FULL
+    returndata is ALSO staged into `evm_precompile_frame` (size@+8, data@+16) so
+    the parent's RETURNDATASIZE/RETURNDATACOPY observe this sub-call's return
+    (`retlen ≤ runtimeMemoryArenaLimitBytes < precompileFrameReturndataCapBytes`,
+    so the clamp below never truncates).
 
     On return the live dispatcher registers are repointed to the parent frame:
       x10 = parent PC + 1 (past the CALL), x21 = parent code base,
@@ -69,9 +71,6 @@ def frameReturnFunction : String :=
   "  mv s0, a0                      # success word\n" ++
   "  mv s1, a1                      # child returndata ptr\n" ++
   "  mv s2, a2                      # returndata len\n" ++
-  -- Capture the child frame's leftover gas (x20 = child env at entry) for the
-  -- EIP-150 refund below; held in s7 across the x20 repoint.
-  "  ld s7, 568(x20)\n" ++
   -- Capture the child frame's committed log cursors. On success these become
   -- the parent's live cursors; on REVERT/exceptional failure the parent keeps
   -- its pre-child checkpoint values.
@@ -87,36 +86,70 @@ def frameReturnFunction : String :=
   -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
   -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
   "  bnez s0, .Lfr_sgas_done\n" ++
-  -- On child error, execution-specs returns the child state-gas allocation to
-  -- the parent's state reservoir, not to regular gas. If a child state-gas
-  -- charge spilled into `gas_left`, that regular gas remains spent; do not add
-  -- it back to the child leftover before the EIP-150 gas merge.
-  "  ld t0, 632(x20)                 # used0\n" ++
-  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
-  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left, including child refunds\n" ++
-  "  bleu t2, t0, .Lfr_sgas_restore_left\n" ++
-  "  sub t2, t2, t0                 # child used allocation rolls back into left\n" ++
-  "  add t3, t3, t2\n" ++
-  ".Lfr_sgas_restore_left:\n" ++
-  "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
-  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
-  -- coc3g.9.3.4: CREATE-specific state gas credit on child failure. The CREATE charge
-  -- (amsterdamStateBytesPerNewAccountV2 = 120*1530 = 183600) is refunded to
-  -- state_gas_left and subtracted from state_gas_used, matching execution-specs
-  -- credit_state_gas_refund(evm, create_account_state_gas). This MUST NOT touch
-  -- gas_left; the spec credits state_gas_left only. Check create_frame_flag[child_depth]
-  -- (set by create_frame_descend).
-  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
-  "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
-  "  ld t0, 0(t0)\n" ++
-  "  beqz t0, .Lfr_create_credit_done\n" ++
-  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
-  "  li t2, 183600\n" ++
-  "  add t1, t1, t2; sd t1, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used; ld t1, 0(t0)\n" ++
-  "  bltu t1, t2, .Lfr_create_credit_done\n" ++
-  "  sub t1, t1, t2; sd t1, 0(t0)\n" ++
-  ".Lfr_create_credit_done:\n" ++
+  -- On child error, execution-specs `refill_frame_state_gas` returns the
+  -- child state-gas allocation in LIFO order: the portion that spilled into
+  -- `gas_left` is credited back to the child frame gas first, and only the
+  -- non-spilled remainder returns to the state reservoir.
+  "  ld t0, 632(x20)                 # used0
+" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used
+" ++
+  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left, including child refunds
+" ++
+  "  la t1, evm_state_gas_spilled; ld t4, 0(t1)
+" ++
+  "  ld t5, 760(x20)                 # spilled0
+" ++
+  "  bleu t4, t5, .Lfr_sgas_no_spill_delta
+" ++
+  "  sub t4, t4, t5                 # child spilled allocation
+" ++
+  "  ld t6, 568(x20); add t6, t6, t4; sd t6, 568(x20)
+" ++
+  "  j .Lfr_sgas_have_spill_delta
+" ++
+  ".Lfr_sgas_no_spill_delta:
+" ++
+  "  li t4, 0
+" ++
+  ".Lfr_sgas_have_spill_delta:
+" ++
+  "  bleu t0, t2, .Lfr_sgas_used_ge_snapshot
+" ++
+  "  sub t2, t0, t2                 # child net state-gas credit
+" ++
+  "  bleu t3, t2, .Lfr_sgas_credit_zero_left
+" ++
+  "  sub t3, t3, t2                 # discard reverted child credit
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_credit_zero_left:
+" ++
+  "  li t3, 0
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_used_ge_snapshot:
+" ++
+  "  sub t2, t2, t0                 # child used allocation
+" ++
+  "  bleu t2, t4, .Lfr_sgas_restore_left
+" ++
+  "  sub t2, t2, t4                 # non-spilled remainder rolls back into left
+" ++
+  "  add t3, t3, t2
+" ++
+  ".Lfr_sgas_restore_left:
+" ++
+  "  la t1, evm_state_gas_left; sd t3, 0(t1)
+" ++
+  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)
+" ++
+  "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)
+" ++
+  ".Lfr_create_credit_done:
+" ++
   -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
   -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
   -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
@@ -138,6 +171,9 @@ def frameReturnFunction : String :=
   "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
   "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
   "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
+  "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
+  "  la t0, evm_selfdestruct_seen_overflow_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_overflow; sd t3, 0(t1)\n" ++
   "  ld t0, 728(x20); la t1, evm_selfdestruct_destroyed_count; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
   -- child-depth checkpoint captured by call_frame_descend. Success leaves the
@@ -160,6 +196,9 @@ def frameReturnFunction : String :=
   "  j .Lfr_bloom_restore_loop\n" ++
   ".Lfr_bloom_restore_done:\n" ++
   ".Lfr_sgas_done:\n" ++
+  -- Capture child leftover gas after possible state-gas LIFO refill; held in
+  -- s7 across the x20 repoint for the EIP-150 merge below.
+  "  ld s7, 568(x20)\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
@@ -189,18 +228,22 @@ def frameReturnFunction : String :=
   "3:\n" ++
   -- Stage the child's returndata into `evm_precompile_frame` so the parent's
   -- RETURNDATASIZE(0x3d)/RETURNDATACOPY(0x3e) see the LAST sub-call's return
-  -- (NoopReturnData reads size@+8, data@+16, cap 256). This is independent of the
+  -- (NoopReturnData reads size@+8, data@+16). This is independent of the
   -- output-window copy above (which is bounded by the CALL's `outsize`): the
-  -- returndata buffer holds the FULL child return capped at the 256-byte frame.
-  -- `+8` keeps the TRUE retlen (so RETURNDATASIZE is exact); `+16` gets
-  -- min(retlen,256) bytes. STOP / exceptional (s1=s2=0) -> size 0, no copy. Runs
-  -- before x13 is repointed, so s1 still points into the (live) child memory.
+  -- returndata buffer holds the FULL child return. `+8` keeps the TRUE retlen;
+  -- the clamp against precompileFrameReturndataCapBytes is defense-in-depth
+  -- only — retlen ≤ runtimeMemoryArenaLimitBytes (returnRevertMemoryGasAsm
+  -- OOG-guards child RETURN/REVERT at the frame arena), which is below the
+  -- cap, so all retlen bytes are staged and RETURNDATACOPY's
+  -- `start+size ≤ retlen` guard alone keeps reads inside staged bytes.
+  -- STOP / exceptional (s1=s2=0) -> size 0, no copy. Runs before x13 is
+  -- repointed, so s1 still points into the (live) child memory.
   "  la t0, evm_precompile_frame\n" ++
   "  sd s2, 8(t0)                   # returndata size = retlen (true)\n" ++
   "  mv t2, s2                      # n = retlen\n" ++
-  "  li t1, 256\n" ++
-  "  bgeu t1, t2, 7f                # if 256 >= retlen keep retlen\n" ++
-  "  mv t2, t1                      # else n = 256 (buffer cap)\n" ++
+  "  li t1, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
+  "  bgeu t1, t2, 7f                # if cap >= retlen keep retlen\n" ++
+  "  mv t2, t1                      # else n = cap (never taken; see above)\n" ++
   "7:\n" ++
   "  beqz t2, 9f                    # nothing to copy\n" ++
   "  mv t3, s1                      # src = child returndata\n" ++
@@ -302,7 +345,8 @@ def frameReturnFunction : String :=
       +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x28200)
     Returndata staging into evm_precompile_frame:
       +120 precompile_frame size after scenario A (STOP, expect 0)
-      +128 precompile_frame size after scenario B (expect 4 = retlen)
+      +128 scenario B pack: data[299] << 32 | size (expect 0x5a<<32 | 300 —
+           the high half witnesses full staging past the old 256-byte cap)
       +136 precompile_frame data[0] after scenario B (expect 0xab)
     EIP-150 gas refund (parent gas += child leftover):
       +144 parent gas after scenario A (100 + 50 = 150)
@@ -371,8 +415,10 @@ def ziskFrameReturnPrologue : String :=
   "  li t1, 1; sd t1, 16(t0)\n" ++
   "  li t1, 160; sd t1, 24(t0)\n" ++
   "  la t0, frame_parent_bases; addi t0, t0, 32; la t1, call_frame_arena; sd t1, 0(t0); li t1, 0x38400; la t2, call_frame_arena; add t1, t1, t2; sd t1, 8(t0)\n" ++
-  -- returndata source: one byte 0xab
+  -- returndata source: 300 bytes (> the old 256 cap) — first byte 0xab, a
+  -- marker 0x5a at index 299 to witness full-length staging past 256.
   "  la t0, fr_ret; li t1, 0xab; sb t1, 0(t0)\n" ++
+  "  li t1, 0x5a; sb t1, 299(t0)\n" ++
   "  la x20, fr_child_env\n" ++
   "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
   "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
@@ -390,7 +436,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0); li t1, 44; sd t1, 648(t0)\n" ++
   "  la t0, rb_running_block_bloom; li t1, 0x9999888877776666; sd t1, 0(t0); li t1, 0x5555444433332222; sd t1, 248(t0)\n" ++
   "  la t0, rb_bloom_checkpoints; addi t0, t0, 256; li t1, 0x123456789abcdef0; sd t1, 0(t0); li t1, 0x0fedcba987654321; sd t1, 248(t0)\n" ++
-  "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
+  "  li a0, 0; la a1, fr_ret; li a2, 300\n" ++
   "  jal ra, frame_return\n" ++
   "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 40(s0); ld t1, 248(t0); sd t1, 64(s0)\n" ++
   "  la t0, call_frame_arena; sub t1, x13, t0; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 56(s0)\n" ++
@@ -400,8 +446,12 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_out; lbu t1, 0(t0); sd t1, 96(s0)               # expect 0xab\n" ++
   -- frame-relative stack bounds restored to the parent frame[1] arena stack.
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x28200\n" ++
-  -- returndata staging: retlen 4 -> precompile_frame size 4; first byte 0xab @ +16.
-  "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 128(s0)    # expect 4\n" ++
+  -- returndata staging: retlen 300 -> precompile_frame size 300; first byte
+  -- 0xab @ +16; byte 299 (past the old 256 cap) staged @ +16+299, packed into
+  -- the size cell's high half (the 256-byte probe output window is full).
+  "  la t0, evm_precompile_frame; ld t1, 8(t0)\n" ++
+  "  lbu t2, 315(t0); slli t2, t2, 32; or t1, t1, t2\n" ++
+  "  sd t1, 128(s0)                                               # expect 0x5a<<32 | 300\n" ++
   "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
   -- EIP-150 gas refund: parent gas 200 + child leftover 30 = 230.
   "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
@@ -438,8 +488,11 @@ def ziskFrameReturnDataSection : String :=
   -- the guest dispatcher data section; stubbed here so the probe links).
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_state_gas_spilled:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
+  "evm_access_account_count:\n  .zero 8\n" ++
+  "evm_selfdestruct_destroyed_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
   "exec_code_effect_count:\n  .zero 8\n" ++
@@ -456,13 +509,13 @@ def ziskFrameReturnDataSection : String :=
   "evm_stack_low:\n  .zero 8\n" ++
   "evm_cur_stack_top:\n  .zero 8\n" ++
   "evm_cur_stack_low:\n  .zero 8\n" ++
-  -- Returndata staging target (frame_return writes size@+8, data@+16, cap 256).
+  -- Returndata staging target (frame_return writes size@+8, data@+16).
   ".balign 8\n" ++
-  "evm_precompile_frame:\n  .zero 1280\n" ++
+  "evm_precompile_frame:\n  .zero " ++ toString (16 + precompileFrameReturndataCapBytes) ++ "\n" ++
   "fr_pstack:\n  .zero 256\n" ++
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++
-  "fr_ret:\n  .zero 64\n"
+  "fr_ret:\n  .zero 512\n"
 
 def ziskFrameReturnProbeUnit : BuildUnit := {
   body        := NOP

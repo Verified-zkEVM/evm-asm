@@ -1,26 +1,36 @@
 dispatcher_tx_gas_settle:
-  li t0, 0xa0010000
-  ld t1, 32(t0)               # halt_kind
-  la t0, evm_env
-  ld t0, 568(t0)              # gas_left
-  la t2, evm_state_gas_left
-  ld t2, 0(t2)
-  la t3, evm_refund_acc
-  ld a1, 0(t3)
-  li a2, 1                    # tx success bit (receipt `succeeded`)
-  beqz t1, .Ldtgs_success
-  li t3, 1
-  beq t1, t3, .Ldtgs_success
-  li t3, 5
-  beq t1, t3, .Ldtgs_success
-  li a1, 0                    # error: refund counter discarded
-  li a2, 0                    # error: receipt status = 0
-  la t3, evm_state_gas_used
-  ld t3, 0(t3)
-  add t2, t2, t3              # error: state_gas_left += state_gas_used
-  li t3, 2
-  beq t1, t3, .Ldtgs_success  # REVERT keeps gas_left
-  li t0, 0                    # exceptional halt burns remaining regular gas
-.Ldtgs_success:
-  add a0, t0, t2
-  ret
+  lui x5, 0xa
+  addiw x5, x5, 1
+  slli x5, x5, 16
+  ld x6, 32(x5)
+  la x5, evm_env
+  ld x5, 568(x5)
+  la x7, evm_state_gas_left
+  ld x7, 0(x7)
+  la x28, evm_refund_acc
+  ld x11, 0(x28)
+  li x12, 1
+  beq x6, x0, .+96
+  li x28, 1
+  beq x6, x28, .+88
+  li x28, 5
+  beq x6, x28, .+80
+  li x11, 0
+  li x12, 0
+  la x30, evm_state_gas_used
+  ld x28, 0(x30)
+  la x31, evm_state_gas_spilled
+  ld x29, 0(x31)
+  sd x0, 0(x30)
+  sd x0, 0(x31)
+  bgeu x29, x28, .+16
+  sub x28, x28, x29
+  add x7, x7, x28
+  jal x0, .+4
+  li x28, 2
+  bne x6, x28, .+12
+  add x5, x5, x29
+  jal x0, .+8
+  li x5, 0
+  add x10, x5, x7
+  jalr x0, 0(x1)

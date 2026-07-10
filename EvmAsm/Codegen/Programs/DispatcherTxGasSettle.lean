@@ -26,6 +26,7 @@ open EvmAsm.Rv64
       +16 evm_state_gas_left
       +24 evm_refund_acc
       +32 evm_state_gas_used
+      +40 evm_state_gas_spilled
 
     Output u64s at `OUTPUT_ADDR`:
       +0  effective gas_left
@@ -40,6 +41,7 @@ def ziskDispatcherTxGasSettlePrologue : String :=
   "  la t1, evm_state_gas_left; ld t0, 16(s1); sd t0, 0(t1)\n" ++
   "  la t1, evm_refund_acc; ld t0, 24(s1); sd t0, 0(t1)\n" ++
   "  la t1, evm_state_gas_used; ld t0, 32(s1); sd t0, 0(t1)\n" ++
+  "  la t1, evm_state_gas_spilled; ld t0, 40(s1); sd t0, 0(t1)\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  sd a0, 0(s0)\n" ++
   "  sd a1, 8(s0)\n" ++
@@ -55,6 +57,7 @@ def ziskDispatcherTxGasSettleDataSection : String :=
   ".balign 8\n" ++
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_state_gas_spilled:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n"
 
 def ziskDispatcherTxGasSettleProbeUnit : BuildUnit := {

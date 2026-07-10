@@ -60,6 +60,7 @@ import EvmAsm.Evm64.Multiply
 import EvmAsm.Evm64.Exp
 
 -- DivMod (Knuth Algorithm D)
+import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 import EvmAsm.Evm64.DivMod
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableBzeroV4
@@ -168,6 +169,8 @@ import EvmAsm.Evm64.PrecompileDispatch
 import EvmAsm.Evm64.Memory
 import EvmAsm.Evm64.StateAssertions
 import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.AccountRlp
+import EvmAsm.Evm64.AccountFieldExtractSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MemoryGas
 import EvmAsm.Evm64.KeccakArgs
