@@ -383,6 +383,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   optional first nibble, every remaining nibble pair is packed high/low into
   one byte, and `a0` returns `1 + len / 2`. The source stays read-only and the
   exact emitted `ite` plus pair loop is pinned to `hpEncodeNibbles_prog`.
+  `NibblesCommonPrefixLenSAsm.lean` verifies the byte-identical
+  `nibbles_common_prefix_len` leaf (`nibblesCommonPrefixLenFn_spec`): it scans
+  two read-only nibble prefixes up to the smaller caller-supplied length,
+  stores their exact first-difference index as a u64, and returns status zero.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
@@ -3300,6 +3304,31 @@ lemmas — the payload-dependent `while` is `twoBreakRetLoop_spec` at
 `N := u64ByteLen v`, with the new `u64ByteLen` +
 `u64ByteLen_shift_zero`/`_ne` bridges as the long-tail extraction; post
 `a0 = (if v <u 56 then v + 1 else v + u64ByteLen v + 1)`.
+**Early-return-from-loop shape RESOLVED — option 1, byte-transparent**
+(branch `feat/mpt-early-ret-shape`, bead evm-asm-4ch8f.70.2, unblocks the
+MPT beads .29/.31; shape-survey §4.2 addendum records the verdict).  Byte
+inspection of `mptSetAcc_prog`/`mptInsertAcc_prog` shows the "mid-loop
+`ret`" is NOT a second `ret`: each routine has exactly ONE `ret`/frame
+restore, and the loop break targets a 2-instruction fail stub
+`li a0, 2 ; j <epilogue>` jumping BACKWARD into the shared epilogue — the
+same-frame side condition holds by construction.  `SAsm/RetFromLoop.lean`
+(cpsTripleWithin, additive): `liJumpTailProg`/`multiRegJumpTail_spec` (the
+`li* ; j join` tail — `multiRegRetTail_spec` with the terminal `ret`
+replaced by the unconditional jump, induction on the assignment list) and
+`jumpJoinTail_spec` (tail ∘ shared-epilogue continuation ⇒ triple to the
+function's ret continuation — the break arm for
+`breakStation_spec`/`twoBreakRetLoop_spec`), plus the end-to-end
+mechanism demo `EarlyRetLoop.earlyRetLoop_spec` (8-instr routine with the
+exact mpt shape at a symbolic base; genuine post: status 2 + counter
+untouched on the mid-loop return, else status 0 + counter exhausted).
+`Codegen/Programs/MptEarlyRetShape.lean`: the byte-identity check on the
+REAL programs — `#guard prog.drop failIdx = liJumpTailProg [(a0,2)] (-56)`
+(the emitted stub IS the combinator's bytes), single-`ret` counts, all
+break/back-edge/epilogue offsets (relative, no address pins), and the
+symbolic-base `mptSetAcc_failTail_spec`/`mptInsertAcc_failTail_spec`
+break-arm triples (deep-index side conditions on the 121/689-instr
+programs discharged by `decide +kernel` — kernel reduction, no
+`maxRecDepth`, axioms `[propext]`).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3716,6 +3745,16 @@ an ABI-frame caller over `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with
 `blockAt`/global-data materialization for `secp256k1_p_be` and `secf_cmp`, a
 genuine post `a0 = reduceOnceFlag xs` and `dst = reduceOnceBytes xs orig`, and
 byte identity pinned by `secfReduceOnce_prog_eq`.
+`Secp256k1FieldSubModPSAsm.lean` verifies `secf_sub_mod_p` byte-identically as
+an ABI-frame caller over `u256_sub_be` and `secf_copy32`.  Its unified post
+preserves both inputs and states the exact branch semantics: copy the wrapping
+BE subtraction on no borrow, otherwise subtract the encoded `2^256 - p`
+constant; the two call-site return-address values are joined before an explicit
+saved-register restore.
+`Secp256k1FieldReduceOnceNSAsm.lean` applies the same verified ABI-frame and
+shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
+the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and
+return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
