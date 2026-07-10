@@ -3090,7 +3090,8 @@ ADDI, ADD]` leaf proven through the bridge with the emitter's
 `Rv64.laHi/laLo` and the arena address PROVEN via `la_resolve` (only
 decidable `laInRange` remains); genuine post `a0 = call_frame_arena +
 (depth − 1) · 0x39000`.  Classical-3.  Downstream (other blockers remain):
-the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3) and point_double
+the AUIPC halves of secf_cmp_p (4ch8f.38.2.2.3 — since landed via
+`TriCmpStoreJoin` + `la_materialize_within`) and point_double
 (4ch8f.38.5).
 **Multi-RW-subwindow callee adapter landed** (branch
 `feat/multi-rw-subwindow`, bead evm-asm-4ch8f.38.5 — converter+arithMod
@@ -3213,6 +3214,32 @@ consumed by both stations).  `message_call_gas` has no GuestAddrs anchor
 `messageCallGas_prog` — byte-transparent, no A/B, consumable wherever a
 closure links it.  Completes the shared-return-tail family (single-reg
 #10041, store #10067, multi-reg + branch-over here).  Classical-3.
+**Three-outcome compare/store join + `secf_cmp_p` landed** (branch
+`feat/secf-cmp-p`, bead evm-asm-4ch8f.38.2.2.3; porting-agent feedback —
+`TwoBreakWritable` #10067 routes two break guards to two tails; the
+compare-against-modulus loop needs two ORDERED mid-loop exits plus the
+exhausted-equality exit through THREE distinct stored values, with the
+scanned constant materialized by `la`).  `SAsm/TriCmpStoreJoin.lean`
+(cpsTripleWithin level, additive): `liStoreRetTail_spec` — the
+value-loading tail `LI rs,c ; SD rb,rs,ofs ; LI rd,c' ; ret`,
+address/register/value-agnostic (the `LI`-prefixed `storeRetTail_spec`);
+`triCmpStoreJoin_spec` — the three-outcome join station: the ordered
+`bltu` pair with lt/gt taken arms running return tails under the decided
+facts and the common fall-through continuing with `¬lt ∧ ¬gt` (byte
+equality), two nested `breakStation_spec`s packaged;
+`twoBreakRetLoop_spec` reused as-is (station-count-agnostic).  Consumer
+`secf_cmp_p` (`Codegen/Programs/Secp256k1FieldCmpPSAsm.lean`, SYMBOLIC
+`GuestAddrs.secf_cmp_p` base per 6agnq, `#guard`-pinned = 0x8001fe08,
+spec directly over the emitted `secfCmpP_prog` — byte-transparent, no
+A/B): `la` materialization of the read-only `globalConst secp256k1_p_be`
+PROVEN by `la_materialize_within`/`la_resolve` (only decidable
+`laInRange` remains; emitter `Codegen.laHi/laLo` kernel-checked equal to
+psABI), 32-iteration input-vs-const byte walk, three tails writing 0/1/2,
+`beBytesToNat_lt_of_prefix_lt` in BOTH directions + the all-equal bridge
+give the GENUINE post `[a1] = if in < p then 0 else if in = p then 1 else
+2` (numeric, `beBytesToNat secp256k1PBytes = p` `#guard`-pinned),
+`a0 = 0`, input and const region untouched.  Completes the
+compare/store-tail family at three outcomes.  Classical-3.
 **Overnight framework stack landed** (2026-07-10, five stacked PRs
 #10075→#10076→#10077→#10080→#10082; beads 4ch8f.33.2, l0w4a, pr5lu,
 db2jq, 8tw0t — the 4ch8f.76 porting-agent worklist).  All at
@@ -3634,8 +3661,11 @@ aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 `secf_le_to_be`, which are nested bottom-test do-while converters BLOCKED
 on `.11.7`/`.68`; PATH A verifies `secfMulModP` `SpecR` conditional on
 assumed be/le `FnHandleS` hypotheses (genuinely instantiates the merged
-`.11.6` `arithModHandle`, the wave-1 point). The remaining compare/scan leaf (`secfCmpP`, `.38.2.2`)
-and the pow/inv/sqrt ladders (`.38.2.5`–`.7`) still need their own
+`.11.6` `arithModHandle`, the wave-1 point). The compare/scan leaf
+`secfCmpP` (`.38.2.2.3`) is LANDED via the three-outcome compare/store
+join (`TriCmpStoreJoin` + `la_materialize_within`,
+`Secp256k1FieldCmpPSAsm.lean` — see the combinator-family section); the
+pow/inv/sqrt ladders (`.38.2.5`–`.7`) still need their own
 mid-exit/do-while ports or drop-ins; `secfEq32` and `secfIsZero32` are
 handled by the whileBreak drop-ins below.
 LANDED (`.38.2.1`, `EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean`,
