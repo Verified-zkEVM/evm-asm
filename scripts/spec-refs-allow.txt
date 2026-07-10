@@ -1,0 +1,12 @@
+# spec-refs-allow.txt — known-stale execution-specs citations (burndown list).
+#
+# Same discipline as the (now-empty) axiom-allow.txt: every entry is a debt
+# with a named owner-fix (update the docstring to the pinned rev's real
+# location, or bump the submodule), and the goal is an empty file.
+# Entries are cited paths relative to the execution-specs submodule root.
+
+# EvmAsm/Stateless/SSZ/HashTreeRoot/ZeroHashes.lean cites `compute_zero_hashes`
+# in amsterdam/_serialize.py; neither the file nor the symbol exists at pinned
+# rev bd8c673 (the function appears to come from a different execution-specs
+# revision). Fix = repoint the docstring or bump the pin.
+src/ethereum/forks/amsterdam/_serialize.py
