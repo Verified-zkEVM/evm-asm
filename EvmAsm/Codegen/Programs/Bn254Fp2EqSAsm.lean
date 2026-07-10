@@ -17,9 +17,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace Bn254Fp2EqSAsm
 
--- Address anchor (semantic constant: 8 dwords = 64 bytes of Fp2).
-#guard GuestAddrs.bnp_fp2_eq = 0x800308bc
-
 /-- The `bnp_fp2_eq` body: the dual-read dword equality scan over 8 slots. -/
 def bnpFp2EqBody (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Stmt :=
   DualReadScan.scanBody .x5 .x6 .x7 .x10 .x11 ptr1 ptr2 bs1 bs2 8

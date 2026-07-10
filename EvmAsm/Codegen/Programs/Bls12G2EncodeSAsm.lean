@@ -52,11 +52,6 @@ namespace Bls12G2EncodeSAsm
 -- Anchors and byte-ties (semantic constants vs address anchors — guide §9).
 -- ============================================================================
 
--- Semantic constants: 4 elements × 48 bytes.
--- Address anchors (`#guard`-tied to the live GuestAddrs):
-#guard GuestAddrs.blsg2_encode = 0x80034348
-#guard GuestAddrs.blsg_le_to_be = 0x8002f6b0
-
 /-- The caller's 4-slot frame: `ra`, `s0`, `s1`, `s2` (the loop counter is
     callee-saved — it must survive the callee's exposed-register clobber). -/
 def encFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24)]

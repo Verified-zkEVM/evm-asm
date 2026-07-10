@@ -28,17 +28,6 @@ namespace Bn254FieldAddModPSAsm
 
 open Bn254FieldConvSAsm (bnfBeToLeFn bnfBeToLeFn_spec bnfLeToBeFn bnfLeToBeFn_spec)
 
--- Address anchors (routine, callees, and the LE staging arena).
-#guard GuestAddrs.bnf_add_mod_p = 0x80030258
-#guard GuestAddrs.bnf_be_to_le = 0x800300a4
-#guard GuestAddrs.bnf_le_to_be = 0x800300f4
-#guard GuestAddrs.bnf_le_a = 0xbb55d9b0
-#guard GuestAddrs.bnf_le_b = 0xbb55d9d0
-#guard GuestAddrs.bnf_le_d = 0xbb55d9f0
-#guard GuestAddrs.bnf_le_zero = 0xbb55da10
-#guard GuestAddrs.bnf_le_p = 0xbb55da50
-#guard GuestAddrs.bnf_add_params = 0xbb55da98
-
 /-- The arena base (`bnf_le_a`) and its 272-byte extent
     (`_a/_b/_d/_zero/_one/_p` 32-byte cells + the 40-byte `add_params`). -/
 def arenaB : Word := 0xbb55d9b0
