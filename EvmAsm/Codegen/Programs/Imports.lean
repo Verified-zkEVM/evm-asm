@@ -155,6 +155,7 @@ import EvmAsm.Codegen.Programs.Bls12G2Copy192SAsm
 import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
+import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
