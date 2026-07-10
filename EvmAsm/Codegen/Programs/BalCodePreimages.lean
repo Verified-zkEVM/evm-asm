@@ -1158,10 +1158,12 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
-  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus svf_codes_ptr (608(x20), the descend base).
+  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus the CALLER env's codes
+  -- base. The callable dispatcher stages witness.codes into its runtime payload,
+  -- so `svf_codes_ptr` is not necessarily the base that `.Lcd_descend_` adds.
   "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
   "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
-  "  la t0, svf_codes_ptr; ld t5, 0(t0); sub t3, t3, t5\n" ++
+  "  ld t5, 104(sp); ld t5, 608(t5); sub t3, t3, t5\n" ++
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)

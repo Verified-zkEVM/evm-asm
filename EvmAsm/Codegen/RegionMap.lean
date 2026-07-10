@@ -195,8 +195,9 @@ def schemeAAnchors : List GuestRegion :=
     emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
     payload staging paths began reversing PREVRANDAO into EVM word order. Grew
     by `0x64` when same-transaction CREATE code became available to delegated
-    calls before EIP-6780 deletion is finalized. -/
-def textSizeBytes : Nat := 0x56cb0
+    calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
+    delegation code was rebased directly from the caller's staged codes base. -/
+def textSizeBytes : Nat := 0x56cac
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
