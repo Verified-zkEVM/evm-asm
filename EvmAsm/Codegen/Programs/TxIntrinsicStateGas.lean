@@ -406,6 +406,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  sd a0, 112(sp); sd a1, 120(sp); li s8, 0\n" ++
   "  la t0, teer_auth_chain; sd zero, 0(t0)  # previous same-authority target was nonzero\n" ++
   "  la t0, teer_auth_nonce; sd zero, 0(t0)  # same-tx AUTH_BASE refund count\n" ++
+  "  la t0, teer_invalid_auth_count; sd zero, 0(t0)  # same-authority auths that do not advance nonce\n" ++
   ".Lteer_same_loop:\n" ++
   "  beq s8, s7, .Lteer_same_after_scan\n" ++
   "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
@@ -444,7 +445,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, rlp_content_to_u64\n" ++
   "  bnez a1, .Lteer_single_loop_setup\n" ++
   "  mv t2, a0; beqz s8, .Lteer_same_first_nonce_check\n" ++
-  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; bne t2, t1, .Lteer_same_nonce_mismatch\n" ++
   "  j .Lteer_same_nonce_ok\n" ++
   ".Lteer_same_first_nonce_check:\n" ++
   "  li t1, -1; beq t2, t1, .Lteer_single_loop_setup\n" ++
@@ -455,6 +456,25 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_single_loop_setup\n" ++
   "  j .Lteer_same_next\n" ++
+  ".Lteer_same_nonce_mismatch:\n" ++
+  "  # execution-specs validate_authorization returns None when the signed nonce\n" ++
+  "  # does not equal the authority live nonce. In the same-authority fast path,\n" ++
+  "  # a repeated or stale nonce after an earlier valid authorization is exactly that\n" ++
+  "  # case: set_delegation refunds the tuple's full AUTH_BASE state component.\n" ++
+  "  # The NEW_ACCOUNT state and ACCOUNT_WRITE regular refunds are already counted\n" ++
+  "  # per tuple by .Lteer_same_compute_refund; teer_auth_nonce carries the extra\n" ++
+  "  # AUTH_BASE refunds. Recover and compare the authority so a different-authority\n" ++
+  "  # mixed list still falls back to the generic per-auth loop.\n" ++
+  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lteer_same_next\n" ++
+  "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
+  ".Lteer_same_nonce_mismatch_authority_cmp:\n" ++
+  "  beqz t2, .Lteer_same_nonce_mismatch_same_authority\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_nonce_mismatch_authority_cmp\n" ++
+  ".Lteer_same_nonce_mismatch_same_authority:\n" ++
+  "  la t0, teer_invalid_auth_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lteer_same_recover_current:\n" ++
   "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
@@ -475,7 +495,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a0, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
   "  # Later execution can increment the same authority nonce again after the auth chain.\n" ++
-  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bltu t2, t1, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7\n" ++
+  "  la t0, teer_invalid_auth_count; ld t3, 0(t0); sub t1, t1, t3\n" ++
+  "  bltu t2, t1, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_same_final_no_code\n" ++
   "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
   "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
@@ -942,6 +964,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_invalid_auth_count:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
