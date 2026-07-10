@@ -191,6 +191,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ### SAsm Proof Repair Notes
 
+- When adapting a verified leaf for use through `Fn.retSpecFlat`, ensure the leaf `Fn.pre` and `Fn.post` pin the ambient assertion (`A = empAssertion`) and that loop invariants preserve that ambient equality. Otherwise the leaf may build standalone, but the flat caller adapter cannot discharge its `hpostEmp` side condition; this came up when reusing the secp256k1 BE/LE converters inside `secf_mul_mod_p`.
 - When `rfl` on a generated SAsm equality times out or spins, assume the equality
   is nontrivial before increasing budgets. Split the proof into named helper
   lemmas that expose the exact register/memory update being used, then rewrite
