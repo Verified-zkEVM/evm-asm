@@ -124,6 +124,7 @@ import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldLtPSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
+import EvmAsm.Codegen.Programs.P256LtBeSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
