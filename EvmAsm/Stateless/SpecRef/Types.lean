@@ -77,6 +77,10 @@ inductive SpecError where
   /-- `fork.py` / `execution_engine/new_payload.py`: any `InvalidBlock`
       raised by the pre-checks or the `execute_block` frame. -/
   | invalidBlock (why : String)
+  /-- Modeling-only: contact with a precompile whose implementation is
+      not yet ported (`Precompiles.lean`).  The hybrid seam catches
+      exactly this and falls back to the sound-for-accepts shell. -/
+  | unimplementedPrecompile (name : String)
   /-- `state_tracker.py`: an `AssertionError` on the state layer
       (`set_storage` on a missing account, `move_ether` underflow). -/
   | stateError (why : String)

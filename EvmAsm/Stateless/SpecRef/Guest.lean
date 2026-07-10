@@ -9,8 +9,8 @@
   * `run_stateless_guest`         (`stateless_guest.py:47`)
 
   `run_stateless_guest` threads the execution seam (`Seam.lean`); the
-  default is the `s1d19.3` partial seam `executeSeamShell`
-  (`SeamShell.lean`), keeping the whole pipeline `#eval`-runnable.
+  default is the hybrid full seam `elExecuteHybrid`
+  (`Precompiles.lean`), keeping the whole pipeline `#eval`-runnable.
 -/
 
 import EvmAsm.Stateless.SpecRef.Stateless
@@ -38,11 +38,11 @@ def deserialize_stateless_input (data : Bytes) : Except SpecError StatelessInput
 /-! ## `run_stateless_guest` (`stateless_guest.py:47`) -/
 
 /-- Run the stateless guest on serialized input, returning serialized output.
-    The execution engine is the seam parameter (default: the partial seam
-    `executeSeamShell`, `s1d19.3`).
+    The execution engine is the seam parameter (default: the hybrid
+    full seam `elExecuteHybrid`, `s1d19.5`).
     Deserialization failures propagate (Python does not catch them). -/
 def run_stateless_guest (input_bytes : Bytes)
-    (execute : ExecutionSeam := executeSeamShell) : Except SpecError Bytes := do
+    (execute : ExecutionSeam := elExecuteHybrid) : Except SpecError Bytes := do
   let stateless_input ← deserialize_stateless_input input_bytes
   let stateless_output := verify_stateless_new_payload stateless_input execute
   pure (serialize_stateless_output stateless_output)
