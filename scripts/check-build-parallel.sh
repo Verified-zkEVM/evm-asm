@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Run independent build-dependent CI gates concurrently on one prepared runner.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+names=()
+pids=()
+
+start() {
+  local name="$1"
+  shift
+  names+=("$name")
+  ( "$@" ) >"$work/$name.log" 2>&1 &
+  pids+=("$!")
+}
+
+codegen_checks() {
+  scripts/codegen-stateless-link-check.sh --no-build
+  scripts/check-region-map.sh
+  scripts/check-guarded-handler-bytes.sh
+}
+
+report_checks() {
+  scripts/check-progress.sh
+  scripts/check-drift.sh
+}
+
+start codegen codegen_checks
+start asm-to-program scripts/check-asm-to-program.sh
+start reports report_checks
+start axioms scripts/check-axioms.sh
+start arithmetic-fuzz scripts/fuzz-arith-diff.sh
+
+status=0
+for i in "${!pids[@]}"; do
+  name="${names[$i]}"
+  if wait "${pids[$i]}"; then
+    echo "==> $name: PASS"
+  else
+    echo "==> $name: FAIL" >&2
+    status=1
+  fi
+  sed "s/^/[$name] /" "$work/$name.log"
+done
+
+exit "$status"
