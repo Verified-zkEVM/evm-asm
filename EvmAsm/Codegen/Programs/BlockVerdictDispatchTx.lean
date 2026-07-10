@@ -239,6 +239,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
@@ -280,6 +281,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
+  "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_same_block_empty_code:\n" ++
+  "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
+  "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++

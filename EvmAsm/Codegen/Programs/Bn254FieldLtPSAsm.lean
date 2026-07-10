@@ -67,9 +67,6 @@ def ltPBase : Word := (GuestAddrs.bnf_lt_p : Word)
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.bnf_p_be : Word)
 
--- Address anchors (fail the build if the guest link moves).
-#guard GuestAddrs.bnf_lt_p = 0x800301ac
-#guard GuestAddrs.bnf_p_be = 0xbb55d970
 #guard bnfLtP_prog.length = 17
 
 /-- BN254 base-field prime, as 32 big-endian bytes (mirrors the
@@ -287,7 +284,7 @@ private theorem ltIter_spec
   have hlbuP := liftCode (cr' := CR)
     (bytesRegion_lbu_within .x29 .x5 pConstAddr v29 (ltPBase + 24)
       bn254PBytes i (by decide) (by decide) hip
-      (by have h : pConstAddr.toNat = 0xbb55d970 := by decide
+      (by have h : pConstAddr.toNat = 0xbb565df0 := by decide
           omega)
       (pByte_valid i hi))
     (by rw [hCR]; code_mem)

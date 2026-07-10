@@ -79,8 +79,10 @@ struct.pack_into('<Q', payload, 64 - 8 + 404, 0x1234)
 struct.pack_into('<Q', payload, 64 - 8 + 412, 0x55aa)
 # timestamp u64 (@guest +64 + 428 -> file +484).
 struct.pack_into('<Q', payload, 64 - 8 + 428, 0x99)
-# prev_randao Bytes32 (@guest +64 + 372 -> file +428), first byte marker.
+# prev_randao Bytes32 (@guest +64 + 372 -> file +428), with distinct
+# canonical high/low byte markers so the EVM-word reversal is exercised.
 payload[64 - 8 + 372] = 0x44
+payload[64 - 8 + 403] = 0x55
 
 for i in range(pubkeys_len):
     payload[320 - 8 + i] = (i + 1) & 0xff
@@ -131,7 +133,7 @@ run_case() {
   e_ic="$(le64_hex "$exp_is_creation")"
   e_gl="$(le64_hex "$exp_gas_limit")"
   if [[ "$exp_status" == "0" ]]; then
-    e_pr="$(le64_hex 68)"
+    e_pr="$(le64_hex 85)"
   else
     e_pr="$(le64_hex 0)"
   fi
@@ -144,7 +146,7 @@ run_case() {
         "$a_ws" == "$e_zero" && "$a_wc" == "$e_zero" ]]; then
     printf "  %-22s OK   status=%s bc=%s cd=%s gas_flag=%s creation=%s gas=%s prev_randao=%s\n" \
       "$name" "$exp_status" "$exp_bc_len" "$exp_cd_len" "$exp_gas_flag" \
-      "$exp_is_creation" "$exp_gas_limit" "$([[ "$exp_status" == "0" ]] && echo 0x44 || echo 0x00)"
+      "$exp_is_creation" "$exp_gas_limit" "$([[ "$exp_status" == "0" ]] && echo 0x55 || echo 0x00)"
     return 0
   fi
 

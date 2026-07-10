@@ -104,6 +104,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldCmpPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
@@ -429,3 +430,5 @@ import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
 import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
 import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan

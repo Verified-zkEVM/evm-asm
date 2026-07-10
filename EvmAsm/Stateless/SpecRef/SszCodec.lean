@@ -172,6 +172,11 @@ def headsToSegments (data : Bytes) : List Head → List Nat → List (SszType ×
   | (t, Sum.inr off) :: rest, [] =>
       (t, sliceBytes data off data.length) :: headsToSegments data rest []
 
+/-- SSZ offsets must be nondecreasing. -/
+def offsetsNondecreasing : List Nat → Bool
+  | [] | [_] => true
+  | a :: b :: rest => a ≤ b && offsetsNondecreasing (b :: rest)
+
 /-- Deserialize a value of type `t` from exactly `data`. Fuel bounds
     type-nesting depth. -/
 def deserializeAux : Nat → SszType → Bytes → Except SpecError SszValue
@@ -194,12 +199,21 @@ def deserializeAux : Nat → SszType → Bytes → Except SpecError SszValue
         if data.length ≤ lim then .ok (.byteList lim data)
         else .error (.sszError "byte list over limit")
     | .container fields =>
-        let heads := collectHeads data fields 0
-        let varOffsets := heads.filterMap (fun h =>
-          match h.2 with | Sum.inr o => some o | _ => none)
-        let stops := varOffsets.drop 1 ++ [data.length]
-        let segs := headsToSegments data heads stops
-        (segs.mapM (fun s => deserializeAux f s.1 s.2)).map SszValue.container
+        let fixedLen := t.fixedSize
+        if data.length < fixedLen then
+          .error (.sszError "container shorter than fixed section")
+        else
+          let heads := collectHeads data fields 0
+          let varOffsets := heads.filterMap (fun h =>
+            match h.2 with | Sum.inr o => some o | _ => none)
+          if varOffsets.any (fun off => off < fixedLen || data.length < off)
+              || !offsetsNondecreasing varOffsets
+              || (varOffsets != [] && varOffsets.getD 0 fixedLen != fixedLen) then
+            .error (.sszError "invalid container offsets")
+          else
+            let stops := varOffsets.drop 1 ++ [data.length]
+            let segs := headsToSegments data heads stops
+            (segs.mapM (fun s => deserializeAux f s.1 s.2)).map SszValue.container
     | .list elem lim =>
         if elem.isVariable then
           match data with
@@ -208,18 +222,27 @@ def deserializeAux : Nat → SszType → Bytes → Except SpecError SszValue
               let firstOff := readOffset data 0
               let count := firstOff / sszOffsetSize
               let offsets := (List.range count).map (fun i => readOffset data (i * sszOffsetSize))
-              let stops := offsets.drop 1 ++ [data.length]
-              let segs := (offsets.zip stops).map (fun p => sliceBytes data p.1 p.2)
-              (segs.mapM (fun b => deserializeAux f elem b)).map
-                (fun vs => .list lim elem.basicSize? vs)
+              if firstOff = 0 || firstOff % sszOffsetSize != 0 || data.length < firstOff
+                  || count > lim || offsets.getD 0 firstOff != firstOff
+                  || offsets.any (fun off => off < firstOff || data.length < off)
+                  || !offsetsNondecreasing offsets then
+                .error (.sszError "invalid variable-list offsets")
+              else
+                let stops := offsets.drop 1 ++ [data.length]
+                let segs := (offsets.zip stops).map (fun p => sliceBytes data p.1 p.2)
+                (segs.mapM (fun b => deserializeAux f elem b)).map
+                  (fun vs => .list lim elem.basicSize? vs)
         else
           let sz := elem.fixedSize
           if sz = 0 then .error (.sszError "zero-size list element")
           else
             let count := data.length / sz
-            let segs := (List.range count).map (fun i => sliceBytes data (i * sz) (i * sz + sz))
-            (segs.mapM (fun b => deserializeAux f elem b)).map
-              (fun vs => .list lim elem.basicSize? vs)
+            if data.length % sz != 0 then .error (.sszError "fixed-list trailing bytes")
+            else if count > lim then .error (.sszError "list over limit")
+            else
+              let segs := (List.range count).map (fun i => sliceBytes data (i * sz) (i * sz + sz))
+              (segs.mapM (fun b => deserializeAux f elem b)).map
+                (fun vs => .list lim elem.basicSize? vs)
 
 def deserialize (t : SszType) (data : Bytes) : Except SpecError SszValue :=
   deserializeAux sszFuel t data
