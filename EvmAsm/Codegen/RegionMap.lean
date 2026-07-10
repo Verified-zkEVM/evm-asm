@@ -190,8 +190,10 @@ def schemeAAnchors : List GuestRegion :=
     began preferring same-block delegation markers over stale pre-state markers.
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
-    being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x5674c
+    being derived for EIP-6110 negative system requests. Shrank net
+    `0x7b0` after CREATE2 selfdestruct-collision handling simplified
+    `ChildFrameHandlers` dispatch. -/
+def textSizeBytes : Nat := 0x55f9c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
