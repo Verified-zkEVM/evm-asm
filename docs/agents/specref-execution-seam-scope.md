@@ -176,7 +176,13 @@ wrong-hash node yields a rejection, never a wrong value.
 | `.5` | EVM execution core (`elExecute` interior): `apply_body`, transaction processing, `state_tracker`/BAL, interpreter + instructions + precompiles, EIP-8037 gas — **epic-sized; maintainer checkpoint below** | `fork.py`, `transactions.py`, `state_tracker.py`, `block_access_lists.py`, `vm/**` | `.2`, `.3`, `.4`; coordinate `n9rtz.4`/`.5` |
 | `.6` | flip `scripts/eest-specref-check.sh` to gate `succ` (add `--min-succ`/fold into fail); retire the `[root/----/tail]` divergence reporting as "expected" | `eest-specref-check.sh` | `.5` complete, divergences = 0 |
 
-### Maintainer checkpoint (STOP-and-report, per the bead)
+Status (2026-07-10): `.1` landed (`IncrementalMpt.lean`, PR #10166);
+`.2` landed (`WitnessReads.lean` — `WitnessState` read methods,
+cache-free over the `.1` decoder). The `.5` maintainer decision is
+**resolved**: proceed with the full pure port (see the bead comment on
+`s1d19.5`).
+
+### Maintainer checkpoint (STOP-and-report, per the bead — since resolved)
 
 Children `.1`–`.4` and `.6` are bounded and are committed work.  `.5`
 is the whole EVM (~10k Python lines even after reuse): a faithful pure
