@@ -25,6 +25,22 @@ def blockVerdictGasGatePrelude : String :=
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
+  -- `tx_eip7702_existing_authority_refund` distinguishes a marker already
+  -- present in pre-state from one written by the current authorization.  This
+  -- early gas phase runs before state-root validation normally initializes
+  -- `svf_tx_count`; publish the independently parsed transaction count here
+  -- so a one-tx block cannot mistake its own final marker for prior state.
+  "  la t2, svf_tx_count; sd a1, 0(t2)\n" ++
+  -- The EIP-7702 refund classifier must compare a recovered authority with
+  -- the transaction sender to account for `process_transaction`'s prior nonce
+  -- increment.  The contract path initializes `bv_stx_sender_addr` itself,
+  -- but the EOA path reaches this common gas phase without doing so.  For the
+  -- single-transaction context represented by `bv_simple_transfer_tx`, derive
+  -- it from the already validated public key before classifying refunds.
+  "  li t3, 1; bne a1, t3, .Lbv_pregate_sender_ready\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t3, 0(t2); bnez t3, .Lbv_pregate_sender_ready\n" ++
+  "  ld a0, 24(t2); la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  ".Lbv_pregate_sender_ready:\n" ++
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++

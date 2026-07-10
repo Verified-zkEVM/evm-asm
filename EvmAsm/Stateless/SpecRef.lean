@@ -16,6 +16,14 @@
   * `SszCodec`     — generic SSZ serialize / deserialize / hash_tree_root
   * `Ssz`          — `stateless_ssz.py` containers + 34 conversions
   * `WitnessState` — `witness_state.py` (4 module-level defs)
+  * `IncrementalMpt` — `incremental_mpt.py` read side (`decode_witness_to_mpt`
+                     + helpers): MPT witness authentication (obligation #7)
+  * `WitnessReads`  — `witness_state.py` `WitnessState` read methods
+                     (`get_account_optional`/`get_storage`/`get_code`/…)
+  * `IncrementalMptWrite` — `incremental_mpt.py` write side (`mpt_set`/
+                     `mpt_root`/`build_mpt` + node encoding)
+  * `WitnessStateRoot` — `witness_state.py`
+                     `compute_state_root_and_trie_changes` (obligation #8)
   * `Stateless`    — `stateless.py` (7 defs) + the execution seam
   * `Guest`        — `stateless_guest.py` (3 defs), the top-level shell
 -/
@@ -27,5 +35,9 @@ import EvmAsm.Stateless.SpecRef.Types
 import EvmAsm.Stateless.SpecRef.SszCodec
 import EvmAsm.Stateless.SpecRef.Ssz
 import EvmAsm.Stateless.SpecRef.WitnessState
+import EvmAsm.Stateless.SpecRef.IncrementalMpt
+import EvmAsm.Stateless.SpecRef.WitnessReads
+import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+import EvmAsm.Stateless.SpecRef.WitnessStateRoot
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.Guest
