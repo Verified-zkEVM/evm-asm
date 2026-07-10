@@ -160,6 +160,7 @@ import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
+import EvmAsm.Codegen.Programs.MptEarlyRetShape
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
@@ -407,3 +408,6 @@ import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
+import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
