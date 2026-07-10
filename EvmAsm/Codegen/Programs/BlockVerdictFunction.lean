@@ -1329,11 +1329,14 @@ def blockVerdictFunction : String :=
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
   bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
+  -- Exact block-gas settlement needs one runtime result for every transaction.
+  -- Creation and otherwise unsupported execution shapes deliberately leave that
+  -- arena incomplete; their pre-execution EIP-8037 admission was already checked
+  -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
-  -- remaining-block-gas check below can apply the spec's 2D REGULAR test
-  -- min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) (amsterdam fork.py:591) instead of the
-  -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
+  -- remaining-block-gas check below can apply the spec's 2D regular admission
+  -- test min(TX_MAX_GAS_LIMIT, tx.gas). block_verdict_tx_state_gas_array depends only on the
   -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
   -- same conservative skip. (Moved up from just below the EIP-7778 check.)
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++

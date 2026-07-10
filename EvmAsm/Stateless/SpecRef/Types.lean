@@ -31,6 +31,7 @@ abbrev Root := Bytes
 abbrev Address := Bytes
 abbrev Bloom := Bytes
 abbrev VersionedHash := Bytes
+abbrev Bytes32 := Bytes
 
 /-! ## Distinct failure reasons
 
@@ -70,6 +71,25 @@ inductive SpecError where
   | accountLeafMalformed
   /-- `_trie_lookup`: hit an unresolved `HashedNode`. -/
   | unresolvedHashedNode
+  /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the
+      witness does not contain the trie's root node. -/
+  | witnessRootMissing
+  /-- `incremental_mpt.py` write side (`mpt_set`/`mpt_get`/`mpt_root`/
+      `build_mpt` and helpers): any `AssertionError` raised on the
+      insert/delete/encode/traverse path — e.g. touching an unresolved
+      `HashedNode`, `_split_extension` collision, unencodable value. -/
+  | mptWriteError (why : String)
+  /-- `WitnessState.get_code`: `self._code_db[code_hash]` raised `KeyError` —
+      the witness does not contain the bytecode for a non-empty code hash. -/
+  | codeHashMissing
+  /-- `WitnessState.get_storage`: `rlp.decode(leaf)` raised `DecodingError`
+      on a storage-trie leaf value. -/
+  | storageLeafMalformed
+  /-- `_decode_witness_node` / `_resolve_child_ref` / `compact_to_nibbles`:
+      any `AssertionError` / `IndexError` / RLP `DecodingError` raised while
+      decoding a witness trie node (all folded into rejection by the
+      `verify_stateless_new_payload` `try`). -/
+  | witnessNodeMalformed (why : String)
   /-- Execution seam (`execute_new_payload_request`) rejected the payload. -/
   | executionRejected (why : String)
   deriving Repr, BEq, DecidableEq
