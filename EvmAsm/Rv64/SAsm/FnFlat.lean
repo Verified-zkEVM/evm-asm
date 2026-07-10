@@ -324,6 +324,92 @@ theorem Fn.retSpecFlat (f : Fn) (base : Word) (hspec : f.Spec base)
       (asrtOf_elim f.rw f.post hpostEmp hpost)) h hq1
 
 -- ============================================================================
+-- The ambient-preserving adapter (bead evm-asm-l0w4a).
+-- ============================================================================
+
+/-- Introduce `asrtOf` at an ARBITRARY (pc-free) ambient: a concrete
+    register file + rw-window pair with the reach's fact at ambient `A` is
+    one witness.  Generalizes `asrtOf_intro` (its `A = empAssertion`
+    instance). -/
+theorem asrtOf_intro_ambient (rw : RwRegion) (reach : Reach) (rf : RegFile)
+    (ws : List (BitVec 8)) (A : Assertion) (hlen : ws.length = rw.len)
+    (hApc : A.pcFree) (hreach : reach rf ws A) :
+    ∀ hp, (((regFileIs rf) ** bytesRegion rw.base ws) ** A) hp →
+      asrtOf rw reach hp :=
+  fun _hp hh => ⟨rf, ws, A, hlen, hApc, hreach, hh⟩
+
+/-- Eliminate `asrtOf` into a caller-chosen flat `Q` at an ARBITRARY fixed
+    ambient, FAITHFULLY: `Q` must follow from the reach itself (for every
+    witness), so nothing weaker than the leaf's own postcondition can be
+    produced.  Requires the reach to pin its ambient to the FIXED `A` —
+    the multi-read shape, where the read-only inputs ride in the ambient
+    unchanged.  Generalizes `asrtOf_elim` (`A = empAssertion`). -/
+theorem asrtOf_elim_ambient (rw : RwRegion) (reach : Reach) (A : Assertion)
+    {Q : Assertion}
+    (hAmb : ∀ rf ws A', reach rf ws A' → A' = A)
+    (h : ∀ (rf : RegFile) (ws : List (BitVec 8)), ws.length = rw.len →
+      reach rf ws A →
+      ∀ hp, (((regFileIs rf) ** bytesRegion rw.base ws) ** A) hp → Q hp) :
+    ∀ hp, asrtOf rw reach hp → Q hp := by
+  rintro hp ⟨rf, ws, A', hlen, hApc, hreach, hsts⟩
+  have hA := hAmb rf ws A' hreach
+  subst hA
+  exact h rf ws hlen hreach hp hsts
+
+/-- **The ambient-preserving flat-contract adapter** (bead evm-asm-l0w4a).
+
+    `Fn.retSpecFlat` forces the leaf's ambient to `empAssertion`
+    (side-condition 3), which rejects MULTI-READ leaves that keep their
+    read-only inputs in the ambient assertion (e.g. `u256_sub_be` /
+    `multiReadFn`: `A = bytesRegion a ** bytesRegion b`,
+    `region = Region.empty`).  This adapter preserves an arbitrary FIXED
+    pc-free ambient `A` across the call instead: the leaf's pre/post must
+    pin the ambient to the same `A` (`hpreAmb` is the leaf's own `f.pre`
+    instantiated; `hpostAmb` replaces `hpostEmp`), and the flat contract
+    carries `A` as an ordinary conjunct on both sides.  Faithfulness is
+    unchanged: the flat `Q` must follow from the leaf's own `f.post`
+    (hypothesis `hpost`), so the adapter cannot be instantiated to
+    anything the leaf's spec does not guarantee. -/
+theorem Fn.retSpecFlatAmbient (f : Fn) (base : Word) (hspec : f.Spec base)
+    (hsz : 4 * (f.body.size + 1) ≤ 2 ^ 64)
+    (ret : Word) (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
+    (hApc : A.pcFree)
+    (hlen : ws.length = f.rw.len)
+    (hpre : f.pre rf ws A)
+    {Q : Assertion}
+    (hpostAmb : ∀ rf' ws' A', f.post rf' ws' A' → A' = A)
+    (hpost : ∀ (rf' : RegFile) (ws' : List (BitVec 8)),
+      ws'.length = f.rw.len → f.post rf' ws' A →
+      ∀ hp, (((regFileIs rf') ** bytesRegion f.rw.base ws') ** A) hp → Q hp) :
+    cpsTripleWithin (f.body.steps + 1) base ret
+      (CodeReq.ofProg base (f.programRet base))
+      ((((.x1 : Reg) ↦ᵣ ret) ** ((regFileIs rf) ** bytesRegion f.rw.base ws)
+          ** A)
+        ** bytesRegion f.region.base f.region.bytes)
+      ((((.x1 : Reg) ↦ᵣ ret) ** Q)
+        ** bytesRegion f.region.base f.region.bytes) := by
+  have hr := Fn.retSpec f base hspec hsz ret halign
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hr
+  · -- flat pre ⊢ (x1 ↦ ret) ** asrtM f.region f.rw f.pre
+    have hp1 : ((((.x1 : Reg) ↦ᵣ ret)
+        ** (((regFileIs rf) ** bytesRegion f.rw.base ws) ** A))
+        ** bytesRegion f.region.base f.region.bytes) h := by
+      xperm_hyp hp
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (asrtOf_intro_ambient f.rw f.pre rf ws A hlen hApc hpre)) h hp1
+    show (((.x1 : Reg) ↦ᵣ ret) ** asrtM f.region f.rw f.pre) h
+    unfold asrtM
+    xperm_hyp hp2
+  · -- (x1 ↦ ret) ** asrtM f.region f.rw f.post ⊢ flat post
+    unfold asrtM at hq
+    have hq1 : ((((.x1 : Reg) ↦ᵣ ret) ** asrtOf f.rw f.post)
+        ** bytesRegion f.region.base f.region.bytes) h := by
+      xperm_hyp hq
+    exact sepConj_mono_left (sepConj_mono_right
+      (asrtOf_elim_ambient f.rw f.post A hpostAmb hpost)) h hq1
+
+-- ============================================================================
 -- Glue: atoms → ownership, `get` elimination, dword-region ↔ byte-region.
 -- ============================================================================
 
@@ -392,3 +478,4 @@ end EvmAsm.Rv64
 #print axioms EvmAsm.Rv64.SAsm.regFileIs_eq_regAtoms
 #print axioms EvmAsm.Rv64.SAsm.cpsTripleWithin_peel_regOwns
 #print axioms EvmAsm.Rv64.SAsm.Fn.retSpecFlat
+#print axioms EvmAsm.Rv64.SAsm.Fn.retSpecFlatAmbient
