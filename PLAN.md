@@ -3086,6 +3086,30 @@ bBE) c₀ m₀` (`(a·b+c₀) mod m₀`, `c₀`/`m₀` the staged addend/modulus
 framed.  Both converters (`Bn254FieldConvSAsm`) retrofitted with ambient-`A`
 pinning (`A = empAssertion`) to satisfy `Fn.retSpecFlat`'s side condition.
 Classical-3.
+**`secp256k1_point_double` landed** (branch `feat/point-double`, bead
+evm-asm-4ch8f.38.5 CLOSED — the inline-CSRS half, completing the crypto
+caller layer with `bnf_mul_mod_p` #10069): the first branching ABI-frame
+caller with an inline curve accelerator.
+`Codegen/Programs/Secp256k1PointDoubleSAsm{Stage,Body,Reg,}.lean`
+(`#guard`-tied GuestAddrs.secp256k1_point_double = 0x80020408,
+byte-transparent `abiFrameProg (-32)/(+32)` rfl tie `pdProg_tie`, no A/B):
+an sp-frame (ra/s0/s1) that branches on `secf_is_zero32(y)` — because the
+two paths exit the body with different `ra` values, `pointDouble_spec`
+CASE-SPLITS on the decidable `beBytesToNat yBE = 0`, resolves the `beq`
+deterministically per case (`cpsBranchWithin_takenPath`/`_ntakenPath` — the
+dead side carries a contradictory pure verdict), and closes ONE disjunctive
+whole-routine conclusion with two straight-line `abiFrame_spec` bodies.
+Infinity path: output zeroed (`secf_zero32` ×2), `a0 = 1`, staging arena
+untouched.  Accelerator path: both coordinates staged LE into their own
+`secc_le_p1` subwindows (multi-RW-subwindow adapter #10069), the inline
+CSR-2052 tangent doubling in place (`csrs_curveDbl_spec_within` instance
+`curveStep_spec` over the 64-byte staging atom — GENUINE
+`Accel.curveDbl secpP x y` post), both halves converted back out
+(`secf_le_to_be` reading the split `pairBytes` wire image), `a0 = 0`.
+All four secf callee `Fn`s (`secfIsZero32Fn`/`secfZero32Fn`/`secfBeToLeFn`/
+`secfLeToBeFn`) retrofitted with ambient-`A` pinning and given
+`Fn.retSpecFlat`-derived flat contracts (incl. the first rw-less read-only
+leaf adapter, `secfIsZero32Flat_spec`).  Classical-3.
 **Two-break writable-output combinator + `u256_lt_be` landed** (branch
 `feat/two-break-writable-lt`, bead evm-asm-i177q; porting-agent feedback —
 `retWhileBreak` has one mid-loop return break, `while2BreakJoin`
