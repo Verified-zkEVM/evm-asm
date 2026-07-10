@@ -3751,6 +3751,10 @@ preserves both inputs and states the exact branch semantics: copy the wrapping
 BE subtraction on no borrow, otherwise subtract the encoded `2^256 - p`
 constant; the two call-site return-address values are joined before an explicit
 saved-register restore.
+`Secp256k1FieldReduceOnceNSAsm.lean` applies the same verified ABI-frame and
+shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
+the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and
+return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
