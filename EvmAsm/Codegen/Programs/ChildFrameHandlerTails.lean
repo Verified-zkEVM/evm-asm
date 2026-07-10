@@ -133,28 +133,34 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     ".L" ++ tag ++ "_precompile_xlog_selfcmp:\n" ++
     "  beqz t2, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
     "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
-    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_prev_start\n" ++
+    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  j .L" ++ tag ++ "_precompile_xlog_selfcmp\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_start:\n" ++
-    "  ld t1, 472(x20); beqz t1, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
-    "  li t2, 0; la t3, evm_event_logs\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_scan:\n" ++
-    "  beq t2, t1, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
-    "  ld t4, 0(t3); li t5, 3; bne t4, t5, .L" ++ tag ++ "_precompile_xlog_prev_next\n" ++
-    "  addi t4, t3, 96; addi t5, x12, 32; li t6, 20\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_cmp:\n" ++
-    "  beqz t6, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
-    "  lbu x16, 0(t4); lbu x17, 0(t5); bne x16, x17, .L" ++ tag ++ "_precompile_xlog_prev_next\n" ++
-    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .L" ++ tag ++ "_precompile_xlog_prev_cmp\n" ++
-    ".L" ++ tag ++ "_precompile_xlog_prev_next:\n" ++
-    "  addi t3, t3, 256; addi t2, t2, 1; j .L" ++ tag ++ "_precompile_xlog_prev_scan\n" ++
     ".L" ++ tag ++ "_precompile_xlog_emit:\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".L" ++ tag ++ "_precompile_xlog_skip:\n"
+
+def refundSuccessfulPrecompileValueStipendAsm (tag : String) (valueOff? : Option Nat) : String :=
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    -- execution-specs funds every value-bearing CALL/CALLCODE child with the
+    -- 2300-gas stipend after charging CALL_VALUE (10300). A successful
+    -- precompile consumes only its own inner gas, so the unused stipend is
+    -- returned with the rest of the child allotment. The fast path has no
+    -- child frame and charged the full 10300 in precompileValueBalanceGateAsm;
+    -- return the stipend at the shared success join to preserve the same net
+    -- 8000 value-transfer charge. Zero-value calls receive no stipend.
+    "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_stipend_done\n" ++
+    "  ld t0, 568(x20)\n  li t1, 2300\n  add t0, t0, t1\n  sd t0, 568(x20)\n" ++
+    ".L" ++ tag ++ "_precompile_stipend_done:\n"
 
 def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option Nat) : String :=
   if tag != "call_target" then "" else
@@ -277,7 +283,7 @@ def basicPrecompileCallTail
     -- The shortcut substitutes for the successful user-call path through the
     -- beacon-roots bytecode. Debit that path's regular gas from the EIP-150
     -- child allotment: non-SLOAD opcodes + two warm SLOAD floors, plus the
-    -- 2000-gas cold delta for each slot not already warmed by the tx access list.
+    -- 2900-gas cold delta for each slot not already warmed by the tx access list.
     "  la t0, stal_token_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     "  la t1, bsr_addr_4788; addi t1, t1, 19; li t2, 20\n" ++
     ".L" ++ tag ++ "_eip4788_token_copy:\n" ++
@@ -294,14 +300,14 @@ def basicPrecompileCallTail
     ".L" ++ tag ++ "_eip4788_ts_warm:\n" ++
     "  j .L" ++ tag ++ "_eip4788_root_cost\n" ++
     ".L" ++ tag ++ "_eip4788_ts_cold:\n" ++
-    "  addi x16, x16, 2000\n" ++
+    "  li x17, 2900; add x16, x16, x17\n" ++
     ".L" ++ tag ++ "_eip4788_root_cost:\n" ++
     "  la t6, stal_token_le; la a1, cd_callee_be\n" ++
     storageAccessKeyScanAsm (tag ++ "_eip4788_root_scan") (tag ++ "_eip4788_root_warm") (tag ++ "_eip4788_root_cold") (tag ++ "_eip4788_root_next") ++
     ".L" ++ tag ++ "_eip4788_root_warm:\n" ++
     "  j .L" ++ tag ++ "_eip4788_charge\n" ++
     ".L" ++ tag ++ "_eip4788_root_cold:\n" ++
-    "  addi x16, x16, 2000\n" ++
+    "  li x17, 2900; add x16, x16, x17\n" ++
     ".L" ++ tag ++ "_eip4788_charge:\n" ++
     chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
@@ -337,7 +343,7 @@ def basicPrecompileCallTail
     -- timestamp check fails and reverts. The parent-state bytecode fallback is
     -- wrong here because it cannot see the current block's begin-of-block write;
     -- charge the regular gas used by that revert path before returning CALL=0.
-    "  li x16, 2204\n" ++
+    "  li x16, 3104\n" ++
     chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
     "  ld t2, " ++ toString outSizeOff ++ "(x12); li t3, 32; bgeu t2, t3, .L" ++ tag ++ "_eip4788_stale_out_cap\n" ++
     "  mv t3, t2\n" ++
@@ -427,11 +433,14 @@ def basicPrecompileCallTail
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
-    -- Copy up to 256 bytes of returndata into the shared frame.
+    -- Copy the FULL identity returndata into the shared frame: the input size
+    -- is bounded by the caller's memory arena (≤ rootRuntimeMemoryArenaLimitBytes
+    -- = precompileFrameReturndataCapBytes), so the clamp never truncates and the
+    -- staged bytes always cover the true length written at +8.
     "  mv x22, x18\n" ++
     "  addi x23, x15, 16\n" ++
     "  mv x24, x17\n" ++
-    "  li x16, 256\n" ++
+    "  li x16, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
     "  bgeu x16, x24, 2f\n" ++
     "  mv x24, x16\n" ++
     "2:\n" ++
@@ -475,6 +484,7 @@ def basicPrecompileCallTail
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 6b\n" ++
     "7:\n" ++
+    refundSuccessfulPrecompileValueStipendAsm tag valueOff? ++
     emitSuccessfulPrecompileValueLogAsm tag valueOff? ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++

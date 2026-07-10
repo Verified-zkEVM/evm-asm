@@ -2,7 +2,7 @@
   EvmAsm.Stateless.SpecRef.Ssz
 
   Port of `execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`
-  (`@tests-zkevm@v0.4.0`): the SSZ container schemas mirroring the domain
+  (`@tests-zkevm@v0.5.0`): the SSZ container schemas mirroring the domain
   dataclasses, plus the 34 to/from-SSZ conversion functions.
 
   Each Python `class SszX(Container)` becomes an `SszType` descriptor
@@ -20,7 +20,7 @@ import EvmAsm.Stateless.SpecRef.SszCodec
 
 namespace EvmAsm.Stateless.SpecRef
 
-/-! ## SSZ max-length constants (`stateless_ssz.py:41`–`61`) -/
+/-! ## SSZ max-length constants (`stateless_ssz.py:54`–`89`) -/
 
 def MAX_EXTRA_DATA_BYTES : Nat := 32
 def MAX_BYTES_PER_TRANSACTION : Nat := 2 ^ 30
@@ -31,15 +31,15 @@ def MAX_DEPOSIT_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 13
 def MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 4
 def MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 1
 def MAX_BLOCK_ACCESS_LIST_BYTES : Nat := MAX_BYTES_PER_TRANSACTION
-def MAX_WITNESS_NODES : Nat := 2 ^ 20
-def MAX_WITNESS_CODES : Nat := 2 ^ 16
+def MAX_WITNESS_NODES : Nat := 2 ^ 22
+def MAX_WITNESS_CODES : Nat := 2 ^ 18
 def MAX_WITNESS_HEADERS : Nat := 256
-def MAX_BYTES_PER_WITNESS_NODE : Nat := 2 ^ 20
-def MAX_BYTES_PER_CODE : Nat := 2 ^ 24
+def MAX_BYTES_PER_WITNESS_NODE : Nat := 2 ^ 10
+def MAX_BYTES_PER_CODE : Nat := 2 ^ 16
 def MAX_BYTES_PER_HEADER : Nat := 2 ^ 10
 def MAX_OPTIONAL_FORK_ACTIVATION_VALUES : Nat := 1
 def MAX_BLOB_SCHEDULES_PER_FORK : Nat := 1
-def MAX_PUBLIC_KEYS : Nat := 2 ^ 20
+def MAX_PUBLIC_KEYS : Nat := 2 ^ 15
 def PUBLIC_KEY_BYTES : Nat := 65
 
 /-- `STATELESS_INPUT_SCHEMA_ID` (`stateless_ssz.py:64`). -/
@@ -445,5 +445,12 @@ def sanityResult : StatelessValidationResult :=
     let bytes := (validationResultToSsz sanityResult).serialize
     let sv ← deserialize sszStatelessValidationResultType bytes
     sszToValidationResult sv).toOption == some sanityResult
+
+-- v0.5.0 witness resource bounds from `stateless_ssz.py`.
+#guard MAX_WITNESS_NODES == 2 ^ 22
+#guard MAX_WITNESS_CODES == 2 ^ 18
+#guard MAX_BYTES_PER_WITNESS_NODE == 2 ^ 10
+#guard MAX_BYTES_PER_CODE == 2 ^ 16
+#guard MAX_PUBLIC_KEYS == 2 ^ 15
 
 end EvmAsm.Stateless.SpecRef

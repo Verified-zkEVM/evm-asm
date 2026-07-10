@@ -50,14 +50,17 @@ runtime_same_block_delegation_code:
   mv a0, t1; mv a1, t2; li a2, 1; la a3, rsbd_code_off; la a4, rsbd_code_len_cell
   jal ra, rlp_list_nth_item
   bnez a0, .Lrsbd_no_code_field
-  la t0, rsbd_code_len_cell; ld t2, 0(t0); li t3, 23; bne t2, t3, .Lrsbd_no_code_len
+  la t0, rsbd_code_len_cell; ld s6, 0(t0)
   la t0, rsbd_tuple_off; ld t1, 0(t0); add t1, s7, t1
   la t0, rsbd_code_off; ld t2, 0(t0); add t1, t1, t2
+  beqz s6, .Lrsbd_authoritative_code
+  li t3, 23; bne s6, t3, .Lrsbd_no_code_len
   lbu t3, 0(t1); li t4, 0xef; bne t3, t4, .Lrsbd_no_marker0
   lbu t3, 1(t1); li t4, 0x01; bne t3, t4, .Lrsbd_no_marker1
   lbu t3, 2(t1); bnez t3, .Lrsbd_no_marker2
+.Lrsbd_authoritative_code:
   la t0, rsbd_code_ptr; sd t1, 0(t0)
-  la t0, rsbd_code_len; li t1, 23; sd t1, 0(t0)
+  la t0, rsbd_code_len; sd s6, 0(t0)
   li a0, 0; j .Lrsbd_ret
 .Lrsbd_next:
   addi s4, s4, 1; j .Lrsbd_loop

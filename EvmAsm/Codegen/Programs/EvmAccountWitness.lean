@@ -64,7 +64,34 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  sd x13, 24(sp)\n" ++
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, runtime_same_block_delegation_code\n" ++
-    "  bnez a0, .Lextcodehash_after_same_block\n" ++
+    "  beqz a0, .Lextcodehash_same_block_code\n" ++
+    -- A successful NULL delegation against a previously nonexistent authority
+    -- materializes an empty account but need not produce a BAL code_changes
+    -- tuple (empty -> empty). execution-specs therefore returns EMPTY_CODE_HASH,
+    -- whereas a pre-state-only lookup reports nonexistent and would return 0.
+    "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0\n" ++
+    ".Lextcodehash_cleared_find_loop:\n" ++
+    "  beq t2, t1, .Lextcodehash_after_same_block\n" ++
+    "  slli t3, t2, 5; la t4, teer_success_table; add t3, t3, t4\n" ++
+    "  la t4, eahsr_address_scratch; mv t5, t3; li t6, 20\n" ++
+    ".Lextcodehash_cleared_addr_cmp:\n" ++
+    "  beqz t6, .Lextcodehash_cleared_addr_match\n" ++
+    "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lextcodehash_cleared_next\n" ++
+    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lextcodehash_cleared_addr_cmp\n" ++
+    ".Lextcodehash_cleared_addr_match:\n" ++
+    "  lw t4, 20(t3); bnez t4, .Lextcodehash_cleared_empty\n" ++
+    ".Lextcodehash_cleared_next:\n" ++
+    "  addi t2, t2, 1; j .Lextcodehash_cleared_find_loop\n" ++
+    ".Lextcodehash_cleared_empty:\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x21, 16(sp); ld x13, 24(sp)\n" ++
+    "  la t0, eahsr_empty_code_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
+    ".Lextcodehash_cleared_rev:\n" ++
+    "  beqz t2, .Lextcodehash_cleared_done\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_cleared_rev\n" ++
+    ".Lextcodehash_cleared_done:\n" ++
+    "  addi sp, sp, 32; addi x10, x10, 1\n" ++
+    dispatchContinueRet ++ "\n" ++
+    ".Lextcodehash_same_block_code:\n" ++
     "  la t0, rsbd_code_ptr; ld a0, 0(t0)\n" ++
     "  la t0, rsbd_code_len; ld a1, 0(t0)\n" ++
     "  la a2, rsbd_hash\n" ++

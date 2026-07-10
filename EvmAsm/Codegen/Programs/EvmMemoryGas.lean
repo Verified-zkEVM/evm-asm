@@ -29,6 +29,19 @@ def runtimeMemoryArenaLimitBytes : Nat := 0x20000
     every nested frame slot. -/
 def rootRuntimeMemoryArenaLimitBytes : Nat := 0x50000
 
+/-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
+
+    Must be ≥ the largest length any staging path can write at `+8`, so the
+    full returndata is always staged and RETURNDATACOPY's
+    `start + size ≤ retlen` guard alone keeps reads inside staged bytes
+    (matching execution-specs, with no implementation cap and no reads of
+    unstaged bytes). The bound is architectural: a child RETURN/REVERT is
+    limited to `runtimeMemoryArenaLimitBytes` by `returnRevertMemoryGasAsm`,
+    and the IDENTITY precompile echoes an input bounded by the caller's arena
+    — up to `rootRuntimeMemoryArenaLimitBytes` when called from depth 0 —
+    which dominates (MODEXP ≤ 1024, all other precompiles ≤ 256). -/
+def precompileFrameReturndataCapBytes : Nat := rootRuntimeMemoryArenaLimitBytes
+
 /-- Load the materialized memory-arena bound for the current frame into `limitReg`.
     Depth 0 uses the larger root arena; nested frames use the fixed call-frame
     layout bound. -/
@@ -178,6 +191,30 @@ def memDynamicArenaOogGuardAsm
   memoryArenaLimitAsm ("arena_" ++ tag) limitReg ++
   "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
   ".Lmemarena_" ++ tag ++ "_done:\n"
+
+/-- Reject COPY-family memory ranges that cannot be represented by the
+    runtime's low-u64 `(destination, size)` registers. The full words remain on
+    the EVM stack. A nonzero high size limb always means an enormous nonzero
+    range and therefore OOG. Only after proving the full size is nonzero do we
+    inspect the destination high limbs: EVM copy operations ignore every
+    destination bit for a genuinely zero-size range. -/
+def memDynamicU256RangeOogGuardAsm
+    (tag baseReg lengthReg scratchReg tmpReg : String)
+    (destinationOff sizeOff : Nat) : String :=
+  "  ld " ++ scratchReg ++ ", " ++ toString (sizeOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  beqz " ++ lengthReg ++ ", .Lmemu256_" ++ tag ++ "_done\n" ++
+  "  ld " ++ scratchReg ++ ", " ++ toString (destinationOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  ".Lmemu256_" ++ tag ++ "_done:\n"
 
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.

@@ -24,7 +24,7 @@ lake exe codegen --program zisk_selfdestruct_balance_transfer --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_selfdestruct_balance_transfer"
 
 fail=0
-for name in sdbt_diff sdbt_same_keep sdbt_same_burn; do
+for name in sdbt_diff sdbt_same_keep sdbt_same_created_keep; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_selfdestruct_balance_transfer.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
