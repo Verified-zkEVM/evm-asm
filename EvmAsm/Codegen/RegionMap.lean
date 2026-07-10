@@ -195,7 +195,7 @@ def schemeAAnchors : List GuestRegion :=
     `ChildFrameHandlers` dispatch. Grew by `0x58` when
     `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
     cursor helpers (bead evm-asm-22pwv.4). -/
-def textSizeBytes : Nat := 0x56894
+def textSizeBytes : Nat := 0x568ec
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -203,7 +203,7 @@ def textSizeBytes : Nat := 0x56894
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x1982c7f0
+def dataSizeBytes : Nat := 0x19834c70
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
