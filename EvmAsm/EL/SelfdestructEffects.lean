@@ -4,22 +4,32 @@
   Pure SELFDESTRUCT post-Cancun side-effect model (GH #113).
 
   This is the reference model the emitted `selfdestructTailAsm` handler will be
-  proven to realize (Phase 4 of the SELFDESTRUCT verification plan). It is a
-  faithful transcription of `ethereum/execution-specs` (`amsterdam` fork,
-  `vm/instructions/system.py::selfdestruct`), covering the *data effects* only —
+  proven to realize (a later phase of the SELFDESTRUCT verification plan). It is
+  a faithful transcription of the **pinned oracle** `ethereum/execution-specs`
+  `tests-zkevm@v0.5.0` (`bd8c673`), `amsterdam` fork,
+  `vm/instructions/system.py::selfdestruct`, covering the *data effects* only —
   gas is modeled elsewhere and framed out of the handler triple, as it is for
   every proven opcode.
 
-  The spec, in order:
+  The spec, in order (v0.5.0):
   * `move_ether(originator, beneficiary, balance(originator))` — transfer the
     full originator balance to the beneficiary (a no-op when they coincide);
-  * EIP-7708 log (`emit_burn_log` / `emit_transfer_log`): a `Burn` LOG2 when the
-    originator was created in this tx and self-destructs to itself, otherwise a
-    `Transfer` LOG3 to a distinct beneficiary — both emitted from `SYSTEM_ADDRESS`
-    with the amount as 32 big-endian data bytes, and both a no-op when the amount
-    is zero;
-  * EIP-6780 deletion: register the originator for deletion (and zero its
-    balance) iff it was created in the current tx.
+  * `if beneficiary != originator: emit_transfer_log(originator, beneficiary,
+    balance)` — a single EIP-7708 `Transfer` LOG3 from `SYSTEM_ADDRESS`, amount
+    as 32 big-endian data bytes, skipped when the amount is zero. Self-destruct
+    to self emits **no** log;
+  * `if originator in created_accounts: accounts_to_delete.add(originator)` —
+    register the originator for deletion iff created in the current tx. The
+    balance is **not** zeroed here (end-of-tx deletion preserves the balance).
+
+  NOTE on the pinned revision: v0.5.0 has **no burn log and no balance zeroing**
+  (`git grep 'emit_burn_log\\|BURN_TOPIC' bd8c673 -- amsterdam` is empty). A
+  *newer* execution-specs revision (`a0c182656`) adds `emit_burn_log`/`BURN_TOPIC`
+  + balance zeroing, and the emitted guest `selfdestructTailAsm` currently
+  implements that newer behavior — so the guest diverges from this v0.5.0
+  reference on the created-in-tx self-destruct-to-self case. That divergence is
+  tracked separately (guest fix vs. oracle bump) and must be settled before the
+  guest-realizes-model phase.
 -/
 
 import EvmAsm.EL.CallValueTransfer
@@ -40,16 +50,9 @@ def systemAddress : Address := 0xfffffffffffffffffffffffffffffffffffffffe
 
 /-- `TRANSFER_TOPIC = keccak256("Transfer(address,address,uint256)")`
     (`amsterdam/vm/__init__.py`), as the canonical big-endian 256-bit topic
-    word. Matches the codegen's `eip7708_transfer_topic` data (Phase 4 confirms
-    byte-identity). -/
+    word. Matches the codegen's `eip7708_transfer_topic` data. -/
 def transferTopic : Word256 :=
   0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
-
-/-- `BURN_TOPIC = keccak256("Burn(address,uint256)")`
-    (`amsterdam/vm/__init__.py`), canonical big-endian 256-bit topic word.
-    Matches the codegen's `eip7708_burn_topic` data. -/
-def burnTopic : Word256 :=
-  0xcc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca5
 
 /-- An address as a LOG topic: left-pad-zero to 32 bytes
     (`left_pad_zero_bytes(addr, 32)` → `Hash32`), i.e. numeric zero-extension of
@@ -70,19 +73,9 @@ def transferLog (sender recipient : Address) (amount : Word256) : LogEntry :=
     topics := [transferTopic, addressTopic sender, addressTopic recipient]
     data := toBytes32BE amount }
 
-/-- The EIP-7708 `Burn(account, amount)` LOG2 entry. -/
-def burnLog (account : Address) (amount : Word256) : LogEntry :=
-  { emitter := systemAddress
-    topics := [burnTopic, addressTopic account]
-    data := toBytes32BE amount }
-
 theorem transferLog_topicCountOk (sender recipient : Address) (amount : Word256) :
     (transferLog sender recipient amount).topicCountOk := by
   simp [transferLog, LogEntry.topicCountOk]
-
-theorem burnLog_topicCountOk (account : Address) (amount : Word256) :
-    (burnLog account amount).topicCountOk := by
-  simp [burnLog, LogEntry.topicCountOk]
 
 /-! ## Balance transfer (`move_ether`) -/
 
@@ -129,26 +122,25 @@ structure Result where
   balances : Address → Word256
   effects : CallSideEffects
 
-/-- **Pure post-Cancun SELFDESTRUCT data effect.** Given the pre-state balance
-    map `bal`, the accumulated side effects `eff`, the executing contract
-    `originator`, the popped `beneficiary`, and whether `originator` was created
-    in the current tx (`createdInTx`, the EIP-6780 predicate), compute the new
-    balances and side effects.
+/-- **Pure post-Cancun SELFDESTRUCT data effect** (pinned execution-specs
+    v0.5.0). Given the pre-state balance map `bal`, the accumulated side effects
+    `eff`, the executing contract `originator`, the popped `beneficiary`, and
+    whether `originator` was created in the current tx (`createdInTx`, the
+    EIP-6780 predicate), compute the new balances and side effects.
 
-    Faithful to `amsterdam` `selfdestruct`: transfer the full balance, emit the
-    EIP-7708 burn/transfer log (skipping zero amounts), and register the
-    originator for deletion (zeroing its balance) exactly when created in tx. -/
+    Faithful to `amsterdam` `selfdestruct` at `bd8c673`: transfer the full
+    balance; emit a single EIP-7708 `Transfer` log iff `beneficiary ≠ originator`
+    and the amount is nonzero; register the originator for deletion iff created
+    in tx (the balance is *not* zeroed). No burn log — that is a newer-spec
+    behavior absent from the pinned oracle. -/
 def postCancunSelfdestructEffect
     (bal : Address → Word256) (eff : CallSideEffects)
     (originator beneficiary : Address) (createdInTx : Bool) : Result :=
   let amount := bal originator
-  let moved := moveEther bal originator beneficiary amount
-  let balances := if createdInTx then setBalance moved originator 0 else moved
-  let isSelf := beneficiary = originator
+  let balances := moveEther bal originator beneficiary amount
   let logs :=
-    if amount = 0 then eff.logs
-    else if createdInTx ∧ isSelf then eff.logs.appendLog (burnLog originator amount)
-    else if ¬ isSelf then eff.logs.appendLog (transferLog originator beneficiary amount)
+    if beneficiary ≠ originator ∧ amount ≠ 0 then
+      eff.logs.appendLog (transferLog originator beneficiary amount)
     else eff.logs
   let accountsToDelete :=
     if createdInTx then originator :: eff.accountsToDelete else eff.accountsToDelete
@@ -181,7 +173,16 @@ def postCancunSelfdestructEffect
     (postCancunSelfdestructEffect bal eff originator beneficiary createdInTx).effects.touchedAccounts
       = eff.touchedAccounts := rfl
 
-/-- A zero-balance originator emits no log (the `emit_*_log` early return). -/
+/-- The balance map is always exactly `move_ether` — the deletion never zeros it
+    (v0.5.0 preserves the balance). -/
+@[simp] theorem balances_eq
+    (bal : Address → Word256) (eff : CallSideEffects)
+    (originator beneficiary : Address) (createdInTx : Bool) :
+    (postCancunSelfdestructEffect bal eff originator beneficiary createdInTx).balances
+      = moveEther bal originator beneficiary (bal originator) := rfl
+
+/-- A zero-balance originator emits no log (the `emit_transfer_log` early
+    return). -/
 theorem logs_of_zero
     (bal : Address → Word256) (eff : CallSideEffects)
     (originator beneficiary : Address) (createdInTx : Bool) (h : bal originator = 0) :
@@ -190,32 +191,34 @@ theorem logs_of_zero
   simp [postCancunSelfdestructEffect, h]
 
 /-- Self-destruct to a distinct beneficiary with a nonzero balance emits the
-    `Transfer` log and moves the balance out. -/
+    `Transfer` log and moves the balance out (originator → `−amount`,
+    beneficiary → `+amount`). -/
 theorem transfer_case
     (bal : Address → Word256) (eff : CallSideEffects)
     (originator beneficiary : Address) (createdInTx : Bool)
     (hne : beneficiary ≠ originator) (hnz : bal originator ≠ 0) :
     (postCancunSelfdestructEffect bal eff originator beneficiary createdInTx).effects.logs
-      = eff.logs.appendLog (transferLog originator beneficiary (bal originator)) := by
-  simp only [postCancunSelfdestructEffect]
-  rw [if_neg hnz]
-  by_cases hc : createdInTx
-  · simp [hc, hne]
-  · simp [hc, hne]
+        = eff.logs.appendLog (transferLog originator beneficiary (bal originator))
+    ∧ (postCancunSelfdestructEffect bal eff originator beneficiary createdInTx).balances originator
+        = bal originator - bal originator
+    ∧ (postCancunSelfdestructEffect bal eff originator beneficiary createdInTx).balances beneficiary
+        = bal beneficiary + bal originator := by
+  refine ⟨?_, ?_, ?_⟩
+  · simp only [postCancunSelfdestructEffect]; rw [if_pos ⟨hne, hnz⟩]
+  · simpa using moveEther_src bal (bal originator) hne
+  · simpa using moveEther_dst bal (bal originator) hne
 
-/-- Self-destruct to self, created in tx, nonzero balance: `Burn` log, and the
-    balance is burned (originator ends at 0). -/
-theorem burn_case
-    (bal : Address → Word256) (eff : CallSideEffects) (originator : Address)
-    (hnz : bal originator ≠ 0) :
-    (postCancunSelfdestructEffect bal eff originator originator true).effects.logs
-      = eff.logs.appendLog (burnLog originator (bal originator))
-    ∧ (postCancunSelfdestructEffect bal eff originator originator true).balances originator = 0 := by
+/-- Self-destruct to self: no log and the balance is unchanged (`move_ether` is
+    a no-op), regardless of `createdInTx`. Deletion still follows `createdInTx`
+    (see `accountsToDelete_eq`). -/
+theorem self_case
+    (bal : Address → Word256) (eff : CallSideEffects)
+    (originator : Address) (createdInTx : Bool) :
+    (postCancunSelfdestructEffect bal eff originator originator createdInTx).effects.logs = eff.logs
+    ∧ (postCancunSelfdestructEffect bal eff originator originator createdInTx).balances = bal := by
   refine ⟨?_, ?_⟩
-  · simp only [postCancunSelfdestructEffect]
-    rw [if_neg hnz]
-    simp
   · simp [postCancunSelfdestructEffect]
+  · simp [postCancunSelfdestructEffect, moveEther_self]
 
 /-- Self-destruct to self, NOT created in tx: complete no-op on balances, logs,
     and deletions. -/
@@ -224,7 +227,8 @@ theorem self_not_created_noop
     postCancunSelfdestructEffect bal eff originator originator false
       = { balances := bal, effects := eff } := by
   simp only [postCancunSelfdestructEffect, moveEther_self]
-  by_cases hz : bal originator = 0 <;> cases eff <;> simp [hz]
+  cases eff
+  simp
 
 end SelfdestructEffects
 
