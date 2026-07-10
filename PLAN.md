@@ -262,7 +262,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Eip7702NonceReuseGuardSAsm.lean` (`enrgU32leFn_spec`, byte-identity pinned
   to `enrgU32le_prog`) are verified straight-line byte-wise readers over the
   SAsm `Region` model (own-budget engine lemma per the heavy `execBlock`
-  reduction).
+  reduction). `SgMemcpySAsm.lean` verifies the length-generic forward byte-copy
+  loop (`sgMemcpyFn_spec`, post `dst = src.take len`), and `sg_memcpy` is now
+  emitted directly from the kernel-tied `sgMemcpy_prog`.
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  `Blake2fLoadLe64SAsm.lean` verifies `blk2_ld_le64`
