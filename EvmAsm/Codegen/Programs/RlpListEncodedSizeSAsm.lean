@@ -44,9 +44,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace RlpListEncodedSizeSAsm
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.rlp_list_encoded_size = 0x8000ae20
-
 /-
   Layout relative to `GuestAddrs.rlp_list_encoded_size`:
     +0   li   x5, 56

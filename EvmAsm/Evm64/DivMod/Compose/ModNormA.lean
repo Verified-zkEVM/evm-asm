@@ -8,6 +8,9 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.Base
+import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
+import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
+import EvmAsm.Evm64.DivMod.LimbSpec.NormA
 
 open EvmAsm.Rv64.Tactics
 

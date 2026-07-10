@@ -251,7 +251,8 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`), `BlockAccessListHashSAsm.lean` verifies the
+  `a0 := leU32 (bytes@a0) 0`, with `sg_load_u32le` now emitted directly from
+  the kernel-tied `sgLoadU32le_prog`), `BlockAccessListHashSAsm.lean` verifies the
   identical `bah_u32le` leaf (`bahU32leFn_spec`, byte-identity pinned to
   `bahU32le_prog`), `SszPayloadWithdrawalsSAsm.lean` (`spwU32leFn_spec`,
   byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
@@ -262,7 +263,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `Eip7702NonceReuseGuardSAsm.lean` (`enrgU32leFn_spec`, byte-identity pinned
   to `enrgU32le_prog`) are verified straight-line byte-wise readers over the
   SAsm `Region` model (own-budget engine lemma per the heavy `execBlock`
-  reduction).
+  reduction). `SgMemcpySAsm.lean` verifies the length-generic forward byte-copy
+  loop (`sgMemcpyFn_spec`, post `dst = src.take len`), and `sg_memcpy` is now
+  emitted directly from the kernel-tied `sgMemcpy_prog`.
   `BalGasValidU64SAsm.lean` verifies `bgv_u64le` (`bgvU64leFn_spec`,
   `a0 := leU64 (bytes@a0)`) as a byte-identical `whileHeader` loop pinned to
   `bgvU64le_prog`.  `Blake2fLoadLe64SAsm.lean` verifies `blk2_ld_le64`
@@ -271,11 +274,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `blk2LdLe64_prog`.  Big-endian writers (`whileS` loops over a writable
   region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
   `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
-  beBytes a0`, two sequential loops). `swd_write_be32_u64` is re-emitted from
-  its two verified structured loops, with exact identity pinned to
-  `swdWriteBe32U64_prog`; the two-JAL guest-byte change requires EEST A/B.
-  The corresponding `swd_write_be8` back-edge divergence remains documented
-  until its separate re-emit lands.
+  beBytes a0`, two sequential loops). Both writers are now re-emitted from
+  their verified structured loops: `swd_write_be8` (back-edge → guard), with
+  exact identity pinned to `swdWriteBe8_prog`, and `swd_write_be32_u64` (two
+  sequential loops), with exact identity pinned to `swdWriteBe32U64_prog`;
+  both guest-byte changes require EEST A/B. No remaining byte-identity
+  divergence for either.
   `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
@@ -369,6 +373,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   disjointness — reverse-copy into a separate buffer) and `BhrRevLeBeSAsm.lean`
   (`bhrRevLeBeFn_spec`, reuses the generic core since `bhrRevLeBe_prog` is
   byte-identical to `swrRevLeBe_prog`).
+  `BytesToNibblesSAsm.lean` verifies the byte-identical `bytes_to_nibbles`
+  leaf (`bytesToNibblesFn_spec`): for each byte in the read-only source prefix,
+  the writable destination receives its high then low nibble, and `a0` returns
+  exactly twice the input length. The proof uses a two-byte window splice and
+  a named one-iteration execution/VC engine.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):

@@ -8,6 +8,10 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 open EvmAsm.Rv64.Tactics
