@@ -194,7 +194,7 @@ def schemeAAnchors : List GuestRegion :=
     precompile fast path began returning successful value-call stipends while
     emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
     payload staging paths began reversing PREVRANDAO into EVM word order. -/
-def textSizeBytes : Nat := 0x56c70
+def textSizeBytes : Nat := 0x56c4c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
