@@ -182,6 +182,55 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
 }
 
 
+/-! ## bal_account_nonce_before_index
+
+    Return the latest BAL nonce value for an account strictly before a block
+    access index.  `nonce_changes` is AccountChanges item 4 and contains
+    `[block_access_index, post_nonce]` tuples.
+
+    a0 = AccountChanges ptr, a1 = length, a2 = current block_access_index
+    a0 output = 0 found, 1 no earlier change, 2 malformed; a1 = nonce when found. -/
+def balAccountNonceBeforeIndexFunction : String :=
+  "bal_account_nonce_before_index:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li a2, 4; addi a3, sp, 72; addi a4, sp, 80\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add s3, s0, t0; ld s4, 80(sp)\n" ++
+  "  mv a0, s3; mv a1, s4; addi a2, sp, 88; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s4, 88(sp); li s5, 0; li s6, 0; li s7, 0; sd zero, 104(sp)\n" ++
+  ".Lbanbi_loop:\n" ++
+  "  beq s5, s4, .Lbanbi_done_scan\n" ++
+  "  mv a0, s3; ld a1, 80(sp); mv a2, s5; addi a3, sp, 72; addi a4, sp, 88\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)\n" ++
+  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next\n" ++
+  "  bltu t0, s6, .Lbanbi_next\n" ++
+  "  mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s7, 72(sp); li t0, 1; sd t0, 104(sp)\n" ++
+  ".Lbanbi_next:\n" ++
+  "  addi s5, s5, 1; j .Lbanbi_loop\n" ++
+  ".Lbanbi_done_scan:\n" ++
+  "  ld t0, 104(sp); beqz t0, .Lbanbi_none\n" ++
+  "  li a0, 0; mv a1, s7; j .Lbanbi_return\n" ++
+  ".Lbanbi_none:\n" ++
+  "  li a0, 1; li a1, 0; j .Lbanbi_return\n" ++
+  ".Lbanbi_malformed:\n" ++
+  "  li a0, 2; li a1, 0\n" ++
+  ".Lbanbi_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 112; ret\n"
+
 /-! ## tx_eip7702_existing_authority_refund
 
     Bridge for the EIP-7702 existing-authority state-gas refund. For type-4
@@ -311,20 +360,26 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
   "  j .Lteer_next\n" ++
   ".Lteer_invalid_code_check_done:\n" ++
-  "  # validate_authorization also returns None when the signed nonce does not\n" ++
-  "  # equal the authority account nonce. In single-tx blocks the header-state\n" ++
-  "  # account is the live authority account at this point.\n" ++
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_nonce_check_done\n" ++
+  "  # validate_authorization compares against the live nonce immediately before\n" ++
+  "  # this transaction's authorization processing. Recover that value from the\n" ++
+  "  # latest earlier BAL nonce tuple; fall back to header state when none exists.\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); ld a2, 104(sp)\n" ++
+  "  jal ra, bal_account_nonce_before_index\n" ++
+  "  beqz a0, .Lteer_nonce_have_live\n" ++
+  "  li t0, 1; bne a0, t0, .Lteer_nonce_check_done\n" ++
   "  la t0, bv_witness_state_ptr; ld t0, 0(t0); beqz t0, .Lteer_nonce_check_done\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteer_nonce_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteer_nonce_check_done\n" ++
-  "  ld t1, 144(sp); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
-  "  j .Lteer_nonce_check_done\n" ++
+  "  li t1, 0; j .Lteer_nonce_sender_adjust\n" ++
   ".Lteer_nonce_have_pre:\n" ++
   "  la t0, teer_pre_acct; ld t1, 0(t0)        # header-state nonce\n" ++
+  "  j .Lteer_nonce_sender_adjust\n" ++
+  ".Lteer_nonce_have_live:\n" ++
+  "  mv t1, a1                                  # latest prior BAL nonce\n" ++
+  ".Lteer_nonce_sender_adjust:\n" ++
   "  # process_transaction increments the sender nonce before set_delegation.\n" ++
   "  # For a self-sponsored authorization the live comparison nonce is therefore\n" ++
   "  # header_nonce + 1; other authorities still compare against header_nonce.\n" ++
@@ -971,6 +1026,7 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbvtsg_pdone\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++

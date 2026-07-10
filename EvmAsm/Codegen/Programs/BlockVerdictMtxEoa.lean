@@ -46,6 +46,26 @@ def blockVerdictMtxEoaSettlement : String :=
   "  jal ra, access_list_count\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_eoa_access_ready:\n" ++
+  -- Mirror dispatch_tx_runtime_code's EIP-7702 setup. The low-level EOA STOP
+  -- shortcut still runs process_message_call semantics: authorization intrinsic
+  -- charges, state refill, ACCOUNT_WRITE refund, and recovered-authority warming
+  -- must therefore be staged before runtime_dispatcher_call as well.
+  "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t6, bv_mtx_ctx; ld t0, 160(t6); li t1, 4; bne t0, t1, .Lbv_mtx_eoa_auth_ready\n" ++
+  "  ld a0, 176(t6); ld a1, 184(t6); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item; bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t6, bv_mtx_ctx; ld t0, 176(t6); la t1, dtrc_auth_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_auth_list_ptr; sd t2, 0(t0); la t1, dtrc_auth_len; ld t2, 0(t1); la t0, runtime_tx_auth_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; la t1, eip7702_warm_recovered_authorities; sd t1, 0(t0)\n" ++
+  "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
+  "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
+  "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd a0, 0(t0); la t0, runtime_tx_auth_regular_refund; sd a1, 0(t0)\n" ++
+  "  la t0, teer_auth_count; ld t1, 0(t0); la t0, runtime_tx_auth_count; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_eoa_auth_ready:\n" ++
   -- This shortcut calls the low-level STOP dispatcher directly, bypassing the
   -- full dispatch_tx_runtime_code setup reset. Reset the per-tx gas cells here
   -- so EIP-8037 state-gas accounting starts from this transaction's state, not
@@ -130,6 +150,7 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
   ".Lbv_mtx_eoa_state_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t0, runtime_tx_auth_regular_refund; ld t2, 0(t0); add a1, a1, t2\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++
