@@ -29,9 +29,9 @@ namespace Secp256k1FieldMulModPSAsm
 open Secp256k1FieldConvSAsm (secfBeToLeFn secfBeToLeFn_spec secfLeToBeFn secfLeToBeFn_spec)
 
 -- Address anchors (routine, callees, and the LE staging arena).
-#guard GuestAddrs.secf_mul_mod_p = 0x8002043c
-#guard GuestAddrs.secf_be_to_le = 0x80020114
-#guard GuestAddrs.secf_le_to_be = 0x80020164
+#guard GuestAddrs.secf_mul_mod_p = 0x80020540
+#guard GuestAddrs.secf_be_to_le = 0x80020218
+#guard GuestAddrs.secf_le_to_be = 0x80020268
 #guard GuestAddrs.secf_le_a = 0xa3c053e8
 #guard GuestAddrs.secf_le_b = 0xa3c05408
 #guard GuestAddrs.secf_le_d = 0xa3c05428
