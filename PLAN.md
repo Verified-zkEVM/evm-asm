@@ -383,6 +383,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   optional first nibble, every remaining nibble pair is packed high/low into
   one byte, and `a0` returns `1 + len / 2`. The source stays read-only and the
   exact emitted `ite` plus pair loop is pinned to `hpEncodeNibbles_prog`.
+  `NibblesCommonPrefixLenSAsm.lean` verifies the byte-identical
+  `nibbles_common_prefix_len` leaf (`nibblesCommonPrefixLenFn_spec`): it scans
+  two read-only nibble prefixes up to the smaller caller-supplied length,
+  stores their exact first-difference index as a u64, and returns status zero.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
