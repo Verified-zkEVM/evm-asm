@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
+import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -907,16 +908,7 @@ def statelessGuestEpilogue : String :=
   -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
   -- preserves all s-registers and ra.
   "sg_memcpy:\n" ++
-  ".Lsgmc_loop:\n" ++
-  "  beqz a2, .Lsgmc_done\n" ++
-  "  lbu t0, 0(a1)\n" ++
-  "  sb  t0, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lsgmc_loop\n" ++
-  ".Lsgmc_done:\n" ++
-  "  ret\n" ++
+  emitProgram SgMemcpySAsm.sgMemcpy_prog ++ "\n" ++
   -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
   -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
   -- fixed 44-byte container; its root = merkleize([index|pad,
