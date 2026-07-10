@@ -77,6 +77,9 @@ inductive SpecError where
   /-- `fork.py` / `execution_engine/new_payload.py`: any `InvalidBlock`
       raised by the pre-checks or the `execute_block` frame. -/
   | invalidBlock (why : String)
+  /-- `state_tracker.py`: an `AssertionError` on the state layer
+      (`set_storage` on a missing account, `move_ether` underflow). -/
+  | stateError (why : String)
   /-- `transactions.py` `decode_transaction` / `rlp.decode_to`: any
       `DecodingError`, `TransactionTypeError`, or `IndexError` while
       decoding a transaction envelope. -/
