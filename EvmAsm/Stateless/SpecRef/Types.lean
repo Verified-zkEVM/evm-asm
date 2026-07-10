@@ -74,6 +74,11 @@ inductive SpecError where
   /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the
       witness does not contain the trie's root node. -/
   | witnessRootMissing
+  /-- `incremental_mpt.py` write side (`mpt_set`/`mpt_get`/`mpt_root`/
+      `build_mpt` and helpers): any `AssertionError` raised on the
+      insert/delete/encode/traverse path — e.g. touching an unresolved
+      `HashedNode`, `_split_extension` collision, unencodable value. -/
+  | mptWriteError (why : String)
   /-- `WitnessState.get_code`: `self._code_db[code_hash]` raised `KeyError` —
       the witness does not contain the bytecode for a non-empty code hash. -/
   | codeHashMissing

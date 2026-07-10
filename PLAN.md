@@ -4233,10 +4233,17 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `get_storage`, `get_code`, `account_has_storage`) cache-free over the
   `.1` decoder (`WitnessPreState` moved there from `Stateless.lean`;
   memo caches modeled as recomputation — observationally equal on the
-  read surface, documented in the module header). Next: `.3` seam shell,
-  `.4` post-state root (#8), `.5` EVM core (maintainer green-light
-  given: full pure port), `.6` `eest-specref-check` succ gate (baseline
-  974/25,474 divergences).
+  read surface, documented in the module header). Third increment
+  (`s1d19.4`, obligation #8): `IncrementalMptWrite.lean` ports the full
+  `incremental_mpt.py` write side (`build_mpt`, `mpt_get`, `mpt_set`
+  insert/delete/collapse, node encoding, `mpt_root`; immutable tree,
+  asserts → rejections, `#guard` roots cross-checked against the Python
+  spec run on the submodule) and `WitnessStateRoot.lean` ports
+  `compute_state_root_and_trie_changes` with the v0.5.0
+  `storage_clears` parameter (`_storage_root_cache` threaded explicitly
+  — it is observable there). Next: `.3` seam shell, `.5` EVM core
+  (maintainer green-light given: full pure port), `.6`
+  `eest-specref-check` succ gate (baseline 974/25,474 divergences).
 
 ### Cross-references
 

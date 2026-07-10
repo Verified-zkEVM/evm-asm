@@ -178,9 +178,12 @@ wrong-hash node yields a rejection, never a wrong value.
 
 Status (2026-07-10): `.1` landed (`IncrementalMpt.lean`, PR #10166);
 `.2` landed (`WitnessReads.lean` — `WitnessState` read methods,
-cache-free over the `.1` decoder). The `.5` maintainer decision is
-**resolved**: proceed with the full pure port (see the bead comment on
-`s1d19.5`).
+cache-free over the `.1` decoder); `.4` landed
+(`IncrementalMptWrite.lean` — the full `incremental_mpt.py` write side —
+and `WitnessStateRoot.lean` — `compute_state_root_and_trie_changes`
+with `storage_clears`, obligation #8; roots cross-checked against the
+Python spec). The `.5` maintainer decision is **resolved**: proceed
+with the full pure port (see the bead comment on `s1d19.5`).
 
 ### Maintainer checkpoint (STOP-and-report, per the bead — since resolved)
 
