@@ -192,8 +192,9 @@ def schemeAAnchors : List GuestRegion :=
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
     being derived for EIP-6110 negative system requests. Grew by `0xc` when the
     precompile fast path began returning successful value-call stipends while
-    emitting every EIP-7708 transfer log. -/
-def textSizeBytes : Nat := 0x56b18
+    emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
+    payload staging paths began reversing PREVRANDAO into EVM word order. -/
+def textSizeBytes : Nat := 0x56b38
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
