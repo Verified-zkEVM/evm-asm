@@ -4099,6 +4099,19 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     `assemble_execution_requests` (#8666) — derive the post-execution `requests_hash` from
     execution-produced bodies, not the trusted SSZ input. Standalone + probe-verified; the execution-gated
     piece (real receipts + EIP-7002/7251 system-call return data) is the follow-up.
+  - **RETURNDATACOPY 256-byte staging cap dropped (`evm-asm-pwqhw`, 2026-07-10)**: the guest staged
+    only `min(retlen, 256)` returndata bytes into `evm_precompile_frame` (true retlen at +8), and
+    `h_RETURNDATACOPY` guard (3) reverted `start+size > 256` where execution-specs reverts only past
+    `len(return_data)` — a reachable false-reject for >256-byte child returns. Fix: the frame's data
+    window is now `precompileFrameReturndataCapBytes = rootRuntimeMemoryArenaLimitBytes` (0x50000,
+    a single global — ~318 KiB of `.data`, +0.08%), which architecturally bounds every staging path
+    (child RETURN/REVERT ≤ 0x20000 via `returnRevertMemoryGasAsm`; IDENTITY echo ≤ caller arena
+    ≤ 0x50000 — its 256-cap staging fixed in the same change; MODEXP ≤ 1024 already full). Guard (3)
+    deleted; guard (2) (`start+size > retlen`) alone matches the spec and stays within staged bytes.
+    Witnessed by the extended `zisk_frame_return` probe (staging byte 299) and the
+    `zisk_call_roundtrip` probe (parent RETURNDATACOPY reads returndata[299] end-to-end; both probes
+    also un-rotted — stale link stubs/expectations predating this change). EEST `stReturnDataTest`
+    271/271 full, `random_statetest` window A/B identical vs main. Unblocks PR #10053.
 
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),

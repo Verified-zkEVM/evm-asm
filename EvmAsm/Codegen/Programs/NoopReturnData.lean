@@ -27,10 +27,13 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  ld x16, 64(x12)\n" ++
         "  la x17, evm_precompile_frame\n" ++
         "  ld x18, 8(x17)\n" ++
+        -- Guards match execution-specs returndatacopy: (1) start+size wrap,
+        -- (2) start+size > len(return_data) (true retlen at +8). No cap guard:
+        -- staging (frame_return / precompile tails) always writes the full
+        -- retlen bytes at +16 (retlen ≤ precompileFrameReturndataCapBytes), so
+        -- guard (2) alone keeps the copy loop inside staged bytes.
         "  add x19, x15, x16\n" ++
         "  bltu x19, x15, .exit_invalid\n" ++
-        "  bltu x18, x19, .exit_invalid\n" ++
-        "  li x18, 256\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
         memDynamicArenaOogGuardAsm "returndatacopy" "x14" "x16" "x17" "x18" ++
         copyWordGasAsm "returndatacopy" "x16" "x17" "x18" "x19" ++

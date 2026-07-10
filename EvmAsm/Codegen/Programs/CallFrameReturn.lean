@@ -38,6 +38,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
 
@@ -50,10 +51,11 @@ open EvmAsm.Rv64
     Writes the parent stack: `success` (a0) at the post-pop stack top. For
     RETURN/REVERT, `a1`/`a2` describe the child's returndata so up to `outsize`
     bytes are copied into the caller's output memory window (`outoff_abs` from the
-    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts. The full
-    returndata (capped at the 256-byte frame) is ALSO staged into
-    `evm_precompile_frame` (size@+8, data@+16) so the parent's
-    RETURNDATASIZE/RETURNDATACOPY observe this sub-call's return.
+    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts. The FULL
+    returndata is ALSO staged into `evm_precompile_frame` (size@+8, data@+16) so
+    the parent's RETURNDATASIZE/RETURNDATACOPY observe this sub-call's return
+    (`retlen ≤ runtimeMemoryArenaLimitBytes < precompileFrameReturndataCapBytes`,
+    so the clamp below never truncates).
 
     On return the live dispatcher registers are repointed to the parent frame:
       x10 = parent PC + 1 (past the CALL), x21 = parent code base,
@@ -223,18 +225,22 @@ def frameReturnFunction : String :=
   "3:\n" ++
   -- Stage the child's returndata into `evm_precompile_frame` so the parent's
   -- RETURNDATASIZE(0x3d)/RETURNDATACOPY(0x3e) see the LAST sub-call's return
-  -- (NoopReturnData reads size@+8, data@+16, cap 256). This is independent of the
+  -- (NoopReturnData reads size@+8, data@+16). This is independent of the
   -- output-window copy above (which is bounded by the CALL's `outsize`): the
-  -- returndata buffer holds the FULL child return capped at the 256-byte frame.
-  -- `+8` keeps the TRUE retlen (so RETURNDATASIZE is exact); `+16` gets
-  -- min(retlen,256) bytes. STOP / exceptional (s1=s2=0) -> size 0, no copy. Runs
-  -- before x13 is repointed, so s1 still points into the (live) child memory.
+  -- returndata buffer holds the FULL child return. `+8` keeps the TRUE retlen;
+  -- the clamp against precompileFrameReturndataCapBytes is defense-in-depth
+  -- only — retlen ≤ runtimeMemoryArenaLimitBytes (returnRevertMemoryGasAsm
+  -- OOG-guards child RETURN/REVERT at the frame arena), which is below the
+  -- cap, so all retlen bytes are staged and RETURNDATACOPY's
+  -- `start+size ≤ retlen` guard alone keeps reads inside staged bytes.
+  -- STOP / exceptional (s1=s2=0) -> size 0, no copy. Runs before x13 is
+  -- repointed, so s1 still points into the (live) child memory.
   "  la t0, evm_precompile_frame\n" ++
   "  sd s2, 8(t0)                   # returndata size = retlen (true)\n" ++
   "  mv t2, s2                      # n = retlen\n" ++
-  "  li t1, 256\n" ++
-  "  bgeu t1, t2, 7f                # if 256 >= retlen keep retlen\n" ++
-  "  mv t2, t1                      # else n = 256 (buffer cap)\n" ++
+  "  li t1, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
+  "  bgeu t1, t2, 7f                # if cap >= retlen keep retlen\n" ++
+  "  mv t2, t1                      # else n = cap (never taken; see above)\n" ++
   "7:\n" ++
   "  beqz t2, 9f                    # nothing to copy\n" ++
   "  mv t3, s1                      # src = child returndata\n" ++
@@ -336,7 +342,8 @@ def frameReturnFunction : String :=
       +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x28200)
     Returndata staging into evm_precompile_frame:
       +120 precompile_frame size after scenario A (STOP, expect 0)
-      +128 precompile_frame size after scenario B (expect 4 = retlen)
+      +128 scenario B pack: data[299] << 32 | size (expect 0x5a<<32 | 300 —
+           the high half witnesses full staging past the old 256-byte cap)
       +136 precompile_frame data[0] after scenario B (expect 0xab)
     EIP-150 gas refund (parent gas += child leftover):
       +144 parent gas after scenario A (100 + 50 = 150)
@@ -405,8 +412,10 @@ def ziskFrameReturnPrologue : String :=
   "  li t1, 1; sd t1, 16(t0)\n" ++
   "  li t1, 160; sd t1, 24(t0)\n" ++
   "  la t0, frame_parent_bases; addi t0, t0, 32; la t1, call_frame_arena; sd t1, 0(t0); li t1, 0x38400; la t2, call_frame_arena; add t1, t1, t2; sd t1, 8(t0)\n" ++
-  -- returndata source: one byte 0xab
+  -- returndata source: 300 bytes (> the old 256 cap) — first byte 0xab, a
+  -- marker 0x5a at index 299 to witness full-length staging past 256.
   "  la t0, fr_ret; li t1, 0xab; sb t1, 0(t0)\n" ++
+  "  li t1, 0x5a; sb t1, 299(t0)\n" ++
   "  la x20, fr_child_env\n" ++
   "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
   "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
@@ -424,7 +433,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0); li t1, 44; sd t1, 648(t0)\n" ++
   "  la t0, rb_running_block_bloom; li t1, 0x9999888877776666; sd t1, 0(t0); li t1, 0x5555444433332222; sd t1, 248(t0)\n" ++
   "  la t0, rb_bloom_checkpoints; addi t0, t0, 256; li t1, 0x123456789abcdef0; sd t1, 0(t0); li t1, 0x0fedcba987654321; sd t1, 248(t0)\n" ++
-  "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
+  "  li a0, 0; la a1, fr_ret; li a2, 300\n" ++
   "  jal ra, frame_return\n" ++
   "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 40(s0); ld t1, 248(t0); sd t1, 64(s0)\n" ++
   "  la t0, call_frame_arena; sub t1, x13, t0; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 56(s0)\n" ++
@@ -434,8 +443,12 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_out; lbu t1, 0(t0); sd t1, 96(s0)               # expect 0xab\n" ++
   -- frame-relative stack bounds restored to the parent frame[1] arena stack.
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x28200\n" ++
-  -- returndata staging: retlen 4 -> precompile_frame size 4; first byte 0xab @ +16.
-  "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 128(s0)    # expect 4\n" ++
+  -- returndata staging: retlen 300 -> precompile_frame size 300; first byte
+  -- 0xab @ +16; byte 299 (past the old 256 cap) staged @ +16+299, packed into
+  -- the size cell's high half (the 256-byte probe output window is full).
+  "  la t0, evm_precompile_frame; ld t1, 8(t0)\n" ++
+  "  lbu t2, 315(t0); slli t2, t2, 32; or t1, t1, t2\n" ++
+  "  sd t1, 128(s0)                                               # expect 0x5a<<32 | 300\n" ++
   "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
   -- EIP-150 gas refund: parent gas 200 + child leftover 30 = 230.
   "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
@@ -475,6 +488,8 @@ def ziskFrameReturnDataSection : String :=
   "evm_state_gas_spilled:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
+  "evm_access_account_count:\n  .zero 8\n" ++
+  "evm_selfdestruct_destroyed_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
   "exec_code_effect_count:\n  .zero 8\n" ++
@@ -491,13 +506,13 @@ def ziskFrameReturnDataSection : String :=
   "evm_stack_low:\n  .zero 8\n" ++
   "evm_cur_stack_top:\n  .zero 8\n" ++
   "evm_cur_stack_low:\n  .zero 8\n" ++
-  -- Returndata staging target (frame_return writes size@+8, data@+16, cap 256).
+  -- Returndata staging target (frame_return writes size@+8, data@+16).
   ".balign 8\n" ++
-  "evm_precompile_frame:\n  .zero 1280\n" ++
+  "evm_precompile_frame:\n  .zero " ++ toString (16 + precompileFrameReturndataCapBytes) ++ "\n" ++
   "fr_pstack:\n  .zero 256\n" ++
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++
-  "fr_ret:\n  .zero 64\n"
+  "fr_ret:\n  .zero 512\n"
 
 def ziskFrameReturnProbeUnit : BuildUnit := {
   body        := NOP

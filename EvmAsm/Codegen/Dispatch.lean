@@ -593,7 +593,10 @@ private def emitBls12G2MsmDiscountTable : String :=
     copying them into caller memory. Layout:
       +precompileFrameStatusOff             status / success word
       +precompileFrameReturndataLenOff      returndata length
-      +precompileFrameReturndataOff         first 256 bytes of returndata scratch
+      +precompileFrameReturndataOff         returndata data window
+                                            (precompileFrameReturndataCapBytes
+                                            bytes — ≥ any stageable retlen, so
+                                            the FULL returndata is staged)
       +precompileFrameBls12G1Input0Off      G1-class compact input scratch
       +precompileFrameBls12G1Input1Off      G1 ADD compact p2 scratch
       +precompileFrameBls12G1OutputOff      G1-class compact result / pairing bool
@@ -609,11 +612,17 @@ private def emitBls12G2MsmDiscountTable : String :=
 
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
-    colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
+    colliding with map-Fp-to-G1 stacked PR edits around +144/+336.
+
+    The BLS/ECRECOVER lanes live INSIDE the returndata data window
+    (+144..+1280 < +16 + precompileFrameReturndataCapBytes). That overlap is
+    the existing discipline: lanes are written and consumed while a handler
+    runs, strictly before that handler stages its returndata bytes (MODEXP
+    already wrote up to +1040 across them). -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 1280\n"
+  "  .zero " ++ toString (precompileFrameReturndataOff + precompileFrameReturndataCapBytes) ++ "\n"
 
 /-- SELFDESTRUCT runtime staging scratch.
 
