@@ -352,6 +352,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `FrameSaveRegsSAsm.lean` verifies linked-PC `frame_save_regs`: it computes
   `frame_save_area + (depth << 4)` and updates the two owned PC/code-base
   dwords, with exact RV64 address arithmetic and byte identity.
+  `FrameDepthPushSAsm.lean` verifies the linked-PC `frame_depth_push` global
+  state leaf: it materializes `evm_call_depth`, increments the owned dword with
+  RV64 wrapping semantics, writes it back, and returns the new depth in `a0`,
+  with byte identity pinned to `frameDepthPush_prog`.
   `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
