@@ -74,6 +74,7 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.RetFromLoop
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.AccumLoop
+import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.WP.Call
@@ -804,6 +805,52 @@ theorem bsre_revLoop_spec (base acctBase krevBase : Word)
       hF hklen hcw hbound)
 
 #print axioms bsre_revLoop_spec
+
+/-! ## §5  The exec-log scan loop (slots 68–95)
+
+    Pointer-descending two-exit scan over the 128-byte log entries: from the
+    past-last-entry cursor, step back one entry (slot 68), compare the
+    entry's addrHash (4 dwords vs `x8`) then slotKey (4 dwords vs `x31` =
+    `bsr_krev`); a full 8/8 match exits FOUND (slot 93's jump to the
+    advance join, slot 97); any mismatch falls to the scan-next station
+    (slots 94–95), which either loops (entries remain) or exits ABSENT
+    (slot 96's jump to the reject stub).  Folds with
+    `twoExitRetLoopBottom_spec` (`N = count - 1` full rounds; ABSENT can
+    only fire in the last round, via the `bne x28, x9` fall-through). -/
+
+/-- Dword slot `k` of log entry `t`: the log region's dword at index
+    `16 * t + k` (128-byte entries = 16 dwords). -/
+def entryDword (logBytes : List (BitVec 8)) (t k : Nat) : Word :=
+  packBytes ((logBytes.drop (8 * (16 * t + k))).take 8)
+
+/-- The 8-dword comparison the cascade implements: addrHash dwords 0–3
+    against the addr region, slotKey dwords 4–7 against the krev region.
+    (Equivalent to the byte-slice `entryMatches` via
+    `bytes_eq_of_dwordSlots_eq` — bridged separately.) -/
+def entryMatchesD (logBytes addrBytes key32 : List (BitVec 8)) (t : Nat) : Prop :=
+  (∀ k, k < 4 →
+    entryDword logBytes t k = packBytes ((addrBytes.drop (8 * k)).take 8)) ∧
+  (∀ k, k < 4 →
+    entryDword logBytes t (4 + k) = packBytes ((key32.drop (8 * k)).take 8))
+
+/-- Scan invariant at the loop head (slot 68), after `j` entries checked
+    (from the log's END): the cursor sits at the past-end boundary of entry
+    `count - j - 1`, and no entry with index ≥ count - j matches. -/
+def scanInv (logBase addrPtr krevBase : Word)
+    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat)
+    (F : Assertion) (j : Nat) : Assertion :=
+  ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+  ((.x8 : Reg) ↦ᵣ addrPtr) **
+  ((.x9 : Reg) ↦ᵣ logBase) **
+  ((.x31 : Reg) ↦ᵣ krevBase) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x29 ** regOwn .x30 **
+  bytesRegion logBase logBytes **
+  bytesRegion addrPtr addrBytes **
+  bytesRegion krevBase key32 **
+  (⌜∀ t, count - j ≤ t → t < count →
+      ¬ entryMatchesD logBytes addrBytes key32 t⌝ : Assertion) **
+  F
 
 end BalStorageReadsExecLogSpec
 
