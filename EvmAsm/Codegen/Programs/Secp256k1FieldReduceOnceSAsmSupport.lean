@@ -681,7 +681,7 @@ private theorem exposedRegs_split_sub (vf : Reg → Word) :
   simp only [subScratch, regAtomsOf_cons, regAtomsOf_nil]
   xperm
 
-private theorem secfCopy32Direct_spec (ret src dst : Word)
+theorem secfCopy32Direct_spec (ret src dst : Word)
     (srcBytes orig : List (BitVec 8))
     (hlenSrc : srcBytes.length = 32) (hlenOrig : orig.length = 32)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
@@ -894,7 +894,7 @@ private theorem secfCopy32FlatAsrt_spec (ret src dst : Word)
       (GuestAddrs.secf_copy32 : Word) = secfCopy32_prog from rfl] at had
   exact liftCode (cr' := secfReduceOnceCr) had (by unfold secfReduceOnceCr; code_mem)
 
-private theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
+theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
     (aBytes bBytes orig : List (BitVec 8))
     (hrw : RwRegion.wf ⟨outPtr, 32⟩)
     (hroA : Region.wf ⟨aPtr, aBytes⟩) (hroB : Region.wf ⟨bPtr, bBytes⟩)
