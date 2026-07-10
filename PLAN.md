@@ -2954,8 +2954,12 @@ instantiations (`#guard`/`rfl`, flatten == emitted prog at the linked
 address): `bnp_fp2_eq` (`Codegen/Programs/Bn254Fp2EqSAsm.lean`, N = 8,
 bead 4ch8f.58.3.26), `bnq_eq` (`Codegen/Programs/Bn254Fq12EqSAsm.lean`,
 N = 48, bead 4ch8f.58.3.25), and `blq_eq` (`Codegen/Programs/Bls12Fq12EqSAsm.lean`,
-N = 72).  `bloom_eq` (single-exit XOR/OR accumulate + SD to an out window)
-can reuse pieces 1–2 but is not this scan shape — deferred.  `blsg_eq48`
+N = 72).  `bloom_eq` is now covered by the single-exit accumulate
+loop port (`BloomEqSAsm.lean`): `SAsm/AccumLoop.lean` adds
+`retLoop_spec`, `xorAcc_eq_zero_iff_bytes_eq`, and
+`bytesRegion_ld_cursor_within`; `bloomEq_spec` proves the emitted
+constant-cycle XOR/OR loop stores `if bsA = bsB then 1 else 0` to the
+out dword while preserving both 256-byte inputs.  `blsg_eq48`
 is also an equality leaf, but byte-wise (`LBU`) rather than dword-wise
 (`LD`), so it is verified separately in `Bls12G1Eq48SAsm.lean` as a
 48-byte whileBreak drop-in.  Classical-3.
