@@ -1,30 +1,37 @@
 /-
   EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 
-  Verified SAsm port of the secp256k1 BE→LE field-element converter
-  (bead evm-asm-4ch8f.38.2 wave-2, unblocked by the merged `doWhileS`
-  combinator, `.69`/#9822):
+  Verified SAsm port of the secp256k1 BE↔LE field-element converters
+  (bead evm-asm-4ch8f.38.2 wave-3, clone of the merged `secfBeToLe`
+  template #9848 — the two `_prog`s are byte-identical, so this is an
+  exact byte-tie, spec-only, no EEST):
 
-  - `secfBeToLe` (`secfBeToLe_prog`, Secp256k1Field.lean:168): convert the
+  - `secfBeToLe` (`secfBeToLe_prog`, Secp256k1Field.lean:90): convert the
     32-byte BIG-ENDIAN buffer at `a0` into four LITTLE-ENDIAN u64 limbs
     (LSB-first) at `a1` — the ziskemu Arith256Mod operand format.
+  - `secfLeToBe` (`secfLeToBe_prog`, Secp256k1Field.lean:127): the inverse —
+    four LE u64 limbs at `a0` → 32-byte BIG-ENDIAN buffer at `a1`.
 
-  Shape (confirmed byte-identical to the bn254 analogue `bnfBeToLe_prog`
-  that `Codegen/Proofs/DoWhileDemo.lean` already pins): a nested bottom-test
-  loop —
+  Shape (confirmed byte-identical to the secp256k1 analogues; pinned by
+  `Codegen/Proofs/DoWhileDemo.lean` for `secfBeToLe_prog`): a nested
+  bottom-test loop —
     * OUTER `doWhile` (`x5 = 0..4`, limb index; back-edge `BNE x5 x6(=4)`),
       whose body rereads `x5` after the inner loop to address the
-      destination limb;
+      destination limb / recompute the destination byte pointer;
     * INNER `doWhileS` (`x29 = 8..0`, byte-in-limb; back-edge `BNE x29 x0`),
-      assembling one big-endian u64 from 8 bytes — snapshot-parameterized so
-      the enclosing iteration's `x5` survives the inner loop (the whole
-      reason `doWhileS` exists).
+      snapshot-parameterized so the enclosing iteration's `x5` survives
+      the inner loop (the whole reason `doWhileS` exists).
 
-  Functional post (real, unweakened, in the `.38.1`/`Accel` Nat vocabulary):
-  the little-endian decode of the four output limbs equals the big-endian
-  value of the input 32 bytes — `wsNat256 ws 0 = beBytesToNat inBytes`.
+  Functional posts (real, unweakened, in the `.38.1`/`Accel` Nat vocabulary):
+    * `secfBeToLe`: the little-endian decode of the four output limbs equals
+      the big-endian value of the input 32 bytes —
+      `wsNat256 ws 0 = beBytesToNat inBytes`.
+    * `secfLeToBe`: the big-endian value of the output 32 bytes equals the
+      little-endian decode of the four input limbs —
+      `beBytesToNat ws = leLimbsToNat [wsDword inBytes 0, … 8, … 16, … 24]`.
 
-  Byte-identity is kernel-pinned: `<body>.flatten 0 ++ [ret] = secfBeToLe_prog`
+  Byte-identity is kernel-pinned:
+    `<body>.flatten 0 ++ [ret] = secfBeToLe_prog` / `secfLeToBe_prog`
   (exact — the flatten matches, so guest bytes do not move).
 -/
 
@@ -53,8 +60,12 @@ def frameOk (src dst : Word) : Prop :=
   ∧ (src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat)
 
 -- ============================================================================
--- Invariants
+-- secfBeToLe: BE buffer → 4 LE u64 limbs
 -- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Invariants
+-- ----------------------------------------------------------------------------
 
 /-- Inner byte-assembly loop invariant, **snapshot-parameterized** by the
     inner loop's entry state `(rf₀, ws₀, A₀)`.  At entry the outer iteration
@@ -91,9 +102,9 @@ def outerInv (src dst : Word) (inBytes : List (BitVec 8)) :
     ∧ (∀ m, m ≤ i → wsDword ws (8 * m) = BitVec.ofNat 64 (beChunk inBytes m))
     ∧ A = empAssertion
 
--- ============================================================================
--- The routine body (shape identical to DoWhileDemo.bnfOuterNestedSlice)
--- ============================================================================
+-- ----------------------------------------------------------------------------
+-- The routine body (shape identical to DoWhileDemo.secfOuterNestedSlice)
+-- ----------------------------------------------------------------------------
 
 /-- The BE→LE converter body: `init` prologue, then the outer limb
     `doWhile` whose body is a setup block, the inner byte `doWhileS`, and a
@@ -133,9 +144,9 @@ def secfBeToLe_verified : Program := (secfBeToLeBody 0 0 []).flatten 0
 #guard (secfBeToLeBody 0 0 []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
   = secfBeToLe_prog
 
--- ============================================================================
+-- ----------------------------------------------------------------------------
 -- The function and its spec
--- ============================================================================
+-- ----------------------------------------------------------------------------
 
 def secfBeToLeFn (src dst : Word) (inBytes orig : List (BitVec 8)) : Fn where
   name := "secfBeToLe"
@@ -268,9 +279,9 @@ theorem leLimbs_chunks_eq_beBytesToNat (inBytes : List (BitVec 8))
   rw [hc0, hc1, hc2, hc3, hdecomp, p8, p16, p24]
   ring
 
--- ============================================================================
+-- ----------------------------------------------------------------------------
 -- Block-execution engine helpers (own heartbeat budget)
--- ============================================================================
+-- ----------------------------------------------------------------------------
 
 /-- The setup block, executed: `x6 := src + (24 - 8k)` (MSB-first chunk
     pointer for limb `k`), `x28 := 0`, `x29 := 8`; `x5`/`x10`/`x11`/window

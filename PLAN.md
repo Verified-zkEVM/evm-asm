@@ -3843,6 +3843,7 @@ an ABI-frame caller over `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with
 `blockAt`/global-data materialization for `secp256k1_p_be` and `secf_cmp`, a
 genuine post `a0 = reduceOnceFlag xs` and `dst = reduceOnceBytes xs orig`, and
 byte identity pinned by `secfReduceOnce_prog_eq`.
+PR-ready: `Secp256k1FieldMulModPSAsm.lean` verifies `secf_mul_mod_p` as the secp256k1 analogue of `bnf_mul_mod_p`: an ABI-frame caller over `secf_be_to_le` twice, the CSR-2050 `arith256Mod` stage using `secf_arith_params_p`, and `secf_le_to_be`, with `RwSubwindow` focusing the staged arena windows and a genuine modular-product post. The port also strengthens the secf converter `Fn` contracts to require/preserve `A = empAssertion`, which is needed for `Fn.retSpecFlat` in callers. Byte identity is pinned by `mulProg_tie`.
 `Secp256k1FieldSubModPSAsm.lean` verifies `secf_sub_mod_p` byte-identically as
 an ABI-frame caller over `u256_sub_be` and `secf_copy32`.  Its unified post
 preserves both inputs and states the exact branch semantics: copy the wrapping
