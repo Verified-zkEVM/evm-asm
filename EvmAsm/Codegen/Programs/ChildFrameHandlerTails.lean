@@ -277,7 +277,7 @@ def basicPrecompileCallTail
     -- The shortcut substitutes for the successful user-call path through the
     -- beacon-roots bytecode. Debit that path's regular gas from the EIP-150
     -- child allotment: non-SLOAD opcodes + two warm SLOAD floors, plus the
-    -- 2000-gas cold delta for each slot not already warmed by the tx access list.
+    -- 2900-gas cold delta for each slot not already warmed by the tx access list.
     "  la t0, stal_token_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     "  la t1, bsr_addr_4788; addi t1, t1, 19; li t2, 20\n" ++
     ".L" ++ tag ++ "_eip4788_token_copy:\n" ++
@@ -294,14 +294,14 @@ def basicPrecompileCallTail
     ".L" ++ tag ++ "_eip4788_ts_warm:\n" ++
     "  j .L" ++ tag ++ "_eip4788_root_cost\n" ++
     ".L" ++ tag ++ "_eip4788_ts_cold:\n" ++
-    "  addi x16, x16, 2000\n" ++
+    "  li x17, 2900; add x16, x16, x17\n" ++
     ".L" ++ tag ++ "_eip4788_root_cost:\n" ++
     "  la t6, stal_token_le; la a1, cd_callee_be\n" ++
     storageAccessKeyScanAsm (tag ++ "_eip4788_root_scan") (tag ++ "_eip4788_root_warm") (tag ++ "_eip4788_root_cold") (tag ++ "_eip4788_root_next") ++
     ".L" ++ tag ++ "_eip4788_root_warm:\n" ++
     "  j .L" ++ tag ++ "_eip4788_charge\n" ++
     ".L" ++ tag ++ "_eip4788_root_cold:\n" ++
-    "  addi x16, x16, 2000\n" ++
+    "  li x17, 2900; add x16, x16, x17\n" ++
     ".L" ++ tag ++ "_eip4788_charge:\n" ++
     chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
@@ -337,7 +337,7 @@ def basicPrecompileCallTail
     -- timestamp check fails and reverts. The parent-state bytecode fallback is
     -- wrong here because it cannot see the current block's begin-of-block write;
     -- charge the regular gas used by that revert path before returning CALL=0.
-    "  li x16, 2204\n" ++
+    "  li x16, 3104\n" ++
     chargePrecompileGasWithAllotmentAsm tag "x16" "x17" ++
     "  ld t2, " ++ toString outSizeOff ++ "(x12); li t3, 32; bgeu t2, t3, .L" ++ tag ++ "_eip4788_stale_out_cap\n" ++
     "  mv t3, t2\n" ++

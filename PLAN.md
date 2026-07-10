@@ -283,7 +283,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `RunningBloomZeroSAsm.lean` verifies `running_bloom_zero`, a fixed 32-dword zero loop over a 256-byte bloom/checkpoint buffer, with byte-identity pinned to `runningBloomZero_prog`.
   `U256FromU64BeSAsm.lean` verifies the straight-line `u256_from_u64_be` leaf
   (`u256FromU64BeFn_spec`, post `ws = u256FromU64Bytes a0`) with byte-identity
-  pinned to `u256FromU64Be_prog`.  `Bls12G1Zero96SAsm.lean` verifies the
+  pinned to `u256FromU64Be_prog`. `U256AddBeSAsm.lean` additionally verifies
+  the emitted `u256_add_be` loop under its alias-safe in-place calling mode
+  (`a0 = a2`): the genuine post gives the exact 32-byte big-endian sum and
+  carry, the second input remains read-only and disjoint, and the structured
+  body is byte-identical to `u256AddBe_prog`. This contract directly unblocks
+  the in-place second addition in `secf_add_mod_n`.
+  `Bls12G1Zero96SAsm.lean` verifies the
   bottom-test `blsg_zero96` dword zero-loop (`blsgZero96Fn_spec`, post
   `ws = replicate 96 0`) with byte-identity pinned to `blsgZero96_prog`;
   `Bls12G1Copy96SAsm.lean` verifies the `blsg_copy96` dword copy loop
@@ -349,6 +355,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `FrameSaveRegsSAsm.lean` verifies linked-PC `frame_save_regs`: it computes
+  `frame_save_area + (depth << 4)` and updates the two owned PC/code-base
+  dwords, with exact RV64 address arithmetic and byte identity.
+  `FrameDepthPushSAsm.lean` verifies the linked-PC `frame_depth_push` global
+  state leaf: it materializes `evm_call_depth`, increments the owned dword with
+  RV64 wrapping semantics, writes it back, and returns the new depth in `a0`,
+  with byte identity pinned to `frameDepthPush_prog`.
+  `FrameDepthPopSAsm.lean` verifies the linked-PC `frame_depth_pop` global
+  state leaf: materialize `evm_call_depth`, decrement its owned dword with
+  exact RV64 wrapping, write it back, and return the new depth in `a0`.
   `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
@@ -367,6 +383,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
   `callExtraGas_prog`, after converting the raw asm string to a `Program`
   rendered by `emitProgram`.
+  `CopyWordGasSAsm.lean` verifies `copy_word_gas` as a byte-identical
+  straight-line leaf (`copyWordGasFn_spec`, post `a0 = 3 * ((size + 31) >> 5)`
+  with exact RV64 wrapping semantics) pinned to `copyWordGas_prog`.
+  `Keccak256WordGasSAsm.lean` verifies `keccak256_word_gas` as a byte-identical
+  straight-line leaf (`keccak256WordGasFn_spec`, post `a0 =
+  (((size + 31) >> 5) * 6) + 30` with exact RV64 wrapping semantics).
+  `LogDataGasSAsm.lean` verifies `log_data_gas` as a byte-identical
+  straight-line leaf (`logDataGasFn_spec`, post `a0 = topics * 375 + 375 +
+  dataBytes * 8` with exact RV64 wrapping semantics).
+  `InitCodeCostSAsm.lean` verifies `init_code_cost` byte-identically with a
+  writable dword post (`a0 = 0`, output `= gasPerWord * ((len + 31) >> 5)`
+  under exact RV64 wrapping semantics).
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
@@ -3755,6 +3783,18 @@ saved-register restore.
 shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
 the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and
 return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
+`FrameLoadRegsSAsm.lean` verifies linked-PC `frame_load_regs` byte-identically:
+it computes `frame_save_area + (depth << 4)`, loads the saved PC and code-base
+into `a0`/`a1`, and preserves both global save-area cells.
+`MptResolveCacheResetSAsm.lean` verifies `mpt_resolve_cache_reset`
+byte-identically: a 4096-iteration dword loop zeros the complete 32768-byte
+resolver-validity table, with the global-address `la` prefix composed into the
+whole linked-entry theorem and an exact `List.replicate` zero postcondition.
+`DispatcherCaptureExecStateGasSAsm.lean` verifies
+`dispatcher_capture_exec_state_gas` byte-identically: two symbolic global
+address materializations feed a load and an index-scaled dword store, with a
+whole-entry post that preserves `evm_state_gas_used` and updates exactly the
+selected `bvgr_tx_exec_state_gas` cell.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
