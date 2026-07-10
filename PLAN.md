@@ -3755,6 +3755,10 @@ saved-register restore.
 shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
 the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and
 return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
+`MptResolveCacheResetSAsm.lean` verifies `mpt_resolve_cache_reset`
+byte-identically: a 4096-iteration dword loop zeros the complete 32768-byte
+resolver-validity table, with the global-address `la` prefix composed into the
+whole linked-entry theorem and an exact `List.replicate` zero postcondition.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
