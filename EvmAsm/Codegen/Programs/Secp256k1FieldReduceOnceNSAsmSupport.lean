@@ -1,8 +1,8 @@
 /-
-  EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+  EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsmSupport
 
-  SAsm/CPS port scaffold for `secf_reduce_once`: reduce a 32-byte
-  big-endian secp256k1 field element by subtracting p at most once.
+  SAsm/CPS port scaffold for `secf_reduce_once_n`: reduce a 32-byte
+  big-endian secp256k1 scalar by subtracting the group order n at most once.
 
   The emitted routine is an ABI-frame caller over three verified callees:
   `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with `la` materialization
@@ -24,62 +24,71 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 
-namespace Secp256k1FieldReduceOnceSAsm
+namespace Secp256k1FieldReduceOnceNSAsm
 
-/-- secp256k1 field prime, as 32 big-endian bytes. -/
-def secp256k1PBytes : List (BitVec 8) :=
+#guard GuestAddrs.secf_reduce_once_n = 0x800202cc
+#guard GuestAddrs.secf_n_be = 0xa3c05360
+#guard GuestAddrs.secf_cmp = 0xa3c053e0
+#guard GuestAddrs.u256_lt_be = 0x800052c4
+#guard GuestAddrs.u256_sub_be = 0x80005248
+#guard GuestAddrs.secf_copy32 = 0x8001fca4
+
+/-- secp256k1 group order, as 32 big-endian bytes. -/
+def secfNBytes : List (BitVec 8) :=
   [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-   0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xfc, 0x2f]
+   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+   0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
+   0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41]
 
-#guard secp256k1PBytes.length = 32
+#guard secfNBytes.length = 32
+#guard beBytesToNat secfNBytes =
+  0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
 
 /-- The routine's frame slots: `ra`, `s0`, `s1`. -/
-def secfReduceOnceFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
+def secfReduceOnceNFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
 
 /-- Body between ABI-frame prologue and epilogue. -/
-def secfReduceOnceBody : List Instr :=
+def secfReduceOnceNBody : List Instr :=
   [ .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x10 .x8,
-    .AUIPC .x11 (laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secf_reduce_once + 28)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secf_reduce_once + 28)),
-    .AUIPC .x12 (laHi GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once + 36)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once + 36)),
-    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.secf_reduce_once + 44)),
-    .AUIPC .x5 (laHi GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once + 48)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once + 48)),
+    .AUIPC .x11 (laHi GuestAddrs.secf_n_be (GuestAddrs.secf_reduce_once_n + 28)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_n_be (GuestAddrs.secf_reduce_once_n + 28)),
+    .AUIPC .x12 (laHi GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once_n + 36)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once_n + 36)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.secf_reduce_once_n + 44)),
+    .AUIPC .x5 (laHi GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once_n + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secf_cmp (GuestAddrs.secf_reduce_once_n + 48)),
     .LD .x6 .x5 (0 : BitVec 12),
     .BNE .x6 .x0 (32 : BitVec 13),
     .MV .x10 .x8,
-    .AUIPC .x11 (laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secf_reduce_once + 68)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secf_reduce_once + 68)),
+    .AUIPC .x11 (laHi GuestAddrs.secf_n_be (GuestAddrs.secf_reduce_once_n + 68)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_n_be (GuestAddrs.secf_reduce_once_n + 68)),
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_reduce_once + 80)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_reduce_once_n + 80)),
     .LI .x10 (1 : Word),
     .JAL .x0 (20 : BitVec 21),
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_reduce_once + 100)),
+    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_reduce_once_n + 100)),
     .LI .x10 (0 : Word) ]
 
-#guard secfReduceOnceBody.length = 23
+#guard secfReduceOnceNBody.length = 23
 
 /-- Code surface for the caller plus all three callees it may jump to. -/
-def secfReduceOnceCr : CodeReq :=
-  (((CodeReq.ofProg (GuestAddrs.secf_reduce_once : Word) secfReduceOnce_prog).union
+def secfReduceOnceNCr : CodeReq :=
+  (((CodeReq.ofProg (GuestAddrs.secf_reduce_once_n : Word) secfReduceOnceN_prog).union
     (CodeReq.ofProg (GuestAddrs.u256_lt_be : Word) u256LtBe_prog)).union
     (CodeReq.ofProg (GuestAddrs.u256_sub_be : Word) u256SubBe_prog)).union
     (CodeReq.ofProg (GuestAddrs.secf_copy32 : Word) secfCopy32_prog)
 
 /-- Byte-transparency: the emitted routine is exactly this ABI frame. -/
-theorem secfReduceOnce_prog_eq :
+theorem secfReduceOnceN_prog_eq :
     abiFrameProg (-32 : BitVec 12) (32 : BitVec 12)
-      secfReduceOnceFrame secfReduceOnceBody = secfReduceOnce_prog := rfl
+      secfReduceOnceNFrame secfReduceOnceNBody = secfReduceOnceN_prog := rfl
 
 
-def secfReduceOnceVals (ret s0 s1 : Word) : Reg → Word := fun r =>
+def secfReduceOnceNVals (ret s0 s1 : Word) : Reg → Word := fun r =>
   match r with
   | .x1 => ret
   | .x8 => s0
@@ -88,21 +97,21 @@ def secfReduceOnceVals (ret s0 s1 : Word) : Reg → Word := fun r =>
 
 
 /-- Real reduce-once byte result.  The caller is expected to supply values
-    below `2p`; this pure post still states the exact branch semantics of
+    below `2n`; this pure post still states the exact branch semantics of
     the emitted routine. -/
-def reduceOnceBytes (x orig : List (BitVec 8)) : List (BitVec 8) :=
-  if beBytesToNat x < beBytesToNat secp256k1PBytes then
+def reduceOnceNBytes (x orig : List (BitVec 8)) : List (BitVec 8) :=
+  if beBytesToNat x < beBytesToNat secfNBytes then
     x
   else
-    U256SubBeSAsm.u256SubBeBytes x secp256k1PBytes orig
+    U256SubBeSAsm.u256SubBeBytes x secfNBytes orig
 
 /-- Return flag: `1` iff the subtraction path was taken. -/
-def reduceOnceFlag (x : List (BitVec 8)) : Word :=
-  if beBytesToNat x < beBytesToNat secp256k1PBytes then (0 : Word) else (1 : Word)
+def reduceOnceNFlag (x : List (BitVec 8)) : Word :=
+  if beBytesToNat x < beBytesToNat secfNBytes then (0 : Word) else (1 : Word)
 
 /-- The `secf_cmp` scratch dword after the `u256_lt_be` call. -/
-def cmpFlagWord (x : List (BitVec 8)) : Word :=
-  if beBytesToNat x < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)
+def cmpFlagWordN (x : List (BitVec 8)) : Word :=
+  if beBytesToNat x < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)
 
 -- ============================================================================
 -- Local flat adapter for callees whose `Fn` post preserves ambient assertions.
@@ -157,46 +166,46 @@ private theorem retSpecFlatAmbient (f : Fn) (base : Word) (hspec : f.Spec base)
       (asrtOf_elim_ambient f.rw f.post hpost)) h hq1
 
 private theorem ltSetup_spec (src dst ret v8 v9 v12 : Word) :
-    cpsTripleWithin 7 (GuestAddrs.secf_reduce_once + 16 : Word)
-      (GuestAddrs.secf_reduce_once + 44 : Word) secfReduceOnceCr
+    cpsTripleWithin 7 (GuestAddrs.secf_reduce_once_n + 16 : Word)
+      (GuestAddrs.secf_reduce_once_n + 44 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ src) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x1 : Reg) ↦ᵣ ret)) := by
-  have hmv8 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x8 .x10 src v8 (GuestAddrs.secf_reduce_once + 16 : Word)
+  have hmv8 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x8 .x10 src v8 (GuestAddrs.secf_reduce_once_n + 16 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 16 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 20 : Word) from by decide] at hmv8
-  have hmv9 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x9 .x11 dst v9 (GuestAddrs.secf_reduce_once + 20 : Word)
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 16 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 20 : Word) from by decide] at hmv8
+  have hmv9 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x9 .x11 dst v9 (GuestAddrs.secf_reduce_once_n + 20 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 20 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 24 : Word) from by decide] at hmv9
-  have hmv10 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x10 .x8 src src (GuestAddrs.secf_reduce_once + 24 : Word)
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 20 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 24 : Word) from by decide] at hmv9
+  have hmv10 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x10 .x8 src src (GuestAddrs.secf_reduce_once_n + 24 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 24 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 28 : Word) from by decide] at hmv10
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 24 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 28 : Word) from by decide] at hmv10
   have hlaP := la_materialize_within .x11 dst
-    (GuestAddrs.secf_reduce_once + 28 : Word) (GuestAddrs.secp256k1_p_be : Word)
-    (cr := secfReduceOnceCr) (by decide) (by decide)
-    (by unfold secfReduceOnceCr; code_mem) (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 28 : Word) + 8 =
-      (GuestAddrs.secf_reduce_once + 36 : Word) from by decide] at hlaP
+    (GuestAddrs.secf_reduce_once_n + 28 : Word) (GuestAddrs.secf_n_be : Word)
+    (cr := secfReduceOnceNCr) (by decide) (by decide)
+    (by unfold secfReduceOnceNCr; code_mem) (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 28 : Word) + 8 =
+      (GuestAddrs.secf_reduce_once_n + 36 : Word) from by decide] at hlaP
   have hlaCmp := la_materialize_within .x12 v12
-    (GuestAddrs.secf_reduce_once + 36 : Word) (GuestAddrs.secf_cmp : Word)
-    (cr := secfReduceOnceCr) (by decide) (by decide)
-    (by unfold secfReduceOnceCr; code_mem) (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 36 : Word) + 8 =
-      (GuestAddrs.secf_reduce_once + 44 : Word) from by decide] at hlaCmp
+    (GuestAddrs.secf_reduce_once_n + 36 : Word) (GuestAddrs.secf_cmp : Word)
+    (cr := secfReduceOnceNCr) (by decide) (by decide)
+    (by unfold secfReduceOnceNCr; code_mem) (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 36 : Word) + 8 =
+      (GuestAddrs.secf_reduce_once_n + 44 : Word) from by decide] at hlaCmp
   have hmv8F := cpsTripleWithin_frameR
     (((.x9 : Reg) ↦ᵣ v9) ** ((.x11 : Reg) ↦ᵣ dst) **
       ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret))
@@ -217,7 +226,7 @@ private theorem ltSetup_spec (src dst ret v8 v9 v12 : Word) :
   have hlaCmpF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
       ((.x10 : Reg) ↦ᵣ src) **
-      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
       ((.x1 : Reg) ↦ᵣ ret))
     (by pcf) hlaCmp
   have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmv8F hmv9F
@@ -235,7 +244,7 @@ private theorem u256LtBeInCr_spec (aPtr bPtr outPtr ret : Word)
     (hvalidA : ∀ k, k < 32 → isValidByteAccess (aPtr + BitVec.ofNat 64 k) = true)
     (hvalidB : ∀ k, k < 32 → isValidByteAccess (bPtr + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 295 (GuestAddrs.u256_lt_be : Word) ret secfReduceOnceCr
+    cpsTripleWithin 295 (GuestAddrs.u256_lt_be : Word) ret secfReduceOnceNCr
       (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -251,10 +260,10 @@ private theorem u256LtBeInCr_spec (aPtr bPtr outPtr ret : Word)
        (outPtr ↦ₘ (if beBytesToNat as < beBytesToNat bs then (1 : Word) else (0 : Word)))) := by
   have h := U256LtBeSAsm.u256LtBe_spec aPtr bPtr outPtr ret as bs hlenA hlenB
     halignA halignB hovA hovB hvalidA hvalidB halignRet
-  exact liftCode (cr' := secfReduceOnceCr) h (by unfold secfReduceOnceCr; code_mem)
+  exact liftCode (cr' := secfReduceOnceNCr) h (by unfold secfReduceOnceNCr; code_mem)
 
 private theorem secp256k1PByte_valid (k : Nat) (hk : k < 32) :
-    isValidByteAccess ((GuestAddrs.secp256k1_p_be : Word) + BitVec.ofNat 64 k) = true := by
+    isValidByteAccess ((GuestAddrs.secf_n_be : Word) + BitVec.ofNat 64 k) = true := by
   interval_cases k <;> decide
 
 private theorem ltSetupCall_spec (src dst ret v8 v9 v12 : Word)
@@ -263,8 +272,8 @@ private theorem ltSetupCall_spec (src dst ret v8 v9 v12 : Word)
     (halignX : src.toNat % 8 = 0)
     (hovX : src.toNat + 32 < 2 ^ 64)
     (hvalidX : ∀ k, k < 32 → isValidByteAccess (src + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin 303 (GuestAddrs.secf_reduce_once + 16 : Word)
-      (GuestAddrs.secf_reduce_once + 48 : Word) secfReduceOnceCr
+    cpsTripleWithin 303 (GuestAddrs.secf_reduce_once_n + 16 : Word)
+      (GuestAddrs.secf_reduce_once_n + 48 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -272,79 +281,79 @@ private theorem ltSetupCall_spec (src dst ret v8 v9 v12 : Word)
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         memOwn (GuestAddrs.secf_cmp : Word))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)))) := by
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)))) := by
   unfold globalConst
   have hsetup := ltSetup_spec src dst ret v8 v9 v12
   have hsetupF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-      bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+      bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes **
       memOwn (GuestAddrs.secf_cmp : Word))
     (by pcf) hsetup
-  have hcallee0 := u256LtBeInCr_spec src (GuestAddrs.secp256k1_p_be : Word)
-    (GuestAddrs.secf_cmp : Word) (GuestAddrs.secf_reduce_once + 48 : Word)
-    xs secp256k1PBytes hlenX (by decide) halignX (by decide) hovX (by decide)
+  have hcallee0 := u256LtBeInCr_spec src (GuestAddrs.secf_n_be : Word)
+    (GuestAddrs.secf_cmp : Word) (GuestAddrs.secf_reduce_once_n + 48 : Word)
+    xs secfNBytes hlenX (by decide) halignX (by decide) hovX (by decide)
     hvalidX secp256k1PByte_valid (by decide)
   have hcallee : cpsTripleWithin 295 (GuestAddrs.u256_lt_be : Word)
-      (GuestAddrs.secf_reduce_once + 48 : Word) secfReduceOnceCr
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+      (GuestAddrs.secf_reduce_once_n + 48 : Word) secfReduceOnceNCr
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         (((.x10 : Reg) ↦ᵣ src) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes **
         memOwn (GuestAddrs.secf_cmp : Word)))
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         (((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))))) := by
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))))) := by
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcallee0
-  have hcall := callWithin_spec (cr := secfReduceOnceCr)
+  have hcall := callWithin_spec (cr := secfReduceOnceNCr)
     (P := (((.x10 : Reg) ↦ᵣ src) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes **
         memOwn (GuestAddrs.secf_cmp : Word)))
     (Q := (((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)))) )
-    (GuestAddrs.secf_reduce_once + 44 : Word) (GuestAddrs.u256_lt_be : Word) ret
-    (jalOff GuestAddrs.u256_lt_be (GuestAddrs.secf_reduce_once + 44)) 295
-    (by decide) (by unfold secfReduceOnceCr; code_mem) (by pcf) hcallee
-  rw [show (GuestAddrs.secf_reduce_once + 44 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 48 : Word) from by decide] at hcall
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)))) )
+    (GuestAddrs.secf_reduce_once_n + 44 : Word) (GuestAddrs.u256_lt_be : Word) ret
+    (jalOff GuestAddrs.u256_lt_be (GuestAddrs.secf_reduce_once_n + 44)) 295
+    (by decide) (by unfold secfReduceOnceNCr; code_mem) (by pcf) hcallee
+  rw [show (GuestAddrs.secf_reduce_once_n + 44 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 48 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst)) (by pcf) hcall
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetupF hcallF
@@ -354,15 +363,15 @@ private theorem ltSetupCall_spec (src dst ret v8 v9 v12 : Word)
 
 private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
     (xs : List (BitVec 8)) :
-    cpsTripleWithin 3 (GuestAddrs.secf_reduce_once + 48 : Word)
-      (GuestAddrs.secf_reduce_once + 60 : Word) secfReduceOnceCr
+    cpsTripleWithin 3 (GuestAddrs.secf_reduce_once_n + 48 : Word)
+      (GuestAddrs.secf_reduce_once_n + 60 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** globalConst pPtr secp256k1PBytes **
+        bytesRegion src xs ** globalConst pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
@@ -371,7 +380,7 @@ private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x6 : Reg) ↦ᵣ flag) ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** globalConst pPtr secp256k1PBytes **
+        bytesRegion src xs ** globalConst pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag)) := by
   unfold globalConst
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -382,7 +391,7 @@ private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion pPtr secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag)) )
       (fun v5 => ?_))
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -393,23 +402,23 @@ private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x5 : Reg) ↦ᵣ v5) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** bytesRegion pPtr secp256k1PBytes **
+        bytesRegion src xs ** bytesRegion pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag)) )
       (fun v6 => ?_))
   have hla := la_materialize_within .x5 v5
-    (GuestAddrs.secf_reduce_once + 48 : Word) (GuestAddrs.secf_cmp : Word)
-    (cr := secfReduceOnceCr) (by decide) (by decide)
-    (by unfold secfReduceOnceCr; code_mem) (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 48 : Word) + 8 =
-      (GuestAddrs.secf_reduce_once + 56 : Word) from by decide] at hla
-  have hld := liftCode (cr' := secfReduceOnceCr)
+    (GuestAddrs.secf_reduce_once_n + 48 : Word) (GuestAddrs.secf_cmp : Word)
+    (cr := secfReduceOnceNCr) (by decide) (by decide)
+    (by unfold secfReduceOnceNCr; code_mem) (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 48 : Word) + 8 =
+      (GuestAddrs.secf_reduce_once_n + 56 : Word) from by decide] at hla
+  have hld := liftCode (cr' := secfReduceOnceNCr)
     (ld_spec_within .x6 .x5 (GuestAddrs.secf_cmp : Word) v6 flag (0 : BitVec 12)
-      (GuestAddrs.secf_reduce_once + 56 : Word) (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
+      (GuestAddrs.secf_reduce_once_n + 56 : Word) (by decide))
+    (by unfold secfReduceOnceNCr; code_mem)
   rw [show (GuestAddrs.secf_cmp : Word) + signExtend12 (0 : BitVec 12) =
       (GuestAddrs.secf_cmp : Word) from by decide,
-    show (GuestAddrs.secf_reduce_once + 56 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 60 : Word) from by decide] at hld
+    show (GuestAddrs.secf_reduce_once_n + 56 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 60 : Word) from by decide] at hld
   have hlaF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
@@ -417,7 +426,7 @@ private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ((.x6 : Reg) ↦ᵣ v6) ** regOwn .x7 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-      bytesRegion src xs ** bytesRegion pPtr secp256k1PBytes **
+      bytesRegion src xs ** bytesRegion pPtr secfNBytes **
       ((GuestAddrs.secf_cmp : Word) ↦ₘ flag))
     (by pcf) hla
   have hldF := cpsTripleWithin_frameR
@@ -426,7 +435,7 @@ private theorem cmpLoad_spec (flag src dst pPtr ret : Word)
       ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-      bytesRegion src xs ** bytesRegion pPtr secp256k1PBytes)
+      bytesRegion src xs ** bytesRegion pPtr secfNBytes)
     (by pcf) hld
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaF hldF
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -438,8 +447,8 @@ private theorem ltSetupCallLoad_spec (src dst ret v8 v9 v12 : Word)
     (halignX : src.toNat % 8 = 0)
     (hovX : src.toNat + 32 < 2 ^ 64)
     (hvalidX : ∀ k, k < 32 → isValidByteAccess (src + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin 306 (GuestAddrs.secf_reduce_once + 16 : Word)
-      (GuestAddrs.secf_reduce_once + 60 : Word) secfReduceOnceCr
+    cpsTripleWithin 306 (GuestAddrs.secf_reduce_once_n + 16 : Word)
+      (GuestAddrs.secf_reduce_once_n + 60 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -447,27 +456,27 @@ private theorem ltSetupCallLoad_spec (src dst ret v8 v9 v12 : Word)
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         memOwn (GuestAddrs.secf_cmp : Word))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         ((.x6 : Reg) ↦ᵣ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))) **
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)))) := by
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)))) := by
   have hpre := ltSetupCall_spec src dst ret v8 v9 v12 xs hlenX halignX hovX hvalidX
   have hload := cmpLoad_spec
-    (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))
-    src dst (GuestAddrs.secp256k1_p_be : Word)
-    (GuestAddrs.secf_reduce_once + 48 : Word) xs
+    (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))
+    src dst (GuestAddrs.secf_n_be : Word)
+    (GuestAddrs.secf_reduce_once_n + 48 : Word) xs
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpre hload
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq)
@@ -475,7 +484,7 @@ private theorem ltSetupCallLoad_spec (src dst ret v8 v9 v12 : Word)
 
 private theorem cmpBranch_spec (flag src dst pPtr ret : Word)
     (xs : List (BitVec 8)) :
-    cpsBranchWithin 1 (GuestAddrs.secf_reduce_once + 60 : Word) secfReduceOnceCr
+    cpsBranchWithin 1 (GuestAddrs.secf_reduce_once_n + 60 : Word) secfReduceOnceNCr
       (((.x6 : Reg) ↦ᵣ flag) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
@@ -483,9 +492,9 @@ private theorem cmpBranch_spec (flag src dst pPtr ret : Word)
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** globalConst pPtr secp256k1PBytes **
+        bytesRegion src xs ** globalConst pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag))
-      (GuestAddrs.secf_reduce_once + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 92 : Word)
       (((.x6 : Reg) ↦ᵣ flag) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜flag ≠ 0⌝ **
         ((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
@@ -493,9 +502,9 @@ private theorem cmpBranch_spec (flag src dst pPtr ret : Word)
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** globalConst pPtr secp256k1PBytes **
+        bytesRegion src xs ** globalConst pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag))
-      (GuestAddrs.secf_reduce_once + 64 : Word)
+      (GuestAddrs.secf_reduce_once_n + 64 : Word)
       (((.x6 : Reg) ↦ᵣ flag) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜flag = 0⌝ **
         ((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ pPtr) **
@@ -503,7 +512,7 @@ private theorem cmpBranch_spec (flag src dst pPtr ret : Word)
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-        bytesRegion src xs ** globalConst pPtr secp256k1PBytes **
+        bytesRegion src xs ** globalConst pPtr secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ flag)) := by
   unfold globalConst
   have hbr := cpsBranchWithin_frameR
@@ -513,19 +522,19 @@ private theorem cmpBranch_spec (flag src dst pPtr ret : Word)
       ((.x1 : Reg) ↦ᵣ ret) **
       ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
       regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-      bytesRegion src xs ** bytesRegion pPtr secp256k1PBytes **
+      bytesRegion src xs ** bytesRegion pPtr secfNBytes **
       ((GuestAddrs.secf_cmp : Word) ↦ₘ flag))
     (by pcf)
-    (cpsBranchWithin_extend_code (cr' := secfReduceOnceCr)
+    (cpsBranchWithin_extend_code (cr' := secfReduceOnceNCr)
       (h := bne_spec_gen_within .x6 .x0 (32 : BitVec 13) flag (0 : Word)
-        (GuestAddrs.secf_reduce_once + 60 : Word))
-      (hmono := by unfold secfReduceOnceCr; code_mem))
-  rw [show (GuestAddrs.secf_reduce_once + 60 : Word) + signExtend13 (32 : BitVec 13) =
-        (GuestAddrs.secf_reduce_once + 92 : Word) from by
+        (GuestAddrs.secf_reduce_once_n + 60 : Word))
+      (hmono := by unfold secfReduceOnceNCr; code_mem))
+  rw [show (GuestAddrs.secf_reduce_once_n + 60 : Word) + signExtend13 (32 : BitVec 13) =
+        (GuestAddrs.secf_reduce_once_n + 92 : Word) from by
         rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by decide]
         decide,
-      show (GuestAddrs.secf_reduce_once + 60 : Word) + 4 =
-        (GuestAddrs.secf_reduce_once + 64 : Word) from by decide] at hbr
+      show (GuestAddrs.secf_reduce_once_n + 60 : Word) + 4 =
+        (GuestAddrs.secf_reduce_once_n + 64 : Word) from by decide] at hbr
   exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq)
     (fun _ hq => by xperm_hyp hq) hbr
@@ -536,7 +545,7 @@ theorem ltSetupCallLoadBranch_spec (src dst ret v8 v9 v12 : Word)
     (halignX : src.toNat % 8 = 0)
     (hovX : src.toNat + 32 < 2 ^ 64)
     (hvalidX : ∀ k, k < 32 → isValidByteAccess (src + BitVec.ofNat 64 k) = true) :
-    cpsBranchWithin 307 (GuestAddrs.secf_reduce_once + 16 : Word) secfReduceOnceCr
+    cpsBranchWithin 307 (GuestAddrs.secf_reduce_once_n + 16 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -544,44 +553,44 @@ theorem ltSetupCallLoadBranch_spec (src dst ret v8 v9 v12 : Word)
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         memOwn (GuestAddrs.secf_cmp : Word))
-      (GuestAddrs.secf_reduce_once + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 92 : Word)
       (((.x6 : Reg) ↦ᵣ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))) **
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-        ⌜(if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)) ≠ 0⌝ **
+        ⌜(if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)) ≠ 0⌝ **
         ((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))))
-      (GuestAddrs.secf_reduce_once + 64 : Word)
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))))
+      (GuestAddrs.secf_reduce_once_n + 64 : Word)
       (((.x6 : Reg) ↦ᵣ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word))) **
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word))) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-        ⌜(if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)) = 0⌝ **
+        ⌜(if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)) = 0⌝ **
         ((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 48 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 48 : Word)) **
         ((.x5 : Reg) ↦ᵣ (GuestAddrs.secf_cmp : Word)) **
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes **
         ((GuestAddrs.secf_cmp : Word) ↦ₘ
-          (if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)))) := by
-  let flag : Word := if beBytesToNat xs < beBytesToNat secp256k1PBytes then (1 : Word) else (0 : Word)
+          (if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)))) := by
+  let flag : Word := if beBytesToNat xs < beBytesToNat secfNBytes then (1 : Word) else (0 : Word)
   have hpre := ltSetupCallLoad_spec src dst ret v8 v9 v12 xs hlenX halignX hovX hvalidX
-  have hbr := cmpBranch_spec flag src dst (GuestAddrs.secp256k1_p_be : Word)
-    (GuestAddrs.secf_reduce_once + 48 : Word) xs
+  have hbr := cmpBranch_spec flag src dst (GuestAddrs.secf_n_be : Word)
+    (GuestAddrs.secf_reduce_once_n + 48 : Word) xs
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun _ hp => by xperm_hyp hp) hpre hbr
 
 /-- Registers owned across the `secf_copy32` call, excluding `a0`/`a1`. -/
@@ -681,11 +690,11 @@ private theorem exposedRegs_split_sub (vf : Reg → Word) :
   simp only [subScratch, regAtomsOf_cons, regAtomsOf_nil]
   xperm
 
-theorem secfCopy32Direct_spec (ret src dst : Word)
+private theorem secfCopy32Direct_spec (ret src dst : Word)
     (srcBytes orig : List (BitVec 8))
     (hlenSrc : srcBytes.length = 32) (hlenOrig : orig.length = 32)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 9 (GuestAddrs.secf_copy32 : Word) ret secfReduceOnceCr
+    cpsTripleWithin 9 (GuestAddrs.secf_copy32 : Word) ret secfReduceOnceNCr
       (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         regOwn .x5 ** bytesRegion src srcBytes ** bytesRegion dst orig)
       (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
@@ -701,13 +710,13 @@ theorem secfCopy32Direct_spec (ret src dst : Word)
   rw [show (GuestAddrs.secf_copy32 : Word) + BitVec.ofNat 64 (4 * (2 * 4)) =
       (GuestAddrs.secf_copy32 + 32 : Word) from by decide,
     copyDwords_covers srcBytes orig 4 (by omega) (by omega)] at hcopy0
-  have hcopy := liftCode (cr' := secfReduceOnceCr) hcopy0
-    (by unfold secfReduceOnceCr; code_mem)
+  have hcopy := liftCode (cr' := secfReduceOnceNCr) hcopy0
+    (by unfold secfReduceOnceNCr; code_mem)
   have hcopyF := cpsTripleWithin_frameR (((.x1 : Reg) ↦ᵣ ret)) (by pcf) hcopy
   have hret0 := EvmAsm.Evm64.ret_spec_within' (GuestAddrs.secf_copy32 + 32 : Word) ret
   rw [halign] at hret0
-  have hret := liftCode (cr' := secfReduceOnceCr) hret0
-    (by unfold secfReduceOnceCr; code_mem)
+  have hret := liftCode (cr' := secfReduceOnceNCr) hret0
+    (by unfold secfReduceOnceNCr; code_mem)
   have hretF := cpsTripleWithin_frameR
     (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) ** regOwn .x5 **
       bytesRegion src srcBytes ** bytesRegion dst srcBytes)
@@ -717,26 +726,26 @@ theorem secfCopy32Direct_spec (ret src dst : Word)
     (fun _ hq => by xperm_hyp hq) hc
 
 private theorem copySetup_spec (src dst ret old10 old11 : Word) :
-    cpsTripleWithin 2 (GuestAddrs.secf_reduce_once + 92 : Word)
-      (GuestAddrs.secf_reduce_once + 100 : Word) secfReduceOnceCr
+    cpsTripleWithin 2 (GuestAddrs.secf_reduce_once_n + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 100 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x1 : Reg) ↦ᵣ ret))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x1 : Reg) ↦ᵣ ret)) := by
-  have hmv10 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x10 .x8 src old10 (GuestAddrs.secf_reduce_once + 92 : Word)
+  have hmv10 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x10 .x8 src old10 (GuestAddrs.secf_reduce_once_n + 92 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 92 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 96 : Word) from by decide] at hmv10
-  have hmv11 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x11 .x9 dst old11 (GuestAddrs.secf_reduce_once + 96 : Word)
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 92 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 96 : Word) from by decide] at hmv10
+  have hmv11 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x11 .x9 dst old11 (GuestAddrs.secf_reduce_once_n + 96 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 96 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 100 : Word) from by decide] at hmv11
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 96 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 100 : Word) from by decide] at hmv11
   have hmv10F := cpsTripleWithin_frameR
     (((.x9 : Reg) ↦ᵣ dst) ** ((.x11 : Reg) ↦ᵣ old11) ** ((.x1 : Reg) ↦ᵣ ret))
     (by pcf) hmv10
@@ -750,42 +759,42 @@ private theorem copySetup_spec (src dst ret old10 old11 : Word) :
 private theorem copySetupCall_spec (src dst ret old10 old11 : Word)
     (xs orig : List (BitVec 8))
     (hlenX : xs.length = 32) (hlenOrig : orig.length = 32)
-    (halignRet : ((GuestAddrs.secf_reduce_once + 104 : Word) &&& ~~~(1 : Word)) =
-      (GuestAddrs.secf_reduce_once + 104 : Word)) :
-    cpsTripleWithin (2 + (1 + 9)) (GuestAddrs.secf_reduce_once + 92 : Word)
-      (GuestAddrs.secf_reduce_once + 104 : Word) secfReduceOnceCr
+    (halignRet : ((GuestAddrs.secf_reduce_once_n + 104 : Word) &&& ~~~(1 : Word)) =
+      (GuestAddrs.secf_reduce_once_n + 104 : Word)) :
+    cpsTripleWithin (2 + (1 + 9)) (GuestAddrs.secf_reduce_once_n + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 104 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** bytesRegion src xs ** bytesRegion dst orig)
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         regOwn .x5 ** bytesRegion src xs ** bytesRegion dst xs) := by
   have hsetup := copySetup_spec src dst ret old10 old11
   have hsetupF := cpsTripleWithin_frameR
     (regOwn .x5 ** bytesRegion src xs ** bytesRegion dst orig) (by pcf) hsetup
-  have hcallee0 := secfCopy32Direct_spec (GuestAddrs.secf_reduce_once + 104 : Word)
+  have hcallee0 := secfCopy32Direct_spec (GuestAddrs.secf_reduce_once_n + 104 : Word)
     src dst xs orig hlenX hlenOrig halignRet
   have hcallee : cpsTripleWithin 9 (GuestAddrs.secf_copy32 : Word)
-      (GuestAddrs.secf_reduce_once + 104 : Word) secfReduceOnceCr
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+      (GuestAddrs.secf_reduce_once_n + 104 : Word) secfReduceOnceNCr
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
           regOwn .x5 ** bytesRegion src xs ** bytesRegion dst orig))
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
           regOwn .x5 ** bytesRegion src xs ** bytesRegion dst xs)) := by
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcallee0
-  have hcall := callWithin_spec (cr := secfReduceOnceCr)
+  have hcall := callWithin_spec (cr := secfReduceOnceNCr)
     (P := (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
       regOwn .x5 ** bytesRegion src xs ** bytesRegion dst orig))
     (Q := (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
       regOwn .x5 ** bytesRegion src xs ** bytesRegion dst xs))
-    (GuestAddrs.secf_reduce_once + 100 : Word) (GuestAddrs.secf_copy32 : Word) ret
-    (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_reduce_once + 100)) 9
-    (by decide) (by unfold secfReduceOnceCr; code_mem) (by pcf) hcallee
-  rw [show (GuestAddrs.secf_reduce_once + 100 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 104 : Word) from by decide] at hcall
+    (GuestAddrs.secf_reduce_once_n + 100 : Word) (GuestAddrs.secf_copy32 : Word) ret
+    (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_reduce_once_n + 100)) 9
+    (by decide) (by unfold secfReduceOnceNCr; code_mem) (by pcf) hcallee
+  rw [show (GuestAddrs.secf_reduce_once_n + 100 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 104 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst)) (by pcf) hcall
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetupF hcallF
@@ -795,14 +804,14 @@ private theorem copySetupCall_spec (src dst ret old10 old11 : Word)
 private theorem copySetupCallFull_spec (src dst ret old10 old11 : Word)
     (xs orig : List (BitVec 8))
     (hlenX : xs.length = 32) (hlenOrig : orig.length = 32) :
-    cpsTripleWithin (2 + (1 + 9)) (GuestAddrs.secf_reduce_once + 92 : Word)
-      (GuestAddrs.secf_reduce_once + 104 : Word) secfReduceOnceCr
+    cpsTripleWithin (2 + (1 + 9)) (GuestAddrs.secf_reduce_once_n + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 104 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns copyScratch **
         bytesRegion src xs ** bytesRegion dst orig)
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         regOwns copyScratch ** bytesRegion src xs ** bytesRegion dst xs) := by
   have hbase := copySetupCall_spec src dst ret old10 old11 xs orig hlenX hlenOrig (by decide)
@@ -815,20 +824,20 @@ private theorem copySetupCallFull_spec (src dst ret old10 old11 : Word)
       xperm_hyp hq) hbaseF
 
 private theorem copyRetTail_spec (P : Assertion) (hP : P.pcFree) (src dst : Word) :
-    cpsTripleWithin 1 (GuestAddrs.secf_reduce_once + 104 : Word)
-      (GuestAddrs.secf_reduce_once + 108 : Word) secfReduceOnceCr
-      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+    cpsTripleWithin 1 (GuestAddrs.secf_reduce_once_n + 104 : Word)
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) secfReduceOnceNCr
+      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         ((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) ** regOwns copyScratch) ** P)
-      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch) ** P) := by
-  have hli := liftCode (cr' := secfReduceOnceCr)
-    (li_spec_gen_within .x10 src (0 : Word) (GuestAddrs.secf_reduce_once + 104 : Word)
+  have hli := liftCode (cr' := secfReduceOnceNCr)
+    (li_spec_gen_within .x10 src (0 : Word) (GuestAddrs.secf_reduce_once_n + 104 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 104 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 108 : Word) from by decide] at hli
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 104 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) from by decide] at hli
   have hliF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
       ((.x11 : Reg) ↦ᵣ dst) ** regOwns copyScratch ** P)
     (by
       apply pcFree_sepConj
@@ -838,7 +847,7 @@ private theorem copyRetTail_spec (P : Assertion) (hP : P.pcFree) (src dst : Word
         · exact pcFree_sepConj (by pcf) hP) hli
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun h hq => by
-      have hq1 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+      have hq1 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) **
           (((.x11 : Reg) ↦ᵣ dst) ** regOwns copyScratch)) ** P) h := by
         xperm_hyp hq
@@ -848,14 +857,14 @@ private theorem copyRetTail_spec (P : Assertion) (hP : P.pcFree) (src dst : Word
 theorem copyArm_spec (src dst ret old10 old11 : Word)
     (xs orig : List (BitVec 8))
     (hlenX : xs.length = 32) (hlenOrig : orig.length = 32) :
-    cpsTripleWithin ((2 + (1 + 9)) + 1) (GuestAddrs.secf_reduce_once + 92 : Word)
-      (GuestAddrs.secf_reduce_once + 108 : Word) secfReduceOnceCr
+    cpsTripleWithin ((2 + (1 + 9)) + 1) (GuestAddrs.secf_reduce_once_n + 92 : Word)
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns copyScratch **
         bytesRegion src xs ** bytesRegion dst orig)
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 104 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 104 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
         bytesRegion src xs ** bytesRegion dst xs) := by
   have hcall := copySetupCallFull_spec src dst ret old10 old11 xs orig hlenX hlenOrig
@@ -873,7 +882,7 @@ private theorem secfCopy32FlatAsrt_spec (ret src dst : Word)
     (halign : (ret &&& ~~~(1 : Word)) = ret)
     (hpre : Secp256k1FieldLeavesSAsm.secfCopy32Fn src dst srcBytes orig |>.pre rf orig empAssertion) :
     cpsTripleWithin ((Secp256k1FieldLeavesSAsm.secfCopy32Fn src dst srcBytes orig).body.steps + 1)
-      (GuestAddrs.secf_copy32 : Word) ret secfReduceOnceCr
+      (GuestAddrs.secf_copy32 : Word) ret secfReduceOnceNCr
       (((((.x1 : Reg) ↦ᵣ ret) ** regFileIs rf ** bytesRegion dst orig)
         ** empAssertion) ** bytesRegion src srcBytes)
       ((((.x1 : Reg) ↦ᵣ ret) **
@@ -892,9 +901,9 @@ private theorem secfCopy32FlatAsrt_spec (ret src dst : Word)
     (fun rf' ws' A' hlen hApc hpost hp hh => ⟨rf', ws', A', hlen, hApc, hpost, hh⟩)
   rw [show (Secp256k1FieldLeavesSAsm.secfCopy32Fn src dst srcBytes orig).programRet
       (GuestAddrs.secf_copy32 : Word) = secfCopy32_prog from rfl] at had
-  exact liftCode (cr' := secfReduceOnceCr) had (by unfold secfReduceOnceCr; code_mem)
+  exact liftCode (cr' := secfReduceOnceNCr) had (by unfold secfReduceOnceNCr; code_mem)
 
-theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
+private theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
     (aBytes bBytes orig : List (BitVec 8))
     (hrw : RwRegion.wf ⟨outPtr, 32⟩)
     (hroA : Region.wf ⟨aPtr, aBytes⟩) (hroB : Region.wf ⟨bPtr, bBytes⟩)
@@ -905,7 +914,7 @@ theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
     (hdisjB : bPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ bPtr.toNat)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin ((U256SubBeSAsm.u256SubBeFn aPtr bPtr outPtr aBytes bBytes orig).body.steps + 1)
-      (GuestAddrs.u256_sub_be : Word) ret secfReduceOnceCr
+      (GuestAddrs.u256_sub_be : Word) ret secfReduceOnceNCr
       (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
         ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns subScratch ** bytesRegion outPtr orig **
         bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes)
@@ -954,7 +963,7 @@ theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
         (sepConj_mono_left (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs)) hp hh)
   rw [show (U256SubBeSAsm.u256SubBeFn aPtr bPtr outPtr aBytes bBytes orig).programRet
       (GuestAddrs.u256_sub_be : Word) = u256SubBe_prog from rfl] at had
-  have hadC := liftCode (cr' := secfReduceOnceCr) had (by unfold secfReduceOnceCr; code_mem)
+  have hadC := liftCode (cr' := secfReduceOnceNCr) had (by unfold secfReduceOnceNCr; code_mem)
   rw [show (U256SubBeSAsm.u256SubBeFn aPtr bPtr outPtr aBytes bBytes orig).region = Region.empty from rfl,
       show (U256SubBeSAsm.u256SubBeFn aPtr bPtr outPtr aBytes bBytes orig).rw.base = outPtr from rfl,
       show Region.empty.base = (0 : Word) from rfl,
@@ -1002,33 +1011,33 @@ theorem u256SubBeFlat_spec (ret aPtr bPtr outPtr : Word)
       xperm_hyp hq) hadC
 
 private theorem subSetup_spec (src dst ret old10 old11 old12 : Word) :
-    cpsTripleWithin 4 (GuestAddrs.secf_reduce_once + 64 : Word)
-      (GuestAddrs.secf_reduce_once + 80 : Word) secfReduceOnceCr
+    cpsTripleWithin 4 (GuestAddrs.secf_reduce_once_n + 64 : Word)
+      (GuestAddrs.secf_reduce_once_n + 80 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x12 : Reg) ↦ᵣ old12) ** ((.x1 : Reg) ↦ᵣ ret))
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ src) **
-        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
         ((.x12 : Reg) ↦ᵣ dst) ** ((.x1 : Reg) ↦ᵣ ret)) := by
-  have hmv10 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x10 .x8 src old10 (GuestAddrs.secf_reduce_once + 64 : Word)
+  have hmv10 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x10 .x8 src old10 (GuestAddrs.secf_reduce_once_n + 64 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 64 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 68 : Word) from by decide] at hmv10
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 64 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 68 : Word) from by decide] at hmv10
   have hlaP := la_materialize_within .x11 old11
-    (GuestAddrs.secf_reduce_once + 68 : Word) (GuestAddrs.secp256k1_p_be : Word)
-    (cr := secfReduceOnceCr) (by decide) (by decide)
-    (by unfold secfReduceOnceCr; code_mem) (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 68 : Word) + 8 =
-      (GuestAddrs.secf_reduce_once + 76 : Word) from by decide] at hlaP
-  have hmv12 := liftCode (cr' := secfReduceOnceCr)
-    (mv_spec_gen_within .x12 .x9 dst old12 (GuestAddrs.secf_reduce_once + 76 : Word)
+    (GuestAddrs.secf_reduce_once_n + 68 : Word) (GuestAddrs.secf_n_be : Word)
+    (cr := secfReduceOnceNCr) (by decide) (by decide)
+    (by unfold secfReduceOnceNCr; code_mem) (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 68 : Word) + 8 =
+      (GuestAddrs.secf_reduce_once_n + 76 : Word) from by decide] at hlaP
+  have hmv12 := liftCode (cr' := secfReduceOnceNCr)
+    (mv_spec_gen_within .x12 .x9 dst old12 (GuestAddrs.secf_reduce_once_n + 76 : Word)
       (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 76 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 80 : Word) from by decide] at hmv12
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 76 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 80 : Word) from by decide] at hmv12
   have hmv10F := cpsTripleWithin_frameR
     (((.x9 : Reg) ↦ᵣ dst) ** ((.x11 : Reg) ↦ᵣ old11) **
       ((.x12 : Reg) ↦ᵣ old12) ** ((.x1 : Reg) ↦ᵣ ret))
@@ -1040,7 +1049,7 @@ private theorem subSetup_spec (src dst ret old10 old11 old12 : Word) :
     (by pcf) hlaP
   have hmv12F := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x10 : Reg) ↦ᵣ src) **
-      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
       ((.x1 : Reg) ↦ᵣ ret))
     (by pcf) hmv12
   have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmv10F hlaPF
@@ -1056,64 +1065,64 @@ private theorem subSetupCall_spec (src dst ret old10 old11 old12 : Word)
     (hovX : src.toNat + 32 < 2 ^ 64)
     (hovDst : dst.toNat + 32 < 2 ^ 64)
     (hdisjX : src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat)
-    (hdisjP : (GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ dst.toNat ∨
-      dst.toNat + 32 ≤ (GuestAddrs.secp256k1_p_be : Word).toNat) :
+    (hdisjP : (GuestAddrs.secf_n_be : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secf_n_be : Word).toNat) :
     cpsTripleWithin (4 + (1 + ((U256SubBeSAsm.u256SubBeFn src
-        (GuestAddrs.secp256k1_p_be : Word) dst xs secp256k1PBytes orig).body.steps + 1)))
-      (GuestAddrs.secf_reduce_once + 64 : Word)
-      (GuestAddrs.secf_reduce_once + 84 : Word) secfReduceOnceCr
+        (GuestAddrs.secf_n_be : Word) dst xs secfNBytes orig).body.steps + 1)))
+      (GuestAddrs.secf_reduce_once_n + 64 : Word)
+      (GuestAddrs.secf_reduce_once_n + 84 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x12 : Reg) ↦ᵣ old12) ** ((.x1 : Reg) ↦ᵣ ret) **
         regOwns subScratch ** bytesRegion dst orig ** bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes)
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes)
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         regOwns exposedRegs **
-        bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secp256k1PBytes orig) **
+        bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secfNBytes orig) **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes) := by
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes) := by
   unfold globalConst
   have hsetup := subSetup_spec src dst ret old10 old11 old12
   have hsetupF := cpsTripleWithin_frameR
     (regOwns subScratch ** bytesRegion dst orig ** bytesRegion src xs **
-      bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes)
+      bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes)
     (by pcf) hsetup
-  have hcallee0 := u256SubBeFlat_spec (GuestAddrs.secf_reduce_once + 84 : Word)
-    src (GuestAddrs.secp256k1_p_be : Word) dst xs secp256k1PBytes orig
+  have hcallee0 := u256SubBeFlat_spec (GuestAddrs.secf_reduce_once_n + 84 : Word)
+    src (GuestAddrs.secf_n_be : Word) dst xs secfNBytes orig
     hrwDst hroX (by decide) hlenX (by decide) hlenOrig hovX (by decide) hovDst
     hdisjX hdisjP (by decide)
   have hcallee : cpsTripleWithin
-      ((U256SubBeSAsm.u256SubBeFn src (GuestAddrs.secp256k1_p_be : Word) dst xs secp256k1PBytes orig).body.steps + 1)
-      (GuestAddrs.u256_sub_be : Word) (GuestAddrs.secf_reduce_once + 84 : Word)
-      secfReduceOnceCr
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+      ((U256SubBeSAsm.u256SubBeFn src (GuestAddrs.secf_n_be : Word) dst xs secfNBytes orig).body.steps + 1)
+      (GuestAddrs.u256_sub_be : Word) (GuestAddrs.secf_reduce_once_n + 84 : Word)
+      secfReduceOnceNCr
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         (((.x10 : Reg) ↦ᵣ src) **
-          ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+          ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
           ((.x12 : Reg) ↦ᵣ dst) ** regOwns subScratch **
           bytesRegion dst orig ** bytesRegion src xs **
-          bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes))
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+          bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes))
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         (regOwns exposedRegs **
-          bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secp256k1PBytes orig) **
-          bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes)) := by
+          bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secfNBytes orig) **
+          bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes)) := by
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcallee0
-  have hcall := callWithin_spec (cr := secfReduceOnceCr)
+  have hcall := callWithin_spec (cr := secfReduceOnceNCr)
     (P := (((.x10 : Reg) ↦ᵣ src) **
-          ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_p_be : Word)) **
+          ((.x11 : Reg) ↦ᵣ (GuestAddrs.secf_n_be : Word)) **
           ((.x12 : Reg) ↦ᵣ dst) ** regOwns subScratch **
           bytesRegion dst orig ** bytesRegion src xs **
-          bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes))
+          bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes))
     (Q := (regOwns exposedRegs **
-          bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secp256k1PBytes orig) **
-          bytesRegion src xs ** bytesRegion (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes))
-    (GuestAddrs.secf_reduce_once + 80 : Word) (GuestAddrs.u256_sub_be : Word) ret
-    (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_reduce_once + 80))
-    ((U256SubBeSAsm.u256SubBeFn src (GuestAddrs.secp256k1_p_be : Word) dst xs secp256k1PBytes orig).body.steps + 1)
-    (by decide) (by unfold secfReduceOnceCr; code_mem) (by pcf) hcallee
-  rw [show (GuestAddrs.secf_reduce_once + 80 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 84 : Word) from by decide] at hcall
+          bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secfNBytes orig) **
+          bytesRegion src xs ** bytesRegion (GuestAddrs.secf_n_be : Word) secfNBytes))
+    (GuestAddrs.secf_reduce_once_n + 80 : Word) (GuestAddrs.u256_sub_be : Word) ret
+    (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_reduce_once_n + 80))
+    ((U256SubBeSAsm.u256SubBeFn src (GuestAddrs.secf_n_be : Word) dst xs secfNBytes orig).body.steps + 1)
+    (by decide) (by unfold secfReduceOnceNCr; code_mem) (by pcf) hcallee
+  rw [show (GuestAddrs.secf_reduce_once_n + 80 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 84 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst)) (by pcf) hcall
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetupF hcallF
@@ -1121,36 +1130,36 @@ private theorem subSetupCall_spec (src dst ret old10 old11 old12 : Word)
     (fun _ hq => by xperm_hyp hq) hc
 
 private theorem subRetTail_spec (P : Assertion) (hP : P.pcFree) :
-    cpsTripleWithin 2 (GuestAddrs.secf_reduce_once + 84 : Word)
-      (GuestAddrs.secf_reduce_once + 108 : Word) secfReduceOnceCr
-      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+    cpsTripleWithin 2 (GuestAddrs.secf_reduce_once_n + 84 : Word)
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) secfReduceOnceNCr
+      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         regOwns exposedRegs) ** P)
-      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+      ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regOwns retScratch) ** P) := by
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns exposedRegs (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) ** P)
+      (P := ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) ** P)
       (fun vf => ?_))
-  have hli := liftCode (cr' := secfReduceOnceCr)
+  have hli := liftCode (cr' := secfReduceOnceNCr)
     (li_spec_gen_within .x10 (vf .x10) (1 : Word)
-      (GuestAddrs.secf_reduce_once + 84 : Word) (by decide))
-    (by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 84 : Word) + 4 =
-      (GuestAddrs.secf_reduce_once + 88 : Word) from by decide] at hli
-  have hjal := cpsTripleWithin_extend_code (cr' := secfReduceOnceCr)
+      (GuestAddrs.secf_reduce_once_n + 84 : Word) (by decide))
+    (by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 84 : Word) + 4 =
+      (GuestAddrs.secf_reduce_once_n + 88 : Word) from by decide] at hli
+  have hjal := cpsTripleWithin_extend_code (cr' := secfReduceOnceNCr)
     (h := jal_x0_spec_gen_within (20 : BitVec 21)
-      (GuestAddrs.secf_reduce_once + 88 : Word))
-    (hmono := by unfold secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_reduce_once + 88 : Word) + signExtend21 (20 : BitVec 21) =
-      (GuestAddrs.secf_reduce_once + 108 : Word) from by
+      (GuestAddrs.secf_reduce_once_n + 88 : Word))
+    (hmono := by unfold secfReduceOnceNCr; code_mem)
+  rw [show (GuestAddrs.secf_reduce_once_n + 88 : Word) + signExtend21 (20 : BitVec 21) =
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) from by
         rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide]
         decide] at hjal
   have hliF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
       regAtomsOf vf retScratch ** P)
     (by exact pcFree_sepConj (by pcf) (pcFree_sepConj (pcFree_regAtomsOf vf retScratch) hP)) hli
   have hjalF0 := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+    (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
       ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regAtomsOf vf retScratch ** P)
     (by
       apply pcFree_sepConj
@@ -1158,14 +1167,14 @@ private theorem subRetTail_spec (P : Assertion) (hP : P.pcFree) :
       · apply pcFree_sepConj
         · exact pcFree_regIs
         · exact pcFree_sepConj (pcFree_regAtomsOf vf retScratch) hP) hjal
-  have hjalF : cpsTripleWithin 1 (GuestAddrs.secf_reduce_once + 88 : Word)
-      (GuestAddrs.secf_reduce_once + 108 : Word) secfReduceOnceCr
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+  have hjalF : cpsTripleWithin 1 (GuestAddrs.secf_reduce_once_n + 88 : Word)
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) secfReduceOnceNCr
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regAtomsOf vf retScratch ** P)
-      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regAtomsOf vf retScratch ** P) := by
     exact cpsTripleWithin_weaken (fun h hp => by
-        have hp1 : (empAssertion ** (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+        have hp1 : (empAssertion ** (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
             ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regAtomsOf vf retScratch ** P)) h := by
           rw [sepConj_emp_left']
           exact hp
@@ -1178,7 +1187,7 @@ private theorem subRetTail_spec (P : Assertion) (hP : P.pcFree) :
       rw [exposedRegs_split_ret] at hp
       xperm_hyp hp)
     (fun h hq => by
-      have hq1 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+      have hq1 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
           ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regAtomsOf vf retScratch) ** P) h := by
         xperm_hyp hq
       exact sepConj_mono_left
@@ -1192,34 +1201,34 @@ theorem subArm_spec (src dst ret old10 old11 old12 : Word)
     (hovX : src.toNat + 32 < 2 ^ 64)
     (hovDst : dst.toNat + 32 < 2 ^ 64)
     (hdisjX : src.toNat + 32 ≤ dst.toNat ∨ dst.toNat + 32 ≤ src.toNat)
-    (hdisjP : (GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ dst.toNat ∨
-      dst.toNat + 32 ≤ (GuestAddrs.secp256k1_p_be : Word).toNat) :
+    (hdisjP : (GuestAddrs.secf_n_be : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secf_n_be : Word).toNat) :
     cpsTripleWithin ((4 + (1 + ((U256SubBeSAsm.u256SubBeFn src
-        (GuestAddrs.secp256k1_p_be : Word) dst xs secp256k1PBytes orig).body.steps + 1))) + 2)
-      (GuestAddrs.secf_reduce_once + 64 : Word)
-      (GuestAddrs.secf_reduce_once + 108 : Word) secfReduceOnceCr
+        (GuestAddrs.secf_n_be : Word) dst xs secfNBytes orig).body.steps + 1))) + 2)
+      (GuestAddrs.secf_reduce_once_n + 64 : Word)
+      (GuestAddrs.secf_reduce_once_n + 108 : Word) secfReduceOnceNCr
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x12 : Reg) ↦ᵣ old12) ** ((.x1 : Reg) ↦ᵣ ret) **
         regOwns subScratch ** bytesRegion dst orig ** bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes)
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes)
       (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once + 84 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_reduce_once_n + 84 : Word)) **
         ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regOwns retScratch **
-        bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secp256k1PBytes orig) **
+        bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secfNBytes orig) **
         bytesRegion src xs **
-        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes) := by
+        globalConst (GuestAddrs.secf_n_be : Word) secfNBytes) := by
   have hcall := subSetupCall_spec src dst ret old10 old11 old12 xs orig
     hroX hrwDst hlenX hlenOrig hovX hovDst hdisjX hdisjP
   have htail := subRetTail_spec
     (((.x8 : Reg) ↦ᵣ src) ** ((.x9 : Reg) ↦ᵣ dst) **
-      bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secp256k1PBytes orig) **
-      bytesRegion src xs ** globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes)
+      bytesRegion dst (U256SubBeSAsm.u256SubBeBytes xs secfNBytes orig) **
+      bytesRegion src xs ** globalConst (GuestAddrs.secf_n_be : Word) secfNBytes)
     (by pcf)
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hcall htail
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hc
 
-end Secp256k1FieldReduceOnceSAsm
+end Secp256k1FieldReduceOnceNSAsm
 
 end EvmAsm.Codegen
