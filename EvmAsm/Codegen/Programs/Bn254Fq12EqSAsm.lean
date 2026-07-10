@@ -20,7 +20,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace Bn254Fq12EqSAsm
 
 -- Address anchor (semantic constant: 48 dwords = 384 bytes of FQ12).
-#guard GuestAddrs.bnq_eq = 0x80030e4c
+#guard GuestAddrs.bnq_eq = 0x80030e30
 
 /-- The `bnq_eq` body: the dual-read dword equality scan over 48 slots. -/
 def bnqEqBody (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Stmt :=
@@ -28,12 +28,12 @@ def bnqEqBody (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Stmt :=
 
 -- Byte-identity to the emitted `bnq_eq` program (byte-transparent port).
 #guard (bnqEqBody 0 0 [] []).flatten 0 = bnqEq_prog
-#guard (bnqEqBody 0 0 [] []).flatten 0x80030e4c = bnqEq_prog
+#guard (bnqEqBody 0 0 [] []).flatten 0x80030e30 = bnqEq_prog
 #guard (bnqEqBody 0 0 [] []).retOffsetsOk
 
 /-- Kernel-checked byte tie at the `#guard`-tied address. -/
 theorem bnqEqBody_flatten_eq (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
-    (bnqEqBody ptr1 ptr2 bs1 bs2).flatten (0x80030e4c : Word) = bnqEq_prog := rfl
+    (bnqEqBody ptr1 ptr2 bs1 bs2).flatten (0x80030e30 : Word) = bnqEq_prog := rfl
 
 /-- **`bnq_eq`, whole-routine, at its linked address.**  Genuine post:
     `a0 = 1` iff the two 384-byte FQ12 buffers are byte-equal. -/
@@ -42,8 +42,8 @@ theorem bnqEq_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
     (hwf1 : Region.wf ⟨ptr1, bs1⟩) (hwf2 : Region.wf ⟨ptr2, bs2⟩)
     (hlen1 : bs1.length = 384) (hlen2 : bs2.length = 384) :
     cpsTripleWithin (bnqEqBody ptr1 ptr2 bs1 bs2).steps
-      (0x80030e4c : Word) ret
-      (CodeReq.ofProg (0x80030e4c : Word) bnqEq_prog)
+      (0x80030e30 : Word) ret
+      (CodeReq.ofProg (0x80030e30 : Word) bnqEq_prog)
       (((.x1 : Reg) ↦ᵣ ret) ** asrtM (Region.mk ptr1 bs1) RwRegion.empty
         (DualReadScan.scanPre .x10 .x11 ptr1 ptr2 bs1 bs2 48))
       (((.x1 : Reg) ↦ᵣ ret) ** asrtM (Region.mk ptr1 bs1) RwRegion.empty
@@ -51,13 +51,13 @@ theorem bnqEq_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
   have h := DualReadScan.scan_spec (ctr := .x5) (tA := .x6) (tB := .x7)
     (pA := .x10) (pB := .x11) (ptrA := ptr1) (ptrB := ptr2)
     (bsA := bs1) (bsB := bs2) (N := 48)
-    (0x80030e4c : Word) ret
+    (0x80030e30 : Word) ret
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     halign hwf1 hwf2 (by omega) (by omega)
   rw [show (DualReadScan.scanBody .x5 .x6 .x7 .x10 .x11 ptr1 ptr2 bs1 bs2
-      48).flatten (0x80030e4c : Word) = bnqEq_prog from rfl] at h
+      48).flatten (0x80030e30 : Word) = bnqEq_prog from rfl] at h
   exact h
 
 #print axioms bnqEq_spec
