@@ -411,6 +411,7 @@ import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
+import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
 import EvmAsm.Codegen.Programs.CopyWordGasSAsm
 import EvmAsm.Codegen.Programs.Keccak256WordGasSAsm
