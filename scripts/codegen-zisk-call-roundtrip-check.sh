@@ -38,9 +38,15 @@ data = open('gen-out/zisk_call_roundtrip.output', 'rb').read()
 def u64(off): return struct.unpack('<Q', data[off:off+8])[0] if off + 8 <= len(data) else None
 checks = [
     ('halt_kind (OUTPUT+32)',      u64(32), 0),
-    ('emitted slot count (+56)',   u64(56), 1),
-    ('slot 0 key low (+64)',       u64(64), 0),
-    ('slot 0 value low (+96)',     u64(96), 32),
+    ('emitted slot count (+56)',   u64(56), 2),
+    # Slots emit most-recent-write first: (slot 1, 0x5a) then (slot 0, 300).
+    ('pair 0 key low (+64)',       u64(64), 1),
+    # Marker copied by RETURNDATACOPY from returndata[299], past the retired
+    # 256-byte cap (evm-asm-pwqhw).
+    ('pair 0 value low (+96)',     u64(96), 0x5a),
+    ('pair 1 key low (+128)',      u64(128), 0),
+    # True staged returndata size — 300 > the retired cap.
+    ('pair 1 value low (+160)',    u64(160), 300),
 ]
 failed = False
 for label, got, exp in checks:
@@ -51,6 +57,7 @@ sys.exit(1 if failed else 0)
 PY
 
 echo
-echo "==> PASS: child ran a GUARDED MSTORE + RETURN(0,32); frame_return staged the"
-echo "          returndata; parent RETURNDATASIZE read 32 -> slot 0 = 32 (frame-relative"
-echo "          guard + returndata staging verified end-to-end through the dispatcher)"
+echo "==> PASS: child ran a GUARDED MSTORE + RETURN(0,300); frame_return staged the"
+echo "          FULL returndata (slot 0 = 300); parent RETURNDATACOPY read byte 299"
+echo "          past the retired 256-byte cap (slot 1 = 0x5a) — frame-relative guard,"
+echo "          full-length staging, and cap-free h_RETURNDATACOPY verified end-to-end"
