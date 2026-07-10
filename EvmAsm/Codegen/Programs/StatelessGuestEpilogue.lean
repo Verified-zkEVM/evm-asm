@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -901,12 +902,7 @@ def statelessGuestEpilogue : String :=
   -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
   -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
   "sg_load_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret\n" ++
+  emitProgram SgLoadU32leSAsm.sgLoadU32le_prog ++ "\n" ++
   -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
   -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
   -- preserves all s-registers and ra.

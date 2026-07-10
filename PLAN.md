@@ -251,7 +251,8 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
   (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
-  `a0 := leU32 (bytes@a0) 0`), `BlockAccessListHashSAsm.lean` verifies the
+  `a0 := leU32 (bytes@a0) 0`, with `sg_load_u32le` now emitted directly from
+  the kernel-tied `sgLoadU32le_prog`), `BlockAccessListHashSAsm.lean` verifies the
   identical `bah_u32le` leaf (`bahU32leFn_spec`, byte-identity pinned to
   `bahU32le_prog`), `SszPayloadWithdrawalsSAsm.lean` (`spwU32leFn_spec`,
   byte-identity pinned to `spwU32le_prog`), `SszParentHeaderSAsm.lean`
