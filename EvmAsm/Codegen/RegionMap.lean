@@ -192,7 +192,9 @@ def schemeAAnchors : List GuestRegion :=
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
     being derived for EIP-6110 negative system requests. Shrank net
     `0x7b0` after CREATE2 selfdestruct-collision handling simplified
-    `ChildFrameHandlers` dispatch. -/
+    `ChildFrameHandlers` dispatch. Grew by `0x58` when
+    `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
+    cursor helpers (bead evm-asm-22pwv.4). -/
 def textSizeBytes : Nat := 0x55f9c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
