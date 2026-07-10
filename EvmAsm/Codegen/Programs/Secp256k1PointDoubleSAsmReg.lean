@@ -46,8 +46,8 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       + ((secfBeToLeFn 0 0 [] []).body.steps + 1) * 2
       + ((secfLeToBeFn 0 0 [] []).body.steps + 1) * 2
       + ((secfZero32Fn 0 []).body.steps + 1) * 2)
-    ((0x80020578 : Word) + BitVec.ofNat 64 (4 * (1 + pdFrame.length)))
-    ((0x80020578 : Word)
+    ((GuestAddrs.secp256k1_point_double : Word) + BitVec.ofNat 64 (4 * (1 + pdFrame.length)))
+    ((GuestAddrs.secp256k1_point_double : Word)
       + BitVec.ofNat 64 (4 * (1 + pdFrame.length + pdBody.length)))
     pdCr
     ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12)))
@@ -121,73 +121,71 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       exact hovalid (32 + k) (by omega)
   have hnlz : nlz yBE 32 ≠ 32 := fun h => hy0 ((nlz32_iff_zero yBE hylen).mp h)
   have hwfArena1 : ∀ bs : List (BitVec 8), bs.length = 32 →
-      Region.wf ⟨(0xa3c05618 : Word), bs⟩ := by
+      Region.wf ⟨(GuestAddrs.secc_le_p1 : Word), bs⟩ := by
     intro bs hbs
     refine ⟨?_, ?_, ?_⟩
-    · show ((0xa3c05618 : Word)).toNat % 8 = 0
+    · show ((GuestAddrs.secc_le_p1 : Word)).toNat % 8 = 0
       decide
-    · show ((0xa3c05618 : Word)).toNat + bs.length < 2 ^ 64
+    · show ((GuestAddrs.secc_le_p1 : Word)).toNat + bs.length < 2 ^ 64
       rw [hbs]
       decide
     · intro k hk
       rw [hbs] at hk
-      rw [show (0xa3c05618 : Word) = arenaB from by decide]
+      rw [show (GuestAddrs.secc_le_p1 : Word) = arenaB from by decide]
       exact harval k (by omega)
   have hwfArena2 : ∀ bs : List (BitVec 8), bs.length = 32 →
-      Region.wf ⟨(0xa3c05638 : Word), bs⟩ := by
+      Region.wf ⟨(arenaB + 32), bs⟩ := by
     intro bs hbs
     refine ⟨?_, ?_, ?_⟩
-    · show ((0xa3c05638 : Word)).toNat % 8 = 0
+    · show ((arenaB + 32)).toNat % 8 = 0
       decide
-    · show ((0xa3c05638 : Word)).toNat + bs.length < 2 ^ 64
+    · show ((arenaB + 32)).toNat + bs.length < 2 ^ 64
       rw [hbs]
       decide
     · intro k hk
       rw [hbs] at hk
-      rw [show (0xa3c05638 : Word) + BitVec.ofNat 64 k
+      rw [show (arenaB + 32) + BitVec.ofNat 64 k
           = arenaB + BitVec.ofNat 64 (32 + k) from by
         apply BitVec.eq_of_toNat_eq
-        rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
-          BitVec.toNat_ofNat,
-          show ((0xa3c05638 : Word)).toNat = 0xa3c05638 from by decide,
-          show (arenaB).toNat = 0xa3c05618 from by decide]
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        rw [show (32 : Word).toNat = 32 from by decide]
+        norm_num [arenaB, GuestAddrs.secc_le_p1]
         omega]
       exact harval (32 + k) (by omega)
-  have hrwwA : RwRegion.wf ⟨(0xa3c05618 : Word), 32⟩ := by
+  have hrwwA : RwRegion.wf ⟨(GuestAddrs.secc_le_p1 : Word), 32⟩ := by
     refine ⟨?_, ?_, ?_⟩
-    · show ((0xa3c05618 : Word)).toNat % 8 = 0
+    · show ((GuestAddrs.secc_le_p1 : Word)).toNat % 8 = 0
       decide
-    · show ((0xa3c05618 : Word)).toNat + 32 < 2 ^ 64
+    · show ((GuestAddrs.secc_le_p1 : Word)).toNat + 32 < 2 ^ 64
       decide
     intro k hk
     have hk' : k < 32 := hk
-    rw [show (0xa3c05618 : Word) = arenaB from by decide]
+    rw [show (GuestAddrs.secc_le_p1 : Word) = arenaB from by decide]
     exact harval k (by omega)
-  have hrwwA2 : RwRegion.wf ⟨(0xa3c05638 : Word), 32⟩ := by
+  have hrwwA2 : RwRegion.wf ⟨(arenaB + 32), 32⟩ := by
     refine ⟨?_, ?_, ?_⟩
-    · show ((0xa3c05638 : Word)).toNat % 8 = 0
+    · show ((arenaB + 32)).toNat % 8 = 0
       decide
-    · show ((0xa3c05638 : Word)).toNat + 32 < 2 ^ 64
+    · show ((arenaB + 32)).toNat + 32 < 2 ^ 64
       decide
     intro k hk
     have hk' : k < 32 := hk
-    rw [show (0xa3c05638 : Word) + BitVec.ofNat 64 k
+    rw [show (arenaB + 32) + BitVec.ofNat 64 k
         = arenaB + BitVec.ofNat 64 (32 + k) from by
       apply BitVec.eq_of_toNat_eq
-      rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
-        BitVec.toNat_ofNat,
-        show ((0xa3c05638 : Word)).toNat = 0xa3c05638 from by decide,
-        show (arenaB).toNat = 0xa3c05618 from by decide]
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      rw [show (32 : Word).toNat = 32 from by decide]
+      norm_num [arenaB, GuestAddrs.secc_le_p1]
       omega]
     exact harval (32 + k) (by omega)
-  have hdstA : ((0xa3c05618 : Word)).toNat = 0xa3c05618 := by decide
-  have hdstA2 : ((0xa3c05638 : Word)).toNat = 0xa3c05638 := by decide
-  have hentry : (0x80020578 : Word)
+  have hdstA : ((GuestAddrs.secc_le_p1 : Word)).toNat = 0xa3c05618 := by decide
+  have hdstA2 : ((arenaB + 32)).toNat = 0xa3c05638 := by decide
+  have hentry : (GuestAddrs.secp256k1_point_double : Word)
         + BitVec.ofNat 64 (4 * (1 + pdFrame.length))
-      = (0x80020588 : Word) := by decide
-  have hexit : (0x80020578 : Word)
+      = ((GuestAddrs.secp256k1_point_double + 16) : Word) := by decide
+  have hexit : (GuestAddrs.secp256k1_point_double : Word)
         + BitVec.ofNat 64 (4 * (1 + pdFrame.length + pdBody.length))
-      = (0x8002060c : Word) := by decide
+      = ((GuestAddrs.secp256k1_point_double + 148) : Word) := by decide
   rw [hentry, hexit]
   -- ---- the post-first-conversion continuation (per written `_x` LE) ----
   have hB1 : ∀ ws₁ : List (BitVec 8),
@@ -195,15 +193,15 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         ((5 + ((secfBeToLeFn 0 0 [] []).body.steps + 1))
           + ((7 + ((secfLeToBeFn 0 0 [] []).body.steps + 1))
             + ((6 + ((secfLeToBeFn 0 0 [] []).body.steps + 1)) + 1)))
-        (0x800205c4 : Word) (0x8002060c : Word) pdCr
+        ((GuestAddrs.secp256k1_point_double + 76) : Word) ((GuestAddrs.secp256k1_point_double + 148) : Word) pdCr
         (⌜wsNat256 ws₁ 0 = beBytesToNat xBE ∧ ws₁.length = 32⌝
-          ** ((.x1 : Reg) ↦ᵣ (0x800205c4 : Word)) ** regOwns exposedRegs
-          ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word)) ** regOwns exposedRegs
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion (inPtr + 32) yBE
           ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
           ** windowRest arenaB ws 0 32)
-        (((.x1 : Reg) ↦ᵣ (0x80020608 : Word)) ** (.x8 ↦ᵣ inPtr)
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word)) ** (.x8 ↦ᵣ inPtr)
           ** (.x9 ↦ᵣ outPtr)
           ** (fun hp =>
             ((⌜beBytesToNat yBE = 0⌝
@@ -237,17 +235,17 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         cpsTripleWithin
           ((7 + ((secfLeToBeFn 0 0 [] []).body.steps + 1))
             + ((6 + ((secfLeToBeFn 0 0 [] []).body.steps + 1)) + 1))
-          (0x800205d8 : Word) (0x8002060c : Word) pdCr
+          ((GuestAddrs.secp256k1_point_double + 96) : Word) ((GuestAddrs.secp256k1_point_double + 148) : Word) pdCr
           (⌜wsNat256 ws₂ 0 = beBytesToNat yBE ∧ ws₂.length = 32⌝
-            ** ((.x1 : Reg) ↦ᵣ (0x800205d8 : Word)) ** regOwns exposedRegs
-            ** bytesRegion (0xa3c05638 : Word) ws₂
+            ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word)) ** regOwns exposedRegs
+            ** bytesRegion (arenaB + 32) ws₂
             ** bytesRegion (inPtr + 32) yBE
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE
             ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
             ** windowRest arenaB (setBytes ws 0 ws₁) 0x20 32)
-          (((.x1 : Reg) ↦ᵣ (0x80020608 : Word)) ** (.x8 ↦ᵣ inPtr)
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** (fun hp =>
               ((⌜beBytesToNat yBE = 0⌝
@@ -292,23 +290,23 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       have hC : ∀ oX' : List (BitVec 8),
           cpsTripleWithin
             ((6 + ((secfLeToBeFn 0 0 [] []).body.steps + 1)) + 1)
-            (0x800205f4 : Word) (0x8002060c : Word) pdCr
+            ((GuestAddrs.secp256k1_point_double + 124) : Word) ((GuestAddrs.secp256k1_point_double + 148) : Word) pdCr
             (⌜beBytesToNat oX' = wsNat256 (leBytes32 (Accel.curveDbl
                 Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).1) 0
               ∧ oX'.length = 32⌝
-              ** ((.x1 : Reg) ↦ᵣ (0x800205f4 : Word)) ** regOwns exposedRegs
+              ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word)) ** regOwns exposedRegs
               ** bytesRegion outPtr oX'
-              ** bytesRegion (0xa3c05618 : Word)
+              ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).1)
               ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
               ** bytesRegion (outPtr + 32) oY
-              ** bytesRegion (0xa3c05638 : Word)
+              ** bytesRegion (arenaB + 32)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).2))
-            (((.x1 : Reg) ↦ᵣ (0x80020608 : Word)) ** (.x8 ↦ᵣ inPtr)
+            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr)
               ** (fun hp =>
                 ((⌜beBytesToNat yBE = 0⌝
@@ -343,24 +341,24 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         obtain ⟨hfXa, hfXb⟩ := hfX
         -- ---- the out.y conversion continuation (per written out.y) ----
         have hD : ∀ oY' : List (BitVec 8),
-            cpsTripleWithin 1 (0x80020608 : Word) (0x8002060c : Word) pdCr
+            cpsTripleWithin 1 ((GuestAddrs.secp256k1_point_double + 144) : Word) ((GuestAddrs.secp256k1_point_double + 148) : Word) pdCr
               (⌜beBytesToNat oY' = wsNat256 (leBytes32 (Accel.curveDbl
                   Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).2) 0
                 ∧ oY'.length = 32⌝
-                ** ((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+                ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** regOwns exposedRegs
                 ** bytesRegion (outPtr + 32) oY'
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
                 ** (.x9 ↦ᵣ outPtr)
                 ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
                 ** bytesRegion outPtr oX'
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1))
-              (((.x1 : Reg) ↦ᵣ (0x80020608 : Word)) ** (.x8 ↦ᵣ inPtr)
+              (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word)) ** (.x8 ↦ᵣ inPtr)
                 ** (.x9 ↦ᵣ outPtr)
                 ** (fun hp =>
                   ((⌜beBytesToNat yBE = 0⌝
@@ -396,8 +394,8 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           refine cpsTripleWithin_pure_pre (fun hfY => ?_)
           obtain ⟨hfYa, hfYb⟩ := hfY
           -- li a0, 0
-          have hli : cpsTripleWithin 1 (0x80020608 : Word)
-              (0x8002060c : Word) pdCr
+          have hli : cpsTripleWithin 1 ((GuestAddrs.secp256k1_point_double + 144) : Word)
+              ((GuestAddrs.secp256k1_point_double + 148) : Word) pdCr
               (regOwns [.x10]) ((.x10 : Reg) ↦ᵣ (0 : Word)) := by
             refine cpsTripleWithin_weaken
               (fun _ hp => by
@@ -406,21 +404,21 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                 exact hp)
               (fun _ hq => hq) ?_
             have h := liftCode (cr' := pdCr)
-              (li_spec_gen_own_within .x10 (0 : Word) (0x80020608 : Word)
+              (li_spec_gen_own_within .x10 (0 : Word) ((GuestAddrs.secp256k1_point_double + 144) : Word)
                 (by decide))
               (by code_mem)
-            rwa [show (0x80020608 : Word) + 4 = (0x8002060c : Word)
+            rwa [show ((GuestAddrs.secp256k1_point_double + 144) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 148) : Word)
               from by decide] at h
           have hliF := cpsTripleWithin_frameR
-            (((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
               ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr) ** regOwns a0Rest
               ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
               ** bytesRegion outPtr oX' ** bytesRegion (outPtr + 32) oY'
-              ** bytesRegion (0xa3c05618 : Word)
+              ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).1)
-              ** bytesRegion (0xa3c05638 : Word)
+              ** bytesRegion (arenaB + 32)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).2))
             (by pcf) hli
@@ -437,22 +435,22 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                 (beBytesToNat xBE) (beBytesToNat yBE)).2 := by
               rw [hfYa, wsNat256_leBytes32 _
                 (curveDbl_lt (beBytesToNat xBE) (beBytesToNat yBE)).2]
-            have hq1 : ((((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+            have hq1 : ((((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr))
                 ** (((.x0 : Reg) ↦ᵣ (0 : Word))
                   ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns a0Rest
                   ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
                   ** bytesRegion outPtr oX'
                   ** bytesRegion (outPtr + 32) oY'
-                  ** (bytesRegion (0xa3c05618 : Word)
+                  ** (bytesRegion (GuestAddrs.secc_le_p1 : Word)
                       (leBytes32 (Accel.curveDbl Accel.secpP
                         (beBytesToNat xBE) (beBytesToNat yBE)).1)
-                    ** bytesRegion (0xa3c05638 : Word)
+                    ** bytesRegion (arenaB + 32)
                       (leBytes32 (Accel.curveDbl Accel.secpP
                         (beBytesToNat xBE) (beBytesToNat yBE)).2)))) h := by
               xperm_hyp hq
             rw [← arena_pair] at hq1
-            have hfin : ((((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+            have hfin : ((((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr))
                 ** (⌜beBytesToNat yBE ≠ 0
                   ∧ beBytesToNat oX' = (Accel.curveDbl Accel.secpP
@@ -473,7 +471,7 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
               sepConj_mono_right (fun h' hh =>
                 (sepConj_pure_left h').mpr
                   ⟨⟨hy0, hfXa', hfXb, hfYa', hfYb⟩, hh⟩) h hq1
-            have hout : ((((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+            have hout : ((((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr))
                 ** (fun hp =>
                   ((⌜beBytesToNat yBE = 0⌝
@@ -511,28 +509,28 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             xperm_hyp hout
         -- ---- la a0, secc_le_p1 ; a0 += 32 ; a1 := s1 + 32 ; call ----
         have hla10 := la_own_within .x10 (fun vOld =>
-          la_materialize_within .x10 vOld (0x800205f4 : Word)
-            (0xa3c05618 : Word) (by decide) (by decide)
+          la_materialize_within .x10 vOld ((GuestAddrs.secp256k1_point_double + 124) : Word)
+            (GuestAddrs.secc_le_p1 : Word) (by decide) (by decide)
             (by code_mem) (by code_mem))
-        rw [show (0x800205f4 : Word) + 8 = (0x800205fc : Word) from by decide]
+        rw [show ((GuestAddrs.secp256k1_point_double + 124) : Word) + 8 = ((GuestAddrs.secp256k1_point_double + 132) : Word) from by decide]
           at hla10
         have haddiS := liftCode (cr' := pdCr)
-          (addi_spec_gen_same_within .x10 (0xa3c05618 : Word)
-            (32 : BitVec 12) (0x800205fc : Word) (by decide))
+          (addi_spec_gen_same_within .x10 (GuestAddrs.secc_le_p1 : Word)
+            (32 : BitVec 12) ((GuestAddrs.secp256k1_point_double + 132) : Word) (by decide))
           (by code_mem)
-        rw [show (0x800205fc : Word) + 4 = (0x80020600 : Word) from by decide,
-          show (0xa3c05618 : Word) + signExtend12 (32 : BitVec 12)
-            = (0xa3c05638 : Word) from by decide] at haddiS
+        rw [show ((GuestAddrs.secp256k1_point_double + 132) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 136) : Word) from by decide,
+          show (GuestAddrs.secc_le_p1 : Word) + signExtend12 (32 : BitVec 12)
+            = (arenaB + 32) from by decide] at haddiS
         have haddi11 := liftCode (cr' := pdCr)
           (addi_own_within .x11 .x9 outPtr (32 : BitVec 12)
-            (0x80020600 : Word) (by decide))
+            ((GuestAddrs.secp256k1_point_double + 136) : Word) (by decide))
           (by code_mem)
-        rw [show (0x80020600 : Word) + 4 = (0x80020604 : Word) from by decide,
+        rw [show ((GuestAddrs.secp256k1_point_double + 136) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 140) : Word) from by decide,
           show outPtr + signExtend12 (32 : BitVec 12) = outPtr + 32 from by
             rw [show signExtend12 (32 : BitVec 12) = (32 : Word)
               from by decide]] at haddi11
-        have hflatL2 := secfLeToBeFlat_spec (0x80020608 : Word)
-          (0xa3c05638 : Word) (outPtr + 32)
+        have hflatL2 := secfLeToBeFlat_spec ((GuestAddrs.secp256k1_point_double + 144) : Word)
+          (arenaB + 32) (outPtr + 32)
           (leBytes32 (Accel.curveDbl Accel.secpP
             (beBytesToNat xBE) (beBytesToNat yBE)).2) oY
           (by rw [length_leBytes32]) hoYlen
@@ -547,23 +545,23 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
               omega)
           (by decide)
         have hcalleeL2 : cpsTripleWithin
-            ((secfLeToBeFn (0xa3c05638 : Word) (outPtr + 32)
+            ((secfLeToBeFn (arenaB + 32) (outPtr + 32)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).2) oY).body.steps + 1)
-            (0x8001fd2c : Word) (0x80020608 : Word) pdCr
-            (((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
-              ** ((.x10 ↦ᵣ (0xa3c05638 : Word)) ** (.x11 ↦ᵣ (outPtr + 32))
+            (GuestAddrs.secf_le_to_be : Word) ((GuestAddrs.secp256k1_point_double + 144) : Word) pdCr
+            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
+              ** ((.x10 ↦ᵣ (arenaB + 32)) ** (.x11 ↦ᵣ (outPtr + 32))
                 ** regOwns convScratch ** bytesRegion (outPtr + 32) oY
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)))
-            (((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+            (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
               ** (fun hp => ∃ ws',
                 ((⌜beBytesToNat ws' = wsNat256 (leBytes32 (Accel.curveDbl
                       Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).2) 0
                   ∧ ws'.length = 32⌝
                   ** regOwns exposedRegs ** bytesRegion (outPtr + 32) ws'
-                  ** bytesRegion (0xa3c05638 : Word)
+                  ** bytesRegion (arenaB + 32)
                       (leBytes32 (Accel.curveDbl Accel.secpP
                         (beBytesToNat xBE) (beBytesToNat yBE)).2))) hp)) := by
           refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -571,62 +569,62 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           obtain ⟨ws', hin⟩ := hq
           refine exists_pull h ⟨ws', ?_⟩
           xperm_hyp hin
-        have hcallL2 := callWithin_spec (0x80020604 : Word)
-          (0x8001fd2c : Word) (0x800205f4 : Word)
+        have hcallL2 := callWithin_spec ((GuestAddrs.secp256k1_point_double + 140) : Word)
+          (GuestAddrs.secf_le_to_be : Word) ((GuestAddrs.secp256k1_point_double + 124) : Word)
           (jalOff GuestAddrs.secf_le_to_be
             (GuestAddrs.secp256k1_point_double + 140))
-          ((secfLeToBeFn (0xa3c05638 : Word) (outPtr + 32)
+          ((secfLeToBeFn (arenaB + 32) (outPtr + 32)
             (leBytes32 (Accel.curveDbl Accel.secpP
               (beBytesToNat xBE) (beBytesToNat yBE)).2) oY).body.steps + 1)
           (by decide) (by code_mem) (by pcf) hcalleeL2
-        rw [show (0x80020604 : Word) + 4 = (0x80020608 : Word) from by decide,
-          show (secfLeToBeFn (0xa3c05638 : Word) (outPtr + 32)
+        rw [show ((GuestAddrs.secp256k1_point_double + 140) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 144) : Word) from by decide,
+          show (secfLeToBeFn (arenaB + 32) (outPtr + 32)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).2) oY).body.steps
             = (secfLeToBeFn 0 0 [] []).body.steps from rfl] at hcallL2
         -- ---- frames + chain ----
         have hla10F := cpsTripleWithin_frameR
-          (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word)) ** regOwn .x11
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word)) ** regOwn .x11
             ** regOwns convScratch
             ** bytesRegion outPtr oX'
-            ** bytesRegion (0xa3c05618 : Word)
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).1)
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion (outPtr + 32) oY
-            ** bytesRegion (0xa3c05638 : Word)
+            ** bytesRegion (arenaB + 32)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).2))
           (by pcf) hla10
         have haddiSF := cpsTripleWithin_frameR
-          (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word)) ** regOwn .x11
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word)) ** regOwn .x11
             ** regOwns convScratch
             ** bytesRegion outPtr oX'
-            ** bytesRegion (0xa3c05618 : Word)
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).1)
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion (outPtr + 32) oY
-            ** bytesRegion (0xa3c05638 : Word)
+            ** bytesRegion (arenaB + 32)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).2))
           (by pcf) haddiS
         have haddi11F := cpsTripleWithin_frameR
-          (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word))
-            ** ((.x10 : Reg) ↦ᵣ (0xa3c05638 : Word))
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word))
+            ** ((.x10 : Reg) ↦ᵣ (arenaB + 32))
             ** regOwns convScratch
             ** bytesRegion outPtr oX'
-            ** bytesRegion (0xa3c05618 : Word)
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).1)
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion (outPtr + 32) oY
-            ** bytesRegion (0xa3c05638 : Word)
+            ** bytesRegion (arenaB + 32)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).2))
           (by pcf) haddi11
@@ -634,7 +632,7 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion outPtr oX'
-            ** bytesRegion (0xa3c05618 : Word)
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                 (leBytes32 (Accel.curveDbl Accel.secpP
                   (beBytesToNat xBE) (beBytesToNat yBE)).1))
           (by pcf) hcallL2
@@ -646,36 +644,36 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           (fun _ hp => by xperm_hyp hp) hd2 hcallL2F
         have hd3' : cpsTripleWithin
             (6 + ((secfLeToBeFn 0 0 [] []).body.steps + 1))
-            (0x800205f4 : Word) (0x80020608 : Word) pdCr
+            ((GuestAddrs.secp256k1_point_double + 124) : Word) ((GuestAddrs.secp256k1_point_double + 144) : Word) pdCr
             ((regOwn .x10)
-              ** (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word)) ** regOwn .x11
+              ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word)) ** regOwn .x11
                 ** regOwns convScratch
                 ** bytesRegion outPtr oX'
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1)
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
                 ** (.x9 ↦ᵣ outPtr)
                 ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
                 ** bytesRegion (outPtr + 32) oY
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)))
             (fun hp => ∃ oY',
               ((⌜beBytesToNat oY' = wsNat256 (leBytes32 (Accel.curveDbl
                   Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).2) 0
                 ∧ oY'.length = 32⌝
-                ** ((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+                ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** regOwns exposedRegs
                 ** bytesRegion (outPtr + 32) oY'
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
                 ** (.x9 ↦ᵣ outPtr)
                 ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
                 ** bytesRegion outPtr oX'
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1))) hp) := by
           refine cpsTripleWithin_mono_nSteps (by omega)
@@ -686,15 +684,15 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                     Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).2) 0
                 ∧ ws'.length = 32⌝
                 ** regOwns exposedRegs ** bytesRegion (outPtr + 32) ws'
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2))) hp)
-              ** (((.x1 : Reg) ↦ᵣ (0x80020608 : Word))
+              ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 144) : Word))
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
                 ** (.x9 ↦ᵣ outPtr)
                 ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
                 ** bytesRegion outPtr oX'
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1))
               : Assertion) h := by
@@ -708,10 +706,10 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         xperm_hyp hp
       -- ---- la t0 ; csrs 2052 ; la a0 ; a1 := s1 ; call le_to_be ----
       have hla5 := la_own_within .x5 (fun vOld =>
-        la_materialize_within .x5 vOld (0x800205d8 : Word)
-          (0xa3c05618 : Word) (by decide) (by decide)
+        la_materialize_within .x5 vOld ((GuestAddrs.secp256k1_point_double + 96) : Word)
+          (GuestAddrs.secc_le_p1 : Word) (by decide) (by decide)
           (by code_mem) (by code_mem))
-      rw [show (0x800205d8 : Word) + 8 = (0x800205e0 : Word) from by decide]
+      rw [show ((GuestAddrs.secp256k1_point_double + 96) : Word) + 8 = ((GuestAddrs.secp256k1_point_double + 104) : Word) from by decide]
         at hla5
       have hcurve := curveStep_spec
         (setBytes (setBytes ws 0 ws₁) 0x20 ws₂)
@@ -728,18 +726,18 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             hwslen]),
         arena_pair] at hcurve
       have hla10' := la_own_within .x10 (fun vOld =>
-        la_materialize_within .x10 vOld (0x800205e4 : Word)
-          (0xa3c05618 : Word) (by decide) (by decide)
+        la_materialize_within .x10 vOld ((GuestAddrs.secp256k1_point_double + 108) : Word)
+          (GuestAddrs.secc_le_p1 : Word) (by decide) (by decide)
           (by code_mem) (by code_mem))
-      rw [show (0x800205e4 : Word) + 8 = (0x800205ec : Word) from by decide]
+      rw [show ((GuestAddrs.secp256k1_point_double + 108) : Word) + 8 = ((GuestAddrs.secp256k1_point_double + 116) : Word) from by decide]
         at hla10'
       have hmv11 := liftCode (cr' := pdCr)
-        (mv_own_within .x11 .x9 outPtr (0x800205ec : Word) (by decide))
+        (mv_own_within .x11 .x9 outPtr ((GuestAddrs.secp256k1_point_double + 116) : Word) (by decide))
         (by code_mem)
-      rw [show (0x800205ec : Word) + 4 = (0x800205f0 : Word) from by decide]
+      rw [show ((GuestAddrs.secp256k1_point_double + 116) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 120) : Word) from by decide]
         at hmv11
-      have hflatL1 := secfLeToBeFlat_spec (0x800205f4 : Word)
-        (0xa3c05618 : Word) outPtr
+      have hflatL1 := secfLeToBeFlat_spec ((GuestAddrs.secp256k1_point_double + 124) : Word)
+        (GuestAddrs.secc_le_p1 : Word) outPtr
         (leBytes32 (Accel.curveDbl Accel.secpP
           (beBytesToNat xBE) (beBytesToNat yBE)).1) oX
         (by rw [length_leBytes32]) hoXlen
@@ -754,23 +752,23 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             omega)
         (by decide)
       have hcalleeL1 : cpsTripleWithin
-          ((secfLeToBeFn (0xa3c05618 : Word) outPtr
+          ((secfLeToBeFn (GuestAddrs.secc_le_p1 : Word) outPtr
             (leBytes32 (Accel.curveDbl Accel.secpP
               (beBytesToNat xBE) (beBytesToNat yBE)).1) oX).body.steps + 1)
-          (0x8001fd2c : Word) (0x800205f4 : Word) pdCr
-          (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word))
-            ** ((.x10 ↦ᵣ (0xa3c05618 : Word)) ** (.x11 ↦ᵣ outPtr)
+          (GuestAddrs.secf_le_to_be : Word) ((GuestAddrs.secp256k1_point_double + 124) : Word) pdCr
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word))
+            ** ((.x10 ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** (.x11 ↦ᵣ outPtr)
               ** regOwns convScratch ** bytesRegion outPtr oX
-              ** bytesRegion (0xa3c05618 : Word)
+              ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).1)))
-          (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word))
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word))
             ** (fun hp => ∃ ws',
               ((⌜beBytesToNat ws' = wsNat256 (leBytes32 (Accel.curveDbl
                     Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).1) 0
                 ∧ ws'.length = 32⌝
                 ** regOwns exposedRegs ** bytesRegion outPtr ws'
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1))) hp)) := by
         refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -778,41 +776,41 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         obtain ⟨ws', hin⟩ := hq
         refine exists_pull h ⟨ws', ?_⟩
         xperm_hyp hin
-      have hcallL1 := callWithin_spec (0x800205f0 : Word)
-        (0x8001fd2c : Word) (0x800205d8 : Word)
+      have hcallL1 := callWithin_spec ((GuestAddrs.secp256k1_point_double + 120) : Word)
+        (GuestAddrs.secf_le_to_be : Word) ((GuestAddrs.secp256k1_point_double + 96) : Word)
         (jalOff GuestAddrs.secf_le_to_be
           (GuestAddrs.secp256k1_point_double + 120))
-        ((secfLeToBeFn (0xa3c05618 : Word) outPtr
+        ((secfLeToBeFn (GuestAddrs.secc_le_p1 : Word) outPtr
           (leBytes32 (Accel.curveDbl Accel.secpP
             (beBytesToNat xBE) (beBytesToNat yBE)).1) oX).body.steps + 1)
         (by decide) (by code_mem) (by pcf) hcalleeL1
-      rw [show (0x800205f0 : Word) + 4 = (0x800205f4 : Word) from by decide,
-        show (secfLeToBeFn (0xa3c05618 : Word) outPtr
+      rw [show ((GuestAddrs.secp256k1_point_double + 120) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 124) : Word) from by decide,
+        show (secfLeToBeFn (GuestAddrs.secc_le_p1 : Word) outPtr
             (leBytes32 (Accel.curveDbl Accel.secpP
               (beBytesToNat xBE) (beBytesToNat yBE)).1) oX).body.steps
           = (secfLeToBeFn 0 0 [] []).body.steps from rfl] at hcallL1
       -- ---- frames + chain ----
       have hla5F := cpsTripleWithin_frameR
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word)) ** regOwns csrsRest
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word)) ** regOwns csrsRest
           ** bytesRegion arenaB (setBytes (setBytes ws 0 ws₁) 0x20 ws₂)
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
           ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY)
         (by pcf) hla5
       have hcurveF := cpsTripleWithin_frameR
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
           ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY)
         (by pcf) hcurve
       have hla10'F := cpsTripleWithin_frameR
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
-          ** ((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word)) ** regOwn .x11
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
+          ** ((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** regOwn .x11
           ** regOwns csrsScratch
-          ** bytesRegion (0xa3c05618 : Word)
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).1)
-          ** bytesRegion (0xa3c05638 : Word)
+          ** bytesRegion (arenaB + 32)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).2)
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
@@ -820,14 +818,14 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY)
         (by pcf) hla10'
       have hmv11F := cpsTripleWithin_frameR
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
-          ** ((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word))
-          ** ((.x10 : Reg) ↦ᵣ (0xa3c05618 : Word))
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
+          ** ((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
+          ** ((.x10 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
           ** regOwns csrsScratch
-          ** bytesRegion (0xa3c05618 : Word)
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).1)
-          ** bytesRegion (0xa3c05638 : Word)
+          ** bytesRegion (arenaB + 32)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).2)
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
@@ -838,7 +836,7 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
           ** bytesRegion (outPtr + 32) oY
-          ** bytesRegion (0xa3c05638 : Word)
+          ** bytesRegion (arenaB + 32)
               (leBytes32 (Accel.curveDbl Accel.secpP
                 (beBytesToNat xBE) (beBytesToNat yBE)).2))
         (by pcf) hcallL1
@@ -854,15 +852,15 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       have he4 := cpsTripleWithin_seq_perm_same_cr
         (fun h hp => by
           -- release t0 into the callee scratch
-          have hp1 : (((.x5 : Reg) ↦ᵣ (0xa3c05618 : Word))
-              ** ((((.x1 : Reg)) ↦ᵣ (0x800205d8 : Word))
-                ** ((.x10 : Reg) ↦ᵣ (0xa3c05618 : Word))
+          have hp1 : (((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
+              ** ((((.x1 : Reg)) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
+                ** ((.x10 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
                 ** ((.x11 : Reg) ↦ᵣ outPtr) ** regOwns csrsScratch
                 ** bytesRegion outPtr oX
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1)
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
@@ -873,14 +871,14 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           have hp2 := sepConj_mono (regIs_to_regOwn .x5 _)
             (fun _ hh => hh) h hp1
           have hp3 : (regOwns convScratch
-              ** ((((.x1 : Reg)) ↦ᵣ (0x800205d8 : Word))
-                ** ((.x10 : Reg) ↦ᵣ (0xa3c05618 : Word))
+              ** ((((.x1 : Reg)) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
+                ** ((.x10 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
                 ** ((.x11 : Reg) ↦ᵣ outPtr)
                 ** bytesRegion outPtr oX
-                ** bytesRegion (0xa3c05618 : Word)
+                ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).1)
-                ** bytesRegion (0xa3c05638 : Word)
+                ** bytesRegion (arenaB + 32)
                     (leBytes32 (Accel.curveDbl Accel.secpP
                       (beBytesToNat xBE) (beBytesToNat yBE)).2)
                 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
@@ -892,9 +890,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           xperm_hyp hp3) he3 hcallL1F
       have he4' : cpsTripleWithin
           (7 + ((secfLeToBeFn 0 0 [] []).body.steps + 1))
-          (0x800205d8 : Word) (0x800205f4 : Word) pdCr
+          ((GuestAddrs.secp256k1_point_double + 96) : Word) ((GuestAddrs.secp256k1_point_double + 124) : Word) pdCr
           ((regOwn .x5)
-            ** (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word)) ** regOwns csrsRest
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word)) ** regOwns csrsRest
               ** bytesRegion arenaB (setBytes (setBytes ws 0 ws₁) 0x20 ws₂)
               ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr)
@@ -904,16 +902,16 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             ((⌜beBytesToNat oX' = wsNat256 (leBytes32 (Accel.curveDbl
                 Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).1) 0
               ∧ oX'.length = 32⌝
-              ** ((.x1 : Reg) ↦ᵣ (0x800205f4 : Word)) ** regOwns exposedRegs
+              ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word)) ** regOwns exposedRegs
               ** bytesRegion outPtr oX'
-              ** bytesRegion (0xa3c05618 : Word)
+              ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).1)
               ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
               ** bytesRegion (outPtr + 32) oY
-              ** bytesRegion (0xa3c05638 : Word)
+              ** bytesRegion (arenaB + 32)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).2))) hp) := by
         refine cpsTripleWithin_mono_nSteps (by omega)
@@ -924,15 +922,15 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                   Accel.secpP (beBytesToNat xBE) (beBytesToNat yBE)).1) 0
               ∧ ws'.length = 32⌝
               ** regOwns exposedRegs ** bytesRegion outPtr ws'
-              ** bytesRegion (0xa3c05618 : Word)
+              ** bytesRegion (GuestAddrs.secc_le_p1 : Word)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).1))) hp)
-            ** (((.x1 : Reg) ↦ᵣ (0x800205f4 : Word))
+            ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 124) : Word))
               ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
               ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
               ** bytesRegion (outPtr + 32) oY
-              ** bytesRegion (0xa3c05638 : Word)
+              ** bytesRegion (arenaB + 32)
                   (leBytes32 (Accel.curveDbl Accel.secpP
                     (beBytesToNat xBE) (beBytesToNat yBE)).2))
             : Assertion) h := by
@@ -945,14 +943,14 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       -- and split off `t0` ownership
       rw [ownsSplit5] at hp
       have hp1 : ((regOwns [.x5])
-          ** (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word)) ** regOwns csrsRest
+          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word)) ** regOwns csrsRest
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
             ** (bytesRegion (arenaB + BitVec.ofNat 64 0x20) ws₂
               ** windowRest arenaB (setBytes ws 0 ws₁) 0x20 32))) h := by
-        rw [show arenaB + BitVec.ofNat 64 0x20 = (0xa3c05638 : Word)
+        rw [show arenaB + BitVec.ofNat 64 0x20 = (arenaB + 32)
           from by decide]
         xperm_hyp hp
       rw [← bytesRegion_window_update arenaB (setBytes ws 0 ws₁) ws₂ 0x20 32
@@ -962,28 +960,28 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       xperm_hyp hp1
     -- ---- a0 := s0 + 32 ; la a1, _y ; call secf_be_to_le ----
     have haddi10 := liftCode (cr' := pdCr)
-      (addi_own_within .x10 .x8 inPtr (32 : BitVec 12) (0x800205c4 : Word)
+      (addi_own_within .x10 .x8 inPtr (32 : BitVec 12) ((GuestAddrs.secp256k1_point_double + 76) : Word)
         (by decide))
       (by code_mem)
-    rw [show (0x800205c4 : Word) + 4 = (0x800205c8 : Word) from by decide,
+    rw [show ((GuestAddrs.secp256k1_point_double + 76) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 80) : Word) from by decide,
       show inPtr + signExtend12 (32 : BitVec 12) = inPtr + 32 from by
         rw [show signExtend12 (32 : BitVec 12) = (32 : Word)
           from by decide]] at haddi10
     have hla11' := la_own_within .x11 (fun vOld =>
-      la_materialize_within .x11 vOld (0x800205c8 : Word)
-        (0xa3c05618 : Word) (by decide) (by decide)
+      la_materialize_within .x11 vOld ((GuestAddrs.secp256k1_point_double + 80) : Word)
+        (GuestAddrs.secc_le_p1 : Word) (by decide) (by decide)
         (by code_mem) (by code_mem))
-    rw [show (0x800205c8 : Word) + 8 = (0x800205d0 : Word) from by decide]
+    rw [show ((GuestAddrs.secp256k1_point_double + 80) : Word) + 8 = ((GuestAddrs.secp256k1_point_double + 88) : Word) from by decide]
       at hla11'
     have haddiS11 := liftCode (cr' := pdCr)
-      (addi_spec_gen_same_within .x11 (0xa3c05618 : Word) (32 : BitVec 12)
-        (0x800205d0 : Word) (by decide))
+      (addi_spec_gen_same_within .x11 (GuestAddrs.secc_le_p1 : Word) (32 : BitVec 12)
+        ((GuestAddrs.secp256k1_point_double + 88) : Word) (by decide))
       (by code_mem)
-    rw [show (0x800205d0 : Word) + 4 = (0x800205d4 : Word) from by decide,
-      show (0xa3c05618 : Word) + signExtend12 (32 : BitVec 12)
-        = (0xa3c05638 : Word) from by decide] at haddiS11
-    have hflatB2 := secfBeToLeFlat_spec (0x800205d8 : Word) (inPtr + 32)
-      (0xa3c05638 : Word) yBE
+    rw [show ((GuestAddrs.secp256k1_point_double + 88) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 92) : Word) from by decide,
+      show (GuestAddrs.secc_le_p1 : Word) + signExtend12 (32 : BitVec 12)
+        = (arenaB + 32) from by decide] at haddiS11
+    have hflatB2 := secfBeToLeFlat_spec ((GuestAddrs.secp256k1_point_double + 96) : Word) (inPtr + 32)
+      (arenaB + 32) yBE
       (((setBytes ws 0 ws₁).drop 0x20).take 32)
       hylen
       (by
@@ -1000,42 +998,42 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           omega)
       (by decide)
     have hcalleeB2 : cpsTripleWithin
-        ((secfBeToLeFn (inPtr + 32) (0xa3c05638 : Word) yBE
+        ((secfBeToLeFn (inPtr + 32) (arenaB + 32) yBE
           (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps + 1)
-        (0x8001fcdc : Word) (0x800205d8 : Word) pdCr
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
-          ** ((.x10 ↦ᵣ (inPtr + 32)) ** (.x11 ↦ᵣ (0xa3c05638 : Word))
+        (GuestAddrs.secf_be_to_le : Word) ((GuestAddrs.secp256k1_point_double + 96) : Word) pdCr
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
+          ** ((.x10 ↦ᵣ (inPtr + 32)) ** (.x11 ↦ᵣ (arenaB + 32))
             ** regOwns convScratch
-            ** bytesRegion (0xa3c05638 : Word)
+            ** bytesRegion (arenaB + 32)
                 (((setBytes ws 0 ws₁).drop 0x20).take 32)
             ** bytesRegion (inPtr + 32) yBE))
-        (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
+        (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
           ** (fun hp => ∃ ws',
             ((⌜wsNat256 ws' 0 = beBytesToNat yBE ∧ ws'.length = 32⌝
               ** regOwns exposedRegs
-              ** bytesRegion (0xa3c05638 : Word) ws'
+              ** bytesRegion (arenaB + 32) ws'
               ** bytesRegion (inPtr + 32) yBE)) hp)) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun h hq => ?_) hflatB2
       obtain ⟨ws', hin⟩ := hq
       refine exists_pull h ⟨ws', ?_⟩
       xperm_hyp hin
-    have hcallB2 := callWithin_spec (0x800205d4 : Word) (0x8001fcdc : Word)
-      (0x800205c4 : Word)
+    have hcallB2 := callWithin_spec ((GuestAddrs.secp256k1_point_double + 92) : Word) (GuestAddrs.secf_be_to_le : Word)
+      ((GuestAddrs.secp256k1_point_double + 76) : Word)
       (jalOff GuestAddrs.secf_be_to_le
         (GuestAddrs.secp256k1_point_double + 92))
-      ((secfBeToLeFn (inPtr + 32) (0xa3c05638 : Word) yBE
+      ((secfBeToLeFn (inPtr + 32) (arenaB + 32) yBE
         (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps + 1)
       (by decide) (by code_mem) (by pcf) hcalleeB2
-    rw [show (0x800205d4 : Word) + 4 = (0x800205d8 : Word) from by decide,
-      show (secfBeToLeFn (inPtr + 32) (0xa3c05638 : Word) yBE
+    rw [show ((GuestAddrs.secp256k1_point_double + 92) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 96) : Word) from by decide,
+      show (secfBeToLeFn (inPtr + 32) (arenaB + 32) yBE
           (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps
         = (secfBeToLeFn 0 0 [] []).body.steps from rfl] at hcallB2
     -- ---- frames + chain ----
     have haddi10F := cpsTripleWithin_frameR
-      (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word)) ** regOwn .x11
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word)) ** regOwn .x11
         ** regOwns convScratch
-        ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+        ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
         ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ outPtr)
         ** bytesRegion (inPtr + 32) yBE
         ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
@@ -1052,9 +1050,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                         (pcFree_windowRest _ _ _ _)))))))))))
       haddi10
     have hla11'F := cpsTripleWithin_frameR
-      (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
         ** ((.x10 : Reg) ↦ᵣ (inPtr + 32)) ** regOwns convScratch
-        ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+        ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
         ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
         ** bytesRegion (inPtr + 32) yBE
         ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
@@ -1072,9 +1070,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
                           (pcFree_windowRest _ _ _ _))))))))))))
       hla11'
     have haddiS11F := cpsTripleWithin_frameR
-      (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
         ** ((.x10 : Reg) ↦ᵣ (inPtr + 32)) ** regOwns convScratch
-        ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+        ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
         ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr)
         ** bytesRegion (inPtr + 32) yBE
         ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
@@ -1111,9 +1109,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
     have hf3' := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by
         -- reassemble the `_x` splice, then focus the `_y` window out of it
-        have hp1 : (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
+        have hp1 : (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
             ** ((.x10 : Reg) ↦ᵣ (inPtr + 32))
-            ** ((.x11 : Reg) ↦ᵣ (0xa3c05638 : Word))
+            ** ((.x11 : Reg) ↦ᵣ (arenaB + 32))
             ** regOwns convScratch ** bytesRegion inPtr xBE
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
@@ -1121,23 +1119,23 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
             ** (bytesRegion (arenaB + BitVec.ofNat 64 0) ws₁
               ** windowRest arenaB ws 0 32)) h := by
-          rw [show arenaB + BitVec.ofNat 64 0 = (0xa3c05618 : Word)
+          rw [show arenaB + BitVec.ofNat 64 0 = (GuestAddrs.secc_le_p1 : Word)
             from by decide]
           xperm_hyp hp
         rw [← bytesRegion_window_update arenaB ws ws₁ 0 32 (by omega)
           (by norm_num) (by norm_num) hf1b] at hp1
         rw [bytesRegion_window_focus arenaB (setBytes ws 0 ws₁) 0x20 32
               (by rw [length_setBytes]; omega) (by norm_num) (by norm_num),
-            show arenaB + BitVec.ofNat 64 0x20 = (0xa3c05638 : Word)
+            show arenaB + BitVec.ofNat 64 0x20 = (arenaB + 32)
               from by decide] at hp1
         xperm_hyp hp1) hf2' hcallB2F
     have hf3'' : cpsTripleWithin
         (5 + ((secfBeToLeFn 0 0 [] []).body.steps + 1))
-        (0x800205c4 : Word) (0x800205d8 : Word) pdCr
+        ((GuestAddrs.secp256k1_point_double + 76) : Word) ((GuestAddrs.secp256k1_point_double + 96) : Word) pdCr
         ((regOwn .x10)
-          ** (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word)) ** regOwn .x11
+          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word)) ** regOwn .x11
             ** regOwns convScratch
-            ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion (inPtr + 32) yBE
@@ -1145,8 +1143,8 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
             ** windowRest arenaB ws 0 32))
         (fun hp => ∃ ws₂,
           ((⌜wsNat256 ws₂ 0 = beBytesToNat yBE ∧ ws₂.length = 32⌝
-            ** ((.x1 : Reg) ↦ᵣ (0x800205d8 : Word)) ** regOwns exposedRegs
-            ** bytesRegion (0xa3c05638 : Word) ws₂
+            ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word)) ** regOwns exposedRegs
+            ** bytesRegion (arenaB + 32) ws₂
             ** bytesRegion (inPtr + 32) yBE
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
@@ -1159,9 +1157,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       have hq1 : ((fun hp => ∃ ws',
           ((⌜wsNat256 ws' 0 = beBytesToNat yBE ∧ ws'.length = 32⌝
             ** regOwns exposedRegs
-            ** bytesRegion (0xa3c05638 : Word) ws'
+            ** bytesRegion (arenaB + 32) ws'
             ** bytesRegion (inPtr + 32) yBE)) hp)
-          ** (((.x1 : Reg) ↦ᵣ (0x800205d8 : Word))
+          ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 96) : Word))
             ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr)
             ** bytesRegion inPtr xBE
@@ -1179,31 +1177,31 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
   -- ---- prefix: mv;mv;addi ; call is_zero (verdict 0) ; beq TAKEN ;
   --      mv a0,s0 ; la a1,_x ; call secf_be_to_le ----
   have hm1 := liftCode (cr' := pdCr)
-    (mv_spec_gen_within .x8 .x10 inPtr v8 (0x80020588 : Word) (by decide))
+    (mv_spec_gen_within .x8 .x10 inPtr v8 ((GuestAddrs.secp256k1_point_double + 16) : Word) (by decide))
     (by code_mem)
-  rw [show (0x80020588 : Word) + 4 = (0x8002058c : Word) from by decide]
+  rw [show ((GuestAddrs.secp256k1_point_double + 16) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 20) : Word) from by decide]
     at hm1
   have hm2 := liftCode (cr' := pdCr)
-    (mv_spec_gen_within .x9 .x11 outPtr v9 (0x8002058c : Word) (by decide))
+    (mv_spec_gen_within .x9 .x11 outPtr v9 ((GuestAddrs.secp256k1_point_double + 20) : Word) (by decide))
     (by code_mem)
-  rw [show (0x8002058c : Word) + 4 = (0x80020590 : Word) from by decide]
+  rw [show ((GuestAddrs.secp256k1_point_double + 20) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 24) : Word) from by decide]
     at hm2
   have haddi := liftCode (cr' := pdCr)
     (addi_spec_gen_within .x10 .x8 inPtr inPtr (32 : BitVec 12)
-      (0x80020590 : Word) (by decide))
+      ((GuestAddrs.secp256k1_point_double + 24) : Word) (by decide))
     (by code_mem)
-  rw [show (0x80020590 : Word) + 4 = (0x80020594 : Word) from by decide,
+  rw [show ((GuestAddrs.secp256k1_point_double + 24) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 28) : Word) from by decide,
     show inPtr + signExtend12 (32 : BitVec 12) = inPtr + 32 from by
       rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]]
     at haddi
-  have hcall1 := callWithin_spec (0x80020594 : Word) (0x8001fd9c : Word)
+  have hcall1 := callWithin_spec ((GuestAddrs.secp256k1_point_double + 28) : Word) (GuestAddrs.secf_is_zero32 : Word)
     ret
     (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_double + 28))
     ((secfIsZero32Fn (inPtr + 32) yBE).body.steps + 1)
     (by decide) (by code_mem) (by pcf)
-    (secfIsZero32Flat_spec (0x80020598 : Word) (inPtr + 32) yBE hylen
+    (secfIsZero32Flat_spec ((GuestAddrs.secp256k1_point_double + 32) : Word) (inPtr + 32) yBE hylen
       hwfY (by omega) (by decide))
-  rw [show (0x80020594 : Word) + 4 = (0x80020598 : Word) from by decide,
+  rw [show ((GuestAddrs.secp256k1_point_double + 28) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 32) : Word) from by decide,
     show (secfIsZero32Fn (inPtr + 32) yBE).body.steps
       = (secfIsZero32Fn 0 []).body.steps from rfl,
     if_neg hnlz] at hcall1
@@ -1211,29 +1209,29 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
   have hbeq := cpsBranchWithin_takenPath
     (cpsBranchWithin_extend_code (cr' := pdCr) (by code_mem)
       (beq_spec_gen_within .x10 .x0 (28 : BitVec 13) (0 : Word) (0 : Word)
-        (0x80020598 : Word)))
+        ((GuestAddrs.secp256k1_point_double + 32) : Word)))
     (fun hp hq => by
       have hq1 : ((⌜(0 : Word) ≠ (0 : Word)⌝ : Assertion)
           ** ((.x10 ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))) hp := by
         xperm_hyp hq
       exact absurd rfl ((sepConj_pure_left hp).mp hq1).1)
-  rw [show (0x80020598 : Word) + signExtend13 (28 : BitVec 13)
-      = (0x800205b4 : Word) from by decide] at hbeq
+  rw [show ((GuestAddrs.secp256k1_point_double + 32) : Word) + signExtend13 (28 : BitVec 13)
+      = ((GuestAddrs.secp256k1_point_double + 60) : Word) from by decide] at hbeq
   -- ---- mv a0, s0 ; la a1, secc_le_p1 ----
   have hm3 := liftCode (cr' := pdCr)
-    (mv_spec_gen_within .x10 .x8 inPtr (0 : Word) (0x800205b4 : Word)
+    (mv_spec_gen_within .x10 .x8 inPtr (0 : Word) ((GuestAddrs.secp256k1_point_double + 60) : Word)
       (by decide))
     (by code_mem)
-  rw [show (0x800205b4 : Word) + 4 = (0x800205b8 : Word) from by decide]
+  rw [show ((GuestAddrs.secp256k1_point_double + 60) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 64) : Word) from by decide]
     at hm3
   have hla11 := la_own_within .x11 (fun vOld =>
-    la_materialize_within .x11 vOld (0x800205b8 : Word) (0xa3c05618 : Word)
+    la_materialize_within .x11 vOld ((GuestAddrs.secp256k1_point_double + 64) : Word) (GuestAddrs.secc_le_p1 : Word)
       (by decide) (by decide) (by code_mem) (by code_mem))
-  rw [show (0x800205b8 : Word) + 8 = (0x800205c0 : Word) from by decide]
+  rw [show ((GuestAddrs.secp256k1_point_double + 64) : Word) + 8 = ((GuestAddrs.secp256k1_point_double + 72) : Word) from by decide]
     at hla11
   -- ---- call secf_be_to_le(in, secc_le_p1) ----
-  have hflatB1 := secfBeToLeFlat_spec (0x800205c4 : Word) inPtr
-    (0xa3c05618 : Word) xBE ((ws.drop 0).take 32)
+  have hflatB1 := secfBeToLeFlat_spec ((GuestAddrs.secp256k1_point_double + 76) : Word) inPtr
+    (GuestAddrs.secc_le_p1 : Word) xBE ((ws.drop 0).take 32)
     hxlen
     (by
       rw [List.length_take, List.length_drop, hwslen]
@@ -1249,34 +1247,34 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         omega)
     (by decide)
   have hcalleeB1 : cpsTripleWithin
-      ((secfBeToLeFn inPtr (0xa3c05618 : Word) xBE
+      ((secfBeToLeFn inPtr (GuestAddrs.secc_le_p1 : Word) xBE
         ((ws.drop 0).take 32)).body.steps + 1)
-      (0x8001fcdc : Word) (0x800205c4 : Word) pdCr
-      (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
-        ** ((.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ (0xa3c05618 : Word))
+      (GuestAddrs.secf_be_to_le : Word) ((GuestAddrs.secp256k1_point_double + 76) : Word) pdCr
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
+        ** ((.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ (GuestAddrs.secc_le_p1 : Word))
           ** regOwns convScratch
-          ** bytesRegion (0xa3c05618 : Word) ((ws.drop 0).take 32)
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ((ws.drop 0).take 32)
           ** bytesRegion inPtr xBE))
-      (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
         ** (fun hp => ∃ ws',
           ((⌜wsNat256 ws' 0 = beBytesToNat xBE ∧ ws'.length = 32⌝
             ** regOwns exposedRegs
-            ** bytesRegion (0xa3c05618 : Word) ws'
+            ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws'
             ** bytesRegion inPtr xBE)) hp)) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun h hq => ?_) hflatB1
     obtain ⟨ws', hin⟩ := hq
     refine exists_pull h ⟨ws', ?_⟩
     xperm_hyp hin
-  have hcallB1 := callWithin_spec (0x800205c0 : Word) (0x8001fcdc : Word)
-    (0x80020598 : Word)
+  have hcallB1 := callWithin_spec ((GuestAddrs.secp256k1_point_double + 72) : Word) (GuestAddrs.secf_be_to_le : Word)
+    ((GuestAddrs.secp256k1_point_double + 32) : Word)
     (jalOff GuestAddrs.secf_be_to_le
       (GuestAddrs.secp256k1_point_double + 72))
-    ((secfBeToLeFn inPtr (0xa3c05618 : Word) xBE
+    ((secfBeToLeFn inPtr (GuestAddrs.secc_le_p1 : Word) xBE
       ((ws.drop 0).take 32)).body.steps + 1)
     (by decide) (by code_mem) (by pcf) hcalleeB1
-  rw [show (0x800205c0 : Word) + 4 = (0x800205c4 : Word) from by decide,
-    show (secfBeToLeFn inPtr (0xa3c05618 : Word) xBE
+  rw [show ((GuestAddrs.secp256k1_point_double + 72) : Word) + 4 = ((GuestAddrs.secp256k1_point_double + 76) : Word) from by decide,
+    show (secfBeToLeFn inPtr (GuestAddrs.secc_le_p1 : Word) xBE
         ((ws.drop 0).take 32)).body.steps
       = (secfBeToLeFn 0 0 [] []).body.steps from rfl] at hcallB1
   -- ---- frames + chain ----
@@ -1308,21 +1306,21 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       ** bytesRegion arenaB ws)
     (by pcf) hcall1
   have hbeqF := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80020598 : Word)) ** (.x8 ↦ᵣ inPtr)
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 32) : Word)) ** (.x8 ↦ᵣ inPtr)
       ** (.x9 ↦ᵣ outPtr) ** regOwns a0Rest
       ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
       ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
       ** bytesRegion arenaB ws)
     (by pcf) hbeq
   have hm3F := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80020598 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 32) : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
       ** (.x9 ↦ᵣ outPtr) ** regOwn .x11 ** regOwns convScratch
       ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
       ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
       ** bytesRegion arenaB ws)
     (by pcf) hm3
   have hla11F := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ (0x80020598 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
+    (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 32) : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
       ** (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ inPtr)
       ** regOwns convScratch
       ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
@@ -1376,7 +1374,7 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       -- strip the branch verdict, split x10/x11 back out of a0Rest
       have hp1 : ((⌜(0 : Word) = (0 : Word)⌝ : Assertion)
           ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
-            ** ((.x1 : Reg) ↦ᵣ (0x80020598 : Word)) ** (.x8 ↦ᵣ inPtr)
+            ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 32) : Word)) ** (.x8 ↦ᵣ inPtr)
             ** (.x9 ↦ᵣ outPtr) ** regOwns a0Rest
             ** bytesRegion inPtr xBE ** bytesRegion (inPtr + 32) yBE
             ** bytesRegion outPtr oX ** bytesRegion (outPtr + 32) oY
@@ -1392,13 +1390,13 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       -- carve the `_x` window out of the staging point
       rw [bytesRegion_window_focus arenaB ws 0 32 (by omega) (by norm_num)
             (by norm_num),
-          show arenaB + BitVec.ofNat 64 0 = (0xa3c05618 : Word)
+          show arenaB + BitVec.ofNat 64 0 = (GuestAddrs.secc_le_p1 : Word)
             from by decide] at hp
       xperm_hyp hp) hg6 hcallB1F
   have hg7' : cpsTripleWithin
       (10 + ((secfIsZero32Fn 0 []).body.steps + 1)
         + ((secfBeToLeFn 0 0 [] []).body.steps + 1))
-      (0x80020588 : Word) (0x800205c4 : Word) pdCr
+      ((GuestAddrs.secp256k1_point_double + 16) : Word) ((GuestAddrs.secp256k1_point_double + 76) : Word) pdCr
       (((.x10 ↦ᵣ inPtr) ** (.x8 ↦ᵣ v8))
         ** (((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
           ** (.x9 ↦ᵣ v9) ** (.x11 ↦ᵣ outPtr) ** regOwns convScratch
@@ -1407,8 +1405,8 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
           ** bytesRegion arenaB ws))
       (fun hp => ∃ ws₁,
         ((⌜wsNat256 ws₁ 0 = beBytesToNat xBE ∧ ws₁.length = 32⌝
-          ** ((.x1 : Reg) ↦ᵣ (0x800205c4 : Word)) ** regOwns exposedRegs
-          ** bytesRegion (0xa3c05618 : Word) ws₁ ** bytesRegion inPtr xBE
+          ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word)) ** regOwns exposedRegs
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws₁ ** bytesRegion inPtr xBE
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
           ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion (inPtr + 32) yBE
@@ -1420,9 +1418,9 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
     have hq1 : ((fun hp => ∃ ws',
         ((⌜wsNat256 ws' 0 = beBytesToNat xBE ∧ ws'.length = 32⌝
           ** regOwns exposedRegs
-          ** bytesRegion (0xa3c05618 : Word) ws'
+          ** bytesRegion (GuestAddrs.secc_le_p1 : Word) ws'
           ** bytesRegion inPtr xBE)) hp)
-        ** (((.x1 : Reg) ↦ᵣ (0x800205c4 : Word))
+        ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secp256k1_point_double + 76) : Word))
           ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ inPtr)
           ** (.x9 ↦ᵣ outPtr)
           ** bytesRegion (inPtr + 32) yBE

@@ -34,24 +34,24 @@ namespace BloomEqSAsm
 #guard GuestAddrs.bloom_eq = 0x80011dfc
 
 /-
-  Layout (base 0x80011dfc):
-    +0  0x80011dfc  li   x5, 32
-    +4  0x80011e00  mv   x6, x10
-    +8  0x80011e04  mv   x7, x11
-    +12 0x80011e08  li   x30, 0
-    +16 0x80011e0c  beq  x5, x0, +36  → 0x80011e30   [hdr]
-    +20 0x80011e10  ld   x28, 0(x6)
-    +24 0x80011e14  ld   x29, 0(x7)
-    +28 0x80011e18  xor  x28, x28, x29
-    +32 0x80011e1c  or   x30, x30, x28
-    +36 0x80011e20  addi x6, x6, 8
-    +40 0x80011e24  addi x7, x7, 8
-    +44 0x80011e28  addi x5, x5, -1
-    +48 0x80011e2c  jal  x0, -32      → 0x80011e0c
-    +52 0x80011e30  sltiu x30, x30, 1
-    +56 0x80011e34  sd   x12, x30, 0
-    +60 0x80011e38  li   x10, 0
-    +64 0x80011e3c  jalr x0, x1, 0
+  Layout (base GuestAddrs.bloom_eq):
+    +0  GuestAddrs.bloom_eq  li   x5, 32
+    +4  (GuestAddrs.bloom_eq + 4)  mv   x6, x10
+    +8  (GuestAddrs.bloom_eq + 8)  mv   x7, x11
+    +12 (GuestAddrs.bloom_eq + 12)  li   x30, 0
+    +16 (GuestAddrs.bloom_eq + 16)  beq  x5, x0, +36  → (GuestAddrs.bloom_eq + 52)   [hdr]
+    +20 (GuestAddrs.bloom_eq + 20)  ld   x28, 0(x6)
+    +24 (GuestAddrs.bloom_eq + 24)  ld   x29, 0(x7)
+    +28 (GuestAddrs.bloom_eq + 28)  xor  x28, x28, x29
+    +32 (GuestAddrs.bloom_eq + 32)  or   x30, x30, x28
+    +36 (GuestAddrs.bloom_eq + 36)  addi x6, x6, 8
+    +40 (GuestAddrs.bloom_eq + 40)  addi x7, x7, 8
+    +44 (GuestAddrs.bloom_eq + 44)  addi x5, x5, -1
+    +48 (GuestAddrs.bloom_eq + 48)  jal  x0, -32      → (GuestAddrs.bloom_eq + 16)
+    +52 (GuestAddrs.bloom_eq + 52)  sltiu x30, x30, 1
+    +56 (GuestAddrs.bloom_eq + 56)  sd   x12, x30, 0
+    +60 (GuestAddrs.bloom_eq + 60)  li   x10, 0
+    +64 (GuestAddrs.bloom_eq + 64)  jalr x0, x1, 0
 -/
 
 section Scan
@@ -115,11 +115,11 @@ private def bePost : Assertion :=
 private theorem beIter_spec
     (hlenA : bsA.length = 256) (hlenB : bsB.length = 256)
     (i : Nat) (hi : i < 32) :
-    cpsTripleWithin 9 (0x80011e0c : Word) (0x80011e0c : Word)
-      (CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog)
+    cpsTripleWithin 9 ((GuestAddrs.bloom_eq + 16) : Word) ((GuestAddrs.bloom_eq + 16) : Word)
+      (CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog)
       (beInv aPtr bPtr outPtr ret bsA bsB i)
       (beInv aPtr bPtr outPtr ret bsA bsB (i + 1)) := by
-  set CR := CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog with hCR
   unfold beInv
   -- peel this iteration's scratch registers x28, x29
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -150,59 +150,59 @@ private theorem beIter_spec
       (fun v29 => ?_))
   -- ---- the body instructions ----
   have hldA := liftCode (cr' := CR)
-    (bytesRegion_ld_cursor_within .x28 .x6 aPtr v28 (0x80011e10 : Word)
+    (bytesRegion_ld_cursor_within .x28 .x6 aPtr v28 ((GuestAddrs.bloom_eq + 20) : Word)
       bsA i (by decide) (by omega))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e10 : Word) + 4 = (0x80011e14 : Word) from by decide,
+  rw [show ((GuestAddrs.bloom_eq + 20) : Word) + 4 = ((GuestAddrs.bloom_eq + 24) : Word) from by decide,
       show packBytes ((bsA.drop (8 * i)).take 8) = dwordSlot bsA i from rfl]
     at hldA
   have hldB := liftCode (cr' := CR)
-    (bytesRegion_ld_cursor_within .x29 .x7 bPtr v29 (0x80011e14 : Word)
+    (bytesRegion_ld_cursor_within .x29 .x7 bPtr v29 ((GuestAddrs.bloom_eq + 24) : Word)
       bsB i (by decide) (by omega))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e14 : Word) + 4 = (0x80011e18 : Word) from by decide,
+  rw [show ((GuestAddrs.bloom_eq + 24) : Word) + 4 = ((GuestAddrs.bloom_eq + 28) : Word) from by decide,
       show packBytes ((bsB.drop (8 * i)).take 8) = dwordSlot bsB i from rfl]
     at hldB
   have hxor := liftCode (cr' := CR)
     (xor_spec_gen_rd_eq_rs1_within .x28 .x29 (dwordSlot bsA i)
-      (dwordSlot bsB i) (0x80011e18 : Word) (by decide))
+      (dwordSlot bsB i) ((GuestAddrs.bloom_eq + 28) : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e18 : Word) + 4 = (0x80011e1c : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 28) : Word) + 4 = ((GuestAddrs.bloom_eq + 32) : Word) from by decide]
     at hxor
   have hor := liftCode (cr' := CR)
     (or_spec_gen_rd_eq_rs1_within .x30 .x28
       (xorAcc bsA bsB i) (dwordSlot bsA i ^^^ dwordSlot bsB i)
-      (0x80011e1c : Word) (by decide))
+      ((GuestAddrs.bloom_eq + 32) : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e1c : Word) + 4 = (0x80011e20 : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 32) : Word) + 4 = ((GuestAddrs.bloom_eq + 36) : Word) from by decide]
     at hor
   have haddi6 := liftCode (cr' := CR)
     (addi_spec_gen_same_within .x6 (aPtr + BitVec.ofNat 64 (8 * i))
-      (8 : BitVec 12) (0x80011e20 : Word) (by decide))
+      (8 : BitVec 12) ((GuestAddrs.bloom_eq + 36) : Word) (by decide))
     (by rw [hCR]; code_mem)
   rw [cursor_advance aPtr i,
-      show (0x80011e20 : Word) + 4 = (0x80011e24 : Word) from by decide]
+      show ((GuestAddrs.bloom_eq + 36) : Word) + 4 = ((GuestAddrs.bloom_eq + 40) : Word) from by decide]
     at haddi6
   have haddi7 := liftCode (cr' := CR)
     (addi_spec_gen_same_within .x7 (bPtr + BitVec.ofNat 64 (8 * i))
-      (8 : BitVec 12) (0x80011e24 : Word) (by decide))
+      (8 : BitVec 12) ((GuestAddrs.bloom_eq + 40) : Word) (by decide))
     (by rw [hCR]; code_mem)
   rw [cursor_advance bPtr i,
-      show (0x80011e24 : Word) + 4 = (0x80011e28 : Word) from by decide]
+      show ((GuestAddrs.bloom_eq + 40) : Word) + 4 = ((GuestAddrs.bloom_eq + 44) : Word) from by decide]
     at haddi7
   have haddi5 := liftCode (cr' := CR)
     (addi_spec_gen_same_within .x5 (BitVec.ofNat 64 (32 - i))
-      (-1 : BitVec 12) (0x80011e28 : Word) (by decide))
+      (-1 : BitVec 12) ((GuestAddrs.bloom_eq + 44) : Word) (by decide))
     (by rw [hCR]; code_mem)
   rw [ctr_dec i hi,
-      show (0x80011e28 : Word) + 4 = (0x80011e2c : Word) from by decide]
+      show ((GuestAddrs.bloom_eq + 44) : Word) + 4 = ((GuestAddrs.bloom_eq + 48) : Word) from by decide]
     at haddi5
   have hjal := liftCode (cr' := CR)
-    (jal_x0_spec_gen_within (-32 : BitVec 21) (0x80011e2c : Word))
+    (jal_x0_spec_gen_within (-32 : BitVec 21) ((GuestAddrs.bloom_eq + 48) : Word))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e2c : Word) + signExtend21 (-32 : BitVec 21)
-    = (0x80011e0c : Word) from by decide] at hjal
-  -- ---- frames + chain of the body (from 0x80011e10) ----
+  rw [show ((GuestAddrs.bloom_eq + 48) : Word) + signExtend21 (-32 : BitVec 21)
+    = ((GuestAddrs.bloom_eq + 16) : Word) from by decide] at hjal
+  -- ---- frames + chain of the body (from (GuestAddrs.bloom_eq + 20)) ----
   have hldAF := cpsTripleWithin_frameR
     (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
       ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 (8 * i))) **
@@ -315,14 +315,14 @@ private theorem beIter_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (36 : BitVec 13)
-        (BitVec.ofNat 64 (32 - i)) (0 : Word) (0x80011e0c : Word))
+        (BitVec.ofNat 64 (32 - i)) (0 : Word) ((GuestAddrs.bloom_eq + 16) : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80011e0c : Word) + signExtend13 (36 : BitVec 13)
-        = (0x80011e30 : Word) from by decide,
-      show (0x80011e0c : Word) + 4 = (0x80011e10 : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 16) : Word) + signExtend13 (36 : BitVec 13)
+        = ((GuestAddrs.bloom_eq + 52) : Word) from by decide,
+      show ((GuestAddrs.bloom_eq + 16) : Word) + 4 = ((GuestAddrs.bloom_eq + 20) : Word) from by decide]
     at hbrHdr
   -- the body must re-own x28/x29 into the invariant
-  have hbody : cpsTripleWithin 8 (0x80011e10 : Word) (0x80011e0c : Word) CR
+  have hbody : cpsTripleWithin 8 ((GuestAddrs.bloom_eq + 20) : Word) ((GuestAddrs.bloom_eq + 16) : Word) CR
       (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - i)) **
         ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 (8 * i))) **
         ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 (8 * i))) **
@@ -387,11 +387,11 @@ private theorem beIter_spec
 private theorem beExh_spec
     (hlenA : bsA.length = 256) (hlenB : bsB.length = 256)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 5 (0x80011e0c : Word) ret
-      (CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog)
+    cpsTripleWithin 5 ((GuestAddrs.bloom_eq + 16) : Word) ret
+      (CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog)
       (beInv aPtr bPtr outPtr ret bsA bsB 32)
       (bePost aPtr bPtr outPtr ret bsA bsB) := by
-  set CR := CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog with hCR
   unfold beInv
   have hflag : (if BitVec.ult (xorAcc bsA bsB 32) (1 : Word)
       then (1 : Word) else (0 : Word))
@@ -415,31 +415,31 @@ private theorem beExh_spec
   -- sltiu x30, x30, 1
   have hsltiu := liftCode (cr' := CR)
     (sltiu_spec_gen_same_within .x30 (xorAcc bsA bsB 32) (1 : BitVec 12)
-      (0x80011e30 : Word) (by decide))
+      ((GuestAddrs.bloom_eq + 52) : Word) (by decide))
     (by rw [hCR]; code_mem)
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
       hflag,
-      show (0x80011e30 : Word) + 4 = (0x80011e34 : Word) from by decide]
+      show ((GuestAddrs.bloom_eq + 52) : Word) + 4 = ((GuestAddrs.bloom_eq + 56) : Word) from by decide]
     at hsltiu
   -- sd x30, 0(x12)
   have hsd := liftCode (cr' := CR)
     (sd_spec_gen_own_within .x12 .x30 outPtr
       (if bsA = bsB then (1 : Word) else (0 : Word)) (0 : BitVec 12)
-      (0x80011e34 : Word))
+      ((GuestAddrs.bloom_eq + 56) : Word))
     (by rw [hCR]; code_mem)
   rw [show outPtr + signExtend12 (0 : BitVec 12) = outPtr from by
         rw [signExtend12_0]; bv_omega,
-      show (0x80011e34 : Word) + 4 = (0x80011e38 : Word) from by decide]
+      show ((GuestAddrs.bloom_eq + 56) : Word) + 4 = ((GuestAddrs.bloom_eq + 60) : Word) from by decide]
     at hsd
   -- li a0, 0
   have hli := liftCode (cr' := CR)
-    (li_spec_gen_within .x10 aPtr (0 : Word) (0x80011e38 : Word) (by decide))
+    (li_spec_gen_within .x10 aPtr (0 : Word) ((GuestAddrs.bloom_eq + 60) : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e38 : Word) + 4 = (0x80011e3c : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 60) : Word) + 4 = ((GuestAddrs.bloom_eq + 64) : Word) from by decide]
     at hli
   -- ret
   have hret := liftCode (cr' := CR)
-    (EvmAsm.Evm64.ret_spec_within' (0x80011e3c : Word) ret)
+    (EvmAsm.Evm64.ret_spec_within' ((GuestAddrs.bloom_eq + 64) : Word) ret)
     (by rw [hCR]; code_mem)
   rw [halignRet] at hret
   -- frames
@@ -491,7 +491,7 @@ private theorem beExh_spec
   have htail3 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) htail2 hretF
   -- the tail weakened into the genuine post
-  have htailQ : cpsTripleWithin 4 (0x80011e30 : Word) ret CR
+  have htailQ : cpsTripleWithin 4 ((GuestAddrs.bloom_eq + 52) : Word) ret CR
       (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (32 - 32)) **
         ((.x6 : Reg) ↦ᵣ (aPtr + BitVec.ofNat 64 (8 * 32))) **
         ((.x7 : Reg) ↦ᵣ (bPtr + BitVec.ofNat 64 (8 * 32))) **
@@ -534,11 +534,11 @@ private theorem beExh_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (36 : BitVec 13)
-        (BitVec.ofNat 64 (32 - 32)) (0 : Word) (0x80011e0c : Word))
+        (BitVec.ofNat 64 (32 - 32)) (0 : Word) ((GuestAddrs.bloom_eq + 16) : Word))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x80011e0c : Word) + signExtend13 (36 : BitVec 13)
-        = (0x80011e30 : Word) from by decide,
-      show (0x80011e0c : Word) + 4 = (0x80011e10 : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 16) : Word) + signExtend13 (36 : BitVec 13)
+        = ((GuestAddrs.bloom_eq + 52) : Word) from by decide,
+      show ((GuestAddrs.bloom_eq + 16) : Word) + 4 = ((GuestAddrs.bloom_eq + 20) : Word) from by decide]
     at hbrHdr
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
@@ -581,8 +581,8 @@ end Scan
 theorem bloomEq_spec (aPtr bPtr outPtr ret : Word) (bsA bsB : List (BitVec 8))
     (hlenA : bsA.length = 256) (hlenB : bsB.length = 256)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 297 (0x80011dfc : Word) ret
-      (CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog)
+    cpsTripleWithin 297 (GuestAddrs.bloom_eq : Word) ret
+      (CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog)
       (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
         ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -596,7 +596,7 @@ theorem bloomEq_spec (aPtr bPtr outPtr ret : Word) (bsA bsB : List (BitVec 8))
         regOwn .x29 ** regOwn .x30 **
         bytesRegion aPtr bsA ** bytesRegion bPtr bsB **
         (outPtr ↦ₘ (if bsA = bsB then (1 : Word) else (0 : Word)))) := by
-  set CR := CodeReq.ofProg (0x80011dfc : Word) bloomEq_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.bloom_eq : Word) bloomEq_prog with hCR
   -- peel x5, x6, x7, x30 for the init writes
   refine cpsTripleWithin_weaken
     (fun h hp => by
@@ -612,31 +612,31 @@ theorem bloomEq_spec (aPtr bPtr outPtr ret : Word) (bsA bsB : List (BitVec 8))
   simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
   -- ---- init: li x5, 32 ; mv x6, a0 ; mv x7, a1 ; li x30, 0 ----
   have hli5 := liftCode (cr' := CR)
-    (li_spec_gen_within .x5 (vf .x5) (32 : Word) (0x80011dfc : Word)
+    (li_spec_gen_within .x5 (vf .x5) (32 : Word) (GuestAddrs.bloom_eq : Word)
       (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011dfc : Word) + 4 = (0x80011e00 : Word) from by decide]
+  rw [show (GuestAddrs.bloom_eq : Word) + 4 = ((GuestAddrs.bloom_eq + 4) : Word) from by decide]
     at hli5
   have hmv6 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x6 .x10 aPtr (vf .x6) (0x80011e00 : Word)
+    (mv_spec_gen_within .x6 .x10 aPtr (vf .x6) ((GuestAddrs.bloom_eq + 4) : Word)
       (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e00 : Word) + 4 = (0x80011e04 : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 4) : Word) + 4 = ((GuestAddrs.bloom_eq + 8) : Word) from by decide]
     at hmv6
   have hmv7 := liftCode (cr' := CR)
-    (mv_spec_gen_within .x7 .x11 bPtr (vf .x7) (0x80011e04 : Word)
+    (mv_spec_gen_within .x7 .x11 bPtr (vf .x7) ((GuestAddrs.bloom_eq + 8) : Word)
       (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e04 : Word) + 4 = (0x80011e08 : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 8) : Word) + 4 = ((GuestAddrs.bloom_eq + 12) : Word) from by decide]
     at hmv7
   have hli30 := liftCode (cr' := CR)
-    (li_spec_gen_within .x30 (vf .x30) (0 : Word) (0x80011e08 : Word)
+    (li_spec_gen_within .x30 (vf .x30) (0 : Word) ((GuestAddrs.bloom_eq + 12) : Word)
       (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x80011e08 : Word) + 4 = (0x80011e0c : Word) from by decide]
+  rw [show ((GuestAddrs.bloom_eq + 12) : Word) + 4 = ((GuestAddrs.bloom_eq + 16) : Word) from by decide]
     at hli30
   -- ---- the loop ----
-  have hloop := retLoop_spec (hdr := (0x80011e0c : Word)) (ret := ret)
+  have hloop := retLoop_spec (hdr := ((GuestAddrs.bloom_eq + 16) : Word)) (ret := ret)
     (cr := CR) (Q := bePost aPtr bPtr outPtr ret bsA bsB) 32 9 5
     (beInv aPtr bPtr outPtr ret bsA bsB)
     (fun i hi => beIter_spec aPtr bPtr outPtr ret bsA bsB hlenA hlenB i hi)
