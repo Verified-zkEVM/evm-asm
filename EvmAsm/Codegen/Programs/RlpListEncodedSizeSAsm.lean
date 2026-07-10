@@ -48,20 +48,20 @@ namespace RlpListEncodedSizeSAsm
 #guard GuestAddrs.rlp_list_encoded_size = 0x8000ae20
 
 /-
-  Layout (base 0x8000ae20):
-    +0  0x8000ae20  li   x5, 56
-    +4  0x8000ae24  bgeu x10, x5, +12 → 0x8000ae30
-    +8  0x8000ae28  addi x10, x10, 1
-    +12 0x8000ae2c  jalr (short ret)
-    +16 0x8000ae30  mv   x5, x10
-    +20 0x8000ae34  li   x6, 0
-    +24 0x8000ae38  beq  x5, x0, +16 → 0x8000ae48   [hdr]
-    +28 0x8000ae3c  srli x5, x5, 8
-    +32 0x8000ae40  addi x6, x6, 1
-    +36 0x8000ae44  jal  x0, -12     → 0x8000ae38
-    +40 0x8000ae48  add  x10, x10, x6
-    +44 0x8000ae4c  addi x10, x10, 1
-    +48 0x8000ae50  jalr (long ret)
+  Layout relative to `GuestAddrs.rlp_list_encoded_size`:
+    +0   li   x5, 56
+    +4   bgeu x10, x5, +12 → +16
+    +8   addi x10, x10, 1
+    +12  jalr (short ret)
+    +16  mv   x5, x10
+    +20  li   x6, 0
+    +24  beq  x5, x0, +16 → +40   [hdr]
+    +28  srli x5, x5, 8
+    +32  addi x6, x6, 1
+    +36  jal  x0, -12     → +24
+    +40  add  x10, x10, x6
+    +44  addi x10, x10, 1
+    +48  jalr (long ret)
 -/
 
 -- ============================================================================
@@ -179,12 +179,12 @@ private def rlsPost : Assertion :=
 /-- One `while` iteration (`i < u64ByteLen v`): guard not taken, shift,
     bump, loop. -/
 private theorem rlsIter_spec (i : Nat) (hi : i < u64ByteLen v) :
-    cpsBranchWithin 4 (0x8000ae38 : Word)
-      (CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog)
+    cpsBranchWithin 4 ((GuestAddrs.rlp_list_encoded_size : Word) + 24)
+      (CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog)
       (rlsInv v ret i)
       ret (rlsPost v ret)
-      (0x8000ae38 : Word) (rlsInv v ret (i + 1)) := by
-  set CR := CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog with hCR
+      ((GuestAddrs.rlp_list_encoded_size : Word) + 24) (rlsInv v ret (i + 1)) := by
+  set CR := CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog with hCR
   have hN8 := u64ByteLen_le v
   unfold rlsInv
   -- guard (never taken at i < byteLen)
@@ -194,32 +194,32 @@ private theorem rlsIter_spec (i : Nat) (hi : i < u64ByteLen v) :
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (16 : BitVec 13) (v >>> (8 * i))
-        (0 : Word) (0x8000ae38 : Word))
+        (0 : Word) ((GuestAddrs.rlp_list_encoded_size : Word) + 24))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x8000ae38 : Word) + signExtend13 (16 : BitVec 13)
-        = (0x8000ae48 : Word) from by decide,
-      show (0x8000ae38 : Word) + 4 = (0x8000ae3c : Word) from by decide]
+  rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 24) + signExtend13 (16 : BitVec 13)
+        = ((GuestAddrs.rlp_list_encoded_size : Word) + 40) from by decide,
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 24) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 28) from by decide]
     at hbr
   -- srli x5, x5, 8 ; addi x6, x6, 1 ; jal hdr
   have hsrli := liftCode (cr' := CR)
     (srli_spec_gen_same_within .x5 (v >>> (8 * i)) (8 : BitVec 6)
-      (0x8000ae3c : Word) (by decide))
+      ((GuestAddrs.rlp_list_encoded_size : Word) + 28) (by decide))
     (by rw [hCR]; code_mem)
   rw [shift_step v i,
-      show (0x8000ae3c : Word) + 4 = (0x8000ae40 : Word) from by decide]
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 28) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 32) from by decide]
     at hsrli
   have haddi := liftCode (cr' := CR)
     (addi_spec_gen_same_within .x6 (BitVec.ofNat 64 i) (1 : BitVec 12)
-      (0x8000ae40 : Word) (by decide))
+      ((GuestAddrs.rlp_list_encoded_size : Word) + 32) (by decide))
     (by rw [hCR]; code_mem)
   rw [cnt_step_up i (by omega),
-      show (0x8000ae40 : Word) + 4 = (0x8000ae44 : Word) from by decide]
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 32) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 36) from by decide]
     at haddi
   have hjal := liftCode (cr' := CR)
-    (jal_x0_spec_gen_within (-12 : BitVec 21) (0x8000ae44 : Word))
+    (jal_x0_spec_gen_within (-12 : BitVec 21) ((GuestAddrs.rlp_list_encoded_size : Word) + 36))
     (by rw [hCR]; code_mem)
-  rw [show (0x8000ae44 : Word) + signExtend21 (-12 : BitVec 21)
-    = (0x8000ae38 : Word) from by decide] at hjal
+  rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 36) + signExtend21 (-12 : BitVec 21)
+    = ((GuestAddrs.rlp_list_encoded_size : Word) + 24) from by decide] at hjal
   have hsrliF := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x10 : Reg) ↦ᵣ v) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
@@ -239,7 +239,7 @@ private theorem rlsIter_spec (i : Nat) (hi : i < u64ByteLen v) :
     (fun _ hp => by
       rw [sepConj_emp_left']
       xperm_hyp hp) hc1 hjalF
-  have hcont : cpsTripleWithin 3 (0x8000ae3c : Word) (0x8000ae38 : Word) CR
+  have hcont : cpsTripleWithin 3 ((GuestAddrs.rlp_list_encoded_size : Word) + 28) ((GuestAddrs.rlp_list_encoded_size : Word) + 24) CR
       (((.x5 : Reg) ↦ᵣ (v >>> (8 * i))) **
         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x10 : Reg) ↦ᵣ v) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
@@ -269,11 +269,11 @@ private theorem rlsIter_spec (i : Nat) (hi : i < u64ByteLen v) :
     materialized and returned. -/
 private theorem rlsExh_spec
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 4 (0x8000ae38 : Word) ret
-      (CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog)
+    cpsTripleWithin 4 ((GuestAddrs.rlp_list_encoded_size : Word) + 24) ret
+      (CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog)
       (rlsInv v ret (u64ByteLen v))
       (rlsPost v ret) := by
-  set CR := CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog with hCR
   unfold rlsInv
   -- guard, taken (shift vanished)
   have hbr := cpsBranchWithin_frameR
@@ -282,28 +282,28 @@ private theorem rlsExh_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := beq_spec_gen_within .x5 .x0 (16 : BitVec 13)
-        (v >>> (8 * u64ByteLen v)) (0 : Word) (0x8000ae38 : Word))
+        (v >>> (8 * u64ByteLen v)) (0 : Word) ((GuestAddrs.rlp_list_encoded_size : Word) + 24))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x8000ae38 : Word) + signExtend13 (16 : BitVec 13)
-        = (0x8000ae48 : Word) from by decide,
-      show (0x8000ae38 : Word) + 4 = (0x8000ae3c : Word) from by decide]
+  rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 24) + signExtend13 (16 : BitVec 13)
+        = ((GuestAddrs.rlp_list_encoded_size : Word) + 40) from by decide,
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 24) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 28) from by decide]
     at hbr
   -- add a0, a0, t1 ; addi a0, a0, 1 ; ret
   have hadd := liftCode (cr' := CR)
     (add_spec_gen_rd_eq_rs1_within .x10 .x6 v
-      (BitVec.ofNat 64 (u64ByteLen v)) (0x8000ae48 : Word) (by decide))
+      (BitVec.ofNat 64 (u64ByteLen v)) ((GuestAddrs.rlp_list_encoded_size : Word) + 40) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x8000ae48 : Word) + 4 = (0x8000ae4c : Word) from by decide]
+  rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 40) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 44) from by decide]
     at hadd
   have haddi := liftCode (cr' := CR)
     (addi_spec_gen_same_within .x10 (v + BitVec.ofNat 64 (u64ByteLen v))
-      (1 : BitVec 12) (0x8000ae4c : Word) (by decide))
+      (1 : BitVec 12) ((GuestAddrs.rlp_list_encoded_size : Word) + 44) (by decide))
     (by rw [hCR]; code_mem)
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
-      show (0x8000ae4c : Word) + 4 = (0x8000ae50 : Word) from by decide]
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 44) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 48) from by decide]
     at haddi
   have hret := liftCode (cr' := CR)
-    (EvmAsm.Evm64.ret_spec_within' (0x8000ae50 : Word) ret)
+    (EvmAsm.Evm64.ret_spec_within' ((GuestAddrs.rlp_list_encoded_size : Word) + 48) ret)
     (by rw [hCR]; code_mem)
   rw [halignRet] at hret
   have haddF := cpsTripleWithin_frameR
@@ -325,7 +325,7 @@ private theorem rlsExh_spec
     (fun _ hp => by xperm_hyp hp) haddF haddiF
   have htail2 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) htail1 hretF
-  have htailQ : cpsTripleWithin 3 (0x8000ae48 : Word) ret CR
+  have htailQ : cpsTripleWithin 3 ((GuestAddrs.rlp_list_encoded_size : Word) + 40) ret CR
       (((.x5 : Reg) ↦ᵣ (v >>> (8 * u64ByteLen v))) **
         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (u64ByteLen v)) **
         ((.x10 : Reg) ↦ᵣ v) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -366,15 +366,15 @@ private theorem rlsExh_spec
     `u64ByteLen` by the shift bridges. -/
 theorem rlpListEncodedSize_spec
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin 40 (0x8000ae20 : Word) ret
-      (CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog)
+    cpsTripleWithin 40 (GuestAddrs.rlp_list_encoded_size : Word) ret
+      (CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog)
       (((.x10 : Reg) ↦ᵣ v) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6)
       (((.x10 : Reg) ↦ᵣ (if BitVec.ult v (56 : Word) then v + (1 : Word)
           else (v + BitVec.ofNat 64 (u64ByteLen v)) + (1 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6) := by
-  set CR := CodeReq.ofProg (0x8000ae20 : Word) rlpListEncodedSize_prog with hCR
+  set CR := CodeReq.ofProg (GuestAddrs.rlp_list_encoded_size : Word) rlpListEncodedSize_prog with hCR
   have hN8 := u64ByteLen_le v
   -- peel x5, x6
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -391,9 +391,9 @@ theorem rlpListEncodedSize_spec
       (fun v6 => ?_))
   -- li x5, 56
   have hli := liftCode (cr' := CR)
-    (li_spec_gen_within .x5 v5 (56 : Word) (0x8000ae20 : Word) (by decide))
+    (li_spec_gen_within .x5 v5 (56 : Word) (GuestAddrs.rlp_list_encoded_size : Word) (by decide))
     (by rw [hCR]; code_mem)
-  rw [show (0x8000ae20 : Word) + 4 = (0x8000ae24 : Word) from by decide] at hli
+  rw [show (GuestAddrs.rlp_list_encoded_size : Word) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 4) from by decide] at hli
   -- bgeu a0, t0 (the short/long dispatch)
   have hbr := cpsBranchWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -401,15 +401,15 @@ theorem rlpListEncodedSize_spec
     (by pcf)
     (cpsBranchWithin_extend_code (cr' := CR)
       (h := bgeu_spec_gen_within .x10 .x5 (12 : BitVec 13) v (56 : Word)
-        (0x8000ae24 : Word))
+        ((GuestAddrs.rlp_list_encoded_size : Word) + 4))
       (hmono := by rw [hCR]; code_mem))
-  rw [show (0x8000ae24 : Word) + signExtend13 (12 : BitVec 13)
-        = (0x8000ae30 : Word) from by decide,
-      show (0x8000ae24 : Word) + 4 = (0x8000ae28 : Word) from by decide]
+  rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 4) + signExtend13 (12 : BitVec 13)
+        = ((GuestAddrs.rlp_list_encoded_size : Word) + 16) from by decide,
+      show ((GuestAddrs.rlp_list_encoded_size : Word) + 4) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 8) from by decide]
     at hbr
   -- short arm: addi a0, a0, 1 ; ret
   have hshort : BitVec.ult v (56 : Word) →
-      cpsTripleWithin 38 (0x8000ae28 : Word) ret CR
+      cpsTripleWithin 38 ((GuestAddrs.rlp_list_encoded_size : Word) + 8) ret CR
         (((.x10 : Reg) ↦ᵣ v) ** ((.x5 : Reg) ↦ᵣ (56 : Word)) **
           (((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
             ((.x6 : Reg) ↦ᵣ v6)))
@@ -419,14 +419,14 @@ theorem rlpListEncodedSize_spec
           regOwn .x5 ** regOwn .x6) := by
     intro hlt
     have haddi := liftCode (cr' := CR)
-      (addi_spec_gen_same_within .x10 v (1 : BitVec 12) (0x8000ae28 : Word)
+      (addi_spec_gen_same_within .x10 v (1 : BitVec 12) ((GuestAddrs.rlp_list_encoded_size : Word) + 8)
         (by decide))
       (by rw [hCR]; code_mem)
     rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
-        show (0x8000ae28 : Word) + 4 = (0x8000ae2c : Word) from by decide]
+        show ((GuestAddrs.rlp_list_encoded_size : Word) + 8) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 12) from by decide]
       at haddi
     have hret := liftCode (cr' := CR)
-      (EvmAsm.Evm64.ret_spec_within' (0x8000ae2c : Word) ret)
+      (EvmAsm.Evm64.ret_spec_within' ((GuestAddrs.rlp_list_encoded_size : Word) + 12) ret)
       (by rw [hCR]; code_mem)
     rw [halignRet] at hret
     have haddiF := cpsTripleWithin_frameR
@@ -454,7 +454,7 @@ theorem rlpListEncodedSize_spec
       xperm_hyp hq2
   -- long arm: mv t0, a0 ; li t1, 0 ; the payload-dependent while
   have hlong : ¬ BitVec.ult v (56 : Word) →
-      cpsTripleWithin 38 (0x8000ae30 : Word) ret CR
+      cpsTripleWithin 38 ((GuestAddrs.rlp_list_encoded_size : Word) + 16) ret CR
         (((.x10 : Reg) ↦ᵣ v) ** ((.x5 : Reg) ↦ᵣ (56 : Word)) **
           (((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
             ((.x6 : Reg) ↦ᵣ v6)))
@@ -464,18 +464,18 @@ theorem rlpListEncodedSize_spec
           regOwn .x5 ** regOwn .x6) := by
     intro hge
     have hmv := liftCode (cr' := CR)
-      (mv_spec_gen_within .x5 .x10 v (56 : Word) (0x8000ae30 : Word)
+      (mv_spec_gen_within .x5 .x10 v (56 : Word) ((GuestAddrs.rlp_list_encoded_size : Word) + 16)
         (by decide))
       (by rw [hCR]; code_mem)
-    rw [show (0x8000ae30 : Word) + 4 = (0x8000ae34 : Word) from by decide]
+    rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 16) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 20) from by decide]
       at hmv
     have hli6 := liftCode (cr' := CR)
-      (li_spec_gen_within .x6 v6 (0 : Word) (0x8000ae34 : Word) (by decide))
+      (li_spec_gen_within .x6 v6 (0 : Word) ((GuestAddrs.rlp_list_encoded_size : Word) + 20) (by decide))
       (by rw [hCR]; code_mem)
-    rw [show (0x8000ae34 : Word) + 4 = (0x8000ae38 : Word) from by decide,
+    rw [show ((GuestAddrs.rlp_list_encoded_size : Word) + 20) + 4 = ((GuestAddrs.rlp_list_encoded_size : Word) + 24) from by decide,
         show (0 : Word) = BitVec.ofNat 64 0 from rfl] at hli6
     -- the payload-dependent loop: N := u64ByteLen v
-    have hloop := twoBreakRetLoop_spec (hdr := (0x8000ae38 : Word))
+    have hloop := twoBreakRetLoop_spec (hdr := ((GuestAddrs.rlp_list_encoded_size : Word) + 24))
       (ret := ret) (cr := CR) (Q := rlsPost v ret) (u64ByteLen v) 4 4
       (rlsInv v ret)
       (fun i hi => rlsIter_spec v ret i hi)
