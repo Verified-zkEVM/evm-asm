@@ -378,6 +378,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   the writable destination receives its high then low nibble, and `a0` returns
   exactly twice the input length. The proof uses a two-byte window splice and
   a named one-iteration execution/VC engine.
+  `HpEncodeNibblesSAsm.lean` verifies the byte-identical `hp_encode_nibbles`
+  leaf (`hpEncodeNibblesFn_spec`): the header records leaf/parity flags and the
+  optional first nibble, every remaining nibble pair is packed high/low into
+  one byte, and `a0` returns `1 + len / 2`. The source stays read-only and the
+  exact emitted `ite` plus pair loop is pinned to `hpEncodeNibbles_prog`.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
