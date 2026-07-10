@@ -121,6 +121,7 @@ import EvmAsm.Codegen.Programs.Bn254FieldConvSAsmLeToBe
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldLtPSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
@@ -145,6 +146,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+import EvmAsm.Codegen.Programs.Bls12G1LtPSAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
 import EvmAsm.Codegen.Programs.Bls12G2EqNSAsm
@@ -410,4 +412,14 @@ import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
+import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
+import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
+import EvmAsm.Codegen.Programs.CopyWordGasSAsm
+import EvmAsm.Codegen.Programs.Keccak256WordGasSAsm
+import EvmAsm.Codegen.Programs.LogDataGasSAsm
+import EvmAsm.Codegen.Programs.InitCodeCostSAsm
+import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
+import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
+import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
+import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm

@@ -90,6 +90,8 @@ import EvmAsm.Evm64.Terminating.ReturnHaltSpec
 import EvmAsm.Evm64.Terminating.ReturnSpec
 import EvmAsm.Evm64.Terminating.ReturnHaltResolved
 import EvmAsm.Evm64.Terminating.RevertSpec
+import EvmAsm.Evm64.Terminating.SelfdestructSpec
+import EvmAsm.Evm64.Terminating.SelfdestructHaltResolved
 import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Storage.LoadSpec
@@ -395,7 +397,21 @@ def registry : List OpcodeEntry := [
        ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
        ++ "precedents. Direct STOP clone with routing code 3 (`.exit_invalid_op`)")
       (cycleBound := some 7),
-  entry "SELFDESTRUCT" .execSpec none "SelfdestructEffects + terminating bridge",
+  entry "SELFDESTRUCT" .conditional (some "Terminating.evm_selfdestruct_stack_spec_resolved")
+      ("halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, " ++
+       "x1:=.Ldispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` " ++
+       "program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). " ++
+       "The two `la`s (`evm_halt_flag`, `.Ldispatch_resume`) are RESOLVED via `la_resolve` " ++
+       "(#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` " ++
+       "unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — " ++
+       "because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial " ++
+       "effects body BEFORE this tail that is framed OUT as the residual: cold-access gas " ++
+       "(with its own .exit_outofgas branch), new-account surcharge, EIP-6780 created-in-tx " ++
+       "detection, balance transfer to the beneficiary, EIP-7708 log, beneficiary nonstorage " ++
+       "record, and the CREATE-child frame_return path. A larger residual than RETURN/REVERT's " ++
+       "gas-only preBody; a future phase proves it against `EL/SelfdestructEffects` to earn " ++
+       "`.proven`.")
+      (cycleBound := some 7),
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -413,8 +429,8 @@ def totalEntries     : Nat := registry.length
 
 theorem provenCount_eq      : provenCount      = 67 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 3  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 15 := by decide
+theorem conditionalCount_eq : conditionalCount = 4  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 14 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -447,8 +463,8 @@ def totalBytes       : Nat :=
 
 theorem provenBytes_eq      : provenBytes      = 127 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 19  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 4   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 18  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -556,6 +572,9 @@ private noncomputable abbrev _revert_witness :=
   @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within
 private noncomputable abbrev _revert_cover :=
   @EvmAsm.Evm64.Terminating.revert_window_nondegenerate
+-- SELFDESTRUCT (0xff) halt tail with the two `la`s resolved (see the registry note).
+private noncomputable abbrev _selfdestruct_witness :=
+  @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within

@@ -34,8 +34,8 @@ selfdestruct_balance_transfer:
   li a0, 0
   j .Lsdbt_ret
 .Lsdbt_same:
-  bnez s5, .Lsdbt_same_created
-  # Same non-created account: move_ether subtracts and adds back, net no-op.
+  addi zero, zero, 0
+  # Same account: move_ether subtracts and adds back, net no-op even when created this tx.
   sd s1, 0(s6); sd s1, 8(s6)
   mv a0, s7; mv a1, s0; mv a2, s1
   jal ra, mset_memcpy
