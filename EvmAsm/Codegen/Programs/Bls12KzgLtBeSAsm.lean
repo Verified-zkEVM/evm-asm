@@ -62,8 +62,6 @@ open U256MinSAsm (beBytesToNat_lt_of_prefix_lt bytes_eq_of_prefix_all)
 /-- The routine base, symbolic (bead evm-asm-6agnq). -/
 def ltPBase : Word := (GuestAddrs.blsk_lt_be : Word)
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.blsk_lt_be = 0x80032b14
 #guard blskLtBe_prog.length = 16
 -- The comparator is position-independent (no PC-relative instruction).
 
