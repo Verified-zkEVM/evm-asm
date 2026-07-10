@@ -407,3 +407,4 @@ import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
+import EvmAsm.Codegen.Programs.FrameDepthPushSAsm

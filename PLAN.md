@@ -349,6 +349,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`callFrameSetCalldataFn_spec`, post stores `parentMem + argsOff` at offset
   416 and `argsLen` at offset 424) with byte-identity pinned to
   `callFrameSetCalldata_prog`.
+  `FrameDepthPushSAsm.lean` verifies the linked-PC `frame_depth_push` global
+  state leaf: it materializes `evm_call_depth`, increments the owned dword with
+  RV64 wrapping semantics, writes it back, and returns the new depth in `a0`,
+  with byte identity pinned to `frameDepthPush_prog`.
   `CalcExcessBlobGasSAsm.lean` verifies `calc_excess_blob_gas` as a
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
