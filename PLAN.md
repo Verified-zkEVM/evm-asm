@@ -3711,6 +3711,12 @@ an ABI-frame caller over `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with
 `blockAt`/global-data materialization for `secp256k1_p_be` and `secf_cmp`, a
 genuine post `a0 = reduceOnceFlag xs` and `dst = reduceOnceBytes xs orig`, and
 byte identity pinned by `secfReduceOnce_prog_eq`.
+`Secp256k1FieldSubModPSAsm.lean` verifies `secf_sub_mod_p` byte-identically as
+an ABI-frame caller over `u256_sub_be` and `secf_copy32`.  Its unified post
+preserves both inputs and states the exact branch semantics: copy the wrapping
+BE subtraction on no borrow, otherwise subtract the encoded `2^256 - p`
+constant; the two call-site return-address values are joined before an explicit
+saved-register restore.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
