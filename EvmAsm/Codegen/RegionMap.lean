@@ -205,8 +205,10 @@ def schemeAAnchors : List GuestRegion :=
     landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
     dropped its 256-byte cap guard (evm-asm-pwqhw). Grew further after EIP-8037
     prefix admission enforcement, parallel EEST worker result-file isolation,
-    and the self-funded EIP-7702 authorization refund fix landed. -/
-def textSizeBytes : Nat := 0x56918
+    and the self-funded EIP-7702 authorization refund fix landed. Grew by
+    `0x30` when EIP-2780 direct-authorization gas context started being
+    preserved. -/
+def textSizeBytes : Nat := 0x56948
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
