@@ -53,3 +53,13 @@ import EvmAsm.Rv64.SAsm.CallAt
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
 import EvmAsm.Rv64.SAsm.DoWhileBreakDemo
 import EvmAsm.Rv64.SAsm.EarlyRet
+import EvmAsm.Rv64.SAsm.GlobalData
+import EvmAsm.Rv64.SAsm.GlobalDataDemo
+import EvmAsm.Rv64.SAsm.BlockAtBridge
+import EvmAsm.Rv64.SAsm.RwSubwindow
+import EvmAsm.Rv64.SAsm.TwoBreakWritable
+import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.SAsm.MultiRegRetTail
+import EvmAsm.Rv64.SAsm.ContForwardJoin
+import EvmAsm.Rv64.SAsm.FnFlatAmbientDemo
+import EvmAsm.Rv64.SAsm.AccumLoop

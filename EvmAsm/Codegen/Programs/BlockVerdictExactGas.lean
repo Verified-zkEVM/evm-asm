@@ -28,7 +28,7 @@ def blockVerdictExactGasCheck : String :=
   --   tx_regular_gas = before_refund - tx_state_gas
   -- `before_refund` is `tx.gas - gas_left - state_gas_left`, so it includes
   -- regular gas plus state gas. Subtracting `bvgr_tx_total_state_gas` here is
-  -- the spec formula; EIP-7623 calldata-flooring is receipt-only.
+  -- the execution-specs formula; EIP-7623 calldata-flooring is receipt-only.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++

@@ -114,6 +114,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t1, 568(x20)\n" ++                                         -- regular gas_left
     "  bltu t1, t0, .exit_outofgas\n" ++                             -- reservoir + gas_left < 183600 -> exceptional halt
     ".Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t1, create_state_gas_charged_current\n  sd x0, 0(t1)\n" ++
     -- With account-witness context, enforce the executable-spec
     -- insufficient-balance zero-result branch before deriving success.
     "  ld a1, 584(x20)\n" ++
@@ -353,11 +354,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  sub t3, t0, t2\n  ld t2, 568(x20)\n  bltu t2, t3, 7f\n  sd x0, 0(t1)\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+    "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+    "  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  la t1, create_state_gas_charged_current\n  li t2, 1\n  sd t2, 0(t1)\n" ++
     -- CREATE uses the same call-frame arena as CALL. Mirror CALL's depth gate before
     -- create_frame_descend so recursive constructors at depth 1024 push zero instead of
     -- attempting to enter a non-protocol child frame.
@@ -511,6 +515,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  add t3, t3, t2\n" ++
     "  sd t3, 568(x20)\n" ++
     "7:\n" ++
+    "  la t0, create_state_gas_charged_current\n  ld t1, 0(t0)\n  beqz t1, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n  sd x0, 0(t0)\n" ++
+    "  li t2, 183600\n  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n  beqz t1, .Lcr_no_spill_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  mv t3, t1\n  bleu t1, t2, .Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ "\n  mv t3, t2\n.Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  sub t1, t1, t3\n  sd t1, 0(t0)\n  ld t4, 568(x20)\n  add t4, t4, t3\n  sd t4, 568(x20)\n  sub t2, t2, t3\n" ++
+    ".Lcr_no_spill_refund_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  beqz t2, .Lcr_refund_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+    ".Lcr_refund_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n  li t2, 183600\n  bltu t1, t2, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+    ".Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  sd x0, 0(x12)\n" ++
     "  sd x0, 8(x12)\n" ++

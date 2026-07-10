@@ -21,6 +21,7 @@ namespace EvmAsm.Codegen
     gates. -/
 def blockVerdictCreateCollisionBranch : String :=
   ".Lbv_creation_dispatch:\n" ++
+  "  la t0, bvgr_tx_state_refund; sd zero, 0(t0)\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, sttc_nonce; ld a1, 0(t0); la a0, bmvmx_sender_addr; la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0)\n" ++
@@ -62,6 +63,11 @@ def blockVerdictCreateCollisionBranch : String :=
   bvReceiptsShapeSet 6 true ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_creation_runtime_try:\n" ++
+  "  la t0, hcon_acct_struct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbv_creation_no_alive_refund\n" ++
+  liAmsterdamNewAccountStateGas "t1" ++
+  "  la t0, bvgr_tx_state_refund; sd t1, 0(t0)\n" ++
+  ".Lbv_creation_no_alive_refund:\n" ++
   "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n"
 

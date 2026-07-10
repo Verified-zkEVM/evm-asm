@@ -231,6 +231,52 @@ def callDescendFallThrough
     ".Lcd_xlog_restore_" ++ site ++ tag ++ ":\n" ++
     "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
     ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
+  let refundNewAccountStateGas : String → String := fun site =>
+    -- execution-specs `credit_state_gas_refund(NEW_ACCOUNT)`: refund in LIFO
+    -- order (gas_left spill first, then state reservoir) and reduce state_gas_used.
+    "  li t2, 183600
+" ++
+    "  la t0, evm_state_gas_spilled
+  ld t1, 0(t0)
+  li t3, 0
+" ++
+    "  beqz t1, .Lcd_nacc_refund_no_spill_" ++ site ++ tag ++ "
+" ++
+    "  mv t3, t1
+  bleu t1, t2, .Lcd_nacc_refund_spill_le_" ++ site ++ tag ++ "
+  mv t3, t2
+" ++
+    ".Lcd_nacc_refund_spill_le_" ++ site ++ tag ++ ":
+" ++
+    "  sub t1, t1, t3
+  sd t1, 0(t0)
+  ld t4, 568(x20)
+  add t4, t4, t3
+  sd t4, 568(x20)
+  sub t2, t2, t3
+" ++
+    ".Lcd_nacc_refund_no_spill_" ++ site ++ tag ++ ":
+" ++
+    "  beqz t2, .Lcd_nacc_refund_used_" ++ site ++ tag ++ "
+" ++
+    "  la t0, evm_state_gas_left
+  ld t1, 0(t0)
+  add t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".Lcd_nacc_refund_used_" ++ site ++ tag ++ ":
+" ++
+    "  la t0, evm_state_gas_used
+  ld t1, 0(t0)
+  li t2, 183600
+" ++
+    "  bltu t1, t2, .Lcd_nacc_refund_done_" ++ site ++ tag ++ "
+" ++
+    "  sub t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".Lcd_nacc_refund_done_" ++ site ++ tag ++ ":
+"
   let emitPendingBurnLog : String → String := fun site =>
     "  la t0, cd_burn_log_pending\n  ld t0, 0(t0)\n  beqz t0, .Lcd_blog_skip_" ++ site ++ tag ++ "\n" ++
     "  la t0, cd_burn_log_pending\n  sd x0, 0(t0)\n" ++
@@ -674,11 +720,14 @@ def callDescendFallThrough
     "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
     "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+    "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+    "  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
     ".Lcd_nacc_res_" ++ tag ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_used_" ++ tag ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  la t1, cd_new_account_charged_current\n  li t2, 1\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   -- `account_at_address` expects a canonical 20-byte big-endian address, while
@@ -846,6 +895,11 @@ def callDescendFallThrough
      "  sd x0, 0(t0)\n  li t1, 10300\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
      ".Lcd_fail_xfer_done_" ++ tag ++ ":\n"
    else "") ++
+  (if mode == 0 then
+     "  la t0, cd_new_account_charged_current\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_nacc_done_" ++ tag ++ "\n  sd x0, 0(t0)\n" ++
+     refundNewAccountStateGas "fail" ++
+     ".Lcd_fail_nacc_done_" ++ tag ++ ":\n"
+   else "") ++
   "  mv x10, s10                           # restore parent PC before direct CALL failure resume\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
@@ -929,11 +983,14 @@ def callDescendFallThrough
        "  bgeu t2, t0, .Lcd_ibnacc_res_" ++ tag ++ "\n" ++
        "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
        "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-       "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
+       "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+       "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+       "  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
        ".Lcd_ibnacc_res_" ++ tag ++ ":\n" ++
        "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
        ".Lcd_ibnacc_used_" ++ tag ++ ":\n" ++
        "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       refundNewAccountStateGas "ib" ++
        ".Lcd_ibnacc_done_" ++ tag ++ ":\n") ++
      "  j .Lcd_fail_" ++ tag ++ "\n"
    else "") ++

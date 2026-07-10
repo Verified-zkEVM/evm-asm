@@ -80,9 +80,6 @@ def upfrontGasCost (tx : Transaction) (baseFee : Nat) : Nat :=
 def upfrontCost (tx : Transaction) (baseFee : Nat) : Nat :=
   tx.upfrontGasCost baseFee + tx.value.toNat
 
-def senderAccount? (state : WorldState) (tx : Transaction) : Option Account :=
-  state.getAccount tx.sender
-
 def nonceMatches (account : Account) (tx : Transaction) : Prop :=
   account.nonce = tx.nonce
 
@@ -94,24 +91,6 @@ def maxFeeCoversBaseFee (tx : Transaction) (baseFee : Nat) : Prop :=
 
 def senderCanPayUpfront (account : Account) (tx : Transaction) (baseFee : Nat) : Prop :=
   tx.upfrontCost baseFee ≤ account.balance.toNat
-
-/-- Validation checks that do not execute the transaction. This captures the
-    nonce, block-gas, base-fee, priority-fee, intrinsic-gas, and sender-balance
-    gates used before transaction execution. -/
-def validatesAgainst
-    (state : WorldState) (tx : Transaction) (baseFee blockGasRemaining : Nat) : Prop :=
-  ∃ account : Account,
-    senderAccount? state tx = some account ∧
-    nonceMatches account tx ∧
-    gasLimitWithinBlock tx blockGasRemaining ∧
-    maxFeeCoversBaseFee tx baseFee ∧
-    maxPriorityFeeWithinMaxFee tx ∧
-    intrinsicGasWithinLimit tx ∧
-    senderCanPayUpfront account tx baseFee
-
-def validatesSimpleValueTransferAgainst
-    (state : WorldState) (tx : Transaction) (baseFee blockGasRemaining : Nat) : Prop :=
-  validatesAgainst state tx baseFee blockGasRemaining ∧ isSimpleValueTransfer tx
 
 theorem effectivePriorityFee_eq_min_of_base_le
     (tx : Transaction) {baseFee : Nat} (h_base : baseFee ≤ tx.maxFeePerGas) :
@@ -143,44 +122,6 @@ theorem intrinsicGasWithinLimit_of_simpleValueTransfer
     tx.intrinsicGasWithinLimit := by
   rw [intrinsicGasWithinLimit, intrinsicGas_eq_base_of_simpleValueTransfer h_simple]
   exact h_gas
-
-theorem validatesAgainst_account
-    {state : WorldState} {tx : Transaction} {baseFee blockGasRemaining : Nat}
-    (h_valid : validatesAgainst state tx baseFee blockGasRemaining) :
-    ∃ account : Account, senderAccount? state tx = some account := by
-  rcases h_valid with ⟨account, h_account, _⟩
-  exact ⟨account, h_account⟩
-
-
-theorem validatesAgainst_nonceMatches
-    {state : WorldState} {tx : Transaction} {baseFee blockGasRemaining : Nat}
-    (h_valid : validatesAgainst state tx baseFee blockGasRemaining) :
-    ∃ account : Account, senderAccount? state tx = some account ∧ nonceMatches account tx := by
-  rcases h_valid with ⟨account, h_account, h_nonce, _⟩
-  exact ⟨account, h_account, h_nonce⟩
-
-theorem validatesAgainst_intrinsicGasWithinLimit
-    {state : WorldState} {tx : Transaction} {baseFee blockGasRemaining : Nat}
-    (h_valid : validatesAgainst state tx baseFee blockGasRemaining) :
-    intrinsicGasWithinLimit tx := by
-  rcases h_valid with ⟨_account, _h_account, _h_nonce, _h_blockGas, _h_baseFee,
-    _h_priorityFee, h_intrinsicGas, _h_balance⟩
-  exact h_intrinsicGas
-
-theorem validatesAgainst_senderCanPayUpfront
-    {state : WorldState} {tx : Transaction} {baseFee blockGasRemaining : Nat}
-    (h_valid : validatesAgainst state tx baseFee blockGasRemaining) :
-    ∃ account : Account, senderAccount? state tx = some account ∧
-      senderCanPayUpfront account tx baseFee := by
-  rcases h_valid with ⟨account, h_account, _h_nonce, _h_blockGas, _h_baseFee,
-    _h_priorityFee, _h_intrinsicGas, h_balance⟩
-  exact ⟨account, h_account, h_balance⟩
-
-theorem validatesSimpleValueTransferAgainst_intrinsicGas_eq_base
-    {state : WorldState} {tx : Transaction} {baseFee blockGasRemaining : Nat}
-    (h_valid : validatesSimpleValueTransferAgainst state tx baseFee blockGasRemaining) :
-    tx.intrinsicGas = txBaseGas :=
-  intrinsicGas_eq_base_of_simpleValueTransfer h_valid.2
 
 end Transaction
 

@@ -191,7 +191,9 @@ def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option
     "  bgeu t2, t0, .L" ++ tag ++ "_pc_nacc_res\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
     "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .L" ++ tag ++ "_pc_nacc_used\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n" ++
+    "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+    "  j .L" ++ tag ++ "_pc_nacc_used\n" ++
     ".L" ++ tag ++ "_pc_nacc_res:\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".L" ++ tag ++ "_pc_nacc_used:\n" ++
