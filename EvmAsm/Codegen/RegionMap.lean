@@ -200,8 +200,10 @@ def schemeAAnchors : List GuestRegion :=
     payload staging paths began reversing PREVRANDAO into EVM word order. Grew
     by `0x64` when same-transaction CREATE code became available to delegated
     calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
-    delegation code was rebased directly from the caller's staged codes base. -/
-def textSizeBytes : Nat := 0x55ff4
+    delegation code was rebased directly from the caller's staged codes base.
+    Grew by `0x848` after the cross-transaction authorization-nonce validation
+    landed (bead evm-asm-eip7702-cross-tx). -/
+def textSizeBytes : Nat := 0x5683c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
