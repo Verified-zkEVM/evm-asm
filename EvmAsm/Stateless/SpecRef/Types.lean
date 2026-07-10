@@ -80,6 +80,13 @@ inductive SpecError where
   /-- `state_tracker.py`: an `AssertionError` on the state layer
       (`set_storage` on a missing account, `move_ether` underflow). -/
   | stateError (why : String)
+  /-- `transactions.py` `validate_transaction`:
+      `InsufficientTransactionGasError` / `NonceOverflowError` /
+      `InitCodeTooLargeError`. -/
+  | invalidTransaction (why : String)
+  /-- `transactions.py` signature validation / recovery:
+      `InvalidSignatureError`. -/
+  | invalidSignature (why : String)
   /-- `transactions.py` `decode_transaction` / `rlp.decode_to`: any
       `DecodingError`, `TransactionTypeError`, or `IndexError` while
       decoding a transaction envelope. -/
