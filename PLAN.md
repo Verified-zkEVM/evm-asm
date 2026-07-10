@@ -4211,6 +4211,27 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `BlockVerdictStateRoot.lean` (block_state_root + stateless_verdict_v2), byte-identical assembly. Keep
   `block_verdict` itself out of splits to avoid churn with the call-frame descent.
 
+- 🔶 **SpecRef execution seam: scope + witness authentication (bead
+  `evm-asm-s1d19`, 2026-07-10)**: SpecRef's `verify_stateless_new_payload`
+  stubs execution (`executeAlwaysOk`), so its verdict is always `true` —
+  diverging from execution-specs on every `succ=0` fixture and realizing
+  neither obligation #7 (MPT witness verification) nor #8 (post-state
+  root). Scope doc **docs/agents/specref-execution-seam-scope.md**:
+  staged pure port (`elExecute`, per docs/4ch8f-top-spec.md §4 —
+  instantiate-against-guest rejected as circular), monotone
+  sound-for-accepts partial-seam wiring, `n9rtz.4/.5` boundary, children
+  `s1d19.1–.6` (`.5` = the EVM-core epic, maintainer checkpoint filed).
+  First increment landed: `EvmAsm/Stateless/SpecRef/IncrementalMpt.lean`
+  ports `decode_witness_to_mpt` + `compact_to_nibbles` +
+  `_resolve_child_ref` + `_decode_witness_node` @ `bd8c673` — keccak-keyed
+  root-anchored authentication (missing root → reject; withheld subtree →
+  `HashedNode`, rejected on contact by `trieLookup`), fuel-bounded decode
+  (exhaustion = keccak-infeasible cycle → reject), `#guard`-covered
+  end-to-end authenticated reads (obligation #7 read side). Next:
+  `s1d19.2` witness-backed reads, `.3` seam shell, `.4` post-state root
+  (#8), `.6` `eest-specref-check` succ gate (baseline 974/25,474
+  divergences).
+
 ### Cross-references
 
 - Memory layout: `EvmAsm/Stateless/MemoryLayout.lean`.

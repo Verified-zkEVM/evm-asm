@@ -70,6 +70,14 @@ inductive SpecError where
   | accountLeafMalformed
   /-- `_trie_lookup`: hit an unresolved `HashedNode`. -/
   | unresolvedHashedNode
+  /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the
+      witness does not contain the trie's root node. -/
+  | witnessRootMissing
+  /-- `_decode_witness_node` / `_resolve_child_ref` / `compact_to_nibbles`:
+      any `AssertionError` / `IndexError` / RLP `DecodingError` raised while
+      decoding a witness trie node (all folded into rejection by the
+      `verify_stateless_new_payload` `try`). -/
+  | witnessNodeMalformed (why : String)
   /-- Execution seam (`execute_new_payload_request`) rejected the payload. -/
   | executionRejected (why : String)
   deriving Repr, BEq, DecidableEq
