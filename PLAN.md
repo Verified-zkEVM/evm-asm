@@ -3564,6 +3564,11 @@ straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
 `secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
 the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
+PR-ready: `Secp256k1FieldReduceOnceSAsm.lean` verifies `secf_reduce_once` as
+an ABI-frame caller over `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with
+`blockAt`/global-data materialization for `secp256k1_p_be` and `secf_cmp`, a
+genuine post `a0 = reduceOnceFlag xs` and `dst = reduceOnceBytes xs orig`, and
+byte identity pinned by `secfReduceOnce_prog_eq`.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is

@@ -245,6 +245,16 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   `execInstrRF_sd_dword`, then run `simp only` to collapse pair projections
   before applying the semantic `setBytes` lemma. Avoid `subst` on huge
   `execBlock` equalities; rewrite with the equality instead.
+- For branchy ABI-frame callers whose arms return with different current `ra`
+  values, avoid forcing the standard body post into exact saved-register values.
+  A stable pattern is to merge the branch arms into a post with `regOwn .x1`,
+  then prove the restore/deallocate/ret tail directly with `loadSeq_spec`; the
+  restore sequence needs ownership of the saved registers, not their current
+  branch-specific values.
+- For large caller/callee branch merges, keep compare-branch framing, each arm's
+  semantic adapter, and the final `cpsBranchWithin_merge_same_cr` as separate
+  named lemmas. Padding step bounds only at the tiny final merge avoids `whnf`
+  timeouts from elaborating one monolithic branch theorem type.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
