@@ -1065,7 +1065,11 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
+  -- The last BAL code change is the tx-state code seen by execution-specs.
+  -- An empty final value is therefore authoritative delegation clearing, not
+  -- a lookup miss that may fall back to the stale pre-state marker.
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_cleared\n" ++
+  "  li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 64(t0); add s9, s7, t1\n" ++
   "  lbu t0, 0(s9); li t1, 0xef; bne t0, t1, .Lbsbd_no\n" ++
   "  lbu t0, 1(s9); li t1, 0x01; bne t0, t1, .Lbsbd_no\n" ++
@@ -1164,6 +1168,9 @@ def balCodePreimagesValidFunction : String :=
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_precompile_empty:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_cleared:\n" ++
   "  li a0, 2\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_next:\n" ++

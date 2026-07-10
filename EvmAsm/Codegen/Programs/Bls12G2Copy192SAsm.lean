@@ -18,8 +18,8 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.Tactics
 
 namespace Bls12G2Copy192SAsm
 
-#guard GuestAddrs.blsf_copy_quads = 0x8002f908
-#guard GuestAddrs.blsg2_copy192 = 0x80033fec
+#guard GuestAddrs.blsf_copy_quads = 0x8002f964
+#guard GuestAddrs.blsg2_copy192 = 0x80034048
 
 /-- The caller's one-slot ABI frame: `ra` at 0(sp). -/
 def copy192Frame : FrameDesc := [(.x1, 0)]

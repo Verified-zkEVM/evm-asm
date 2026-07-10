@@ -351,6 +351,18 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz t5, .Lteer_success_copy_done\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_success_copy\n" ++
   ".Lteer_success_copy_done:\n" ++
+  -- Record whether this successful authorization explicitly clears delegation.
+  -- Bytes 20..23 were padding in the 32-byte entry; runtime EXTCODEHASH uses
+  -- this bit to distinguish a newly materialized empty authority from a
+  -- genuinely nonexistent pre-state account when BAL code_changes is empty.
+  "  sw zero, 20(t2); mv t3, s11; li t4, 20\n" ++
+  ".Lteer_success_target_zero_loop:\n" ++
+  "  beqz t4, .Lteer_success_target_is_zero\n" ++
+  "  lbu t5, 0(t3); bnez t5, .Lteer_success_target_flag_done\n" ++
+  "  addi t3, t3, 1; addi t4, t4, -1; j .Lteer_success_target_zero_loop\n" ++
+  ".Lteer_success_target_is_zero:\n" ++
+  "  li t3, 1; sw t3, 20(t2)\n" ++
+  ".Lteer_success_target_flag_done:\n" ++
   "  ld t3, 144(sp); sd t3, 24(t2); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lteer_success_append_done:\n" ++
   "  # Later execution can increment the same authority nonce again (e.g. delegated CREATE2).\n" ++

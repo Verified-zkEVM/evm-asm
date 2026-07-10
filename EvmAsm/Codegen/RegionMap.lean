@@ -191,7 +191,7 @@ def schemeAAnchors : List GuestRegion :=
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
     being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x569dc
+def textSizeBytes : Nat := 0x56af0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x1982c7f0`). Link-layout-dependent. Shrank by `0x200000`

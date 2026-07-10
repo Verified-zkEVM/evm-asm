@@ -63,8 +63,8 @@ namespace Bls12KzgG2WireSAsm
 
 -- Semantic constants: 4 elements × (16-byte pad + 48-byte body) records.
 -- Address anchors (`#guard`-tied to the live GuestAddrs):
-#guard GuestAddrs.blsk_g2_wire = 0x800330d4
-#guard GuestAddrs.blsg_le_to_be = 0x8002f978
+#guard GuestAddrs.blsk_g2_wire = 0x80033130
+#guard GuestAddrs.blsg_le_to_be = 0x8002f9d4
 
 /-- The caller's 4-slot frame: `ra`, `s0`, `s1`, `s2`. -/
 def wireFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24)]
