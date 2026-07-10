@@ -601,6 +601,17 @@ def callDescendFallThrough
     ".Lcd_nacc_addr_" ++ tag ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_nacc_addr_" ++ tag ++ "\n" ++
+    -- EIP-7702: authorization processing runs before message execution. A same-block
+    -- delegation marker therefore makes the original CALL recipient alive even when it was
+    -- absent from the block-pre witness. execution-specs tests is_account_alive(to), not the
+    -- delegated code address. Resolve the BAL marker without charging; status 0 (code target)
+    -- or 2 (precompile target) proves the recipient is alive, while status 1 is a miss.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 0\n" ++
+    "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+    "  mv t6, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
     -- coc3g.6.5: a callee CREATEd earlier in THIS tx is ALIVE (has code/nonce), so is_account_alive(to)
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
