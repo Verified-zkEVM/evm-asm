@@ -433,11 +433,14 @@ def basicPrecompileCallTail
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
-    -- Copy up to 256 bytes of returndata into the shared frame.
+    -- Copy the FULL identity returndata into the shared frame: the input size
+    -- is bounded by the caller's memory arena (≤ rootRuntimeMemoryArenaLimitBytes
+    -- = precompileFrameReturndataCapBytes), so the clamp never truncates and the
+    -- staged bytes always cover the true length written at +8.
     "  mv x22, x18\n" ++
     "  addi x23, x15, 16\n" ++
     "  mv x24, x17\n" ++
-    "  li x16, 256\n" ++
+    "  li x16, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
     "  bgeu x16, x24, 2f\n" ++
     "  mv x24, x16\n" ++
     "2:\n" ++
