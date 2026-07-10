@@ -3155,6 +3155,31 @@ x7` (kernel `rfl`), so `blsg2EqN_spec` is byte-transparent (no re-emit, no
 A/B) with the GENUINE post `a0 = (if bs1 = bs2 then 1 else 0)`, inputs
 untouched — superseding the `firstDiff`-shaped `Fn` post.  Completes the
 equality-scan family (fixed-dword #10038 + dynamic-byte).  Classical-3.
+**Multi-register shared return-tail + branch-over-tail + `message_call_gas`
+landed** (branch `feat/multi-reg-return-tail`, bead evm-asm-24uka;
+porting-agent feedback — `sharedRetTail_spec` #10041 proves only the
+single-register `li rd,c; ret` arm).  `SAsm/MultiRegRetTail.lean`
+(cpsTripleWithin level, additive): `multiRegRetTail_spec` — a LIST of `li`
+register assignments then `ret`, proven once per tail address by induction
+on the assignment list, the post pinning EXACTLY the assigned registers
+(`regsSet assigns`, no arbitrary effect); register/value/length-agnostic
+(`sharedRetTail` is the singleton instance).  **Branch-over-tail needs no
+new lemma**: `retJoinStation_spec`/`breakStation_spec` are target-address-
+agnostic (the module doc records why — code is a persistent side-condition,
+not a consumed resource).  Consumer `message_call_gas`
+(`Codegen/Programs/MessageCallGasSAsm.lean`): the EIP-150 CALL forwarding
+helper, GENUINE post `mcgPost` — `a0 = 1` on input-sum overflow
+(`a1=a2=a3=0`), `a0 = 2` when `capped + extra` or `capped + stipend`
+overflows (zeroed likewise), else `a0 = 0` with `a1 = capped + extra_gas`,
+`a2 = capped + stipend`, `a3 = capped` (the all-but-one-64th cap and the
+2300 stipend as `capped`/`stipend` defs); the two output-overflow guards
+route OVER the success and status-1 tails to the status-2 tail at
+`base+124` (the branch-over-tail example, one `errTail_spec` instance
+consumed by both stations).  `message_call_gas` has no GuestAddrs anchor
+(probe-only), so the spec is at a SYMBOLIC base over the emitted
+`messageCallGas_prog` — byte-transparent, no A/B, consumable wherever a
+closure links it.  Completes the shared-return-tail family (single-reg
+#10041, store #10067, multi-reg + branch-over here).  Classical-3.
 Indirect calls landed
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
@@ -3563,6 +3588,11 @@ straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
 port-check + classical-3. `Secp256k1FieldGetBitLsbSAsm.lean` verifies
 `secf_get_bit_lsb` (`secfGetBitLsbFn_spec`, post returns the selected bit from
 the computed BE byte address) with byte-identity pinned to `secfGetBitLsb_prog`.
+PR-ready: `Secp256k1FieldReduceOnceSAsm.lean` verifies `secf_reduce_once` as
+an ABI-frame caller over `u256_lt_be`, `u256_sub_be`, and `secf_copy32`, with
+`blockAt`/global-data materialization for `secp256k1_p_be` and `secf_cmp`, a
+genuine post `a0 = reduceOnceFlag xs` and `dst = reduceOnceBytes xs orig`, and
+byte identity pinned by `secfReduceOnce_prog_eq`.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
