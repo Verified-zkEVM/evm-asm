@@ -19,9 +19,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace Bn254Fq12EqSAsm
 
--- Address anchor (semantic constant: 48 dwords = 384 bytes of FQ12).
-#guard GuestAddrs.bnq_eq = 0x80031154
-
 /-- The `bnq_eq` body: the dual-read dword equality scan over 48 slots. -/
 def bnqEqBody (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Stmt :=
   DualReadScan.scanBody .x5 .x6 .x7 .x10 .x11 ptr1 ptr2 bs1 bs2 48

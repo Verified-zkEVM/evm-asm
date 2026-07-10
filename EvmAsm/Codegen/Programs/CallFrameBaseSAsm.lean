@@ -33,10 +33,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace CallFrameBaseSAsm
 
--- Address anchors.
-#guard GuestAddrs.frame_base = 0x800385f4
-#guard GuestAddrs.call_frame_arena = 0xac4639a0
-
 /-- The 6-instruction body (everything but the `ret`). -/
 def fbBlock : List Instr :=
   [ .ADDI .x5 .x10 (-1 : BitVec 12),

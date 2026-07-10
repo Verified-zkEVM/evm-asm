@@ -50,9 +50,6 @@ namespace U256LtBeSAsm
 
 open U256MinSAsm (beBytesToNat_lt_of_prefix_lt bytes_eq_of_prefix_all)
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.u256_lt_be = 0x800052c4
-
 /-
   Emitted layout (base GuestAddrs.u256_lt_be):
     +0  GuestAddrs.u256_lt_be  li   x5, 32

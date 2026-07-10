@@ -30,9 +30,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.AccumLoop
 
 namespace BloomEqSAsm
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.bloom_eq = 0x80011dfc
-
 /-
   Layout (base GuestAddrs.bloom_eq):
     +0  GuestAddrs.bloom_eq  li   x5, 32

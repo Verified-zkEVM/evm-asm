@@ -10,6 +10,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.Norm
 import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+import EvmAsm.Evm64.DivMod.AddrNorm
 
 namespace EvmAsm.Evm64
 

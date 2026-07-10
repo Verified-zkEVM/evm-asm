@@ -258,7 +258,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez t0, 7f\n" ++
+    -- A nonzero helper status means the header-state witness lookup could not
+    -- classify the derived address. Execution-specs has the live tx state here;
+    -- for a missing/unknown header account the closest faithful behavior is to
+    -- treat the header predicate as false (the helper initializes it to 0),
+    -- still run the same-tx collision scan below, and otherwise take the normal
+    -- CREATE descend path. A cheap push-0 skipped child execution gas.
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -496,8 +501,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the burned 63/64 child allotment. Compute:
     --   spill = max(0, NEW_ACCOUNT - state_gas_left)
     --   gas_after_state = gas_left - spill
-    --   final_parent_gas = spill + floor(gas_after_state / 64)
-    -- without mutating state-gas globals; collision has net-zero state gas.
+    --   final_parent_gas = floor(gas_after_state / 64) + spill.
+    -- The +spill term is execution-specs credit_state_gas_refund: because this
+    -- synthetic collision branch leaves the state-gas globals unchanged, the
+    -- spill refund must be included directly in the final gas_left value.
+    -- Collision has net-zero state gas.
     ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     -- Amsterdam generic_create warms contract_address before account_deployable; the
     -- successful path seeds at label 6 above, while collision jumps bypass that label.

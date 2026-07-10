@@ -130,7 +130,7 @@ def swdWriteBe8_prog : Program :=
     .ADD .x30 .x11 .x5,
     .SB .x30 .x29 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-40 : BitVec 21),
+    .JAL .x0 (-36 : BitVec 21),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def swdWriteBe8Function : String :=

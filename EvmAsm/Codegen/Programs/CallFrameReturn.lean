@@ -112,7 +112,23 @@ def frameReturnFunction : String :=
 " ++
   ".Lfr_sgas_have_spill_delta:
 " ++
-  "  bleu t2, t0, .Lfr_sgas_restore_left
+  "  bleu t0, t2, .Lfr_sgas_used_ge_snapshot
+" ++
+  "  sub t2, t0, t2                 # child net state-gas credit
+" ++
+  "  bleu t3, t2, .Lfr_sgas_credit_zero_left
+" ++
+  "  sub t3, t3, t2                 # discard reverted child credit
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_credit_zero_left:
+" ++
+  "  li t3, 0
+" ++
+  "  j .Lfr_sgas_restore_left
+" ++
+  ".Lfr_sgas_used_ge_snapshot:
 " ++
   "  sub t2, t2, t0                 # child used allocation
 " ++

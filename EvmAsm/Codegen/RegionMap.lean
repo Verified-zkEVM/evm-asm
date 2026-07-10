@@ -180,7 +180,7 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x56730`). Link-layout-dependent; the drift guard re-derives it.
+    (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it.
     Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
     EIP-8037 gas checking began deriving the regular-gas dimension in-guest.
@@ -191,11 +191,10 @@ def schemeAAnchors : List GuestRegion :=
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
     being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x56af0
+def textSizeBytes : Nat := 0x56b0c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x1982c7f0`). Link-layout-dependent. Shrank by `0x200000`
-    when the SELFDESTRUCT journal became an origin-only 32-byte record. Shrank by `0x40` (64 B)
+    (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`

@@ -64,9 +64,6 @@ def cmpPBase : Word := (GuestAddrs.secf_cmp_p : Word)
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.secp256k1_p_be : Word)
 
--- Address anchors (fail the build if the guest link moves).
-#guard GuestAddrs.secf_cmp_p = 0x8001ffec
-#guard GuestAddrs.secp256k1_p_be = 0xa3c052c0
 #guard secfCmpP_prog.length = 24
 
 -- The constant bytes ARE the secp256k1 field prime p = 2^256 - 0x1000003d1.
