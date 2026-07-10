@@ -501,9 +501,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the burned 63/64 child allotment. Compute:
     --   spill = max(0, NEW_ACCOUNT - state_gas_left)
     --   gas_after_state = gas_left - spill
-    --   final_parent_gas = floor(gas_after_state / 64); the shared
-    --   NEW_ACCOUNT refund below adds the spill back exactly once.
-    -- without mutating state-gas globals; collision has net-zero state gas.
+    --   final_parent_gas = floor(gas_after_state / 64) + spill.
+    -- The +spill term is execution-specs credit_state_gas_refund: because this
+    -- synthetic collision branch leaves the state-gas globals unchanged, the
+    -- spill refund must be included directly in the final gas_left value.
+    -- Collision has net-zero state gas.
     ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
@@ -518,6 +520,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bltu t3, t2, .exit_outofgas\n" ++
     "  sub t3, t3, t2\n" ++
     "  srli t3, t3, 6\n" ++
+    "  add t3, t3, t2\n" ++
     "  sd t3, 568(x20)\n" ++
     "7:\n" ++
     "  la t0, create_state_gas_charged_current\n  ld t1, 0(t0)\n  beqz t1, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n  sd x0, 0(t0)\n" ++
