@@ -39,9 +39,25 @@ theorem cc_word_dec (x : Nat) (h : 1 ≤ x) :
   rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
   omega
 
+/-- `signExtend12 (-1)` is the all-ones word `-1`. Hoisted to a named lemma so the
+    (slow, negative-sign-extension) `decide` runs once here instead of inline in
+    every pointer-decrement rewrite. -/
+theorem cc_sE12_neg1 : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by
+  apply BitVec.eq_of_toNat_eq
+  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
+  rw [hs]; rfl
+
+/-- Pointer decrement: `base + ofNat (Y+1) + (-1) = base + ofNat Y`, proved by
+    reassociation + the fast `toNat`-based `cc_word_dec` (NOT `bv_omega`, which
+    bit-blasts the symbolic `ofNat` and dominated the backward-body elaboration
+    at ~12 s per call — see the profiler note in the PR). -/
+theorem ptr_dec (base : Word) (Y : Nat) :
+    base + BitVec.ofNat 64 (Y + 1) + signExtend12 (-1 : BitVec 12) = base + BitVec.ofNat 64 Y := by
+  rw [BitVec.add_assoc base (BitVec.ofNat 64 (Y + 1)) (signExtend12 (-1 : BitVec 12)),
+      cc_word_dec (Y + 1) (by omega), Nat.add_sub_cancel]
+
 /-! ## One backward iteration -/
 
-set_option maxHeartbeats 800000 in
 /-- One iteration of the backward copy loop (`base+32 → base+52`, indices
     [8..12]): decrement both pointers, read the source byte `copied[len-1-k]`
     from the shared slab, store it at destination index `len-1-k`, decrement the
@@ -94,14 +110,14 @@ theorem mcopy_bwd_body_spec_within
   have h8 := addi_spec_gen_same_within .x17 dstP (-1 : BitVec 12) (base + 32) (by decide)
   rw [show dstP + signExtend12 (-1 : BitVec 12)
         = memBase + BitVec.ofNat 64 (destOff + (len - (k + 1))) from by
-        rw [hdstP, show destOff + (len - k) = (destOff + (len - (k + 1))) + 1 from by omega,
-            show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]; bv_omega] at h8
+        rw [hdstP, show destOff + (len - k) = destOff + (len - (k + 1)) + 1 from by omega]
+        exact ptr_dec memBase (destOff + (len - (k + 1)))] at h8
   -- [9] ADDI x18 x18 -1 : srcPtr := srcOff + (len-(k+1)).
   have h9 := addi_spec_gen_same_within .x18 srcP (-1 : BitVec 12) (base + 36) (by decide)
   rw [show srcP + signExtend12 (-1 : BitVec 12)
         = memBase + BitVec.ofNat 64 (srcOff + (len - (k + 1))) from by
-        rw [hsrcP, show srcOff + (len - k) = (srcOff + (len - (k + 1))) + 1 from by omega,
-            show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]; bv_omega] at h9
+        rw [hsrcP, show srcOff + (len - k) = srcOff + (len - (k + 1)) + 1 from by omega]
+        exact ptr_dec memBase (srcOff + (len - (k + 1)))] at h9
   -- [10] LBU x19 x18 0 : x19 := copied[len-1-k].zeroExtend 64.
   have h10 := bytesRegion_lbu_within .x19 .x18 memBase scratchOld (base + 40)
     (mcopyBwdContent memBytes copied destOff len k) (srcOff + len - 1 - k) (by decide) h_mem_align

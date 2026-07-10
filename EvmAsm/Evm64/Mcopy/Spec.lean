@@ -47,7 +47,6 @@ theorem ult_ofNat (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
 
 /-! ## Pointer setup (three ADDs) -/
 
-set_option maxHeartbeats 800000 in
 /-- `base+0 → base+12`: compute `dstPtr = memBase+destOff`, `srcPtr =
     memBase+srcOff`, `srcEnd = srcOff+len` (as offsets). -/
 theorem mcopy_setup_spec_within
@@ -141,7 +140,6 @@ private theorem mcopy_shed2 (F : Assertion) (v17 v18 : Word) :
   apply sepConj_mono (regIs_implies_regOwn _)
   exact regIs_implies_regOwn _
 
-set_option maxHeartbeats 1600000 in
 /-- Top-level correctness of the MCOPY copy core: TOTAL over all `(destOff,
     srcOff, len)` (the dispatch picks the memmove-correct direction), landing on
     `mcopyResult` regardless of overlap. -/
@@ -398,7 +396,6 @@ theorem evm_mcopy_region_spec_within
 
 /-! ## `evmMemoryIs` wrapper -/
 
-set_option maxHeartbeats 800000 in
 /-- The MCOPY copy-core `.proven` witness, phrased over `evmMemoryIs`.  Total in
     the overlap direction; the EVM-stack decode + gas/MSIZE/range-guard glue is
     the handler `preBody` (unverified per DRIFT, as for CALLDATACOPY/CODECOPY). -/
