@@ -40,6 +40,7 @@ balFindAccountByAddressFunction	EvmAsm/Codegen/Programs/BlockVerdictBalFindAccou
 balGasValidFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balSectionInfoFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balStorageAccessOutcomeDescriptorsFunction	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean
+balStorageReadsInExecLogFunction	EvmAsm/Codegen/Programs/BalStorageReadsExecLog.lean
 bgvU32leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 bgvU64leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 bhrRevLeBeFunction	EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean
