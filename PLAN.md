@@ -367,6 +367,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (isCold ? 2600 : 100) + (valueNonzero ? 9000 : 0)`) pinned to
   `callExtraGas_prog`, after converting the raw asm string to a `Program`
   rendered by `emitProgram`.
+  `CopyWordGasSAsm.lean` verifies `copy_word_gas` as a byte-identical
+  straight-line leaf (`copyWordGasFn_spec`, post `a0 = 3 * ((size + 31) >> 5)`
+  with exact RV64 wrapping semantics) pinned to `copyWordGas_prog`.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
