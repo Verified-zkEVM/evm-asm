@@ -244,6 +244,8 @@ def ziskSimpleTransferFeeRecipientBalVerifyPrologue : String :=
   txEffectiveGasPricingFunction ++ "\n" ++
   u256MulU64BeFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++

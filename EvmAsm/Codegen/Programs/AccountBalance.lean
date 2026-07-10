@@ -575,6 +575,8 @@ def ziskSelfdestructBalanceTransferPrologue : String :=
   rlpItemSpanFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountAddBalanceFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++

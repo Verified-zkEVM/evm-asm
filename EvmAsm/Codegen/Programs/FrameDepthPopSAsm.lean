@@ -9,7 +9,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace FrameDepthPopSAsm
 
-#guard GuestAddrs.frame_depth_pop = 0x80038304
+#guard GuestAddrs.frame_depth_pop = 0x8003835c
 #guard GuestAddrs.evm_call_depth = 0xbc2bd580
 
 def frameDepthPopBody : List Instr :=

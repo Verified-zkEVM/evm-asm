@@ -11,7 +11,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace DispatcherCaptureExecStateGasSAsm
 
-#guard GuestAddrs.dispatcher_capture_exec_state_gas = 0x80029fb8
+#guard GuestAddrs.dispatcher_capture_exec_state_gas = 0x8002a010
 #guard GuestAddrs.evm_state_gas_used = 0xbb56a710
 #guard GuestAddrs.bvgr_tx_exec_state_gas = 0xaa25dbc8
 

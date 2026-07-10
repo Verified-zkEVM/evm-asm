@@ -9,7 +9,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace FrameDepthPushSAsm
 
-#guard GuestAddrs.frame_depth_push = 0x800382ec
+#guard GuestAddrs.frame_depth_push = 0x80038344
 #guard GuestAddrs.evm_call_depth = 0xbc2bd580
 
 def frameDepthPushBody : List Instr :=
