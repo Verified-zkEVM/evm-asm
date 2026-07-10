@@ -35,11 +35,11 @@ open Secp256k1FieldLeavesSAsm (secfZero32Fn secfZero32Fn_spec)
 open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz nlz_le nlz_spec nlz_boundary)
 
 -- Address anchors (routine, callees, and the LE staging point).
-#guard GuestAddrs.secp256k1_point_double = 0x80020578
-#guard GuestAddrs.secf_is_zero32 = 0x8001fd9c
-#guard GuestAddrs.secf_zero32 = 0x8001fcc8
-#guard GuestAddrs.secf_be_to_le = 0x8001fcdc
-#guard GuestAddrs.secf_le_to_be = 0x8001fd2c
+#guard GuestAddrs.secp256k1_point_double = 0x8002072c
+#guard GuestAddrs.secf_is_zero32 = 0x8001ff50
+#guard GuestAddrs.secf_zero32 = 0x8001fe7c
+#guard GuestAddrs.secf_be_to_le = 0x8001fe90
+#guard GuestAddrs.secf_le_to_be = 0x8001fee0
 #guard GuestAddrs.secc_le_p1 = 0xa3c05618
 
 /-- The staging-point base (`secc_le_p1`): a 64-byte LE point image

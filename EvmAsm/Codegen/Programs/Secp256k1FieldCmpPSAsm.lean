@@ -65,7 +65,7 @@ def cmpPBase : Word := (GuestAddrs.secf_cmp_p : Word)
 def pConstAddr : Word := (GuestAddrs.secp256k1_p_be : Word)
 
 -- Address anchors (fail the build if the guest link moves).
-#guard GuestAddrs.secf_cmp_p = 0x8001fe08
+#guard GuestAddrs.secf_cmp_p = 0x8001ffbc
 #guard GuestAddrs.secp256k1_p_be = 0xa3c052c0
 #guard secfCmpP_prog.length = 24
 
