@@ -3780,6 +3780,10 @@ return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
 `FrameLoadRegsSAsm.lean` verifies linked-PC `frame_load_regs` byte-identically:
 it computes `frame_save_area + (depth << 4)`, loads the saved PC and code-base
 into `a0`/`a1`, and preserves both global save-area cells.
+`MptResolveCacheResetSAsm.lean` verifies `mpt_resolve_cache_reset`
+byte-identically: a 4096-iteration dword loop zeros the complete 32768-byte
+resolver-validity table, with the global-address `la` prefix composed into the
+whole linked-entry theorem and an exact `List.replicate` zero postcondition.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
