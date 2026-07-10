@@ -3784,6 +3784,11 @@ into `a0`/`a1`, and preserves both global save-area cells.
 byte-identically: a 4096-iteration dword loop zeros the complete 32768-byte
 resolver-validity table, with the global-address `la` prefix composed into the
 whole linked-entry theorem and an exact `List.replicate` zero postcondition.
+`DispatcherCaptureExecStateGasSAsm.lean` verifies
+`dispatcher_capture_exec_state_gas` byte-identically: two symbolic global
+address materializations feed a load and an index-scaled dword store, with a
+whole-entry post that preserves `evm_state_gas_used` and updates exactly the
+selected `bvgr_tx_exec_state_gas` cell.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
