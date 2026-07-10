@@ -3755,6 +3755,11 @@ saved-register restore.
 shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
 the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and
 return flag, and an `rfl` byte-identity guard against `secfReduceOnceN_prog`.
+`DispatcherCaptureExecStateGasSAsm.lean` verifies
+`dispatcher_capture_exec_state_gas` byte-identically: two symbolic global
+address materializations feed a load and an index-scaled dword store, with a
+whole-entry post that preserves `evm_state_gas_used` and updates exactly the
+selected `bvgr_tx_exec_state_gas` cell.
 `Secp256k1FieldEq32SAsm.lean` verifies `secf_eq32` as a `whileBreak` drop-in
 (`secfEq32Fn_spec`, `a0 = 1` iff the two 32-byte inputs are equal); the
 emitted `secfEq32_prog` is rewired to the verified body and the asm fixture is
