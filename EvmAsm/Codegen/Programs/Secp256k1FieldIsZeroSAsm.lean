@@ -40,19 +40,21 @@ namespace Secp256k1FieldIsZeroSAsm
     `x6 = ptr+i`, the first `i` bytes are all zero (`i ≤ nlz bs 32`). -/
 def secfIsZeroScanInv (ptr : Word) (bs : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf _ _ =>
+  fun i rf _ A =>
     rf.get .x5 = BitVec.ofNat 64 (32 - i) ∧
     rf.get .x6 = ptr + BitVec.ofNat 64 i ∧
-    i ≤ nlz bs 32 ∧ 32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64
+    i ≤ nlz bs 32 ∧ 32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64 ∧
+    A = empAssertion
 
 /-- `whileBreak` post (at the single `Lend`): the scan stopped at index `nlz`;
     `x5 = 32 - nlz` (so `x5 = 0` ⟺ `nlz = 32` ⟺ all bytes zero). -/
 def secfIsZeroScanPost (ptr : Word) (bs : List (BitVec 8)) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf _ _ =>
+  fun rf _ A =>
     rf.get .x5 = BitVec.ofNat 64 (32 - nlz bs 32) ∧
     rf.get .x6 = ptr + BitVec.ofNat 64 (nlz bs 32) ∧
-    32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64
+    32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64 ∧
+    A = empAssertion
 
 /-- `secf_is_zero32` body: init counter/cursor, scan-and-break, then derive the
     result from the counter (`LI x10,1`; clear to 0 if `x5≠0`). -/
@@ -70,10 +72,11 @@ def secfIsZero32Body (ptr : Word) (bs : List (BitVec 8)) : Stmt :=
 def secfIsZero32Fn (ptr : Word) (bs : List (BitVec 8)) : Fn where
   name := "secfIsZero32"
   region := ⟨ptr, bs⟩
-  pre := fun rf _ _ => rf.get .x10 = ptr ∧ bs.length = 32 ∧ ptr.toNat + 32 < 2 ^ 64
-  post := fun rf _ _ =>
+  pre := fun rf _ A => rf.get .x10 = ptr ∧ bs.length = 32 ∧ ptr.toNat + 32 < 2 ^ 64 ∧
+    A = empAssertion
+  post := fun rf _ A =>
     (rf.get .x10 = if nlz bs 32 = 32 then (1 : Word) else (0 : Word)) ∧
-    32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64
+    32 ≤ bs.length ∧ ptr.toNat + 32 < 2 ^ 64 ∧ A = empAssertion
   body := secfIsZero32Body ptr bs
 
 /-- Return a0 = 1 iff the 32-byte buffer at a0 is all-zero. Leaf helper.
@@ -105,10 +108,10 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case secfIsZero32.scan.inv_init =>
-    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen, hpl⟩, rfl, rfl⟩
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen, hpl, hA⟩, rfl, rfl⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hws₀
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
-    refine ⟨?_, ?_, Nat.zero_le _, (by omega : 32 ≤ bs.length), hpl⟩
+    refine ⟨?_, ?_, Nat.zero_le _, (by omega : 32 ≤ bs.length), hpl, hA⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
         RegFile.get_set_self _ _ _ (by decide)]
       decide
@@ -118,7 +121,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
     rintro i hi rf' ws' A' hsp
     obtain ⟨rfa, wsa, hwsa, ⟨hspbb, hnbreak⟩, hrf', -⟩ := hsp
     obtain ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrfa, -⟩ := hspbb
-    obtain ⟨hx5, hx6, hle, hlen, hpl⟩ := hinv
+    obtain ⟨hx5, hx6, hle, hlen, hpl, hA⟩ := hinv
     obtain rfl := List.eq_nil_of_length_eq_zero hwsb
     have hilt : i < 32 := by
       rcases Nat.lt_or_ge i 32 with h | h
@@ -153,7 +156,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
         by_contra h; exact hnbreak h
       rw [hrfa7, show rfa.get .x0 = 0 from rfl] at hne
       bv_omega
-    refine ⟨?_, ?_, nlz_continue bs 32 i hilt hlen hz hle, hlen, hpl⟩
+    refine ⟨?_, ?_, nlz_continue bs 32 i hilt hlen hz hle, hlen, hpl, hA⟩
     · rw [hrf']
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_self _ _ _ (by decide : (Reg.x5 : Reg) ≠ .x0),
@@ -172,12 +175,12 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
       have h2 : (BitVec.ofNat 64 (i + 1)).toNat = i + 1 := by rw [BitVec.toNat_ofNat]; omega
       bv_omega
   case secfIsZero32.scan.exhausted =>
-    rintro rf ws A ⟨hx5, -, -, -, -⟩
+    rintro rf ws A ⟨hx5, -, -, -, -, -⟩
     intro hc
     apply hc
     rw [hx5, show 32 - 32 = 0 from by omega]; rfl
   case secfIsZero32.scan.guard_exit =>
-    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hpl⟩ hng
+    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hpl, hA⟩ hng
     have hil : i = 32 := by
       by_contra hne
       apply hng
@@ -189,13 +192,13 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
       omega
     have hnlz : nlz bs 32 = 32 := by
       have := nlz_le bs 32; omega
-    refine ⟨?_, ?_, hlen, hpl⟩
+    refine ⟨?_, ?_, hlen, hpl, hA⟩
     · rw [hx5, hnlz, hil]
     · rw [hx6, hnlz, hil]
   case secfIsZero32.scan.break =>
     rintro i hi rf' ws' A' hsp hbreak
     obtain ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrf', -⟩ := hsp
-    obtain ⟨hx5, hx6, hle, hlen, hpl⟩ := hinv
+    obtain ⟨hx5, hx6, hle, hlen, hpl, hA⟩ := hinv
     obtain rfl := List.eq_nil_of_length_eq_zero hwsb
     have hbyte : (secfIsZero32Fn ptr bs).region.byteAt (rfb.get .x6 + signExtend12 0)
         = bs.getD i 0 := by
@@ -224,11 +227,11 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
       intro hz
       exact hne (by rw [hz]; rfl)
     have hieq : i = nlz bs 32 := nlz_break bs 32 i hle hnz
-    refine ⟨?_, ?_, hlen, hpl⟩
+    refine ⟨?_, ?_, hlen, hpl, hA⟩
     · rw [hrf5, hx5, hieq]
     · rw [hrf6, hx6, hieq]
   case secfIsZero32.scan.before.load.mem =>
-    rintro rf ws A hws ⟨i, hi, ⟨hx5, hx6, hle, hlen, hpl⟩, hg⟩
+    rintro rf ws A hws ⟨i, hi, ⟨hx5, hx6, hle, hlen, hpl, -⟩, hg⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hws
     have hilt : i < 32 := by
       rcases Nat.lt_or_ge i 32 with h | h
@@ -252,7 +255,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
       obtain rfl := List.eq_nil_of_length_eq_zero hws₁
       obtain ⟨rfa, wsa, hwsa, hscanPost, hrf1eq, -⟩ := hres1
       obtain rfl := List.eq_nil_of_length_eq_zero hwsa
-      obtain ⟨hx5a, -, hle, hpl⟩ := hscanPost
+      obtain ⟨hx5a, -, hle, hpl, hA⟩ := hscanPost
       have hx10rf : rf.get .x10 = (0 : Word) := by
         rw [hrf1]
         simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
@@ -266,7 +269,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
         intro heq
         apply hcond
         rw [hr1x5, hx5a, heq]; rfl
-      refine ⟨?_, hle, hpl⟩
+      refine ⟨?_, hle, hpl, hA⟩
       rw [hx10rf]
       by_cases h : nlz bs 32 = 32
       · rw [if_pos h]; exact False.elim (hne h)
@@ -274,7 +277,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
     · -- x5 = 0 branch (skip `clr0`): x10 = 1; nlz = 32.
       obtain ⟨rfa, wsa, hwsa, hscanPost, hrfeq, -⟩ := hres1
       obtain rfl := List.eq_nil_of_length_eq_zero hwsa
-      obtain ⟨hx5a, -, hle, hpl⟩ := hscanPost
+      obtain ⟨hx5a, -, hle, hpl, hA⟩ := hscanPost
       have hx10rf : rf.get .x10 = (1 : Word) := by
         rw [hrfeq]
         simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
@@ -300,7 +303,7 @@ theorem secfIsZero32Fn_spec (ptr : Word) (bs : List (BitVec 8))
           exact this
         have hle : nlz bs 32 ≤ 32 := nlz_le bs 32
         omega
-      refine ⟨?_, hle, hpl⟩
+      refine ⟨?_, hle, hpl, hA⟩
       rw [hx10rf, if_pos heq]
 
 end Secp256k1FieldIsZeroSAsm
