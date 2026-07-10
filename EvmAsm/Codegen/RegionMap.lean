@@ -202,7 +202,9 @@ def schemeAAnchors : List GuestRegion :=
     calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
     delegation code was rebased directly from the caller's staged codes base.
     Grew by `0x848` after the cross-transaction authorization-nonce validation
-    landed (bead evm-asm-eip7702-cross-tx). -/
+    landed (bead evm-asm-eip7702-cross-tx). Grew further after EIP-8037 prefix
+    admission enforcement, parallel EEST worker result-file isolation, and the
+    self-funded EIP-7702 authorization refund fix landed. -/
 def textSizeBytes : Nat := 0x5683c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
