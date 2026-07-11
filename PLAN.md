@@ -4301,10 +4301,28 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `_payload_header`/`_payload_block`, `compute_requests_hash`,
   `validate_header`/`calculate_base_fee_per_gas`, `MAX_RLP_BLOCK_SIZE`,
   root-anchored witness authentication) — wired as the DEFAULT partial
-  seam (`executeSeamShell`, sound-for-accepts). EEST sample: 300/300
-  root+tail, 0 false-rejects. Next: `.5` EVM core (maintainer
-  green-light given: full pure port), `.6` `eest-specref-check` succ
-  gate (baseline 974/25,474 divergences).
+  seam (`executeSeamShell`, sound-for-accepts). **Fifth increment
+  (`s1d19.5`, stages 1–8, PRs #10175/#10176): the full EVM core.**
+  `StateTracker.lean` (+`preStateReads` cache-key tracking),
+  `BlockAccessLists.lean` (EIP-7928), full `Gas.lean` (EIP-8037),
+  full `Transactions.lean` (intrinsic costs, sender recovery),
+  `Vm.lean` (the `EvmM` machine monad: `ExceptT EvmError (StateT
+  Machine (Except SpecError))`), `InstructionsCore/Env.lean` (all
+  non-system opcodes), `Interpreter.lean` (frames, CALL/CREATE
+  families, EIP-7702, dispatch), `Fork.lean` (`apply_body`,
+  `process_transaction`, receipts/bloom/withdrawals/requests),
+  `ElExecute.lean` (`execute_block` interior + 8 post-checks +
+  post-root via the reconstructed storage-root cache),
+  `Precompiles.lean` (ecrecover/sha256/identity/modexp implemented;
+  14 remaining raise `unimplementedPrecompile`). DEFAULT seam is now
+  **`elExecuteHybrid`**: full `elExecute` with a sound fallback to the
+  static shell only on unimplemented-precompile contact (monotone, no
+  false rejects). EEST 300-sample: **300/300 FULL match, 0
+  divergences**. Remaining: the 14 precompile implementations (bn254
+  ×3, bls12-381 ×7, KZG, p256verify — adapt
+  `EvmAsm/Stateless/VM/Precompiles.lean`; ripemd160/blake2f fresh),
+  then `.6` flips the `eest-specref-check` succ gate (baseline was
+  974/25,474 divergences).
 
 ### Cross-references
 
