@@ -3427,6 +3427,24 @@ conclusions — the exec-log scan shape) + `bytesRegion_ld_cursor_imm_within`
 (dword load through advanced cursor + immediate).  In progress: exec-log
 scan loop (§5), call-chain composition (§6–§7), top theorem.
 Loop-shape maps accruing on bead .70.4 as ports land.
+**`.43.5 bal_account_nonstorage_finals` slice 1 (PR #10181,
+`BalAccountNonstorageFinalsSpec.lean`)**: the value-bearing companion of
+.43.1 — EIP-7928 non-storage finals (balance/nonce/code, last-tuple-wins).
+Landed (classical-3, additive): the 192-instr routine `#guard`-pinned
+byte-for-byte an `abiFrameProg (-80/80, ra+s0..s4)` instance
+(`bansf_prog_eq_abiFrame`; the 48/56/64/72(sp) spill slots are
+caller-supplied `memOwn` dwords, not frame slots); genuine functional
+spec (`FinalsDerivation` over `rlpItemDecode`/`fromBytesBE`/`copyN`,
+with `LastItemAt` find-last-loop semantics + anti-vacuity witness);
+verdict-stub triples; `bansfCR` + 10 kernel-decided disjointness lemmas
++ ALL 24 `WP.cpsCallWithin` call-site adapters (7 walk_init, 15
+walk_next, content_to_u64/u256_be — first port composing FOUR verified
+callees).  Next slices: the parameterized find-last-tuple loop fold
+(same 11-instr station shape × 3, `rlp_walk_next` call in body),
+station chains, end-to-end `bansf_spec_within`.  `.61` glue helpers all
+blocked (classifiers/empty-tx/exact-gas unextracted in the monolith —
+x43os.5/.7/.9; blob-hash routines' callees unverified) — recorded on
+.61.
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via
