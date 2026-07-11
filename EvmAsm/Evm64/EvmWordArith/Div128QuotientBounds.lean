@@ -31,6 +31,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 
 namespace EvmAsm.Evm64
 
