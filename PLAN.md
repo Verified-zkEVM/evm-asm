@@ -92,6 +92,20 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Active epic: tests-zkevm@v0.6.0 migration (`evm-asm-0w05f`, GH #10207)
+
+Upstream published `tests-zkevm@v0.6.0` (execution-specs `40f956fab`,
+2026-07-10); the repo targets v0.5.0 (`bd8c673`), where SpecRef holds
+full-suite conformance (25,477 fixtures, succ FAIL 0). Migration is
+scoped in **`docs/agents/v06-migration-scope.md`** (12 behavioral
+changes C1–C12: stateless schema id `0x0001→0x1501`, `ForkConfig`
+loses fork/blob-schedule, EIP-155 explicit chain-id rejection,
+EIP-2780 intrinsic rework, EIP-7702 `set_delegation` rewrite, new
+`prepare_dispatch`, frame state-gas accounting, block-level calldata
+floor, SSTORE/CREATE reorders, builder predeploy addresses) and
+decomposed into child beads `evm-asm-0w05f.1`–`.10`
+(phases: submodule bump → fixtures → SpecRef 4a–4d → guest 5a–5c).
+
 ### Evm64 (PRIMARY) — 52 opcodes
 
 | Category | Opcodes | Instructions (per op) | Status |
