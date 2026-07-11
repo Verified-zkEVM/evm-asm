@@ -5,7 +5,7 @@ The EEST zkevm fixtures (release line ``zkevm@vX.Y.Z``, targeting the
 Amsterdam / Glamsterdam fork) are ``blockchain_tests`` whose blocks each
 carry two extra hex fields:
 
-  * ``statelessInputBytes``  -- the schema-prefixed (``0x0001...``) SSZ
+  * ``statelessInputBytes``  -- the schema-prefixed (``0x1501...``) SSZ
     ``StatelessInput`` that ``run_stateless_guest`` consumes.
   * ``statelessOutputBytes`` -- the canonical SSZ
     ``StatelessValidationResult`` the guest is expected to produce.
