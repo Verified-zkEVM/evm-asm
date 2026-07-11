@@ -319,4 +319,48 @@ theorem cpsNBranchWithin_of_forall_regIs_to_regOwn9
        g12, g13, d7, u7, hv6, g14, g15, d8, u8, hv7, g16, g17, d9, u9,
        hv8, hv9⟩, hRb⟩ hpc
 
+/-- Introduce EIGHT owned registers' values at once for a branch (the
+    callee-scratch + link-register intro at chain-segment boundaries). -/
+theorem cpsBranchWithin_of_forall_regIs_to_regOwn8
+    {n : Nat} {entry : Word} {r1 r2 r3 r4 r5 r6 r7 r8 : Reg}
+    {P : Assertion} {e1 : Word} {Q1 : Assertion} {e2 : Word} {Q2 : Assertion}
+    {cr : CodeReq}
+    (h : ∀ v1 v2 v3 v4 v5 v6 v7 v8, cpsBranchWithin n entry cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) ** (r4 ↦ᵣ v4) **
+       (r5 ↦ᵣ v5) ** (r6 ↦ᵣ v6) ** (r7 ↦ᵣ v7) ** (r8 ↦ᵣ v8)) e1 Q1 e2 Q2) :
+    cpsBranchWithin n entry cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 **
+       regOwn r5 ** regOwn r6 ** regOwn r7 ** regOwn r8) e1 Q1 e2 Q2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v5, hv5⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v6, hv6⟩, hO7⟩ := hO6
+  obtain ⟨g14, g15, d8, u8, ⟨v7, hv7⟩, ⟨v8, hv8⟩⟩ := hO7
+  exact h v1 v2 v3 v4 v5 v6 v7 v8 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3, hv2,
+       g6, g7, d4, u4, hv3, g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
+       g12, g13, d7, u7, hv6, g14, g15, d8, u8, hv7, hv8⟩, hRb⟩ hpc
+
+/-- Chain a two-exit branch into a follow-on branch at its SECOND exit,
+    staying put at the shared first exit (the reject-threading step for
+    fail-normalized chains). -/
+theorem cpsBranchWithin_chain_snd {n m : Nat} {entry mid eRej : Word}
+    {cr : CodeReq} {P QRej Qmid : Assertion} {e2 : Word} {Q2 : Assertion}
+    (h1 : cpsBranchWithin n entry cr P eRej QRej mid Qmid)
+    (h2 : cpsBranchWithin m mid cr Qmid eRej QRej e2 Q2) :
+    cpsBranchWithin (n + m) entry cr P eRej QRej e2 Q2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, hcase⟩ := h1 R hR s hcr hPR hpc
+  have hcr1 := CodeReq.SatisfiedBy_preserved hstep1 hcr
+  rcases hcase with ⟨hpc1, hQ⟩ | ⟨hpc1, hQ⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n m), s1, hstep1, Or.inl ⟨hpc1, hQ⟩⟩
+  · obtain ⟨k2, hk2, s2, hstep2, hcase2⟩ := h2 R hR s1 hcr1 hQ hpc1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hcase2⟩
+
 end EvmAsm.Rv64.SAsm
