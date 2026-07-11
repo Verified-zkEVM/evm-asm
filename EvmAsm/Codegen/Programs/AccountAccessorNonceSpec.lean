@@ -1,5 +1,9 @@
 /-
-  EvmAsm.Evm64.AccountAccessorNonceSpec
+  EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
+
+  Lives under Codegen/Programs (not Evm64), mirroring
+  `AccountAccessorTopSpec.lean` — see that file's header for the layering
+  rationale.
 
   Split out of `AccountAccessorTopSpec.lean` (file-size guardrail): the
   top-level success-path `cpsTripleWithin` triple for `account_extract_nonce`
@@ -19,12 +23,13 @@
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
 
-import EvmAsm.Evm64.AccountAccessorTopSpec
+import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 
-namespace EvmAsm.Evm64
+namespace EvmAsm.Codegen
 
 open EvmAsm.EL
 open EvmAsm.EL.RLP
+open EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
 open EvmAsm.Rv64.Tactics
@@ -567,4 +572,4 @@ theorem account_extract_nonce_spec_within
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) t5)
 
-end EvmAsm.Evm64
+end EvmAsm.Codegen

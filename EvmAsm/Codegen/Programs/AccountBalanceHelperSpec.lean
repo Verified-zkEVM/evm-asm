@@ -1,5 +1,10 @@
 /-
-  EvmAsm.Evm64.AccountBalanceHelperSpec
+  EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+
+  Lives under Codegen/Programs (not Evm64) because it pins the concrete
+  linked `GuestAddrs.mset_memcpy` / `Codegen.Programs.MptSet` routine
+  (layering L1: verified core may not import Codegen) — same shape as the
+  other `*SAsm.lean` linked-PC verification files in this directory.
 
   Phase 3c part 1 (SELFDESTRUCT balance move, PR #10178 follow-up): success-path
   `cpsTripleWithin` triples for the helper subroutines called by
@@ -63,8 +68,9 @@ import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.GuestAddrs
 
-namespace EvmAsm.Evm64
+namespace EvmAsm.Codegen
 
+open EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
@@ -604,4 +610,4 @@ theorem mset_memcpy_spec_within (srcBase dstBase raVal : Word)
     srcBytes dstBytes srcOff dstOff n h_src_align h_dst_align h_src_bound
     h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
 
-end EvmAsm.Evm64
+end EvmAsm.Codegen

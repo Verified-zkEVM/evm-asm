@@ -1,5 +1,11 @@
 /-
-  EvmAsm.Evm64.AccountAccessorTopSpec
+  EvmAsm.Codegen.Programs.AccountAccessorTopSpec
+
+  Lives under Codegen/Programs (not Evm64) because it pins concrete linked
+  `GuestAddrs`/emitted `Codegen` programs (layering L1: verified core may not
+  import Codegen) — same shape as the other `*SAsm.lean` linked-PC
+  verification files in this directory. Its theorems still describe genuine
+  Evm64-level opcode semantics (`open EvmAsm.Evm64` below).
 
   Top-level success-path `cpsTripleWithin` triple for the migrated
   `account_extract_balance` accessor body
@@ -56,10 +62,11 @@ import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XPerm
 
-namespace EvmAsm.Evm64
+namespace EvmAsm.Codegen
 
 open EvmAsm.EL
 open EvmAsm.EL.RLP
+open EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
 open EvmAsm.Rv64.Tactics
@@ -1161,4 +1168,4 @@ theorem account_extract_balance_spec_within
       (fun h hp => by xperm_hyp hp) t9)
 
 
-end EvmAsm.Evm64
+end EvmAsm.Codegen
