@@ -102,7 +102,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
 | Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
-| Terminating | STOP, INVALID | 7 / 7 | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`, halt-triple over `evm_stop` / `evm_invalid`); INVALID is the STOP clone with routing code 3; shape for RETURN/REVERT/SELFDESTRUCT |
+| Terminating | STOP, INVALID, RETURN, REVERT | 7 / 7; full RETURN/REVERT tails | ✅ STOP + INVALID proved (`evm_stop_stack_spec_within` / `evm_invalid_stack_spec_within`). RETURN is `.conditional` via `Terminating.evm_return_stack_spec_within_with_capture` (full standalone tail, including system-call capture, descriptor window, halt core; memory-gas preBody/domain hyps remain). REVERT is `.conditional` via `Terminating.evm_revert_stack_spec_within` (descriptor window + rollback + halt core; same post-gas/domain boundary). |
 | Terminating | SELFDESTRUCT (0xff) | 7 | 🟡 `.conditional` (`Terminating.evm_selfdestruct_stack_spec_resolved`, `EvmAsm/Evm64/Terminating/Selfdestruct{Program,Spec,HaltResolved}.lean`). Direct STOP clone with routing code 4 (`dispatchHaltRet 4` → `.exit_selfdestruct`): halt-triple sets `evm_halt_flag := 4`, points x1 at `.Ldispatch_resume`, rets to `resume &&& ~~~1`. The two `la`s are **resolved** via `la_resolve` (#10059) — only decidable `laInRange` remains per `la`. `.conditional` NOT `.proven` (unlike STOP/INVALID, whose dispatched handler IS just the halt tail, `body:=[]`) because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial effects body — cold-access gas (+`.exit_outofgas`), new-account surcharge, EIP-6780 detection, balance transfer, EIP-7708 log, beneficiary record, CREATE-child return path — framed OUT as the documented residual (a larger residual than RETURN/REVERT's gas-only preBody). **Goal: `.proven`** via a future phase proving the effects body against `EL/SelfdestructEffects`. **conditionalCount 3→4, execSpecCount 15→14.** |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 | Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
@@ -2768,17 +2768,16 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   - `returnCopyLoop_spec_within` — the `evm_memory[off..]→descriptor` byte-copy
     loop (`copyIntoRegion` model); ONE lemma covers BOTH copy loops (the +72 body
     copy and the descriptor[0..] first-32 prefix copy; differ only in `destOff`).
-- **REMAINING** (the full-tail composition + registry flip): NOT done. Needs the
-  straight-line glue as a single descriptor-window `Program` from the post-gas
-  entry: `ld x14/x15`, the `system_call_mode=0` branch-skip (precondition-gated,
-  makes RETURN `.conditional`), `li x16, 0xa0010000` + 4 header SDs, zero-loop
-  setup, the `min(x15,176)` clamp `bgeu` case-split, `sd x15@+64`/`sd clamped@+248`,
-  `la x17,evm_memory; add x17,x17,x14` pointer setups, the `min(x15,32)` prefix
-  clamp case-split, `li x17,1; sd x17@+32`, then compose the three loop lemmas +
-  the halt core via `cpsTripleWithin_seq`. The memory-gas `preBody` (OOG branch)
-  stays OUTSIDE the triple (framed TCB entry boundary). Until this lands,
-  RETURN/REVERT remain `.execSpec` (loop lemmas + halt core are proven but not yet
-  stitched, so the registry is NOT flipped).
+- **Full-tail composition**: DONE as `.conditional` registry entries.
+  - RETURN: `Terminating.evm_return_stack_spec_within_with_capture` covers the
+    ordinary `system_call_mode=0` skip, nonzero oversized skip (`size > 4096`),
+    and nonzero small capture (`system_call_returndata_len := size` plus full
+    returndata copy), then the descriptor window and halt core.
+  - REVERT: `Terminating.evm_revert_stack_spec_within` covers the descriptor
+    window, rollback env-cell stores, and halt core.
+- **Remaining for `.proven`**: the memory-gas `preBody` / `.exit_outofgas`
+  branch is still outside both triples, so they carry post-gas memory-domain
+  hypotheses (`hOff`/`hOff32`, and RETURN's branch-conditional capture bounds).
 
 ### Phase 9: Gas Metering
 
@@ -3428,6 +3427,24 @@ conclusions — the exec-log scan shape) + `bytesRegion_ld_cursor_imm_within`
 (dword load through advanced cursor + immediate).  In progress: exec-log
 scan loop (§5), call-chain composition (§6–§7), top theorem.
 Loop-shape maps accruing on bead .70.4 as ports land.
+**`.43.5 bal_account_nonstorage_finals` slice 1 (PR #10181,
+`BalAccountNonstorageFinalsSpec.lean`)**: the value-bearing companion of
+.43.1 — EIP-7928 non-storage finals (balance/nonce/code, last-tuple-wins).
+Landed (classical-3, additive): the 192-instr routine `#guard`-pinned
+byte-for-byte an `abiFrameProg (-80/80, ra+s0..s4)` instance
+(`bansf_prog_eq_abiFrame`; the 48/56/64/72(sp) spill slots are
+caller-supplied `memOwn` dwords, not frame slots); genuine functional
+spec (`FinalsDerivation` over `rlpItemDecode`/`fromBytesBE`/`copyN`,
+with `LastItemAt` find-last-loop semantics + anti-vacuity witness);
+verdict-stub triples; `bansfCR` + 10 kernel-decided disjointness lemmas
++ ALL 24 `WP.cpsCallWithin` call-site adapters (7 walk_init, 15
+walk_next, content_to_u64/u256_be — first port composing FOUR verified
+callees).  Next slices: the parameterized find-last-tuple loop fold
+(same 11-instr station shape × 3, `rlp_walk_next` call in body),
+station chains, end-to-end `bansf_spec_within`.  `.61` glue helpers all
+blocked (classifiers/empty-tx/exact-gas unextracted in the monolith —
+x43os.5/.7/.9; blob-hash routines' callees unverified) — recorded on
+.61.
 (`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
 finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via
