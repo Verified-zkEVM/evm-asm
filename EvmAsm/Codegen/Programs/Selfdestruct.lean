@@ -87,6 +87,23 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_selfdestruct_no_ctx_bal_loop\n" ++
   "  j .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
+  -- `is_account_alive` reads the live transaction state. A prior committed
+  -- value transfer can therefore make a pre-state-empty beneficiary alive even
+  -- when it came from a different SELFDESTRUCT origin (CALLCODE/DELEGATECALL).
+  -- Consult the frame-journaled nonstorage effect log before the origin-only
+  -- repeated-SELFDESTRUCT shortcut below. A nonzero latest balance means the
+  -- beneficiary is alive, so ACCOUNT_WRITE and NEW_ACCOUNT are not charged.
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n  la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  beqz t6, .L_selfdestruct_live_beneficiary_done\n" ++
+  "  la t0, evm_selfdestruct_balance_scratch\n  li t1, 4\n" ++
+  ".L_selfdestruct_live_beneficiary_scan:\n" ++
+  "  ld t2, 0(t0)\n  bnez t2, .L_selfdestruct_surcharge_done\n" ++
+  "  addi t0, t0, 8\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_live_beneficiary_scan\n" ++
+  ".L_selfdestruct_live_beneficiary_done:\n" ++
   -- A prior SELFDESTRUCT of this origin moved its entire live balance to its beneficiary.
   -- Consult the transaction journal so repeated execution observes balance zero.
   "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
