@@ -164,6 +164,27 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_point_eval:\n" ++
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  -- A top-level transaction to an active precompile bypasses the opcode
+  -- dispatcher, so validate the KZG input here as `run_precompile` does.  An
+  -- invalid versioned hash or proof is an exceptional halt and consumes all
+  -- transaction execution gas; only a valid proof leaves gas after the fixed
+  -- 50000 charge.
+  "  ld t5, 56(t2)\n" ++
+  "  addi a0, t5, 96; li a1, 48; la a2, evm_precompile_frame; jal ra, zkvm_sha256\n" ++
+  "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 56(t2)\n" ++
+  "  lbu t3, 0(t5); li t4, 1; bne t3, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  li t3, 1; la t4, evm_precompile_frame\n" ++
+  ".Lbv_simple_transfer_point_eval_hash_loop:\n" ++
+  "  li t2, 32; beq t3, t2, .Lbv_simple_transfer_point_eval_hash_ok\n" ++
+  "  add t2, t5, t3; lbu a0, 0(t2); add t2, t4, t3; lbu a1, 0(t2)\n" ++
+  "  bne a0, a1, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  addi t3, t3, 1; j .Lbv_simple_transfer_point_eval_hash_loop\n" ++
+  ".Lbv_simple_transfer_point_eval_hash_ok:\n" ++
+  "  addi a0, t5, 96; addi a1, t5, 32; addi a2, t5, 64; addi a3, t5, 144; addi a4, t4, 32\n" ++
+  "  sb zero, 32(t4); jal ra, zkvm_kzg_point_eval\n" ++
+  "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t4, evm_precompile_frame; lbu t3, 32(t4); beqz t3, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 50000\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1add:\n" ++
