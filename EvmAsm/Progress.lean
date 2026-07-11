@@ -293,7 +293,8 @@ def registry : List OpcodeEntry := [
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
   entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
   entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
-      "aligned spec proven; unaligned _public variants in progress",
+      ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
+       "trailing guard band supplies the pair-read tail"),
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
       "aligned spec proven; unaligned _public variants in progress",
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
@@ -600,7 +601,7 @@ private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack
     assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
 
 private noncomputable abbrev _evm_memory_is_mload_witness :=
-  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+  @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _evm_memory_is_peel_witness :=
   @EvmAsm.Evm64.evmMemoryIs_peel_window64
 private noncomputable abbrev _mpt_node_kind_spec_witness :=
