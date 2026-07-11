@@ -274,7 +274,7 @@ def decode_pair (x : Nat) : Except EvmError (Nat × Nat) :=
     let q := k / 16
     let r := k % 16
     if q < r then pure (q + 1, r + 1)
-    else pure (r + 1, 30 - q - r + 1)
+    else pure (r + 1, 29 - q)
   else throw (.invalidParameter "EXCHANGE immediate in forbidden range")
 
 /-! ## `vm/memory.py`
@@ -392,6 +392,9 @@ private def runVm (m : EvmM α) : Except SpecError (Except EvmError α × Machin
 #guard (decode_single 255).toOption == some 144
 #guard match decode_single 100 with | .error (.invalidParameter _) => true | _ => false
 #guard (decode_pair 0).toOption == some (9, 16)
+#guard (decode_pair 81).toOption == some (14, 15)
+#guard (decode_pair 128).toOption == some (1, 16)
+#guard (decode_pair 255).toOption == some (1, 22)
 #guard match decode_pair 100 with | .error (.invalidParameter _) => true | _ => false
 
 -- memory: write/read round trip, zero-padded buffer read.
