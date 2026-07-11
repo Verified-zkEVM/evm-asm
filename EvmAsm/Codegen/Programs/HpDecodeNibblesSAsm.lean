@@ -16,12 +16,12 @@
   up-counting nibble loop (`bgeu i, len` top guard — `upLoop_spec`).
 
   The genuine post is stated against `hdnRes`, the guest-exact decode
-  mirror, tied to the spec-side `EvmAsm.Evm64.hpDecode`
-  (`MptAssertions.lean`) by `hdnRes_eq_hpDecode` / `hdnRes_hpEncode`:
-  the guest is STRICTER than `hpDecode` exactly on even paths whose head
-  byte has a non-zero low nibble (it rejects; `hpDecode` ignores the
-  padding nibble) — on every hex-prefix ENCODING the two agree, so the
-  `.29` walk can consume either.
+  mirror, which (post bead evm-asm-3umhl) IS the spec-side
+  `EvmAsm.Evm64.hpDecode` (`MptAssertions.lean`): the guest is lenient on
+  the even-path padding nibble exactly like execution-specs
+  `compact_to_nibbles` (amsterdam/incremental_mpt.py:878-889), so
+  `hdnRes_eq_hpDecode` is a total definitional agreement and
+  `hdnRes_hpEncode` the round-trip on every hex-prefix encoding.
 -/
 
 import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
@@ -56,12 +56,12 @@ def hdnBody : List Instr :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BEQ .x9 .x0 (132 : BitVec 13),
+    .BEQ .x9 .x0 (128 : BitVec 13),
     .LBU .x5 .x8 (0 : BitVec 12),
     .SRLI .x6 .x5 (4 : BitVec 6),
     .ANDI .x7 .x5 (15 : BitVec 12),
     .LI .x28 (4 : Word),
-    .BGEU .x6 .x28 (112 : BitVec 13),
+    .BGEU .x6 .x28 (108 : BitVec 13),
     .ANDI .x28 .x6 (2 : BitVec 12),
     .SRLI .x28 .x28 (1 : BitVec 6),
     .SD .x20 .x28 (0 : BitVec 12),
@@ -70,8 +70,7 @@ def hdnBody : List Instr :=
     .SB .x18 .x7 (0 : BitVec 12),
     .LI .x30 (1 : Word),
     .ADDI .x31 .x18 (1 : BitVec 12),
-    .JAL .x0 (16 : BitVec 21),
-    .BNE .x7 .x0 (72 : BitVec 13),
+    .JAL .x0 (12 : BitVec 21),
     .LI .x30 (0 : Word),
     .MV .x31 .x18,
     .LI .x5 (1 : Word),
@@ -101,71 +100,31 @@ theorem hdnProg_eq :
 #guard abiFrameProg (-48 : BitVec 12) (48 : BitVec 12) hdnFrame hdnBody
   = hpDecodeNibbles_prog
 
-#guard hdnBody.length = 39
-#guard hpDecodeNibbles_prog.length = 54
+#guard hdnBody.length = 38
+#guard hpDecodeNibbles_prog.length = 53
 
 /-! ## The guest-exact decode model -/
 
-/-- The guest-exact hex-prefix decode: like `EvmAsm.Evm64.hpDecode`, but
-    STRICT on even paths — a head byte with flag parity 0 and a non-zero
-    low nibble is a parse failure (the routine's `bne x7, x0` check),
-    where `hpDecode` ignores the padding nibble. -/
+/-- The guest-exact hex-prefix decode. Post bead `evm-asm-3umhl` the
+    guest is LENIENT on the even-path padding nibble (it ignores the low
+    nibble of the head byte, exactly like execution-specs
+    `compact_to_nibbles`), so the guest-exact model IS the spec-side
+    `hpDecode`. -/
 def hdnRes (bs : List (BitVec 8)) : Option (Bool × List (BitVec 8)) :=
-  match bs with
-  | [] => none
-  | b0 :: _ =>
-    if b0.toNat / 16 % 2 = 0 ∧ b0.toNat % 16 ≠ 0 then none
-    else EvmAsm.Evm64.hpDecode bs
+  EvmAsm.Evm64.hpDecode bs
 
-/-- Wherever the guest succeeds, it agrees with the spec-side
-    `hpDecode` (`MptAssertions.lean`). -/
-theorem hdnRes_eq_hpDecode {bs : List (BitVec 8)} {r : Bool × List (BitVec 8)}
-    (h : hdnRes bs = some r) : EvmAsm.Evm64.hpDecode bs = some r := by
-  match bs with
-  | [] => exact absurd h (by simp [hdnRes])
-  | b0 :: rest =>
-    simp only [hdnRes] at h
-    split at h
-    · exact absurd h (by simp)
-    · exact h
+/-- **Total agreement** with the spec-side `hpDecode`
+    (`MptAssertions.lean`) — definitional after `evm-asm-3umhl`. -/
+theorem hdnRes_eq_hpDecode (bs : List (BitVec 8)) :
+    hdnRes bs = EvmAsm.Evm64.hpDecode bs := rfl
 
 /-- **Round-trip against the spec encoder**: on every hex-prefix encoding
     of a well-formed nibble path the guest decode succeeds with exactly
-    the flag and path (the even-case head byte `flag * 16` has a zero low
-    nibble, so the guest's strict check passes). -/
+    the flag and path. -/
 theorem hdnRes_hpEncode (isLeaf : Bool) (nibs : List (BitVec 8))
     (hn : ∀ n ∈ nibs, n.toNat < 16) :
-    hdnRes (EvmAsm.Evm64.hpEncode isLeaf nibs) = some (isLeaf, nibs) := by
-  have hdec := EvmAsm.Evm64.hpDecode_hpEncode isLeaf nibs hn
-  have hflag : (if isLeaf then 2 else 0) ≤ 2 := by cases isLeaf <;> simp
-  obtain ⟨b0, tl, heq, hdiv⟩ :=
-    EvmAsm.Evm64.hpEncodeAux_head_div (if isLeaf then 2 else 0) hflag nibs hn
-  have henc : EvmAsm.Evm64.hpEncode isLeaf nibs = b0 :: tl := heq
-  rw [henc] at hdec ⊢
-  simp only [hdnRes]
-  split
-  · next hc =>
-    exfalso
-    by_cases hodd : nibs.length % 2 = 1
-    · -- Odd path: head high nibble = flag + 1, which is odd for flag ∈ {0,2}.
-      rw [hdiv, hodd] at hc
-      rcases hc with ⟨hc1, -⟩
-      cases isLeaf <;> simp at hc1
-    · -- Even path: the head byte is `flag * 16`, so the low nibble is 0.
-      have hshape : EvmAsm.Evm64.hpEncodeAux (if isLeaf then 2 else 0) nibs
-          = BitVec.ofNat 8 ((if isLeaf then 2 else 0) * 16)
-              :: EvmAsm.Evm64.hpPackPairs nibs := by
-        unfold EvmAsm.Evm64.hpEncodeAux
-        rw [if_neg hodd]
-      have h2 : b0 :: tl = BitVec.ofNat 8 ((if isLeaf then 2 else 0) * 16)
-          :: EvmAsm.Evm64.hpPackPairs nibs := heq.symm.trans hshape
-      have hb0 : b0 = BitVec.ofNat 8 ((if isLeaf then 2 else 0) * 16) := by
-        injection h2
-      rcases hc with ⟨-, hc2⟩
-      apply hc2
-      rw [hb0, BitVec.toNat_ofNat]
-      cases isLeaf <;> simp
-  · exact hdec
+    hdnRes (EvmAsm.Evm64.hpEncode isLeaf nibs) = some (isLeaf, nibs) :=
+  EvmAsm.Evm64.hpDecode_hpEncode isLeaf nibs hn
 
 /-! ## Machine-value bridges -/
 
@@ -219,8 +178,8 @@ def hdnIsLeafW (bs : List (BitVec 8)) : Word :=
   BitVec.ofNat 64 ((hdnB0 bs).toNat / 16 / 2 % 2)
 
 /-- Whether the is-leaf cell is written at all: the store sits after the
-    `len = 0` and `hi ≥ 4` rejects but BEFORE the even-parity strict
-    check, so it executes iff the head byte exists and has a valid flag. -/
+    `len = 0` and `hi ≥ 4` rejects, so it executes iff the head byte
+    exists and has a valid flag. -/
 def hdnIslWritten (bs : List (BitVec 8)) : Bool :=
   !bs.isEmpty && decide ((hdnB0 bs).toNat / 16 < 4)
 
@@ -250,9 +209,10 @@ def hdnIslFinal (bs : List (BitVec 8)) (old : Word) : Word :=
 #guard hdnRes (EvmAsm.Evm64.hpEncode false [0xa, 0xb]) = some (false, [0xa, 0xb])
 #guard hdnRes [] = none
 #guard hdnRes [0x4a] = none            -- hi ≥ 4
-#guard hdnRes [0x01, 0xab] = none      -- even flag, non-zero low nibble
-#guard hdnRes [0x2a] = none            -- hi = 2 (even leaf), lo = 0xa ≠ 0 → strict reject
-#guard EvmAsm.Evm64.hpDecode [0x2a] = some (true, [])  -- where the spec is lenient
+-- Lenient even-path padding nibble (evm-asm-3umhl): these DECODE now,
+-- exactly like execution-specs `compact_to_nibbles`.
+#guard hdnRes [0x2a] = some (true, [])
+#guard hdnRes [0x01, 0xab] = some (false, [0x0a, 0x0b])
 
 /-- `bytesRegion` is pc-free (instance form, for `runBlock`'s automatic
     framing). -/
@@ -317,9 +277,9 @@ private theorem bAt_jal (base : Word) (k j : Nat) (ofs : BitVec 21)
     bAt base k + signExtend21 ofs = bAt base (k + j) := by
   rw [h]; exact bAt_add base k j
 
-/-- Backward jump: the loop back-edge `jal x0, -40` from body 34 to body 24. -/
+/-- Backward jump: the loop back-edge `jal x0, -40` from body 33 to body 23. -/
 private theorem bAt_jal_back40 (base : Word) :
-    bAt base 34 + signExtend21 (-40 : BitVec 21) = bAt base 24 := by
+    bAt base 33 + signExtend21 (-40 : BitVec 21) = bAt base 23 := by
   unfold bAt
   rw [BitVec.add_assoc]
   congr 1
@@ -542,17 +502,17 @@ private def seg3oddProg : List Instr :=
 private def seg4evenProg : List Instr :=
   [ .LI .x30 (0 : Word), .MV .x31 .x18 ]
 
-/-- Body 5 (`beq s1, x0, +132`), taken: `len = 0` → fail tail. -/
+/-- Body 5 (`beq s1, x0, +128`), taken: `len = 0` → fail tail. -/
 theorem br1_taken (base : Word) (v : Word) (hv : v = 0) :
-    cpsTripleWithin 1 (bAt base 5) (bAt base 38) (hdnCr base)
+    cpsTripleWithin 1 (bAt base 5) (bAt base 37) (hdnCr base)
       ((.x9 ↦ᵣ v) ** (Reg.x0 ↦ᵣ (0 : Word)))
       ((.x9 ↦ᵣ v) ** (Reg.x0 ↦ᵣ (0 : Word))) := by
-  have hbeq := beq_spec_gen_within .x9 .x0 (132 : BitVec 13) v 0 (bAt base 5)
-  rw [show bAt base 5 + signExtend13 (132 : BitVec 13) = bAt base 38 from by
+  have hbeq := beq_spec_gen_within .x9 .x0 (128 : BitVec 13) v 0 (bAt base 5)
+  rw [show bAt base 5 + signExtend13 (128 : BitVec 13) = bAt base 37 from by
     simp only [bAt, BitVec.add_assoc]; congr 1] at hbeq
   exact cpsBranchWithin_takenStripPure2
     (cpsBranchWithin_extend_code
-      (memAt base 5 (.BEQ .x9 .x0 (132 : BitVec 13)) (by decide) (by rfl)) hbeq)
+      (memAt base 5 (.BEQ .x9 .x0 (128 : BitVec 13)) (by decide) (by rfl)) hbeq)
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQf
       exact ((sepConj_pure_right _).1 hBP).2 hv)
@@ -562,11 +522,11 @@ theorem br1_ntaken (base : Word) (v : Word) (hv : v ≠ 0) :
     cpsTripleWithin 1 (bAt base 5) (bAt base 6) (hdnCr base)
       ((.x9 ↦ᵣ v) ** (Reg.x0 ↦ᵣ (0 : Word)))
       ((.x9 ↦ᵣ v) ** (Reg.x0 ↦ᵣ (0 : Word))) := by
-  have hbeq := beq_spec_gen_within .x9 .x0 (132 : BitVec 13) v 0 (bAt base 5)
+  have hbeq := beq_spec_gen_within .x9 .x0 (128 : BitVec 13) v 0 (bAt base 5)
   rw [bAt_succ base 5] at hbeq
   exact cpsBranchWithin_ntakenStripPure2
     (cpsBranchWithin_extend_code
-      (memAt base 5 (.BEQ .x9 .x0 (132 : BitVec 13)) (by decide) (by rfl)) hbeq)
+      (memAt base 5 (.BEQ .x9 .x0 (128 : BitVec 13)) (by decide) (by rfl)) hbeq)
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQt
       exact hv ((sepConj_pure_right _).1 hBP).2)
@@ -622,18 +582,18 @@ theorem seg1_spec (base src : Word) (srcBytes : List (BitVec 8))
   rw [hexit] at hc
   exact liftSeg base 6 (seg := seg1Prog) (by rfl) (by decide) hc
 
-/-- Body 10 (`bgeu hi, 4, +112`), taken: invalid flag nibble → fail tail. -/
+/-- Body 10 (`bgeu hi, 4, +108`), taken: invalid flag nibble → fail tail. -/
 theorem br2_taken (base : Word) (b0 : BitVec 8) (hv : 4 ≤ b0.toNat / 16) :
-    cpsTripleWithin 1 (bAt base 10) (bAt base 38) (hdnCr base)
+    cpsTripleWithin 1 (bAt base 10) (bAt base 37) (hdnCr base)
       ((.x6 ↦ᵣ BitVec.ofNat 64 (b0.toNat / 16)) ** (.x28 ↦ᵣ (4 : Word)))
       ((.x6 ↦ᵣ BitVec.ofNat 64 (b0.toNat / 16)) ** (.x28 ↦ᵣ (4 : Word))) := by
-  have hb := bgeu_spec_gen_within .x6 .x28 (112 : BitVec 13)
+  have hb := bgeu_spec_gen_within .x6 .x28 (108 : BitVec 13)
     (BitVec.ofNat 64 (b0.toNat / 16)) (4 : Word) (bAt base 10)
-  rw [show bAt base 10 + signExtend13 (112 : BitVec 13) = bAt base 38 from by
+  rw [show bAt base 10 + signExtend13 (108 : BitVec 13) = bAt base 37 from by
     simp only [bAt, BitVec.add_assoc]; congr 1] at hb
   exact cpsBranchWithin_takenStripPure2
     (cpsBranchWithin_extend_code
-      (memAt base 10 (.BGEU .x6 .x28 (112 : BitVec 13)) (by decide) (by rfl)) hb)
+      (memAt base 10 (.BGEU .x6 .x28 (108 : BitVec 13)) (by decide) (by rfl)) hb)
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQf
       exact absurd ((hi_lt4_iff b0).1 ((sepConj_pure_right _).1 hBP).2) (by omega))
@@ -643,12 +603,12 @@ theorem br2_ntaken (base : Word) (b0 : BitVec 8) (hv : b0.toNat / 16 < 4) :
     cpsTripleWithin 1 (bAt base 10) (bAt base 11) (hdnCr base)
       ((.x6 ↦ᵣ BitVec.ofNat 64 (b0.toNat / 16)) ** (.x28 ↦ᵣ (4 : Word)))
       ((.x6 ↦ᵣ BitVec.ofNat 64 (b0.toNat / 16)) ** (.x28 ↦ᵣ (4 : Word))) := by
-  have hb := bgeu_spec_gen_within .x6 .x28 (112 : BitVec 13)
+  have hb := bgeu_spec_gen_within .x6 .x28 (108 : BitVec 13)
     (BitVec.ofNat 64 (b0.toNat / 16)) (4 : Word) (bAt base 10)
   rw [bAt_succ base 10] at hb
   exact cpsBranchWithin_ntakenStripPure2
     (cpsBranchWithin_extend_code
-      (memAt base 10 (.BGEU .x6 .x28 (112 : BitVec 13)) (by decide) (by rfl)) hb)
+      (memAt base 10 (.BGEU .x6 .x28 (108 : BitVec 13)) (by decide) (by rfl)) hb)
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQt
       exact absurd ((sepConj_pure_right _).1 hBP).2
@@ -771,47 +731,15 @@ theorem seg3odd_spec (base dst : Word) (b0 : BitVec 8)
   rw [hexit] at hc
   exact liftSeg base 16 (seg := seg3oddProg) (by rfl) (by decide) hc
 
-/-- Body 19: the odd path's `jal x0, +16` over the even block into the
+/-- Body 19: the odd path's `jal x0, +12` over the even block into the
     loop init. -/
 theorem jal19_spec (base : Word) {P : Assertion} (hP : P.pcFree) :
-    cpsTripleWithin 1 (bAt base 19) (bAt base 23) (hdnCr base) P P := by
-  have h := jal0_spec_pcFree (16 : BitVec 21) (bAt base 19) hP
-  rw [show bAt base 19 + signExtend21 (16 : BitVec 21) = bAt base 23 from by
+    cpsTripleWithin 1 (bAt base 19) (bAt base 22) (hdnCr base) P P := by
+  have h := jal0_spec_pcFree (12 : BitVec 21) (bAt base 19) hP
+  rw [show bAt base 19 + signExtend21 (12 : BitVec 21) = bAt base 22 from by
     simp only [bAt, BitVec.add_assoc]; congr 1] at h
   exact cpsTripleWithin_extend_code
-    (memAt base 19 (.JAL .x0 (16 : BitVec 21)) (by decide) (by rfl)) h
-
-/-- Body 20 (`bne lo, x0, +72`), taken: even path with non-zero padding
-    nibble → fail tail (the guest's strict check). -/
-theorem br4_taken (base : Word) (b0 : BitVec 8) (hv : b0.toNat % 16 ≠ 0) :
-    cpsTripleWithin 1 (bAt base 20) (bAt base 38) (hdnCr base)
-      ((.x7 ↦ᵣ BitVec.ofNat 64 (b0.toNat % 16)) ** (Reg.x0 ↦ᵣ (0 : Word)))
-      ((.x7 ↦ᵣ BitVec.ofNat 64 (b0.toNat % 16)) ** (Reg.x0 ↦ᵣ (0 : Word))) := by
-  have hbne := bne_spec_gen_within .x7 .x0 (72 : BitVec 13)
-    (BitVec.ofNat 64 (b0.toNat % 16)) 0 (bAt base 20)
-  rw [show bAt base 20 + signExtend13 (72 : BitVec 13) = bAt base 38 from by
-    simp only [bAt, BitVec.add_assoc]; congr 1] at hbne
-  exact cpsBranchWithin_takenStripPure2
-    (cpsBranchWithin_extend_code
-      (memAt base 20 (.BNE .x7 .x0 (72 : BitVec 13)) (by decide) (by rfl)) hbne)
-    (fun hp hQf => by
-      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
-      exact hv (nib_word_eq_zero ((sepConj_pure_right _).1 hBP).2 (by omega)))
-
-/-- Body 20, not taken: zero padding nibble — the even path proceeds. -/
-theorem br4_ntaken (base : Word) (b0 : BitVec 8) (hv : b0.toNat % 16 = 0) :
-    cpsTripleWithin 1 (bAt base 20) (bAt base 21) (hdnCr base)
-      ((.x7 ↦ᵣ BitVec.ofNat 64 (b0.toNat % 16)) ** (Reg.x0 ↦ᵣ (0 : Word)))
-      ((.x7 ↦ᵣ BitVec.ofNat 64 (b0.toNat % 16)) ** (Reg.x0 ↦ᵣ (0 : Word))) := by
-  have hbne := bne_spec_gen_within .x7 .x0 (72 : BitVec 13)
-    (BitVec.ofNat 64 (b0.toNat % 16)) 0 (bAt base 20)
-  rw [bAt_succ base 20] at hbne
-  exact cpsBranchWithin_ntakenStripPure2
-    (cpsBranchWithin_extend_code
-      (memAt base 20 (.BNE .x7 .x0 (72 : BitVec 13)) (by decide) (by rfl)) hbne)
-    (fun hp hQt => by
-      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
-      exact ((sepConj_pure_right _).1 hBP).2 (by rw [hv]; rfl))
+    (memAt base 19 (.JAL .x0 (12 : BitVec 21)) (by decide) (by rfl)) h
 
 /-- `seg4evenProg` core at a free entry address. -/
 private theorem seg4even_core (A dst : Word) (v30 v31 : Word) :
@@ -824,50 +752,50 @@ private theorem seg4even_core (A dst : Word) (v30 v31 : Word) :
   have h1 := mv_spec_gen_within .x31 .x18 dst v31 (A + 4) (by decide)
   runBlock h0 h1
 
-/-- Body 21–22 (even path): count 0, cursor `dst`. -/
+/-- Body 20–21 (even path): count 0, cursor `dst`. -/
 theorem seg4even_spec (base dst : Word) (v30 v31 : Word) :
-    cpsTripleWithin 2 (bAt base 21) (bAt base 23) (hdnCr base)
+    cpsTripleWithin 2 (bAt base 20) (bAt base 22) (hdnCr base)
       ((.x18 ↦ᵣ dst) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31))
       ((.x18 ↦ᵣ dst) ** (.x30 ↦ᵣ (0 : Word)) ** (.x31 ↦ᵣ dst)) := by
-  have hexit : bAt base 21 + 4 + 4 = bAt base 23 := by
+  have hexit : bAt base 20 + 4 + 4 = bAt base 22 := by
     simp only [bAt, BitVec.add_assoc]
     congr 1
-  have hc := seg4even_core (bAt base 21) dst v30 v31
+  have hc := seg4even_core (bAt base 20) dst v30 v31
   rw [hexit] at hc
-  exact liftSeg base 21 (seg := seg4evenProg) (by rfl) (by decide) hc
+  exact liftSeg base 20 (seg := seg4evenProg) (by rfl) (by decide) hc
 
-/-- Body 23: loop-cursor init `li t0, 1`. -/
+/-- Body 22: loop-cursor init `li t0, 1`. -/
 theorem seg5_spec (base : Word) (v5 : Word) :
-    cpsTripleWithin 1 (bAt base 23) (bAt base 24) (hdnCr base)
+    cpsTripleWithin 1 (bAt base 22) (bAt base 23) (hdnCr base)
       (.x5 ↦ᵣ v5) (.x5 ↦ᵣ (1 : Word)) := by
-  have h := li_spec_gen_within .x5 v5 (1 : Word) (bAt base 23) (by decide)
-  rw [bAt_succ base 23] at h
+  have h := li_spec_gen_within .x5 v5 (1 : Word) (bAt base 22) (by decide)
+  rw [bAt_succ base 22] at h
   exact cpsTripleWithin_extend_code
-    (memAt base 23 (.LI .x5 (1 : Word)) (by decide) (by rfl)) h
+    (memAt base 22 (.LI .x5 (1 : Word)) (by decide) (by rfl)) h
 
-/-- Body 35–37: store the nibble count, status 0, jump to the body exit. -/
+/-- Body 34–36: store the nibble count, status 0, jump to the body exit. -/
 theorem seg6_spec (base cnt oldCnt : Word) (v30 v10 : Word) :
-    cpsTripleWithin 3 (bAt base 35) (bAt base 39) (hdnCr base)
+    cpsTripleWithin 3 (bAt base 34) (bAt base 38) (hdnCr base)
       ((.x19 ↦ᵣ cnt) ** (.x30 ↦ᵣ v30) ** (.x10 ↦ᵣ v10) ** (cnt ↦ₘ oldCnt))
       ((.x19 ↦ᵣ cnt) ** (.x30 ↦ᵣ v30) ** (.x10 ↦ᵣ (0 : Word)) ** (cnt ↦ₘ v30)) := by
   -- SD, then LI, then the jump — the jump is handled separately since
   -- `runBlock` chains fall-through exits only.
-  have h0 := sd_spec_gen_within .x19 .x30 cnt v30 oldCnt (0 : BitVec 12) (bAt base 35)
-  rw [add_sext0 cnt, bAt_succ base 35] at h0
-  have h1 := li_spec_gen_within .x10 v10 (0 : Word) (bAt base 36) (by decide)
-  rw [bAt_succ base 36] at h1
-  have h2 := jal0_spec_pcFree (8 : BitVec 21) (bAt base 37)
+  have h0 := sd_spec_gen_within .x19 .x30 cnt v30 oldCnt (0 : BitVec 12) (bAt base 34)
+  rw [add_sext0 cnt, bAt_succ base 34] at h0
+  have h1 := li_spec_gen_within .x10 v10 (0 : Word) (bAt base 35) (by decide)
+  rw [bAt_succ base 35] at h1
+  have h2 := jal0_spec_pcFree (8 : BitVec 21) (bAt base 36)
     (P := (.x19 ↦ᵣ cnt) ** (.x30 ↦ᵣ v30) ** (.x10 ↦ᵣ (0 : Word)) ** (cnt ↦ₘ v30))
     (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs pcFree_memIs)))
-  rw [show bAt base 37 + signExtend21 (8 : BitVec 21) = bAt base 39 from by
+  rw [show bAt base 36 + signExtend21 (8 : BitVec 21) = bAt base 38 from by
     simp only [bAt, BitVec.add_assoc]; congr 1] at h2
   have m0 := cpsTripleWithin_extend_code
-    (memAt base 35 (.SD .x19 .x30 (0 : BitVec 12)) (by decide) (by rfl)) h0
+    (memAt base 34 (.SD .x19 .x30 (0 : BitVec 12)) (by decide) (by rfl)) h0
   have m1 := cpsTripleWithin_extend_code
-    (memAt base 36 (.LI .x10 (0 : Word)) (by decide) (by rfl)) h1
+    (memAt base 35 (.LI .x10 (0 : Word)) (by decide) (by rfl)) h1
   have m2 := cpsTripleWithin_extend_code
-    (memAt base 37 (.JAL .x0 (8 : BitVec 21)) (by decide) (by rfl)) h2
+    (memAt base 36 (.JAL .x0 (8 : BitVec 21)) (by decide) (by rfl)) h2
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_frameR (.x10 ↦ᵣ v10) pcFree_regIs m0)
     (cpsTripleWithin_frameR ((.x19 ↦ᵣ cnt) ** (cnt ↦ₘ v30)) (pcFree_sepConj
@@ -877,14 +805,14 @@ theorem seg6_spec (base cnt oldCnt : Word) (v30 v10 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) s2
 
-/-- Body 38: the shared fail tail `li a0, 1`, falling into the epilogue. -/
+/-- Body 37: the shared fail tail `li a0, 1`, falling into the epilogue. -/
 theorem fail38_spec (base : Word) (v10 : Word) :
-    cpsTripleWithin 1 (bAt base 38) (bAt base 39) (hdnCr base)
+    cpsTripleWithin 1 (bAt base 37) (bAt base 38) (hdnCr base)
       (.x10 ↦ᵣ v10) (.x10 ↦ᵣ (1 : Word)) := by
-  have h := li_spec_gen_within .x10 v10 (1 : Word) (bAt base 38) (by decide)
-  rw [bAt_succ base 38] at h
+  have h := li_spec_gen_within .x10 v10 (1 : Word) (bAt base 37) (by decide)
+  rw [bAt_succ base 37] at h
   exact cpsTripleWithin_extend_code
-    (memAt base 38 (.LI .x10 (1 : Word)) (by decide) (by rfl)) h
+    (memAt base 37 (.LI .x10 (1 : Word)) (by decide) (by rfl)) h
 
 
 /-! ## The nibble loop -/
@@ -1023,7 +951,7 @@ private theorem loopBody_spec (base src dst : Word) (bs orig : List (BitVec 8))
     (hbuf : hdnC0 bs + 2 * (bs.length - 1) ≤ orig.length)
     (hdalign : dst.toNat % 8 = 0) (hdover : dst.toNat + orig.length < 2 ^ 64)
     (hdvalid : ∀ j, j < orig.length → isValidByteAccess (dst + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin 10 (bAt base 25) (bAt base 24) (hdnCr base)
+    cpsTripleWithin 10 (bAt base 24) (bAt base 23) (hdnCr base)
       ((.x5 ↦ᵣ BitVec.ofNat 64 i) ** (.x9 ↦ᵣ BitVec.ofNat 64 bs.length)
         ** hdnInv src dst bs orig e6 e7 e28 e29 i)
       ((.x5 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (.x9 ↦ᵣ BitVec.ofNat 64 bs.length)
@@ -1033,7 +961,7 @@ private theorem loopBody_spec (base src dst : Word) (bs orig : List (BitVec 8))
   have hwinlen : (hdnWin bs orig (i - 1)).length = orig.length :=
     hdnWin_zero_length bs orig (i - 1)
   -- The straight-line core over the real bytes.
-  have hcore := loopCore (bAt base 25) src dst bs (hdnWin bs orig (i - 1)) i
+  have hcore := loopCore (bAt base 24) src dst bs (hdnWin bs orig (i - 1)) i
     (hdnC0 bs + 2 * (i - 1))
     (if i ≤ 1 then e6 else src + BitVec.ofNat 64 (i - 1))
     (if i ≤ 1 then e7 else (bs.getD (i - 1) 0).zeroExtend 64)
@@ -1048,13 +976,13 @@ private theorem loopBody_spec (base src dst : Word) (bs orig : List (BitVec 8))
   rw [show i - 1 + 1 = i from by omega] at hstep
   rw [hstep] at hcore
   -- Lift into the routine CodeReq.
-  have hexit : bAt base 25 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = bAt base 34 := by
+  have hexit : bAt base 24 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = bAt base 33 := by
     simp only [bAt, BitVec.add_assoc]
     congr 1
   rw [hexit] at hcore
-  have hlift := liftSeg base 25 (seg := loopProg) (by rfl) (by decide) hcore
+  have hlift := liftSeg base 24 (seg := loopProg) (by rfl) (by decide) hcore
   -- The back-edge.
-  have hjal := jal0_spec_pcFree (-40 : BitVec 21) (bAt base 34)
+  have hjal := jal0_spec_pcFree (-40 : BitVec 21) (bAt base 33)
     (P := (.x5 ↦ᵣ BitVec.ofNat 64 (i + 1)) ** (.x8 ↦ᵣ src)
       ** (.x6 ↦ᵣ (src + BitVec.ofNat 64 i))
       ** (.x7 ↦ᵣ ((bs.getD i 0).zeroExtend 64))
@@ -1071,7 +999,7 @@ private theorem loopBody_spec (base src dst : Word) (bs orig : List (BitVec 8))
               (bytesRegion_pcFree _ _))))))))))
   rw [bAt_jal_back40 base] at hjal
   have hjal' := cpsTripleWithin_extend_code
-    (memAt base 34 (.JAL .x0 (-40 : BitVec 21)) (by decide) (by rfl)) hjal
+    (memAt base 33 (.JAL .x0 (-40 : BitVec 21)) (by decide) (by rfl)) hjal
   -- core ; jal, then frame x9 and reshape into the invariant.
   have hseq := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
     hlift hjal'
@@ -1097,27 +1025,27 @@ theorem loop_spec (base src dst : Word) (bs orig : List (BitVec 8))
     (hbuf : hdnC0 bs + 2 * (bs.length - 1) ≤ orig.length)
     (hdalign : dst.toNat % 8 = 0) (hdover : dst.toNat + orig.length < 2 ^ 64)
     (hdvalid : ∀ j, j < orig.length → isValidByteAccess (dst + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin ((bs.length - 1) * 11 + 1) (bAt base 24) (bAt base 35)
+    cpsTripleWithin ((bs.length - 1) * 11 + 1) (bAt base 23) (bAt base 34)
       (hdnCr base)
       ((.x5 ↦ᵣ BitVec.ofNat 64 1) ** (.x9 ↦ᵣ BitVec.ofNat 64 bs.length)
         ** hdnInv src dst bs orig e6 e7 e28 e29 1)
       ((.x5 ↦ᵣ BitVec.ofNat 64 bs.length) ** (.x9 ↦ᵣ BitVec.ofNat 64 bs.length)
         ** hdnInv src dst bs orig e6 e7 e28 e29 bs.length) := by
-  have h := upLoop_spec (hdnCr base) (bAt base 24) (bAt base 35) .x5 .x9
+  have h := upLoop_spec (hdnCr base) (bAt base 23) (bAt base 34) .x5 .x9
     (44 : BitVec 13) 10 bs.length
     (hdnInv src dst bs orig e6 e7 e28 e29)
     (by omega)
     (by
-      show bAt base 24 + signExtend13 (44 : BitVec 13) = bAt base 35
+      show bAt base 23 + signExtend13 (44 : BitVec 13) = bAt base 34
       simp only [bAt, BitVec.add_assoc]
       congr 1)
     (fun n => pcFree_hdnInv src dst bs orig e6 e7 e28 e29 n)
-    (memAt base 24 (.BGEU .x5 .x9 (44 : BitVec 13)) (by decide) (by rfl))
+    (memAt base 23 (.BGEU .x5 .x9 (44 : BitVec 13)) (by decide) (by rfl))
     1 hlen1
     (fun i h1i hi => by
       have h := loopBody_spec base src dst bs orig e6 e7 e28 e29 i h1i hi
         hsalign hsover hsvalid hbuf hdalign hdover hdvalid
-      rw [← bAt_succ base 24] at h
+      rw [← bAt_succ base 23] at h
       exact h)
   exact cpsTripleWithin_mono_nSteps (by omega) h
 
