@@ -419,6 +419,8 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryNames
+import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
+import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
