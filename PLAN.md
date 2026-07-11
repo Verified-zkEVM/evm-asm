@@ -4174,10 +4174,10 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     only `min(retlen, 256)` returndata bytes into `evm_precompile_frame` (true retlen at +8), and
     `h_RETURNDATACOPY` guard (3) reverted `start+size > 256` where execution-specs reverts only past
     `len(return_data)` — a reachable false-reject for >256-byte child returns. Fix: the frame's data
-    window is now `precompileFrameReturndataCapBytes = rootRuntimeMemoryArenaLimitBytes` (0x50000,
-    a single global — ~318 KiB of `.data`, +0.08%), which architecturally bounds every staging path
+    window is now `precompileFrameReturndataCapBytes = rootRuntimeMemoryArenaLimitBytes` (0x100000,
+    a single global), which architecturally bounds every staging path
     (child RETURN/REVERT ≤ 0x20000 via `returnRevertMemoryGasAsm`; IDENTITY echo ≤ caller arena
-    ≤ 0x50000 — its 256-cap staging fixed in the same change; MODEXP ≤ 1024 already full). Guard (3)
+    ≤ 0x100000 — its 256-cap staging fixed in the same change; MODEXP ≤ 1024 already full). Guard (3)
     deleted; guard (2) (`start+size > retlen`) alone matches the spec and stays within staged bytes.
     Witnessed by the extended `zisk_frame_return` probe (staging byte 299) and the
     `zisk_call_roundtrip` probe (parent RETURNDATACOPY reads returndata[299] end-to-end; both probes
