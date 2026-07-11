@@ -82,9 +82,9 @@ def contentU64Base : Word := 0x80004c6c#64
 /-- Guest entry of `rlp_content_to_u256_be`. -/
 def contentU256Base : Word := 0x80004cc4#64
 /-- Guest entry of `account_extract_nonce`. -/
-def extractNonceBase : Word := 0x8001cb24#64
+def extractNonceBase : Word := 0x8001cbd0#64
 /-- Guest entry of `account_extract_balance`. -/
-def extractBalanceBase : Word := 0x8001ca98#64
+def extractBalanceBase : Word := 0x8001cb44#64
 
 theorem walkInitBase_eq :
     walkInitBase = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init := by decide

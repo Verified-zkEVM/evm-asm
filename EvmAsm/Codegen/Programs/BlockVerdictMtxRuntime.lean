@@ -302,7 +302,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_i; ld a5, 0(t0); la a6, bvgr_block_gas_increments; li a7, 0\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
-  "  mv t0, a2; la t1, bv_exec_p; ld t1, 0(t1); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; sd a2, 0(t0)\n" ++
+  "  la t1, bv_exec_p; ld t1, 0(t1); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; ld t0, 0(t0)\n" ++
   "  bltu a0, t0, .Lbv_eip8037_gas_fail\n" ++
   "  sub t1, a0, t0; la t0, bv_mtx_ctx; ld t2, 40(t0); li t3, 16777216; bleu t2, t3, .Lbv_mtx_creation_cap_done; mv t2, t3\n" ++
   ".Lbv_mtx_creation_cap_done:\n" ++
