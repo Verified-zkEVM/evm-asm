@@ -49,6 +49,141 @@ def evmMemoryReadWord (bs : List (BitVec 8)) (k : Nat) : EvmWord :=
     (getByteAt bs (k + 27)) (getByteAt bs (k + 28)) (getByteAt bs (k + 29))
     (getByteAt bs (k + 30)) (getByteAt bs (k + 31))
 
+/-- Extract the adjacent dword pair used by one unaligned MLOAD quarter while
+    leaving the rest of an EVM-memory region framed.  Unlike the obsolete
+    eight-cell public precondition, callers use this equality one quarter at a
+    time and fold the pair back before extracting the next one. -/
+theorem evmMemoryIs_quarter_pair
+    (memBase : Word) (capacity : Nat) (contents : List (BitVec 8))
+    (offset : Word) (w : Nat)
+    (hlen : contents.length = capacity) (h_w_le : w ≤ 24)
+    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length) :
+    ∃ front rest : Assertion, front.pcFree ∧ rest.pcFree ∧
+      evmMemoryIs memBase capacity contents =
+        (front ** (((memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8))) ↦ₘ
+          dwordAt contents (8 * ((offset.toNat + w) / 8))) **
+          (((memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8) + 8)) ↦ₘ
+            dwordAt contents (8 * ((offset.toNat + w) / 8) + 8)) ** rest))) := by
+  rw [evmMemoryIs_eq_bytesRegion hlen]
+  exact bytesRegion_dword_pair_at memBase contents ((offset.toNat + w) / 8) (by omega)
+
+/-- Decode one byte from an unaligned quarter pair back to the byte list.
+    This is the byte-level bridge used after each framed one-limb execution. -/
+theorem mloadByteFromDwordPair_dwordAt_unaligned
+    (contents : List (BitVec 8)) (offset : Word) (w i : Nat)
+    (h_w_mod : w % 8 = 0) (h_w_le : w ≤ 24) (h_i : i < 8)
+    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length) :
+    mloadByteFromDwordPair
+      (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+      (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+      (offset.toNat % 8) i = getByteAt contents (offset.toNat + w + i) := by
+  by_cases h_lo : offset.toNat % 8 + i < 8
+  · rw [mloadByteFromDwordPair_low _ _ h_lo,
+        show (offset.toNat % 8 + i) % 8 = offset.toNat % 8 + i from
+          Nat.mod_eq_of_lt h_lo]
+    unfold dwordAt
+    rw [extractByte_packBytes _ _ h_lo
+      (by rw [List.length_take, List.length_drop]; omega),
+      List.getElem_take, List.getElem_drop]
+    unfold getByteAt
+    rw [dif_pos (by omega : offset.toNat + w + i < contents.length)]
+    congr 1
+    omega
+  · rw [mloadByteFromDwordPair_high _ _ (by omega),
+        show (offset.toNat % 8 + i) % 8 = offset.toNat % 8 + i - 8 by omega]
+    unfold dwordAt
+    rw [extractByte_packBytes _ _ (by omega)
+      (by rw [List.length_take, List.length_drop]; omega),
+      List.getElem_take, List.getElem_drop]
+    unfold getByteAt
+    rw [dif_pos (by omega : offset.toNat + w + i < contents.length)]
+    congr 1
+    omega
+
+/-- The four unaligned region-backed quarter pairs assemble to the EVM MLOAD
+    word.  The pairs are ordered in execution/stack-limb order (24,16,8,0). -/
+theorem mloadStackOutputWordFromDwordPairs_dwordAt_unaligned
+    (contents : List (BitVec 8)) (offset : Word)
+    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length) :
+    mloadStackOutputWordFromDwordPairs
+      (dwordAt contents (8 * ((offset.toNat + 24) / 8)))
+      (dwordAt contents (8 * ((offset.toNat + 24) / 8) + 8)) (offset.toNat % 8)
+      (dwordAt contents (8 * ((offset.toNat + 16) / 8)))
+      (dwordAt contents (8 * ((offset.toNat + 16) / 8) + 8)) (offset.toNat % 8)
+      (dwordAt contents (8 * ((offset.toNat + 8) / 8)))
+      (dwordAt contents (8 * ((offset.toNat + 8) / 8) + 8)) (offset.toNat % 8)
+      (dwordAt contents (8 * ((offset.toNat + 0) / 8)))
+      (dwordAt contents (8 * ((offset.toNat + 0) / 8) + 8)) (offset.toNat % 8) =
+      evmMemoryReadWord contents offset.toNat := by
+  rw [mloadStackOutputWordFromDwordPairs_eq_mloadLoadedWordFromDwordPairs,
+      mloadLoadedWordFromDwordPairs_eq_mloadLoadedWordFromBytes]
+  repeat' first
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 0
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 1
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 2
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 3
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 4
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 5
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 6
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 0 7
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 0
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 1
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 2
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 3
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 4
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 5
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 6
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 8 7
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 0
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 1
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 2
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 3
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 4
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 5
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 6
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 16 7
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 0
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 1
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 2
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 3
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 4
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 5
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 6
+      (by decide) (by decide) (by decide) hin]
+  | rw [mloadByteFromDwordPair_dwordAt_unaligned contents offset 24 7
+      (by decide) (by decide) (by decide) hin]
+  rfl
+
 /-! ## Bridges: window-pair byte algebra → region bytes -/
 
 /-- With `start = 0` a window byte comes from the lo dword only, and the
