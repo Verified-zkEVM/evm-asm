@@ -4318,11 +4318,21 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   **`elExecuteHybrid`**: full `elExecute` with a sound fallback to the
   static shell only on unimplemented-precompile contact (monotone, no
   false rejects). EEST 300-sample: **300/300 FULL match, 0
-  divergences**. Remaining: the 14 precompile implementations (bn254
-  ×3, bls12-381 ×7, KZG, p256verify — adapt
-  `EvmAsm/Stateless/VM/Precompiles.lean`; ripemd160/blake2f fresh),
-  then `.6` flips the `eest-specref-check` succ gate (baseline was
-  974/25,474 divergences).
+  divergences**. Post-merge (2026-07-11): ALL 18 precompiles
+  implemented and cross-verified (`PrecompilesHash/Curve/Pairing/Bls/
+  BlsMap/Kzg/Table.lean` — ripemd160 + blake2f fresh primitives; bn128
+  add/mul/pairing and the 7 bls12-381 ops via a faithful py_ecc port
+  incl. the FQP tower, SSWU + isogenies, and MSM discounts; KZG point
+  evaluation with G1 decompression and batched final exponentiation;
+  p256verify), and the DEFAULT seam is the complete-table
+  **`elExecute`** (`PrecompilesTable.lean`, no fallback). The v0.5.0
+  failed-input sentinel landed in parallel (`Guest.lean`), and the
+  EEST harness was un-pinned from `executeAlwaysOk` (PR #10179).
+  Remaining: `.6` flips the `eest-specref-check` succ gate (baseline
+  was 974/25,474 divergences; 2 known fixture-vs-pinned-spec
+  divergences on `test_invalid_multi_type_requests`
+  builderdeposit/builderexit, where SpecRef agrees with the pinned
+  Python spec and the fixture expectation differs).
 
 ### Cross-references
 
