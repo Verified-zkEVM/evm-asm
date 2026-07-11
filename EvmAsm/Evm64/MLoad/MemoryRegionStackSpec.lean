@@ -184,6 +184,62 @@ theorem mloadStackOutputWordFromDwordPairs_dwordAt_unaligned
       (by decide) (by decide) (by decide) hin]
   rfl
 
+/-- One unaligned MLOAD quarter executed against a folded `evmMemoryIs`
+    resource.  The backing pair is peeled only for this execution and folded
+    immediately afterwards, so adjacent quarters may safely share a dword. -/
+theorem mload_one_limb_unaligned_spec_within_evmMemoryIs
+    (addrReg byteReg accReg : Reg)
+    (memBase offset sp byteOld accOld dstOld : Word)
+    (capacity : Nat) (contents : List (BitVec 8)) (w : Nat)
+    (off0 off1 off2 off3 off4 off5 off6 off7 dstOff : BitVec 12) (qb : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0) (h_acc_ne_x0 : accReg ≠ .x0)
+    (hlen : contents.length = capacity) (h_w_le : w ≤ 24)
+    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length)
+    (h_window : mloadLimbWindowOk (memBase + offset)
+      (memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8)))
+      (memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8) + 8))
+      (offset.toNat % 8) off0 off1 off2 off3 off4 off5 off6 off7) :
+    cpsTripleWithin 23 qb (qb + 92)
+      (mloadOneLimbCode addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7 dstOff qb)
+      ((addrReg ↦ᵣ (memBase + offset)) ** (byteReg ↦ᵣ byteOld) **
+       (accReg ↦ᵣ accOld) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((sp + signExtend12 dstOff) ↦ₘ dstOld) **
+       evmMemoryIs memBase capacity contents)
+      ((addrReg ↦ᵣ (memBase + offset)) **
+       (byteReg ↦ᵣ
+         (mloadByteFromDwordPair
+           (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+           (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+           (offset.toNat % 8) 7).zeroExtend 64) **
+       (accReg ↦ᵣ
+         mloadPackedLimbFromDwordPair
+           (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+           (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+           (offset.toNat % 8)) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((sp + signExtend12 dstOff) ↦ₘ
+         mloadPackedLimbFromDwordPair
+           (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+           (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+           (offset.toNat % 8)) ** evmMemoryIs memBase capacity contents) := by
+  obtain ⟨front, rest, h_front, h_rest, heq⟩ :=
+    evmMemoryIs_quarter_pair memBase capacity contents offset w hlen h_w_le hin
+  rw [heq]
+  have h_core := mload_one_limb_unaligned_spec_within addrReg byteReg accReg
+    (memBase + offset) accOld byteOld
+    (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+    (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+    (memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8)))
+    (memBase + BitVec.ofNat 64 (8 * ((offset.toNat + w) / 8) + 8))
+    sp dstOld off0 off1 off2 off3 off4 off5 off6 off7 dstOff
+    (offset.toNat % 8) qb h_byte_ne_x0 h_acc_ne_x0 h_window
+  rw [mloadOneLimbUnalignedPre_unfold, mloadOneLimbUnalignedPost_unfold] at h_core
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_frameR (front ** rest)
+      (pcFree_sepConj h_front h_rest) h_core)
+
 /-! ## Bridges: window-pair byte algebra → region bytes -/
 
 /-- With `start = 0` a window byte comes from the lo dword only, and the
