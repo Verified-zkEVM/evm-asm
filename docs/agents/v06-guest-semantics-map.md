@@ -117,3 +117,30 @@ scripts/guest_image_coverage.py --emit-lean` → fix drift → `lake
 build` → A/B smoke `scripts/codegen-eest-stateless-check.sh --limit 40`
 (driver: the 33 succ-failing fixtures, mostly eip2780 calldata_floor +
 eip7702 auth).
+
+
+## Receipts-root diagnosis state (end of 2026-07-11 session)
+The refund→charge flip produces SPEC-EXACT receipt cumulatives on the
+`single_authorization_charges` fixtures (22816/30816/66006/249606,
+verified against `dump_receipts_for_fixture.py`), yet all 6 variants
+reject with bv_fail=53 (receipts root) — including `invalid`, which
+already failed PRE-flip. So a second, non-gas receipts discrepancy
+exists (status byte or logs/bloom suspected; spec says n_logs=0,
+error=False on these).
+
+Next diagnostic step: the harness's dbg parser already understands
+`bv_receipts_validator_status` (OUTPUT+424: 2=root mismatch, 4=bloom
+mismatch) and friends, but the verdict-debug probe dump is only 256
+bytes — either the probe's debug prologue variant stops early or
+spike_run/ziskemu truncate the OUTPUT dump. Find where the dump length
+is set (scripts/spike/spike_run capture; ziskemu -o extent) or extend
+`ziskStatelessVerdictV2Prologue` (BlockVerdict.lean:85+, which in
+source writes ≥360 bytes) and re-run
+`codegen-eest-stateless-check.sh --filter single_authorization_charges
+--backend spike --max-jobs 20 --jobs 20` (~1 min). validator_status 2
+vs 4 splits root-vs-bloom immediately.
+
+Pre-flip baseline on those 6: 1 PASS (creates_account) / 5 FAIL —
+creates_account's pre-flip pass is arithmetically inconsistent with
+the spec receipt (241606 vs 249606 by hand), suggesting compensating
+errors pre-flip; do NOT treat it as a regression oracle.
