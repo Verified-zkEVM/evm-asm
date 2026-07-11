@@ -36,7 +36,7 @@ cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
 DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
-DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.5.0}"
+DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.6.0}"
 TAG="${1:-${EEST_FIXTURE_TAG:-$DEFAULT_TAG}}"
 REPO="${EEST_REPO:-ethereum/execution-specs}"
 ASSET="fixtures_zkevm.tar.gz"

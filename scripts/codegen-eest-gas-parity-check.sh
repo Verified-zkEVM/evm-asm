@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 JOBS="${EEST_GAS_PARITY_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_GAS_PARITY_STEPS:-${EEST_STEPS:-1000000000}}"
 LIMIT="${EEST_GAS_PARITY_LIMIT:-1}"
@@ -44,7 +44,7 @@ Options:
   --steps N                    ziskemu max steps (default: 1000000000)
   --max-failures N             per-filter FAIL/ERROR stop cap (default: 1)
   --run-dir DIR                output directory (default: gen-out/eest-gas-parity)
-  --tag TAG                    EEST fixture tag (default: tests-zkevm@v0.5.0)
+  --tag TAG                    EEST fixture tag (default: tests-zkevm@v0.6.0)
   --no-build                   pass --no-build to every inner stateless run
   --allow-empty                skip filters that select no stateless blocks
   --list-filters               print selected filters and exit

@@ -319,7 +319,7 @@ def print_tsv(outcomes: dict[str, Outcome]) -> None:
 def main() -> int:
     root = repo_root()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tag", default="tests-zkevm@v0.5.0")
+    parser.add_argument("--tag", default="tests-zkevm@v0.6.0")
     parser.add_argument("--fixtures-dir", type=Path, default=None)
     parser.add_argument(
         "--manifest",
