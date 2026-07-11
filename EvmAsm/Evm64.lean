@@ -171,6 +171,7 @@ import EvmAsm.Evm64.StateAssertions
 import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Evm64.AccountRlp
 import EvmAsm.Evm64.AccountFieldExtractSpec
+import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MemoryGas
 import EvmAsm.Evm64.KeccakArgs

@@ -176,7 +176,28 @@ wrong-hash node yields a rejection, never a wrong value.
 | `.5` | EVM execution core (`elExecute` interior): `apply_body`, transaction processing, `state_tracker`/BAL, interpreter + instructions + precompiles, EIP-8037 gas — **epic-sized; maintainer checkpoint below** | `fork.py`, `transactions.py`, `state_tracker.py`, `block_access_lists.py`, `vm/**` | `.2`, `.3`, `.4`; coordinate `n9rtz.4`/`.5` |
 | `.6` | flip `scripts/eest-specref-check.sh` to gate `succ` (add `--min-succ`/fold into fail); retire the `[root/----/tail]` divergence reporting as "expected" | `eest-specref-check.sh` | `.5` complete, divergences = 0 |
 
-### Maintainer checkpoint (STOP-and-report, per the bead)
+Status (2026-07-10): `.1` landed (`IncrementalMpt.lean`, PR #10166);
+`.2` landed (`WitnessReads.lean` — `WitnessState` read methods,
+cache-free over the `.1` decoder); `.4` landed
+(`IncrementalMptWrite.lean` — the full `incremental_mpt.py` write side —
+and `WitnessStateRoot.lean` — `compute_state_root_and_trie_changes`
+with `storage_clears`, obligation #8; roots cross-checked against the
+Python spec); `.3` landed (`Seam.lean`/`Transactions.lean`/`Gas.lean`/
+`BlocksRlp.lean`/`SeamShell.lean` — the `execute_new_payload_request`
+pre-checks + `execute_block` pre-execution frame + root-anchored
+witness authentication, wired as the default partial seam
+`executeSeamShell` per §3). The `.5` maintainer decision is
+**resolved**: proceed with the full pure port (see the bead comment on
+`s1d19.5`); stages 1–8 of `.5` are landed (PRs #10175/#10176): the
+complete EVM core (`StateTracker`/`BlockAccessLists`/`Vm`/
+`Instructions*`/`Interpreter`/`Fork`/`ElExecute`/`Precompiles`), with
+the default seam now `elExecuteHybrid` — the full `elExecute` with a
+§3-monotone fallback to the static shell only on contact with one of
+the 14 not-yet-ported precompiles (bn254 ×3, bls12-381 ×7, KZG
+point-eval, p256verify, ripemd160, blake2f).  EEST 300-sample:
+300/300 full match, 0 succ divergences.
+
+### Maintainer checkpoint (STOP-and-report, per the bead — since resolved)
 
 Children `.1`–`.4` and `.6` are bounded and are committed work.  `.5`
 is the whole EVM (~10k Python lines even after reuse): a faithful pure

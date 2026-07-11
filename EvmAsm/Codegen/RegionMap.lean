@@ -202,16 +202,24 @@ def schemeAAnchors : List GuestRegion :=
     calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
     delegation code was rebased directly from the caller's staged codes base.
     Grew by `0x848` after the cross-transaction authorization-nonce validation
-    landed (bead evm-asm-eip7702-cross-tx). -/
-def textSizeBytes : Nat := 0x56954
+    landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
+    dropped its 256-byte cap guard (evm-asm-pwqhw). Grew further after EIP-8037
+    prefix admission enforcement, parallel EEST worker result-file isolation,
+    and the self-funded EIP-7702 authorization refund fix landed. Grew by
+    `0x30` when EIP-2780 direct-authorization gas context started being
+    preserved. -/
+def textSizeBytes : Nat := 0x56948
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
-    `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x19834c70
+    `0x29000→0x39000` (the `call_frame_arena` trailing pad). Grew by `0x4fb00`
+    (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
+    `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
+    return (evm-asm-pwqhw). -/
+def dataSizeBytes : Nat := 0x19884770
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -232,7 +240,7 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc5156b0" }
+    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc6782d0" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf500000`). -/

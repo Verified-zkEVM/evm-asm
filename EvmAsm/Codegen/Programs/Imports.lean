@@ -77,6 +77,9 @@ import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
+import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
@@ -104,6 +107,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldCmpPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
@@ -431,3 +435,4 @@ import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsSpec
