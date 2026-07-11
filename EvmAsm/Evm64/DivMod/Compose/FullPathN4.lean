@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 
 open EvmAsm.Rv64.Tactics

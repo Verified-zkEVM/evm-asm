@@ -25,6 +25,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
 namespace EvmAsm.Evm64
 

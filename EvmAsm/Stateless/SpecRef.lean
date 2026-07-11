@@ -16,6 +16,20 @@
   * `SszCodec`     — generic SSZ serialize / deserialize / hash_tree_root
   * `Ssz`          — `stateless_ssz.py` containers + 34 conversions
   * `WitnessState` — `witness_state.py` (4 module-level defs)
+  * `IncrementalMpt` — `incremental_mpt.py` read side (`decode_witness_to_mpt`
+                     + helpers): MPT witness authentication (obligation #7)
+  * `WitnessReads`  — `witness_state.py` `WitnessState` read methods
+                     (`get_account_optional`/`get_storage`/`get_code`/…)
+  * `IncrementalMptWrite` — `incremental_mpt.py` write side (`mpt_set`/
+                     `mpt_root`/`build_mpt` + node encoding)
+  * `WitnessStateRoot` — `witness_state.py`
+                     `compute_state_root_and_trie_changes` (obligation #8)
+  * `Seam`         — the execution-seam interface types
+  * `Transactions` — `transactions.py` envelope decode side
+  * `Gas`          — `vm/gas.py` blob-gas/gas-limit slice
+  * `BlocksRlp`    — `blocks.py` RLP encode side (header/block/withdrawal)
+  * `SeamShell`    — `new_payload.py` pre-checks + `validation_helpers.py`
+                     + `fork.py` pre-execution frame: the partial seam
   * `Stateless`    — `stateless.py` (7 defs) + the execution seam
   * `Guest`        — `stateless_guest.py` (3 defs), the top-level shell
 -/
@@ -27,5 +41,33 @@ import EvmAsm.Stateless.SpecRef.Types
 import EvmAsm.Stateless.SpecRef.SszCodec
 import EvmAsm.Stateless.SpecRef.Ssz
 import EvmAsm.Stateless.SpecRef.WitnessState
+import EvmAsm.Stateless.SpecRef.IncrementalMpt
+import EvmAsm.Stateless.SpecRef.WitnessReads
+import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+import EvmAsm.Stateless.SpecRef.Seam
+import EvmAsm.Stateless.SpecRef.Transactions
+import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Stateless.SpecRef.BlocksRlp
+import EvmAsm.Stateless.SpecRef.StateTracker
+import EvmAsm.Stateless.SpecRef.BlockAccessLists
+import EvmAsm.Stateless.SpecRef.Vm
+import EvmAsm.Stateless.SpecRef.SeamShell
+import EvmAsm.Stateless.SpecRef.StateTracker
+import EvmAsm.Stateless.SpecRef.BlockAccessLists
+import EvmAsm.Stateless.SpecRef.Vm
+import EvmAsm.Stateless.SpecRef.InstructionsCore
+import EvmAsm.Stateless.SpecRef.InstructionsEnv
+import EvmAsm.Stateless.SpecRef.Interpreter
+import EvmAsm.Stateless.SpecRef.Fork
+import EvmAsm.Stateless.SpecRef.ElExecute
+import EvmAsm.Stateless.SpecRef.Precompiles
+import EvmAsm.Stateless.SpecRef.PrecompilesHash
+import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+import EvmAsm.Stateless.SpecRef.PrecompilesPairing
+import EvmAsm.Stateless.SpecRef.PrecompilesBls
+import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
+import EvmAsm.Stateless.SpecRef.PrecompilesKzg
+import EvmAsm.Stateless.SpecRef.PrecompilesTable
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.Guest

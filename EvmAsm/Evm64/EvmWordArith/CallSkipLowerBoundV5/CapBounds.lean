@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 

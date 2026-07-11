@@ -18,7 +18,9 @@
   `MutableNode` tree `_trie_lookup` walks) lives in `incremental_mpt.py`,
   not among the four target functions — so `_trie_lookup` is ported as a
   pure walk over an already-decoded `MutableNode`, and the `#guard`s below
-  exercise it on hand-built trees.
+  exercise it on hand-built trees. (`decode_witness_to_mpt` is now ported
+  in `IncrementalMpt.lean` — bead `s1d19.1`, obligation #7 — which reuses
+  the `MutableNode` type defined below.)
 -/
 
 import EvmAsm.Stateless.SpecRef.Types

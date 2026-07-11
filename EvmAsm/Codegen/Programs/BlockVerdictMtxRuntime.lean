@@ -287,6 +287,29 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   blockVerdictMtxValidationTail ++
   ".Lbv_mtx_creation_unsupported:\n" ++
+  -- A creation transaction is not yet dispatched by this loop, but every
+  -- preceding transaction has an exact settled runtime result in the strided
+  -- arrays.  Do not discard that information: execution-specs checks the next
+  -- transaction's declared regular reservation against the regular gas already
+  -- consumed by the settled prefix.  This catches an invalid transaction after
+  -- an otherwise supported prefix without guessing the creation transaction's
+  -- execution result.  Any parse/result failure remains the conservative bail.
+  "  la t0, bv_mtx_i; ld a5, 0(t0); beqz a5, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_exec_p; ld a0, 0(t0); la a1, bvgr_tx_gas_limits; li a2, " ++ toString bvMtxFullTxCap ++ "; jal ra, block_verdict_tx_gas_limits\n" ++
+  "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_exec_p; ld t0, 0(t0); addi a0, t0, 412; jal ra, bgv_u64le\n" ++
+  "  la a1, bvgr_tx_gas_limits; la a2, bv_mtx_gas_left; la a3, bv_mtx_refund; la a4, bv_mtx_calldata\n" ++
+  "  la t0, bv_mtx_i; ld a5, 0(t0); la a6, bvgr_block_gas_increments; li a7, 0\n" ++
+  "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
+  "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; sd a2, 0(t0)\n" ++
+  "  la t1, bv_exec_p; ld t1, 0(t1); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; ld t0, 0(t0)\n" ++
+  "  bltu a0, t0, .Lbv_eip8037_gas_fail\n" ++
+  "  sub t1, a0, t0; la t0, bv_mtx_ctx; ld t2, 40(t0); li t3, 16777216; bleu t2, t3, .Lbv_mtx_creation_cap_done; mv t2, t3\n" ++
+  ".Lbv_mtx_creation_cap_done:\n" ++
+  "  bgtu t2, t1, .Lbv_eip8037_gas_fail\n" ++
+  ".Lbv_mtx_creation_prefix_done:\n" ++
   bvReceiptsShapeSet 60 false ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_dispatch_unsupported:\n" ++

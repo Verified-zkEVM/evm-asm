@@ -43,6 +43,7 @@
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --min-root N       exit 1 if fewer than N root-region matches
 #     --min-tail N       exit 1 if fewer than N tail-region matches
+#     --min-succ N       exit 1 if fewer than N succ (verdict) matches
 #     --quiet-passes     suppress per-case PASS(full) lines
 #     --show-passes      print per-case PASS(full) lines
 #     --random           shuffle fixtures before --limit
@@ -93,6 +94,7 @@ Options:
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --min-root N             exit 1 if fewer than N root-region matches
   --min-tail N             exit 1 if fewer than N tail-region matches
+  --min-succ N             exit 1 if fewer than N succ (verdict) matches
   --quiet-passes           suppress per-case PASS(full) lines
   --show-passes            print per-case PASS(full) lines
   --random                 shuffle fixtures before --limit
@@ -124,6 +126,7 @@ while [[ $# -gt 0 ]]; do
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
     --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
     --min-tail) require_arg "$1" "${2:-}"; MIN_TAIL="$2"; shift 2 ;;
+    --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
@@ -148,6 +151,9 @@ if [[ -n "$MIN_ROOT" ]] && { ! [[ "$MIN_ROOT" =~ ^[0-9]+$ ]] || [[ "$MIN_ROOT" -
 fi
 if [[ -n "$MIN_TAIL" ]] && { ! [[ "$MIN_TAIL" =~ ^[0-9]+$ ]] || [[ "$MIN_TAIL" -lt 1 ]]; }; then
   echo "--min-tail must be a positive integer when set (got: $MIN_TAIL)" >&2; exit 1
+fi
+if [[ -n "${MIN_SUCC:-}" && ! "$MIN_SUCC" =~ ^[0-9]+$ ]]; then
+  echo "--min-succ must be a positive integer when set (got: $MIN_SUCC)" >&2; exit 1
 fi
 case "$QUIET_PASSES" in
   1|true|yes) QUIET_PASSES=1 ;;
@@ -272,7 +278,18 @@ case_identity() {
 # Failed-input sentinel results may be shorter because the nested ChainConfig
 # has an empty optional blob schedule. Compare those encodings byte-for-byte.
 # See the file header for why `succ` diverges (placeholder execution seam).
-total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 malformed=0
+total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 succfail=0 malformed=0
+
+SUCC_ALLOW_FILE="$REPO_ROOT/scripts/eest-succ-allow.txt"
+succ_allowlisted() {
+  local label="$1"
+  [[ -f "$SUCC_ALLOW_FILE" ]] || return 1
+  while IFS= read -r pat; do
+    [[ -z "$pat" || "$pat" == \#* ]] && continue
+    [[ "$label" == *"$pat"* ]] && return 0
+  done < "$SUCC_ALLOW_FILE"
+  return 1
+}
 
 # Worker: invoke the exe and write a per-case result TSV so the dispatcher
 # can run many cases in parallel and the classifier can read them back in
@@ -360,8 +377,13 @@ classify_case() {
       succ=$((succ + 1))
       full=$((full + 1))
     else
-      # Expected divergence: placeholder seam reports true, fixture says false.
-      succdiv=$((succdiv + 1))
+      # succ divergence: a FAIL unless the fixture is in the
+      # fixture-vs-pinned-spec allowlist (scripts/eest-succ-allow.txt).
+      if succ_allowlisted "$label"; then
+        succdiv=$((succdiv + 1))
+      else
+        succfail=$((succfail + 1))
+      fi
     fi
   fi
 
@@ -373,8 +395,12 @@ classify_case() {
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
         echo "  PASS(full)  $(case_identity "$label" "$relpath")"
       fi
+    elif succ_allowlisted "$label"; then
+      echo "  PASS(allow) $(case_identity "$label" "$relpath") [root/succ(div:fixture-allowlisted)/tail]"
     else
-      echo "  PASS(seam)  $(case_identity "$label" "$relpath") [root/succ(div:execution-seam)/tail]"
+      echo "  FAIL[succ]  $(case_identity "$label" "$relpath")"
+      echo "    expected: $expected_hex"
+      echo "    actual:   $actual_hex"
     fi
   else
     echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
@@ -416,7 +442,8 @@ echo "  full match  : $full   (root + succ + tail -- the guest's exact output)"
 echo "  root match  : $root   (pre-execution NPR-root hashing)   [gateable]"
 echo "  tail match  : $tail   (chain-config echo)                [gateable]"
 echo "  succ match  : $succ   (only on fixtures whose real EVM execution succeeded)"
-echo "  succ diverg : $succdiv  (expected: placeholder execution seam on succ=0 fixtures)"
+echo "  succ diverg : $succdiv  (fixture-vs-pinned-spec, allowlisted in eest-succ-allow.txt)"
+echo "  succ FAIL   : $succfail  (verdict disagreement -- a real SpecRef bug)"
 echo "  malformed   : $malformed  (variable-length failed sentinel; exact-byte match)"
 echo "  ERROR/FAIL  : $err    (pre-execution disagreement -- a real SpecRef bug)"
 echo "============================================================"
@@ -430,7 +457,15 @@ if [[ -n "$MIN_TAIL" && "$tail" -lt "$MIN_TAIL" ]]; then
   echo "REGRESSION: --min-tail $MIN_TAIL not met (tail matches = $tail)" >&2
   rc=1
 fi
-if [[ "$err" -gt 0 && -z "$MIN_ROOT$MIN_TAIL" ]]; then
+if [[ -n "${MIN_SUCC:-}" && "$succ" -lt "$MIN_SUCC" ]]; then
+  echo "REGRESSION: --min-succ $MIN_SUCC not met (succ matches = $succ)" >&2
+  rc=1
+fi
+if [[ "$succfail" -gt 0 ]]; then
+  # The seam is real (s1d19): any un-allowlisted succ divergence is a bug.
+  rc=1
+fi
+if [[ "$err" -gt 0 && -z "$MIN_ROOT$MIN_TAIL${MIN_SUCC:-}" ]]; then
   # With no explicit gate, surface pre-execution failures via exit code too.
   rc=1
 fi

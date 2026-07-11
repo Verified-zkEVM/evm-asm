@@ -1,0 +1,21 @@
+# eest-succ-allow.txt — fixtures whose recorded `statelessOutputBytes`
+# succ byte disagrees with execution-specs @ bd8c673 (tests-zkevm@v0.5.0)
+# ITSELF, so a SpecRef "divergence" on them is fixture-side, not a port
+# bug.  Allowlist discipline mirrors spec-refs-allow.txt: every entry
+# needs recorded evidence, and the goal is an empty file (entries leave
+# when the fixtures are regenerated or the spec pin moves).
+#
+# Format: one substring per line, matched against the case label
+# (manifest column 1).  Lines starting with # are comments.
+#
+# Tracking: issue #10182.
+# Evidence for the two entries below (bead evm-asm-s1d19.5,
+# 2026-07-11): running the PINNED Python spec's run_stateless_guest on
+# the exact converted inputs returns successful_validation = 0
+# ("requests hash mismatch": the engine-API typed ExecutionRequests
+# container cannot represent builder-type (0x03/0x04) request blobs,
+# so execute_block's computed requests_hash cannot match the header's
+# for blocks emitting builder requests), while the fixtures record
+# succ = 1.  SpecRef output == pinned-spec output on both.
+test_invalid_multi_type_requests_fork_Amsterdam-single_builderdeposit_empty_requests_list
+test_invalid_multi_type_requests_fork_Amsterdam-single_builderexit_empty_requests_list

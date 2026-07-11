@@ -66,6 +66,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 def selfdestructDestroyedAddressCap : Nat := 32768
+def selfdestructSeenOriginCap : Nat := 65536
 
 /-- Protocol EVM stack depth in 256-bit words. The dispatcher stack arena
     is static, so this is the capacity that valid bytecode may rely on. -/
@@ -593,7 +594,10 @@ private def emitBls12G2MsmDiscountTable : String :=
     copying them into caller memory. Layout:
       +precompileFrameStatusOff             status / success word
       +precompileFrameReturndataLenOff      returndata length
-      +precompileFrameReturndataOff         first 256 bytes of returndata scratch
+      +precompileFrameReturndataOff         returndata data window
+                                            (precompileFrameReturndataCapBytes
+                                            bytes — ≥ any stageable retlen, so
+                                            the FULL returndata is staged)
       +precompileFrameBls12G1Input0Off      G1-class compact input scratch
       +precompileFrameBls12G1Input1Off      G1 ADD compact p2 scratch
       +precompileFrameBls12G1OutputOff      G1-class compact result / pairing bool
@@ -609,11 +613,17 @@ private def emitBls12G2MsmDiscountTable : String :=
 
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
-    colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
+    colliding with map-Fp-to-G1 stacked PR edits around +144/+336.
+
+    The BLS/ECRECOVER lanes live INSIDE the returndata data window
+    (+144..+1280 < +16 + precompileFrameReturndataCapBytes). That overlap is
+    the existing discipline: lanes are written and consumed while a handler
+    runs, strictly before that handler stages its returndata bytes (MODEXP
+    already wrote up to +1040 across them). -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 1280\n"
+  "  .zero " ++ toString (precompileFrameReturndataOff + precompileFrameReturndataCapBytes) ++ "\n"
 
 /-- SELFDESTRUCT runtime staging scratch.
 
@@ -653,6 +663,13 @@ def emitSelfdestructData : String :=
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n" ++
   ".balign 8\n" ++
+  "evm_selfdestruct_seen_count:\n  .zero 8\n" ++
+  "evm_selfdestruct_seen_overflow:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_seen_table:\n  .zero " ++ toString (selfdestructSeenOriginCap * 32) ++ "\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_seen_count_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "evm_selfdestruct_seen_overflow_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   "evm_selfdestruct_destroyed_count:\n" ++
   "  .zero 8\n" ++
   "evm_selfdestruct_destroyed_overflow:\n" ++
@@ -1170,6 +1187,8 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
+  "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
@@ -3201,6 +3220,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- refund the 2300 stipend and clear it.
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   "cd_new_account_charged_current:\n  .zero 8\n" ++
+  "cd_callee_alive_before_value:\n  .zero 8\n" ++
   -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
   -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
   -- deferred Transfer log so receipt order is Transfer then Burn.
