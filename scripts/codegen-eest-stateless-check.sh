@@ -95,6 +95,8 @@
 #     --verify-execution-spec-input
 #                        decode the same guest-visible bytes through
 #                        execution-specs run_stateless_guest's input path
+#     --specref-oracle   also run SpecRef on each input and fail on any
+#                        byte-for-byte guest↔SpecRef divergence
 #     --random           shuffle fixtures into a random order before applying
 #                        --limit; use to sample a different subset on each run
 #                        and discover failures outside the default first-N fixtures
@@ -182,6 +184,7 @@ VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
+SPECREF_ORACLE="${EEST_SPECREF_ORACLE:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
@@ -222,6 +225,8 @@ Options:
   --no-verify-input-parity skip the default input parity check
   --verify-execution-spec-input
                            additionally decode guest bytes via execution-specs
+  --specref-oracle         compare every guest output byte-for-byte with SpecRef;
+                           classify verdict differences as false-accept/reject
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
@@ -270,6 +275,7 @@ while [[ $# -gt 0 ]]; do
     --verify-input-parity) VERIFY_INPUT_PARITY=1; shift ;;
     --no-verify-input-parity) VERIFY_INPUT_PARITY=0; shift ;;
     --verify-execution-spec-input) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1; shift ;;
+    --specref-oracle) SPECREF_ORACLE=1; shift ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
@@ -339,6 +345,10 @@ case "$VERIFY_EXECUTION_SPEC_INPUT" in
   1|true|yes) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1 ;;
   *) VERIFY_EXECUTION_SPEC_INPUT=0 ;;
 esac
+if [[ "$SPECREF_ORACLE" != "0" && "$SPECREF_ORACLE" != "1" ]]; then
+  echo "EEST_SPECREF_ORACLE must be 0 or 1 (got: $SPECREF_ORACLE)" >&2
+  exit 1
+fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
@@ -649,8 +659,10 @@ patch_bsr_caps_and_relink() {
 }
 
 if [[ "$NO_BUILD" -eq 0 ]]; then
-  echo "==> lake build codegen"
-  lake build codegen
+  build_targets=(codegen)
+  [[ "$SPECREF_ORACLE" -eq 1 ]] && build_targets+=(specref-eest-check)
+  echo "==> lake build ${build_targets[*]}"
+  lake build "${build_targets[@]}"
 
   if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
     cap_note=""
@@ -1108,6 +1120,21 @@ run_case() {
   local tmp_result="$result.tmp.$BASHPID"
   local actual_hex run_steps
 
+  run_specref_oracle() {
+    [[ "$SPECREF_ORACLE" -eq 1 ]] || return 0
+    local oracle_out="$RUN_DIR/$label.specref.output"
+    local oracle_log="$RUN_DIR/$label.specref.log"
+    local oracle_hex
+    if ! lake exe specref-eest-check "$input" "$oracle_out" >"$oracle_log" 2>&1; then
+      printf 'ERROR\tspecref\n' > "$tmp_result"
+      mv "$tmp_result" "$result"
+      return 1
+    fi
+    oracle_hex="$(xxd -p "$oracle_out" 2>/dev/null | tr -d '\n' || true)"
+    printf 'OK\t%s\t%s\n' "$actual_hex" "$oracle_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  }
+
   run_steps="$STEPS"
   run_emulator_case() {
     local steps="$1"
@@ -1153,8 +1180,12 @@ run_case() {
       if retry_budget_case; then
         actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
         if [[ "${#actual_hex}" -ge "${#expected_hex}" ]]; then
-          printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-          mv "$tmp_result" "$result"
+          if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+            run_specref_oracle || true
+          else
+            printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+            mv "$tmp_result" "$result"
+          fi
           return 0
         fi
       fi
@@ -1169,8 +1200,12 @@ run_case() {
     mv "$tmp_result" "$result"
     return 0
   fi
-  printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-  mv "$tmp_result" "$result"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    run_specref_oracle || true
+  else
+    printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  fi
 }
 
 wait_for_one_worker() {
@@ -1192,6 +1227,7 @@ wait_for_one_worker() {
 #   tail [33:]    = remaining expected SSZ tail (hex 66..)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
+oracleMatch=0 oracleDiff=0 guestFalseAccept=0 guestFalseReject=0
 # Progress tracking (--progress): RUN_START is stamped just before the run loop;
 # lastProgressTotal suppresses duplicate lines when `total` has not advanced.
 RUN_START=0
@@ -1230,7 +1266,7 @@ print_progress() {
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
+  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex oracle_hex exp r s t
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
@@ -1248,7 +1284,7 @@ classify_case_result() {
   fi
   classifiedLabels["$label"]=1
   total=$((total + 1))
-  IFS=$'\t' read -r status actual_hex < "$result"
+  IFS=$'\t' read -r status actual_hex oracle_hex < "$result"
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
@@ -1263,6 +1299,20 @@ classify_case_result() {
       *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
     esac
     return 0
+  fi
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    if [[ "$actual_hex" == "$oracle_hex" ]]; then
+      oracleMatch=$((oracleMatch + 1))
+    else
+      oracleDiff=$((oracleDiff + 1))
+      local guest_verdict="${actual_hex:64:2}" oracle_verdict="${oracle_hex:64:2}" oracle_class="output"
+      if [[ "$guest_verdict" == "01" && "$oracle_verdict" == "00" ]]; then
+        guestFalseAccept=$((guestFalseAccept + 1)); oracle_class="guest-false-accept"
+      elif [[ "$guest_verdict" == "00" && "$oracle_verdict" == "01" ]]; then
+        guestFalseReject=$((guestFalseReject + 1)); oracle_class="guest-false-reject"
+      fi
+      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath") (succ guest=$guest_verdict specref=$oracle_verdict)"
+    fi
   fi
   exp="$expected_hex"
 
@@ -1455,6 +1505,12 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  tail match:    $tail   (bytes after successful_validation)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
   echo "  fail:          $fail"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    echo "  oracle match:  $oracleMatch   (exact guest↔SpecRef bytes)"
+    echo "  oracle diff:   $oracleDiff"
+    echo "    guest false-accept: $guestFalseAccept"
+    echo "    guest false-reject: $guestFalseReject"
+  fi
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
@@ -1462,6 +1518,9 @@ cp "$BASELINE" "$REPO_ROOT/gen-out/eest-baseline.txt"
 echo "==> updated latest baseline: $REPO_ROOT/gen-out/eest-baseline.txt"
 
 rc=0
+if [[ "$SPECREF_ORACLE" -eq 1 && "$oracleDiff" -gt 0 ]]; then
+  echo "==> ORACLE REGRESSION: $oracleDiff guest↔SpecRef divergence(s)" >&2; rc=1
+fi
 if [[ -n "$MIN_SUCC" && "$succ" -lt "$MIN_SUCC" ]]; then
   echo "==> REGRESSION: succ match $succ < --min-succ $MIN_SUCC" >&2; rc=1
 fi
