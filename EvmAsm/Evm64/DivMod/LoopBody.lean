@@ -8,7 +8,6 @@
   Issue #87: DIV/MOD loop body composition.
 -/
 
--- `DivN4Overestimate → LoopSemantic → LoopDefs`.
 import EvmAsm.Evm64.DivMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
@@ -18,7 +17,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup
 import EvmAsm.Evm64.DivMod.LimbSpec.SubCarryStoreQj
 import EvmAsm.Evm64.DivMod.LimbSpec.TrialQuotient
 import EvmAsm.Evm64.DivMod.LimbSpec.TrialStoreComposed
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+import EvmAsm.Evm64.DivMod.LoopDefs.Post
 
 open EvmAsm.Rv64.Tactics
 

@@ -71,9 +71,9 @@
     Phase 1b, regardless of branch (input bound for Round 2).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
 
 namespace EvmAsm.Evm64
 
