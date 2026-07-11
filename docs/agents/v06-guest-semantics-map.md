@@ -119,7 +119,40 @@ build` → A/B smoke `scripts/codegen-eest-stateless-check.sh --limit 40`
 eip7702 auth).
 
 
-## Receipts-root diagnosis state (end of 2026-07-11 session)
+## RESOLVED: receipts-root mystery (was: dispatcher stale intrinsics)
+The bv_fail=53 rejections were the callable dispatcher's OWN
+per-authorization intrinsic still charging v0.5.0 constants
+(Dispatch.lean ~2666: 15816 regular + 218790/auth state reserve) →
+exactly-sized v0.6.0 fixtures OOG'd inside the runtime → receipt
+status 0 with spec-exact cumulative. Fixed (7816, state reserve
+deleted); single_authorization_charges 6/6 PASS, smoke 31/40
+(was 10). Diagnosis pattern that worked: remap the verdict debug
+probe's low OUTPUT slots to bv_receipts_validator_status +
+brr_records fields (record status was the tell); spike_run has been
+rebuilt with SPIKE_OUTPUT_LEN support so next time just set
+SPIKE_OUTPUT_LEN=1024 and read the extended fields directly.
+
+## REMAINING (9/40): the C8 set_delegation-OOG rollback family
+test_set_delegation_oog_charge_point (3), _oog_rolls_back_first_auth
+(4), recipient_charge_oog_rolls_back_delegations,
+recipient_new_account_refilled_on_dispatch_halt — all diff at byte 32
+(succ). Root cause: tx_eip7702_existing_authority_refund computes
+charges from the FINAL BAL, which for an OOG-rolled-back tx shows NO
+nonce advance (finals[40]=0) → per-auth contribution 0 → the guest
+runtime never OOGs → guest says tx succeeded / wrong verdict. The
+port needs the C8 semantics: detect that the auths were VALID against
+pre-state but the BAL shows no application → the spec charged, OOG'd
+at some charge point, and rolled back → expected outcome is a failed
+tx consuming ALL gas (and, for charge_point variants, validating
+WHICH charge triggers the OOG against tx.gas). Sketch: when a
+validated auth has finals nonce-change = 0, compute the WOULD-BE
+charge sequence against the tx gas budget (regular+state pools per
+the spec order: per-auth NEW_ACCOUNT/ACCOUNT_WRITE/AUTH_BASE, then
+prepare_dispatch recipient NEW_ACCOUNT) and require OOG; stage
+all-gas-burned failed-tx settlement.
+
+## Older diagnosis notes (superseded)
+
 The refund→charge flip produces SPEC-EXACT receipt cumulatives on the
 `single_authorization_charges` fixtures (22816/30816/66006/249606,
 verified against `dump_receipts_for_fixture.py`), yet all 6 variants
