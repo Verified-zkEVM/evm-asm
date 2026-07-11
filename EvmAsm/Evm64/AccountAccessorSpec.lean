@@ -53,27 +53,19 @@
      deterministically succeeds with `a0 = 0` and the output cell holding
      `word256Bytes32 a.balance`.
 
-  ## Remaining gaps to the full accessor `cpsTripleWithin` triples
+  ## From here to the full accessor `cpsTripleWithin` triples
 
-  * **`rlp_content_to_u64`'s pinned-`x6` precondition.** The verified unified
-    spec `rlp_content_to_u64_spec_within` (and its success sub-spec) requires
-    `.x6 ↦ᵣ contentPtr` at entry — a documented "sound but slightly-strong"
-    scratch assumption (the callee's own `MV x6 x10` at index 2 overwrites it).
-    The `rlp_field0_to_u64` wrapper satisfies it with an explicit `MV x6 x10`
-    pin (idx 7 of `rlp_field0_to_u64_prog`), but `accountExtractNonce_prog`
-    has NO such pin (`SUB x5 x10 x12 ; MV x10 x5 ; MV x11 x12 ; JAL`), and
-    `rlp_walk_next_spec_within` clobbers `x6` to `regOwn .x6` — so the pinned
-    precondition cannot be established at the accessor's call site. Closing
-    this needs the `x6Old` generalization of the ContentToU64 specs (a
-    mechanical statement change in `EvmAsm/Rv64/RLP/ContentToU64.lean`,
-    outside this file's allowed edit set). The balance path is NOT affected
-    (`rlp_content_to_u256_be_spec_within` has generic scratch).
+  The `rlp_content_to_u64` pinned-`x6` gap is CLOSED: the ContentToU64 specs
+  now take an arbitrary `x6Old` (the callee's own `MV x6 x10` at index 2
+  overwrites it), and `account_rlp_content_to_u64_nonce_spec_within` below
+  inherits that generic scratch — both content decoders are now directly
+  consumable by the accessors' call compositions.
 
-  * **Caller-side frame composition.** The accessor bodies keep a real stack
-    frame (`ADDI x2 x2 ±16/±32` + `SD`/`LD` of `ra`/`s0`/`s1`) and an output
-    cell, three `WP.cpsCallWithin` fixed-guest-address calls, and three
-    branch merges. The layers proved here are exactly the callee-side
-    substrate those compositions consume.
+  The **caller-side frame composition** — the accessor bodies' stack frame
+  (`ADDI x2 x2 ±16/±32` + `SD`/`LD` of `ra`/`s0`/`s1`), output cell, three
+  `WP.cpsCallWithin` fixed-guest-address calls, and branch merges — lives in
+  `EvmAsm/Evm64/AccountAccessorTopSpec.lean`, which composes the layers
+  proved here into the top-level accessor triples.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
@@ -878,14 +870,12 @@ theorem account_balance_copyN_eq (a : Account) (hnonce : a.nonce < 2 ^ 256) :
     non-canonical arm by `Nat.toBytesBE`'s minimality, and the `len = 0` arm
     yields the canonical zero.
 
-    NOTE the pinned `.x6 ↦ᵣ contentPtr` precondition: it is inherited from
-    `rlp_content_to_u64_spec_within`'s (documented, sound-but-strong) scratch
-    assumption. `accountExtractNonce_prog` does NOT pin `x6` before its
-    `jal rlp_content_to_u64` (unlike `rlp_field0_to_u64_prog`, idx 7), so
-    composing this into the full accessor triple is gated on generalizing the
-    `x6Old` in `EvmAsm/Rv64/RLP/ContentToU64.lean`. -/
+    `t1`/`x6` takes an arbitrary incoming value `x6Old` (the callee's own
+    `MV x6 x10` overwrites it), so this is directly consumable by
+    `accountExtractNonce_prog`'s call composition — the accessor does not pin
+    `x6` before its `jal rlp_content_to_u64`. -/
 theorem account_rlp_content_to_u64_nonce_spec_within
-    (base listBase raVal t0Old t2Old t3Old : Word)
+    (base listBase raVal t0Old x6Old t2Old t3Old : Word)
     (a : Account) (hnonce : a.nonce < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
     (hover : listBase.toNat + (encodeAccount a).length < 2 ^ 64)
@@ -897,10 +887,7 @@ theorem account_rlp_content_to_u64_nonce_spec_within
           ((2 + (encodeBytes (Nat.toBytesBE a.nonce)).length)
             - (Nat.toBytesBE a.nonce).length))) **
         (.x11 ↦ᵣ (BitVec.ofNat 64 (Nat.toBytesBE a.nonce).length)) **
-        (.x5 ↦ᵣ t0Old) **
-        (.x6 ↦ᵣ (listBase + BitVec.ofNat 64
-          ((2 + (encodeBytes (Nat.toBytesBE a.nonce)).length)
-            - (Nat.toBytesBE a.nonce).length))) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) **
         (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
         bytesRegion listBase (encodeAccount a))
       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
@@ -919,7 +906,7 @@ theorem account_rlp_content_to_u64_nonce_spec_within
       simp only [accountPayload, List.length_append]; omega
     omega
   have hslen : cOff + cLen ≤ (encodeAccount a).length := by omega
-  have ht := rlp_content_to_u64_spec_within base listBase raVal t0Old t2Old t3Old
+  have ht := rlp_content_to_u64_spec_within base listBase raVal t0Old x6Old t2Old t3Old
     (encodeAccount a) cOff cLen (by omega) hsalign hslen (by omega)
     (fun k hk => hvalid (cOff + k) (by omega))
   refine cpsTripleWithin_weaken (fun h hp => hp) (fun h hp => ?_) ht
