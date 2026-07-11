@@ -1579,7 +1579,7 @@ theorem evmMLoadHandlerSpec
     (sp offset offOld addrOld memBase byteOld accOld : Word)
     (offsetWord : EvmAsm.Evm64.EvmWord) (rest : List EvmAsm.Evm64.EvmWord)
     (dstOld1 dstOld2 dstOld3 : Word)
-    (capacity : Nat) (contents : List (BitVec 8))
+    (capacity : Nat) (contents guard : List (BitVec 8))
     (base x10_init x1_init : Word)
     (h_offset0 : offsetWord.getLimbN 0 = offset)
     (h_offset1 : offsetWord.getLimbN 1 = dstOld1)
@@ -1587,11 +1587,12 @@ theorem evmMLoadHandlerSpec
     (h_offset3 : offsetWord.getLimbN 3 = dstOld3)
     (h_off_ne_x0 : offReg ≠ .x0) (h_addr_ne_x0 : addrReg ≠ .x0)
     (h_byte_ne_x0 : byteReg ≠ .x0) (h_acc_ne_x0 : accReg ≠ .x0)
-    (hlen : contents.length = capacity)
+    (hlen : contents.length = capacity) (hcapacity8 : 8 ∣ capacity)
+    (hguard : EvmAsm.Evm64.mloadPairGuardBytes ≤ guard.length)
     (halignB : memBase.toNat % 8 = 0)
-    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length)
-    (hbound : memBase.toNat + contents.length ≤ 2 ^ 64)
-    (hvalid : ∀ i : Nat, i < contents.length →
+    (hin : offset.toNat + 32 ≤ capacity)
+    (hbound : memBase.toNat + (contents ++ guard).length ≤ 2 ^ 64)
+    (hvalid : ∀ i : Nat, i < (contents ++ guard).length →
       isValidMemAddr (memBase + BitVec.ofNat 64 i) = true) :
     cpsTripleWithin ((2 + (23 + 23 + 23 + 23)) + 2) base (x1_init &&& ~~~1)
       (cleanRetHandlerCode base
@@ -1601,6 +1602,7 @@ theorem evmMLoadHandlerSpec
        EvmAsm.Evm64.evmStackIs sp (offsetWord :: rest) **
        (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
        EvmAsm.Evm64.evmMemoryIs memBase capacity contents **
+       bytesRegion (memBase + BitVec.ofNat 64 capacity) guard **
        (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
       (EvmAsm.Evm64.evmStackIs sp
          (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat :: rest) **
@@ -1611,14 +1613,15 @@ theorem evmMLoadHandlerSpec
        (accReg ↦ᵣ
          (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat).getLimbN 3) **
        EvmAsm.Evm64.evmMemoryIs memBase capacity contents **
+       bytesRegion (memBase + BitVec.ofNat 64 capacity) guard **
        (.x10 ↦ᵣ (x10_init + signExtend12 1)) ** (.x1 ↦ᵣ x1_init)) := by
   have h_body := EvmAsm.Evm64.evm_mload_stack_spec_within
     offReg byteReg accReg addrReg memBaseReg
     sp offset offOld addrOld memBase byteOld accOld offsetWord rest
-    dstOld1 dstOld2 dstOld3 capacity contents base
+    dstOld1 dstOld2 dstOld3 capacity contents guard base
     h_offset0 h_offset1 h_offset2 h_offset3
     h_off_ne_x0 h_addr_ne_x0 h_byte_ne_x0 h_acc_ne_x0
-    hlen halignB hin hbound hvalid
+    hlen hcapacity8 hguard halignB hin hbound hvalid
   simp only [EvmAsm.Evm64.evm_mload_code] at h_body
   have hBodyLen :
       (EvmAsm.Evm64.evm_mload offReg byteReg accReg addrReg memBaseReg).length =
@@ -1638,7 +1641,8 @@ theorem evmMLoadHandlerSpec
          (getByteAt contents (offset.toNat + 7)).zeroExtend 64) **
        (accReg ↦ᵣ
          (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat).getLimbN 3) **
-       EvmAsm.Evm64.evmMemoryIs memBase capacity contents : Assertion).pcFree := by
+       EvmAsm.Evm64.evmMemoryIs memBase capacity contents **
+       bytesRegion (memBase + BitVec.ofNat 64 capacity) guard : Assertion).pcFree := by
     pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide)
     h_body 1 x10_init x1_init
