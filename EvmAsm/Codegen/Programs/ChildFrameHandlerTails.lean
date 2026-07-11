@@ -204,6 +204,7 @@ def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".L" ++ tag ++ "_pc_nacc_used:\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  la t1, cd_new_account_charged_current\n  li t2, 1\n  sd t2, 0(t1)\n" ++
     ".L" ++ tag ++ "_pc_nacc_done:\n"
 
 def basicPrecompileCallTail
