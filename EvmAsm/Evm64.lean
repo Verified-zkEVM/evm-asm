@@ -173,6 +173,7 @@ import EvmAsm.Evm64.AccountRlp
 import EvmAsm.Evm64.AccountFieldExtractSpec
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Evm64.AccountAccessorTopSpec
+import EvmAsm.Evm64.AccountAccessorNonceSpec
 import EvmAsm.Evm64.AccountBalanceHelperSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MemoryGas
