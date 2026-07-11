@@ -14,7 +14,8 @@
   Then chain these through the 6 stages.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
+import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
+import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
 
 namespace EvmAsm.Evm64
 
