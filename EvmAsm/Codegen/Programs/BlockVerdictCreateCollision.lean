@@ -29,20 +29,17 @@ def blockVerdictCreateCollisionBranch : String :=
   "  bnez a0, .Lbv_creation_runtime_try\n" ++
   "  la t0, hcon_predicate; ld t0, 0(t0); beqz t0, .Lbv_creation_runtime_try\n" ++
   "  # Top-level CREATE collision: execution-specs returns an error output with\n" ++
-  "  # gas_left=0, state_gas_left=state_gas_reservoir, then fork.py adds the\n" ++
-  "  # NEW_ACCOUNT refund before tx gas settlement. The guest gas-result arena has\n" ++
-  "  # one gas_left scalar, so fold state_gas_reservoir + NEW_ACCOUNT into it.\n" ++
-  "  # For CREATE, this is max(NEW_ACCOUNT_STATE_GAS, tx.gas - TX_MAX_GAS_LIMIT).\n" ++
+  "  # gas_left=0 and state_gas_left=state_gas_reservoir. v0.6.0 has no\n" ++
+  "  # NEW_ACCOUNT refund (a colliding target is non-empty, so prepare_dispatch\n" ++
+  "  # never charges it). The guest gas-result arena has one gas_left scalar, so\n" ++
+  "  # it carries just the reservoir: max(0, tx.gas - TX_MAX_GAS_LIMIT).\n" ++
   "  la t4, bv_simple_transfer_tx; ld t5, 40(t4)\n" ++
   "  li t4, 16777216\n" ++
   "  bgeu t5, t4, .Lbv_creation_collision_high_gas\n" ++
-  liAmsterdamNewAccountStateGas "t5" ++
+  "  li t5, 0\n" ++
   "  j .Lbv_creation_collision_gas_left_ready\n" ++
   ".Lbv_creation_collision_high_gas:\n" ++
   "  sub t5, t5, t4\n" ++
-  "  li t4, " ++ toString (amsterdamStateBytesPerNewAccountV2 * amsterdamCostPerStateByte) ++ "\n" ++
-  "  bgeu t5, t4, .Lbv_creation_collision_gas_left_ready\n" ++
-  "  mv t5, t4\n" ++
   ".Lbv_creation_collision_gas_left_ready:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
