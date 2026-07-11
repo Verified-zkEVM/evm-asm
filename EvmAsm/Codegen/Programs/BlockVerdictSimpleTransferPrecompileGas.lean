@@ -6,6 +6,27 @@
 
 namespace EvmAsm.Codegen
 
+private def blockVerdictModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) : String :=
+  "  li " ++ dstReg ++ ", 0; li a5, 0\n" ++
+  ".Lbv_modexp_len_loop_" ++ toString fieldOff ++ ":\n" ++
+  "  li a6, 32; beq a5, a6, .Lbv_modexp_len_done_" ++ toString fieldOff ++ "\n" ++
+  "  addi a6, a5, " ++ toString fieldOff ++ "\n" ++
+  "  bgeu a6, a4, .Lbv_modexp_len_missing_" ++ toString fieldOff ++ "\n" ++
+  "  add a6, a3, a6; lbu a6, 0(a6)\n" ++
+  "  j .Lbv_modexp_len_have_" ++ toString fieldOff ++ "\n" ++
+  ".Lbv_modexp_len_missing_" ++ toString fieldOff ++ ":\n" ++
+  "  li a6, 0\n" ++
+  ".Lbv_modexp_len_have_" ++ toString fieldOff ++ ":\n" ++
+  "  li a7, 30; bltu a5, a7, .Lbv_modexp_len_high_" ++ toString fieldOff ++ "\n" ++
+  "  slli " ++ dstReg ++ ", " ++ dstReg ++ ", 8; or " ++ dstReg ++ ", " ++ dstReg ++ ", a6\n" ++
+  "  j .Lbv_modexp_len_next_" ++ toString fieldOff ++ "\n" ++
+  ".Lbv_modexp_len_high_" ++ toString fieldOff ++ ":\n" ++
+  "  bnez a6, .Lbv_simple_transfer_precompile_fail\n" ++
+  ".Lbv_modexp_len_next_" ++ toString fieldOff ++ ":\n" ++
+  "  addi a5, a5, 1; j .Lbv_modexp_len_loop_" ++ toString fieldOff ++ "\n" ++
+  ".Lbv_modexp_len_done_" ++ toString fieldOff ++ ":\n" ++
+  "  li a6, 1024; bltu a6, " ++ dstReg ++ ", .Lbv_simple_transfer_precompile_fail\n"
+
 def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  # Active precompile recipients have empty state-trie code but still execute. Detect them\n" ++
   "  # before the zero-value EOA shortcut so their execution gas reaches the exact gas arena.\n" ++
@@ -88,7 +109,44 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); addi t5, t5, 31; srli t5, t5, 5; li t6, 3; mul t6, t6, t5; addi t6, t6, 15\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_modexp:\n" ++
-  "  li t6, 500\n" ++
+  -- Match execution-specs' MODEXP decoder and EIP-2565/Amsterdam gas formula.
+  -- Header bytes absent from calldata are zero; any length above 1024 is an
+  -- exceptional halt and therefore consumes all remaining transaction gas.
+  "  la t2, bv_simple_transfer_tx; ld a3, 56(t2); ld a4, 64(t2)\n" ++
+  blockVerdictModexpReadLengthAsm 0 "a0" ++
+  blockVerdictModexpReadLengthAsm 32 "a1" ++
+  blockVerdictModexpReadLengthAsm 64 "a2" ++
+  -- complexity = 16 for max(baseLen, modulusLen) <= 32, otherwise
+  -- 2 * ceil(maxLen / 8)^2.
+  "  mv t3, a0; bgeu t3, a2, .Lbv_modexp_max_done; mv t3, a2\n" ++
+  ".Lbv_modexp_max_done:\n" ++
+  "  li t6, 16; li t4, 32; bgeu t4, t3, .Lbv_modexp_complex_done\n" ++
+  "  addi t3, t3, 7; srli t3, t3, 3; mul t6, t3, t3; slli t6, t6, 1\n" ++
+  ".Lbv_modexp_complex_done:\n" ++
+  -- bitsPart = bit_length(first min(32, expLen) exponent bytes) - 1.
+  -- Scan the zero-padded buffer for its first nonzero byte so no 256-bit
+  -- temporary is needed.
+  "  mv a5, a1; li t3, 32; bgeu t3, a5, .Lbv_modexp_head_len_done; mv a5, t3\n" ++
+  ".Lbv_modexp_head_len_done:\n" ++
+  "  li a6, 0; li a7, 0\n" ++
+  ".Lbv_modexp_head_loop:\n" ++
+  "  beq a6, a5, .Lbv_modexp_head_done\n" ++
+  "  addi t3, a0, 96; add t3, t3, a6; li t4, 0; bgeu t3, a4, .Lbv_modexp_head_have\n" ++
+  "  add t3, a3, t3; lbu t4, 0(t3)\n" ++
+  ".Lbv_modexp_head_have:\n" ++
+  "  bnez t4, .Lbv_modexp_head_nonzero; addi a6, a6, 1; j .Lbv_modexp_head_loop\n" ++
+  ".Lbv_modexp_head_nonzero:\n" ++
+  "  sub a7, a5, a6; addi a7, a7, -1; slli a7, a7, 3\n" ++
+  ".Lbv_modexp_head_log_loop:\n" ++
+  "  li t3, 2; bltu t4, t3, .Lbv_modexp_head_done; srli t4, t4, 1; addi a7, a7, 1; j .Lbv_modexp_head_log_loop\n" ++
+  ".Lbv_modexp_head_done:\n" ++
+  "  mv t5, a7; li t3, 32; bgeu t3, a1, .Lbv_modexp_iterations_min\n" ++
+  "  addi t5, a1, -32; slli t5, t5, 4; add t5, t5, a7\n" ++
+  ".Lbv_modexp_iterations_min:\n" ++
+  "  bnez t5, .Lbv_modexp_iterations_done; li t5, 1\n" ++
+  ".Lbv_modexp_iterations_done:\n" ++
+  "  mul t6, t6, t5; li t4, 500; bgeu t6, t4, .Lbv_modexp_cost_done; mv t6, t4\n" ++
+  ".Lbv_modexp_cost_done:\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecadd:\n" ++
   "  li t6, 150\n" ++

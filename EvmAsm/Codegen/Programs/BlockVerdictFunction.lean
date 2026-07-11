@@ -271,7 +271,13 @@ def blockVerdictFunction : String :=
   "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  -- The type-4 authorization classifier runs on both the direct EOA path and
+  -- the later gas-result pass. Publish the recovered transaction sender before
+  -- either path so a self-sponsored authorization observes the transaction
+  -- nonce increment exactly as `process_transaction` does.
+  "  ld a0, 24(t2); la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
@@ -571,7 +577,14 @@ def blockVerdictFunction : String :=
   "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
   "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
-  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; add t6, t6, t0\n" ++
+  -- `topLevelValueRecipientStateGasAsm` is a callable composition and may
+  -- clobber a1/a3. `simple_transfer_intrinsic_gas` has already published the
+  -- intrinsic regular and net intrinsic state components in these cells; reload
+  -- them to form the same combined pre-refund charge that execution-specs uses
+  -- for `tx.gas - gas_left - state_gas_left`.
+  "  la t1, runtime_tx_intrinsic_regular; ld t4, 0(t1)\n" ++
+  "  la t1, bv_runtime_intrinsic_state_gas; ld t3, 0(t1)\n" ++
+  "  la t1, bv_simple_transfer_tx; ld t5, 40(t1); add t6, t4, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_gas_exhausted:\n" ++
@@ -1329,11 +1342,14 @@ def blockVerdictFunction : String :=
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
   bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
+  -- Exact block-gas settlement needs one runtime result for every transaction.
+  -- Creation and otherwise unsupported execution shapes deliberately leave that
+  -- arena incomplete; their pre-execution EIP-8037 admission was already checked
+  -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
-  -- remaining-block-gas check below can apply the spec's 2D REGULAR test
-  -- min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) (amsterdam fork.py:591) instead of the
-  -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
+  -- remaining-block-gas check below can apply the spec's 2D regular admission
+  -- test min(TX_MAX_GAS_LIMIT, tx.gas). block_verdict_tx_state_gas_array depends only on the
   -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
   -- same conservative skip. (Moved up from just below the EIP-7778 check.)
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++

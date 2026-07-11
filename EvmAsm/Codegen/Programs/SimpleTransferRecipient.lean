@@ -217,6 +217,8 @@ def ziskSimpleTransferRecipientBalVerifyPrologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++

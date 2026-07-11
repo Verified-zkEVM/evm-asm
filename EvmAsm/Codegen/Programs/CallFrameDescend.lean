@@ -493,6 +493,10 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
+  "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
+  "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
+  "  la t1, evm_selfdestruct_seen_overflow; ld t0, 0(t1)\n" ++
+  "  la t1, evm_selfdestruct_seen_overflow_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
   -- checkpoint slab. The consensus receipt/log-bloom path still comes from
   -- descriptors; this only gives the hot accumulator the same rollback shape

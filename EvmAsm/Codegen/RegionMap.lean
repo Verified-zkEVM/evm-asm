@@ -190,16 +190,36 @@ def schemeAAnchors : List GuestRegion :=
     began preferring same-block delegation markers over stale pre-state markers.
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
-    being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x55cf4
+    being derived for EIP-6110 negative system requests. Shrank net
+    `0x7b0` after CREATE2 selfdestruct-collision handling simplified
+    `ChildFrameHandlers` dispatch. Grew by `0x58` when
+    `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
+    cursor helpers (bead evm-asm-22pwv.4). Grew by `0xc` when the
+    precompile fast path began returning successful value-call stipends while
+    emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
+    payload staging paths began reversing PREVRANDAO into EVM word order. Grew
+    by `0x64` when same-transaction CREATE code became available to delegated
+    calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
+    delegation code was rebased directly from the caller's staged codes base.
+    Grew by `0x848` after the cross-transaction authorization-nonce validation
+    landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
+    dropped its 256-byte cap guard (evm-asm-pwqhw). Grew further after EIP-8037
+    prefix admission enforcement, parallel EEST worker result-file isolation,
+    and the self-funded EIP-7702 authorization refund fix landed. Grew by
+    `0x30` when EIP-2780 direct-authorization gas context started being
+    preserved. -/
+def textSizeBytes : Nat := 0x56948
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
-    `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x196287d0
+    `0x29000→0x39000` (the `call_frame_arena` trailing pad). Grew by `0x4fb00`
+    (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
+    `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
+    return (evm-asm-pwqhw). -/
+def dataSizeBytes : Nat := 0x19884770
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -220,7 +240,7 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc5156b0" }
+    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc6782d0" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf500000`). -/

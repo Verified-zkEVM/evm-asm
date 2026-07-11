@@ -1101,7 +1101,11 @@ run_case() {
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
-  local tmp_result="$result.tmp.$$"
+  # `run_case` runs in background workers.  `$$` remains the parent shell's
+  # PID in those workers, so it races when several cases finish together.
+  # `BASHPID` is unique to each worker subshell and keeps the final rename
+  # atomic without letting one case publish another case's result.
+  local tmp_result="$result.tmp.$BASHPID"
   local actual_hex run_steps
 
   run_steps="$STEPS"
