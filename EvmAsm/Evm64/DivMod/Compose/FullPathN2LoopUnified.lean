@@ -20,6 +20,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
 
 open EvmAsm.Rv64.Tactics

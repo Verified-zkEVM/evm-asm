@@ -9,7 +9,8 @@
 -/
 
 -- `DivN4Overestimate → LoopSemantic → LoopDefs`.
-import EvmAsm.Evm64.DivMod.Compose
+import EvmAsm.Evm64.DivMod.Compose.Base
+import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
 import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
 import EvmAsm.Evm64.DivMod.LimbSpec.MulSubLimb
