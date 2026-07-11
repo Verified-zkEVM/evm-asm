@@ -151,6 +151,29 @@ the spec order: per-auth NEW_ACCOUNT/ACCOUNT_WRITE/AUTH_BASE, then
 prepare_dispatch recipient NEW_ACCOUNT) and require OOG; stage
 all-gas-burned failed-tx settlement.
 
+## Session status 2026-07-12 early AM: 39/40 smoke, 99/100 random
+The C8 family is DONE except one fixture. Landed:
+- would-be charges from pre-state validity (finals gate removed; path-A
+  rollback detection via BAL-entry-without-nonce-advance; path-B
+  header-state fallback for authorities absent from the BAL);
+- applied/would-be split: a0/a1 = applied (zero on rollback, feeds
+  block-state arrays); teer_wouldbe_state/_regular globals drive the
+  runtime pools and the simple-transfer gas math;
+- simple_transfer_intrinsic_gas folds the would-be charges into its
+  outputs/cells (the v0.5.0 refund subtraction there was the last
+  inverted consumer); direct + publish exhausted branches are C8
+  failed-tx settlements (tgbpv_direct_oog → status 0, exec state 0).
+
+LAST FIXTURE: recipient_new_account_refilled_on_dispatch_halt_with_
+reservoir — the tx's own auth delegates the RECIPIENT, so the spec
+dispatches the delegated code (which halts, burning the TX_MAX-capped
+regular budget; header gas_used = 16777216) while the guest routes to
+the simple-transfer shortcut (pre-state code empty) and never
+dispatches. Fix: the EOA/simple-transfer routing must detect a
+same-tx delegation on the recipient (authority == recipient with a
+non-NULL set) and fall through to the runtime dispatch path (which
+already does same-block delegation resolve).
+
 ## Older diagnosis notes (superseded)
 
 The refund→charge flip produces SPEC-EXACT receipt cumulatives on the
