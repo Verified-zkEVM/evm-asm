@@ -6,11 +6,20 @@ guest's LIVE verdict path is `statelessGuestUnit` →
 (`statelessVerdictV2GuestClosure`, `BlockVerdictV2.lean:217-528`) +
 the runtime dispatcher; anything not in that closure is a probe.
 
-Status after the first 5b commit: item 1 partially DONE (floor anchor
-+ auth 7816); items 2-8 open. Layout regen (symbol-addresses.tsv →
-GuestAddrs/GuestImageEntries) REQUIRED before any A/B run — the
-`intrinsic_gas_amsterdam_counts` prog grew 71→74 instructions, which
-shifts every downstream symbol and the prog-form `jalOff` relocations.
+Status after the second 5b commit (A/B full match 10/40, root/tail
+40/40): items 1 DONE (both intrinsic sites + floor anchor + auth 7816),
+5 partially DONE (exact-gas block floor; settle/receipt paths pending),
+gate fixed (eip8037_tx_gas_gate intrinsic.state = 0). Layout regen DONE
+(incl. offset-aware SAsm literal remap — the uniform-shift assumption
+does not hold across data subsections). Remaining failures: bv_fail=53
+(receipts root, 18/40) and bv_fail=41 (header gas_used over-claim,
+12/40) — both the v0.5.0 auth/state-charge replay, items 2-4 below,
+which must land as ONE unit. Fail-code legend: codes live in
+BlockVerdictReceiptsTail.lean:132-215 (+ .Lbv_eip8037_gas_fail = a0+7,
+so 10 = gate status 3); 53 = receipts-root mismatch; 41 = header
+gas_used over-claim. Iterate with
+`--backend spike --max-jobs 20 --jobs 20` (minutes, not tens of
+minutes); final parity with ziskemu.
 
 ## Live sites and required v0.6.0 changes
 

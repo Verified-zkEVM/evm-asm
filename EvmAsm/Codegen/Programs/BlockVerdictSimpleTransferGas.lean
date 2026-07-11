@@ -69,6 +69,7 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0\n" ++
   "  li s1, 12000                 # Amsterdam TX_BASE\n" ++
+  "  li s2, 12000                 # v0.6.0 calldata floor base = TX_BASE + recipient regular gas\n" ++
   "  ld a0, 24(s0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, bmvmx_sender_addr; addi t1, s0, 72; li t2, 20\n" ++
   ".Lstig_self_cmp:\n" ++
@@ -76,14 +77,13 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lstig_not_self\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lstig_self_cmp\n" ++
   ".Lstig_not_self:\n" ++
-  "  li t5, 3000; add s1, s1, t5  # COLD_ACCOUNT_ACCESS\n" ++
+  "  li t5, 3000; add s1, s1, t5; add s2, s2, t5  # COLD_ACCOUNT_ACCESS (also anchors the floor)\n" ++
   "  ld t0, 96(s0); ld t1, 104(s0); or t0, t0, t1\n" ++
   "  ld t1, 112(s0); or t0, t0, t1\n" ++
   "  ld t1, 120(s0); or t0, t0, t1\n" ++
   "  beqz t0, .Lstig_sender_done\n" ++
-  "  li t5, 6000; add s1, s1, t5  # TRANSFER_LOG_COST + TX_VALUE_COST\n" ++
+  "  li t5, 6000; add s1, s1, t5; add s2, s2, t5  # TRANSFER_LOG + TX_VALUE (also anchors the floor)\n" ++
   ".Lstig_sender_done:\n" ++
-  "  li s2, 12000                 # Amsterdam calldata floor base\n" ++
   "  ld s3, 56(s0)                # calldata ptr\n" ++
   "  ld s4, 64(s0)                # calldata len\n" ++
   ".Lstig_data_loop:\n" ++
@@ -147,7 +147,9 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t1, bsg_access_len; ld a1, 0(t1); la a2, teer_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lstig_fail\n" ++
-  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 15816; mul t1, t1, t2; add s1, s1, t1\n" ++
+  -- v0.6.0: REGULAR_PER_AUTH_BASE_COST 7816 only (ACCOUNT_WRITE 8000
+  -- left the intrinsic; charged exactly by the auth replay).
+  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 7816; mul t1, t1, t2; add s1, s1, t1\n" ++
   ".Lstig_auth_done:\n" ++
   "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
   "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
