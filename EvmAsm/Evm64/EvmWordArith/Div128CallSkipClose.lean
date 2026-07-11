@@ -25,6 +25,8 @@
 -- (→ `DivMod.LoopSemantic`). The n=4 path predicates are imported directly.
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
+import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+import EvmAsm.Evm64.DivMod.LoopSemantic
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 
 namespace EvmAsm.Evm64
