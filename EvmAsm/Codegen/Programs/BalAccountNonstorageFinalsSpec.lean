@@ -319,9 +319,11 @@ def fieldResolves (bytes : List (BitVec 8)) (base : Word) (fOff fSpan : Nat)
   (has = true ∧ ∃ vNext vLen,
     FieldFinal bytes base fOff fSpan (some (vNext, vLen)) ∧ imageOf vNext vLen)
 
-/-- **The success derivation** (the genuine post of the eventual end-to-end
-    triple, against EIP-7928 semantics): the AccountChanges bytes decode as an
-    RLP list whose items 0..5 chain by `rlpItemDecode`; items 3/4/5
+/-- **The success derivation** (the genuine post of the end-to-end triple,
+    against EIP-7928 semantics): the AccountChanges WINDOW `[base, base+aLen)`
+    (the routine's `(a0, a1)` arguments; `bytes` is the owned region, which
+    may extend past the window — the walkers need header-read slack) decodes
+    as an RLP list whose items 0..5 chain by `rlpItemDecode`; items 3/4/5
     (balance/nonce/code changes) each resolve per `fieldResolves` with the
     field-specific value image —
 
@@ -331,24 +333,24 @@ def fieldResolves (bytes : List (BitVec 8)) (base : Word) (fOff fSpan : Nat)
       (`rlp_content_to_u64`'s success post);
     * code: the recorded `(code_off, code_len)` window equals the value
       content window, `code_off` stated relative to the AccountChanges base. -/
-def FinalsDerivation (bytes : List (BitVec 8)) (base : Word)
+def FinalsDerivation (bytes : List (BitVec 8)) (base : Word) (aLen : Nat)
     (out : FinalsOut) : Prop :=
   ∃ b0 : BitVec 8, bytes[0]? = some b0 ∧
   ∃ n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 : Word,
     -- the six outer items, chained from the outer list's content start
     rlpItemDecode bytes (listHeaderSize b0)
       (base + BitVec.ofNat 64 (listHeaderSize b0))
-      (base + BitVec.ofNat 64 bytes.length) n0 l0 ∧
+      (base + BitVec.ofNat 64 aLen) n0 l0 ∧
     rlpItemDecode bytes (n0 - base).toNat n0
-      (base + BitVec.ofNat 64 bytes.length) n1 l1 ∧
+      (base + BitVec.ofNat 64 aLen) n1 l1 ∧
     rlpItemDecode bytes (n1 - base).toNat n1
-      (base + BitVec.ofNat 64 bytes.length) n2 l2 ∧
+      (base + BitVec.ofNat 64 aLen) n2 l2 ∧
     rlpItemDecode bytes (n2 - base).toNat n2
-      (base + BitVec.ofNat 64 bytes.length) n3 l3 ∧
+      (base + BitVec.ofNat 64 aLen) n3 l3 ∧
     rlpItemDecode bytes (n3 - base).toNat n3
-      (base + BitVec.ofNat 64 bytes.length) n4 l4 ∧
+      (base + BitVec.ofNat 64 aLen) n4 l4 ∧
     rlpItemDecode bytes (n4 - base).toNat n4
-      (base + BitVec.ofNat 64 bytes.length) n5 l5 ∧
+      (base + BitVec.ofNat 64 aLen) n5 l5 ∧
     -- item 3 = balance_changes: 32-byte right-aligned BE image
     fieldResolves bytes base (n3 - l3 - base).toNat l3.toNat out.hasBalance
       (fun vNext vLen =>
@@ -384,7 +386,7 @@ def witnessBytes : List (BitVec 8) := [0xc6, 0x80, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0]
 /-- The derivation accepts the minimal witness with the all-absent result —
     the pre is satisfiable and the post is not vacuous. -/
 theorem finalsDerivation_witness :
-    FinalsDerivation witnessBytes 0 FinalsOut.absent := by
+    FinalsDerivation witnessBytes 0 7 FinalsOut.absent := by
   refine ⟨0xc6, rfl, 2, 0, 3, 1, 4, 1, 5, 1, 6, 1, 7, 1,
     ⟨0x80, rfl, by decide⟩, ⟨0xc0, rfl, by decide⟩, ⟨0xc0, rfl, by decide⟩,
     ⟨0xc0, rfl, by decide⟩, ⟨0xc0, rfl, by decide⟩, ⟨0xc0, rfl, by decide⟩,
