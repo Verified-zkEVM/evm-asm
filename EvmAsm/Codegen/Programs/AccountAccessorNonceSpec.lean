@@ -116,7 +116,7 @@ theorem account_extract_nonce_tail_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len contentU64Base rlp_content_to_u64_prog 22 _
         rlp_content_to_u64_prog_length
-        (fun k hk => by unfold extractNonceBase contentU64Base; bv_omega))
+        (fun k hk => by unfold extractNonceBase contentU64Base Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_content_to_u64; bv_omega))
   have hcallee_raw := account_rlp_content_to_u64_nonce_own_spec_within
     contentU64Base listBase (extractNonceBase + 48 + 4) contentPtr a hnonce
     hsalign hover hvalid
@@ -411,7 +411,7 @@ theorem account_extract_nonce_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len walkInitBase rlp_walk_init_prog 53 _
         rlp_walk_init_prog_length
-        (fun k hk => by unfold extractNonceBase walkInitBase; bv_omega))
+        (fun k hk => by unfold extractNonceBase walkInitBase Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_walk_init; bv_omega))
   have hWIcallee := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (spVal - 16)) ** (.x8 ↦ᵣ outPtr) **
       ((spVal - 16) ↦ₘ raVal) ** ((spVal - 8) ↦ₘ s0Old) ** (outPtr ↦ₘ (0 : Word)))
@@ -484,7 +484,7 @@ theorem account_extract_nonce_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len walkNextBase rlp_walk_next_prog 103 _
         rlp_walk_next_prog_length
-        (fun k hk => by unfold extractNonceBase walkNextBase; bv_omega))
+        (fun k hk => by unfold extractNonceBase walkNextBase Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_walk_next; bv_omega))
   have hW0callee := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (spVal - 16)) ** (.x8 ↦ᵣ outPtr) ** regOwn .x30 ** regOwn .x31 **
       ((spVal - 16) ↦ₘ raVal) ** ((spVal - 8) ↦ₘ s0Old) ** (outPtr ↦ₘ (0 : Word)))
