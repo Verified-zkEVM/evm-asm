@@ -543,35 +543,40 @@ partial def generic_create (pre : PrecompileMap) (fuel : Nat)
     (endowment : U256) (contract_address : Address)
     (memory_start_position memory_size : U256) : EvmM Unit := do
   if memory_size > MAX_INIT_CODE_SIZE then throw .outOfGas
-  charge_state_gas StateGasCosts.NEW_ACCOUNT
   let e ← EvmM.getEvm
   let call_data := memory_read_bytes e.memory memory_start_position memory_size
-  let create_message_gas := max_message_call_gas e.gasLeft
-  EvmM.modifyEvm (fun e => { e with gasLeft := e.gasLeft - create_message_gas })
-  let reservoir := (← EvmM.getEvm).stateGasLeft
-  EvmM.modifyEvm (fun e => { e with stateGasLeft := 0, returnData := [] })
+  EvmM.modifyEvm (fun e => { e with returnData := [] })
   let sender_address := e.message.currentTarget
   let sender ← EvmM.liftTx (getAccount sender_address)
+  -- v0.6.0: the balance/nonce/depth early-out touches no gas pools (the
+  -- gas split and state-gas charge now happen after it).
   if sender.balance < endowment || sender.nonce == 2^64 - 1
       || e.message.depth + 1 > STACK_DEPTH_LIMIT then
-    EvmM.modifyEvm (fun e =>
-      { e with gasLeft := e.gasLeft + create_message_gas
-               stateGasLeft := e.stateGasLeft + reservoir })
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     stackPush 0
     return
   EvmM.modifyEvm (fun e =>
     { e with accessedAddresses := setAdd e.accessedAddresses contract_address })
+  -- v0.6.0: NEW_ACCOUNT is charged iff the target does not exist —
+  -- decided by existence alone, independently of the collision outcome.
+  let new_account_charged := !(← EvmM.liftTx (isAccountAlive contract_address))
+  if new_account_charged then
+    charge_state_gas StateGasCosts.NEW_ACCOUNT
+  let create_message_gas := max_message_call_gas (← EvmM.getEvm).gasLeft
+  EvmM.modifyEvm (fun e => { e with gasLeft := e.gasLeft - create_message_gas })
   if !(← EvmM.liftTx (accountDeployable contract_address)) then
-    EvmM.liftTx (incrementNonce e.message.currentTarget)
+    EvmM.liftTx (incrementNonce sender_address)
     EvmM.modifyEvm (fun e =>
-      { e with regularGasUsed := e.regularGasUsed + create_message_gas
-               stateGasLeft := e.stateGasLeft + reservoir })
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
+      { e with regularGasUsed := e.regularGasUsed + create_message_gas })
+    -- A storage-only collision target is non-existent: charged above,
+    -- refilled here.
+    if new_account_charged then
+      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     stackPush 0
     return
-  let target_alive ← EvmM.liftTx (isAccountAlive contract_address)
-  EvmM.liftTx (incrementNonce e.message.currentTarget)
+  -- Move full reservoir to child (no 63/64 rule for state gas).
+  let reservoir := (← EvmM.getEvm).stateGasLeft
+  EvmM.modifyEvm (fun e => { e with stateGasLeft := 0 })
+  EvmM.liftTx (incrementNonce sender_address)
   let parentEvm ← EvmM.getEvm
   let child_message : Message :=
     { blockEnv := e.message.blockEnv
@@ -594,13 +599,12 @@ partial def generic_create (pre : PrecompileMap) (fuel : Nat)
   let child ← process_create_message pre fuel child_message
   if child.error.isSome then
     incorporate_child_on_error child
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
+    if new_account_charged then
+      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     EvmM.modifyEvm (fun e => { e with returnData := child.output })
     stackPush 0
   else
     incorporate_child_on_success child
-    if target_alive then
-      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     EvmM.modifyEvm (fun e => { e with returnData := [] })
     stackPush (bytesBEtoNat child.message.currentTarget)
 
