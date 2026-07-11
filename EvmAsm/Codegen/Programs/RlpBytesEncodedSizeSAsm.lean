@@ -57,7 +57,7 @@ open RlpListEncodedSizeSAsm (u64ByteLen u64ByteLen_le u64ByteLen_shift_zero
 def rbesBase : Word := (GuestAddrs.rlp_bytes_encoded_size : Word)
 
 -- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.rlp_bytes_encoded_size = 0x8000add0
+#guard GuestAddrs.rlp_bytes_encoded_size = 0x8000adcc
 #guard rlpBytesEncodedSize_prog.length = 20
 -- The routine is position-independent (no PC-relative instruction).
 

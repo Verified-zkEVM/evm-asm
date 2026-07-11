@@ -74,17 +74,17 @@ open EvmAsm.Rv64.Tactics
 /-! ## Fixed guest addresses (pinned to `Codegen.GuestAddrs`) -/
 
 /-- Guest entry of `rlp_walk_init`. -/
-def walkInitBase : Word := 0x800049fc#64
+def walkInitBase : Word := 0x800049f8#64
 /-- Guest entry of `rlp_walk_next`. -/
-def walkNextBase : Word := 0x80004ad0#64
+def walkNextBase : Word := 0x80004acc#64
 /-- Guest entry of `rlp_content_to_u64`. -/
-def contentU64Base : Word := 0x80004c6c#64
+def contentU64Base : Word := 0x80004c68#64
 /-- Guest entry of `rlp_content_to_u256_be`. -/
-def contentU256Base : Word := 0x80004cc4#64
+def contentU256Base : Word := 0x80004cc0#64
 /-- Guest entry of `account_extract_nonce`. -/
-def extractNonceBase : Word := 0x8001cb24#64
+def extractNonceBase : Word := 0x8001cb20#64
 /-- Guest entry of `account_extract_balance`. -/
-def extractBalanceBase : Word := 0x8001ca98#64
+def extractBalanceBase : Word := 0x8001ca94#64
 
 theorem walkInitBase_eq :
     walkInitBase = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init := by decide

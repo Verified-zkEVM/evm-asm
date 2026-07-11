@@ -59,7 +59,7 @@ namespace Secp256k1FieldMulModPSAsm
 
 open Secp256k1FieldConvSAsm (secfBeToLeFn secfBeToLeFn_spec secfLeToBeFn secfLeToBeFn_spec)
 
-#guard GuestAddrs.secf_mul_mod_p = 0x80020570
+#guard GuestAddrs.secf_mul_mod_p = 0x8002056c
 #guard abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) mulFrame mulBody = secfMulModP_prog
 
 /-- Entry values of the saved registers. -/
