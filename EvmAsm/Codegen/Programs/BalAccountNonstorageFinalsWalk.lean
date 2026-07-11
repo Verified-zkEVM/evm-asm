@@ -32,10 +32,10 @@ namespace BalAccountNonstorageFinalsSpec
 
 private theorem se1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
 
-private theorem ult_lt {a b : Word} (h : BitVec.ult a b = true) : a.toNat < b.toNat := by
+theorem ult_lt {a b : Word} (h : BitVec.ult a b = true) : a.toNat < b.toNat := by
   simpa [BitVec.ult] using h
 
-private theorem not_ult_le {a b : Word} (h : ¬ BitVec.ult a b = true) : b.toNat ≤ a.toNat := by
+theorem not_ult_le {a b : Word} (h : ¬ BitVec.ult a b = true) : b.toNat ≤ a.toNat := by
   simp [BitVec.ult] at h
   exact h
 
