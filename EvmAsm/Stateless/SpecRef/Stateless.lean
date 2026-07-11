@@ -2,21 +2,20 @@
   EvmAsm.Stateless.SpecRef.Stateless
 
   Port of `execution-specs/src/ethereum/forks/amsterdam/stateless.py`
-  (`@tests-zkevm@v0.4.0`): the seven functions of the stateless validation
-  shell.
+  (`@tests-zkevm@v0.6.0`, `40f956fab`): the six functions of the stateless
+  validation shell.
 
-  * `compute_new_payload_request_root` (`stateless.py:231`)
-  * `_decode_header`                   (`stateless.py:246`)
-  * `validate_headers`                 (`stateless.py:257`)
-  * `_is_activation_active`            (`stateless.py:280`)
-  * `_expected_amsterdam_blob_schedule`(`stateless.py:305`)
-  * `validate_chain_config`            (`stateless.py:316`)
-  * `verify_stateless_new_payload`     (`stateless.py:344`)
+  * `compute_new_payload_request_root` (`stateless.py:229`)
+  * `_decode_header`                   (`stateless.py:244`)
+  * `validate_headers`                 (`stateless.py:255`)
+  * `_is_activation_active`            (`stateless.py:278`)
+  * `validate_chain_config`            (`stateless.py:303`)
+  * `verify_stateless_new_payload`     (`stateless.py:321`)
 
   ## The execution seam
 
   `verify_stateless_new_payload` calls `execute_new_payload_request`
-  (`stateless.py:378`) — full statefull block re-execution
+  (`stateless.py:355`) — full statefull block re-execution
   (`execution_engine.new_payload`). That is NOT ported here (it is the
   whole EVM). We cut at exactly that call: everything on the
   validation/deserialization/hashing side is real; the execution engine is
@@ -36,13 +35,13 @@ namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP (RLPItem decodeFully)
 
-/-! ## `compute_new_payload_request_root` (`stateless.py:231`) -/
+/-! ## `compute_new_payload_request_root` (`stateless.py:229`) -/
 
 /-- Compute the request root for a stateless input via SSZ hash tree root. -/
 def compute_new_payload_request_root (si : StatelessInput) : Hash32 :=
   (newPayloadRequestToSsz si.newPayloadRequest).hashTreeRoot
 
-/-! ## `_decode_header` (`stateless.py:246`)
+/-! ## `_decode_header` (`stateless.py:244`)
 
 `rlp.decode_to(Header, …)` is type-directed; we decode to a generic RLP
 list and discriminate the current fork (amsterdam, 23 fields) from the
@@ -84,7 +83,7 @@ def _decode_header (header_bytes : Bytes) : Except SpecError Header :=
           else .error .headerDecodeError
   | _ => .error .headerDecodeError
 
-/-! ## `validate_headers` (`stateless.py:257`) -/
+/-! ## `validate_headers` (`stateless.py:255`) -/
 
 /-- Validate that a sequence of encoded headers forms a contiguous chain.
     Each header's `parent_hash` must match the hash of the preceding header.
@@ -101,7 +100,7 @@ def validate_headers (encoded_headers : List Bytes) :
   if contiguous then pure (headers, block_hashes)
   else throw .headersNotContiguous
 
-/-! ## `_is_activation_active` (`stateless.py:280`) -/
+/-! ## `_is_activation_active` (`stateless.py:278`) -/
 
 /-- Whether an activation point is active for the payload. -/
 def _is_activation_active (activation : ForkActivation) (ep : ExecutionPayload) :
@@ -114,15 +113,12 @@ def _is_activation_active (activation : ForkActivation) (ep : ExecutionPayload) 
     if ep.timestamp < ts then return false
   return true
 
-/-! ## `_expected_amsterdam_blob_schedule` (`stateless.py:305`) -/
+/-! ## `validate_chain_config` (`stateless.py:303`)
 
-/-- The blob schedule compiled into the Amsterdam guest. -/
-def _expected_amsterdam_blob_schedule : BlobSchedule :=
-  { target := blobScheduleTarget
-    max := blobScheduleMax
-    baseFeeUpdateFraction := blobBaseFeeUpdateFraction }
-
-/-! ## `validate_chain_config` (`stateless.py:316`) -/
+v0.6.0 deletes the Amsterdam-fork and blob-schedule checks
+(`UnsupportedForkConfigError`, `_expected_amsterdam_blob_schedule`):
+fork identity is carried by the input's schema id, and the blob
+schedule is compiled into the guest. Only activation checking remains. -/
 
 /-- Validate and return the target payload's active fork config. -/
 def validate_chain_config (chain_config : ChainConfig) (npr : NewPayloadRequest) :
@@ -131,10 +127,6 @@ def validate_chain_config (chain_config : ChainConfig) (npr : NewPayloadRequest)
   let execution_payload := npr.executionPayload
   if !(← _is_activation_active active_fork.activation execution_payload) then
     throw .inactiveForkConfig
-  if active_fork.fork ≠ ProtocolFork.Amsterdam then
-    throw (.unsupportedForkConfig "Amsterdam guest cannot execute configured fork")
-  if active_fork.blobSchedule ≠ some _expected_amsterdam_blob_schedule then
-    throw (.unsupportedForkConfig "blob_schedule does not match Amsterdam")
   pure active_fork
 
 /-! ## The execution seam
@@ -146,7 +138,7 @@ below is `elExecute` (`PrecompilesTable.lean`): the FULL ported
 `apply_body` + post-state root, `ElExecute.lean`) over the complete
 18-entry precompile table — no fallback. -/
 
-/-! ## `verify_stateless_new_payload` (`stateless.py:344`) -/
+/-! ## `verify_stateless_new_payload` (`stateless.py:321`) -/
 
 /-- Statelessly validate the execution payload. Every exception the Python
     `try` would catch is folded into `successful_validation = false`. -/
@@ -178,11 +170,8 @@ def verify_stateless_new_payload (si : StatelessInput)
 
 /-! ## Sanity checks -/
 
--- A blob schedule matching the expected Amsterdam schedule is accepted.
 def sanityForkConfig : ForkConfig :=
-  { fork := .Amsterdam
-    activation := { blockNumber := none, timestamp := some 100 }
-    blobSchedule := some _expected_amsterdam_blob_schedule }
+  { activation := { blockNumber := none, timestamp := some 100 } }
 
 -- Build a minimal RLP header with `n` fields, field 0 = parent_hash,
 -- field 3 = state_root, all others empty.

@@ -2,11 +2,11 @@
   EvmAsm.Stateless.SpecRef.Guest
 
   Port of `execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`
-  (`@tests-zkevm@v0.5.0`): the top-level guest shell.
+  (`@tests-zkevm@v0.6.0`, `40f956fab`): the top-level guest shell.
 
-  * `serialize_stateless_output`  (`stateless_guest.py:21`)
-  * `deserialize_stateless_input` (`stateless_guest.py:29`)
-  * `run_stateless_guest`         (`stateless_guest.py:47`)
+  * `serialize_stateless_output`  (`stateless_guest.py:27`)
+  * `deserialize_stateless_input` (`stateless_guest.py:35`)
+  * `run_stateless_guest`         (`stateless_guest.py:72`)
 
   `run_stateless_guest` threads the execution seam (`Seam.lean`); the
   default is the full seam `elExecute` (`PrecompilesTable.lean`),
@@ -35,7 +35,7 @@ def deserialize_stateless_input (data : Bytes) : Except SpecError StatelessInput
   let ssz_obj ← deserialize sszStatelessInputType (data.drop STATELESS_INPUT_SCHEMA_ID_SIZE)
   sszToStatelessInput ssz_obj
 
-/-! ## `_default_failed_stateless_output` (`stateless_guest.py:54`) -/
+/-! ## `_default_failed_stateless_output` (`stateless_guest.py:53`) -/
 
 /-- The sentinel output returned when the guest input cannot be decoded.
     This is deliberately distinct from validation failure after decoding: the
@@ -46,16 +46,14 @@ def _default_failed_stateless_output : StatelessValidationResult :=
     chainConfig :=
       { chainId := 0
         activeFork :=
-          { fork := .Frontier
-            activation := { blockNumber := none, timestamp := none }
-            blobSchedule := none } } }
+          { activation := { blockNumber := none, timestamp := none } } } }
 
 /-! ## `run_stateless_guest` (`stateless_guest.py:79`) -/
 
 /-- Run the stateless guest on serialized input, returning serialized output.
     The execution engine is the seam parameter (default: the full
     seam `elExecute`, `s1d19.5`).
-    Deserialization failures produce the Python v0.5.0 sentinel output. -/
+    Deserialization failures produce the Python sentinel output. -/
 def run_stateless_guest (input_bytes : Bytes)
     (execute : ExecutionSeam := elExecute) : Bytes :=
   match deserialize_stateless_input input_bytes with
@@ -76,14 +74,12 @@ def sanityPayload : ExecutionPayload :=
     transactions := [], withdrawals := [], blobGasUsed := 0, excessBlobGas := 0,
     blockAccessList := [], slotNumber := 0 }
 
-/-- A "happy path" chain config: Amsterdam, activation satisfied by a
-    zero-timestamp payload, and the expected blob schedule. -/
+/-- A "happy path" chain config: activation satisfied by a
+    zero-timestamp payload. -/
 def sanityHappyChainConfig : ChainConfig :=
   { chainId := 1
     activeFork :=
-      { fork := .Amsterdam
-        activation := { blockNumber := none, timestamp := some 0 }
-        blobSchedule := some _expected_amsterdam_blob_schedule } }
+      { activation := { blockNumber := none, timestamp := some 0 } } }
 
 /-- A single amsterdam witness header (23 RLP fields). A one-element chain is
     vacuously contiguous, so `validate_headers` succeeds and its `state_root`
@@ -151,7 +147,7 @@ def sanityInputBytes : Except SpecError Bytes := do
       | .error _ => false
   | .error _ => false
 
--- Invalid input takes the v0.5.0 failed-output path rather than exposing a
+-- Invalid input takes the failed-output path rather than exposing a
 -- deserialization exception to the caller.
 #guard
   match deserialize sszStatelessValidationResultType (run_stateless_guest [0x00]) with
@@ -160,7 +156,6 @@ def sanityInputBytes : Except SpecError Bytes := do
       | .ok r => !r.successfulValidation
                  && r.newPayloadRequestRoot == z 32
                  && r.chainConfig.chainId == 0
-                 && r.chainConfig.activeFork.fork == .Frontier
       | .error _ => false
   | .error _ => false
 
