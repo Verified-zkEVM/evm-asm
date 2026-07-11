@@ -436,3 +436,7 @@ import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsSpec
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop3
