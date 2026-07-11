@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN3NoNop
+import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 open EvmAsm.Rv64.Tactics
