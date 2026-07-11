@@ -454,6 +454,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- delegation marker. Debug/accounting context for auth-base state refunds;
   -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- Preserve the settled-prefix block gas across `bgv_u64le` while checking
+  -- whether a following CREATE transaction fits the remaining 2D budget.
+  "bv_mtx_creation_prefix_used:\n  .zero 8\n" ++
   "bv_exact_header_gas_used:\n  .zero 8\n" ++
   "bv_exact_expected_gas_used:\n  .zero 8\n" ++
   "bv_exact_net_status:\n  .zero 8\n" ++
