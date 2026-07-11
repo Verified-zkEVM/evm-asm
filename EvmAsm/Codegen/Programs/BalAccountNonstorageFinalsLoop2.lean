@@ -1,31 +1,14 @@
 /-
-  EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
+  EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
 
-  The FIRST find-last-tuple loop of `bal_account_nonstorage_finals`
-  (slots 55–65, station 1 / balance_changes), verified end-to-end
-  (bead evm-asm-4ch8f.43.5, slice 2b).
-
-  Loop shape (byte offsets from `B = GuestAddrs.bal_account_nonstorage_finals`):
-
-    B+220  ld   t0, 64(sp)        (cursor spill)
-    B+224  ld   t1, 72(sp)        (window-end spill)
-    B+228  beq  t0, t1, +36 → B+264   (clean exit: cursor = end)
-    B+232  mv   a0, t0
-    B+236  mv   a1, t1
-    B+240  jal  rlp_walk_next     (verified callee, 6-outcome post)
-    B+244  bne  a1, x0, +488 → B+732  (parse failure → reject stub → B+736)
-    B+248  sd   a0, 64(sp)        (cursor := next)
-    B+252  sub  s3, a0, a2        (s3 := next - len, the last item's span start)
-    B+256  mv   s4, a2            (s4 := len)
-    B+260  j    -40  → B+220      (back edge)
-
-  Fold: `measureTwoExitLoop_spec` with measure `j = endOff - off`
-  (strict decrease by `rlpItemDecode_advance`).  The invariant carries the
-  `WalkPrefix` chain; the clean exit converts it to the `LastItemAt`
-  semantics via `WalkPrefix.toLastItemAt`.
+  Station-2 find-last-tuple loop of `bal_account_nonstorage_finals`
+  (header `B + 408`), instantiated from the verified station-1 stack
+  in `BalAccountNonstorageFinalsLoop.lean` via the concrete address table —
+  the slice-1 `#guard`s pin the three station shapes literally identical
+  (bead evm-asm-4ch8f.43.5, slice 2c).
 -/
 
-import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
 
 set_option maxRecDepth 8000
 
@@ -35,71 +18,17 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.RLP
 
 namespace BalAccountNonstorageFinalsSpec
 
-theorem se64 : signExtend12 (64 : BitVec 12) = (64 : Word) := by decide
-theorem se72 : signExtend12 (72 : BitVec 12) = (72 : Word) := by decide
-
-/-! ## §1  Invariant and exits -/
-
-/-- The loop invariant at the header (`B + 220`), indexed by the remaining
-    byte gap `j = endOff - off`.  `off` is the cursor offset (spilled at
-    `64(sp)`); after at least one iteration `s3`/`s4` hold the last decoded
-    item's `(next - len, len)` with the `WalkPrefix` chain recorded. -/
-def flInv (aB newSp : Word) (acctBytes : List (BitVec 8)) (off0 endOff : Nat)
-    (F : Assertion) (j : Nat) : Assertion :=
-  fun h => ∃ off : Nat, ∃ v19 v20 : Word,
-    ((((.x2 : Reg) ↦ᵣ newSp) **
-      ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 off)) **
-      ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
-      ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
-      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-      regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
-      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-      regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      bytesRegion aB acctBytes ** F) **
-     ⌜j = endOff - off ∧ off0 ≤ off ∧ off ≤ endOff ∧
-       (off = off0 ∨ ∃ n l : Word,
-         WalkPrefix acctBytes aB (aB + BitVec.ofNat 64 endOff) off0 off n l ∧
-         n = aB + BitVec.ofNat 64 off ∧ v19 = n - l ∧ v20 = l)⌝) h
-
-/-- The clean exit (`B + 264`): the cursor reached the window end; `s3`/`s4`
-    hold the LAST item's span with the genuine `LastItemAt` derivation. -/
-def flExit (aB newSp : Word) (acctBytes : List (BitVec 8)) (off0 endOff : Nat)
-    (F : Assertion) : Assertion :=
-  fun h => ∃ n l : Word,
-    ((((.x2 : Reg) ↦ᵣ newSp) **
-      ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
-      ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
-      ((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l) **
-      ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
-      ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) ** regOwn .x7 **
-      regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
-      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-      regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      bytesRegion aB acctBytes ** F) **
-     ⌜LastItemAt acctBytes aB (aB + BitVec.ofNat 64 endOff) off0 n l⌝) h
-
-/-- The reject exit (`B + 736`, the shared epilogue entry after the reject
-    stub): `a0 = 1`, everything the loop touched released to ownership. -/
-def flRej (aB newSp : Word) (acctBytes : List (BitVec 8)) (F : Assertion) :
-    Assertion :=
-  ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
-  memOwn (newSp + 64) ** memOwn (newSp + 72) **
-  regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-  regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-  regOwn .x31 ** regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  bytesRegion aB acctBytes ** F
-
 /-! ## §2  The parse-failure arm
 
     After `rlp_walk_next` returns a non-zero status, the `bne a1, x0` at
-    `B + 244` jumps to the shared reject stub (`B + 732`, `li a0, 1`) and
+    `B + 432` jumps to the shared reject stub (`B + 732`, `li a0, 1`) and
     falls into the epilogue entry (`B + 736`). -/
 
 /-- Any non-zero-status arm of the callee post routes to the reject exit. -/
-theorem fl_failArm (aB newSp cursor v19 v20 raOld k : Word)
+theorem fl2_failArm (aB newSp cursor v19 v20 raOld k : Word)
     (acctBytes : List (BitVec 8)) (endOff : Nat) (F : Assertion)
     (hF : F.pcFree) (hk : k ≠ (0 : Word)) :
-    cpsTripleWithin 2 (B + 244) (B + 736) bansfCR
+    cpsTripleWithin 2 (B + 432) (B + 736) bansfCR
       (((.x10 : Reg) ↦ᵣ cursor) ** ((.x11 : Reg) ↦ᵣ k) **
        ((.x12 : Reg) ↦ᵣ (0 : Word)) **
        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -112,14 +41,14 @@ theorem fl_failArm (aB newSp cursor v19 v20 raOld k : Word)
        ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) ** F)
       (flRej aB newSp acctBytes F) := by
   -- the BNE at slot 61: taken (status ≠ 0) to the reject stub
-  have hbne := bne_spec_gen_within .x11 .x0 (488 : BitVec 13) k (0 : Word) (B + 244)
-  rw [show (B + 244) + signExtend13 (488 : BitVec 13) = B + 732 from by
-        rw [show signExtend13 (488 : BitVec 13) = (488 : Word) from by decide]
+  have hbne := bne_spec_gen_within .x11 .x0 (300 : BitVec 13) k (0 : Word) (B + 432)
+  rw [show (B + 432) + signExtend13 (300 : BitVec 13) = B + 732 from by
+        rw [show signExtend13 (300 : BitVec 13) = (300 : Word) from by decide]
         bv_omega,
-      show (B + 244) + 4 = B + 248 from by bv_omega] at hbne
+      show (B + 432) + 4 = B + 436 from by bv_omega] at hbne
   have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 244) bansfProg 61 (.BNE .x11 .x0 (488 : BitVec 13))
+      (CodeReq.ofProg_mem_at B (B + 432) bansfProg 108 (.BNE .x11 .x0 (300 : BitVec 13))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
     hbne
   have hbneF := cpsBranchWithin_frameR
@@ -176,17 +105,17 @@ theorem fl_failArm (aB newSp cursor v19 v20 raOld k : Word)
     h hq
   xperm_hyp hq2
 
-#print axioms fl_failArm
+#print axioms fl2_failArm
 
 /-! ## §3  The accept arm: spill the advanced cursor, capture the span -/
 
 /-- The zero-status continuation: `bne` falls through, the advanced cursor
     is spilled, `s3`/`s4` capture the item's `(next - len, len)`, and the
     back edge returns to the header. -/
-theorem fl_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
+theorem fl2_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
     (acctBytes : List (BitVec 8)) (endOff : Nat) (F : Assertion)
     (hF : F.pcFree) :
-    cpsTripleWithin 5 (B + 244) (B + 220) bansfCR
+    cpsTripleWithin 5 (B + 432) (B + 408) bansfCR
       (((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
        ((.x12 : Reg) ↦ᵣ len) **
        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -208,11 +137,11 @@ theorem fl_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
        ((.x19 : Reg) ↦ᵣ (next - len)) ** ((.x20 : Reg) ↦ᵣ len) ** F) := by
   -- BNE at B+244: status 0 = 0, never taken
-  have hbne := bne_spec_gen_within .x11 .x0 (488 : BitVec 13) (0 : Word) (0 : Word) (B + 244)
-  rw [show (B + 244) + 4 = B + 248 from by bv_omega] at hbne
+  have hbne := bne_spec_gen_within .x11 .x0 (300 : BitVec 13) (0 : Word) (0 : Word) (B + 432)
+  rw [show (B + 432) + 4 = B + 436 from by bv_omega] at hbne
   have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 244) bansfProg 61 (.BNE .x11 .x0 (488 : BitVec 13))
+      (CodeReq.ofProg_mem_at B (B + 432) bansfProg 108 (.BNE .x11 .x0 (300 : BitVec 13))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
     hbne
   have hfall := cpsBranchWithin_ntakenPath hbneL
@@ -220,34 +149,34 @@ theorem fl_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
       obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
       exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
   -- SD a0, 64(sp) at B+248
-  have hsd := sd_spec_gen_within .x2 .x10 newSp next cursorOld (64 : BitVec 12) (B + 248)
-  rw [se64, show (B + 248) + 4 = B + 252 from by bv_omega] at hsd
+  have hsd := sd_spec_gen_within .x2 .x10 newSp next cursorOld (64 : BitVec 12) (B + 436)
+  rw [se64, show (B + 436) + 4 = B + 440 from by bv_omega] at hsd
   have hsdL := liftCode (cr' := bansfCR) hsd
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 248) bansfProg 62 (.SD .x2 .x10 (64 : BitVec 12))
+      (CodeReq.ofProg_mem_at B (B + 436) bansfProg 109 (.SD .x2 .x10 (64 : BitVec 12))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
   -- SUB s3, a0, a2 at B+252
-  have hsub := sub_spec_gen_within .x19 .x10 .x12 next len v19 (B + 252) (by decide)
-  rw [show (B + 252) + 4 = B + 256 from by bv_omega] at hsub
+  have hsub := sub_spec_gen_within .x19 .x10 .x12 next len v19 (B + 440) (by decide)
+  rw [show (B + 440) + 4 = B + 444 from by bv_omega] at hsub
   have hsubL := liftCode (cr' := bansfCR) hsub
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 252) bansfProg 63 (.SUB .x19 .x10 .x12)
+      (CodeReq.ofProg_mem_at B (B + 440) bansfProg 110 (.SUB .x19 .x10 .x12)
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
   -- MV s4, a2 at B+256
-  have hmv := mv_spec_gen_within .x20 .x12 len v20 (B + 256) (by decide)
-  rw [show (B + 256) + 4 = B + 260 from by bv_omega] at hmv
+  have hmv := mv_spec_gen_within .x20 .x12 len v20 (B + 444) (by decide)
+  rw [show (B + 444) + 4 = B + 448 from by bv_omega] at hmv
   have hmvL := liftCode (cr' := bansfCR) hmv
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 256) bansfProg 64 (.MV .x20 .x12)
+      (CodeReq.ofProg_mem_at B (B + 444) bansfProg 111 (.MV .x20 .x12)
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
   -- J -40 at B+260 back to the header
-  have hjal := jal_x0_spec_gen_within (-40 : BitVec 21) (B + 260)
-  rw [show (B + 260) + signExtend21 (-40 : BitVec 21) = B + 220 from by
+  have hjal := jal_x0_spec_gen_within (-40 : BitVec 21) (B + 448)
+  rw [show (B + 448) + signExtend21 (-40 : BitVec 21) = B + 408 from by
         rw [show signExtend21 (-40 : BitVec 21) = (-40 : Word) from by decide]
         bv_omega] at hjal
   have hjalL := liftCode (cr' := bansfCR) hjal
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 260) bansfProg 65 (.JAL .x0 (-40 : BitVec 21))
+      (CodeReq.ofProg_mem_at B (B + 448) bansfProg 112 (.JAL .x0 (-40 : BitVec 21))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
   -- frames
   have hfallF := cpsTripleWithin_frameR
@@ -312,44 +241,44 @@ theorem fl_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) c4
 
-#print axioms fl_okArm
+#print axioms fl2_okArm
 
 /-! ## §4  The loop head: reload the spills, test for the window end -/
 
-def flHeadPre (newSp cursor endW : Word) : Assertion :=
+def fl2HeadPre (newSp cursor endW : Word) : Assertion :=
   ((.x2 : Reg) ↦ᵣ newSp) **
   ((newSp + 64) ↦ₘ cursor) ** ((newSp + 72) ↦ₘ endW) **
   regOwn .x5 ** regOwn .x6
 
-def flHeadPost (newSp cursor endW : Word) : Assertion :=
+def fl2HeadPost (newSp cursor endW : Word) : Assertion :=
   ((.x2 : Reg) ↦ᵣ newSp) **
   ((newSp + 64) ↦ₘ cursor) ** ((newSp + 72) ↦ₘ endW) **
   ((.x5 : Reg) ↦ᵣ cursor) ** ((.x6 : Reg) ↦ᵣ endW)
 
 /-- The two spill loads (`B+220`, `B+224`), before the head test. -/
-private theorem fl_headLoads (newSp cursor endW : Word) :
-    cpsTripleWithin 2 (B + 220) (B + 228) bansfCR
-      (flHeadPre newSp cursor endW) (flHeadPost newSp cursor endW) := by
-  have core : cpsTripleWithin 2 (B + 220) (B + 228) bansfCR
+private theorem fl2_headLoads (newSp cursor endW : Word) :
+    cpsTripleWithin 2 (B + 408) (B + 416) bansfCR
+      (fl2HeadPre newSp cursor endW) (fl2HeadPost newSp cursor endW) := by
+  have core : cpsTripleWithin 2 (B + 408) (B + 416) bansfCR
       (((((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) **
          ((newSp + 72) ↦ₘ endW)) ** regOwn .x5 ** regOwn .x6))
       (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) **
        ((newSp + 72) ↦ₘ endW) ** ((.x5 : Reg) ↦ᵣ cursor) **
        ((.x6 : Reg) ↦ᵣ endW)) := by
     refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (fun v5 v6 => ?_)
-    have hld1 := ld_spec_gen_within .x5 .x2 newSp v5 cursor (64 : BitVec 12) (B + 220)
+    have hld1 := ld_spec_gen_within .x5 .x2 newSp v5 cursor (64 : BitVec 12) (B + 408)
       (by decide)
-    rw [se64, show (B + 220) + 4 = B + 224 from by bv_omega] at hld1
+    rw [se64, show (B + 408) + 4 = B + 412 from by bv_omega] at hld1
     have hld1L := liftCode (cr' := bansfCR) hld1
       (fun a i h => CodeReq.union_mono_left a i
-        (CodeReq.ofProg_mem_at B (B + 220) bansfProg 55 (.LD .x5 .x2 (64 : BitVec 12))
+        (CodeReq.ofProg_mem_at B (B + 408) bansfProg 102 (.LD .x5 .x2 (64 : BitVec 12))
           (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
-    have hld2 := ld_spec_gen_within .x6 .x2 newSp v6 endW (72 : BitVec 12) (B + 224)
+    have hld2 := ld_spec_gen_within .x6 .x2 newSp v6 endW (72 : BitVec 12) (B + 412)
       (by decide)
-    rw [se72, show (B + 224) + 4 = B + 228 from by bv_omega] at hld2
+    rw [se72, show (B + 412) + 4 = B + 416 from by bv_omega] at hld2
     have hld2L := liftCode (cr' := bansfCR) hld2
       (fun a i h => CodeReq.union_mono_left a i
-        (CodeReq.ofProg_mem_at B (B + 224) bansfProg 56 (.LD .x6 .x2 (72 : BitVec 12))
+        (CodeReq.ofProg_mem_at B (B + 412) bansfProg 103 (.LD .x6 .x2 (72 : BitVec 12))
           (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
     have hld1F := cpsTripleWithin_frameR
       (((newSp + 72) ↦ₘ endW) ** ((.x6 : Reg) ↦ᵣ v6))
@@ -361,20 +290,20 @@ private theorem fl_headLoads (newSp cursor endW : Word) :
     exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hq => by xperm_hyp hq) c1
   exact cpsTripleWithin_weaken
-    (fun h hp => by unfold flHeadPre at hp; xperm_hyp hp)
-    (fun h hq => by unfold flHeadPost; xperm_hyp hq) core
+    (fun h hp => by unfold fl2HeadPre at hp; xperm_hyp hp)
+    (fun h hq => by unfold fl2HeadPost; xperm_hyp hq) core
 
-/-- Head, exit case (`cursor = end`): the `beq` takes to `B + 264`. -/
-theorem fl_headExit (newSp cursor endW : Word) (heq : cursor = endW) :
-    cpsTripleWithin 3 (B + 220) (B + 264) bansfCR
-      (flHeadPre newSp cursor endW) (flHeadPost newSp cursor endW) := by
-  have hbeq := beq_spec_gen_within .x5 .x6 (36 : BitVec 13) cursor endW (B + 228)
-  rw [show (B + 228) + signExtend13 (36 : BitVec 13) = B + 264 from by
+/-- Head, exit case (`cursor = end`): the `beq` takes to `B + 452`. -/
+theorem fl2_headExit (newSp cursor endW : Word) (heq : cursor = endW) :
+    cpsTripleWithin 3 (B + 408) (B + 452) bansfCR
+      (fl2HeadPre newSp cursor endW) (fl2HeadPost newSp cursor endW) := by
+  have hbeq := beq_spec_gen_within .x5 .x6 (36 : BitVec 13) cursor endW (B + 416)
+  rw [show (B + 416) + signExtend13 (36 : BitVec 13) = B + 452 from by
         rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by decide]
         bv_omega] at hbeq
   have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCR)
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 228) bansfProg 57 (.BEQ .x5 .x6 (36 : BitVec 13))
+      (CodeReq.ofProg_mem_at B (B + 416) bansfProg 104 (.BEQ .x5 .x6 (36 : BitVec 13))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
     hbeq
   have htaken := cpsBranchWithin_takenPath hbeqL
@@ -385,24 +314,24 @@ theorem fl_headExit (newSp cursor endW : Word) (heq : cursor = endW) :
     (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) ** ((newSp + 72) ↦ₘ endW))
     (by pcf) htaken
   have hchain := cpsTripleWithin_seq_perm_same_cr
-    (fun h hp => by unfold flHeadPost at hp; xperm_hyp hp)
-    (fl_headLoads newSp cursor endW) htakenF
+    (fun h hp => by unfold fl2HeadPost at hp; xperm_hyp hp)
+    (fl2_headLoads newSp cursor endW) htakenF
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hchain
-  unfold flHeadPost
+  unfold fl2HeadPost
   have hq2 := sepConj_mono_left (sepConj_mono_right
     (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
   xperm_hyp hq2
 
 /-- Head, continue case (`cursor ≠ end`): the `beq` falls through to
-    `B + 232`. -/
-theorem fl_headFall (newSp cursor endW : Word) (hne : cursor ≠ endW) :
-    cpsTripleWithin 3 (B + 220) (B + 232) bansfCR
-      (flHeadPre newSp cursor endW) (flHeadPost newSp cursor endW) := by
-  have hbeq := beq_spec_gen_within .x5 .x6 (36 : BitVec 13) cursor endW (B + 228)
-  rw [show (B + 228) + 4 = B + 232 from by bv_omega] at hbeq
+    `B + 420`. -/
+theorem fl2_headFall (newSp cursor endW : Word) (hne : cursor ≠ endW) :
+    cpsTripleWithin 3 (B + 408) (B + 420) bansfCR
+      (fl2HeadPre newSp cursor endW) (fl2HeadPost newSp cursor endW) := by
+  have hbeq := beq_spec_gen_within .x5 .x6 (36 : BitVec 13) cursor endW (B + 416)
+  rw [show (B + 416) + 4 = B + 420 from by bv_omega] at hbeq
   have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCR)
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 228) bansfProg 57 (.BEQ .x5 .x6 (36 : BitVec 13))
+      (CodeReq.ofProg_mem_at B (B + 416) bansfProg 104 (.BEQ .x5 .x6 (36 : BitVec 13))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
     hbeq
   have hfall := cpsBranchWithin_ntakenPath hbeqL
@@ -413,24 +342,24 @@ theorem fl_headFall (newSp cursor endW : Word) (hne : cursor ≠ endW) :
     (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) ** ((newSp + 72) ↦ₘ endW))
     (by pcf) hfall
   have hchain := cpsTripleWithin_seq_perm_same_cr
-    (fun h hp => by unfold flHeadPost at hp; xperm_hyp hp)
-    (fl_headLoads newSp cursor endW) hfallF
+    (fun h hp => by unfold fl2HeadPost at hp; xperm_hyp hp)
+    (fl2_headLoads newSp cursor endW) hfallF
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hchain
-  unfold flHeadPost
+  unfold fl2HeadPost
   have hq2 := sepConj_mono_left (sepConj_mono_right
     (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
   xperm_hyp hq2
 
-#print axioms fl_headExit
-#print axioms fl_headFall
+#print axioms fl2_headExit
+#print axioms fl2_headFall
 
 /-! ## §5  The call block: `mv a0/a1`, `jal rlp_walk_next` -/
 
-/-- From `B + 232` (head fall-through) to the callee return (`B + 244`):
+/-- From `B + 420` (head fall-through) to the callee return (`B + 432`):
     the two argument moves and the verified `rlp_walk_next` call.  All
     clobbered registers enter PINNED (the round introduces the owned values);
     the post is the callee's six-outcome dispatch, framed. -/
-theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
+theorem fl2_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off endOff : Nat) (v19 v20 v7 v10 v11 v12 v28 v29 v30 v31 vRa : Word)
     (F : Assertion) (hF : F.pcFree)
     (hsalign : aB.toNat % 8 = 0)
@@ -439,7 +368,7 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
     (hvalid : ∀ k, k < acctBytes.length →
       isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
     (hoffe : off < endOff) :
-    cpsTripleWithin 90 (B + 232) (B + 244) bansfCR
+    cpsTripleWithin 90 (B + 420) (B + 432) bansfCR
       (((.x2 : Reg) ↦ᵣ newSp) **
        ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 off)) **
        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
@@ -454,7 +383,7 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
        bytesRegion aB acctBytes ** F)
       (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
          regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-         ((.x1 : Reg) ↦ᵣ (B + 240 + 4)) ** bytesRegion aB acctBytes) **
+         ((.x1 : Reg) ↦ᵣ (B + 428 + 4)) ** bytesRegion aB acctBytes) **
         (fun h =>
           rlpWalkNextOk (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff)
             acctBytes off h ∨
@@ -483,24 +412,24 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
         ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) ** F)) := by
   have hoffb : off < acctBytes.length := by omega
   -- MV a0, t0 at B+232
-  have hmv1 := mv_spec_gen_within .x10 .x5 (aB + BitVec.ofNat 64 off) v10 (B + 232)
+  have hmv1 := mv_spec_gen_within .x10 .x5 (aB + BitVec.ofNat 64 off) v10 (B + 420)
     (by decide)
-  rw [show (B + 232) + 4 = B + 236 from by bv_omega] at hmv1
+  rw [show (B + 420) + 4 = B + 424 from by bv_omega] at hmv1
   have hmv1L := liftCode (cr' := bansfCR) hmv1
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 232) bansfProg 58 (.MV .x10 .x5)
+      (CodeReq.ofProg_mem_at B (B + 420) bansfProg 105 (.MV .x10 .x5)
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
   -- MV a1, t1 at B+236
-  have hmv2 := mv_spec_gen_within .x11 .x6 (aB + BitVec.ofNat 64 endOff) v11 (B + 236)
+  have hmv2 := mv_spec_gen_within .x11 .x6 (aB + BitVec.ofNat 64 endOff) v11 (B + 424)
     (by decide)
-  rw [show (B + 236) + 4 = B + 240 from by bv_omega] at hmv2
+  rw [show (B + 424) + 4 = B + 428 from by bv_omega] at hmv2
   have hmv2L := liftCode (cr' := bansfCR) hmv2
     (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 236) bansfProg 59 (.MV .x11 .x6)
+      (CodeReq.ofProg_mem_at B (B + 424) bansfProg 106 (.MV .x11 .x6)
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
-  -- the callee triple at its entry, with ra = B + 240 + 4
+  -- the callee triple at its entry, with ra = B + 428 + 4
   have hwn := rlp_walk_next_spec_within WN aB (aB + BitVec.ofNat 64 endOff)
-    (B + 240 + 4) v12 (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) v7
+    (B + 428 + 4) v12 (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) v7
     v28 v29 v30 v31 acctBytes off hsalign hoffb (by omega)
     (hvalid off hoffb)
     (fun h80 hb8 => ⟨by omega, by omega, hvalid _ (by omega)⟩)
@@ -519,7 +448,7 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
   -- reorder the callee pre into the adapter's (ra ** Prest) shape
   have hwn' := cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwn
-    (P' := ((.x1 : Reg) ↦ᵣ (B + 240 + 4)) **
+    (P' := ((.x1 : Reg) ↦ᵣ (B + 428 + 4)) **
       (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off)) **
        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) ** ((.x12 : Reg) ↦ᵣ v12) **
        ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off)) **
@@ -528,8 +457,8 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
        ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes))
   -- the call through the site-60 adapter
-  have hcall := bansf_callSite60_walk_next (n := 87) vRa (by pcf) hwn'
-  rw [show (B + 240) + 4 = B + 244 from by bv_omega] at hcall
+  have hcall := bansf_callSite107_walk_next (n := 87) vRa (by pcf) hwn'
+  rw [show (B + 428) + 4 = B + 432 from by bv_omega] at hcall
   -- frame the untouched context through the call
   have hcallF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ newSp) **
@@ -566,18 +495,18 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 hcallF
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) c2
 
-#print axioms fl_callBlock
+#print axioms fl2_callBlock
 
 /-! ## §6  The dispatch: consume the six-outcome post -/
 
 /-- Shorthand for the callee-common frame at the return site. -/
-def flCF (aB : Word) (acctBytes : List (BitVec 8)) : Assertion :=
+def fl2CF (aB : Word) (acctBytes : List (BitVec 8)) : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  ((.x1 : Reg) ↦ᵣ (B + 240 + 4)) ** bytesRegion aB acctBytes
+  ((.x1 : Reg) ↦ᵣ (B + 428 + 4)) ** bytesRegion aB acctBytes
 
 /-- Shorthand for the framed extras at the return site. -/
-def flEx (aB newSp : Word) (off endOff : Nat) (v19 v20 : Word)
+def fl2Ex (aB newSp : Word) (off endOff : Nat) (v19 v20 : Word)
     (F : Assertion) : Assertion :=
   ((.x2 : Reg) ↦ᵣ newSp) **
   ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 off)) **
@@ -585,34 +514,34 @@ def flEx (aB newSp : Word) (off endOff : Nat) (v19 v20 : Word)
   ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) ** F
 
 /-- A fail arm (status `k ≠ 0`), packaged against the §5 post shape. -/
-private theorem fl_dispatchFail (aB newSp : Word) (acctBytes : List (BitVec 8))
+private theorem fl2_dispatchFail (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off0 off endOff : Nat) (v19 v20 k : Word) (junk : Prop) (F : Assertion)
     (hF : F.pcFree) (hk : k ≠ (0 : Word)) (j : Nat) :
-    cpsBranchWithin 5 (B + 244) bansfCR
-      ((flCF aB acctBytes **
+    cpsBranchWithin 5 (B + 432) bansfCR
+      ((fl2CF aB acctBytes **
         (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off)) ** ((.x11 : Reg) ↦ᵣ k) **
          ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ⌜junk⌝)) **
-       flEx aB newSp off endOff v19 v20 F)
+       fl2Ex aB newSp off endOff v19 v20 F)
       (B + 736) (flRej aB newSp acctBytes F)
-      (B + 220) (fun h => ∃ j', j' < j ∧
+      (B + 408) (fun h => ∃ j', j' < j ∧
         flInv aB newSp acctBytes off0 endOff F j' h) := by
-  have hfa := fl_failArm aB newSp (aB + BitVec.ofNat 64 off) v19 v20 (B + 240 + 4) k
+  have hfa := fl2_failArm aB newSp (aB + BitVec.ofNat 64 off) v19 v20 (B + 428 + 4) k
     acctBytes endOff F hF hk
-  have ht := cpsTripleWithin_weaken (P' := ((flCF aB acctBytes **
+  have ht := cpsTripleWithin_weaken (P' := ((fl2CF aB acctBytes **
       (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off)) ** ((.x11 : Reg) ↦ᵣ k) **
        ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ⌜junk⌝)) **
-      flEx aB newSp off endOff v19 v20 F))
+      fl2Ex aB newSp off endOff v19 v20 F))
     (fun h hp => by
-      have hp2 : ((flCF aB acctBytes **
+      have hp2 : ((fl2CF aB acctBytes **
           (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off)) ** ((.x11 : Reg) ↦ᵣ k) **
            ((.x12 : Reg) ↦ᵣ (0 : Word)))) **
-          flEx aB newSp off endOff v19 v20 F) h := by
+          fl2Ex aB newSp off endOff v19 v20 F) h := by
         refine sepConj_mono_left (sepConj_mono_right (fun h' hp' => ?_)) h hp
         obtain ⟨h1, h2, hd, hu, h10, hrest⟩ := hp'
         obtain ⟨h3, h4, hd2, hu2, h11, hrest2⟩ := hrest
         obtain ⟨hP, _⟩ := (sepConj_pure_right h4).1 hrest2
         exact ⟨h1, h2, hd, hu, h10, h3, h4, hd2, hu2, h11, hP⟩
-      unfold flCF flEx at hp2
+      unfold fl2CF fl2Ex at hp2
       xperm_hyp hp2)
     (fun _ hq => hq) hfa
   exact cpsBranchWithin_mono_nSteps (by omega)
@@ -620,7 +549,7 @@ private theorem fl_dispatchFail (aB newSp : Word) (acctBytes : List (BitVec 8))
 
 /-- The accept arm: the decode advances the cursor; the continuation
     re-establishes the invariant at the strictly smaller measure. -/
-private theorem fl_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
+private theorem fl2_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off0 off endOff : Nat) (v19 v20 : Word) (F : Assertion)
     (hF : F.pcFree)
     (hslack : endOff + 9 ≤ acctBytes.length)
@@ -630,20 +559,20 @@ private theorem fl_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
       WalkPrefix acctBytes aB (aB + BitVec.ofNat 64 endOff) off0 off n l ∧
       n = aB + BitVec.ofNat 64 off ∧ v19 = n - l ∧ v20 = l)
     (j : Nat) (hj : j = endOff - off) :
-    cpsBranchWithin 5 (B + 244) bansfCR
-      ((flCF aB acctBytes **
+    cpsBranchWithin 5 (B + 432) bansfCR
+      ((fl2CF aB acctBytes **
         rlpWalkNextOk (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff)
           acctBytes off) **
-       flEx aB newSp off endOff v19 v20 F)
+       fl2Ex aB newSp off endOff v19 v20 F)
       (B + 736) (flRej aB newSp acctBytes F)
-      (B + 220) (fun h => ∃ j', j' < j ∧
+      (B + 408) (fun h => ∃ j', j' < j ∧
         flInv aB newSp acctBytes off0 endOff F j' h) := by
   -- expose the existential next/len and the decode fact
   refine cpsBranchWithin_weaken (P := fun h => ∃ next : Word, ∃ len : Word,
-      (((flCF aB acctBytes **
+      (((fl2CF aB acctBytes **
          (((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
           ((.x12 : Reg) ↦ᵣ len))) **
-        flEx aB newSp off endOff v19 v20 F) **
+        fl2Ex aB newSp off endOff v19 v20 F) **
        ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
          (aB + BitVec.ofNat 64 endOff) next len⌝) h)
     (fun h hp => ?_) (fun _ hq => hq) (fun _ hq => hq) ?_
@@ -653,10 +582,10 @@ private theorem fl_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
     obtain ⟨h7, h8, hd4, hu4, h11, hrest2⟩ := hrest
     obtain ⟨hP12, hdec⟩ := (sepConj_pure_right h8).1 hrest2
     refine ⟨next, len, ?_⟩
-    have hbody : ((flCF aB acctBytes **
+    have hbody : ((fl2CF aB acctBytes **
         (((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
          ((.x12 : Reg) ↦ᵣ len))) **
-        flEx aB newSp off endOff v19 v20 F) h :=
+        fl2Ex aB newSp off endOff v19 v20 F) h :=
       ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hCF, h5, h6, hd3, hu3, h10,
         h7, h8, hd4, hu4, h11, hP12⟩, hEx⟩
     exact (sepConj_pure_right h).2 ⟨hbody, hdec⟩
@@ -668,10 +597,10 @@ private theorem fl_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off := off) (endOff := endOff) hdec hb2 (by omega)
   obtain ⟨hrep, hlt, hle⟩ := hadv
   refine cpsTripleWithin_as_cpsBranchWithin_right _ _ ?_
-  have hok := fl_okArm aB newSp (aB + BitVec.ofNat 64 off) v19 v20 next len
-    (B + 240 + 4) acctBytes endOff F hF
+  have hok := fl2_okArm aB newSp (aB + BitVec.ofNat 64 off) v19 v20 next len
+    (B + 428 + 4) acctBytes endOff F hF
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hok
-  · unfold flCF flEx at hp
+  · unfold fl2CF fl2Ex at hp
     xperm_hyp hp
   · -- rebuild the invariant at the smaller measure
     refine ⟨endOff - (next - aB).toNat, by omega, ?_⟩
@@ -712,14 +641,14 @@ private theorem fl_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
         BitVec.toNat_ofNat] at this
       omega
 
-#print axioms fl_dispatchFail
-#print axioms fl_dispatchOk
+#print axioms fl2_dispatchFail
+#print axioms fl2_dispatchOk
 
 /-! ## §7  The round: one full pass from the header -/
 
 /-- One loop round: from `flInv j` at the header, reach the clean exit, the
     reject exit, or the header again with a strictly smaller measure. -/
-theorem fl_round (aB newSp : Word) (acctBytes : List (BitVec 8))
+theorem fl2_round (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off0 endOff : Nat) (F : Assertion)
     (hF : F.pcFree)
     (hsalign : aB.toNat % 8 = 0)
@@ -728,11 +657,11 @@ theorem fl_round (aB newSp : Word) (acctBytes : List (BitVec 8))
     (hvalid : ∀ k, k < acctBytes.length →
       isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
     (hoff0 : off0 < endOff) (j : Nat) :
-    cpsNBranchWithin 98 (B + 220) bansfCR
+    cpsNBranchWithin 98 (B + 408) bansfCR
       (flInv aB newSp acctBytes off0 endOff F j)
-      [(B + 264, flExit aB newSp acctBytes off0 endOff F),
+      [(B + 452, flExit aB newSp acctBytes off0 endOff F),
        (B + 736, flRej aB newSp acctBytes F),
-       (B + 220, fun h => ∃ j', j' < j ∧
+       (B + 408, fun h => ∃ j', j' < j ∧
          flInv aB newSp acctBytes off0 endOff F j' h)] := by
   unfold flInv
   refine cpsNBranchWithin_exists_pre (fun off => ?_)
@@ -758,13 +687,13 @@ theorem fl_round (aB newSp : Word) (acctBytes : List (BitVec 8))
        regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion aB acctBytes ** F)
       (by pcf; exact hF)
-      (fl_headExit newSp (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 off) rfl)
+      (fl2_headExit newSp (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 off) rfl)
     refine cpsNBranchWithin_of_triple (List.mem_cons_self ..)
       (cpsTripleWithin_mono_nSteps (by omega)
         (cpsTripleWithin_weaken
-          (fun h hp => by unfold flHeadPre; xperm_hyp hp)
+          (fun h hp => by unfold fl2HeadPre; xperm_hyp hp)
           (fun h hq => ?_) hheF))
-    unfold flHeadPost at hq
+    unfold fl2HeadPost at hq
     unfold flExit
     refine ⟨n, l, ?_⟩
     rw [hv19, hv20] at hq
@@ -813,39 +742,39 @@ theorem fl_round (aB newSp : Word) (acctBytes : List (BitVec 8))
        ((.x1 : Reg) ↦ᵣ vRa) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion aB acctBytes ** F)
       (by pcf; exact hF)
-      (fl_headFall newSp (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) hne')
-    have t2 := fl_callBlock aB newSp acctBytes off endOff v19 v20 v7 v10 v11 v12
+      (fl2_headFall newSp (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) hne')
+    have t2 := fl2_callBlock aB newSp acctBytes off endOff v19 v20 v7 v10 v11 v12
       v28 v29 v30 v31 vRa F hF hsalign hslack hover hvalid hoffe
     have t12 := cpsTripleWithin_seq_perm_same_cr
-      (fun h hp => by unfold flHeadPost at hp; xperm_hyp hp) t1 t2
+      (fun h hp => by unfold fl2HeadPost at hp; xperm_hyp hp) t1 t2
     -- the six dispatch arms, recombined
     have harms := cpsBranchWithin_pre_or
-      (fl_dispatchOk aB newSp acctBytes off0 off endOff v19 v20 F hF hslack hover
+      (fl2_dispatchOk aB newSp acctBytes off0 off endOff v19 v20 F hF hslack hover
         hb1 hb2 hoffe hstate j hj)
       (cpsBranchWithin_pre_or
-        (fl_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (2 : Word)
+        (fl2_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (2 : Word)
           (¬ BitVec.ult (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) = true)
           F hF (by decide) j)
         (cpsBranchWithin_pre_or
-          (fl_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (3 : Word)
+          (fl2_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (3 : Word)
             (¬ ∃ next len, rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
               (aB + BitVec.ofNat 64 endOff) next len) F hF (by decide) j)
           (cpsBranchWithin_pre_or
-            (fl_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (4 : Word)
+            (fl2_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (4 : Word)
               (¬ ∃ next len, rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
                 (aB + BitVec.ofNat 64 endOff) next len) F hF (by decide) j)
             (cpsBranchWithin_pre_or
-              (fl_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (5 : Word)
+              (fl2_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (5 : Word)
                 (¬ ∃ next len, rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
                   (aB + BitVec.ofNat 64 endOff) next len) F hF (by decide) j)
-              (fl_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (6 : Word)
+              (fl2_dispatchFail aB newSp acctBytes off0 off endOff v19 v20 (6 : Word)
                 (¬ ∃ next len, rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
                   (aB + BitVec.ofNat 64 endOff) next len) F hF (by decide) j)))))
     -- distribute the callee post into the six arm preconditions and chain
     refine cpsNBranchWithin_of_branch_mem (by simp) (by simp [flInv])
       (cpsBranchWithin_mono_nSteps (by omega)
         (cpsBranchWithin_weaken
-          (fun h hp => by unfold flHeadPre; xperm_hyp hp)
+          (fun h hp => by unfold fl2HeadPre; xperm_hyp hp)
           (fun _ x => x) (fun _ x => x)
           (cpsTripleWithin_seq_branch_same_cr t12
             (cpsBranchWithin_weaken (fun h hp => ?_) (fun _ x => x) (fun _ x => x) harms))))
@@ -861,16 +790,16 @@ theorem fl_round (aB newSp : Word) (acctBytes : List (BitVec 8))
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
         ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hCF, a6⟩, hEx⟩))))
 
-#print axioms fl_round
+#print axioms fl2_round
 
 /-! ## §8  The folded loop -/
 
-/-- **The find-last-tuple loop, folded** (station 1, header `B + 220`):
+/-- **The find-last-tuple loop, folded** (station 1, header `B + 408`):
     from the invariant at measure `j`, the loop reaches either the clean
-    exit (`B + 264`) with the LAST item's span and the genuine `LastItemAt`
+    exit (`B + 452`) with the LAST item's span and the genuine `LastItemAt`
     derivation, or the shared reject epilogue entry (`B + 736`) with
     `a0 = 1` — within `98 * (j + 1)` steps. -/
-theorem bansf_findLastLoop1_spec (aB newSp : Word) (acctBytes : List (BitVec 8))
+theorem bansf_findLastLoop2_spec (aB newSp : Word) (acctBytes : List (BitVec 8))
     (off0 endOff : Nat) (F : Assertion)
     (hF : F.pcFree)
     (hsalign : aB.toNat % 8 = 0)
@@ -879,16 +808,16 @@ theorem bansf_findLastLoop1_spec (aB newSp : Word) (acctBytes : List (BitVec 8))
     (hvalid : ∀ k, k < acctBytes.length →
       isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
     (hoff0 : off0 < endOff) (j : Nat) :
-    cpsBranchWithin (98 * (j + 1)) (B + 220) bansfCR
+    cpsBranchWithin (98 * (j + 1)) (B + 408) bansfCR
       (flInv aB newSp acctBytes off0 endOff F j)
-      (B + 264) (flExit aB newSp acctBytes off0 endOff F)
+      (B + 452) (flExit aB newSp acctBytes off0 endOff F)
       (B + 736) (flRej aB newSp acctBytes F) :=
   cpsBranchWithin_of_nBranch2
     (measureTwoExitLoop_spec 98 (flInv aB newSp acctBytes off0 endOff F)
-      (fun j' => fl_round aB newSp acctBytes off0 endOff F hF hsalign hslack
+      (fun j' => fl2_round aB newSp acctBytes off0 endOff F hF hsalign hslack
         hover hvalid hoff0 j') j)
 
-#print axioms bansf_findLastLoop1_spec
+#print axioms bansf_findLastLoop2_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
