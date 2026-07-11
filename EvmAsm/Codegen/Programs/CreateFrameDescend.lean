@@ -14,7 +14,8 @@
   exactly `call_frame_set_call_env` mode 0 (CALL): the child's ADDRESS = the derived
   CREATE address (so init-code SSTOREs key on the created account), CALLER = the creator
   (parent.ADDRESS), CALLVALUE = the endowment. The child's code = the staged init code
-  (`create_child_initcode` / `create_init_size`); there is no calldata (argsLen = 0).
+  (the parent frame's memory window at `create_init_offset`, with length
+  `create_init_size`); there is no calldata (argsLen = 0).
 
   After the descent it marks the child frame as a CREATE-frame in `create_frame_flag`
   (indexed by depth) so the depth-aware RETURN/STOP/REVERT handler (.5b) can deposit the
@@ -26,8 +27,8 @@
     a1 = netPopBytes (64 for CREATE / 96 for CREATE2) for frame_return's arg pop.
   The endowment value is the stack top (x12+0), read from x12 directly -- NOT passed in a0,
   because a0 == x10 (the dispatcher PC) which call_frame_descend saves as the parent return PC.
-  Reads `create_address_be` (20-byte BE derived address) and `create_child_initcode` /
-  `create_init_size`. Switches the live dispatcher registers to the child frame and
+  Reads `create_address_be`, `create_init_offset`, and `create_init_size`. Switches
+  the live dispatcher registers to the child frame and
   returns; the caller then `j .dispatch_loop` to run the init code. Clobbers t0-t4, a0-a7.
 -/
 
@@ -72,7 +73,11 @@ def createFrameDescendFunction : String :=
   "  sd x0, 24(t2); sd x0, 32(t2)                   # argsOff / argsLen = 0 (CREATE child has no calldata)\n" ++
   "  sd x0, 40(t2); sd x0, 48(t2)                   # outOff / outSize = 0 (deposit handles RETURN, not frame_return)\n" ++
   "  sd a1, 56(t2)                                  # netPopBytes (from a1: 64 for CREATE / 96 for CREATE2) -- frame_return pops the args\n" ++
-  "  la t3, create_child_initcode; sd t3, 64(t2)    # code_ptr = staged init code\n" ++
+  -- Execute directly from the suspended parent frame's memory. Each call depth
+  -- has a distinct memory arena, so nested CREATE cannot overwrite the outer
+  -- initcode being executed. The legacy global staging buffer is shared and is
+  -- therefore unsuitable as a live code base across a nested descent.
+  "  la t3, create_init_offset; ld t3, 0(t3); add t3, x13, t3; sd t3, 64(t2)  # code_ptr = parent memory + init offset\n" ++
   "  la t3, create_init_size; ld t3, 0(t3); sd t3, 72(t2)   # code_len\n" ++
   "  ld t3, 568(x20); sd t3, 80(t2)                 # requested_gas = all gas_left (EIP-150 63/64 cap in forward_gas)\n" ++
   "  sd x0, 88(t2)                                  # value_nonzero = 0 (CREATE charges its own gas, not CALL's 9000 transfer)\n" ++
