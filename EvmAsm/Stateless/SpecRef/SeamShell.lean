@@ -243,6 +243,144 @@ def validate_header (parent_header header : Header) :
   if header.parentHash ≠ headerHash parent_header then
     throw (.invalidBlock "parent hash mismatch")
 
+/-! ## Static per-transaction checks (sound-for-accepts extension)
+
+The accepting path runs `process_transaction` on every transaction,
+whose unconditional prefix (`fork.py`, functions `process_transaction`
+and `check_transaction`) performs checks that do NOT depend on
+execution state:
+
+* sender recovery from the supplied public key
+  (`recover_sender_from_public_key` — pure signature verification);
+* `validate_transaction` (intrinsic gas / EIP-7623 floor / EIP-2681
+  nonce cap / init-code size — pure);
+* the gas-dimension caps against the *initial* availability
+  (`regular/state_gas_available ≤ block_gas_limit` always, so
+  `min(TX_MAX_GAS_LIMIT, tx.gas) > block_gas_limit` or
+  `tx.gas > block_gas_limit` can never pass later);
+* cumulative blob gas vs `MAX_BLOB_GAS_PER_BLOCK` (fully determined by
+  the payload);
+* fee sanity vs the header base fee, blob static checks (count,
+  version byte, `max_fee_per_blob_gas` vs the header-derived blob gas
+  price), and the EIP-7702 non-empty-authorization check;
+* for the FIRST transaction only, against the (witness-backed,
+  pre-execution) state: the nonce-too-LOW check — nonces never
+  decrease, so `pre_state.nonce > tx.nonce` implies the at-check nonce
+  is also too high — and the EOA/delegation sender check — an existing
+  account's code cannot change during the pre-tx system calls
+  (`set_code` happens only on CREATE at a fresh address or in-tx
+  EIP-7702, and hitting an existing account's address with CREATE2
+  needs a keccak preimage, the model's standing assumption).  The
+  balance and nonce-too-HIGH checks are NOT sound against pre-state
+  (adversarial system-contract code could credit/debit the sender or
+  drive a delegated sender's CREATE before the first transaction) and
+  wait for `apply_body`, as do all later transactions' state checks.
+
+`MAX_BLOB_GAS_PER_BLOCK` / `BLOB_COUNT_LIMIT` /
+`VERSIONED_HASH_VERSION_KZG` are `fork.py` constants;
+`is_valid_delegation` is `vm/eoa_delegation.py` (function
+`is_valid_delegation`). -/
+
+/-- `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * PER_BLOB` (`fork.py`). -/
+def MAX_BLOB_GAS_PER_BLOCK : U64 := GasCosts.BLOB_SCHEDULE_MAX * GasCosts.PER_BLOB
+/-- `BLOB_COUNT_LIMIT` (`fork.py`). -/
+def BLOB_COUNT_LIMIT : Nat := 6
+/-- `VERSIONED_HASH_VERSION_KZG` (`fork.py`). -/
+def VERSIONED_HASH_VERSION_KZG : BitVec 8 := 0x01
+
+/-- `is_valid_delegation(code)` (`vm/eoa_delegation.py`, function
+    `is_valid_delegation`): 23 bytes prefixed `0xEF0100`. -/
+def is_valid_delegation (code : Bytes) : Bool :=
+  code.length == 23 && code.take 3 == [0xEF, 0x01, 0x00]
+
+/-- `calculate_total_blob_gas(tx)` (`vm/gas.py`, function
+    `calculate_total_blob_gas`). -/
+def calculate_total_blob_gas (tx : Transaction) : U64 :=
+  match tx with
+  | .blob t => GasCosts.PER_BLOB * t.blobVersionedHashes.length
+  | _ => 0
+
+/-- The execution-independent prefix of `check_transaction` (`fork.py`,
+    function `check_transaction`) for one transaction; returns
+    `max_gas_fee` (for the first-tx balance check). -/
+def staticCheckTransaction (base_fee_per_gas : Uint)
+    (block_gas_limit : Uint) (excess_blob_gas : U64) (tx : Transaction) :
+    Except SpecError Uint := do
+  if min TX_MAX_GAS_LIMIT tx.gas > block_gas_limit then
+    throw (.invalidBlock "regular gas used exceeds limit")
+  if tx.gas > block_gas_limit then
+    throw (.invalidBlock "state gas used exceeds limit")
+  let max_gas_fee ←
+    match tx with
+    | .feeMarket t => feeCap t.maxFeePerGas t.maxPriorityFeePerGas t.gas
+    | .blob t => feeCap t.maxFeePerGas t.maxPriorityFeePerGas t.gas
+    | .setCode t => feeCap t.maxFeePerGas t.maxPriorityFeePerGas t.gas
+    | .legacy t => legacyCap t.gasPrice t.gas
+    | .accessList t => legacyCap t.gasPrice t.gas
+  let max_gas_fee ←
+    match tx with
+    | .blob t => do
+        if t.blobVersionedHashes.isEmpty then
+          throw (.invalidBlock "no blob data in transaction")
+        if t.blobVersionedHashes.length > BLOB_COUNT_LIMIT then
+          throw (.invalidBlock "blob count exceeded")
+        if t.blobVersionedHashes.any (fun h => h.take 1 != [VERSIONED_HASH_VERSION_KZG]) then
+          throw (.invalidBlock "invalid blob versioned hash")
+        let blob_gas_price ← calculate_blob_gas_price excess_blob_gas
+        if t.maxFeePerBlobGas < blob_gas_price then
+          throw (.invalidBlock "insufficient max fee per blob gas")
+        pure (max_gas_fee + calculate_total_blob_gas tx * t.maxFeePerBlobGas)
+    | _ => pure max_gas_fee
+  if let .setCode t := tx then
+    if t.authorizations.isEmpty then
+      throw (.invalidBlock "empty authorization list")
+  pure max_gas_fee
+where
+  feeCap (maxFee maxPriority gas : Uint) : Except SpecError Uint := do
+    if maxFee < maxPriority then
+      throw (.invalidBlock "priority fee greater than max fee")
+    if maxFee < base_fee_per_gas then
+      throw (.invalidBlock "insufficient max fee per gas")
+    pure (gas * maxFee)
+  legacyCap (gasPrice gas : Uint) : Except SpecError Uint := do
+    if gasPrice < base_fee_per_gas then
+      throw (.invalidBlock "gas price below base fee")
+    pure (gas * gasPrice)
+
+/-- Static per-transaction checks over the whole payload (see the
+    section header): sender/pubkey verification + `validate_transaction`
+    + the execution-independent `check_transaction` prefix for every
+    transaction, cumulative blob gas, and the pre-state nonce / balance
+    / EOA checks for the first transaction. -/
+def staticTransactionChecks (chain_id : U64) (header : Header)
+    (ws : WitnessPreState) (transactions : List Bytes)
+    (public_keys : List Bytes) : Except SpecError Unit := do
+  let mut total_blob_gas : U64 := 0
+  let mut is_first := true
+  for (encoded_tx, public_key) in transactions.zip public_keys do
+    let tx ← decode_transaction encoded_tx
+    let sender ← recover_sender_from_public_key chain_id tx public_key
+    let _ ← validate_transaction tx sender
+    let _ ← staticCheckTransaction header.baseFeePerGas
+      header.gasLimit header.excessBlobGas tx
+    total_blob_gas := total_blob_gas + calculate_total_blob_gas tx
+    if is_first then
+      is_first := false
+      -- check_transaction's pre-state reads for the first transaction
+      -- (only the checks sound against pre-state; see the header):
+      -- get_account(tx_state, sender) on the untouched tracker reads
+      -- the witness directly.
+      let sender_account := ((← get_account_optional ws sender).getD
+        { nonce := 0, balance := 0, codeHash := EMPTY_CODE_HASH })
+      if sender_account.nonce > tx.nonce then
+        throw (.invalidBlock "nonce too low")
+      if sender_account.codeHash != EMPTY_CODE_HASH then
+        let sender_code ← get_code ws sender_account.codeHash
+        if !is_valid_delegation sender_code then
+          throw (.invalidBlock "not EOA")
+  if total_blob_gas > MAX_BLOB_GAS_PER_BLOCK then
+    throw (.invalidBlock "blob gas limit exceeded")
+
 /-! ## The partial seam -/
 
 /-- The pre-check prefix of `execute_new_payload_request`
@@ -271,6 +409,10 @@ def executeSeamShell : ExecutionSeam := fun input => do
   -- Root-anchored witness authentication (obligation #7): the accepting
   -- path always decodes the state trie from the witness.
   let _ ← decode_witness_to_mpt input.preState.nodeDb input.preState.stateRoot
+  -- Static per-transaction checks (the execution-independent prefix of
+  -- process_transaction/check_transaction; see the section above).
+  staticTransactionChecks input.chainContext.chainId block.header
+    input.preState block.transactions input.transactionPublicKeys
   -- apply_body + post-execution root checks: Stack C (s1d19.5).
   pure ()
 

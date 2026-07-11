@@ -11,10 +11,21 @@
     `fork_types.py` `Authorization` (class `Authorization`)
   * `decode_transaction` (function `decode_transaction`)
 
-  This is the decode subset the seam shell needs
-  (`is_valid_versioned_hashes`, bead `evm-asm-s1d19.3`); the rest of
-  `transactions.py` (intrinsic costs, sender recovery, signing hashes)
-  is Stack C (`s1d19.5`).
+  This began as the decode subset the seam shell needs
+  (`is_valid_versioned_hashes`, bead `evm-asm-s1d19.3`); Stack C stage 2
+  (`s1d19.5`) adds the rest of `transactions.py`:
+
+  * `IntrinsicGasCost` (class `IntrinsicGasCost`), `TX_MAX_GAS_LIMIT`
+  * `encode_transaction`, `get_transaction_hash` (functions of the
+    same names)
+  * `validate_transaction`, `calculate_intrinsic_cost`,
+    `count_tokens_in_data` (functions of the same names)
+  * `recover_sender`, `recover_transaction_public_key`,
+    `recover_sender_from_public_key`, `_sender_address_from_public_key`,
+    `_signature_recovery_parameters`, and the five `signing_hash_*`
+    (functions of the same names) — secp256k1 recovery delegates to
+    `Secp256k1Recover.lean` (the project-side reference for the
+    coincurve dependency).
 
   ## Modeling notes
 
@@ -33,6 +44,8 @@
 -/
 
 import EvmAsm.Stateless.SpecRef.Types
+import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Stateless.SpecRef.Secp256k1Recover
 import EvmAsm.EL.RLP.FullDecode
 
 namespace EvmAsm.Stateless.SpecRef
@@ -307,6 +320,304 @@ def decode_transaction (tx : Bytes) : Except SpecError Transaction := do
         | none => txErr "transaction RLP decode failed"
       else txErr s!"unknown transaction type {b0.toNat}"
 
+/-! ## Uniform accessors over the `Transaction` union -/
+
+namespace Transaction
+
+def gas : Transaction → Uint
+  | .legacy tx => tx.gas | .accessList tx => tx.gas | .feeMarket tx => tx.gas
+  | .blob tx => tx.gas | .setCode tx => tx.gas
+
+def nonce : Transaction → Nat
+  | .legacy tx => tx.nonce | .accessList tx => tx.nonce | .feeMarket tx => tx.nonce
+  | .blob tx => tx.nonce | .setCode tx => tx.nonce
+
+/-- `tx.to` — `none` is the `Bytes0` creation form (only legacy /
+    access-list / fee-market allow it). -/
+def to : Transaction → Option Address
+  | .legacy tx => tx.to | .accessList tx => tx.to | .feeMarket tx => tx.to
+  | .blob tx => some tx.to | .setCode tx => some tx.to
+
+def value : Transaction → U256
+  | .legacy tx => tx.value | .accessList tx => tx.value | .feeMarket tx => tx.value
+  | .blob tx => tx.value | .setCode tx => tx.value
+
+def data : Transaction → Bytes
+  | .legacy tx => tx.data | .accessList tx => tx.data | .feeMarket tx => tx.data
+  | .blob tx => tx.data | .setCode tx => tx.data
+
+def r : Transaction → U256
+  | .legacy tx => tx.r | .accessList tx => tx.r | .feeMarket tx => tx.r
+  | .blob tx => tx.r | .setCode tx => tx.r
+
+def s : Transaction → U256
+  | .legacy tx => tx.s | .accessList tx => tx.s | .feeMarket tx => tx.s
+  | .blob tx => tx.s | .setCode tx => tx.s
+
+/-- `has_access_list(tx)` (function `has_access_list`) — the access
+    list itself (`[]` for legacy). -/
+def accessList? : Transaction → Option (List Access)
+  | .legacy _ => none
+  | .accessList tx => some tx.accessList
+  | .feeMarket tx => some tx.accessList
+  | .blob tx => some tx.accessList
+  | .setCode tx => some tx.accessList
+
+end Transaction
+
+/-! ## Envelope encoding (`encode_transaction`, `get_transaction_hash`) -/
+
+private def scalarT (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
+private def toItem : Option Address → RLPItem
+  | none => .bytes []
+  | some a => .bytes a
+private def accessItem (a : Access) : RLPItem :=
+  .list [.bytes a.account, .list (a.slots.map .bytes)]
+private def authItem (a : Authorization) : RLPItem :=
+  .list [scalarT a.chainId, .bytes a.address, scalarT a.nonce,
+         scalarT a.yParity, scalarT a.r, scalarT a.s]
+
+/-- The RLP item of each dataclass (`rlp.encode(tx)`'s argument). -/
+def txToRlpItem : Transaction → RLPItem
+  | .legacy tx => .list
+      [scalarT tx.nonce, scalarT tx.gasPrice, scalarT tx.gas, toItem tx.to,
+       scalarT tx.value, .bytes tx.data, scalarT tx.v, scalarT tx.r, scalarT tx.s]
+  | .accessList tx => .list
+      [scalarT tx.chainId, scalarT tx.nonce, scalarT tx.gasPrice, scalarT tx.gas,
+       toItem tx.to, scalarT tx.value, .bytes tx.data,
+       .list (tx.accessList.map accessItem), scalarT tx.yParity, scalarT tx.r,
+       scalarT tx.s]
+  | .feeMarket tx => .list
+      [scalarT tx.chainId, scalarT tx.nonce, scalarT tx.maxPriorityFeePerGas,
+       scalarT tx.maxFeePerGas, scalarT tx.gas, toItem tx.to, scalarT tx.value,
+       .bytes tx.data, .list (tx.accessList.map accessItem), scalarT tx.yParity,
+       scalarT tx.r, scalarT tx.s]
+  | .blob tx => .list
+      [scalarT tx.chainId, scalarT tx.nonce, scalarT tx.maxPriorityFeePerGas,
+       scalarT tx.maxFeePerGas, scalarT tx.gas, .bytes tx.to, scalarT tx.value,
+       .bytes tx.data, .list (tx.accessList.map accessItem),
+       scalarT tx.maxFeePerBlobGas, .list (tx.blobVersionedHashes.map .bytes),
+       scalarT tx.yParity, scalarT tx.r, scalarT tx.s]
+  | .setCode tx => .list
+      [scalarT tx.chainId, scalarT tx.nonce, scalarT tx.maxPriorityFeePerGas,
+       scalarT tx.maxFeePerGas, scalarT tx.gas, .bytes tx.to, scalarT tx.value,
+       .bytes tx.data, .list (tx.accessList.map accessItem),
+       .list (tx.authorizations.map authItem), scalarT tx.yParity, scalarT tx.r,
+       scalarT tx.s]
+
+/-- `encode_transaction(tx)` (function `encode_transaction`): the raw
+    envelope — legacy is its RLP, typed forms get their type byte. -/
+def encode_transaction (tx : Transaction) : Bytes :=
+  match tx with
+  | .legacy _ => EvmAsm.EL.RLP.encode (txToRlpItem tx)
+  | .accessList _ => 0x01 :: EvmAsm.EL.RLP.encode (txToRlpItem tx)
+  | .feeMarket _ => 0x02 :: EvmAsm.EL.RLP.encode (txToRlpItem tx)
+  | .blob _ => 0x03 :: EvmAsm.EL.RLP.encode (txToRlpItem tx)
+  | .setCode _ => 0x04 :: EvmAsm.EL.RLP.encode (txToRlpItem tx)
+
+/-- `get_transaction_hash(tx)` (function `get_transaction_hash`) on the
+    raw envelope bytes (payload transactions are always `Bytes`; a
+    legacy envelope IS its RLP, so one keccak covers both arms). -/
+def get_transaction_hash (encoded_tx : Bytes) : Hash32 :=
+  keccak256 encoded_tx
+
+/-! ## Intrinsic gas (`IntrinsicGasCost`, `validate_transaction`,
+`calculate_intrinsic_cost`, `count_tokens_in_data`) -/
+
+/-- `IntrinsicGasCost` (class `IntrinsicGasCost`). -/
+structure IntrinsicGasCost where
+  regular : Uint
+  state : Uint
+  calldataFloor : Uint
+  deriving Repr, BEq
+
+/-- `TX_MAX_GAS_LIMIT` (EIP-8037). -/
+def TX_MAX_GAS_LIMIT : Uint := 16777216
+
+/-- `ACCESS_LIST_ADDRESS_FLOOR_TOKENS` (EIP-7981). -/
+def ACCESS_LIST_ADDRESS_FLOOR_TOKENS : Uint := 80
+/-- `ACCESS_LIST_STORAGE_KEY_FLOOR_TOKENS` (EIP-7981). -/
+def ACCESS_LIST_STORAGE_KEY_FLOOR_TOKENS : Uint := 128
+
+/-- `MAX_CODE_SIZE` / `MAX_INIT_CODE_SIZE` (`vm/interpreter.py`). -/
+def MAX_CODE_SIZE : Nat := 0x10000
+def MAX_INIT_CODE_SIZE : Nat := 2 * MAX_CODE_SIZE
+
+/-- `count_tokens_in_data(data)`: zero bytes 1 token, non-zero 4. -/
+def count_tokens_in_data (data : Bytes) : Uint :=
+  let num_zeros := data.countP (· == 0)
+  num_zeros + (data.length - num_zeros) * 4
+
+/-- `calculate_intrinsic_cost(tx, sender)`. -/
+def calculate_intrinsic_cost (tx : Transaction) (sender : Address) :
+    IntrinsicGasCost :=
+  let tokens_in_calldata := count_tokens_in_data tx.data
+  let data_cost := tokens_in_calldata * GasCosts.TX_DATA_TOKEN_STANDARD
+  let is_create := tx.to == none
+  let is_self_transfer := tx.to == some sender
+  let (recipient_regular_gas, recipient_state_gas) :=
+    if is_create then
+      (GasCosts.CREATE_ACCESS + init_code_cost tx.data.length
+        + (if tx.value > 0 then GasCosts.TRANSFER_LOG_COST else 0),
+       StateGasCosts.NEW_ACCOUNT)
+    else if !is_self_transfer then
+      (GasCosts.COLD_ACCOUNT_ACCESS
+        + (if tx.value > 0 then GasCosts.TRANSFER_LOG_COST + GasCosts.TX_VALUE_COST else 0),
+       0)
+    else (0, 0)
+  let (access_list_cost, tokens_in_access_list) :=
+    match tx.accessList? with
+    | none => (0, 0)
+    | some al => al.foldl (fun (cost, tokens) access =>
+        (cost + GasCosts.TX_ACCESS_LIST_ADDRESS
+           + access.slots.length * GasCosts.TX_ACCESS_LIST_STORAGE_KEY,
+         tokens + ACCESS_LIST_ADDRESS_FLOOR_TOKENS
+           + access.slots.length * ACCESS_LIST_STORAGE_KEY_FLOOR_TOKENS)) (0, 0)
+  let access_list_cost := access_list_cost
+    + tokens_in_access_list * GasCosts.TX_DATA_TOKEN_FLOOR
+  let (auth_regular_gas, auth_state_gas) :=
+    match tx with
+    | .setCode t =>
+        ((GasCosts.ACCOUNT_WRITE + GasCosts.REGULAR_PER_AUTH_BASE_COST)
+           * t.authorizations.length,
+         (StateGasCosts.NEW_ACCOUNT + StateGasCosts.AUTH_BASE)
+           * t.authorizations.length)
+    | _ => (0, 0)
+  let floor_tokens_in_calldata := tx.data.length * GasCosts.TX_DATA_TOKEN_STANDARD
+  let total_floor_tokens := floor_tokens_in_calldata + tokens_in_access_list
+  { regular := GasCosts.TX_BASE + data_cost + recipient_regular_gas
+      + access_list_cost + auth_regular_gas
+    state := recipient_state_gas + auth_state_gas
+    calldataFloor := total_floor_tokens * GasCosts.TX_DATA_TOKEN_FLOOR
+      + GasCosts.TX_BASE }
+
+/-- `validate_transaction(tx, sender)`: each raise is a distinct
+    rejection reason. -/
+def validate_transaction (tx : Transaction) (sender : Address) :
+    Except SpecError IntrinsicGasCost := do
+  let intrinsic := calculate_intrinsic_cost tx sender
+  if intrinsic.regular + intrinsic.state > tx.gas then
+    throw (.invalidTransaction "Insufficient intrinsic gas")
+  if intrinsic.calldataFloor > tx.gas then
+    throw (.invalidTransaction "Insufficient calldata floor")
+  if intrinsic.regular > TX_MAX_GAS_LIMIT then
+    throw (.invalidTransaction "Intrinsic regular gas exceeds TX_MAX_GAS_LIMIT")
+  if intrinsic.calldataFloor > TX_MAX_GAS_LIMIT then
+    throw (.invalidTransaction "Intrinsic calldata floor exceeds TX_MAX_GAS_LIMIT")
+  if tx.nonce ≥ 2^64 - 1 then
+    throw (.invalidTransaction "Nonce too high")
+  if tx.to == none && tx.data.length > MAX_INIT_CODE_SIZE then
+    throw (.invalidTransaction "Code size too large")
+  pure intrinsic
+
+/-! ## Sender recovery (`_signature_recovery_parameters`,
+`recover_transaction_public_key`, `recover_sender_from_public_key`,
+`_sender_address_from_public_key`, `signing_hash_*`) -/
+
+/-- `SECP256K1N` (`ethereum/crypto/elliptic_curve.py`). -/
+def SECP256K1N : Nat := Secp256k1.n
+
+private def signPrefix (typeByte : Option (BitVec 8)) (item : RLPItem) : Hash32 :=
+  keccak256 ((typeByte.map ([·])).getD [] ++ EvmAsm.EL.RLP.encode item)
+
+/-- `signing_hash_pre155(tx)` (function `signing_hash_pre155`). -/
+def signing_hash_pre155 (tx : LegacyTransaction) : Hash32 :=
+  signPrefix none (.list [scalarT tx.nonce, scalarT tx.gasPrice, scalarT tx.gas,
+    toItem tx.to, scalarT tx.value, .bytes tx.data])
+
+/-- `signing_hash_155(tx, chain_id)` (function `signing_hash_155`). -/
+def signing_hash_155 (tx : LegacyTransaction) (chain_id : U64) : Hash32 :=
+  signPrefix none (.list [scalarT tx.nonce, scalarT tx.gasPrice, scalarT tx.gas,
+    toItem tx.to, scalarT tx.value, .bytes tx.data, scalarT chain_id,
+    scalarT 0, scalarT 0])
+
+/-- `signing_hash_2930(tx)` (function `signing_hash_2930`). -/
+def signing_hash_2930 (tx : AccessListTransaction) : Hash32 :=
+  signPrefix (some 0x01) (.list [scalarT tx.chainId, scalarT tx.nonce,
+    scalarT tx.gasPrice, scalarT tx.gas, toItem tx.to, scalarT tx.value,
+    .bytes tx.data, .list (tx.accessList.map accessItem)])
+
+/-- `signing_hash_1559(tx)` (function `signing_hash_1559`). -/
+def signing_hash_1559 (tx : FeeMarketTransaction) : Hash32 :=
+  signPrefix (some 0x02) (.list [scalarT tx.chainId, scalarT tx.nonce,
+    scalarT tx.maxPriorityFeePerGas, scalarT tx.maxFeePerGas, scalarT tx.gas,
+    toItem tx.to, scalarT tx.value, .bytes tx.data,
+    .list (tx.accessList.map accessItem)])
+
+/-- `signing_hash_4844(tx)` (function `signing_hash_4844`). -/
+def signing_hash_4844 (tx : BlobTransaction) : Hash32 :=
+  signPrefix (some 0x03) (.list [scalarT tx.chainId, scalarT tx.nonce,
+    scalarT tx.maxPriorityFeePerGas, scalarT tx.maxFeePerGas, scalarT tx.gas,
+    .bytes tx.to, scalarT tx.value, .bytes tx.data,
+    .list (tx.accessList.map accessItem), scalarT tx.maxFeePerBlobGas,
+    .list (tx.blobVersionedHashes.map .bytes)])
+
+/-- `signing_hash_7702(tx)` (function `signing_hash_7702`). -/
+def signing_hash_7702 (tx : SetCodeTransaction) : Hash32 :=
+  signPrefix (some 0x04) (.list [scalarT tx.chainId, scalarT tx.nonce,
+    scalarT tx.maxPriorityFeePerGas, scalarT tx.maxFeePerGas, scalarT tx.gas,
+    .bytes tx.to, scalarT tx.value, .bytes tx.data,
+    .list (tx.accessList.map accessItem),
+    .list (tx.authorizations.map authItem)])
+
+/-- `_signature_recovery_parameters(chain_id, tx)`: `(r, s, recovery_id,
+    signing_hash)`; every `InvalidSignatureError` is a rejection. -/
+def _signature_recovery_parameters (chain_id : U64) (tx : Transaction) :
+    Except SpecError (U256 × U256 × U256 × Hash32) := do
+  let r := tx.r
+  let s := tx.s
+  if 0 ≥ r || r ≥ SECP256K1N then throw (.invalidSignature "bad r")
+  if 0 ≥ s || s > SECP256K1N / 2 then throw (.invalidSignature "bad s")
+  match tx with
+  | .legacy t =>
+      if t.v == 27 || t.v == 28 then
+        pure (r, s, t.v - 27, signing_hash_pre155 t)
+      else
+        let chain_id_x2 := chain_id * 2
+        if t.v ≠ 35 + chain_id_x2 && t.v ≠ 36 + chain_id_x2 then
+          throw (.invalidSignature "bad v")
+        pure (r, s, t.v - 35 - chain_id_x2, signing_hash_155 t chain_id)
+  | .accessList t =>
+      if t.yParity ≠ 0 && t.yParity ≠ 1 then throw (.invalidSignature "bad y_parity")
+      pure (r, s, t.yParity, signing_hash_2930 t)
+  | .feeMarket t =>
+      if t.yParity ≠ 0 && t.yParity ≠ 1 then throw (.invalidSignature "bad y_parity")
+      pure (r, s, t.yParity, signing_hash_1559 t)
+  | .blob t =>
+      if t.yParity ≠ 0 && t.yParity ≠ 1 then throw (.invalidSignature "bad y_parity")
+      pure (r, s, t.yParity, signing_hash_4844 t)
+  | .setCode t =>
+      if t.yParity ≠ 0 && t.yParity ≠ 1 then throw (.invalidSignature "bad y_parity")
+      pure (r, s, t.yParity, signing_hash_7702 t)
+
+/-- `recover_transaction_public_key(chain_id, tx)`: the canonical
+    uncompressed SEC1 key `0x04 ‖ x ‖ y`; any recovery failure is the
+    Python exception → rejection. -/
+def recover_transaction_public_key (chain_id : U64) (tx : Transaction) :
+    Except SpecError Bytes := do
+  let (r, s, recovery_id, signing_hash) ← _signature_recovery_parameters chain_id tx
+  match Secp256k1.recover (bytesBEtoNat signing_hash) r s recovery_id with
+  | .ok (x, y) => pure (0x04 :: (natToBytesBE 32 x ++ natToBytesBE 32 y))
+  | .error _ => throw (.invalidSignature "recovery failed")
+
+/-- `_sender_address_from_public_key(public_key)`. -/
+def _sender_address_from_public_key (public_key : Bytes) : Address :=
+  (keccak256 (public_key.drop 1)).drop 12
+
+/-- `recover_sender(chain_id, tx)` (function `recover_sender`). -/
+def recover_sender (chain_id : U64) (tx : Transaction) :
+    Except SpecError Address := do
+  pure (_sender_address_from_public_key (← recover_transaction_public_key chain_id tx))
+
+/-- `recover_sender_from_public_key(chain_id, tx, public_key)`: verify
+    the supplied key by full recovery + comparison (the stateless-guest
+    path, fed from `StatelessInput.publicKeys`). -/
+def recover_sender_from_public_key (chain_id : U64) (tx : Transaction)
+    (public_key : Bytes) : Except SpecError Address := do
+  if public_key != (← recover_transaction_public_key chain_id tx) then
+    throw (.invalidSignature "public key mismatch")
+  pure (_sender_address_from_public_key public_key)
+
 /-! ## Sanity checks -/
 
 private def encT (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
@@ -362,5 +673,83 @@ private def blobTxBytes : Bytes := 0x03 :: encT (.list
                               .list [.bytes [0x01]]]],
      scalar 0, scalar 1, scalar 1])) with
   | .error (.txDecodeError _) => true | _ => false
+
+/-! Intrinsic-cost and recovery vectors, cross-checked against the
+Python spec at `bd8c673` (generator in the PR description). -/
+
+private def vSender : Address := List.replicate 20 0xAA
+
+-- Legacy call with mixed calldata.
+private def vTx1 : LegacyTransaction :=
+  { nonce := 1, gasPrice := 10, gas := 100000, to := some (List.replicate 20 0xBB),
+    value := 5, data := [0x00, 0x01, 0x02, 0x00], v := 27, r := 1, s := 1 }
+
+#guard calculate_intrinsic_cost (.legacy vTx1) vSender
+  == { regular := 21040, state := 0, calldataFloor := 12256 }
+
+-- Creation with value: CREATE_ACCESS + init-code words + transfer log +
+-- NEW_ACCOUNT state gas.
+#guard calculate_intrinsic_cost (.legacy
+    { nonce := 1, gasPrice := 10, gas := 500000, to := none, value := 1,
+      data := List.replicate 40 0x60, v := 27, r := 1, s := 1 }) vSender
+  == { regular := 25400, state := 183600, calldataFloor := 14560 }
+
+-- Self-transfer with an access list: recipient/value charges skipped.
+#guard calculate_intrinsic_cost (.feeMarket
+    { chainId := 1, nonce := 0, maxPriorityFeePerGas := 1, maxFeePerGas := 10,
+      gas := 100000, to := some vSender, value := 0, data := [],
+      accessList := [{ account := List.replicate 20 0xCC,
+                       slots := [List.replicate 32 0x01, List.replicate 32 0x02] }],
+      yParity := 0, r := 1, s := 1 }) vSender
+  == { regular := 26376, state := 0, calldataFloor := 17376 }
+
+-- Set-code with one authorization.
+#guard calculate_intrinsic_cost (.setCode
+    { chainId := 1, nonce := 0, maxPriorityFeePerGas := 1, maxFeePerGas := 10,
+      gas := 200000, to := some (List.replicate 20 0xBB) |>.getD [], value := 0,
+      data := [], accessList := [],
+      authorizations := [{ chainId := 1, address := List.replicate 20 0xDD,
+                           nonce := 0, yParity := 0, r := 1, s := 1 }],
+      yParity := 0, r := 1, s := 1 }) vSender
+  == { regular := 30816, state := 218790, calldataFloor := 12000 }
+
+-- validate_transaction: vTx1 passes; a 21k-gas creation is short.
+#guard (validate_transaction (.legacy vTx1) vSender).toOption
+  == some { regular := 21040, state := 0, calldataFloor := 12256 }
+#guard match validate_transaction (.legacy { vTx1 with to := none, gas := 21000 })
+    vSender with
+  | .error (.invalidTransaction _) => true | _ => false
+
+-- EIP-155 signing hash + full sender recovery on a coincurve-signed
+-- transaction (privkey 0x0101…01, chain id 1).
+#guard bytesBEtoNat (signing_hash_155 vTx1 1)
+  == 0x65c3ae64d466f2a8ffeab9ea674e0275cd4428e6df077c3d786b5d7a5d8984db
+
+private def vTx1Signed : LegacyTransaction :=
+  { vTx1 with
+    v := 38
+    r := 0x1518619670d02fb8bf8f6f78b6b0885aae6820737cfdd8080a6d829e2f9cb327
+    s := 0x6cb5e9483bb48d9ddc77f9ae18296e8df37e00a99d5ea4b927e2b54c41492eec }
+
+private def vPubKey : Bytes :=
+  0x04 :: (natToBytesBE 32 0x1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
+    ++ natToBytesBE 32 0x70beaf8f588b541507fed6a642c5ab42dfdf8120a7f639de5122d47a69a8e8d1)
+
+#guard (recover_transaction_public_key 1 (.legacy vTx1Signed)).toOption == some vPubKey
+#guard (recover_sender 1 (.legacy vTx1Signed)).toOption.map bytesBEtoNat
+  == some 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+#guard (recover_sender_from_public_key 1 (.legacy vTx1Signed) vPubKey).toOption.map bytesBEtoNat
+  == some 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+-- A wrong supplied key is InvalidSignatureError.
+#guard match recover_sender_from_public_key 1 (.legacy vTx1Signed)
+    (0x04 :: List.replicate 64 0x01) with
+  | .error (.invalidSignature _) => true | _ => false
+-- High-s rejects (EIP-2).
+#guard match recover_sender 1 (.legacy { vTx1Signed with s := SECP256K1N - 1 }) with
+  | .error (.invalidSignature _) => true | _ => false
+
+-- encode_transaction round-trips through decode_transaction.
+#guard match decode_transaction (encode_transaction (.legacy vTx1Signed)) with
+  | .ok (.legacy tx) => tx == vTx1Signed | _ => false
 
 end EvmAsm.Stateless.SpecRef
