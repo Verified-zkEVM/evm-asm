@@ -6,7 +6,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 JOBS="${EEST_TRANSACTION_COLLISION_EMPTY_CODE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_TRANSACTION_COLLISION_EMPTY_CODE_STEPS:-${EEST_STEPS:-1000000000}}"
 FILTER="transaction_collision_to_empty_but_code"

@@ -6,7 +6,7 @@
   *same* ziskemu-framed fixture inputs produced by
   `scripts/eest-stateless-to-input.py` (the fixture set
   `scripts/codegen-eest-stateless-check.sh` exercises) and writes the
-  105-byte `StatelessValidationResult` for the harness
+  69-byte `StatelessValidationResult` for the harness
   (`scripts/eest-specref-check.sh`) to compare against the fixture's
   `statelessOutputBytes`.
 
@@ -77,7 +77,7 @@ def unpackZiskemuInput (packed : Bytes) : Except String Bytes := do
 -- CLI
 -- ============================================================================
 -- `specref-eest-check <input_file> <output_file>`
---   exit 0 + writes the 105-byte result to <output_file> on success.
+--   exit 0 + writes the 69-byte result to <output_file> on success.
 --   exit 2 + stderr message on malformed framing.
 
 def usage : String :=

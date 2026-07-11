@@ -18,18 +18,18 @@
 # The execution seam:
 #   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to
 #   `executeAlwaysOk` -- a placeholder that accepts every payload. The Python
-#   `run_stateless_guest` at tests-tests-zkevm@v0.5.0 runs the REAL EVM. Therefore:
+#   `run_stateless_guest` at tests-tests-zkevm@v0.6.0 runs the REAL EVM. Therefore:
 #
 #     * root  (bytes 0:32,  new_payload_request_root)  -- pre-execution hashing;
 #              SpecRef MUST match on every fixture.            [gateable]
-#     * tail  (bytes 33:105, chain_config echo)        -- pure echo;
+#     * tail  (bytes 33:69, chain_config echo)         -- pure echo;
 #              SpecRef MUST match on every fixture.            [gateable]
 #     * succ  (byte 32,     successful_validation)     -- SpecRef always reports
 #              true here; it DIVERGES on every fixture whose real EVM execution
 #              failed (succ=0). This is the expected execution-seam gap, NOT a
 #              SpecRef defect, and is reported separately rather than folded
 #              into fail / the --min-* gates.
-#     * full  (all 105 bytes match)                    -- informational only.
+#     * full  (all 69 bytes match)                     -- informational only.
 #
 #   A per-case line shows which regions matched, e.g. "[root/----/tail]" means
 #   root + tail matched but the succ bit diverged. "[----/----/----]" means the
@@ -49,7 +49,7 @@
 #     --random           shuffle fixtures before --limit
 #     --seed N           integer seed for --random
 #     --reverse          process selected fixtures last-to-first
-#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or tests-zkevm@v0.5.0)
+#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or tests-zkevm@v0.6.0)
 #     --run-dir DIR      use DIR instead of an auto run dir under gen-out/eest-specref-run
 #     --no-build         skip `lake build specref-eest-check` (reuse the built exe)
 #     -h, --help         show this help
@@ -74,7 +74,7 @@ FILTER=""
 MIN_ROOT=""
 MIN_TAIL=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
 RUN_DIR_OVERRIDE=""
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
@@ -100,7 +100,7 @@ Options:
   --random                 shuffle fixtures before --limit
   --seed N                 integer seed for --random
   --reverse                process selected fixtures last-to-first
-  --tag TAG                EEST fixture tag (default tests-zkevm@v0.5.0)
+  --tag TAG                EEST fixture tag (default tests-zkevm@v0.6.0)
   --run-dir DIR            use DIR instead of an auto run dir
   --no-build               skip lake build (reuse the built exe)
   --jobs N|auto            parallel `lake exe` jobs (default auto, capped at nproc)
@@ -271,12 +271,14 @@ case_identity() {
 }
 
 # --- run + classify ---------------------------------------------------------
-# A normal 105-byte SszStatelessValidationResult decomposes into three regions:
+# A normal 69-byte SszStatelessValidationResult (tests-zkevm@v0.6.0: the
+# ChainConfig lost its fork and blob-schedule fields) decomposes into three
+# regions:
 #   root  [0:32]   (hex chars 0..64)   = new_payload_request_root
 #   succ  [32]     (hex chars 64..66)  = successful_validation
-#   tail  [33:105] (hex chars 66..210) = u32 offset + 68-byte chain_config
-# Failed-input sentinel results may be shorter because the nested ChainConfig
-# has an empty optional blob schedule. Compare those encodings byte-for-byte.
+#   tail  [33:69]  (hex chars 66..138) = u32 offset + 32-byte chain_config
+# Results whose ForkActivation optionals differ from the common
+# timestamp-only shape encode to other lengths. Compare those byte-for-byte.
 # See the file header for why `succ` diverges (placeholder execution seam).
 total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 succfail=0 malformed=0
 
@@ -340,7 +342,7 @@ classify_case() {
     return 0
   fi
 
-  if [[ "${#expected_hex}" -ne 210 || "${#actual_hex}" -ne 210 ]]; then
+  if [[ "${#expected_hex}" -ne 138 || "${#actual_hex}" -ne 138 ]]; then
     if [[ "$expected_hex" == "$actual_hex" ]]; then
       full=$((full + 1))
       malformed=$((malformed + 1))
@@ -360,8 +362,8 @@ classify_case() {
   local act_root="${actual_hex:0:64}"
   local exp_succ="${expected_hex:64:2}"
   local act_succ="${actual_hex:64:2}"
-  local exp_tail="${expected_hex:66:144}"
-  local act_tail="${actual_hex:66:144}"
+  local exp_tail="${expected_hex:66:72}"
+  local act_tail="${actual_hex:66:72}"
 
   local r="root" s="succ" t="tail"
   [[ "$exp_root" == "$act_root" ]] || r="----"
