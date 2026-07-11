@@ -798,6 +798,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_regular_refund; sd a1, 0(t4)\n" ++
+  -- v0.6.0: the helper returns exact CHARGES. The regular ACCOUNT_WRITE
+  -- charge joins the top-frame regular gas (charged pre-dispatch, OOG
+  -- halts cleanly) instead of the v0.5.0 refund credit after settle.
+  "  la t4, runtime_tx_top_frame_regular_gas; ld t5, 0(t4); add t5, t5, a1; sd t5, 0(t4)\n" ++
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
@@ -828,8 +832,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv s0, a0                    # effective gas_left\n" ++
-  "  mv s1, a1                    # effective refund_counter\n" ++
-  "  la t4, runtime_tx_auth_regular_refund; ld t5, 0(t4); add s1, s1, t5\n" ++
+  "  mv s1, a1                    # effective refund_counter (v0.6.0: no auth regular-refund credit)\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena

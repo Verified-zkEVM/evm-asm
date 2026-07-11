@@ -96,30 +96,16 @@ def txIntrinsicStateGasFunction : String :=
   "  mv a0, s0; mv a1, s1; la a2, tis_type; la a3, tis_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Ltisg_fail2\n" ++
-  "  li s3, 0                    # authorization_count\n" ++
-  "  la t0, tis_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Ltisg_no_auth\n" ++
-  "  # type 4 (EIP-7702): authorization_list is inner field index 9\n" ++
-  "  la t0, tis_inner_off; ld t1, 0(t0)\n" ++
-  "  add a0, s0, t1              # inner RLP ptr\n" ++
-  "  sub a1, s1, t1              # inner RLP len\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Ltisg_fail2\n" ++
-  "  mv s5, a0; mv s6, a1\n" ++
-  rlpWalkFieldAsm ".Ltisg_fail2" 9 "s5" "s6" "a0" "a1" ++
-  "  la a2, tis_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Ltisg_fail2\n" ++
-  "  la t0, tis_auth_count; ld s3, 0(t0)\n" ++
-  ".Ltisg_no_auth:\n" ++
+  -- v0.6.0 (EIP-2780): the per-authorization worst-case state reserve is
+  -- gone -- exact auth charges come from tx_eip7702_existing_authority_refund
+  -- (now a charge computer) in the callers. The creation NEW_ACCOUNT term
+  -- stays as the model of prepare_dispatch's top-frame charge for a fresh
+  -- target.
   "  li s4, 0                    # intrinsic_state_gas accumulator\n" ++
   "  la t0, tis_is_creation; ld t1, 0(t0); beqz t1, .Ltisg_after_create\n" ++
   liAmsterdamNewAccountStateGas "t2" ++
   "  add s4, s4, t2\n" ++
   ".Ltisg_after_create:\n" ++
-  "  beqz s3, .Ltisg_after_auth\n" ++
-  liAmsterdamAuthStateGasPerAuth "t2" ++
-  "  mul t3, s3, t2; add s4, s4, t3\n" ++
-  ".Ltisg_after_auth:\n" ++
   "  # tx_state_gas = eip8037_tx_state_gas(intrinsic, 0, 0, error=0, is_creation)\n" ++
   "  mv a0, s4; li a1, 0; li a2, 0; li a3, 0\n" ++
   "  la t0, tis_is_creation; ld a4, 0(t0)\n" ++
@@ -241,14 +227,31 @@ def balAccountNonceBeforeIndexFunction : String :=
     the authority code was already a delegation marker. Callers pass BAL ptr 0 to
     keep the older intrinsic-only behavior.
 
+    v0.6.0 (tests-zkevm@v0.6.0, EIP-2780/7702 rework): this helper now
+    computes the EXACT set_delegation CHARGES (the v0.5.0 worst-case
+    refund model is gone with the intrinsic worst-case charges):
+
+      state  charge = per valid auth:
+                        NEW_ACCOUNT iff the authority leaf did not
+                          pre-exist (block is_insert record) and no
+                          earlier auth this tx materialized it
+                      + AUTH_BASE iff a net-new delegation indicator is
+                          written (non-NULL target, no prior non-NULL
+                          set this tx, not delegated in pre-state)
+      regular charge = ACCOUNT_WRITE per valid auth whose authority is
+                       written for the first time this tx (not the
+                       sender, not the value-receiving recipient, no
+                       prior auth for it).
+
     Calling convention:
       a0 = encoded tx ptr, a1 = encoded tx len
       a2 = BAL ptr gate (0 disables), a3 = BAL length
       a4 = block chain id
       a5 = current tx block_access_index (tx index + 1)
-      a0 output = state refund amount (u64). Parse failures for an individual
-                  authorization conservatively contribute zero.
-      a1 output = regular refund amount (u64) to add to refund_counter. -/
+      a0 output = state CHARGE amount (u64). Parse failures for an
+                  individual authorization contribute zero.
+      a1 output = regular CHARGE amount (u64), applied to the top-frame
+                  gas before dispatch. -/
 def txEip7702ExistingAuthorityRefundFunction : String :=
   "tx_eip7702_existing_authority_refund:\n" ++
   "  addi sp, sp, -160\n" ++
@@ -262,14 +265,31 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv s2, a2                   # BAL ptr\n" ++
   "  mv s3, a3                   # reserved\n" ++
   "  mv s4, a4                   # chain id\n" ++
-  "  li s10, 0                   # accumulated state refund\n" ++
-  "  la t0, teer_regular_refund; sd zero, 0(t0)\n" ++
+  "  li s10, 0                   # accumulated state CHARGE\n" ++
+  "  la t0, teer_regular_refund; sd zero, 0(t0)   # accumulated regular CHARGE\n" ++
   "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
+  "  la t0, teer_predelegated_count; sd zero, 0(t0)\n" ++
   "  beqz s2, .Lteer_done\n" ++
   "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lteer_done\n" ++
   "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteer_done\n" ++
+  -- v0.6.0 written_accounts seed: extract the type-4 recipient (inner
+  -- field 5) and whether value (inner field 6) is nonzero. A
+  -- value-receiving recipient counts as already written, so an
+  -- authorization for it pays no ACCOUNT_WRITE.
+  "  la t0, teer_inner_off; ld t1, 0(t0); add s5, s0, t1; sub s6, s1, t1\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_done\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  rlpWalkSkipAsm ".Lteer_done" 5 "s8" "s9" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next; bnez a1, .Lteer_done\n" ++
+  "  sub t5, a0, a2\n" ++
+  "  la t0, teer_recipient_ptr; sd t5, 0(t0)\n" ++
+  "  la t0, teer_recipient_len; sd a2, 0(t0)\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next; bnez a1, .Lteer_done\n" ++
+  "  snez t5, a2; la t0, teer_value_nonzero; sd t5, 0(t0)\n" ++
   "  la t0, teer_inner_off; ld t1, 0(t0); add s5, s0, t1; sub s6, s1, t1\n" ++
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lteer_done\n" ++
@@ -279,7 +299,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lteer_done\n" ++
   "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
-  "  li t0, 1; bgtu s7, t0, .Lteer_same_authority_try\n" ++
+  -- v0.6.0: the same-authority fast path is gone; the generic loop
+  -- handles repeated authorities via the success-table prior count
+  -- (intra-tx nonce advance + delegation_set_for + written set).
   ".Lteer_single_loop_setup:\n" ++
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lteer_done\n" ++
@@ -315,6 +337,11 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a0, .Lteer_invalid_auth_full_refund\n" ++
   "  # A prior successfully validated tuple with this exact (authority, nonce)\n" ++
   "  # necessarily incremented the live nonce, so this occurrence is invalid.\n" ++
+  "  # v0.6.0: the same scan also counts prior applied auths for this authority\n" ++
+  "  # (teer_prior_count -- intra-tx nonce advance + written set) and whether a\n" ++
+  "  # prior non-NULL set exists (teer_prior_set_flag -- delegation_set_for).\n" ++
+  "  la t0, teer_prior_count; sd zero, 0(t0)\n" ++
+  "  la t0, teer_prior_set_flag; sd zero, 0(t0)\n" ++
   "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0\n" ++
   ".Lteer_success_find_loop:\n" ++
   "  beq t2, t1, .Lteer_success_not_found\n" ++
@@ -326,6 +353,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lteer_success_addr_cmp\n" ++
   ".Lteer_success_addr_match:\n" ++
   "  ld t4, 24(t3); ld t5, 144(sp); beq t4, t5, .Lteer_invalid_auth_full_refund\n" ++
+  "  la t4, teer_prior_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4)\n" ++
+  "  lw t4, 20(t3); bnez t4, .Lteer_success_find_next\n" ++
+  "  la t4, teer_prior_set_flag; li t5, 1; sd t5, 0(t4)\n" ++
   ".Lteer_success_find_next:\n" ++
   "  addi t2, t2, 1; j .Lteer_success_find_loop\n" ++
   ".Lteer_success_not_found:\n" ++
@@ -355,9 +385,9 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t1, 2(t0); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
   "  j .Lteer_invalid_code_check_done\n" ++
   ".Lteer_invalid_auth_full_refund:\n" ++
-  liAmsterdamAuthStateGasPerAuth "t3" ++
-  "  add s10, s10, t3\n" ++
-  "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
+  "  # v0.6.0: an authorization that fails validate_authorization is\n" ++
+  "  # skipped -- it charges nothing (the v0.5.0 full-refund is gone with\n" ++
+  "  # the worst-case intrinsic).\n" ++
   "  j .Lteer_next\n" ++
   ".Lteer_invalid_code_check_done:\n" ++
   "  # validate_authorization compares against the live nonce immediately before\n" ++
@@ -391,12 +421,90 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_nonce_sender_match:\n" ++
   "  addi t1, t1, 1\n" ++
   ".Lteer_nonce_expected_ready:\n" ++
+  "  # v0.6.0 generic loop handles repeated authorities: each prior applied\n" ++
+  "  # auth for this authority advanced the live nonce by one.\n" ++
+  "  la t2, teer_prior_count; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  ld t2, 144(sp); bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_nonce_check_done:\n" ++
   "  # Every successful validate_authorization path increments the authority\n" ++
   "  # nonce. A recovered authority with no BAL nonce change therefore took the\n" ++
-  "  # execution-specs None branch and receives the full per-auth refund.\n" ++
+  "  # execution-specs None branch and contributes nothing.\n" ++
   "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_invalid_auth_full_refund\n" ++
+  -- ---- v0.6.0 exact charges for this VALID authorization ----
+  -- (1) NEW_ACCOUNT state iff the authority leaf did not pre-exist
+  --     (records is_insert != 0) and no earlier auth this tx already
+  --     materialized it (prior_count == 0).
+  "  la t0, teer_prior_count; ld t1, 0(t0); bnez t1, .Lteer_charge_auth_base\n" ++
+  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_charge_account_write\n" ++
+  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
+  "  ld t3, 16(t2); beqz t3, .Lteer_charge_account_write\n" ++
+  liAmsterdamNewAccountStateGas "t3" ++
+  "  add s10, s10, t3\n" ++
+  ".Lteer_charge_account_write:\n" ++
+  -- (2) ACCOUNT_WRITE regular iff this is the tx's first write to the
+  --     authority: not the sender, not the value-receiving recipient
+  --     (prior_count == 0 already holds on this path).
+  "  la t2, teer_authority; la t3, bv_stx_sender_addr; li t4, 20\n" ++
+  ".Lteer_aw_sender_cmp:\n" ++
+  "  beqz t4, .Lteer_charge_auth_base\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lteer_aw_sender_diff\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lteer_aw_sender_cmp\n" ++
+  ".Lteer_aw_sender_diff:\n" ++
+  "  la t0, teer_value_nonzero; ld t1, 0(t0); beqz t1, .Lteer_aw_charge\n" ++
+  "  la t0, teer_recipient_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_aw_charge\n" ++
+  "  la t2, teer_authority; la t0, teer_recipient_ptr; ld t3, 0(t0); li t4, 20\n" ++
+  ".Lteer_aw_recip_cmp:\n" ++
+  "  beqz t4, .Lteer_charge_auth_base\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lteer_aw_charge\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lteer_aw_recip_cmp\n" ++
+  ".Lteer_aw_charge:\n" ++
+  "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
+  ".Lteer_charge_auth_base:\n" ++
+  -- (3) AUTH_BASE state iff a net-new delegation indicator is written:
+  --     non-NULL target, no prior non-NULL set this tx
+  --     (delegation_set_for), and not delegated in pre-state. The
+  --     pre-state marker is provable in single-tx blocks
+  --     (code_at_header_state_root); multi-tx blocks use the prior-tx
+  --     BAL nonce inference below and otherwise charge (reject-side
+  --     conservative, mirroring the v0.5.0 no-refund default).
+  "  mv t2, s11; li t3, 20; li t4, 0\n" ++
+  ".Lteer_ab_null_or:\n" ++
+  "  beqz t3, .Lteer_ab_null_ready\n" ++
+  "  lbu t5, 0(t2); or t4, t4, t5; addi t2, t2, 1; addi t3, t3, -1; j .Lteer_ab_null_or\n" ++
+  ".Lteer_ab_null_ready:\n" ++
+  "  beqz t4, .Lteer_success_append\n" ++
+  "  la t0, teer_prior_set_flag; ld t1, 0(t0); bnez t1, .Lteer_success_append\n" ++
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_ab_multitx\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_ab_charge\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority\n" ++
+  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lteer_ab_charge\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_ab_charge\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_ab_charge\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_ab_charge\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteer_ab_charge\n" ++
+  "  la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  j .Lteer_success_append\n" ++
+  ".Lteer_ab_multitx:\n" ++
+  "  # Prior-tx-same-block delegation inference: the authority's LATEST\n" ++
+  "  # BAL nonce tuple strictly before this tx proves an earlier tx\n" ++
+  "  # touched it; treat a strictly-earlier nonce advance as delegation\n" ++
+  "  # evidence and suppress the charge (mirrors the v0.5.0 prior-tx\n" ++
+  "  # refund path). No evidence -> charge.\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); ld a2, 104(sp)\n" ++
+  "  jal ra, bal_account_nonce_before_index\n" ++
+  "  bnez a0, .Lteer_ab_charge\n" ++
+  "  # a nonce tuple exists before this tx: an earlier same-block tx\n" ++
+  "  # applied an authorization for this authority.\n" ++
+  "  j .Lteer_success_append\n" ++
+  ".Lteer_ab_charge:\n" ++
+  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
+  "  add s10, s10, t3\n" ++
+  ".Lteer_success_append:\n" ++
   "  # Record only tuples that have passed the chain/signature/code/nonce gates.\n" ++
   "  # Capacity covers the protocol maximum; the guard remains conservative.\n" ++
   "  la t0, teer_success_count; ld t1, 0(t0); li t2, " ++ toString teerSuccessfulAuthCapacity ++ "; bgeu t1, t2, .Lteer_success_append_done\n" ++
@@ -420,252 +528,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_success_target_flag_done:\n" ++
   "  ld t3, 144(sp); sd t3, 24(t2); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lteer_success_append_done:\n" ++
-  "  # Later execution can increment the same authority nonce again (e.g. delegated CREATE2).\n" ++
-  "  la t0, teer_finals\n" ++
-  "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bltu t1, t2, .Lteer_next\n" ++
-  "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
-  "  # account already exists, even if delegating to NULL_ADDRESS causes no code change.\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
-  liAmsterdamNewAccountStateGas "t3" ++
-  "  add s10, s10, t3\n" ++
-  "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
-  ".Lteer_existing_code_check:\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_final_no_code\n" ++
-  "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
-  "  li t3, 23; bne t2, t3, .Lteer_next\n" ++
-  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_next\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_next\n" ++
-  "  lbu t3, 2(t2); bnez t3, .Lteer_next\n" ++
-  "  addi t2, t2, 3; mv t4, s11; li t5, 20\n" ++
-  ".Lteer_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_marker_match\n" ++
-  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
-  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
-  ".Lteer_final_no_code:\n" ++
-  "  mv t2, s11; li t3, 20\n" ++
-  ".Lteer_null_target_check:\n" ++
-  "  beqz t3, .Lteer_refund_match\n" ++
-  "  # Nonzero target + no codeChanges means a successful authorization left an\n" ++
-  "  # identical delegation marker in place. Confirm that marker in pre-state\n" ++
-  "  # before refunding AUTH_BASE; do not silently classify it as new code.\n" ++
-  "  lbu t4, 0(t2); bnez t4, .Lteer_marker_match\n" ++
-  "  addi t2, t2, 1; addi t3, t3, -1; j .Lteer_null_target_check\n" ++
-  ".Lteer_marker_match:\n" ++
-  "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
-  "  # BLOCK -- its delegation indicator is in the PRE-state, not this block's BAL. Spec\n" ++
-  "  # set_delegation reads authority_code via get_code and refunds when is_valid_delegation.\n" ++
-  "  # Resolve the authority's pre-state code; a 23-byte ef0100 marker => refund AUTH_BASE\n" ++
-  "  # and skip the BAL (prior-tx-same-block) path below to avoid double-counting.\n" ++
-  "  # code_at_header_state_root preserves callee-saved s-regs (s10 refund accumulator).\n" ++
-  "  # SOUNDNESS gate: only trust pre-state code when it equals the LIVE authority code at\n" ++
-  "  # set_delegation time -- i.e. single-tx blocks (no earlier tx in this block can have\n" ++
-  "  # un-delegated the authority, which would make a pre-state marker a stale over-refund\n" ++
-  "  # = under-charge = false-accept). Multi-tx falls to the BAL (prior-tx) path below.\n" ++
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_prestate_no\n" ++
-  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_prestate_no\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, teer_authority\n" ++
-  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lteer_prestate_no\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_prestate_no\n" ++
-  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_prestate_no\n" ++
-  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_prestate_no\n" ++
-  "  lbu t1, 2(t0); bnez t1, .Lteer_prestate_no\n" ++
-  "  la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  add s10, s10, t3; j .Lteer_next\n" ++
-  ".Lteer_prestate_no:\n" ++
-  "  # In a single-tx block, a final delegation marker was written by this auth,\n" ++
-  "  # not by an earlier same-block tx, so it must not refund AUTH_BASE.\n" ++
-  "  ld t0, 104(sp); li t1, 1; beq t0, t1, .Lteer_next\n" ++
-  "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
-  "  # AUTH_BASE is refunded only when a prior transaction already installed delegation code;\n" ++
-  "  # this tx's own set_delegation write is not pre-existing authority_code.\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0)\n" ++
-  "  li a2, 5; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; la a2, c2nsf_cnt\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_cnt; ld t3, 0(t0); beqz t3, .Lteer_next\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; mv a2, t3; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_toff; ld t3, 0(t0); add a0, t1, t3\n" ++
-  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  li a2, 0; addi a3, sp, 128\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  ld t0, 128(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
-  ".Lteer_refund_match:\n" ++
-  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  add s10, s10, t3; j .Lteer_next\n" ++
-
-  ".Lteer_next:\n" ++
+".Lteer_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_loop\n" ++
-  ".Lteer_same_authority_try:\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 112(sp); sd a1, 120(sp); li s8, 0\n" ++
-  "  la t0, teer_auth_chain; sd zero, 0(t0)  # previous same-authority target was nonzero\n" ++
-  "  la t0, teer_auth_nonce; sd zero, 0(t0)  # same-tx AUTH_BASE refund count\n" ++
-  "  la t0, teer_invalid_auth_count; sd zero, 0(t0)  # same-authority auths that do not advance nonce\n" ++
-  ".Lteer_same_loop:\n" ++
-  "  beq s8, s7, .Lteer_same_after_scan\n" ++
-  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 112(sp); sub s9, a0, a2; sd a2, 136(sp)\n" ++
-  "  mv a0, s9; ld a1, 136(sp); jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sd a1, 144(sp)\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  mv t1, a0; beqz t1, .Lteer_same_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
-  ".Lteer_same_chain_ok:\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); li t2, 20; bne a2, t2, .Lteer_single_loop_setup\n" ++
-  "  sub s11, a0, a2; sd s11, 152(sp)\n" ++
-  "  beqz s8, .Lteer_same_authbase_counted\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_authbase_counted\n" ++
-  "  la t0, teer_auth_nonce; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lteer_same_authbase_counted:\n" ++
-  "  mv t0, s11; li t1, 20; li t2, 0\n" ++
-  ".Lteer_same_target_or:\n" ++
-  "  beqz t1, .Lteer_same_target_ready\n" ++
-  "  lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lteer_same_target_or\n" ++
-  ".Lteer_same_target_ready:\n" ++
-  "  snez t2, t2; bnez t2, .Lteer_same_target_store\n" ++
-  "  la t0, teer_auth_nonce; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lteer_same_target_store:\n" ++
-  "  la t0, teer_auth_chain; sd t2, 0(t0)\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  mv t2, a0; beqz s8, .Lteer_same_first_nonce_check\n" ++
-  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; bne t2, t1, .Lteer_same_nonce_mismatch\n" ++
-  "  j .Lteer_same_nonce_ok\n" ++
-  ".Lteer_same_first_nonce_check:\n" ++
-  "  li t1, -1; beq t2, t1, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_first_nonce; sd t2, 0(t0)\n" ++
-  ".Lteer_same_nonce_ok:\n" ++
-  "  bnez s8, .Lteer_same_recover_current\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_first_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  j .Lteer_same_next\n" ++
-  ".Lteer_same_nonce_mismatch:\n" ++
-  "  # execution-specs validate_authorization returns None when the signed nonce\n" ++
-  "  # does not equal the authority live nonce. In the same-authority fast path,\n" ++
-  "  # a repeated or stale nonce after an earlier valid authorization is exactly that\n" ++
-  "  # case: set_delegation refunds the tuple's full AUTH_BASE state component.\n" ++
-  "  # The NEW_ACCOUNT state and ACCOUNT_WRITE regular refunds are already counted\n" ++
-  "  # per tuple by .Lteer_same_compute_refund; teer_auth_nonce carries the extra\n" ++
-  "  # AUTH_BASE refunds. Recover and compare the authority so a different-authority\n" ++
-  "  # mixed list still falls back to the generic per-auth loop.\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_same_next\n" ++
-  "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
-  ".Lteer_same_nonce_mismatch_authority_cmp:\n" ++
-  "  beqz t2, .Lteer_same_nonce_mismatch_same_authority\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_nonce_mismatch_authority_cmp\n" ++
-  ".Lteer_same_nonce_mismatch_same_authority:\n" ++
-  "  la t0, teer_invalid_auth_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lteer_same_recover_current:\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
-  ".Lteer_same_authority_cmp:\n" ++
-  "  beqz t2, .Lteer_same_next\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_authority_cmp\n" ++
-  ".Lteer_same_next:\n" ++
-  "  addi s8, s8, 1; j .Lteer_same_loop\n" ++
-  ".Lteer_same_after_scan:\n" ++
-  -- `delegated_before_tx` is stable across every authorization in the tuple
-  -- loop. When this repeated authority was already delegated in pre-state,
-  -- execution-specs refunds AUTH_BASE for every valid clear/reset operation,
-  -- even though the first clear makes the live code empty before the reset.
-  -- The chain-based scan above only sees live same-tx transitions, so replace
-  -- its AUTH_BASE count with the full tuple count for this pre-state case.
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_same_prestate_done\n" ++
-  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_same_prestate_done\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, teer_first_authority\n" ++
-  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lteer_same_prestate_done\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_same_prestate_done\n" ++
-  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_same_prestate_done\n" ++
-  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_same_prestate_done\n" ++
-  "  lbu t1, 2(t0); bnez t1, .Lteer_same_prestate_done\n" ++
-  "  la t0, teer_auth_nonce; sd s7, 0(t0)\n" ++
-  "  la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lteer_same_prestate_done:\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  # Later execution can increment the same authority nonce again after the auth chain.\n" ++
-  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7\n" ++
-  "  la t0, teer_invalid_auth_count; ld t3, 0(t0); sub t1, t1, t3\n" ++
-  "  bltu t2, t1, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_same_final_no_code\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 2(t2); bnez t3, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 3; ld t4, 152(sp); li t5, 20\n" ++
-  ".Lteer_same_final_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_same_compute_refund\n" ++
-  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
-  ".Lteer_same_final_no_code:\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); bnez t1, .Lteer_single_loop_setup\n" ++
-  ".Lteer_same_compute_refund:\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_single_loop_setup\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2)\n" ++
-  liAmsterdamNewAccountStateGas "t4" ++
-  "  mul s10, s7, t4\n" ++
-  "  li t6, 8000; mul t6, s7, t6\n" ++
-  "  beqz t3, .Lteer_same_have_new_refund\n" ++
-  "  sub s10, s10, t4\n" ++
-  "  li t5, 8000; sub t6, t6, t5\n" ++
-  ".Lteer_same_have_new_refund:\n" ++
-  "  la t5, teer_regular_refund; sd t6, 0(t5)\n" ++
-  "  la t5, teer_auth_nonce; ld t5, 0(t5)\n" ++
-  "  li t4, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  mul t5, t5, t4\n" ++
-  "  add s10, s10, t5\n" ++
-  "  j .Lteer_done\n" ++
   ".Lteer_done:\n" ++
   "  mv a0, s10\n" ++
   "  la t0, teer_regular_refund; ld a1, 0(t0)\n" ++
@@ -772,9 +636,13 @@ def blockVerdictTxStateGasArray_prog : Program :=
     .SLLI .x5 .x21 (3 : BitVec 6),
     .ADD .x6 .x19 .x5,
     .LD .x7 .x6 (0 : BitVec 12),
-    .BLTU .x7 .x10 (16 : BitVec 13),
-    .SUB .x7 .x7 .x10,
+    -- v0.6.0: the helper returns exact CHARGES; ADD them to the
+    -- creation-term intrinsic instead of subtracting refunds. Two dead
+    -- filler slots keep the instruction count (96) and every branch
+    -- offset unchanged.
+    .ADD .x7 .x7 .x10,
     .SD .x6 .x7 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
     .JAL .x0 (8 : BitVec 21),
     .SD .x6 .x0 (0 : BitVec 12),
     .ADDI .x21 .x21 (1 : BitVec 12),
@@ -1104,6 +972,11 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
   "teer_invalid_auth_count:\n  .zero 8\n" ++
+  "teer_recipient_ptr:\n  .zero 8\n" ++
+  "teer_recipient_len:\n  .zero 8\n" ++
+  "teer_value_nonzero:\n  .zero 8\n" ++
+  "teer_prior_count:\n  .zero 8\n" ++
+  "teer_prior_set_flag:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
