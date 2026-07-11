@@ -28,6 +28,8 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+import EvmAsm.Evm64.EvmWordArith.Div
+import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 
 namespace EvmAsm.Evm64
 
