@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.V4Code
+import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.ModPhaseABN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
 import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
