@@ -2658,15 +2658,16 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- computed floor here; x11 is free (it last held a calldata byte).
   "  la x11, runtime_tx_calldata_floor\n" ++
   "  sd x10, 0(x11)\n" ++
-  -- EIP-7702 adds PER_AUTH_BASE_COST to intrinsic.regular for each
-  -- authorization before the runtime gas reservoir is initialized
-  -- (execution-specs transactions.py: calculate_intrinsic_cost). Charge it in
-  -- the same accumulator used below for both tx.gas validation and the
-  -- tx.gas - gas_left receipt formula.
+  -- v0.6.0 (EIP-2780): the per-authorization intrinsic is the
+  -- state-independent REGULAR_PER_AUTH_BASE_COST 7816 only (the v0.5.0
+  -- worst-case ACCOUNT_WRITE 8000 and the 218790/auth state reserve are
+  -- gone -- the exact state-dependent charges arrive via the staged
+  -- runtime_tx_auth_state_refund / runtime_tx_top_frame_regular_gas
+  -- cells below).
   "  la x11, runtime_tx_auth_count\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_regular_charge_done\n" ++
-  "  li x11, 15816\n" ++
+  "  li x11, 7816\n" ++
   "  mul x9, x9, x11\n" ++
   "  add x7, x7, x9\n" ++
   ".runtime_tx_auth_regular_charge_done:\n" ++
@@ -2675,17 +2676,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
-  -- EIP-7702 intrinsic state gas is part of intrinsic_gas. Subtract the staged
-  -- authorization state dimension from execution gas before the EIP-8037
-  -- reservoir split.
-  "  la x11, runtime_tx_auth_count\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_auth_state_charge_done\n" ++
-  "  li x11, " ++ toString amsterdamAuthStateGasPerAuth ++ "\n" ++
-  "  mul x9, x9, x11\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  ".runtime_tx_auth_state_charge_done:\n" ++
   -- nxio8 (EIP-8037): split execution gas into gas_left and the state-gas
   -- reservoir (fork.py: gas = min(TX_MAX_GAS_LIMIT - intrinsic.regular,
   -- execution_gas); state_gas_reservoir = execution_gas - gas). x7 still holds
