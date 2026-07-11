@@ -213,12 +213,374 @@ def outerRej (aB : Word) (acctBytes : List (BitVec 8)) (F : Assertion) :
   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
   bytesRegion aB acctBytes ** F
 
-/- The outer `rlp_walk_init` dispatch (slot 22 call + slot 23 status check
-   ⇒ `outerRej` / `outerInitPost`) is the next slice: the nine callee arms
-   need explicit per-arm branch lemmas (seven `outerFail` instantiations +
-   the two success arms unified into `OuterInitOk` via the short/long
-   `listHeaderSize` bridges), recombined with `cpsBranchWithin_pre_or` as in
-   `fl_round`.  The interfaces above are final. -/
+/-- Outer `rlp_walk_init` (slot 22) + status check (slot 23): reject on any
+    non-zero status; on success, land at `B + 96` with the unified
+    `listHeaderSize`-anchored content cursor.  The nine callee arms collapse
+    pointwise into success (`OuterInitOk`) vs failure (some non-zero status)
+    BEFORE the branch dispatch, so only two branch lemmas are needed. -/
+theorem bansf_outerInit_spec (aB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8))
+    (v5 v6 v7 v12 v28 v29 v30 v31 vRa : Word) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true) :
+    cpsBranchWithin 84 (B + 88) bansfCR
+      (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+       ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+       bytesRegion aB acctBytes ** F)
+      (B + 736) (outerRej aB acctBytes F)
+      (B + 96) (outerInitPost aB aLen acctBytes F) := by
+  have hoffb : 0 < acctBytes.length := by omega
+  have hlenlt : aLen < 2 ^ 64 := by omega
+  -- the callee triple at its entry with ra = B + 88 + 4
+  have hwi := rlp_walk_init_spec_within WI aB (B + 88 + 4) (BitVec.ofNat 64 aLen)
+    v12 v5 v6 v7 v28 v29 v30 v31 acctBytes 0 hsalign hoffb (by omega)
+    (by have := hvalid 0 hoffb; exact this)
+    (fun hf8 => by
+      have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := not_ult_le hf8
+        have h3 := (acctBytes[0]'hoffb).isLt
+        bv_omega
+      omega)
+    (fun hf8 => by
+      have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := not_ult_le hf8
+        have h3 := (acctBytes[0]'hoffb).isLt
+        bv_omega
+      omega)
+    (fun hf8 => by
+      intro k hk
+      have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := not_ult_le hf8
+        have h3 := (acctBytes[0]'hoffb).isLt
+        bv_omega
+      exact hvalid _ (by omega))
+  rw [show aB + BitVec.ofNat 64 0 = aB from by bv_omega] at hwi
+  have hwi' := cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwi
+    (P' := ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+      (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+       ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes))
+  have hcall := bansf_callSite22_walk_init (n := 81) vRa (by pcf) hwi'
+  rw [show (B + 88) + 4 = B + 92 from by bv_omega] at hcall
+  have hcallF := cpsTripleWithin_frameR F hF hcall
+  -- the value-representation bridge for the long success arm
+  set bb : BitVec 8 := acctBytes[0]'hoffb with hbb
+  -- ===== the success continuation (status pinned 0) =====
+  have hsucc : cpsBranchWithin 2 (B + 92) bansfCR
+      (fun h => ∃ cOff : Nat,
+        ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+          ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+          bytesRegion aB acctBytes ** F) **
+         ⌜OuterInitOk acctBytes aLen cOff⌝) h)
+      (B + 736) (outerRej aB acctBytes F)
+      (B + 96) (outerInitPost aB aLen acctBytes F) := by
+    refine cpsBranchWithin_exists_pre (fun cOff => ?_)
+    refine cpsBranchWithin_pure_pre_right (fun hok => ?_)
+    have hbne := bne_spec_gen_within .x12 .x0 (640 : BitVec 13) (0 : Word) (0 : Word) (B + 92)
+    rw [show (B + 92) + 4 = B + 96 from by bv_omega] at hbne
+    have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+      (fun a i h => CodeReq.union_mono_left a i
+        (CodeReq.ofProg_mem_at B (B + 92) bansfProg 23 (.BNE .x12 .x0 (640 : BitVec 13))
+          (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+      hbne
+    have hfall := cpsBranchWithin_ntakenPath hbneL
+      (fun hp hQt => by
+        obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+        exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+    have hfallF := cpsTripleWithin_frameR
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+       bytesRegion aB acctBytes ** F)
+      (by pcf; exact hF) hfall
+    have hout : cpsTripleWithin 1 (B + 92) (B + 96) bansfCR
+        (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+         bytesRegion aB acctBytes ** F)
+        (outerInitPost aB aLen acctBytes F) := by
+      refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) hfallF
+      unfold outerInitPost
+      refine ⟨cOff, ?_⟩
+      have hq2 : ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+          ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+          bytesRegion aB acctBytes ** F)) h := by
+        have hq3 := sepConj_mono_left (sepConj_mono_right
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
+        have hq4 : ((((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+            (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+             ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+             ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+             ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+             bytesRegion aB acctBytes ** F))) h := by
+          xperm_hyp hq3
+        have hq5 := sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x) h hq4
+        xperm_hyp hq5
+      exact (sepConj_pure_right h).2 ⟨hq2, hok⟩
+    exact cpsBranchWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_as_cpsBranchWithin_right _ _ hout)
+  -- ===== the failure continuation (status pinned non-zero) =====
+  have hfailc : cpsBranchWithin 2 (B + 92) bansfCR
+      (fun h => ∃ cur endW k : Word,
+        ((((.x10 : Reg) ↦ᵣ cur) ** ((.x11 : Reg) ↦ᵣ endW) **
+          ((.x12 : Reg) ↦ᵣ k) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+          bytesRegion aB acctBytes ** F) **
+         ⌜k ≠ (0 : Word)⌝) h)
+      (B + 736) (outerRej aB acctBytes F)
+      (B + 96) (outerInitPost aB aLen acctBytes F) := by
+    refine cpsBranchWithin_exists_pre (fun cur => ?_)
+    refine cpsBranchWithin_exists_pre (fun endW => ?_)
+    refine cpsBranchWithin_exists_pre (fun k => ?_)
+    refine cpsBranchWithin_pure_pre_right (fun hk => ?_)
+    refine cpsTripleWithin_as_cpsBranchWithin_left _ _
+      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+        (outerFail aB cur endW k acctBytes F hF hk))
+  -- ===== chain: call ; (success ∨ failure) =====
+  refine cpsBranchWithin_weaken
+    (fun h hp => by xperm_hyp hp) (fun _ x => x) (fun _ x => x)
+    (cpsTripleWithin_seq_branch_same_cr hcallF
+      (cpsBranchWithin_weaken (fun h hp => ?_) (fun _ x => x) (fun _ x => x)
+        (cpsBranchWithin_pre_or hsucc hfailc)))
+  -- pointwise: collapse the nine callee arms into success ∨ failure
+  obtain ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hCF, hor⟩, hEx⟩ := hp
+  have rebuild : ∀ (arm : Assertion), arm h4 →
+      ((((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) ** bytesRegion aB acctBytes) ** arm) ** F)) h :=
+    fun arm ha => ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hCF, ha⟩, hEx⟩
+  rcases hor with a1 | a2 | a3 | a4 | a5 | a6 | a7 | a8 | a9
+  · -- fail arm: status 2
+    refine Or.inr ⟨aB, (0 : Word), (2 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a1
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ (2 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ (2 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- fail arm: status 1
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (1 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a2
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (1 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (1 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- short-list success (status 0)
+    refine Or.inl ⟨1, ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a3
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, hfacts⟩ := (sepConj_pure_right g4).1 grest2
+    obtain ⟨hne0, _, hf8, _⟩ := hfacts
+    have hx10' : ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 1)) g1 := by
+      rwa [show aB + signExtend12 (1 : BitVec 12) = aB + BitVec.ofNat 64 1 from by
+        rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]] at hx10
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 1)) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (0 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10', g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 1)) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    refine (sepConj_pure_right h).2 ⟨hflat, ⟨bb, List.getElem?_eq_getElem hoffb, ?_, le_refl 1, ?_⟩⟩
+    · -- listHeaderSize bb = 1: short-form prefix
+      have hlt := ult_lt hf8
+      have hzb : (bb.zeroExtend 64).toNat = bb.toNat := by bv_omega
+      unfold listHeaderSize
+      rw [if_pos (by
+        rw [show ((0xf8 : Word)).toNat = 0xf8 from rfl] at hlt
+        omega)]
+    · -- 1 ≤ aLen: the passed window length is non-zero
+      have : aLen ≠ 0 := by
+        intro hc
+        subst hc
+        exact hne0 rfl
+      omega
+  · -- fail arm: status 3
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (3 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a4
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (3 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (3 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- fail arm: status 4
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (4 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a5
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (4 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (4 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- fail arm: status 5
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (5 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a6
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (5 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (5 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- fail arm: status 6
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (6 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a7
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (6 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (6 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- fail arm: status 7
+    refine Or.inr ⟨aB, (aB + BitVec.ofNat 64 aLen), (7 : Word), ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a8
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, _⟩ := (sepConj_pure_right g4).1 grest2
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (7 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10, g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (7 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
+  · -- long-list success (status 0)
+    refine Or.inl ⟨((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat, ?_⟩
+    obtain ⟨g1, g2, gd1, gu1, hx10, grest⟩ := a9
+    obtain ⟨g3, g4, gd2, gu2, hx11, grest2⟩ := grest
+    obtain ⟨hx12, hfacts⟩ := (sepConj_pure_right g4).1 grest2
+    obtain ⟨hne0, _, hnf8, hfit, _, _⟩ := hfacts
+    have hgef8 := not_ult_le hnf8
+    rw [show ((0xf8 : Word)).toNat = 0xf8 from rfl] at hgef8
+    have hzb : (bb.zeroExtend 64).toNat = bb.toNat := by bv_omega
+    have hhdrN : ((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat
+        = 1 + (bb.toNat - 0xf7) := by
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+      have hb := bb.isLt
+      bv_omega
+    have hx10' : ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64
+        (((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat))) g1 := by
+      rwa [show aB + ((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))
+          = aB + BitVec.ofNat 64
+            (((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat) from by
+        rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]] at hx10
+    have hR := rebuild (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64
+        (((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat))) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (0 : Word)))
+      ⟨g1, g2, gd1, gu1, hx10', g3, g4, gd2, gu2, hx11, hx12⟩
+    have hflat : ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64
+        (((bb.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)).toNat))) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 88 + 4)) **
+        bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hR
+    refine (sepConj_pure_right h).2 ⟨hflat, ⟨bb, List.getElem?_eq_getElem hoffb, ?_, ?_, ?_⟩⟩
+    · -- listHeaderSize bb = 1 + (bb - 0xf7): long-form prefix
+      unfold listHeaderSize
+      rw [if_neg (by omega), hhdrN]
+    · omega
+    · -- header fits inside the window
+      rw [hhdrN]
+      have hfit' := not_ult_le hfit
+      have hb := bb.isLt
+      have hRn : (aB + BitVec.ofNat 64 aLen).toNat = aB.toNat + aLen := by
+        rw [BitVec.toNat_add, BitVec.toNat_ofNat]
+        omega
+      have hLn : (aB + ((bb.zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))).toNat
+          = aB.toNat + (1 + (bb.toNat - 0xf7)) := by
+        rw [BitVec.toNat_add, hhdrN]
+        omega
+      rw [hLn, hRn] at hfit'
+      omega
+
+#print axioms bansf_outerInit_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
