@@ -74,30 +74,17 @@ open EvmAsm.Rv64.Tactics
 /-! ## Fixed guest addresses (pinned to `Codegen.GuestAddrs`) -/
 
 /-- Guest entry of `rlp_walk_init`. -/
-def walkInitBase : Word := 0x800049fc#64
+def walkInitBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init
 /-- Guest entry of `rlp_walk_next`. -/
-def walkNextBase : Word := 0x80004ad0#64
+def walkNextBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_next
 /-- Guest entry of `rlp_content_to_u64`. -/
-def contentU64Base : Word := 0x80004c6c#64
+def contentU64Base : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_content_to_u64
 /-- Guest entry of `rlp_content_to_u256_be`. -/
-def contentU256Base : Word := 0x80004cc4#64
+def contentU256Base : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_content_to_u256_be
 /-- Guest entry of `account_extract_nonce`. -/
-def extractNonceBase : Word := 0x8001cbd0#64
+def extractNonceBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.account_extract_nonce
 /-- Guest entry of `account_extract_balance`. -/
-def extractBalanceBase : Word := 0x8001cb44#64
-
-theorem walkInitBase_eq :
-    walkInitBase = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init := by decide
-theorem walkNextBase_eq :
-    walkNextBase = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_next := by decide
-theorem contentU64Base_eq :
-    contentU64Base = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_content_to_u64 := by decide
-theorem contentU256Base_eq :
-    contentU256Base = BitVec.ofNat 64 Codegen.GuestAddrs.rlp_content_to_u256_be := by decide
-theorem extractNonceBase_eq :
-    extractNonceBase = BitVec.ofNat 64 Codegen.GuestAddrs.account_extract_nonce := by decide
-theorem extractBalanceBase_eq :
-    extractBalanceBase = BitVec.ofNat 64 Codegen.GuestAddrs.account_extract_balance := by decide
+def extractBalanceBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.account_extract_balance
 
 theorem accountExtractNonce_prog_length :
     Codegen.accountExtractNonce_prog.length = 23 := by decide
@@ -135,67 +122,67 @@ private theorem aen_wi_disjoint :
     accountExtractNonceCode.Disjoint (rlp_walk_init_code walkInitBase) :=
   CodeReq.ofProg_disjoint_range_len _ _ 23 _ _ 53
     accountExtractNonce_prog_length rlp_walk_init_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase walkInitBase; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase walkInitBase Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_walk_init; bv_omega)
 
 private theorem aen_wn_disjoint :
     accountExtractNonceCode.Disjoint (rlp_walk_next_code walkNextBase) :=
   CodeReq.ofProg_disjoint_range_len _ _ 23 _ _ 103
     accountExtractNonce_prog_length rlp_walk_next_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase walkNextBase; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase walkNextBase Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_walk_next; bv_omega)
 
 private theorem aen_cu64_disjoint :
     accountExtractNonceCode.Disjoint (rlp_content_to_u64_code contentU64Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 23 _ _ 22
     accountExtractNonce_prog_length rlp_content_to_u64_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase contentU64Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractNonceBase contentU64Base Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
 private theorem aeb_wi_disjoint :
     accountExtractBalanceCode.Disjoint (rlp_walk_init_code walkInitBase) :=
   CodeReq.ofProg_disjoint_range_len _ _ 35 _ _ 53
     accountExtractBalance_prog_length rlp_walk_init_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase walkInitBase; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase walkInitBase Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_walk_init; bv_omega)
 
 private theorem aeb_wn_disjoint :
     accountExtractBalanceCode.Disjoint (rlp_walk_next_code walkNextBase) :=
   CodeReq.ofProg_disjoint_range_len _ _ 35 _ _ 103
     accountExtractBalance_prog_length rlp_walk_next_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase walkNextBase; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase walkNextBase Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_walk_next; bv_omega)
 
 private theorem aeb_cu256_disjoint :
     accountExtractBalanceCode.Disjoint (rlp_content_to_u256_be_code contentU256Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 35 _ _ 26
     accountExtractBalance_prog_length rlp_content_to_u256_be_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase contentU256Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold extractBalanceBase contentU256Base Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_content_to_u256_be; bv_omega)
 
 private theorem wi_wn_disjoint :
     (rlp_walk_init_code walkInitBase).Disjoint (rlp_walk_next_code walkNextBase) :=
   CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 103
     rlp_walk_init_prog_length rlp_walk_next_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold walkInitBase walkNextBase; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold walkInitBase walkNextBase Codegen.GuestAddrs.rlp_walk_init Codegen.GuestAddrs.rlp_walk_next; bv_omega)
 
 private theorem wi_cu64_disjoint :
     (rlp_walk_init_code walkInitBase).Disjoint (rlp_content_to_u64_code contentU64Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 22
     rlp_walk_init_prog_length rlp_content_to_u64_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold walkInitBase contentU64Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold walkInitBase contentU64Base Codegen.GuestAddrs.rlp_walk_init Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
 private theorem wn_cu64_disjoint :
     (rlp_walk_next_code walkNextBase).Disjoint (rlp_content_to_u64_code contentU64Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 103 _ _ 22
     rlp_walk_next_prog_length rlp_content_to_u64_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold walkNextBase contentU64Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold walkNextBase contentU64Base Codegen.GuestAddrs.rlp_walk_next Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
 private theorem wi_cu256_disjoint :
     (rlp_walk_init_code walkInitBase).Disjoint (rlp_content_to_u256_be_code contentU256Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 26
     rlp_walk_init_prog_length rlp_content_to_u256_be_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold walkInitBase contentU256Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold walkInitBase contentU256Base Codegen.GuestAddrs.rlp_walk_init Codegen.GuestAddrs.rlp_content_to_u256_be; bv_omega)
 
 private theorem wn_cu256_disjoint :
     (rlp_walk_next_code walkNextBase).Disjoint (rlp_content_to_u256_be_code contentU256Base) :=
   CodeReq.ofProg_disjoint_range_len _ _ 103 _ _ 26
     rlp_walk_next_prog_length rlp_content_to_u256_be_prog_length
-    (fun k1 k2 hk1 hk2 => by unfold walkNextBase contentU256Base; bv_omega)
+    (fun k1 k2 hk1 hk2 => by unfold walkNextBase contentU256Base Codegen.GuestAddrs.rlp_walk_next Codegen.GuestAddrs.rlp_content_to_u256_be; bv_omega)
 
 /-! ### Subsumption of each layout piece into the full layouts -/
 
@@ -520,7 +507,7 @@ theorem account_extract_balance_tail_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len contentU256Base rlp_content_to_u256_be_prog 26 _
         rlp_content_to_u256_be_prog_length
-        (fun k hk => by unfold extractBalanceBase contentU256Base; bv_omega))
+        (fun k hk => by unfold extractBalanceBase contentU256Base Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_content_to_u256_be; bv_omega))
   have hcallee_raw := account_rlp_content_to_u256_be_balance_own_spec_within
     contentU256Base listBase outPtr (extractBalanceBase + 84 + 4) contentPtr a hnonce
     hsalign hoalign hover hoover hvalid hdvalid
@@ -860,7 +847,7 @@ theorem account_extract_balance_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len walkInitBase rlp_walk_init_prog 53 _
         rlp_walk_init_prog_length
-        (fun k hk => by unfold extractBalanceBase walkInitBase; bv_omega))
+        (fun k hk => by unfold extractBalanceBase walkInitBase Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_walk_init; bv_omega))
   have hWIcallee := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (spVal - 32)) ** (.x8 ↦ᵣ outPtr) ** (.x9 ↦ᵣ s1Old) ** memOwnU256 outPtr **
       ((spVal - 32) ↦ₘ raVal) ** ((spVal - 24) ↦ₘ s0Old) ** ((spVal - 16) ↦ₘ s1Old))
@@ -952,7 +939,7 @@ theorem account_extract_balance_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len walkNextBase rlp_walk_next_prog 103 _
         rlp_walk_next_prog_length
-        (fun k hk => by unfold extractBalanceBase walkNextBase; bv_omega))
+        (fun k hk => by unfold extractBalanceBase walkNextBase Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_walk_next; bv_omega))
   have hW0callee := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (spVal - 32)) ** (.x8 ↦ᵣ outPtr) **
       (.x9 ↦ᵣ (listBase + BitVec.ofNat 64 (encodeAccount a).length)) **
@@ -1053,7 +1040,7 @@ theorem account_extract_balance_spec_within
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len walkNextBase rlp_walk_next_prog 103 _
         rlp_walk_next_prog_length
-        (fun k hk => by unfold extractBalanceBase walkNextBase; bv_omega))
+        (fun k hk => by unfold extractBalanceBase walkNextBase Codegen.GuestAddrs.account_extract_balance Codegen.GuestAddrs.rlp_walk_next; bv_omega))
   have hW1callee := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (spVal - 32)) ** (.x8 ↦ᵣ outPtr) **
       (.x9 ↦ᵣ (listBase + BitVec.ofNat 64 (encodeAccount a).length)) **

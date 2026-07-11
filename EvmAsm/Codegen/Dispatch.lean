@@ -87,7 +87,11 @@ def evmStackGuardBytes : Nat := 512
     Depth-0 memory is larger than nested-frame memory so runtime gas replay can
     execute large-but-valid memory expansions without inflating every call-frame
     slot in the preallocated frame array. Nested frames keep `frameMemBytes`. -/
-def runtimeMemoryBytes : Nat := 0x50000
+def runtimeMemoryBytes : Nat := 0x400000
+
+/-- Preserve the historical `.data` layout after moving root EVM memory into
+    its dedicated fixed RegionMap arena. -/
+def runtimeMemoryLayoutPadBytes : Nat := 0x50000
 
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
@@ -2136,7 +2140,7 @@ def emitDispatcherCallableEpilogueSharedHelpers
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero runtimeMemoryBytes (320 KiB EVM memory, M7 onward)
+    evm_memory:       fixed alias into the 16 MiB RegionMap EVM-memory arena
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -2163,8 +2167,8 @@ def emitDispatcherDataSection
   s!"  .byte {bytecodeBytes}\n" ++
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
-  "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  "evm_memory_layout_pad:\n" ++
+  "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++
   ".balign 8\n" ++
   "evm_sparse_memory_count:\n  .zero 8\n" ++
   "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
@@ -2262,7 +2266,10 @@ def emitDispatcherDataSection
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
-  emitJumpTable registry
+  emitJumpTable registry ++ "\n" ++
+  ".balign 32\n" ++
+  "evm_memory:\n" ++
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n"
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
 
@@ -3415,8 +3422,8 @@ def emitRuntimeDispatcherDataSectionCore
   "exec_log_txindex:\n" ++
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
   ".balign 32\n" ++
-  "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  "evm_memory_layout_pad:\n" ++
+  "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++
   ".balign 8\n" ++
   "evm_sparse_memory_count:\n  .zero 8\n" ++
   "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
@@ -3529,7 +3536,10 @@ def emitRuntimeDispatcherDataSectionCore
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
-  emitJumpTable registry
+  emitJumpTable registry ++ "\n" ++
+  ".balign 32\n" ++
+  "evm_memory:\n" ++
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked

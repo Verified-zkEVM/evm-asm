@@ -146,7 +146,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   done (`.75.3`, `Evm64/MptCorrespondence.lean`): `rlpToMutableNode` +
   `alpha_node` + the `rlpToMutableNode_rlp` round-trip (WF `MptNode.rlp`
   decodes to its SpecRef `MutableNode`; inlined `<32`-byte children are
-  `.75.4`).
+  `.75.4`). `hp_decode_nibbles` is verified byte-transparently (`.16.3`,
+  `Codegen/Programs/HpDecodeNibblesSAsm{,Paths}.lean` +
+  `Rv64/SAsm/UpLoop.lean`'s `upLoop_spec` — the `bgeu`-guard up-counting
+  sibling of `countdownLoop_spec`): `hp_decode_nibbles_spec` is the
+  whole-routine `abiFrame_spec` contract against the guest-exact decode
+  `hdnRes` = `hpDecode` (`hdnRes_eq_hpDecode` is a TOTAL definitional
+  agreement post `evm-asm-3umhl`: the guest ignores the even-path
+  padding nibble exactly like execution-specs `compact_to_nibbles` —
+  the original strict-reject divergence was relaxed away with a guest
+  re-emit + full EEST A/B).
 - **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
   Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
   (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler

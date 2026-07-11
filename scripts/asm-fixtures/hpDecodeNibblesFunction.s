@@ -27,7 +27,8 @@ hp_decode_nibbles:
   addi t6, s2, 1             # output cursor
   j .Lhp_loop_init
 .Lhp_even:
-  bnez t2, .Lhp_fail         # even but low nibble != 0
+  # Even: padding nibble IGNORED (execution-specs compact_to_nibbles,
+  # lenient; bead evm-asm-3umhl).
   li t5, 0
   mv t6, s2
 .Lhp_loop_init:

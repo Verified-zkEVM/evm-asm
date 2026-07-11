@@ -13,9 +13,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
 
 namespace MptResolveCacheResetSAsm
 
-#guard GuestAddrs.mpt_resolve_cache_reset = 0x800063d4
-#guard GuestAddrs.mset_res_cache_valid = 0xa3c672e0
-
 def zeroWindow (orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
   List.replicate (8 * i) (0 : BitVec 8) ++ orig.drop (8 * i)
 

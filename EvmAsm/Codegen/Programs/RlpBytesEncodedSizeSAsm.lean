@@ -54,10 +54,8 @@ open RlpListEncodedSizeSAsm (u64ByteLen u64ByteLen_le u64ByteLen_shift_zero
   u64ByteLen_shift_ne)
 
 /-- The routine base, symbolic (bead evm-asm-6agnq). -/
-def rbesBase : Word := (GuestAddrs.rlp_bytes_encoded_size : Word)
+def rbesBase : Word := BitVec.ofNat 64 GuestAddrs.rlp_bytes_encoded_size
 
--- Address anchor (fails the build if the guest link moves).
-#guard GuestAddrs.rlp_bytes_encoded_size = 0x8000add0
 #guard rlpBytesEncodedSize_prog.length = 20
 -- The routine is position-independent (no PC-relative instruction).
 

@@ -106,8 +106,9 @@ run_case "leaf_one_nib" "3a"      0 1 1 "0a"                   || FAILED=1
 run_case "empty"        ""        1 0 0 ""                     || FAILED=1
 # Invalid: high nibble 4.
 run_case "bad_high"     "42aa"    1 0 0 ""                     || FAILED=1
-# Invalid: even but low nibble != 0.
-run_case "even_bad_low" "0742aa"  1 0 0 ""                     || FAILED=1
+# Even with non-zero padding nibble: LENIENT (execution-specs
+# compact_to_nibbles ignores it; bead evm-asm-3umhl) — decodes bytes 1..
+run_case "even_pad_lenient" "0742aa"  0 4 0 "04020a0a"         || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

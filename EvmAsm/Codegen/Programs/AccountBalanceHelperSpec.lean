@@ -151,10 +151,7 @@ private theorem mm_advance (b : Word) (m : Nat) :
 /-! ## Fixed guest address (pinned to `Codegen.GuestAddrs`) -/
 
 /-- Guest entry of `mset_memcpy`. -/
-def msetMemcpyBase : Word := 0x800054a4#64
-
-theorem msetMemcpyBase_eq :
-    msetMemcpyBase = BitVec.ofNat 64 Codegen.GuestAddrs.mset_memcpy := by decide
+def msetMemcpyBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.mset_memcpy
 
 theorem msetMemcpy_prog_length : Codegen.msetMemcpy_prog.length = 8 := rfl
 
