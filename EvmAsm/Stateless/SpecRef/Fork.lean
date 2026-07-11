@@ -51,9 +51,9 @@ def WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS : Address :=
 def CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS : Address :=
   natToBytesBE 20 0x0000BBdDc7CE488642fb579F8B00f3a590007251
 def BUILDER_DEPOSIT_CONTRACT_ADDRESS : Address :=
-  natToBytesBE 20 0x0000884d2AA32eAa155F59A2f24eFa73D9008282
+  natToBytesBE 20 0x0000BFF46984E3725691FA540A8C7589300D8282
 def BUILDER_EXIT_CONTRACT_ADDRESS : Address :=
-  natToBytesBE 20 0x000014574A74c805590AFF9499fc7A690f008282
+  natToBytesBE 20 0x000064D678505AD48F8CCB093BC65613800E8282
 def SYSTEM_TRANSACTION_GAS : Uint := 30000000
 def SYSTEM_MAX_SSTORES_PER_CALL : Uint := 16
 def GWEI_TO_WEI : U256 := 10^9
@@ -160,10 +160,10 @@ def prepare_message (pre : PrecompileMap) (blockEnv : BlockEnvironment)
         let nonce := (← getAccount txEnv.origin).nonce
         let target := compute_contract_address txEnv.origin (nonce - 1)
         pure (target, ([] : Bytes), tx.data, (none : Option Address))
-    | some to => do
-        let code_hash := (← getAccount to).codeHash
-        let code ← getCode code_hash to
-        pure (to, tx.data, code, some to)
+    | some to =>
+        -- v0.6.0: the recipient's code is resolved by `prepare_dispatch`
+        -- at the top frame (with its delegation charges), not here.
+        pure (to, tx.data, ([] : Bytes), some to)
   pure { blockEnv := blockEnv
          txEnv := txEnv
          caller := txEnv.origin
@@ -396,11 +396,7 @@ def process_transaction (pre : PrecompileMap) (blockEnv : BlockEnvironment)
         intrinsicRegularGas := intrinsic.regular
         intrinsicStateGas := intrinsic.state }
     let message ← EvmM.liftTx (prepare_message pre blockEnv txEnv tx)
-    let mut tx_output ← process_message_call pre message
-    if tx.to == none && (tx_output.error.isSome || tx_output.createdTargetAlive) then
-      tx_output := { tx_output with
-        stateGasLeft := tx_output.stateGasLeft + StateGasCosts.NEW_ACCOUNT
-        stateRefund := tx_output.stateRefund + StateGasCosts.NEW_ACCOUNT }
+    let tx_output ← process_message_call pre message
     let tx_gas_used_before_refund := tx.gas - tx_output.gasLeft - tx_output.stateGasLeft
     let tx_gas_refund := min (tx_gas_used_before_refund / 5) tx_output.refundCounter
     let tx_gas_used_after_refund := tx_gas_used_before_refund - tx_gas_refund
@@ -411,10 +407,13 @@ def process_transaction (pre : PrecompileMap) (blockEnv : BlockEnvironment)
     let transaction_fee := tx_gas_used * priority_fee_per_gas
     EvmM.liftTx (createEther sender gas_refund_amount)
     EvmM.liftTx (createEther blockEnv.coinbase transaction_fee)
-    let tx_state_gas : Int := (txEnv.intrinsicStateGas : Int)
-      + tx_output.stateGasUsed - (tx_output.stateRefund : Int)
+    let tx_state_gas : Int := (txEnv.intrinsicStateGas : Int) + tx_output.stateGasUsed
     let tx_state_gas_nat := (max 0 tx_state_gas).toNat
-    let tx_regular_gas := tx_gas_used_before_refund - tx_state_gas_nat
+    -- v0.6.0: the calldata floor binds the regular-gas dimension of block
+    -- accounting — state gas is subtracted first so the floor is not
+    -- discounted by a transaction's state spending.
+    let tx_regular_gas :=
+      max (tx_gas_used_before_refund - tx_state_gas_nat) intrinsic.calldataFloor
     blockOutput := { blockOutput with
       blockGasUsed := blockOutput.blockGasUsed + tx_regular_gas
       blockStateGasUsed := blockOutput.blockStateGasUsed + tx_state_gas_nat

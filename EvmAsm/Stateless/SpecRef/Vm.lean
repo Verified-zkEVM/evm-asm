@@ -203,8 +203,12 @@ structure Evm where
   accessedAddresses : List Address
   accessedStorageKeys : List (Address × Bytes32)
   regularGasUsed : Uint := 0
-  stateGasUsed : Int := 0
   stateGasSpilled : Uint := 0
+  /-- v0.6.0: state gas consumed by `set_delegation` at the top frame,
+      folded out of the frame baseline by `process_message` (the running
+      `state_gas_used` counter is deleted; net frame use is computed by
+      `frame_state_gas_used` from the reservoir delta). -/
+  authStateGasUsed : Int := 0
   deriving Repr
 
 /-- The machine: the current frame plus the shared mutable world (the
@@ -330,7 +334,6 @@ def charge_state_gas (amount : Uint) : EvmM Unit := do
                stateGasSpilled := e.stateGasSpilled + remainder })
   else
     throw .outOfGas
-  EvmM.modifyEvm (fun e => { e with stateGasUsed := e.stateGasUsed + amount })
 
 /-- `credit_state_gas_refund(evm, amount)` (`vm/__init__.py`): LIFO —
     `gas_left` up to `state_gas_spilled`, then the reservoir. -/
@@ -340,8 +343,14 @@ def credit_state_gas_refund (amount : Uint) : EvmM Unit := do
   EvmM.modifyEvm (fun e =>
     { e with gasLeft := e.gasLeft + from_gas_left
              stateGasSpilled := e.stateGasSpilled - from_gas_left
-             stateGasLeft := e.stateGasLeft + (amount - from_gas_left)
-             stateGasUsed := e.stateGasUsed - amount })
+             stateGasLeft := e.stateGasLeft + (amount - from_gas_left) })
+
+/-- `frame_state_gas_used(evm)` (`vm/__init__.py:259`, v0.6.0): net
+    state gas consumed by a finished frame — the reservoir drawn down
+    plus the spill. May be negative when refunds exceed charges. -/
+def frame_state_gas_used (e : Evm) : Int :=
+  (e.message.stateGasReservoir : Int) - (e.stateGasLeft : Int)
+    + (e.stateGasSpilled : Int)
 
 /-! ## Sanity checks -/
 
@@ -360,7 +369,7 @@ private def testMachine : Machine :=
   let msg : Message :=
     { blockEnv, txEnv, caller := List.replicate 20 0xAA, target := none,
       currentTarget := List.replicate 20 0xBB, gas := 79000,
-      stateGasReservoir := 0, value := 0, data := [], codeAddress := none,
+      stateGasReservoir := 50, value := 0, data := [], codeAddress := none,
       code := [], depth := 0, shouldTransferValue := true, isStatic := false,
       accessedAddresses := [], accessedStorageKeys := [],
       disablePrecompiles := false }
@@ -414,7 +423,9 @@ private def runVm (m : EvmM α) : Except SpecError (Except EvmError α × Machin
     credit_state_gas_refund 110) with
   | .ok (.ok _, s) =>
       s.evm.stateGasLeft == 10 && s.evm.gasLeft == 1000
-      && s.evm.stateGasSpilled == 0 && s.evm.stateGasUsed == 40
+      && s.evm.stateGasSpilled == 0
+      -- v0.6.0: net frame use from the reservoir delta (50 − 10 + 0).
+      && frame_state_gas_used s.evm == 40
   | _ => false
 
 end EvmAsm.Stateless.SpecRef
