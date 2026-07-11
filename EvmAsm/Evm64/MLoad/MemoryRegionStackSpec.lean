@@ -240,6 +240,39 @@ theorem mload_one_limb_unaligned_spec_within_evmMemoryIs
     (cpsTripleWithin_frameR (front ** rest)
       (pcFree_sepConj h_front h_rest) h_core)
 
+def mloadRegionLimb (contents : List (BitVec 8)) (offset : Word) (w : Nat) : Word :=
+  mloadPackedLimbFromDwordPair
+    (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+    (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+    (offset.toNat % 8)
+
+def mloadRegionByte7 (contents : List (BitVec 8)) (offset : Word) (w : Nat) : Word :=
+  (mloadByteFromDwordPair
+    (dwordAt contents (8 * ((offset.toNat + w) / 8)))
+    (dwordAt contents (8 * ((offset.toNat + w) / 8) + 8))
+    (offset.toNat % 8) 7).zeroExtend 64
+
+def mloadRegionMid
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp memBase offset byteVal accVal c0 c1 c2 c3 : Word)
+    (capacity : Nat) (contents : List (BitVec 8)) : Assertion :=
+  ((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) ** (memBaseReg ↦ᵣ memBase) **
+  (addrReg ↦ᵣ (memBase + offset)) ** (byteReg ↦ᵣ byteVal) ** (accReg ↦ᵣ accVal) **
+  (sp ↦ₘ c0) ** ((sp + 8) ↦ₘ c1) ** ((sp + 16) ↦ₘ c2) **
+  ((sp + 24) ↦ₘ c3) ** evmMemoryIs memBase capacity contents
+
+theorem mloadRegionMid_unfold
+    {offReg byteReg accReg addrReg memBaseReg : Reg}
+    {sp memBase offset byteVal accVal c0 c1 c2 c3 : Word}
+    {capacity : Nat} {contents : List (BitVec 8)} :
+    mloadRegionMid offReg byteReg accReg addrReg memBaseReg
+      sp memBase offset byteVal accVal c0 c1 c2 c3 capacity contents =
+    (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) ** (memBaseReg ↦ᵣ memBase) **
+     (addrReg ↦ᵣ (memBase + offset)) ** (byteReg ↦ᵣ byteVal) **
+     (accReg ↦ᵣ accVal) ** (sp ↦ₘ c0) ** ((sp + 8) ↦ₘ c1) **
+     ((sp + 16) ↦ₘ c2) ** ((sp + 24) ↦ₘ c3) **
+     evmMemoryIs memBase capacity contents) := rfl
+
 /-! ## Bridges: window-pair byte algebra → region bytes -/
 
 /-- With `start = 0` a window byte comes from the lo dword only, and the
