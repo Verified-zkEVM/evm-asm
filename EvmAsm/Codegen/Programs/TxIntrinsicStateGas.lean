@@ -269,6 +269,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_regular_refund; sd zero, 0(t0)   # accumulated regular CHARGE\n" ++
   "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
   "  la t0, teer_predelegated_count; sd zero, 0(t0)\n" ++
+  "  la t0, teer_rolled_back; sd zero, 0(t0)\n" ++
   "  beqz s2, .Lteer_done\n" ++
   "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
@@ -420,9 +421,11 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  beqz a0, .Lteer_nbe_have_acct\n" ++
   "  li t0, 1; bne a0, t0, .Lteer_next\n" ++
   "  la t2, teer_acct_absent; li t3, 1; sd t3, 0(t2)\n" ++
+  "  la t2, teer_rolled_back; li t3, 1; sd t3, 0(t2)\n" ++
   "  li t1, 0; j .Lteer_nonce_sender_adjust\n" ++
   ".Lteer_nbe_have_acct:\n" ++
   "  la t2, teer_acct_absent; sd zero, 0(t2)\n" ++
+  "  la t2, teer_rolled_back; li t3, 1; sd t3, 0(t2)\n" ++
   "  la t0, teer_pre_acct; ld t1, 0(t0)\n" ++
   "  j .Lteer_nonce_sender_adjust\n" ++
   ".Lteer_invalid_auth_full_refund:\n" ++
@@ -469,9 +472,14 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_nonce_check_done:\n" ++
   -- v0.6.0 (C8): charges are computed from the WOULD-BE application (the
   -- spec charges before applying); whether the BAL shows the effect is a
-  -- post-state question. The v0.5.0 finals nonce-change gate is gone --
-  -- a valid-but-unapplied auth (set_delegation OOG rollback) still
-  -- contributes its charge so the runtime pools OOG at the same point.
+  -- post-state question. A BAL entry with NO nonce advance is a
+  -- touched-but-unapplied authority: the prep was rolled back -- flag it
+  -- so the APPLIED return zeroes while the would-be totals still drive
+  -- the runtime pools to the same OOG point.
+  "  la t0, teer_acct_ptr; ld t1, 0(t0); beqz t1, .Lteer_applied_known\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); bnez t1, .Lteer_applied_known\n" ++
+  "  la t0, teer_rolled_back; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteer_applied_known:\n" ++
   -- ---- v0.6.0 exact charges for this VALID authorization ----
   -- (1) NEW_ACCOUNT state iff the authority leaf did not pre-exist
   --     (records is_insert != 0) and no earlier auth this tx already
@@ -571,8 +579,17 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
 ".Lteer_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_loop\n" ++
   ".Lteer_done:\n" ++
+  -- v0.6.0 (C8): publish the WOULD-BE totals for the runtime pool
+  -- staging (they drive the spec's charge-point OOG); the a0/a1
+  -- APPLIED returns feed the block-state accounting and are zero when
+  -- the BAL shows the prep was rolled back (all prep charges refill).
   "  mv a0, s10\n" ++
   "  la t0, teer_regular_refund; ld a1, 0(t0)\n" ++
+  "  la t0, teer_wouldbe_state; sd a0, 0(t0)\n" ++
+  "  la t0, teer_wouldbe_regular; sd a1, 0(t0)\n" ++
+  "  la t0, teer_rolled_back; ld t1, 0(t0); beqz t1, .Lteer_ret_applied\n" ++
+  "  li a0, 0; li a1, 0\n" ++
+  ".Lteer_ret_applied:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
@@ -1018,6 +1035,9 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_prior_count:\n  .zero 8\n" ++
   "teer_prior_set_flag:\n  .zero 8\n" ++
   "teer_acct_absent:\n  .zero 8\n" ++
+  "teer_rolled_back:\n  .zero 8\n" ++
+  "teer_wouldbe_state:\n  .zero 8\n" ++
+  "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++

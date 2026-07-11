@@ -162,13 +162,15 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
   "  la t0, bv_chain_id; ld a4, 0(t0); li a5, 1\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  la t0, bv_runtime_intrinsic_state_gas; ld t1, 0(t0)\n" ++
-  "  bltu t1, a0, .Lstig_state_zero\n" ++
-  "  sub t1, t1, a0; sd t1, 0(t0); j .Lstig_state_done\n" ++
-  ".Lstig_state_zero:\n" ++
-  "  li t1, 0; sd zero, 0(t0)\n" ++
-  ".Lstig_state_done:\n" ++
+  -- v0.6.0: fold the WOULD-BE charges (state into the state dimension,
+  -- ACCOUNT_WRITE regular into the intrinsic-regular output/cell) so
+  -- every simple-transfer consumer reproduces the spec's charge-point
+  -- OOG; the v0.5.0 refund subtraction is gone with the flip.
+  "  la t2, teer_wouldbe_state; ld t2, 0(t2)\n" ++
+  "  la t0, bv_runtime_intrinsic_state_gas; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   "  ld s1, 48(sp); ld s2, 56(sp)\n" ++
+  "  la t2, teer_wouldbe_regular; ld t2, 0(t2); add s1, s1, t2\n" ++
+  "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
   "  li a0, 0; mv a1, s1; mv a2, s2; mv a3, t1\n" ++
   "  j .Lstig_ret\n" ++
   ".Lstig_fail:\n" ++

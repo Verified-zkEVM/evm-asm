@@ -64,10 +64,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
   "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  la t0, runtime_tx_auth_state_refund; sd a0, 0(t0); la t0, runtime_tx_auth_regular_refund; sd a1, 0(t0)\n" ++
-  -- v0.6.0: the exact ACCOUNT_WRITE regular charge is applied at the top
-  -- frame pre-dispatch (the callable-dispatcher setup consumes this cell).
-  "  la t0, runtime_tx_top_frame_regular_gas; sd a1, 0(t0)\n" ++
+  -- v0.6.0: pools driven by WOULD-BE charges (C8 charge-point OOG).
+  "  la t1, teer_wouldbe_state; ld t1, 0(t1); la t0, runtime_tx_auth_state_refund; sd t1, 0(t0)\n" ++
+  "  la t1, teer_wouldbe_regular; ld t1, 0(t1); la t0, runtime_tx_auth_regular_refund; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   "  la t0, teer_auth_count; ld t1, 0(t0); la t0, runtime_tx_auth_count; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_eoa_auth_ready:\n" ++
   -- This shortcut calls the low-level STOP dispatcher directly, bypassing the

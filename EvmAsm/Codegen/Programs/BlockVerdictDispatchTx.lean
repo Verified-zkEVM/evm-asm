@@ -796,12 +796,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
-  "  la t4, runtime_tx_auth_regular_refund; sd a1, 0(t4)\n" ++
-  -- v0.6.0: the helper returns exact CHARGES. The regular ACCOUNT_WRITE
-  -- charge joins the top-frame regular gas (charged pre-dispatch, OOG
-  -- halts cleanly) instead of the v0.5.0 refund credit after settle.
-  "  la t4, runtime_tx_top_frame_regular_gas; ld t5, 0(t4); add t5, t5, a1; sd t5, 0(t4)\n" ++
+  -- v0.6.0: the runtime pools are driven by the WOULD-BE charges (a
+  -- rolled-back prep still charges up to its OOG point); the APPLIED
+  -- a0/a1 returns feed only the block-state arrays.
+  "  la t5, teer_wouldbe_state; ld t5, 0(t5); la t4, runtime_tx_auth_state_refund; sd t5, 0(t4)\n" ++
+  "  la t5, teer_wouldbe_regular; ld t5, 0(t5); la t4, runtime_tx_auth_regular_refund; sd t5, 0(t4)\n" ++
+  "  la t4, runtime_tx_top_frame_regular_gas; ld t6, 0(t4); add t6, t6, t5; sd t6, 0(t4)\n" ++
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
