@@ -174,6 +174,23 @@ same-tx delegation on the recipient (authority == recipient with a
 non-NULL set) and fall through to the runtime dispatch path (which
 already does same-block delegation resolve).
 
+## Wider validation (300 random, seed 23): 294/300
+The 6 failures pinpoint the remaining work, matching map items:
+1. recipient_new_account_refilled_on_dispatch_halt_with_reservoir (1x)
+   — routing: same-tx delegated recipient must dispatch (above).
+2. test_top_frame_charges_delegation_in_access_list (2x) — item 4's
+   warm/cold delta: the delegate is pre-warmed by the tx access list,
+   so prepare_dispatch charges WARM_ACCESS 100; DispatchTx stages a
+   flat 3000 (BlockVerdictDispatchTx.lean:302/327). Implement the
+   accessed-set membership check (tx access list ∪ warmed authorities)
+   when staging runtime_tx_top_frame_regular_gas.
+3. test_varying_calldata_costs RefundTypes.STORAGE_CLEAR (3x) — item
+   5's settlement formulas: receipt = max(after_refund, floor) with a
+   real refund_counter; check tx_gas_result_increments' block_inc
+   (max(before_refund, floor) vs v0.6.0's max(before_refund −
+   max(0,state), floor)) and the refund flow through
+   dispatcher_tx_gas_settle on the SSTORE-clear path.
+
 ## Older diagnosis notes (superseded)
 
 The refund→charge flip produces SPEC-EXACT receipt cumulatives on the
