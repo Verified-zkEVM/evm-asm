@@ -169,6 +169,7 @@ import EvmAsm.Evm64.PrecompileDispatch
 import EvmAsm.Evm64.Memory
 import EvmAsm.Evm64.StateAssertions
 import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.MptCorrespondence
 import EvmAsm.Evm64.AccountRlp
 import EvmAsm.Evm64.AccountFieldExtractSpec
 import EvmAsm.Evm64.AccountAccessorSpec

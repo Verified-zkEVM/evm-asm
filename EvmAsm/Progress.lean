@@ -47,6 +47,7 @@ import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.MptCorrespondence
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
@@ -606,6 +607,8 @@ private noncomputable abbrev _mpt_node_kind_spec_witness :=
   @EvmAsm.Evm64.mptNodeKindSpec_rlp
 private noncomputable abbrev _hp_roundtrip_witness :=
   @EvmAsm.Evm64.hpDecode_hpEncode
+private noncomputable abbrev _rlp_to_mutable_node_witness :=
+  @EvmAsm.Evm64.rlpToMutableNode_rlp
 private noncomputable abbrev _node_db_snoc_witness :=
   @EvmAsm.Evm64.nodeDbIs_snoc
 private noncomputable abbrev _node_db_lookup_spec_witness :=
