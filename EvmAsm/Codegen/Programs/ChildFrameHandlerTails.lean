@@ -253,6 +253,16 @@ def basicPrecompileCallTail
     "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_addr_cmp\n" ++
     ".L" ++ tag ++ "_eip4788_addr_match:\n" ++
+    (match valueOff? with
+    | none => ""
+    | some valueOff =>
+      -- A value-bearing CALL needs the complete generic-call machinery:
+      -- balance validation, CALL_VALUE gas, value transfer, child rollback,
+      -- and EIP-7708 logging. The callee seed now contains the current-block
+      -- system-write overlay, so normal bytecode descent is exact here.
+      "  ld t0, " ++ toString valueOff ++ "(x12); ld t1, " ++ toString (valueOff + 8) ++ "(x12); or t0, t0, t1\n" ++
+      "  ld t1, " ++ toString (valueOff + 16) ++ "(x12); or t0, t0, t1; ld t1, " ++ toString (valueOff + 24) ++ "(x12); or t0, t0, t1\n" ++
+      "  bnez t0, .L" ++ tag ++ "_eip4788_fallthrough\n") ++
     "  ld t0, " ++ toString inSizeOff ++ "(x12); li t1, 32; bne t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  ld t0, 0(x12); li t1, 3000; bltu t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  ld t0, " ++ toString inOffsetOff ++ "(x12); add t0, x13, t0\n" ++
