@@ -142,7 +142,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE
-  contents-update fold, `rlpToMutableNode`, storage log-replay lemmas, …).
+  contents-update fold, storage log-replay lemmas, …). The MPT-side α is
+  done (`.75.3`, `Evm64/MptCorrespondence.lean`): `rlpToMutableNode` +
+  `alpha_node` + the `rlpToMutableNode_rlp` round-trip (WF `MptNode.rlp`
+  decodes to its SpecRef `MutableNode`; inlined `<32`-byte children are
+  `.75.4`).
 - **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
   Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
   (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler
