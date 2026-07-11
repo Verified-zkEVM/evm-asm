@@ -18,7 +18,7 @@
 # The execution seam:
 #   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to
 #   `executeAlwaysOk` -- a placeholder that accepts every payload. The Python
-#   `run_stateless_guest` at tests-tests-zkevm@v0.5.0 runs the REAL EVM. Therefore:
+#   `run_stateless_guest` at tests-tests-zkevm@v0.6.0 runs the REAL EVM. Therefore:
 #
 #     * root  (bytes 0:32,  new_payload_request_root)  -- pre-execution hashing;
 #              SpecRef MUST match on every fixture.            [gateable]
@@ -49,7 +49,7 @@
 #     --random           shuffle fixtures before --limit
 #     --seed N           integer seed for --random
 #     --reverse          process selected fixtures last-to-first
-#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or tests-zkevm@v0.5.0)
+#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or tests-zkevm@v0.6.0)
 #     --run-dir DIR      use DIR instead of an auto run dir under gen-out/eest-specref-run
 #     --no-build         skip `lake build specref-eest-check` (reuse the built exe)
 #     -h, --help         show this help
@@ -74,7 +74,7 @@ FILTER=""
 MIN_ROOT=""
 MIN_TAIL=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
 RUN_DIR_OVERRIDE=""
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
@@ -100,7 +100,7 @@ Options:
   --random                 shuffle fixtures before --limit
   --seed N                 integer seed for --random
   --reverse                process selected fixtures last-to-first
-  --tag TAG                EEST fixture tag (default tests-zkevm@v0.5.0)
+  --tag TAG                EEST fixture tag (default tests-zkevm@v0.6.0)
   --run-dir DIR            use DIR instead of an auto run dir
   --no-build               skip lake build (reuse the built exe)
   --jobs N|auto            parallel `lake exe` jobs (default auto, capped at nproc)
