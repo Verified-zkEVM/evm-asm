@@ -16,11 +16,21 @@ open EvmAsm.Rv64
 
 /-- Maximum `(address, slot)` storage access keys tracked by the runtime
     opcode harness. Each entry is 64 bytes: 32-byte address token followed
-    by the 32-byte storage slot in EVM stack order. EEST all-opcode
-    fixtures can touch hundreds of distinct slots in one transaction, and
-    EIP-7928 access-list descriptors need matching outcome capacity. -/
-def storageAccessGasMaxKeys : Nat := 512
-def storageAccessOutcomeMaxRecords : Nat := 512
+    by the 32-byte storage slot in EVM stack order.
+
+    This must not be a small implementation cap: access-list seeding can place
+    up to `TX_MAX_GAS_LIMIT / ACCESS_LIST_STORAGE_KEY_COST` keys in the warm
+    set, and execution can add further cold keys. The persistent storage log is
+    already proved and fail-closed at 16,384 rows, which also safely covers the
+    maximum combined seeded/runtime unique-key count under Amsterdam's
+    16,777,216 regular-gas limit. -/
+def storageAccessGasMaxKeys : Nat := 16384
+
+/-- Per-op storage-access outcomes used by the EIP-7928 descriptor path.
+    A warm SLOAD/SSTORE has a 100-gas floor, so `ceil(TX_MAX_GAS_LIMIT / 100)`
+    is a conservative per-transaction record bound even before accounting for
+    the gas of stack setup and the opcode itself. -/
+def storageAccessOutcomeMaxRecords : Nat := 167773
 def storageAccessOutcomeRecordSize : Nat := 96
 def storageAccessColdDeltaGas : Nat := 2900
 
