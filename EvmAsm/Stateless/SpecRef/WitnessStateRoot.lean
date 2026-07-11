@@ -61,6 +61,13 @@ def cacheFill (ws : WitnessPreState) (cache : StorageRootCache)
   else
     pure (cache ++ [(address, sr)])
 
+/-- Reconstruct the `_storage_root_cache` content at block end from the
+    set of witness-reaching read addresses (`BlockState.preStateReads`):
+    the values are the deterministic `_storage_root_of` results. -/
+def cacheFromReads (ws : WitnessPreState) (reads : List Address) :
+    Except SpecError StorageRootCache :=
+  reads.foldlM (cacheFill ws) []
+
 /-- `compute_state_root_and_trie_changes(account_changes, storage_changes,
     storage_clears)`.  `cache₀`: the `_storage_root_cache` at entry (see
     header).  Values: `account_changes` uses `none` for deleted accounts
