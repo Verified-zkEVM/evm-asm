@@ -219,7 +219,7 @@ def textSizeBytes : Nat := 0x56e38
     (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
     `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
     return (evm-asm-pwqhw). -/
-def dataSizeBytes : Nat := 0x1b3b2190
+def dataSizeBytes : Nat := 0x1bab21a0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
