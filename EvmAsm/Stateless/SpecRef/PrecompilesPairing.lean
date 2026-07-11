@@ -44,12 +44,12 @@ def bnP : Nat := fieldModulus
 def fq2MC : List (Nat × Int) := [(0, 1)]
 def fq12MC : List (Nat × Int) := [(0, 82), (6, -18)]
 
-private def imod (x : Int) : Nat := ((x % (bnP : Int) + bnP) % (bnP : Int)).toNat
+def imodP (P : Nat) (x : Int) : Nat := ((x % (P : Int) + P) % (P : Int)).toNat
 
 /-- `FQP.__mul__`: schoolbook product then reduction by the modulus
     polynomial (`b[exp+i] -= top * c` walking the top coefficients
     down). -/
-def fqpMul (deg : Nat) (mc : List (Nat × Int)) (xs ys : FQP) : FQP := Id.run do
+def fqpMul (P deg : Nat) (mc : List (Nat × Int)) (xs ys : FQP) : FQP := Id.run do
   let mut b : Array Int := .replicate (2 * deg - 1) 0
   for i in [0:deg] do
     let xi : Int := xs.getD i 0
@@ -62,11 +62,11 @@ def fqpMul (deg : Nat) (mc : List (Nat × Int)) (xs ys : FQP) : FQP := Id.run do
     b := b.pop
     for (i, c) in mc do
       b := b.set! (exp + i) (b[exp + i]! - top * c)
-  pure ((List.range deg).map (fun i => imod b[i]!))
+  pure ((List.range deg).map (fun i => imodP P b[i]!))
 
-def fqpAdd (xs ys : FQP) : FQP := xs.zipWith (fun a b => (a + b) % bnP) ys
-def fqpSub (deg : Nat) (xs ys : FQP) : FQP :=
-  (List.range deg).map (fun i => (xs.getD i 0 + bnP - ys.getD i 0 % bnP) % bnP)
+def fqpAdd (P : Nat) (xs ys : FQP) : FQP := xs.zipWith (fun a b => (a + b) % P) ys
+def fqpSub (P deg : Nat) (xs ys : FQP) : FQP :=
+  (List.range deg).map (fun i => (xs.getD i 0 + P - ys.getD i 0 % P) % P)
 def fqpZero (deg : Nat) : FQP := List.replicate deg 0
 def fqpOne (deg : Nat) : FQP := 1 :: List.replicate (deg - 1) 0
 
@@ -78,10 +78,10 @@ private def polyDeg (l : List Int) : Nat := Id.run do
   pure d
 
 /-- `optimized_poly_rounded_div(a, b)` over `F_p`. -/
-private def polyRoundedDiv (a b : List Int) : List Int := Id.run do
+def polyRoundedDiv (P : Nat) (a b : List Int) : List Int := Id.run do
   let dega := polyDeg a
   let degb := polyDeg b
-  let bInv : Int := EvmAsm.Rv64.Accel.invMod (imod (b.getD degb 0)) bnP
+  let bInv : Int := EvmAsm.Rv64.Accel.invMod (imodP P (b.getD degb 0)) P
   let mut temp : Array Int := a.toArray
   let mut o : Array Int := .replicate a.length 0
   for k in [0:dega + 1 - degb] do
@@ -89,7 +89,7 @@ private def polyRoundedDiv (a b : List Int) : List Int := Id.run do
     o := o.set! i (o[i]! + temp[degb + i]! * bInv)
     for c in [0:degb + 1] do
       temp := temp.set! (c + i) (temp[c + i]! - o[c]!)
-  pure ((List.range (polyDeg o.toList + 1)).map (fun i => (imod o[i]! : Int)))
+  pure ((List.range (polyDeg o.toList + 1)).map (fun i => (imodP P o[i]! : Int)))
 
 /-- `FQP.inv`: extended Euclid over `F_p[x]` with py_ecc's quirky
     rounded division, which reduces the degree slowly (empirically 22
@@ -97,14 +97,14 @@ private def polyRoundedDiv (a b : List Int) : List Int := Id.run do
     no-ops once `deg(low) = 0`, so extra fuel is harmless, and py_ecc's
     own `while deg(low)` terminates on every input the pairing feeds
     it. -/
-def fqpInv (deg : Nat) (mcFull : List Int) (coeffs : FQP) : FQP := Id.run do
+def fqpInv (P deg : Nat) (mcFull : List Int) (coeffs : FQP) : FQP := Id.run do
   let mut lm : List Int := 1 :: List.replicate deg 0
   let mut hm : List Int := List.replicate (deg + 1) 0
   let mut low : List Int := coeffs.map (fun c => ((c : Nat) : Int)) ++ [0]
   let mut high : List Int := mcFull ++ [1]
   for _ in [0:12 * deg + 16] do
     if polyDeg low != 0 then
-      let r0 := polyRoundedDiv high low
+      let r0 := polyRoundedDiv P high low
       let r := r0 ++ List.replicate (deg + 1 - r0.length) 0
       let mut nm := hm.toArray
       let mut new := high.toArray
@@ -113,24 +113,24 @@ def fqpInv (deg : Nat) (mcFull : List Int) (coeffs : FQP) : FQP := Id.run do
           nm := nm.set! (i + j) (nm[i + j]! - lm.getD i 0 * r.getD j 0)
           new := new.set! (i + j) (new[i + j]! - low.getD i 0 * r.getD j 0)
       hm := lm; high := low
-      lm := nm.toList.map (fun x => (imod x : Int))
-      low := new.toList.map (fun x => (imod x : Int))
-  let lowInv : Int := EvmAsm.Rv64.Accel.invMod (imod (low.getD 0 0)) bnP
-  pure ((List.range deg).map (fun i => imod (lm.getD i 0 * lowInv)))
+      lm := nm.toList.map (fun x => (imodP P x : Int))
+      low := new.toList.map (fun x => (imodP P x : Int))
+  let lowInv : Int := EvmAsm.Rv64.Accel.invMod (imodP P (low.getD 0 0)) P
+  pure ((List.range deg).map (fun i => imodP P (lm.getD i 0 * lowInv)))
 
 /-- Fueled square-and-multiply power (exponents up to ~4600 bits for
     the final exponentiation). -/
-def fqpPowAux (deg : Nat) (mc : List (Nat × Int)) :
+def fqpPowAux (P deg : Nat) (mc : List (Nat × Int)) :
     Nat → FQP → Nat → FQP → FQP
   | 0, _, _, acc => acc
   | fuel + 1, base, e, acc =>
       if e == 0 then acc
       else
-        let acc := if e % 2 == 1 then fqpMul deg mc acc base else acc
-        fqpPowAux deg mc fuel (fqpMul deg mc base base) (e / 2) acc
+        let acc := if e % 2 == 1 then fqpMul P deg mc acc base else acc
+        fqpPowAux P deg mc fuel (fqpMul P deg mc base base) (e / 2) acc
 
-def fqpPow (deg : Nat) (mc : List (Nat × Int)) (base : FQP) (e : Nat) : FQP :=
-  fqpPowAux deg mc 4700 base e (fqpOne deg)
+def fqpPow (P deg : Nat) (mc : List (Nat × Int)) (base : FQP) (e : Nat) : FQP :=
+  fqpPowAux P deg mc 4700 base e (fqpOne deg)
 
 /-! ## Generic field record + projective curve arithmetic -/
 
@@ -143,25 +143,27 @@ structure FieldOps (α : Type) where
   one : α
   beq : α → α → Bool
 
-def fqOps : FieldOps Nat :=
-  { add := fun a b => (a + b) % bnP
-    sub := fun a b => (a + bnP - b % bnP) % bnP
-    mul := fun a b => a * b % bnP
-    inv := fun a => EvmAsm.Rv64.Accel.invMod a bnP
+def fqOpsP (P : Nat) : FieldOps Nat :=
+  { add := fun a b => (a + b) % P
+    sub := fun a b => (a + P - b % P) % P
+    mul := fun a b => a * b % P
+    inv := fun a => EvmAsm.Rv64.Accel.invMod a P
     zero := 0, one := 1
     beq := (· == ·) }
 
-def fqpOps (deg : Nat) (mc : List (Nat × Int)) (mcFull : List Int) : FieldOps FQP :=
-  { add := fqpAdd
-    sub := fqpSub deg
-    mul := fqpMul deg mc
-    inv := fqpInv deg mcFull
+def fqOps : FieldOps Nat := fqOpsP bnP
+
+def fqpOps (P deg : Nat) (mc : List (Nat × Int)) (mcFull : List Int) : FieldOps FQP :=
+  { add := fqpAdd P
+    sub := fqpSub P deg
+    mul := fqpMul P deg mc
+    inv := fqpInv P deg mcFull
     zero := fqpZero deg, one := fqpOne deg
     beq := fun a b => (List.range deg).all (fun i => a.getD i 0 == b.getD i 0) }
 
-def fq2Ops : FieldOps FQP := fqpOps 2 fq2MC [1, 0]
+def fq2Ops : FieldOps FQP := fqpOps bnP 2 fq2MC [1, 0]
 def fq12Ops : FieldOps FQP :=
-  fqpOps 12 fq12MC [82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0]
+  fqpOps bnP 12 fq12MC [82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0]
 
 /-- Projective point `(x, y, z)` (`z = 0` ⇒ infinity). -/
 abbrev Proj (α : Type) := α × α × α
@@ -234,8 +236,8 @@ def curveOrder : Nat :=
   21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 /-- `w = FQ12([0, 1, 0, …])` and its powers used by `twist`. -/
-private def w2 : FQP := fqpPow 12 fq12MC (0 :: 1 :: List.replicate 10 0) 2
-private def w3 : FQP := fqpPow 12 fq12MC (0 :: 1 :: List.replicate 10 0) 3
+private def w2 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 2
+private def w3 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 3
 
 /-- `twist(pt)`: `E(FQ2) → E(FQ12)` via the field isomorphism
     `x² + 1 → x² − 18x + 82` embedding. -/
@@ -247,7 +249,7 @@ def twist (pt : Proj FQP) : Proj FQP :=
     ((c0 + 9 * (bnP - c1 % bnP)) % bnP) :: List.replicate 5 0
       ++ [c1] ++ List.replicate 5 0
   let (x, y, z) := pt
-  (fqpMul 12 fq12MC (emb x) w2, fqpMul 12 fq12MC (emb y) w3, emb z)
+  (fqpMul bnP 12 fq12MC (emb x) w2, fqpMul bnP 12 fq12MC (emb y) w3, emb z)
 
 /-- `cast_point_to_fq12(pt)`. -/
 def castToFq12 (pt : Proj Nat) : Proj FQP :=
@@ -284,7 +286,7 @@ private def millerSchedule : List Int :=
 
 /-- `neg(pt)` over FQ12. -/
 private def pNeg12 (pt : Proj FQP) : Proj FQP :=
-  (pt.1, fqpSub 12 (fqpZero 12) pt.2.1, pt.2.2)
+  (pt.1, fqpSub bnP 12 (fqpZero 12) pt.2.1, pt.2.2)
 
 /-- `miller_loop(Q, P, final_exponentiate=True)`. -/
 def miller_loop (Q P : Proj FQP) : FQP := Id.run do
@@ -308,16 +310,16 @@ def miller_loop (Q P : Proj FQP) : FQP := Id.run do
       fNum := F.mul fNum n
       fDen := F.mul fDen d
       R := pAdd F R nQ
-  let frob := fun (c : FQP) => fqpPow 12 fq12MC c bnP
+  let frob := fun (c : FQP) => fqpPow bnP 12 fq12MC c bnP
   let Q1 := (frob Q.1, frob Q.2.1, frob Q.2.2)
-  let nQ2 := (frob Q1.1, fqpSub 12 (fqpZero 12) (frob Q1.2.1), frob Q1.2.2)
+  let nQ2 := (frob Q1.1, fqpSub bnP 12 (fqpZero 12) (frob Q1.2.1), frob Q1.2.2)
   let (n1, d1) := linefunc F R Q1 P
   let R' := pAdd F R Q1
   let (n2, d2) := linefunc F R' nQ2 P
   let f := F.mul (F.mul fNum n1) n2
   let g := F.mul (F.mul fDen d1) d2
   let f := F.mul f (F.inv g)
-  pure (fqpPow 12 fq12MC f ((bnP^12 - 1) / curveOrder))
+  pure (fqpPow bnP 12 fq12MC f ((bnP^12 - 1) / curveOrder))
 
 /-- `pairing(Q, P)` on already-validated points (the precompile checks
     curve membership before calling); infinities pair to one. -/
@@ -342,7 +344,7 @@ def bytes_to_g2 (data : Bytes) : Except EvmError (Proj FQP) := do
     pure (F.one, F.one, F.zero)
   else
     -- b2 = FQ2([3, 0]) / FQ2([9, 1])
-    let b2 := fqpMul 2 fq2MC [3, 0] (fqpInv 2 [1, 0] [9, 1])
+    let b2 := fqpMul bnP 2 fq2MC [3, 0] (fqpInv bnP 2 [1, 0] [9, 1])
     if F.beq (F.mul y y) (F.add (F.mul (F.mul x x) x) b2) then
       pure (x, y, F.one)
     else
@@ -386,17 +388,17 @@ section
 open Bn128
 
 -- FQ2: (9 + i)·(9 + i)⁻¹ = 1; i² = −1.
-#guard fqpMul 2 fq2MC [9, 1] (fqpInv 2 [1, 0] [9, 1]) == [1, 0]
-#guard fqpMul 2 fq2MC [0, 1] [0, 1] == [bnP - 1, 0]
+#guard fqpMul bnP 2 fq2MC [9, 1] (fqpInv bnP 2 [1, 0] [9, 1]) == [1, 0]
+#guard fqpMul bnP 2 fq2MC [0, 1] [0, 1] == [bnP - 1, 0]
 
 -- FQ12: w·w¹¹ = w¹² = 18w⁶ − 82; x·x⁻¹ = 1 on a nontrivial element.
 #guard
   let w : FQP := 0 :: 1 :: List.replicate 10 0
-  fqpMul 12 fq12MC w (fqpPow 12 fq12MC w 11)
+  fqpMul bnP 12 fq12MC w (fqpPow bnP 12 fq12MC w 11)
     == ((bnP - 82) :: List.replicate 5 0) ++ [18] ++ List.replicate 5 0
 #guard
   let x : FQP := (List.range 12).map (fun i => i * i + 3)
-  fqpMul 12 fq12MC x (fqpInv 12 [82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0] x)
+  fqpMul bnP 12 fq12MC x (fqpInv bnP 12 [82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0] x)
     == fqpOne 12
 
 -- Projective FQ ops agree with the affine ops on 2G / 5G.
