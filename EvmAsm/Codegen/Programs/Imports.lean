@@ -440,3 +440,4 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop3
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB
