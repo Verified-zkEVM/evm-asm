@@ -24,7 +24,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallHelpers
 
 namespace EvmAsm.Evm64
 
