@@ -13,21 +13,13 @@
   * `modexp.py` — functions `modexp`, `complexity`, `iterations`,
     `gas_cost`
 
-  ## Status (INTENTIONALLY PARTIAL — hybrid-wired)
+  ## Status: SUPERSEDED by `PrecompilesTable.lean`
 
-  The remaining 14 (`ripemd160`, `blake2f`, `alt_bn128` ×3,
-  `point_evaluation`, `bls12_381` ×7, `p256verify`) are placeholder
-  entries raising the dedicated `SpecError.unimplementedPrecompile` on
-  contact (never a wrong value).  The default seam is
-  `elExecuteHybrid` (below): the full `elExecute`, falling back to the
-  sound-for-accepts static shell exactly when that error fires — so
-  fixtures touching a missing precompile keep today's (accepting)
-  shell verdict and everything else gets the real one; no false
-  rejects.  Finishing the 14 (adapt the pure gas/output models in
-  `EvmAsm/Stateless/VM/Precompiles.lean` for bn254/bls/KZG/p256, port
-  ripemd160/blake2f fresh) removes the fallback entirely.
-  The ADDRESS SET is complete and correct already — `prepare_message`
-  warms all of them and dispatch is address-exact.
+  The staging table below (4 implementations + reject-on-contact
+  placeholders) and the hybrid fallback `elExecuteHybrid` are retained
+  only as the historical staging mechanism (scope doc §3) and for
+  divergence triage; the DEFAULT seam is the complete-table
+  `elExecute` (`PrecompilesTable.lean`) with no fallback.
 -/
 
 import EvmAsm.Stateless.SpecRef.ElExecute

@@ -62,5 +62,12 @@ import EvmAsm.Stateless.SpecRef.Interpreter
 import EvmAsm.Stateless.SpecRef.Fork
 import EvmAsm.Stateless.SpecRef.ElExecute
 import EvmAsm.Stateless.SpecRef.Precompiles
+import EvmAsm.Stateless.SpecRef.PrecompilesHash
+import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+import EvmAsm.Stateless.SpecRef.PrecompilesPairing
+import EvmAsm.Stateless.SpecRef.PrecompilesBls
+import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
+import EvmAsm.Stateless.SpecRef.PrecompilesKzg
+import EvmAsm.Stateless.SpecRef.PrecompilesTable
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.Guest
