@@ -292,14 +292,22 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
       calldata_tokens = zero_data_bytes + 4 * non_zero_data_bytes
       access_tokens   = 80 * access_list_address_count
                       + 128 * access_list_storage_key_count
-      intrinsic       = 12000
+      base_regular    = 12000 + recipient/value regular gas
+      intrinsic       = base_regular
                       + 4 * calldata_tokens
-                      + recipient/value regular gas from execution-specs
+                      + init-code gas (creations)
                       + 3000 * access_list_address_count
                       + 3000 * access_list_storage_key_count
                       + 16 * access_tokens
-                      + 15816 * authorization_count
-      floor           = 12000 + 16 * (4 * data_len + access_tokens)
+                      + 7816 * authorization_count
+      floor           = base_regular + 16 * (4 * data_len + access_tokens)
+
+    v0.6.0 (tests-zkevm@v0.6.0, EIP-2780 rework): the calldata floor is
+    anchored on `base_regular_gas` (TX_BASE + recipient regular gas,
+    init-code gas excluded) instead of bare TX_BASE, and the per-auth
+    intrinsic drops the worst-case ACCOUNT_WRITE 8000 (15816 -> 7816);
+    the state-dependent auth costs are charged exactly by the
+    set_delegation replay.
 
     The helper receives `value_nonzero` and `is_self_transfer` in the first two
     stack slots at entry, matching Amsterdam execution-specs
@@ -329,10 +337,15 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .LUI .x29 (3 : BitVec 20),
     .ADDIW .x29 .x29 (-288 : BitVec 12),
     .ADD .x31 .x31 .x29,
+    -- v0.6.0 (EIP-2780): recipient/value regular gas accumulates in x28
+    -- (dead after the count loop) so the calldata floor can anchor on
+    -- base_regular_gas = TX_BASE + recipient_regular_gas. Init-code gas
+    -- stays out of the anchor (added to x31 only).
+    .LI .x28 (0 : Word),
     .BEQ .x12 .x0 (52 : BitVec 13),
     .LUI .x29 (3 : BitVec 20),
     .ADDIW .x29 .x29 (-1288 : BitVec 12),
-    .ADD .x31 .x31 .x29,
+    .ADD .x28 .x28 .x29,
     .ADDI .x29 .x11 (31 : BitVec 12),
     .SRLI .x29 .x29 (5 : BitVec 6),
     .SLLI .x29 .x29 (1 : BitVec 6),
@@ -340,18 +353,19 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .LD .x29 .x2 (0 : BitVec 12),
     .BEQ .x29 .x0 (56 : BitVec 13),
     .LI .x29 (1756 : Word),
-    .ADD .x31 .x31 .x29,
+    .ADD .x28 .x28 .x29,
     .JAL .x0 (44 : BitVec 21),
     .LD .x29 .x2 (8 : BitVec 12),
     .BNE .x29 .x0 (36 : BitVec 13),
     .LUI .x29 (1 : BitVec 20),
     .ADDIW .x29 .x29 (-1096 : BitVec 12),
-    .ADD .x31 .x31 .x29,
+    .ADD .x28 .x28 .x29,
     .LD .x29 .x2 (0 : BitVec 12),
     .BEQ .x29 .x0 (16 : BitVec 13),
     .LUI .x29 (1 : BitVec 20),
     .ADDIW .x29 .x29 (1904 : BitVec 12),
-    .ADD .x31 .x31 .x29,
+    .ADD .x28 .x28 .x29,
+    .ADD .x31 .x31 .x28,
     .LUI .x29 (1 : BitVec 20),
     .ADDIW .x29 .x29 (-1096 : BitVec 12),
     .MUL .x29 .x13 .x29,
@@ -367,8 +381,11 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .ADD .x7 .x7 .x29,
     .SLLI .x29 .x7 (4 : BitVec 6),
     .ADD .x31 .x31 .x29,
-    .LUI .x29 (4 : BitVec 20),
-    .ADDIW .x29 .x29 (-568 : BitVec 12),
+    -- v0.6.0: REGULAR_PER_AUTH_BASE_COST 7816 only — the per-auth
+    -- worst-case ACCOUNT_WRITE 8000 leaves the intrinsic (charged
+    -- exactly by the set_delegation replay instead).
+    .LUI .x29 (2 : BitVec 20),
+    .ADDIW .x29 .x29 (-376 : BitVec 12),
     .MUL .x29 .x15 .x29,
     .ADD .x31 .x31 .x29,
     .SD .x16 .x31 (0 : BitVec 12),
@@ -378,6 +395,7 @@ def intrinsicGasAmsterdamCounts_prog : Program :=
     .LUI .x29 (3 : BitVec 20),
     .ADDIW .x29 .x29 (-288 : BitVec 12),
     .ADD .x30 .x30 .x29,
+    .ADD .x30 .x30 .x28,
     .SD .x17 .x30 (0 : BitVec 12),
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
@@ -393,7 +411,7 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
     intrinsicGasAmsterdamCountsFunction = "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog := rfl
 
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
-#guard intrinsicGasAmsterdamCounts_prog.length = 71
+#guard intrinsicGasAmsterdamCounts_prog.length = 74
 /-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
     Input layout:
       bytes  0.. 8 : data length
