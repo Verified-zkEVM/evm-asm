@@ -9,9 +9,6 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace FrameLoadRegsSAsm
 
-#guard GuestAddrs.frame_load_regs = 0x80038390
-#guard GuestAddrs.frame_save_area = 0xbc2bd590
-
 def frameLoadRegsBody : List Instr := frameLoadRegs_prog.dropLast
 
 theorem frameLoadRegs_byte_tie :

@@ -26,13 +26,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 
 namespace Secp256k1FieldReduceOnceNSAsm
 
-#guard GuestAddrs.secf_reduce_once_n = 0x80020324
-#guard GuestAddrs.secf_n_be = 0xa3c05360
-#guard GuestAddrs.secf_cmp = 0xa3c053e0
-#guard GuestAddrs.u256_lt_be = 0x800052c4
-#guard GuestAddrs.u256_sub_be = 0x80005248
-#guard GuestAddrs.secf_copy32 = 0x8001fcfc
-
 /-- secp256k1 group order, as 32 big-endian bytes. -/
 def secfNBytes : List (BitVec 8) :=
   [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,

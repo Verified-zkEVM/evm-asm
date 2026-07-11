@@ -76,7 +76,7 @@ def unpackZiskemuInput (packed : Bytes) : Except String Bytes := do
 -- ============================================================================
 -- `specref-eest-check <input_file> <output_file>`
 --   exit 0 + writes the 105-byte result to <output_file> on success.
---   exit 2 + stderr message on a malformed framing or a SpecError.
+--   exit 2 + stderr message on malformed framing.
 
 def usage : String :=
   "usage: specref-eest-check <input_file> <output_file>"
@@ -91,13 +91,9 @@ def main (args : List String) : IO UInt32 := do
       IO.eprintln s!"specref-eest-check: framing error ({inputFile}): {msg}"
       return 2
     | .ok blob =>
-      match run_stateless_guest blob with  -- default seam = executeAlwaysOk
-      | .error _ =>
-        IO.eprintln s!"specref-eest-check: SpecError ({inputFile})"
-        return 2
-      | .ok out =>
-        IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
-        return 0
+      let out := run_stateless_guest blob (execute := executeAlwaysOk)
+      IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
+      return 0
   | _ =>
     IO.eprintln usage
     return 1

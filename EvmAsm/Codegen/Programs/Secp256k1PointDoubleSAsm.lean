@@ -50,7 +50,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace Secp256k1PointDoubleSAsm
 
 open Secp256k1FieldConvSAsm (secfBeToLeFn)
-open Secp256k1FieldLeToBeSAsm (secfLeToBeFn)
+open Secp256k1FieldConvSAsm (secfLeToBeFn)
 open Secp256k1FieldIsZeroSAsm (secfIsZero32Fn)
 open Secp256k1FieldLeavesSAsm (secfZero32Fn)
 open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz nlz_le nlz_spec nlz_boundary)

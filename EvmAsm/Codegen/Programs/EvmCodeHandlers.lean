@@ -37,6 +37,20 @@ def codeHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++        -- destOffset low limb (MSIZE range)
                  "  ld x15, 64(x12)\n" ++       -- size low limb (MSIZE range)
+                 memDynamicU256RangeOogGuardAsm
+                   "codecopy" "x12" "x15" "x16" "x17" 0 64 ++
+                 -- CODECOPY zero-fills every byte whose full-U256 source index
+                 -- is outside the running code.  The body consumes only the
+                 -- low limb, so normalize an unrepresentable/out-of-range
+                 -- source to codeSize before it can form a wrapped pointer.
+                 "  ld x16, 32(x12)\n" ++
+                 "  ld x17, 40(x12)\n  ld x18, 48(x12)\n  or x17, x17, x18\n" ++
+                 "  ld x18, 56(x12)\n  or x17, x17, x18\n" ++
+                 "  bnez x17, .Lcodecopy_oob_source\n" ++
+                 "  ld x18, 496(x20)\n  bltu x16, x18, .Lcodecopy_source_ok\n" ++
+                 ".Lcodecopy_oob_source:\n" ++
+                 "  ld x18, 496(x20)\n  sd x18, 32(x12)\n" ++
+                 ".Lcodecopy_source_ok:\n" ++
                  memDynamicArenaOogGuardAsm "codecopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "codecopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true

@@ -2,14 +2,15 @@
   EvmAsm.Stateless.SpecRef.Guest
 
   Port of `execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`
-  (`@tests-zkevm@v0.4.0`): the top-level guest shell.
+  (`@tests-zkevm@v0.5.0`): the top-level guest shell.
 
   * `serialize_stateless_output`  (`stateless_guest.py:21`)
   * `deserialize_stateless_input` (`stateless_guest.py:29`)
   * `run_stateless_guest`         (`stateless_guest.py:47`)
 
-  `run_stateless_guest` threads the execution seam (`Stateless.lean`) so the
-  whole pipeline is `#eval`-runnable with the `executeAlwaysOk` placeholder.
+  `run_stateless_guest` threads the execution seam (`Seam.lean`); the
+  default is the `s1d19.3` partial seam `executeSeamShell`
+  (`SeamShell.lean`), keeping the whole pipeline `#eval`-runnable.
 -/
 
 import EvmAsm.Stateless.SpecRef.Stateless
@@ -34,16 +35,33 @@ def deserialize_stateless_input (data : Bytes) : Except SpecError StatelessInput
   let ssz_obj ← deserialize sszStatelessInputType (data.drop STATELESS_INPUT_SCHEMA_ID_SIZE)
   sszToStatelessInput ssz_obj
 
-/-! ## `run_stateless_guest` (`stateless_guest.py:47`) -/
+/-! ## `_default_failed_stateless_output` (`stateless_guest.py:54`) -/
+
+/-- The sentinel output returned when the guest input cannot be decoded.
+    This is deliberately distinct from validation failure after decoding: the
+    latter preserves the input's request root and chain config. -/
+def _default_failed_stateless_output : StatelessValidationResult :=
+  { newPayloadRequestRoot := List.replicate 32 0
+    successfulValidation := false
+    chainConfig :=
+      { chainId := 0
+        activeFork :=
+          { fork := .Frontier
+            activation := { blockNumber := none, timestamp := none }
+            blobSchedule := none } } }
+
+/-! ## `run_stateless_guest` (`stateless_guest.py:79`) -/
 
 /-- Run the stateless guest on serialized input, returning serialized output.
-    The execution engine is the seam parameter (default: `executeAlwaysOk`).
-    Deserialization failures propagate (Python does not catch them). -/
+    The execution engine is the seam parameter (default: the partial seam
+    `executeSeamShell`, `s1d19.3`).
+    Deserialization failures produce the Python v0.5.0 sentinel output. -/
 def run_stateless_guest (input_bytes : Bytes)
-    (execute : ExecutionSeam := executeAlwaysOk) : Except SpecError Bytes := do
-  let stateless_input ← deserialize_stateless_input input_bytes
-  let stateless_output := verify_stateless_new_payload stateless_input execute
-  pure (serialize_stateless_output stateless_output)
+    (execute : ExecutionSeam := executeSeamShell) : Bytes :=
+  match deserialize_stateless_input input_bytes with
+  | .error _ => serialize_stateless_output _default_failed_stateless_output
+  | .ok stateless_input =>
+      serialize_stateless_output (verify_stateless_new_payload stateless_input execute)
 
 /-! ## Sanity checks -/
 
@@ -103,19 +121,46 @@ def sanityInputBytes : Except SpecError Bytes := do
   match deserialize_stateless_input [0x00] with
   | .error .missingSchemaId => true | _ => false
 
--- Full pipeline: run the guest and get SSZ output bytes whose decoded
--- successful_validation is true (placeholder seam) and whose NPR root matches.
+-- Full pipeline with the seam forced to `executeAlwaysOk`: SSZ output
+-- decodes, successful_validation is true, and the NPR root matches.
 #guard
-  match (do
-      let bytes ← sanityInputBytes
-      run_stateless_guest bytes) with
+  match sanityInputBytes with
   | .ok out =>
-      match deserialize sszStatelessValidationResultType out with
+      match deserialize sszStatelessValidationResultType
+          (run_stateless_guest out (execute := executeAlwaysOk)) with
       | .ok sv =>
           match sszToValidationResult sv with
           | .ok r => r.successfulValidation
                      && r.newPayloadRequestRoot == compute_new_payload_request_root sanityInput
           | .error _ => false
+      | .error _ => false
+  | .error _ => false
+
+-- Under the default (s1d19.3 partial) seam the synthetic sanity input is
+-- rejected — its block hash is not the keccak of the implied header —
+-- but the shell still runs end-to-end and reports the same NPR root.
+#guard
+  match sanityInputBytes with
+  | .ok out =>
+      match deserialize sszStatelessValidationResultType (run_stateless_guest out) with
+      | .ok sv =>
+          match sszToValidationResult sv with
+          | .ok r => !r.successfulValidation
+                     && r.newPayloadRequestRoot == compute_new_payload_request_root sanityInput
+          | .error _ => false
+      | .error _ => false
+  | .error _ => false
+
+-- Invalid input takes the v0.5.0 failed-output path rather than exposing a
+-- deserialization exception to the caller.
+#guard
+  match deserialize sszStatelessValidationResultType (run_stateless_guest [0x00]) with
+  | .ok sv =>
+      match sszToValidationResult sv with
+      | .ok r => !r.successfulValidation
+                 && r.newPayloadRequestRoot == z 32
+                 && r.chainConfig.chainId == 0
+                 && r.chainConfig.activeFork.fork == .Frontier
       | .error _ => false
   | .error _ => false
 

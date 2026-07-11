@@ -87,6 +87,24 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_selfdestruct_no_ctx_bal_loop\n" ++
   "  j .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
+  -- A prior SELFDESTRUCT of this origin moved its entire live balance to its beneficiary.
+  -- Consult the transaction journal so repeated execution observes balance zero.
+  "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+  runtimeAccessWordToBe20Asm "selfdestruct_seen_origin" "t0" "t1" "t2" "t3" ++
+  "  la t0, evm_selfdestruct_seen_overflow\n  ld t0, 0(t0)\n  bnez t0, .L_selfdestruct_seen_scan_done\n" ++
+  "  la t0, evm_selfdestruct_seen_count\n  ld t1, 0(t0)\n  beqz t1, .L_selfdestruct_seen_scan_done\n" ++
+  "  la t2, evm_selfdestruct_seen_table\n" ++
+  ".L_selfdestruct_seen_scan:\n" ++
+  "  mv t3, t2\n  la t4, " ++ runtimeAccessSeedScratchLabel ++ "\n  li t5, 20\n" ++
+  ".L_selfdestruct_seen_cmp_origin:\n" ++
+  "  beqz t5, .L_selfdestruct_seen_origin_match\n" ++
+  "  lbu t6, 0(t3)\n  lbu a0, 0(t4)\n  bne t6, a0, .L_selfdestruct_seen_next\n" ++
+  "  addi t3, t3, 1\n  addi t4, t4, 1\n  addi t5, t5, -1\n  j .L_selfdestruct_seen_cmp_origin\n" ++
+  ".L_selfdestruct_seen_origin_match:\n" ++
+  "  j .L_selfdestruct_surcharge_done\n" ++
+  ".L_selfdestruct_seen_next:\n" ++
+  "  addi t2, t2, 32\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_seen_scan\n" ++
+  ".L_selfdestruct_seen_scan_done:\n" ++
   -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
   -- NEW_ACCOUNT state-gas charge on `not is_account_alive(beneficiary)` (amsterdam
   -- vm/instructions/system.py selfdestruct: needs_state_gas). `is_account_alive` consults the LIVE
@@ -164,6 +182,24 @@ def selfdestructNewAccountSurchargeAsm : String :=
   ".L_selfdestruct_csg_used:\n" ++
   "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
   ".L_selfdestruct_surcharge_done:\n"
+
+/-- Append the current origin to the transaction-journaled SELFDESTRUCT set. -/
+def selfdestructRecordSeenOriginAsm : String :=
+  "  la t0, evm_selfdestruct_seen_overflow\n  ld t1, 0(t0)\n  bnez t1, .L_selfdestruct_seen_record_done\n" ++
+  "  la t0, evm_selfdestruct_seen_count\n  ld t1, 0(t0)\n  li t2, " ++ toString selfdestructSeenOriginCap ++ "\n" ++
+  "  bgeu t1, t2, .L_selfdestruct_seen_record_overflow\n" ++
+  "  slli t2, t1, 5\n  la t3, evm_selfdestruct_seen_table\n  add t3, t3, t2\n" ++
+  "  sd x0, 0(t3)\n  sd x0, 8(t3)\n  sd x0, 16(t3)\n  sd x0, 24(t3)\n" ++
+  "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+  runtimeAccessWordToBe20Asm "selfdestruct_seen_record" "t0" "t1" "t2" "t4" ++
+  "  la t4, " ++ runtimeAccessSeedScratchLabel ++ "\n  li t5, 20\n" ++
+  ".L_selfdestruct_seen_record_copy:\n" ++
+  "  lbu t6, 0(t4)\n  sb t6, 0(t3)\n  addi t4, t4, 1\n  addi t3, t3, 1\n  addi t5, t5, -1\n  bnez t5, .L_selfdestruct_seen_record_copy\n" ++
+  "  la t0, evm_selfdestruct_seen_count\n  ld t1, 0(t0)\n  addi t1, t1, 1\n  sd t1, 0(t0)\n" ++
+  "  j .L_selfdestruct_seen_record_done\n" ++
+  ".L_selfdestruct_seen_record_overflow:\n" ++
+  "  la t0, evm_selfdestruct_seen_overflow\n  li t1, 1\n  sd t1, 0(t0)\n" ++
+  ".L_selfdestruct_seen_record_done:\n"
 
 /--
 Load the origin and beneficiary account RLP payloads needed by the later
@@ -502,26 +538,24 @@ conservative-accept stay unaffected). The all-accounts wrapper skips {sender,rec
 restores the dispatcher's x10/x12 around each helper call (mirrors the eip7708 fragment). -/
 def selfdestructBeneficiaryNonstorageAsm : String :=
   "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .L_sdbn_done\n" ++
-  -- drj99.1: a created-in-this-tx contract that SELFDESTRUCTs is DELETED (EIP-6780). The CREATE deposit
-  -- recorded it (nonce 1, balance = endowment); record its DELETION (balance 0, nonce 0) so the aggregate's
-  -- last-post-wins gives the BAL's deleted final (0/0) -- without this the deposit's nonce=1 lingers and the
-  -- all-accounts non-storage comparator rejects (bv_fail=44 nonce-mismatch, balance 0=0). The origin is NOT
+  -- A created-in-this-tx contract that SELFDESTRUCTs is cleared at transaction end (EIP-6780). The CREATE deposit
+  -- recorded it (nonce 1, balance = endowment); record the clear with nonce 0 and the balance selected below.
+  -- Pinned execution-specs v0.5.0 uses `clear_account_preserving_balance`, so self-destruct-to-self retains
+  -- the live balance; a transfer to a different beneficiary leaves the origin balance at zero. The origin is NOT
   -- in the block-pre witness (created this tx), so the witness-present origin-debit path below skips it; this
   -- record fires on the created_in_tx flag regardless of sdai_status. sdai_origin_address = the
   -- selfdestructing contract's env ADDRESS (set from env, not the lookup), i.e. the created contract.
   -- Enables no new behavior (records the deletion that already happens) -> no cascade. a0/a2 alias x10/x12.
   "  la t0, evm_selfdestruct_created_in_tx; ld t0, 0(t0); beqz t0, .L_sdbn_chk_witness\n" ++
-  -- coc3g.6.5: created-in-tx SELFDESTRUCT. The deleted child's whole LIVE balance moves to the
-  -- beneficiary (or is BURNED on self-destruct-to-self). Two exec records are needed:
-  --   (1) the child's DELETION (balance 0, nonce 0) so the aggregate's last-post gives the BAL's
-  --       deleted final (0/0) -- else the CREATE deposit's nonce=1 / CALL credit linger (bv_fail=44
-  --       disc=1 inconsistent); and
+  -- Created-in-tx SELFDESTRUCT. The child's whole LIVE balance moves to a distinct beneficiary;
+  -- self-transfer is a no-op. Two exec records are needed in the distinct-beneficiary case:
+  --   (1) the child's clear (balance 0, nonce 0); and
   --   (2) the beneficiary's CREDIT (+ the child's live balance) so the BAL's +balance has a match
   --       (bv_fail=44 disc=2 NOTFOUND; selfdestruct_same_tx_via_call to_other).
   -- The child is absent from the block-pre witness, so its live balance = its LATEST recorded
   -- non-storage post_balance (the CREATE endowment + any CALL credit), read via
-  -- nonstorage_effect_latest_balance BEFORE we record the child's deletion (which would reset the
-  -- latest to 0). transferred==0 or beneficiary==origin (burn) -> no beneficiary record. The
+  -- nonstorage_effect_latest_balance before we append the child's clear record.
+  -- transferred==0 or beneficiary==origin -> no beneficiary record. The
   -- beneficiary's pre = its latest live balance (other in-tx credits) if present, else its block-pre
   -- balance (account_at_header_state_root), else 0; post = pre + transferred; nonce unchanged.
   -- Stack frame (256B): sp+0 key(32B), sp+32 transferred(32B), sp+64 benef pre(32B),
@@ -548,14 +582,24 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   ".L_sdbn_envbal_rev:\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sdbn_envbal_rev\n" ++
   ".L_sdbn_ci_have_transferred:\n" ++
-  -- record the child's DELETION (balance 0, nonce 0) -- reuse sp+0..31 as a zero balance.
+  -- Build the child's post-clear balance. For a distinct beneficiary it is zero; for
+  -- self-destruct-to-self it remains the live balance in sp+32, matching
+  -- `clear_account_preserving_balance`.
   "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-  "  la a0, sdai_origin_address\n  mv a1, sp\n  mv a2, sp\n  li a3, 0\n  li a4, 0\n" ++
+  "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
+  ".L_sdbn_clear_self_cmp:\n" ++
+  "  beqz t2, .L_sdbn_clear_self\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_clear_distinct\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_clear_self_cmp\n" ++
+  ".L_sdbn_clear_self:\n" ++
+  "  addi a1, sp, 32; mv a2, a1; j .L_sdbn_record_clear\n" ++
+  ".L_sdbn_clear_distinct:\n" ++
+  "  mv a1, sp; mv a2, sp\n" ++
+  ".L_sdbn_record_clear:\n" ++
+  "  la a0, sdai_origin_address\n  li a3, 0\n  li a4, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
-  -- c83ty.1: remember same-tx-created accounts queued for EIP-6780 deletion. A later value CALL to
-  -- that address credits the live account, but the end-of-transaction deletion burns the accumulated
-  -- balance. The CALL value-effect producer consults this table and appends a final zero-balance
-  -- effect after the credit so the all-accounts final comparator sees BAL final 0.
+  -- Remember same-tx-created accounts queued for EIP-6780 clearing. Later CALLs use this table to
+  -- suppress resurrected code and duplicate new-account gas; their credited balance remains intact.
   "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0)\n" ++
   "  li t2, " ++ toString selfdestructDestroyedAddressCap ++ "\n" ++
   "  bgeu t1, t2, .L_sdbn_destroyed_overflow\n" ++
@@ -572,10 +616,10 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- transferred != 0 ?  (sp+32..63 BE)
   "  ld t0, 32(sp); ld t1, 40(sp); or t0, t0, t1; ld t1, 48(sp); or t0, t0, t1; ld t1, 56(sp); or t0, t0, t1\n" ++
   "  beqz t0, .L_sdbn_ci_restore\n" ++
-  -- beneficiary == origin (self) ? -> burn, no beneficiary credit
+  -- beneficiary == origin (self) ? -> move_ether is a no-op, no beneficiary credit
   "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
   ".L_sdbn_ci_self:\n" ++
-  "  beqz t2, .L_sdbn_ci_restore\n" ++                  -- all equal -> self -> burn -> no credit
+  "  beqz t2, .L_sdbn_ci_restore\n" ++                  -- all equal -> self -> no credit
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_ci_diff\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ci_self\n" ++
   ".L_sdbn_ci_diff:\n" ++

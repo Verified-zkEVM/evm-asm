@@ -45,6 +45,10 @@ private def repeatAsm : Nat -> String -> String
   | 0, _ => ""
   | n + 1, s => s ++ repeatAsm n s
 
+/-- Maximum EIP-7702 authorizations admitted by Amsterdam's 16,777,216 regular
+    transaction-gas cap at 15,816 regular gas per authorization. -/
+private def teerSuccessfulAuthCapacity : Nat := 1060
+
 private def rlpWalkSkipAsm (failLabel : String) (n : Nat) (cursorReg endReg : String) : String :=
   repeatAsm n <|
     "  mv a0, " ++ cursorReg ++ "; mv a1, " ++ endReg ++
@@ -178,6 +182,55 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
 }
 
 
+/-! ## bal_account_nonce_before_index
+
+    Return the latest BAL nonce value for an account strictly before a block
+    access index.  `nonce_changes` is AccountChanges item 4 and contains
+    `[block_access_index, post_nonce]` tuples.
+
+    a0 = AccountChanges ptr, a1 = length, a2 = current block_access_index
+    a0 output = 0 found, 1 no earlier change, 2 malformed; a1 = nonce when found. -/
+def balAccountNonceBeforeIndexFunction : String :=
+  "bal_account_nonce_before_index:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li a2, 4; addi a3, sp, 72; addi a4, sp, 80\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add s3, s0, t0; ld s4, 80(sp)\n" ++
+  "  mv a0, s3; mv a1, s4; addi a2, sp, 88; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s4, 88(sp); li s5, 0; li s6, 0; li s7, 0; sd zero, 104(sp)\n" ++
+  ".Lbanbi_loop:\n" ++
+  "  beq s5, s4, .Lbanbi_done_scan\n" ++
+  "  mv a0, s3; ld a1, 80(sp); mv a2, s5; addi a3, sp, 72; addi a4, sp, 88\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)\n" ++
+  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next\n" ++
+  "  bltu t0, s6, .Lbanbi_next\n" ++
+  "  mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s7, 72(sp); li t0, 1; sd t0, 104(sp)\n" ++
+  ".Lbanbi_next:\n" ++
+  "  addi s5, s5, 1; j .Lbanbi_loop\n" ++
+  ".Lbanbi_done_scan:\n" ++
+  "  ld t0, 104(sp); beqz t0, .Lbanbi_none\n" ++
+  "  li a0, 0; mv a1, s7; j .Lbanbi_return\n" ++
+  ".Lbanbi_none:\n" ++
+  "  li a0, 1; li a1, 0; j .Lbanbi_return\n" ++
+  ".Lbanbi_malformed:\n" ++
+  "  li a0, 2; li a1, 0\n" ++
+  ".Lbanbi_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 112; ret\n"
+
 /-! ## tx_eip7702_existing_authority_refund
 
     Bridge for the EIP-7702 existing-authority state-gas refund. For type-4
@@ -211,6 +264,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv s4, a4                   # chain id\n" ++
   "  li s10, 0                   # accumulated state refund\n" ++
   "  la t0, teer_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
   "  beqz s2, .Lteer_done\n" ++
   "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
@@ -259,6 +313,22 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_invalid_auth_full_refund\n" ++
+  "  # A prior successfully validated tuple with this exact (authority, nonce)\n" ++
+  "  # necessarily incremented the live nonce, so this occurrence is invalid.\n" ++
+  "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0\n" ++
+  ".Lteer_success_find_loop:\n" ++
+  "  beq t2, t1, .Lteer_success_not_found\n" ++
+  "  slli t3, t2, 5; la t4, teer_success_table; add t3, t3, t4\n" ++
+  "  la t4, teer_authority; mv t5, t3; li t6, 20\n" ++
+  ".Lteer_success_addr_cmp:\n" ++
+  "  beqz t6, .Lteer_success_addr_match\n" ++
+  "  lbu a6, 0(t4); lbu a7, 0(t5); bne a6, a7, .Lteer_success_find_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lteer_success_addr_cmp\n" ++
+  ".Lteer_success_addr_match:\n" ++
+  "  ld t4, 24(t3); ld t5, 144(sp); beq t4, t5, .Lteer_invalid_auth_full_refund\n" ++
+  ".Lteer_success_find_next:\n" ++
+  "  addi t2, t2, 1; j .Lteer_success_find_loop\n" ++
+  ".Lteer_success_not_found:\n" ++
   "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lteer_next\n" ++
@@ -290,25 +360,68 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_regular_refund; ld t4, 0(t0); li t3, 8000; add t4, t4, t3; sd t4, 0(t0)\n" ++
   "  j .Lteer_next\n" ++
   ".Lteer_invalid_code_check_done:\n" ++
-  "  # validate_authorization also returns None when the signed nonce does not\n" ++
-  "  # equal the authority account nonce. In single-tx blocks the header-state\n" ++
-  "  # account is the live authority account at this point.\n" ++
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_nonce_check_done\n" ++
+  "  # validate_authorization compares against the live nonce immediately before\n" ++
+  "  # this transaction's authorization processing. Recover that value from the\n" ++
+  "  # latest earlier BAL nonce tuple; fall back to header state when none exists.\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); ld a2, 104(sp)\n" ++
+  "  jal ra, bal_account_nonce_before_index\n" ++
+  "  beqz a0, .Lteer_nonce_have_live\n" ++
+  "  li t0, 1; bne a0, t0, .Lteer_nonce_check_done\n" ++
   "  la t0, bv_witness_state_ptr; ld t0, 0(t0); beqz t0, .Lteer_nonce_check_done\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteer_nonce_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteer_nonce_check_done\n" ++
-  "  ld t1, 144(sp); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
-  "  j .Lteer_nonce_check_done\n" ++
+  "  li t1, 0; j .Lteer_nonce_sender_adjust\n" ++
   ".Lteer_nonce_have_pre:\n" ++
-  "  la t0, teer_pre_acct; ld t1, 0(t0); ld t2, 144(sp); beq t1, t2, .Lteer_nonce_check_done\n" ++
-  "  addi t3, t1, 1; bne t2, t3, .Lteer_invalid_auth_full_refund\n" ++
-  "  la t0, teer_finals; ld t4, 48(t0); addi t3, t2, 1; bne t4, t3, .Lteer_invalid_auth_full_refund\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0)        # header-state nonce\n" ++
+  "  j .Lteer_nonce_sender_adjust\n" ++
+  ".Lteer_nonce_have_live:\n" ++
+  "  mv t1, a1                                  # latest prior BAL nonce\n" ++
+  ".Lteer_nonce_sender_adjust:\n" ++
+  "  # process_transaction increments the sender nonce before set_delegation.\n" ++
+  "  # For a self-sponsored authorization the live comparison nonce is therefore\n" ++
+  "  # header_nonce + 1; other authorities still compare against header_nonce.\n" ++
+  "  la t2, teer_authority; la t3, bv_stx_sender_addr; li t4, 20\n" ++
+  ".Lteer_nonce_sender_cmp:\n" ++
+  "  beqz t4, .Lteer_nonce_sender_match\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lteer_nonce_expected_ready\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lteer_nonce_sender_cmp\n" ++
+  ".Lteer_nonce_sender_match:\n" ++
+  "  addi t1, t1, 1\n" ++
+  ".Lteer_nonce_expected_ready:\n" ++
+  "  ld t2, 144(sp); bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_nonce_check_done:\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_next\n" ++
+  "  # Every successful validate_authorization path increments the authority\n" ++
+  "  # nonce. A recovered authority with no BAL nonce change therefore took the\n" ++
+  "  # execution-specs None branch and receives the full per-auth refund.\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_invalid_auth_full_refund\n" ++
+  "  # Record only tuples that have passed the chain/signature/code/nonce gates.\n" ++
+  "  # Capacity covers the protocol maximum; the guard remains conservative.\n" ++
+  "  la t0, teer_success_count; ld t1, 0(t0); li t2, " ++ toString teerSuccessfulAuthCapacity ++ "; bgeu t1, t2, .Lteer_success_append_done\n" ++
+  "  slli t2, t1, 5; la t3, teer_success_table; add t2, t2, t3\n" ++
+  "  la t3, teer_authority; mv t4, t2; li t5, 20\n" ++
+  ".Lteer_success_copy:\n" ++
+  "  beqz t5, .Lteer_success_copy_done\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_success_copy\n" ++
+  ".Lteer_success_copy_done:\n" ++
+  -- Record whether this successful authorization explicitly clears delegation.
+  -- Bytes 20..23 were padding in the 32-byte entry; runtime EXTCODEHASH uses
+  -- this bit to distinguish a newly materialized empty authority from a
+  -- genuinely nonexistent pre-state account when BAL code_changes is empty.
+  "  sw zero, 20(t2); mv t3, s11; li t4, 20\n" ++
+  ".Lteer_success_target_zero_loop:\n" ++
+  "  beqz t4, .Lteer_success_target_is_zero\n" ++
+  "  lbu t5, 0(t3); bnez t5, .Lteer_success_target_flag_done\n" ++
+  "  addi t3, t3, 1; addi t4, t4, -1; j .Lteer_success_target_zero_loop\n" ++
+  ".Lteer_success_target_is_zero:\n" ++
+  "  li t3, 1; sw t3, 20(t2)\n" ++
+  ".Lteer_success_target_flag_done:\n" ++
+  "  ld t3, 144(sp); sd t3, 24(t2); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteer_success_append_done:\n" ++
   "  # Later execution can increment the same authority nonce again (e.g. delegated CREATE2).\n" ++
+  "  la t0, teer_finals\n" ++
   "  ld t1, 48(t0); ld t2, 144(sp); addi t2, t2, 1; bltu t1, t2, .Lteer_next\n" ++
   "  # execution-specs set_delegation refunds NEW_ACCOUNT when the authority\n" ++
   "  # account already exists, even if delegating to NULL_ADDRESS causes no code change.\n" ++
@@ -335,7 +448,10 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  mv t2, s11; li t3, 20\n" ++
   ".Lteer_null_target_check:\n" ++
   "  beqz t3, .Lteer_refund_match\n" ++
-  "  lbu t4, 0(t2); bnez t4, .Lteer_next\n" ++
+  "  # Nonzero target + no codeChanges means a successful authorization left an\n" ++
+  "  # identical delegation marker in place. Confirm that marker in pre-state\n" ++
+  "  # before refunding AUTH_BASE; do not silently classify it as new code.\n" ++
+  "  lbu t4, 0(t2); bnez t4, .Lteer_marker_match\n" ++
   "  addi t2, t2, 1; addi t3, t3, -1; j .Lteer_null_target_check\n" ++
   ".Lteer_marker_match:\n" ++
   "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
@@ -910,6 +1026,7 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbvtsg_pdone\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
@@ -990,7 +1107,10 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "bfa_alen:\n  .zero 8\n" ++
   "bfa_doff:\n  .zero 8\n" ++
   "bfa_dlen:\n  .zero 8\n" ++
-  "teer_data_end:\n  .zero 8"
+  "teer_data_end:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "teer_success_count:\n  .zero 8\n" ++
+  "teer_success_table:\n  .zero " ++ toString (teerSuccessfulAuthCapacity * 32) ++ "\n"
 
 def ziskBlockVerdictTxStateGasArrayProbeUnit : BuildUnit := {
   body        := NOP
