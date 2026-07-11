@@ -30,7 +30,7 @@
 -/
 
 import EvmAsm.Stateless.SpecRef.Ssz
-import EvmAsm.Stateless.SpecRef.SeamShell
+import EvmAsm.Stateless.SpecRef.Precompiles
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -141,18 +141,18 @@ def validate_chain_config (chain_config : ChainConfig) (npr : NewPayloadRequest)
 
 The seam interface (`ChainContext`, `ExecutionSeamInput`,
 `ExecutionSeam`, `executeAlwaysOk`) lives in `Seam.lean`; the default
-below is the `s1d19.3` partial seam `executeSeamShell`
-(`SeamShell.lean`): the `execute_new_payload_request` pre-checks +
-`execute_block`'s pre-execution frame + root-anchored witness
-authentication, with `apply_body` still stubbed to accept
-(sound-for-accepts, scope doc §3). -/
+below is `elExecuteHybrid` (`Precompiles.lean`): the FULL ported
+`elExecute` (pre-checks + `execute_block` + `apply_body` + post-state
+root, `ElExecute.lean`), falling back to the sound-for-accepts static
+shell (`executeSeamShell`) only on contact with a not-yet-ported
+precompile — monotone per scope doc §3. -/
 
 /-! ## `verify_stateless_new_payload` (`stateless.py:344`) -/
 
 /-- Statelessly validate the execution payload. Every exception the Python
     `try` would catch is folded into `successful_validation = false`. -/
 def verify_stateless_new_payload (si : StatelessInput)
-    (execute : ExecutionSeam := executeSeamShell) : StatelessValidationResult :=
+    (execute : ExecutionSeam := elExecuteHybrid) : StatelessValidationResult :=
   let new_payload_request_root := compute_new_payload_request_root si
   let witness := si.witness
   let attempt : Except SpecError Unit := do

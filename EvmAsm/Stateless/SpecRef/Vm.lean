@@ -134,6 +134,11 @@ structure BlockOutput where
   blobGasUsed : U64 := 0
   requests : List Bytes := []
   blockAccessList : BlockAccessList := []
+  /-- Modeling-only: the decoded logs of each receipt in order, kept so
+      `parse_deposit_requests` need not re-decode the trie values (the
+      Python stores `Bytes | Receipt` objects and decodes on read —
+      observationally equal). -/
+  decodedReceiptLogs : List (List Log) := []
   deriving Repr
 
 /-- `TransactionEnvironment` (class `TransactionEnvironment`), minus
@@ -229,6 +234,8 @@ def liftSpec (m : Except SpecError α) : EvmM α := fun s =>
 
 def getEvm : EvmM Evm := fun s => .ok (.ok s.evm, s)
 
+def getBlockState : EvmM BlockState := fun s => .ok (.ok s.txState.parent, s)
+
 def modifyEvm (f : Evm → Evm) : EvmM Unit := fun s =>
   .ok (.ok (), { s with evm := f s.evm })
 
@@ -267,7 +274,7 @@ def decode_pair (x : Nat) : Except EvmError (Nat × Nat) :=
     let q := k / 16
     let r := k % 16
     if q < r then pure (q + 1, r + 1)
-    else pure (r + 1, 30 - q - r + 1)
+    else pure (r + 1, 29 - q)
   else throw (.invalidParameter "EXCHANGE immediate in forbidden range")
 
 /-! ## `vm/memory.py`
@@ -385,6 +392,9 @@ private def runVm (m : EvmM α) : Except SpecError (Except EvmError α × Machin
 #guard (decode_single 255).toOption == some 144
 #guard match decode_single 100 with | .error (.invalidParameter _) => true | _ => false
 #guard (decode_pair 0).toOption == some (9, 16)
+#guard (decode_pair 81).toOption == some (14, 15)
+#guard (decode_pair 128).toOption == some (1, 16)
+#guard (decode_pair 255).toOption == some (1, 22)
 #guard match decode_pair 100 with | .error (.invalidParameter _) => true | _ => false
 
 -- memory: write/read round trip, zero-padded buffer read.

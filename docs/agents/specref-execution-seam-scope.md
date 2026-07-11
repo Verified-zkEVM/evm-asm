@@ -188,7 +188,14 @@ pre-checks + `execute_block` pre-execution frame + root-anchored
 witness authentication, wired as the default partial seam
 `executeSeamShell` per §3). The `.5` maintainer decision is
 **resolved**: proceed with the full pure port (see the bead comment on
-`s1d19.5`).
+`s1d19.5`); stages 1–8 of `.5` are landed (PRs #10175/#10176): the
+complete EVM core (`StateTracker`/`BlockAccessLists`/`Vm`/
+`Instructions*`/`Interpreter`/`Fork`/`ElExecute`/`Precompiles`), with
+the default seam now `elExecuteHybrid` — the full `elExecute` with a
+§3-monotone fallback to the static shell only on contact with one of
+the 14 not-yet-ported precompiles (bn254 ×3, bls12-381 ×7, KZG
+point-eval, p256verify, ripemd160, blake2f).  EEST 300-sample:
+300/300 full match, 0 succ divergences.
 
 ### Maintainer checkpoint (STOP-and-report, per the bead — since resolved)
 
