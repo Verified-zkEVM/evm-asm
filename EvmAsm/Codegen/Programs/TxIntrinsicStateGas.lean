@@ -603,6 +603,28 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_same_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_same_loop\n" ++
   ".Lteer_same_after_scan:\n" ++
+  -- `delegated_before_tx` is stable across every authorization in the tuple
+  -- loop. When this repeated authority was already delegated in pre-state,
+  -- execution-specs refunds AUTH_BASE for every valid clear/reset operation,
+  -- even though the first clear makes the live code empty before the reset.
+  -- The chain-based scan above only sees live same-tx transitions, so replace
+  -- its AUTH_BASE count with the full tuple count for this pre-state case.
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_same_prestate_done\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_same_prestate_done\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_first_authority\n" ++
+  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lteer_same_prestate_done\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_same_prestate_done\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_same_prestate_done\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_same_prestate_done\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteer_same_prestate_done\n" ++
+  "  la t0, teer_auth_nonce; sd s7, 0(t0)\n" ++
+  "  la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteer_same_prestate_done:\n" ++
   "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lteer_single_loop_setup\n" ++
