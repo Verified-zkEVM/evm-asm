@@ -2562,6 +2562,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  beqz x8, .runtime_tx_gas_no_create\n" ++
   "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_no_create:\n" ++
   -- EIP-2780 decomposes the non-create recipient/value components out of the
   -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self
@@ -2582,12 +2583,15 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   ".runtime_tx_gas_not_self:\n" ++
   "  li x8, 3000\n" ++             -- COLD_ACCOUNT_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+
   "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
   "  ld x9, 112(x20); or x8, x8, x9\n" ++
   "  ld x9, 120(x20); or x8, x8, x9\n" ++
   "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
   "  li x8, 6000\n" ++             -- TRANSFER_LOG_COST + TX_VALUE_COST
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_recipient_done:\n" ++
   "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
   "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr

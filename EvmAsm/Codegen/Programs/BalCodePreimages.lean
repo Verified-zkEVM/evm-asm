@@ -1082,6 +1082,13 @@ def balCodePreimagesValidFunction : String :=
   -- warming call in emitRuntimeDispatcherSetup (Part B) so the seed lands in the
   -- EXECUTION phase (the pre-reset resolutions are wiped by runtime_access_seed_initial_accounts).
   -- runtime_access_account_seed preserves s-regs (s9/s10 intact); a0..a3 reloaded below.
+  -- v0.6.0 (C7): export the delegate address for the warm/cold
+  -- top-frame access decision at the staging sites.
+  "  la t0, bsbd_deleg_target; addi t1, s9, 3; li t2, 20\n" ++
+  ".Lbsbd_deleg_export:\n" ++
+  "  beqz t2, .Lbsbd_deleg_exported\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lbsbd_deleg_export\n" ++
+  ".Lbsbd_deleg_exported:\n" ++
   "  bnez s10, .Lbsbd_skip_freewarm\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++

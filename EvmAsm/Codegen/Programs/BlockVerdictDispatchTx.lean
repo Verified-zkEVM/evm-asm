@@ -258,7 +258,68 @@ def seedCalleeStorageFunction : String :=
   "  addi sp, sp, 56\n" ++
   "  ret"
 
+/-- v0.6.0 (C7): whether a delegated code target is WARM at
+    prepare_dispatch time — origin, recipient, or a tx access-list
+    address (the pre-execution accessed set; authorities are warmed by
+    set_delegation and covered by the recovered-authority seed).
+    a0 = delegate address ptr, a1 = tx context ptr.
+    Returns a0 = 1 warm / 0 cold. Emitted as a prefix of
+    `dispatch_tx_runtime_code` (same compilation unit). -/
 def dispatchTxRuntimeCodeFunction : String :=
+  "dtrc_delegate_warm_probe:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s5, 8(sp); sd s6, 16(sp); sd s7, 24(sp); sd s8, 32(sp)\n" ++
+  "  mv s5, a0\n" ++
+  "  mv s6, a1\n" ++
+  "  la t0, bv_stx_sender_addr; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_org_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_org_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_org_cmp\n" ++
+  ".Ldwp_org_diff:\n" ++
+  "  addi t0, s6, 72; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_rcp_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_rcp_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_rcp_cmp\n" ++
+  ".Ldwp_rcp_diff:\n" ++
+  "  ld t0, 160(s6); beqz t0, .Ldwp_cold\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Ldwp_field\n" ++
+  "  li a2, 8\n" ++
+  ".Ldwp_field:\n" ++
+  "  ld a0, 176(s6); ld a1, 184(s6); la a3, dwp_al_off; la a4, dwp_al_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ldwp_cold\n" ++
+  "  ld t0, 176(s6); la t1, dwp_al_off; ld t1, 0(t1); add s7, t0, t1\n" ++
+  "  la t1, dwp_al_len; ld s8, 0(t1)\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ldwp_cold\n" ++
+  "  mv s7, a0; mv s8, a1\n" ++
+  ".Ldwp_item_loop:\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Ldwp_cold\n" ++
+  "  mv s7, a0; sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ldwp_item_loop\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Ldwp_item_loop\n" ++
+  "  li t2, 20; bne a2, t2, .Ldwp_item_loop\n" ++
+  "  sub t0, a0, a2; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_al_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_item_loop\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_al_cmp\n" ++
+  ".Ldwp_warm:\n" ++
+  "  li a0, 1; j .Ldwp_ret\n" ++
+  ".Ldwp_cold:\n" ++
+  "  li a0, 0\n" ++
+  ".Ldwp_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s5, 8(sp); ld s6, 16(sp); ld s7, 24(sp); ld s8, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n" ++
+  "\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -299,13 +360,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t2, 0(t4); li t3, 0xef; bne t2, t3, .Ldtrc_have_code\n" ++
   "  lbu t2, 1(t4); li t3, 0x01; bne t2, t3, .Ldtrc_have_code\n" ++
   "  lbu t2, 2(t4); bnez t2, .Ldtrc_have_code\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++
   -- Copy the 20-byte target address (marker bytes 3..22) into dtrc_deleg_target.
   "  la t1, dtrc_deleg_target; addi t5, t4, 3; li t6, 20\n" ++
   ".Ldtrc_deleg_copy:\n" ++
   "  beqz t6, .Ldtrc_deleg_copied\n" ++
   "  lbu t2, 0(t5); sb t2, 0(t1); addi t5, t5, 1; addi t1, t1, 1; addi t6, t6, -1; j .Ldtrc_deleg_copy\n" ++
   ".Ldtrc_deleg_copied:\n" ++
+  -- v0.6.0 (C7): warm (100) vs cold (3000) delegated-code access by
+  -- pre-execution accessed-set membership.
+  "  la a0, dtrc_deleg_target; mv a1, s2\n" ++
+  "  jal ra, dtrc_delegate_warm_probe\n" ++
+  "  li t1, 3000; beqz a0, .Ldtrc_prior_access_cold\n" ++
+  "  li t1, 100\n" ++
+  ".Ldtrc_prior_access_cold:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   -- Re-resolve the TARGET's code against the same header the recipient resolved under.
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  la a2, dtrc_deleg_target\n" ++
@@ -324,7 +392,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; li t1, 3000; sd t1, 0(t0)\n" ++
+  -- v0.6.0 (C7): warm/cold by accessed-set membership (delegate address
+  -- exported by bal_same_block_delegation_code_resolve).
+  "  la a0, bsbd_deleg_target; mv a1, s2\n" ++
+  "  jal ra, dtrc_delegate_warm_probe\n" ++
+  "  li t1, 3000; beqz a0, .Ldtrc_sb_access_cold\n" ++
+  "  li t1, 100\n" ++
+  ".Ldtrc_sb_access_cold:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++

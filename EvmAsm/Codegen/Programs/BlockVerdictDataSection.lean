@@ -1181,6 +1181,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- delegating EOA (so SSTORE keys the EOA's storage, per interpreter.py message setup).
   ".balign 8\n" ++
   "dtrc_deleg_target:\n  .zero 32\n" ++
+  "bsbd_deleg_target:\n  .zero 24\n" ++
+  "dwp_al_off:\n  .zero 8\n" ++
+  "dwp_al_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
