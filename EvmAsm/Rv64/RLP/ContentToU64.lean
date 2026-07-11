@@ -45,9 +45,10 @@
   The unified dispatch theorem `…_spec_within` combines all four with static
   preconditions and a four-way postcondition disjunction (per `AGENTS.md`).
 
-  **Known follow-up:** the scratch register `t1`/`x6` is pinned to the content
-  pointer in the in-range preconditions (a sound but slightly-strong assumption);
-  generalizing it to an arbitrary input value is a mechanical refinement.
+  The scratch register `t1`/`x6` takes an **arbitrary** incoming value `x6Old`
+  in every precondition (the routine's own `MV x6 x10` at index 2 overwrites it
+  before first use), so callers need not pin it — this generalizes the original
+  sound-but-slightly-strong `x6 = contentPtr` scratch assumption.
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -201,11 +202,11 @@ A nonzero-length content with a leading zero byte (`0 < len ≤ 8 ∧ content[0]
 is a non-canonical scalar encoding; the routine returns value `a0 = 0` and status
 `a1 = 3`. `content` is modeled as offset `srcOff` into the dword-aligned input
 region `bytesRegion srcBase srcBytes` (`a0 = srcBase + srcOff`,
-`content[0] = srcBytes[srcOff]`). Scratch `t0..t3` clobbered; `ra` and the input
-region preserved.
+`content[0] = srcBytes[srcOff]`). Scratch `t0..t3` (with arbitrary incoming
+values) clobbered; `ra` and the input region preserved.
 -/
 theorem rlp_content_to_u64_noncanonical_spec_within
-    (base srcBase raVal t0Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (base srcBase raVal t0Old x6Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
     (hlen0 : 0 < len) (hlen8 : len ≤ 8)
     (hsalign : srcBase.toNat % 8 = 0) (hsoff : srcOff < srcBytes.length)
     (hsover : srcBase.toNat + srcOff < 2 ^ 64)
@@ -213,7 +214,7 @@ theorem rlp_content_to_u64_noncanonical_spec_within
     (hnoncanon : srcBytes[srcOff]'hsoff = 0) :
     cpsTripleWithin 10 base (raVal &&& ~~~1) (rlp_content_to_u64_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
         (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) := by
@@ -231,10 +232,10 @@ theorem rlp_content_to_u64_noncanonical_spec_within
   have hLI := li_spec_gen_within .x5 t0Old (8 : Word) base (by decide)
   have hA : cpsTripleWithin 1 base (base + 4) (rlp_content_to_u64_code base)
       ((.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
       ((.x5 ↦ᵣ (8 : Word)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) := by
     runBlock hLI
   -- Phase B: BLTU x5 x11 72 NOT taken (len ≤ 8), idx 1.  base+4 → base+8.
@@ -249,7 +250,7 @@ theorem rlp_content_to_u64_noncanonical_spec_within
       (by rw [rlp_content_to_u64_prog_length]; norm_num) (by rfl))
   have hB := cpsBranchWithin_ntakenPath
     (cpsBranchWithin_extend_code hmono1 (cpsBranchWithin_frameR
-      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ x6Old) **
         (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
         bytesRegion srcBase srcBytes)
       (by pcFree) hbltu))
@@ -258,11 +259,11 @@ theorem rlp_content_to_u64_noncanonical_spec_within
       exact hnlt ((sepConj_pure_right _).1 h_pure).2)
   -- Phase C: MV x6 x10 ; MV x7 x11 ; LI x10 0 (idx 2,3,4).  base+8 → base+20.
   have hmv6 := mv_spec_gen_within .x6 .x10 (srcBase + BitVec.ofNat 64 srcOff)
-    (srcBase + BitVec.ofNat 64 srcOff) (base + 8) (by decide)
+    x6Old (base + 8) (by decide)
   have hmv7 := mv_spec_gen_within .x7 .x11 (BitVec.ofNat 64 len) t2Old (base + 12) (by decide)
   have hLI0 := li_spec_gen_within .x10 (srcBase + BitVec.ofNat 64 srcOff) (0 : Word) (base + 16) (by decide)
   have hC : cpsTripleWithin 3 (base + 8) (base + 20) (rlp_content_to_u64_code base)
-      ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x6 ↦ᵣ x6Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
         (.x7 ↦ᵣ t2Old) ** (.x11 ↦ᵣ BitVec.ofNat 64 len))
       ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (0 : Word)) **
         (.x7 ↦ᵣ BitVec.ofNat 64 len) ** (.x11 ↦ᵣ BitVec.ofNat 64 len)) := by
@@ -558,13 +559,12 @@ theorem cu64_loop_spec_within
 
 For a canonical nonzero scalar (`0 < len ≤ 8` and high byte `content[0] ≠ 0`),
 the `len` content bytes at `a0 = srcBase + srcOff` are decoded big-endian into
-`a0 = fromBytesBE content`, status `a1 = 0`. (`t1`/`x6` is pinned to the content
-pointer in the precondition — a sound but slightly-strong scratch assumption to
-be generalized; see PR notes.) Scratch `t0..t3` clobbered; `ra` and the input
-region preserved.
+`a0 = fromBytesBE content`, status `a1 = 0`. Scratch `t0..t3` (with arbitrary
+incoming values — in particular `t1`/`x6` is NOT pinned; the routine's own
+`MV x6 x10` overwrites it) clobbered; `ra` and the input region preserved.
 -/
 theorem rlp_content_to_u64_success_spec_within
-    (base srcBase raVal t0Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (base srcBase raVal t0Old x6Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
     (hlen0 : 0 < len) (hlen8 : len ≤ 8)
     (hsalign : srcBase.toNat % 8 = 0) (hsoff : srcOff < srcBytes.length)
     (hcanon : srcBytes[srcOff]'hsoff ≠ 0)
@@ -573,7 +573,7 @@ theorem rlp_content_to_u64_success_spec_within
     (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
     cpsTripleWithin (7 * len + 11) base (raVal &&& ~~~1) (rlp_content_to_u64_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
         (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
       ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
         (.x11 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
@@ -600,10 +600,10 @@ theorem rlp_content_to_u64_success_spec_within
   have hLI := li_spec_gen_within .x5 t0Old (8 : Word) base (by decide)
   have hA : cpsTripleWithin 1 base (base + 4) (rlp_content_to_u64_code base)
       ((.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
       ((.x5 ↦ᵣ (8 : Word)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) := by
     runBlock hLI
   -- Phase B: BLTU x5 x11 72 NOT taken (len ≤ 8), idx 1.  base+4 → base+8.
@@ -618,7 +618,7 @@ theorem rlp_content_to_u64_success_spec_within
       (by rw [rlp_content_to_u64_prog_length]; norm_num) (by rfl))
   have hB := cpsBranchWithin_ntakenPath
     (cpsBranchWithin_extend_code hmono1 (cpsBranchWithin_frameR
-      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ x6Old) **
         (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
         bytesRegion srcBase srcBytes)
       (by pcFree) hbltu))
@@ -627,11 +627,11 @@ theorem rlp_content_to_u64_success_spec_within
       exact hnlt ((sepConj_pure_right _).1 h_pure).2)
   -- Phase C: MV x6 x10 ; MV x7 x11 ; LI x10 0 (idx 2,3,4).  base+8 → base+20.
   have hmv6 := mv_spec_gen_within .x6 .x10 (srcBase + BitVec.ofNat 64 srcOff)
-    (srcBase + BitVec.ofNat 64 srcOff) (base + 8) (by decide)
+    x6Old (base + 8) (by decide)
   have hmv7 := mv_spec_gen_within .x7 .x11 (BitVec.ofNat 64 len) t2Old (base + 12) (by decide)
   have hLI0 := li_spec_gen_within .x10 (srcBase + BitVec.ofNat 64 srcOff) (0 : Word) (base + 16) (by decide)
   have hC : cpsTripleWithin 3 (base + 8) (base + 20) (rlp_content_to_u64_code base)
-      ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x6 ↦ᵣ x6Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
         (.x7 ↦ᵣ t2Old) ** (.x11 ↦ᵣ BitVec.ofNat 64 len))
       ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (0 : Word)) **
         (.x7 ↦ᵣ BitVec.ofNat 64 len) ** (.x11 ↦ᵣ BitVec.ofNat 64 len)) := by
@@ -746,10 +746,10 @@ fires before the high-byte check). Scratch `t0..t2` clobbered; `t3`, `ra`
 preserved.
 -/
 theorem rlp_content_to_u64_empty_spec_within
-    (base srcBase raVal t0Old t2Old t3Old : Word) (srcOff : Nat) :
+    (base srcBase raVal t0Old x6Old t2Old t3Old : Word) (srcOff : Nat) :
     cpsTripleWithin 8 base (raVal &&& ~~~1) (rlp_content_to_u64_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (0 : Word)) **
-        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
         (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal))
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal)) := by
@@ -758,10 +758,10 @@ theorem rlp_content_to_u64_empty_spec_within
   have hLI := li_spec_gen_within .x5 t0Old (8 : Word) base (by decide)
   have hA : cpsTripleWithin 1 base (base + 4) (rlp_content_to_u64_code base)
       ((.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (0 : Word)) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal))
       ((.x5 ↦ᵣ (8 : Word)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (0 : Word)) **
-        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal)) := by
     runBlock hLI
   -- Phase B: BLTU x5 x11 72 NOT taken (0 ≤ 8), idx 1.  base+4 → base+8.
@@ -776,7 +776,7 @@ theorem rlp_content_to_u64_empty_spec_within
       (by rw [rlp_content_to_u64_prog_length]; norm_num) (by rfl))
   have hB := cpsBranchWithin_ntakenPath
     (cpsBranchWithin_extend_code hmono1 (cpsBranchWithin_frameR
-      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ x6Old) **
         (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal))
       (by pcFree) hbltu))
     (fun hp hQt => by
@@ -784,11 +784,11 @@ theorem rlp_content_to_u64_empty_spec_within
       exact hnlt ((sepConj_pure_right _).1 h_pure).2)
   -- Phase C: MV x6 x10 ; MV x7 x11 ; LI x10 0 (idx 2,3,4).  base+8 → base+20.
   have hmv6 := mv_spec_gen_within .x6 .x10 (srcBase + BitVec.ofNat 64 srcOff)
-    (srcBase + BitVec.ofNat 64 srcOff) (base + 8) (by decide)
+    x6Old (base + 8) (by decide)
   have hmv7 := mv_spec_gen_within .x7 .x11 (0 : Word) t2Old (base + 12) (by decide)
   have hLI0 := li_spec_gen_within .x10 (srcBase + BitVec.ofNat 64 srcOff) (0 : Word) (base + 16) (by decide)
   have hC : cpsTripleWithin 3 (base + 8) (base + 20) (rlp_content_to_u64_code base)
-      ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      ((.x6 ↦ᵣ x6Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
         (.x7 ↦ᵣ t2Old) ** (.x11 ↦ᵣ (0 : Word)))
       ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x10 ↦ᵣ (0 : Word)) **
         (.x7 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word))) := by
@@ -859,11 +859,11 @@ paths via `cpsTripleWithin_mono_nSteps`:
 * `0 < len ≤ 8 ∧ content[0] = 0` → `a1 = 3`, `a0 = 0` (non-canonical);
 * `0 < len ≤ 8 ∧ content[0] ≠ 0` → `a1 = 0`, `a0 = fromBytesBE content`.
 
-(`t1`/`x6` is pinned to the content pointer in the precondition — a sound but
-slightly-strong scratch assumption; see PR notes.)
+(`t1`/`x6` takes an arbitrary incoming value `x6Old` — the routine's own
+`MV x6 x10` at index 2 overwrites it before first use.)
 -/
 theorem rlp_content_to_u64_spec_within
-    (base srcBase raVal t0Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (base srcBase raVal t0Old x6Old t2Old t3Old : Word) (srcBytes : List (BitVec 8)) (srcOff len : Nat)
     (hlen64 : len < 2 ^ 64)
     (hsalign : srcBase.toNat % 8 = 0)
     (hslen : srcOff + len ≤ srcBytes.length)
@@ -871,7 +871,7 @@ theorem rlp_content_to_u64_spec_within
     (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
     cpsTripleWithin (7 * len + 11) base (raVal &&& ~~~1) (rlp_content_to_u64_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
-       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
        (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
         (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) **
@@ -889,7 +889,7 @@ theorem rlp_content_to_u64_spec_within
         show BitVec.toNat (8 : Word) = 8 from by decide, Nat.mod_eq_of_lt hlen64]
       omega
     have ht := cpsTripleWithin_frameR
-      ((.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+      ((.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
        bytesRegion srcBase srcBytes)
       (by pcFree)
       (rlp_content_to_u64_too_long_spec_within base (srcBase + BitVec.ofNat 64 srcOff)
@@ -909,7 +909,7 @@ theorem rlp_content_to_u64_spec_within
     · -- empty (status 0)
       subst h0
       have he := cpsTripleWithin_frameR (bytesRegion srcBase srcBytes) (by pcFree)
-        (rlp_content_to_u64_empty_spec_within base srcBase raVal t0Old t2Old t3Old srcOff)
+        (rlp_content_to_u64_empty_spec_within base srcBase raVal t0Old x6Old t2Old t3Old srcOff)
       refine cpsTripleWithin_mono_nSteps (by omega)
         (cpsTripleWithin_weaken (fun h hp => by
           simp only [show (BitVec.ofNat 64 0 : Word) = 0 from by decide] at hp ⊢; xperm_hyp hp)
@@ -923,7 +923,7 @@ theorem rlp_content_to_u64_spec_within
         have hsoff : srcOff < srcBytes.length := by omega
         have hgb : srcBytes[srcOff]'hsoff = getByteAt srcBytes srcOff := by simp [getByteAt, hsoff]
         have hnoncanon : srcBytes[srcOff]'hsoff = 0 := by rw [hgb]; exact hc
-        have hnc := rlp_content_to_u64_noncanonical_spec_within base srcBase raVal t0Old t2Old t3Old
+        have hnc := rlp_content_to_u64_noncanonical_spec_within base srcBase raVal t0Old x6Old t2Old t3Old
           srcBytes srcOff len hlen0 (by omega) hsalign hsoff (by omega) (by
             have := hsvalid 0 hlen0; rwa [Nat.add_zero] at this) hnoncanon
         refine cpsTripleWithin_mono_nSteps (by omega)
@@ -936,7 +936,7 @@ theorem rlp_content_to_u64_spec_within
         have hsoff : srcOff < srcBytes.length := by omega
         have hgb : srcBytes[srcOff]'hsoff = getByteAt srcBytes srcOff := by simp [getByteAt, hsoff]
         have hcanon : srcBytes[srcOff]'hsoff ≠ 0 := by rw [hgb]; exact hc
-        have hs := rlp_content_to_u64_success_spec_within base srcBase raVal t0Old t2Old t3Old
+        have hs := rlp_content_to_u64_success_spec_within base srcBase raVal t0Old x6Old t2Old t3Old
           srcBytes srcOff len hlen0 (by omega) hsalign hsoff hcanon hslen hsover hsvalid
         refine cpsTripleWithin_mono_nSteps (by omega)
           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hs)

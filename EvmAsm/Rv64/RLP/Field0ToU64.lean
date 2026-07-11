@@ -353,8 +353,8 @@ theorem rlp_field0_to_u64_content_call_success_spec_within
   -- syntactically-identical `base + 36`) so it matches `cpsCallWithin`'s literal
   -- `callerPC + 4` exit expression without needing a defeq/rewrite step.
   have hcallee_raw := rlp_content_to_u64_success_spec_within (base + (1536 : Word)) srcBase
-    (base + 32 + 4) t0Old t2Old t3Old srcBytes srcOff len hlen0 hlen8 hsalign hsoff hcanon hslen
-    hsover hsvalid
+    (base + 32 + 4) t0Old (srcBase + BitVec.ofNat 64 srcOff) t2Old t3Old srcBytes srcOff len
+    hlen0 hlen8 hsalign hsoff hcanon hslen hsover hsvalid
   have hcallee_framed := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
       (.x31 ↦ᵣ t6Old))
