@@ -97,6 +97,10 @@ def createFrameDescendFunction : String :=
   "  la t2, create_value_be; ld t3, 0(t2); sd t3, 0(t0); ld t3, 8(t2); sd t3, 8(t0); ld t3, 16(t2); sd t3, 16(t0); ld t3, 24(t2); sd t3, 24(t0)\n" ++
   "  la t0, create_nonce_by_depth; slli t2, t1, 3; add t0, t0, t2\n" ++
   "  la t2, create_nonce; ld t3, 0(t2); sd t3, 0(t0)\n" ++
+  -- The new account's nonce is 1 before its initcode runs. Register it now
+  -- so recursive CREATE from this child uses nonce 1 even when the address
+  -- was pre-funded with pre-state nonce 0.
+  "  sd x10, 8(sp); la a0, create_address_be; jal ra, create_creator_nonce_seed_one; ld x10, 8(sp)\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret"
 

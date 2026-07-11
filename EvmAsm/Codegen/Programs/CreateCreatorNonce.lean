@@ -86,6 +86,46 @@ def createCreatorNonceUseFunction : String :=
   "  mv a0, s1                   # conservative fallback: pre_nonce, no store\n" ++
   ".Lccnu_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
+  "  ret\n" ++
+  -- A successfully entered CREATE child is initialized with nonce 1 before
+  -- its initcode executes (`process_create_message`). Seed/upsert that child
+  -- as a potential creator so a recursive CREATE derives its first target
+  -- from nonce 1 rather than the prefunded account's pre-state nonce 0.
+  -- a0 = created address ptr (20-byte BE); preserves s-regs.
+  "create_creator_nonce_seed_one:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  la t0, create_nonce_table; la t1, create_nonce_table_count; ld t1, 0(t1)\n" ++
+  "  li t2, 0\n" ++
+  ".Lccns_loop:\n" ++
+  "  beq t2, t1, .Lccns_new\n" ++
+  "  li t3, 40; mul t3, t2, t3; add t3, t0, t3\n" ++
+  "  mv t4, s0; mv t5, t3; li t6, 20\n" ++
+  ".Lccns_cmp:\n" ++
+  "  beqz t6, .Lccns_set\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lccns_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccns_cmp\n" ++
+  ".Lccns_next:\n" ++
+  "  addi t2, t2, 1; j .Lccns_loop\n" ++
+  ".Lccns_set:\n" ++
+  "  li t4, 1; sd t4, 32(t3); j .Lccns_ret\n" ++
+  ".Lccns_new:\n" ++
+  "  li t3, " ++ toString createNonceTableCap ++ "\n" ++
+  "  bgeu t1, t3, .Lccns_overflow\n" ++
+  "  li t3, 40; mul t3, t1, t3; add t3, t0, t3\n" ++
+  "  sd x0, 0(t3); sd x0, 8(t3); sd x0, 16(t3); sd x0, 24(t3)\n" ++
+  "  mv t4, s0; mv t5, t3; li t6, 20\n" ++
+  ".Lccns_copy:\n" ++
+  "  beqz t6, .Lccns_copy_done\n" ++
+  "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccns_copy\n" ++
+  ".Lccns_copy_done:\n" ++
+  "  li t4, 1; sd t4, 32(t3)\n" ++
+  "  la t4, create_nonce_table_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4); j .Lccns_ret\n" ++
+  ".Lccns_overflow:\n" ++
+  "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
+  ".Lccns_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
   "  ret"
 
 /-- Data for the per-creator nonce table (linked into the dispatcher data section in
