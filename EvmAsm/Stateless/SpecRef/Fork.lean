@@ -337,9 +337,16 @@ def process_transaction (pre : PrecompileMap) (blockEnv : BlockEnvironment)
     let txTrie := dictSet blockOutput.transactionsTrie (encF (scalarF index))
       (encode_transaction tx)
     blockOutput := { blockOutput with transactionsTrie := txTrie }
+    -- v0.6.0 (EIP-155): explicit chain-id rejection (`WrongChainIdError`)
+    -- before sender recovery — independent of the supplied public key.
+    let tx_chain_id ← EvmM.liftSpec (chain_id tx)
+    if let some cid := tx_chain_id then
+      if cid ≠ blockEnv.chainId then
+        EvmM.liftSpec (throw (.invalidTransaction
+          s!"expected chain_id `{blockEnv.chainId}` but got `{cid}`"))
     let sender ←
       match blockEnv.transactionPublicKeys with
-      | none => EvmM.liftSpec (recover_sender blockEnv.chainId tx)
+      | none => EvmM.liftSpec (recover_sender tx)
       | some keys => EvmM.liftSpec (recover_sender_from_public_key blockEnv.chainId tx
           (keys.getD index []))
     let intrinsic ← EvmM.liftSpec (validate_transaction tx sender)
