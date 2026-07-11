@@ -132,12 +132,12 @@ def sgn0FQ (x : Nat) : Nat := x % 2
 
 def sgn0FQ2 (x : FQP) : Nat := Id.run do
   let mut sign := 0
-  let mut zero := 1
+  let mut allZero := 1
   for xi in [x.getD 0 0, x.getD 1 0] do
     let sign_i := xi % 2
     let zero_i := if xi == 0 then 1 else 0
-    sign := if sign == 1 then 1 else (if zero == 1 then sign_i else 0)
-    zero := zero * zero_i
+    sign := if sign == 1 then 1 else (if allZero == 1 then sign_i else 0)
+    allZero := allZero * zero_i
   pure sign
 
 /-! ## Square-root divisions -/

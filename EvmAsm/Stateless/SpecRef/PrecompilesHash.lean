@@ -112,16 +112,16 @@ private def leWord (bs : Bytes) : Nat :=
 private def wordLE (n : Nat) : Bytes :=
   (List.range 4).map (fun i => BitVec.ofNat 8 (n >>> (8 * i)))
 
+private def chunksAux (n : Nat) : Nat → Bytes → List Bytes
+  | 0, _ => []
+  | _, [] => []
+  | fuel + 1, bs => bs.take n :: chunksAux n fuel (bs.drop n)
+
+/-- Split into `n`-byte chunks.  Structurally fueled by `bs.length`,
+    which bounds the chunk count whenever `n ≥ 1` (each chunk consumes
+    at least one byte). -/
 private def chunks (n : Nat) (bs : Bytes) : List Bytes :=
-  if h : bs.isEmpty || n == 0 then []
-  else bs.take n :: chunks n (bs.drop n)
-termination_by bs.length
-decreasing_by
-  simp only [Bool.or_eq_true, List.isEmpty_iff, beq_iff_eq, not_or] at h
-  obtain ⟨h1, h2⟩ := h
-  cases bs with
-  | nil => exact absurd rfl h1
-  | cons x xs => simp only [List.length_drop, List.length_cons]; omega
+  if n == 0 then [] else chunksAux n bs.length bs
 
 /-- RIPEMD-160 of a byte string (MD-style padding, little-endian
     length). -/
