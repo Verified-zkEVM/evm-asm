@@ -210,6 +210,43 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
+  -- execution-specs applies the EIP-4788 system transaction before user
+  -- transactions. Nested-callee seeds otherwise contain the authenticated
+  -- parent-state value and make calls into the beacon-roots contract observe
+  -- stale storage. Overlay the two current-block system writes here, just as
+  -- the direct-recipient preload does below. This changes storage contents
+  -- only; it does not seed EIP-2929 warmth (system-call warmth is discarded
+  -- before the user transaction).
+  "  la t0, csce_addrp; ld t0, 0(t0); la t1, bsr_addr_4788; li t2, 20\n" ++
+  ".Lscs_4788_acmp:\n" ++
+  "  beqz t2, .Lscs_4788_addr_match\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_acmp\n" ++
+  ".Lscs_4788_addr_match:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_4788_slot; li t2, 32\n" ++
+  ".Lscs_4788_slot_cmp:\n" ++
+  "  beqz t2, .Lscs_4788_use_timestamp\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_try_root\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_slot_cmp\n" ++
+  ".Lscs_4788_try_root:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_4788_root_slot; li t2, 32\n" ++
+  ".Lscs_4788_root_cmp:\n" ++
+  "  beqz t2, .Lscs_4788_use_root\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_root_cmp\n" ++
+  ".Lscs_4788_use_timestamp:\n" ++
+  "  la t0, swd_4788_val; la t1, swd_4788_vlen; ld t2, 0(t1); j .Lscs_4788_copy_value\n" ++
+  ".Lscs_4788_use_root:\n" ++
+  "  la t0, swd_4788_root_val; la t1, swd_4788_root_vlen; ld t2, 0(t1)\n" ++
+  ".Lscs_4788_copy_value:\n" ++
+  "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
+  "  beqz t2, .Lscs_4788_overlay_done\n" ++
+  "  add t0, t0, t2; addi t0, t0, -1; addi t1, t4, 64\n" ++
+  ".Lscs_4788_value_loop:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lscs_4788_value_loop\n" ++
+  ".Lscs_4788_overlay_done:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lscs_slot_next:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_slot_loop\n" ++
@@ -365,6 +402,44 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
   "  add t2, t4, t6; addi t2, t2, 32; sb zero, 0(t2); addi t6, t6, 1; j .Ldtrc_vzloop\n" ++
   ".Ldtrc_vdone:\n" ++
+  -- The EIP-4788 system transaction runs before every user transaction.  Its
+  -- timestamp/root writes are therefore part of the current block state even
+  -- though they are absent from the parent-state witness used above.  Overlay
+  -- those two staged values into a matching top-level recipient preload, just
+  -- as execution-specs applies process_unchecked_system_transaction before the
+  -- transaction loop.  Other recipients and slots retain the authenticated
+  -- witness value.
+  "  addi t0, s2, 72; la t1, bsr_addr_4788; li t2, 20\n" ++
+  ".Ldtrc_4788_addr_cmp:\n" ++
+  "  beqz t2, .Ldtrc_4788_key_setup\n" ++
+  "  lbu t3, 0(t0); lbu t6, 0(t1); bne t3, t6, .Ldtrc_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_4788_addr_cmp\n" ++
+  ".Ldtrc_4788_key_setup:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
+  "  la t0, swd_4788_slot; li t1, 32\n" ++
+  ".Ldtrc_4788_ts_key_cmp:\n" ++
+  "  beqz t1, .Ldtrc_4788_ts_value\n" ++
+  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_root_key_setup\n" ++
+  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_ts_key_cmp\n" ++
+  ".Ldtrc_4788_root_key_setup:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
+  "  la t0, swd_4788_root_slot; li t1, 32\n" ++
+  ".Ldtrc_4788_root_key_cmp:\n" ++
+  "  beqz t1, .Ldtrc_4788_root_value\n" ++
+  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_overlay_done\n" ++
+  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_root_key_cmp\n" ++
+  ".Ldtrc_4788_ts_value:\n" ++
+  "  la t0, swd_4788_val; la t1, swd_4788_vlen; ld t1, 0(t1); j .Ldtrc_4788_value_copy_setup\n" ++
+  ".Ldtrc_4788_root_value:\n" ++
+  "  la t0, swd_4788_root_val; la t1, swd_4788_root_vlen; ld t1, 0(t1)\n" ++
+  ".Ldtrc_4788_value_copy_setup:\n" ++
+  "  la t2, bvcd_i; ld t2, 0(t2); slli t2, t2, 6; la t3, bvcd_preload; add t3, t3, t2; addi t3, t3, 32\n" ++
+  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
+  "  beqz t1, .Ldtrc_4788_overlay_done\n" ++
+  "  add t0, t0, t1; addi t0, t0, -1\n" ++
+  ".Ldtrc_4788_value_copy:\n" ++
+  "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, -1; addi t3, t3, 1; addi t1, t1, -1; bnez t1, .Ldtrc_4788_value_copy\n" ++
+  ".Ldtrc_4788_overlay_done:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
   -- value for (recipient, slotKey), stage that committed value as this slot's preload
   -- (original==current). The helper bounds the table count by the named committed-storage
