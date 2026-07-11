@@ -4,7 +4,8 @@
   Irreducible algorithm intermediates for n=2 full-path wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+import EvmAsm.Evm64.DivMod.Compose.CLZ
+import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 
 namespace EvmAsm.Evm64
 
