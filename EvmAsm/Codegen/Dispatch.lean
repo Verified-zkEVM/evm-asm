@@ -782,6 +782,7 @@ def emitCreateChildFrameData : String :=
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
   "nse_create_pre_bal:\n  .zero 32\n" ++
+  "cr_alive_bal:\n  .zero 32\n" ++
   -- Amsterdam generic_create computes target_alive from the current tx_state before
   -- incorporating the child. A same-tx-created target can be alive even when its
   -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
