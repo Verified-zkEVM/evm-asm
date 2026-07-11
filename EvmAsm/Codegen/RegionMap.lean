@@ -208,7 +208,7 @@ def schemeAAnchors : List GuestRegion :=
     and the self-funded EIP-7702 authorization refund fix landed. Grew by
     `0x30` when EIP-2780 direct-authorization gas context started being
     preserved. -/
-def textSizeBytes : Nat := 0x56d10
+def textSizeBytes : Nat := 0x56d18
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -219,7 +219,7 @@ def textSizeBytes : Nat := 0x56d10
     (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
     `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
     return (evm-asm-pwqhw). -/
-def dataSizeBytes : Nat := 0x19934770
+def dataSizeBytes : Nat := 0x1b3b2190
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
