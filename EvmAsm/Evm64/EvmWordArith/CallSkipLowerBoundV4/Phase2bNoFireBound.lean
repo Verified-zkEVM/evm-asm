@@ -20,6 +20,7 @@
 import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 import EvmAsm.Evm64.EvmWordArith.Common
 import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 

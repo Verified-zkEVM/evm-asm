@@ -14,7 +14,7 @@
 
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.Compose.Offsets
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+import EvmAsm.Evm64.DivMod.LoopDefs.Div128Phase2b
 
 namespace EvmAsm.Evm64
 

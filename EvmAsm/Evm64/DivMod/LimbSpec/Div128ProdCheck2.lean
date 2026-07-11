@@ -17,6 +17,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.LoopDefs.Div128Phase2b
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
@@ -30,7 +31,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- Phase 2b refined quotient digit in `div128Quot`.
+/- Phase 2b refined quotient digit in `div128Quot`.
 
     Guards the multiplication-check decrement with `rhat2c < 2^32` per
     Knuth TAOCP §4.3.1 Step D3 ("repeat this test if r̂ < b"). When
@@ -44,17 +45,8 @@ open EvmAsm.Rv64
     that precedes the Phase 2b mul-check. See counterexample at
     `/home/zksecurity/.claude/plans/dynamic-strolling-riddle.md`.
 
-    Lives in `Div128ProdCheck2.lean` (the lowest-level file that
-    naturally talks about Phase 2b's mul-check). Visible from
-    `LimbSpec.Div128Step2`, `Compose/Base` (transitively via `LimbSpec`),
-    and `LoopDefs.Iter` (where `div128Quot` calls it). -/
-def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
-  if rhat2c >>> (32 : BitVec 6).toNat = 0 then
-    let q0Dlo := q0c * dLo
-    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
-  else q0c
-
+    The pure definition lives in `LoopDefs.Div128Phase2b`; this file proves
+    the corresponding instruction-level behavior. -/
 /-- Phase 2b guard: 2-instruction cpsBranchWithin that skips the Phase 2b mul-check
     when `rhat2c ≥ 2^32`. Per Knuth TAOCP §4.3.1 Step D3 ("repeat this test
     if r̂ < b") — when `rhat2c ≥ 2^32`, the 64-bit `<< 32` in `rhat2Un0`
