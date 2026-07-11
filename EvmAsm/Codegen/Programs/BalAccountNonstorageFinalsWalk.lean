@@ -119,6 +119,144 @@ theorem rlpItemDecode_advance {bytes : List (BitVec 8)} {base : Word}
 
 #print axioms rlpItemDecode_advance
 
+/-- Word rotation for the long-list span shape: `h + l + 1 = (h + 1) + l`. -/
+private theorem add_rot (h l : Word) : h + l + 1 = (h + 1) + l := by
+  bv_omega
+
+/-- Short-list span-start core (`span` opaque small). -/
+private theorem spanStart_shortlist {base : Word} {off endOff : Nat}
+    {next span len : Word}
+    (hspan1 : 1 ≤ span.toNat) (hspan56 : span.toNat ≤ 56)
+    (hfit : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff)
+      - (base + BitVec.ofNat 64 off)) span = true)
+    (hnext : next = (base + BitVec.ofNat 64 off) + span)
+    (hlen : len = span)
+    (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit' := not_ult_le hfit
+  constructor <;> bv_omega
+
+/-- Long-string span-start core (`L` opaque). -/
+private theorem spanStart_longstring {base : Word} {off endOff : Nat}
+    {next hdrW L len : Word}
+    (hhdr1 : 1 ≤ hdrW.toNat) (hhdr9 : hdrW.toNat ≤ 9)
+    (hfit1 : ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+      ((base + BitVec.ofNat 64 off) + hdrW) = true)
+    (hfit2 : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff)
+      - ((base + BitVec.ofNat 64 off) + hdrW)) L = true)
+    (hnext : next = ((base + BitVec.ofNat 64 off) + hdrW) + L)
+    (hlen : len = L)
+    (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit1' := not_ult_le hfit1
+  have hfit2' := not_ult_le hfit2
+  constructor <;> bv_omega
+
+/-- Long-list span-start core (`L` opaque; the span is header + payload). -/
+private theorem spanStart_longlist {base : Word} {off endOff : Nat}
+    {next hdrW L len : Word}
+    (hhdr1 : 1 ≤ hdrW.toNat) (hhdr9 : hdrW.toNat ≤ 9)
+    (hfit1 : ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+      ((base + BitVec.ofNat 64 off) + hdrW) = true)
+    (hfit2 : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff)
+      - ((base + BitVec.ofNat 64 off) + hdrW)) L = true)
+    (hnext : next = ((base + BitVec.ofNat 64 off) + hdrW) + L)
+    (hlen : len = hdrW + L)
+    (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit1' := not_ult_le hfit1
+  have hfit2' := not_ult_le hfit2
+  constructor <;> bv_omega
+
+/-- The span-start of an accepted decode (`next - len`, the routine's
+    `s3 := a0 - a2` capture) lies inside the window: at or past the item's
+    own cursor, and (with the span) at or before the window end.  Feeds the
+    field-station `rlp_walk_init` side conditions. -/
+theorem rlpItemDecode_spanStart {bytes : List (BitVec 8)} {base : Word}
+    {off endOff : Nat} {next len : Word}
+    (h : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+      (base + BitVec.ofNat 64 endOff) next len)
+    (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    next - len = base + BitVec.ofNat 64 ((next - len - base).toNat) ∧
+    off ≤ (next - len - base).toNat ∧
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hrepS : next - len = base + BitVec.ofNat 64 ((next - len - base).toNat) := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  refine ⟨hrepS, ?_⟩
+  clear hrepS
+  obtain ⟨hrep', hlt, hle⟩ := rlpItemDecode_advance h hoffle hover
+  obtain ⟨b, hb, hdisj⟩ := h
+  clear hrep'
+  have hb256 : (b.zeroExtend 64).toNat < 256 := by bv_omega
+  rcases hdisj with ⟨hp80, hin, hnext, hlen⟩ | ⟨hge80, hltb8, hcanon, hfit, hnext, hlen⟩ |
+    ⟨hgeb8, hltc0, hlead, hmin, hfit1, hfit2, hnext, hlen⟩ |
+    ⟨hgec0, hltf8, hfit, hnext, hlen⟩ | ⟨hgef8, hlead, hmin, hfit1, hfit2, hnext, hlen⟩
+  · -- single byte: start = cursor, len = 1
+    have hin' := ult_lt hin
+    subst hlen
+    rw [se1] at hnext
+    refine ⟨?_, ?_⟩ <;> bv_omega
+  · -- short string: start = cursor + 1
+    have hfit' := ult_lt hfit
+    have hge' := not_ult_le hge80
+    subst hlen
+    rw [se1] at hnext
+    refine ⟨?_, ?_⟩ <;> bv_omega
+  · -- long string: start = cursor + 1 + lenlen
+    have hge' := not_ult_le hgeb8
+    have hlt' := ult_lt hltc0
+    have hhdr1 : 1 ≤ ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12)).toNat := by
+      rw [se1]; bv_omega
+    have hhdr9 : ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12)).toNat ≤ 9 := by
+      rw [se1]; bv_omega
+    exact spanStart_longstring hhdr1 hhdr9 hfit1 hfit2 hnext hlen hoffle hover
+  · -- short list: start = cursor, len = span
+    have hge' := not_ult_le hgec0
+    have hlt' := ult_lt hltf8
+    have hspan1 : 1 ≤ ((b.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)).toNat := by
+      rw [se1]; bv_omega
+    have hspan56 : ((b.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)).toNat ≤ 56 := by
+      rw [se1]; bv_omega
+    exact spanStart_shortlist hspan1 hspan56 hfit hnext hlen hoffle hover
+  · -- long list: start = cursor, len = span
+    have hge' := not_ult_le hgef8
+    have hhdr1 : 1 ≤ ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word)).toNat := by
+      have hb3 := (b.zeroExtend 64).isLt
+      bv_omega
+    have hhdr9 : ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word)).toNat ≤ 9 := by
+      have hb3 : (b.zeroExtend 64).toNat < 256 := by bv_omega
+      bv_omega
+    rw [se1] at hnext hlen
+    rw [reassoc_longlist] at hnext
+    rw [add_rot] at hlen
+    have hfit1' : ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+        ((base + BitVec.ofNat 64 off) + ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word)))
+        = true := by
+      rw [show ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word))
+          = ((b.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)) from by
+        rw [se1]]
+      exact hfit1
+    have hfit2' : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff)
+        - ((base + BitVec.ofNat 64 off) + ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word))))
+        (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+          ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xf7 : Word)).toNat))) = true := by
+      rw [show ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word))
+          = ((b.zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)) from by
+        rw [se1]]
+      exact hfit2
+    exact spanStart_longlist hhdr1 hhdr9 hfit1' hfit2' hnext hlen hoffle hover
+
+#print axioms rlpItemDecode_spanStart
+
+
 /-! ## §2  The walked-so-far chain -/
 
 /-- The loop invariant's chain: from offset `off0`, one or more accepted
