@@ -361,10 +361,18 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_success_not_found:\n" ++
   "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteer_next\n" ++
+  "  bnez a0, .Lteer_no_bal_entry\n" ++
   "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lteer_next\n" ++
+  -- v0.6.0: pre-existence for the NEW_ACCOUNT charge (records is_insert
+  -- means the block INSERTS the leaf, i.e. it was absent in pre-state).
+  "  la t2, teer_acct_absent; sd zero, 0(t2)\n" ++
+  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_absent_set_done\n" ++
+  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
+  "  ld t3, 16(t2); beqz t3, .Lteer_absent_set_done\n" ++
+  "  la t2, teer_acct_absent; li t3, 1; sd t3, 0(t2)\n" ++
+  ".Lteer_absent_set_done:\n" ++
   "  # execution-specs validate_authorization returns None when recovered authority\n" ++
   "  # has non-empty ordinary code, and set_delegation refunds the full auth state\n" ++
   "  # charge plus ACCOUNT_WRITE for every None case. In single-tx blocks the header\n" ++
@@ -384,6 +392,39 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
   "  lbu t1, 2(t0); bnez t1, .Lteer_invalid_auth_full_refund\n" ++
   "  j .Lteer_invalid_code_check_done\n" ++
+  ".Lteer_no_bal_entry:\n" ++
+  -- v0.6.0 (C8): the authority has NO BAL entry. Either the tx OOG'd
+  -- during set_delegation and rolled back (no effects recorded), or the
+  -- authorization is invalid. Validate against header pre-state and
+  -- contribute the WOULD-BE charges: the runtime pools then reproduce
+  -- the spec's charge-point OOG exactly (all gas burned, failed tx) or,
+  -- if the charges fit, the success/state mismatch rejects the block.
+  "  la t0, teer_acct_ptr; sd zero, 0(t0); la t0, teer_acct_len; sd zero, 0(t0)\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_next\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority\n" ++
+  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lteer_nbe_code_ok\n" ++
+  "  la t0, cahsr_code_length; ld t1, 0(t0); beqz t1, .Lteer_nbe_code_ok\n" ++
+  "  li t2, 23; bne t1, t2, .Lteer_next\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_next\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_next\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteer_next\n" ++
+  ".Lteer_nbe_code_ok:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .Lteer_nbe_have_acct\n" ++
+  "  li t0, 1; bne a0, t0, .Lteer_next\n" ++
+  "  la t2, teer_acct_absent; li t3, 1; sd t3, 0(t2)\n" ++
+  "  li t1, 0; j .Lteer_nonce_sender_adjust\n" ++
+  ".Lteer_nbe_have_acct:\n" ++
+  "  la t2, teer_acct_absent; sd zero, 0(t2)\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0)\n" ++
+  "  j .Lteer_nonce_sender_adjust\n" ++
   ".Lteer_invalid_auth_full_refund:\n" ++
   "  # v0.6.0: an authorization that fails validate_authorization is\n" ++
   "  # skipped -- it charges nothing (the v0.5.0 full-refund is gone with\n" ++
@@ -426,18 +467,17 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t2, teer_prior_count; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  ld t2, 144(sp); bne t1, t2, .Lteer_invalid_auth_full_refund\n" ++
   ".Lteer_nonce_check_done:\n" ++
-  "  # Every successful validate_authorization path increments the authority\n" ++
-  "  # nonce. A recovered authority with no BAL nonce change therefore took the\n" ++
-  "  # execution-specs None branch and contributes nothing.\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_invalid_auth_full_refund\n" ++
+  -- v0.6.0 (C8): charges are computed from the WOULD-BE application (the
+  -- spec charges before applying); whether the BAL shows the effect is a
+  -- post-state question. The v0.5.0 finals nonce-change gate is gone --
+  -- a valid-but-unapplied auth (set_delegation OOG rollback) still
+  -- contributes its charge so the runtime pools OOG at the same point.
   -- ---- v0.6.0 exact charges for this VALID authorization ----
   -- (1) NEW_ACCOUNT state iff the authority leaf did not pre-exist
   --     (records is_insert != 0) and no earlier auth this tx already
   --     materialized it (prior_count == 0).
   "  la t0, teer_prior_count; ld t1, 0(t0); bnez t1, .Lteer_charge_auth_base\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_charge_account_write\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2); beqz t3, .Lteer_charge_account_write\n" ++
+  "  la t0, teer_acct_absent; ld t3, 0(t0); beqz t3, .Lteer_charge_account_write\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3\n" ++
   ".Lteer_charge_account_write:\n" ++
@@ -977,6 +1017,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_value_nonzero:\n  .zero 8\n" ++
   "teer_prior_count:\n  .zero 8\n" ++
   "teer_prior_set_flag:\n  .zero 8\n" ++
+  "teer_acct_absent:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++

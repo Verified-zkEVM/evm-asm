@@ -146,7 +146,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
   "  bgeu t2, t0, .Lbv_mtx_eoa_state_res\n" ++
   "  sub t3, t0, t2; sd x0, 0(t1)\n" ++
-  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_bail\n" ++
+  -- v0.6.0 (C8): a prepare_dispatch charge that exceeds the pools halts
+  -- the frame WITHOUT dispatching -- a failed tx burning all gas, not a
+  -- conservative bail.
+  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_eoa_state_oog\n" ++
   "  sub t2, t2, t3; sd t2, 568(t4); j .Lbv_mtx_eoa_state_used\n" ++
   ".Lbv_mtx_eoa_state_res:\n" ++
   "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
@@ -154,6 +157,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
   ".Lbv_mtx_eoa_state_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  j .Lbv_mtx_eoa_settled\n" ++
+  ".Lbv_mtx_eoa_state_oog:\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
+  ".Lbv_mtx_eoa_settled:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++

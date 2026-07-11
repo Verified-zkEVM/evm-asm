@@ -489,6 +489,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_value_nonzero:\n  .zero 8\n" ++
   "teer_prior_count:\n  .zero 8\n" ++
   "teer_prior_set_flag:\n  .zero 8\n" ++
+  "teer_acct_absent:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
