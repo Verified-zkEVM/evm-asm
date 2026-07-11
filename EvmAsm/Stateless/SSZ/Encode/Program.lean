@@ -1,15 +1,17 @@
 /-
   EvmAsm.Stateless.SSZ.Encode.Program
 
-  Serializer for `SszStatelessValidationResult` -- the NEW (post-
-  zkevm-projects/d7fe16ab8) variable-size SSZ Container.
+  Serializer for `SszStatelessValidationResult` -- the variable-size
+  SSZ Container at `tests-zkevm@v0.6.0` (`40f956fab`), where
+  `SszForkConfig` lost its `fork` and `blob_schedule` fields.
 
   Reference: `execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`
   (`class SszStatelessValidationResult(Container)`,
    `class SszChainConfig(Container)`,
    `class SszForkConfig(Container)`).
 
-  ## SSZ wire layout (73 bytes for empty active_fork)
+  ## SSZ wire layout (61 bytes for empty activation; 69 for the
+     common timestamp-only fixture shape)
 
   Outer container `SszStatelessValidationResult`:
   | Offset  | Size | Field                       | Type             |
@@ -17,36 +19,33 @@
   |  0..32  |   32 | `new_payload_request_root`  | `Bytes32`        |
   |     32  |    1 | `successful_validation`     | `boolean`        |
   | 33..37  |    4 | offset of `chain_config`    | u32 LE = 37      |
-  | 37..73  |   36 | `chain_config` SSZ          | nested container |
+  | 37..    |      | `chain_config` SSZ          | nested container |
 
-  Inside `SszChainConfig` (bytes 37..73):
+  Inside `SszChainConfig` (bytes 37..):
   | Offset  | Size | Field                       | Type             |
   |---------|------|-----------------------------|------------------|
   | 37..45  |    8 | `chain_id`                  | `uint64`         |
   | 45..49  |    4 | offset of `active_fork`     | u32 LE = 12      |
-  | 49..73  |   24 | `active_fork` SSZ           | nested container |
+  | 49..    |      | `active_fork` SSZ           | nested container |
 
-  Inside `SszForkConfig` (bytes 49..73):
+  Inside `SszForkConfig` (bytes 49..):
   | Offset  | Size | Field                       | Type             |
   |---------|------|-----------------------------|------------------|
-  | 49..57  |    8 | `fork`                      | `uint64` = 0     |
-  | 57..61  |    4 | offset of `activation`      | u32 LE = 16      |
-  | 61..65  |    4 | offset of `blob_schedule`   | u32 LE = 24      |
-  | 65..73  |    8 | `activation` SSZ            | nested container |
-  | 73..73  |    0 | `blob_schedule` (empty list)| `SszList[..,1]`  |
+  | 49..53  |    4 | offset of `activation`      | u32 LE = 4       |
+  | 53..    |      | `activation` SSZ            | nested container |
 
-  Inside `SszForkActivation` (bytes 65..73):
+  Inside `SszForkActivation` (bytes 53..61 for the empty shape):
   | Offset  | Size | Field                       | Type             |
   |---------|------|-----------------------------|------------------|
-  | 65..69  |    4 | offset of `block_number`    | u32 LE = 8       |
-  | 69..73  |    4 | offset of `timestamp`       | u32 LE = 8       |
-  | 73..73  |    0 | `block_number` (empty list) | `SszList[u64,1]` |
-  | 73..73  |    0 | `timestamp` (empty list)    | `SszList[u64,1]` |
+  | 53..57  |    4 | offset of `block_number`    | u32 LE           |
+  | 57..61  |    4 | offset of `timestamp`       | u32 LE           |
+  | 61..    |  0.. | optional bodies             | `SszList[u64,1]` |
 
-  Total: 73 bytes (the smallest valid encoding; non-empty active_fork
-  variants append further bytes past byte 73, but this Lean encoder
-  always emits the empty-active_fork variant -- a real STF wiring is
-  a follow-up).
+  The activation section (fork_config bytes past its 4-byte offset
+  table) is byte-copied verbatim from the INPUT chain_config -- the
+  output chain-config is a pure echo, and the input's `SszForkConfig`
+  has the same one-entry offset table, so `chain_config[12..len)`
+  maps 1:1 onto `OUTPUT[49..49+len-12)`.
 
   ## Caller contract
 
@@ -56,7 +55,8 @@
       x11 : successful_validation (low byte at output byte 32)
 
   The encoder must only see `0` or `1` in `x11`'s low byte; the
-  decoder's `decode_validation_bit` guarantees that.
+  decoder's `decode_validation_bit` guarantees that. (The v0.5.0
+  `x12 = active_fork.fork` input is gone with the field.)
 
   Bytes 0..32 are zeroed here as a stub; the `stateless_guest`
   caller's epilogue overwrites them with `hash_tree_root(witness)`.
@@ -120,11 +120,10 @@ def OUTPUT_BASE : Word := 0xa0010000
     Caller contract:
       - `x10` holds the u64 `chain_id` to encode.
       - `x11` holds `successful_validation` (low byte = 0 or 1).
-      - `x12` holds `active_fork.fork` (u64) to encode at bytes 49..57.
 
-    The body writes exactly 73 bytes (SSZ encoding of
-    `SszStatelessValidationResult` with empty `activation` +
-    `blob_schedule`) at `OUTPUT_BASE`, and falls through to the
+    The body writes the SSZ encoding of `SszStatelessValidationResult`
+    (61 bytes for an empty activation; the activation section is echoed
+    verbatim from the input) at `OUTPUT_BASE`, and falls through to the
     caller's halt stub. -/
 def serialize_stateless_output : Program :=
   LI .x6 OUTPUT_BASE ;;
@@ -139,28 +138,23 @@ def serialize_stateless_output : Program :=
   OR' .x7 .x7 .x5 ;;
   OR' .x7 .x7 .x11 ;;
   SD .x6 .x7 32 ;;
-  -- bytes [40..48): chain_id_hi5 || offset_active_fork=12
+  -- bytes [40..48): chain_id_hi5 || offset_active_fork=12 (lo3)
   SRLI .x7 .x10 24 ;;
   LI .x5 0xc0000000000 ;;
   OR' .x7 .x7 .x5 ;;
   SD .x6 .x7 40 ;;
-  -- bytes [48..56): offset_active_fork high (0) || fork low 7 bytes
-  SLLI .x7 .x12 8 ;;
-  SD .x6 .x7 48 ;;
-  -- bytes [56..64): fork high byte || offset_activation=16 || offset_blob_schedule_lo3
-  -- offset_blob_schedule (low byte of the u32 at output[61..65))
-  -- defaults to 24 (= empty-activation case); the LBU+SB below
-  -- overwrites it with the input's actual offset_blob_schedule for
-  -- non-empty activation cases.
-  SRLI .x7 .x12 56 ;;
-  LI .x5 0x180000001000 ;;
-  OR' .x7 .x7 .x5 ;;
-  SD .x6 .x7 56 ;;
-  -- Bounded byte-copy from chain_config[24..len) to OUTPUT[61..49+len)
-  -- where `len = chain_config_length` is derived from the outer
-  -- SSZ offset table: outer.offsets[3] - outer.offsets[2]. We
-  -- equivalently compute `chain_config_end_addr = SSZ_BASE +
-  -- outer.offsets[3]` and stop when the source pointer reaches it.
+  -- byte 48: high byte of offset_active_fork (= 0). v0.6.0: the fork
+  -- u64 that used to follow is gone; the fork_config section (its
+  -- 4-byte activation offset + the activation) is echoed from the
+  -- input below, starting at OUTPUT[49].
+  SB .x6 .x0 48 ;;
+  -- Bounded byte-copy from chain_config[12..len) to OUTPUT[49..37+len)
+  -- (the whole `SszForkConfig` section, echoed verbatim: the input's
+  -- fork_config has the same one-entry offset table the output needs).
+  -- `len = chain_config_length` is derived from the outer SSZ offset
+  -- table: outer.offsets[3] - outer.offsets[2]. We equivalently compute
+  -- `chain_config_end_addr = SSZ_BASE + outer.offsets[3]` and stop when
+  -- the source pointer reaches it.
   --
   -- The previous unrolled implementation (PRs #6793 / #6802 /
   -- #6807 / #6811) read chain_config[24..76) UNCONDITIONALLY and
@@ -171,22 +165,17 @@ def serialize_stateless_output : Program :=
   -- note documents this. The bounded loop eliminates that
   -- constraint entirely.
   --
-  -- Range covers: offset_blob_schedule (chain_config[24..28)),
-  -- activation header (chain_config[28..36)), activation body
-  -- (chain_config[36..N)), blob_schedule (chain_config[..len)).
-  -- The previous separate LBU+SB at OUTPUT[61] (for
-  -- offset_blob_schedule LSB) and SB at OUTPUT[64] (high byte of
-  -- offset_activation = 0) are subsumed -- the loop writes
-  -- chain_config[24] to OUTPUT[61], chain_config[27] (always 0)
-  -- to OUTPUT[64], etc.
+  -- Range covers: offset_activation (chain_config[12..16)) and the
+  -- activation container (offsets + optional bodies,
+  -- chain_config[16..len)).
   --
   -- Register usage: x18=chain_config_end_addr, x19=src cursor,
   -- x20=dst cursor, x7=byte temp. x13=chain_config_addr and
   -- x17=SSZ_BASE are preserved from the decoder.
   LWU .x18 .x17 12 ;;             -- offsets[3] (= chain_config_end_offset)
   ADD .x18 .x17 .x18 ;;           -- chain_config_end_addr
-  ADDI .x19 .x13 24 ;;            -- src = chain_config + 24
-  ADDI .x20 .x6 61 ;;             -- dst = output + 61
+  ADDI .x19 .x13 12 ;;            -- src = chain_config + 12
+  ADDI .x20 .x6 49 ;;             -- dst = output + 49
   -- Loop: BGEU exit forward 24 bytes (skip 6 instructions: BGEU
   -- itself + the 5 body instructions). Otherwise: LBU + SB + bump
   -- cursors + JAL back 20 bytes to the BGEU.
