@@ -88,6 +88,7 @@ import EvmAsm.Evm64.Terminating.StopSpec
 import EvmAsm.Evm64.Terminating.InvalidSpec
 import EvmAsm.Evm64.Terminating.ReturnHaltSpec
 import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.ReturnCaptureSpec
 import EvmAsm.Evm64.Terminating.ReturnHaltResolved
 import EvmAsm.Evm64.Terminating.RevertSpec
 import EvmAsm.Evm64.Terminating.SelfdestructSpec
@@ -354,20 +355,24 @@ def registry : List OpcodeEntry := [
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
   entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
-  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within")
+  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within_with_capture")
       ("full standalone (depthAware=false) return-data window + halt core, from " ++
-       "the post-gas handler entry through the 0xa0010000 descriptor (header/22-" ++
-       "dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "the post-gas handler entry through the RETURN-only system_call_mode " ++
+       "capture block and the 0xa0010000 descriptor (header/22-dword-body " ++
+       "zeroing, size@+64, clamped=min(size,176)@+248, " ++
        "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
        "bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core " ++
-       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). `.conditional` " ++
-       "because (1) it is gated on the reachable precondition system_call_mode=0 " ++
-       "(the ordinary non-system-call tx case; the capture block is present for " ++
-       "layout but skipped) and (2) the memory-gas `preBody` (its .exit_outofgas " ++
-       "branch) is framed OUT as a decision-1 TCB boundary — the triple is stated " ++
-       "from the framed post-gas entry. The five `la` immediates stay as " ++
-       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
-      (coverRef := some "return_precondition_reachable"),
+       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). The front now " ++
+       "covers all system_call_mode cases: zero skips capture; nonzero with " ++
+       "size>4096 skips conservatively; nonzero with size<=4096 stores " ++
+       "system_call_returndata_len:=size and copies the full returndata window " ++
+       "to system_call_returndata. `.conditional` remains because the memory-gas " ++
+       "`preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB " ++
+       "boundary, so the theorem still carries the post-gas memory-domain hyps " ++
+       "(hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven " ++
+       "`la` immediates stay as reconstruction hyps (shared deferred byte-check, " ++
+       "as in the halt core).")
+      (coverRef := some "return_capture_nondegenerate"),
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
@@ -564,9 +569,9 @@ private noncomputable abbrev _return_halt_witness :=
   @EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
 -- Full RETURN (0xf3) return-data window + halt core (see the registry note).
 private noncomputable abbrev _return_witness :=
-  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within
+  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within_with_capture
 private noncomputable abbrev _return_cover :=
-  @EvmAsm.Evm64.Terminating.return_precondition_reachable
+  @EvmAsm.Evm64.Terminating.return_capture_nondegenerate
 -- Full REVERT (0xfd) return-data window + rollback + halt core (see the note).
 private noncomputable abbrev _revert_witness :=
   @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within

@@ -53,5 +53,14 @@ import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Stateless.SpecRef.BlockAccessLists
 import EvmAsm.Stateless.SpecRef.Vm
 import EvmAsm.Stateless.SpecRef.SeamShell
+import EvmAsm.Stateless.SpecRef.StateTracker
+import EvmAsm.Stateless.SpecRef.BlockAccessLists
+import EvmAsm.Stateless.SpecRef.Vm
+import EvmAsm.Stateless.SpecRef.InstructionsCore
+import EvmAsm.Stateless.SpecRef.InstructionsEnv
+import EvmAsm.Stateless.SpecRef.Interpreter
+import EvmAsm.Stateless.SpecRef.Fork
+import EvmAsm.Stateless.SpecRef.ElExecute
+import EvmAsm.Stateless.SpecRef.Precompiles
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.Guest
