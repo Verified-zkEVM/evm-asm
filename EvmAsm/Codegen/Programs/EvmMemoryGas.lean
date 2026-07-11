@@ -24,12 +24,12 @@ def activeMemorySizeOff : Nat := 488
     tied to the preallocated call-frame layout. -/
 def runtimeMemoryArenaLimitBytes : Nat := 0x20000
 
-/-- Runtime EVM memory arena size for the depth-0 frame. This larger root arena
-    lets gas replay charge valid high-memory top-level opcodes without growing
-    every nested frame slot. One MiB covers the Frontier identity-precompile
-    boundary where a 1,000,000-byte CALL window expands successfully before
-    the child itself runs out of its separately forwarded gas. -/
-def rootRuntimeMemoryArenaLimitBytes : Nat := 0x100000
+/-- Runtime EVM memory arena size for the depth-0 frame. Four MiB covers every
+    memory expansion affordable under Amsterdam's 16,777,216 regular-gas cap:
+    the quadratic term alone exceeds the cap above roughly 2.9 MiB. Keeping a
+    rounded margin avoids rejecting valid high-memory RETURN/CALL programs while
+    leaving nested frame slots at their fixed 128 KiB capacity. -/
+def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
 
 -- Frontier's large identity-precompile case expands a 1,000,000-byte CALL
 -- input window before the child call itself fails for insufficient gas.
