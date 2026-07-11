@@ -91,7 +91,7 @@ def main (args : List String) : IO UInt32 := do
       IO.eprintln s!"specref-eest-check: framing error ({inputFile}): {msg}"
       return 2
     | .ok blob =>
-      let out := run_stateless_guest blob  -- default seam = executeAlwaysOk
+      let out := run_stateless_guest blob (execute := executeAlwaysOk)
       IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
       return 0
   | _ =>

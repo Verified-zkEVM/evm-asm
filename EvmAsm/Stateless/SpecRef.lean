@@ -24,6 +24,12 @@
                      `mpt_root`/`build_mpt` + node encoding)
   * `WitnessStateRoot` — `witness_state.py`
                      `compute_state_root_and_trie_changes` (obligation #8)
+  * `Seam`         — the execution-seam interface types
+  * `Transactions` — `transactions.py` envelope decode side
+  * `Gas`          — `vm/gas.py` blob-gas/gas-limit slice
+  * `BlocksRlp`    — `blocks.py` RLP encode side (header/block/withdrawal)
+  * `SeamShell`    — `new_payload.py` pre-checks + `validation_helpers.py`
+                     + `fork.py` pre-execution frame: the partial seam
   * `Stateless`    — `stateless.py` (7 defs) + the execution seam
   * `Guest`        — `stateless_guest.py` (3 defs), the top-level shell
 -/
@@ -39,5 +45,10 @@ import EvmAsm.Stateless.SpecRef.IncrementalMpt
 import EvmAsm.Stateless.SpecRef.WitnessReads
 import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
 import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+import EvmAsm.Stateless.SpecRef.Seam
+import EvmAsm.Stateless.SpecRef.Transactions
+import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Stateless.SpecRef.BlocksRlp
+import EvmAsm.Stateless.SpecRef.SeamShell
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.Guest

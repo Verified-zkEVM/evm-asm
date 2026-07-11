@@ -74,6 +74,13 @@ inductive SpecError where
   /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the
       witness does not contain the trie's root node. -/
   | witnessRootMissing
+  /-- `fork.py` / `execution_engine/new_payload.py`: any `InvalidBlock`
+      raised by the pre-checks or the `execute_block` frame. -/
+  | invalidBlock (why : String)
+  /-- `transactions.py` `decode_transaction` / `rlp.decode_to`: any
+      `DecodingError`, `TransactionTypeError`, or `IndexError` while
+      decoding a transaction envelope. -/
+  | txDecodeError (why : String)
   /-- `incremental_mpt.py` write side (`mpt_set`/`mpt_get`/`mpt_root`/
       `build_mpt` and helpers): any `AssertionError` raised on the
       insert/delete/encode/traverse path — e.g. touching an unresolved
