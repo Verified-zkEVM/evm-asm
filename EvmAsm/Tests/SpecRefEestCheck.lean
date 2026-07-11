@@ -14,10 +14,12 @@
   stateless-guest Python spec. This driver ties it to the canonical EEST
   conformance fixtures so regressions in the port's SSZ codec / NPR-root
   hashing / header / chain-config / witness-assembly path surface without
-  spinning up ziskemu. The execution seam is the placeholder
-  `executeAlwaysOk`, so only the pre-execution output regions (NPR root,
-  chain-config echo) are expected to match; the `succ` bit diverges on
-  fixtures whose real EVM execution failed — see the harness doc.
+  spinning up ziskemu. The execution seam is the DEFAULT
+  (`elExecuteHybrid`, `s1d19.5`): the full ported `elExecute`, falling
+  back to the sound-for-accepts static shell only on contact with a
+  not-yet-ported precompile — so the `succ` bit is a real verdict and
+  is expected to match, alongside the pre-execution regions (NPR root,
+  chain-config echo).
 
   This module lives under `EvmAsm/Tests/` (the unverified escape-hatch
   layer) and is consumed only by the `specref-eest-check` exe; it is never
@@ -91,7 +93,7 @@ def main (args : List String) : IO UInt32 := do
       IO.eprintln s!"specref-eest-check: framing error ({inputFile}): {msg}"
       return 2
     | .ok blob =>
-      let out := run_stateless_guest blob (execute := executeAlwaysOk)
+      let out := run_stateless_guest blob
       IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
       return 0
   | _ =>
