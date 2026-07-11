@@ -83,13 +83,13 @@ def compute_create2_contract_address (address : Address) (salt : Bytes)
 /-! ## `vm/__init__.py` child incorporation -/
 
 /-- `refill_frame_state_gas(evm)`: LIFO state-gas rollback on frame
-    failure. -/
+    failure. v0.6.0: the reservoir is restored from the frame baseline
+    (`message.state_gas_reservoir`) instead of replaying the deleted
+    running counter. -/
 def refill_frame_state_gas : EvmM Unit :=
   EvmM.modifyEvm (fun e =>
     { e with gasLeft := e.gasLeft + e.stateGasSpilled
-             stateGasLeft := (((e.stateGasLeft : Int) + e.stateGasUsed
-               - (e.stateGasSpilled : Int)).toNat)
-             stateGasUsed := 0
+             stateGasLeft := e.message.stateGasReservoir
              stateGasSpilled := 0 })
 
 /-- `incorporate_child_on_error(evm, child_evm)`. -/
@@ -110,8 +110,7 @@ def incorporate_child_on_success (child : Evm) : EvmM Unit :=
              accountsToDelete := setUnion e.accountsToDelete child.accountsToDelete
              accessedAddresses := setUnion e.accessedAddresses child.accessedAddresses
              accessedStorageKeys := setUnion e.accessedStorageKeys child.accessedStorageKeys
-             regularGasUsed := e.regularGasUsed + child.regularGasUsed
-             stateGasUsed := e.stateGasUsed + child.stateGasUsed })
+             regularGasUsed := e.regularGasUsed + child.regularGasUsed })
 
 /-- `emit_transfer_log(evm, sender, recipient, transfer_amount)`
     (EIP-7708). -/
@@ -166,29 +165,45 @@ def calculate_delegation_cost (address : Address) :
       if warm then GasCosts.WARM_ACCESS else GasCosts.COLD_ACCOUNT_ACCESS)
 
 /-- `validate_authorization(message, auth)`, split so the recovered
-    authority can be recorded on the MESSAGE's accessed set even when
+    authority can be recorded on the FRAME's accessed set even when
     the later checks skip the authorization (the Python mutates
-    `message.accessed_addresses` right after recovery; `set_delegation`
-    below threads the message). -/
+    `message.accessed_addresses` — the same set object as
+    `evm.accessed_addresses` — right after recovery; `set_delegation`
+    below mutates the live frame). v0.6.0 returns just the authority. -/
 def validate_authorization_checks (auth : Authorization) (authority : Address) :
-    EvmM (Option (Address × Bytes)) := do
+    EvmM (Option Address) := do
   let authority_account ← EvmM.liftTx (getAccount authority)
   let authority_code ← EvmM.liftTx (getCode authority_account.codeHash authority)
   if !authority_code.isEmpty && !is_valid_delegation authority_code then
     return none
   if authority_account.nonce ≠ auth.nonce then return none
-  return some (authority, authority_code)
+  return some authority
 
-/-- `set_delegation(message)`: apply EIP-7702 authorizations; returns
-    the updated message (reservoir, accessed set, resolved code) and
-    `(state_refund, regular_refund)` — the Python mutates
-    `message.state_gas_reservoir` / `message.accessed_addresses` /
-    `message.code` before the frame `Evm` is built. -/
-def set_delegation (msg0 : Message) : EvmM (Message × Uint × Uint) := do
-  let mut msg := msg0
-  let mut state_refund : Uint := 0
-  let mut regular_refund : Uint := 0
-  let mut reservoir := msg.stateGasReservoir
+/-- `set_delegation(evm)` (`vm/eoa_delegation.py:206`, v0.6.0): apply the
+    EIP-7702 authorizations and charge their state-dependent costs at the
+    top frame — the v0.5.0 worst-case-intrinsic + refund machinery is
+    replaced by exact charges:
+
+    - `NEW_ACCOUNT` (state) when the authority's leaf does not exist;
+    - `ACCOUNT_WRITE` (regular) on the transaction's first write to the
+      authority (sender written at inclusion; recipient when value > 0;
+      each authority at most once);
+    - `AUTH_BASE` (state) when a net-new delegation indicator is written
+      (not delegated pre-tx, none set earlier in this tx, and this auth
+      sets one); at most once per authority, never credited back.
+
+    OOG throws `.outOfGas`; the caller (`process_message` depth-0 prep)
+    rolls back the applied authorizations and halts the frame. -/
+def set_delegation : EvmM Unit := do
+  let msg := (← EvmM.getEvm).message
+  -- Accounts this transaction has already written: the sender's leaf at
+  -- inclusion (nonce bump, fee deduction); the recipient when value is
+  -- transferred.
+  let mut written_accounts : List Address := setAdd [] msg.txEnv.origin
+  if msg.txEnv.value > 0 then
+    written_accounts := setAdd written_accounts msg.currentTarget
+  -- Authorities a delegation was set for earlier in this transaction.
+  let mut delegation_set_for : List Address := []
   for auth in msg.txEnv.authorizations do
     let validated ← do
       if auth.chainId ≠ msg.blockEnv.chainId && auth.chainId ≠ 0 then
@@ -198,44 +213,30 @@ def set_delegation (msg0 : Message) : EvmM (Message × Uint × Uint) := do
       else match recover_authority auth with
         | none => pure none
         | some authority => do
-            msg := { msg with accessedAddresses := setAdd msg.accessedAddresses authority }
+            EvmM.modifyEvm (fun e =>
+              { e with accessedAddresses := setAdd e.accessedAddresses authority })
             validate_authorization_checks auth authority
     match validated with
-    | none =>
-        let refund := StateGasCosts.AUTH_BASE + StateGasCosts.NEW_ACCOUNT
-        reservoir := reservoir + refund
-        state_refund := state_refund + refund
-        regular_refund := regular_refund + GasCosts.ACCOUNT_WRITE
-    | some (authority, authority_code) =>
-        let mut refund : Uint := 0
-        if ← EvmM.liftTx (accountExists authority) then
-          refund := refund + StateGasCosts.NEW_ACCOUNT
-          regular_refund := regular_refund + GasCosts.ACCOUNT_WRITE
+    | none => pure ()
+    | some authority =>
+        if !(← EvmM.liftTx (accountExists authority)) then
+          charge_state_gas StateGasCosts.NEW_ACCOUNT
+        if !written_accounts.contains authority then
+          charge_gas GasCosts.ACCOUNT_WRITE
+          written_accounts := setAdd written_accounts authority
         let pre_account ← EvmM.liftTx (get_pre_state_account authority)
         let pre_code ← EvmM.liftTx (getCode pre_account.codeHash authority)
         let delegated_before_tx := is_valid_delegation pre_code
-        let delegated_now := is_valid_delegation authority_code
         let code_to_set ←
-          if auth.address == NULL_ADDRESS then do
-            refund := refund + StateGasCosts.AUTH_BASE
-            if delegated_now && !delegated_before_tx then
-              refund := refund + StateGasCosts.AUTH_BASE
+          if auth.address == NULL_ADDRESS then
             pure ([] : Bytes)
           else do
-            if delegated_now || delegated_before_tx then
-              refund := refund + StateGasCosts.AUTH_BASE
+            if !delegated_before_tx && !delegation_set_for.contains authority then
+              charge_state_gas StateGasCosts.AUTH_BASE
+            delegation_set_for := setAdd delegation_set_for authority
             pure ([0xEF, 0x01, 0x00] ++ auth.address)
         EvmM.liftTx (setCode authority code_to_set)
         EvmM.liftTx (incrementNonce authority)
-        reservoir := reservoir + refund
-        state_refund := state_refund + refund
-  let code_address ← match msg.codeAddress with
-    | some a => pure a
-    | none => EvmM.liftSpec (throw (.invalidBlock "Invalid type 4 transaction: no target"))
-  let code_hash := (← EvmM.liftTx (getAccount code_address)).codeHash
-  let code ← EvmM.liftTx (getCode code_hash code_address)
-  pure ({ msg with stateGasReservoir := reservoir, code := code },
-        state_refund, regular_refund)
 
 /-! ## `MessageCallOutput` (`vm/interpreter.py`) -/
 
@@ -249,8 +250,6 @@ structure MessageCallOutput where
   stateGasLeft : Uint
   regularGasUsed : Uint
   stateGasUsed : Int
-  stateRefund : Uint
-  createdTargetAlive : Bool
   deriving Repr
 
 /-! ## Non-recursive system instructions -/
@@ -371,18 +370,12 @@ partial def executeLoop (pre : PrecompileMap) (fuel : Nat) : EvmM Unit := do
 /-- The body `process_message` runs inside its `try` (top-frame
     EIP-2780 charges, value transfer, precompile dispatch or the
     opcode loop). -/
-partial def executeBody (pre : PrecompileMap) (fuel : Nat) (msg : Message) :
-    EvmM Unit := do
-  -- EIP-2780 top-frame charges (non-create top-level frames only).
-  if msg.depth == 0 && msg.target != none then
-    let recipient := msg.currentTarget
-    if msg.value > 0 && !(← EvmM.liftTx (isAccountAlive recipient)) then
-      charge_state_gas StateGasCosts.NEW_ACCOUNT
-    let recipient_code ← extCodeOf recipient
-    if let some delegated_address := get_delegated_code_address recipient_code then
-      charge_gas GasCosts.COLD_ACCOUNT_ACCESS
-      EvmM.modifyEvm (fun e =>
-        { e with accessedAddresses := setAdd e.accessedAddresses delegated_address })
+partial def executeBody (pre : PrecompileMap) (fuel : Nat) : EvmM Unit := do
+  -- Read the LIVE frame message: at depth 0 `prepare_dispatch` has
+  -- rewritten code/codeAddress/disablePrecompiles after frame
+  -- construction (v0.6.0 moved the top-frame charges + delegation
+  -- resolution out of this body into the prep phase).
+  let msg := (← EvmM.getEvm).message
   if msg.shouldTransferValue && msg.value ≠ 0 then
     EvmM.liftTx (moveEther msg.caller msg.currentTarget msg.value)
     if msg.caller != msg.currentTarget then
@@ -392,8 +385,54 @@ partial def executeBody (pre : PrecompileMap) (fuel : Nat) (msg : Message) :
       if !msg.disablePrecompiles then impl
   | none => executeLoop pre fuel
 
+/-- `prepare_dispatch(evm)` (`vm/interpreter.py:246`, v0.6.0): charge the
+    state-dependent dispatch costs and resolve the code the top frame
+    will run. Runs at depth 0 after `set_delegation`, before dispatch;
+    must not mutate the transaction state:
+
+    - create tx: `NEW_ACCOUNT` (state) iff the target's pre-state leaf is
+      `EMPTY_ACCOUNT`;
+    - call tx: `NEW_ACCOUNT` (state) iff value > 0 and the recipient is
+      not alive; resolve an EIP-7702 delegation on the recipient's code,
+      charging `WARM_ACCESS` or `COLD_ACCOUNT_ACCESS` by accessed-set
+      membership, and point the frame at the delegated code. -/
+partial def prepare_dispatch : EvmM Unit := do
+  let msg := (← EvmM.getEvm).message
+  if msg.target == none then
+    if (← EvmM.liftTx (get_pre_state_account msg.currentTarget)) == EMPTY_ACCOUNT then
+      charge_state_gas StateGasCosts.NEW_ACCOUNT
+  else
+    let recipient := msg.currentTarget
+    if msg.value > 0 && !(← EvmM.liftTx (isAccountAlive recipient)) then
+      charge_state_gas StateGasCosts.NEW_ACCOUNT
+    let recipient_code ← extCodeOf recipient
+    let code ←
+      match get_delegated_code_address recipient_code with
+      | some delegated_address => do
+          if (← EvmM.getEvm).accessedAddresses.contains delegated_address then
+            charge_gas GasCosts.WARM_ACCESS
+          else
+            charge_gas GasCosts.COLD_ACCOUNT_ACCESS
+            EvmM.modifyEvm (fun e =>
+              { e with accessedAddresses := setAdd e.accessedAddresses delegated_address })
+          let code ← extCodeOf delegated_address
+          EvmM.modifyEvm (fun e =>
+            { e with message := { e.message with
+                                    disablePrecompiles := true
+                                    codeAddress := some delegated_address } })
+          pure code
+      | none => pure recipient_code
+    EvmM.modifyEvm (fun e =>
+      { e with message := { e.message with code := code }
+               code := code
+               validJumpDestinations := validJumpDestinations code })
+
 /-- `process_message(message)`: build the frame, run the body, fold
-    halts/reverts into `evm.error`, roll back the tracker on error. -/
+    halts/reverts into `evm.error`, roll back the tracker on error.
+    v0.6.0: at depth 0, `set_delegation` + `prepare_dispatch` run first
+    under their own snapshot — an `ExceptionalHalt` there rolls back the
+    whole preparation (including applied authorizations), consumes all
+    gas, and returns the errored frame without dispatching. -/
 partial def process_message (pre : PrecompileMap) (fuel : Nat) (msg : Message) :
     EvmM Evm := do
   match fuel with
@@ -410,9 +449,43 @@ partial def process_message (pre : PrecompileMap) (fuel : Nat) (msg : Message) :
       accessedAddresses := msg.accessedAddresses
       accessedStorageKeys := msg.accessedStorageKeys }
   modify (fun s => { s with evm := childEvm })
+  if msg.depth == 0 then
+    let prep_snapshot ← EvmM.liftTx copyTxState
+    let prep_reservoir := msg.stateGasReservoir
+    let prep_ok ← tryCatch (do
+        if !msg.txEnv.authorizations.isEmpty then
+          set_delegation
+          -- Fold the auth state-gas use into the frame baseline: record
+          -- it, reset the reservoir baseline to what is left, clear the
+          -- spill.
+          let used := frame_state_gas_used (← EvmM.getEvm)
+          EvmM.modifyEvm (fun e =>
+            { e with authStateGasUsed := used
+                     message := { e.message with stateGasReservoir := e.stateGasLeft }
+                     stateGasSpilled := 0 })
+        prepare_dispatch
+        pure true)
+      (fun err => do
+        if !err.isHalt then throw err
+        EvmM.liftTx (restoreTxState prep_snapshot)
+        -- The rollback reverts any applied delegations, so the baseline
+        -- fold above is undone with it and every state charge refilled.
+        EvmM.modifyEvm (fun e =>
+          { e with message := { e.message with stateGasReservoir := prep_reservoir }
+                   authStateGasUsed := 0 })
+        refill_frame_state_gas
+        EvmM.modifyEvm (fun e =>
+          { e with regularGasUsed := e.regularGasUsed + e.gasLeft
+                   gasLeft := 0
+                   error := some err })
+        pure false)
+    if !prep_ok then
+      let result := (← get).evm
+      modify (fun s => { s with evm := parent })
+      return result
   let snapshot ← EvmM.liftTx copyTxState
   -- The Python try/except at the frame boundary.
-  tryCatch (executeBody pre fuel msg)
+  tryCatch (executeBody pre fuel)
     (fun err => do
       refill_frame_state_gas
       if err.isHalt then
@@ -470,35 +543,40 @@ partial def generic_create (pre : PrecompileMap) (fuel : Nat)
     (endowment : U256) (contract_address : Address)
     (memory_start_position memory_size : U256) : EvmM Unit := do
   if memory_size > MAX_INIT_CODE_SIZE then throw .outOfGas
-  charge_state_gas StateGasCosts.NEW_ACCOUNT
   let e ← EvmM.getEvm
   let call_data := memory_read_bytes e.memory memory_start_position memory_size
-  let create_message_gas := max_message_call_gas e.gasLeft
-  EvmM.modifyEvm (fun e => { e with gasLeft := e.gasLeft - create_message_gas })
-  let reservoir := (← EvmM.getEvm).stateGasLeft
-  EvmM.modifyEvm (fun e => { e with stateGasLeft := 0, returnData := [] })
+  EvmM.modifyEvm (fun e => { e with returnData := [] })
   let sender_address := e.message.currentTarget
   let sender ← EvmM.liftTx (getAccount sender_address)
+  -- v0.6.0: the balance/nonce/depth early-out touches no gas pools (the
+  -- gas split and state-gas charge now happen after it).
   if sender.balance < endowment || sender.nonce == 2^64 - 1
       || e.message.depth + 1 > STACK_DEPTH_LIMIT then
-    EvmM.modifyEvm (fun e =>
-      { e with gasLeft := e.gasLeft + create_message_gas
-               stateGasLeft := e.stateGasLeft + reservoir })
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     stackPush 0
     return
   EvmM.modifyEvm (fun e =>
     { e with accessedAddresses := setAdd e.accessedAddresses contract_address })
+  -- v0.6.0: NEW_ACCOUNT is charged iff the target does not exist —
+  -- decided by existence alone, independently of the collision outcome.
+  let new_account_charged := !(← EvmM.liftTx (isAccountAlive contract_address))
+  if new_account_charged then
+    charge_state_gas StateGasCosts.NEW_ACCOUNT
+  let create_message_gas := max_message_call_gas (← EvmM.getEvm).gasLeft
+  EvmM.modifyEvm (fun e => { e with gasLeft := e.gasLeft - create_message_gas })
   if !(← EvmM.liftTx (accountDeployable contract_address)) then
-    EvmM.liftTx (incrementNonce e.message.currentTarget)
+    EvmM.liftTx (incrementNonce sender_address)
     EvmM.modifyEvm (fun e =>
-      { e with regularGasUsed := e.regularGasUsed + create_message_gas
-               stateGasLeft := e.stateGasLeft + reservoir })
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
+      { e with regularGasUsed := e.regularGasUsed + create_message_gas })
+    -- A storage-only collision target is non-existent: charged above,
+    -- refilled here.
+    if new_account_charged then
+      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     stackPush 0
     return
-  let target_alive ← EvmM.liftTx (isAccountAlive contract_address)
-  EvmM.liftTx (incrementNonce e.message.currentTarget)
+  -- Move full reservoir to child (no 63/64 rule for state gas).
+  let reservoir := (← EvmM.getEvm).stateGasLeft
+  EvmM.modifyEvm (fun e => { e with stateGasLeft := 0 })
+  EvmM.liftTx (incrementNonce sender_address)
   let parentEvm ← EvmM.getEvm
   let child_message : Message :=
     { blockEnv := e.message.blockEnv
@@ -521,13 +599,12 @@ partial def generic_create (pre : PrecompileMap) (fuel : Nat)
   let child ← process_create_message pre fuel child_message
   if child.error.isSome then
     incorporate_child_on_error child
-    credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
+    if new_account_charged then
+      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     EvmM.modifyEvm (fun e => { e with returnData := child.output })
     stackPush 0
   else
     incorporate_child_on_success child
-    if target_alive then
-      credit_state_gas_refund StateGasCosts.NEW_ACCOUNT
     EvmM.modifyEvm (fun e => { e with returnData := [] })
     stackPush (bytesBEtoNat child.message.currentTarget)
 
@@ -826,51 +903,35 @@ end
     unreachable (depth is checked before every recursion). -/
 def INTERPRETER_FUEL : Nat := 1024 + 8
 
-/-- `process_message_call(message)`. -/
+/-- `process_message_call(message)`. v0.6.0: authorizations and
+    delegation resolution are handled at the top frame inside
+    `process_message` (depth 0), so their state-dependent gas charges go
+    through the EVM gas pools and an out-of-gas there halts the frame
+    cleanly. -/
 def process_message_call (pre : PrecompileMap) (msg : Message) :
     EvmM MessageCallOutput := do
-  let mut refund_counter : U256 := 0
-  let mut state_refund : Uint := 0
-  let mut target_alive := false
-  let mut msg := msg
   let evm ←
     if msg.target == none then do
-      if ← EvmM.liftTx (accountDeployable msg.currentTarget) then do
-        target_alive ← EvmM.liftTx (isAccountAlive msg.currentTarget)
+      if ← EvmM.liftTx (accountDeployable msg.currentTarget) then
         process_create_message pre INTERPRETER_FUEL msg
       else
         return { gasLeft := 0, refundCounter := 0, logs := [],
                  accountsToDelete := [], error := some .addressCollision,
                  returnData := [], stateGasLeft := msg.stateGasReservoir,
-                 regularGasUsed := msg.gas, stateGasUsed := 0,
-                 stateRefund := 0, createdTargetAlive := false }
-    else do
-      if !msg.txEnv.authorizations.isEmpty then
-        let (msg', auth_state_refund, auth_regular_refund) ← set_delegation msg
-        msg := msg'
-        state_refund := state_refund + auth_state_refund
-        refund_counter := refund_counter + auth_regular_refund
-      match get_delegated_code_address msg.code with
-      | some delegated_address => do
-          let code ← extCodeOf delegated_address
-          msg := { msg with disablePrecompiles := true
-                            code := code
-                            codeAddress := some delegated_address }
-      | none => pure ()
+                 regularGasUsed := msg.gas, stateGasUsed := 0 }
+    else
       process_message pre INTERPRETER_FUEL msg
-  let (logs, accounts_to_delete, refund_counter') :=
-    if evm.error.isSome then ([], [], refund_counter)
-    else (evm.logs, evm.accountsToDelete, refund_counter + evm.refundCounter.toNat)
+  let (logs, accounts_to_delete, refund_counter) :=
+    if evm.error.isSome then ([], [], (0 : U256))
+    else (evm.logs, evm.accountsToDelete, (evm.refundCounter.toNat : U256))
   pure { gasLeft := evm.gasLeft
-         refundCounter := refund_counter'
+         refundCounter := refund_counter
          logs := logs
          accountsToDelete := accounts_to_delete
          error := evm.error
          returnData := evm.output
          stateGasLeft := evm.stateGasLeft
          regularGasUsed := evm.regularGasUsed
-         stateGasUsed := evm.stateGasUsed
-         stateRefund := state_refund
-         createdTargetAlive := target_alive }
+         stateGasUsed := frame_state_gas_used evm + evm.authStateGasUsed }
 
 end EvmAsm.Stateless.SpecRef

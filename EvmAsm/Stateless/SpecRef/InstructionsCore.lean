@@ -456,13 +456,18 @@ def iSstore : EvmM Unit := do
   if (← EvmM.getEvm).message.isStatic then throw .writeInStaticContext
   let key := toBeBytes32 (← stackPop)
   let new_value ← stackPop
-  check_gas (GasCosts.CALL_STIPEND + 1)
   let target := (← EvmM.getEvm).message.currentTarget
+  -- v0.6.0: the access cost is computed and checked BEFORE the state
+  -- reads record the slot in the Block Access List — post-repricing the
+  -- cold access cost can exceed the EIP-2200 stipend, so the stipend
+  -- sentry alone is no longer sufficient.
+  let cold := !(← isWarmStorageKey (target, key))
+  let access_cost := if cold then GasCosts.COLD_STORAGE_ACCESS else GasCosts.WARM_ACCESS
+  check_gas (max access_cost (GasCosts.CALL_STIPEND + 1))
+  if cold then warmStorageKey (target, key)
   let original_value ← EvmM.liftTx (getStorageOriginal target key)
   let current_value ← EvmM.liftTx (getStorage target key)
-  let cold := !(← isWarmStorageKey (target, key))
-  if cold then warmStorageKey (target, key)
-  let gas_cost := (if cold then GasCosts.COLD_STORAGE_ACCESS else GasCosts.WARM_ACCESS)
+  let gas_cost := access_cost
     + (if original_value == current_value && current_value != new_value then
          GasCosts.STORAGE_WRITE else 0)
   if current_value != new_value then

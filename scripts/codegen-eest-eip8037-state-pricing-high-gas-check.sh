@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 JOBS="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_RUN_DIR:-gen-out/eest-eip8037-state-pricing-high-gas}"

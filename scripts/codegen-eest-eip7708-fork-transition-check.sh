@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 JOBS="${EEST_EIP7708_FORK_TRANSITION_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP7708_FORK_TRANSITION_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7708_FORK_TRANSITION_RUN_DIR:-gen-out/eest-eip7708-fork-transition}"

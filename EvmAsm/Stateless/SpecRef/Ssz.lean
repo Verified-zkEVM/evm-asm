@@ -2,8 +2,8 @@
   EvmAsm.Stateless.SpecRef.Ssz
 
   Port of `execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`
-  (`@tests-zkevm@v0.5.0`): the SSZ container schemas mirroring the domain
-  dataclasses, plus the 34 to/from-SSZ conversion functions.
+  (`@tests-zkevm@v0.6.0`, `40f956fab`): the SSZ container schemas mirroring
+  the domain dataclasses, plus the to/from-SSZ conversion functions.
 
   Each Python `class SszX(Container)` becomes an `SszType` descriptor
   (`sszXType`); each `_x_to_ssz` becomes `xToSsz : … → SszValue`; each
@@ -38,14 +38,26 @@ def MAX_BYTES_PER_WITNESS_NODE : Nat := 2 ^ 10
 def MAX_BYTES_PER_CODE : Nat := 2 ^ 16
 def MAX_BYTES_PER_HEADER : Nat := 2 ^ 10
 def MAX_OPTIONAL_FORK_ACTIVATION_VALUES : Nat := 1
-def MAX_BLOB_SCHEDULES_PER_FORK : Nat := 1
 def MAX_PUBLIC_KEYS : Nat := 2 ^ 15
 def PUBLIC_KEY_BYTES : Nat := 65
 
-/-- `STATELESS_INPUT_SCHEMA_ID` (`stateless_ssz.py:64`). -/
-def STATELESS_INPUT_SCHEMA_ID : Nat := 0x0001
-/-- `STATELESS_INPUT_SCHEMA_ID_SIZE` (`stateless_ssz.py:65`). -/
+/-! Stateless guest input bytes are schema-prefixed: `schema_id ||
+    encoded_payload`, where `schema_id = fork_index || schema_revision`
+    (`stateless_ssz.py:83`–`98`). Amsterdam is fork `0x15`, and revision
+    `0x01` uses SSZ `encode(SszStatelessInput)` for the payload. -/
+
+/-- `STATELESS_INPUT_SCHEMA_FORK_INDEX` (`stateless_ssz.py:89`). -/
+def STATELESS_INPUT_SCHEMA_FORK_INDEX : Nat := ProtocolFork.Amsterdam.value
+/-- `STATELESS_INPUT_SCHEMA_REVISION` (`stateless_ssz.py:90`). -/
+def STATELESS_INPUT_SCHEMA_REVISION : Nat := 0x01
+/-- `STATELESS_INPUT_SCHEMA_ID` (`stateless_ssz.py:91`). -/
+def STATELESS_INPUT_SCHEMA_ID : Nat :=
+  (STATELESS_INPUT_SCHEMA_FORK_INDEX <<< 8) ||| STATELESS_INPUT_SCHEMA_REVISION
+/-- `STATELESS_INPUT_SCHEMA_ID_SIZE` (`stateless_ssz.py:94`). -/
 def STATELESS_INPUT_SCHEMA_ID_SIZE : Nat := 2
+
+-- The two-byte big-endian prefix is `15 01`.
+#guard STATELESS_INPUT_SCHEMA_ID == 0x1501
 
 /-! ## SSZ type descriptors (mirror the `Container` classes) -/
 
@@ -103,27 +115,20 @@ def sszExecutionWitnessType : SszType :=
 def sszOptionalForkActivationValueType : SszType :=
   .list u64Type MAX_OPTIONAL_FORK_ACTIVATION_VALUES
 
-/-- `SszForkActivation` (`stateless_ssz.py:170`). -/
+/-- `SszForkActivation` (`stateless_ssz.py:199`). -/
 def sszForkActivationType : SszType :=
   .container [sszOptionalForkActivationValueType, sszOptionalForkActivationValueType]
 
-/-- `SszBlobSchedule` (`stateless_ssz.py:177`). -/
-def sszBlobScheduleType : SszType :=
-  .container [u64Type, u64Type, u64Type]
-
-/-- `SszOptionalBlobSchedule = List[SszBlobSchedule, 1]` (`stateless_ssz.py:185`). -/
-def sszOptionalBlobScheduleType : SszType :=
-  .list sszBlobScheduleType MAX_BLOB_SCHEDULES_PER_FORK
-
-/-- `SszForkConfig` (`stateless_ssz.py:190`). -/
+/-- `SszForkConfig` (`stateless_ssz.py:206`). v0.6.0 drops the `fork`
+    (uint64) and `blob_schedule` (zero-or-one list) fields. -/
 def sszForkConfigType : SszType :=
-  .container [u64Type, sszForkActivationType, sszOptionalBlobScheduleType]
+  .container [sszForkActivationType]
 
-/-- `SszChainConfig` (`stateless_ssz.py:198`). -/
+/-- `SszChainConfig` (`stateless_ssz.py:212`). -/
 def sszChainConfigType : SszType :=
   .container [u64Type, sszForkConfigType]
 
-/-- `SszStatelessInput` (`stateless_ssz.py:205`). -/
+/-- `SszStatelessInput` (`stateless_ssz.py:219`). -/
 def sszStatelessInputType : SszType :=
   .container [sszNewPayloadRequestType, sszExecutionWitnessType, sszChainConfigType,
     .list (.byteVector PUBLIC_KEY_BYTES) MAX_PUBLIC_KEYS]
@@ -160,18 +165,7 @@ def getField (fs : List SszValue) (i : Nat) : Except SpecError SszValue :=
   | some v => .ok v
   | none => .error (.sszError s!"missing field {i}")
 
-/-! ## `_protocol_fork_to_ssz` / `_ssz_to_protocol_fork`
-    (`stateless_ssz.py:228`, `:234`) -/
-
-def protocolForkToSsz (fork : ProtocolFork) : SszValue :=
-  .uint 8 (protocolForks.findIdx (· == fork))
-
-def sszToProtocolFork (ssz : Nat) : Except SpecError ProtocolFork :=
-  match protocolForks[ssz]? with
-  | some f => .ok f
-  | none => .error (.unknownProtocolFork ssz)
-
-/-! ## `_withdrawal_to_ssz` / `_ssz_to_withdrawal` (`:242`, `:252`) -/
+/-! ## `_withdrawal_to_ssz` / `_ssz_to_withdrawal` (`:239`, `:249`) -/
 
 def withdrawalToSsz (w : Withdrawal) : SszValue :=
   .container [.uint 8 w.index, .uint 8 w.validatorIndex,
@@ -334,46 +328,17 @@ def sszToForkActivation (sv : SszValue) : Except SpecError ForkActivation := do
   let timestamp ← sszToOptionalU64 (← getField fs 1)
   pure { blockNumber, timestamp }
 
-/-! ## `_blob_schedule_to_ssz` / `_ssz_to_blob_schedule` (`:518`, `:531`) -/
-
-def blobScheduleToSsz (b : BlobSchedule) : SszValue :=
-  .container [.uint 8 b.target, .uint 8 b.max, .uint 8 b.baseFeeUpdateFraction]
-
-def sszToBlobSchedule (sv : SszValue) : Except SpecError BlobSchedule := do
-  let fs ← asContainerV sv
-  let target ← asUintV (← getField fs 0)
-  let max ← asUintV (← getField fs 1)
-  let baseFeeUpdateFraction ← asUintV (← getField fs 2)
-  pure { target, max, baseFeeUpdateFraction }
-
-/-! ## `_optional_blob_schedule_to_ssz` / `_ssz_to_optional_blob_schedule`
-    (`:544`, `:553`) -/
-
-def optionalBlobScheduleToSsz (b : Option BlobSchedule) : SszValue :=
-  match b with
-  | none => .list MAX_BLOB_SCHEDULES_PER_FORK none []
-  | some bs => .list MAX_BLOB_SCHEDULES_PER_FORK none [blobScheduleToSsz bs]
-
-def sszToOptionalBlobSchedule (sv : SszValue) : Except SpecError (Option BlobSchedule) := do
-  let es ← asListV sv
-  match es with
-  | [] => pure none
-  | v :: _ => pure (some (← sszToBlobSchedule v))
-
-/-! ## `_fork_config_to_ssz` / `_ssz_to_fork_config` (`:562`, `:575`) -/
+/-! ## `_fork_config_to_ssz` / `_ssz_to_fork_config` (`:515`, `:524`) -/
 
 def forkConfigToSsz (fc : ForkConfig) : SszValue :=
-  .container [protocolForkToSsz fc.fork, forkActivationToSsz fc.activation,
-    optionalBlobScheduleToSsz fc.blobSchedule]
+  .container [forkActivationToSsz fc.activation]
 
 def sszToForkConfig (sv : SszValue) : Except SpecError ForkConfig := do
   let fs ← asContainerV sv
-  let fork ← sszToProtocolFork (← asUintV (← getField fs 0))
-  let activation ← sszToForkActivation (← getField fs 1)
-  let blobSchedule ← sszToOptionalBlobSchedule (← getField fs 2)
-  pure { fork, activation, blobSchedule }
+  let activation ← sszToForkActivation (← getField fs 0)
+  pure { activation }
 
-/-! ## `_chain_config_to_ssz` / `_ssz_to_chain_config` (`:588`, `:598`) -/
+/-! ## `_chain_config_to_ssz` / `_ssz_to_chain_config` (`:533`, `:543`) -/
 
 def chainConfigToSsz (cc : ChainConfig) : SszValue :=
   .container [.uint 8 cc.chainId, forkConfigToSsz cc.activeFork]
@@ -418,13 +383,11 @@ def sszToValidationResult (sv : SszValue) : Except SpecError StatelessValidation
 /-! ## Sanity: SSZ container round-trips (serialize → deserialize → domain) -/
 
 /-- A `ChainConfig` exercising an empty and a present optional (`none`
-    block_number, `some` timestamp) and a present blob schedule. -/
+    block_number, `some` timestamp). -/
 def sanityChainConfig : ChainConfig :=
   { chainId := 1
     activeFork :=
-      { fork := .Amsterdam
-        activation := { blockNumber := none, timestamp := some 100 }
-        blobSchedule := some { target := 14, max := 21, baseFeeUpdateFraction := 11684671 } } }
+      { activation := { blockNumber := none, timestamp := some 100 } } }
 
 -- Round-trip a `ChainConfig` through SSZ bytes and back.
 #guard
@@ -446,7 +409,7 @@ def sanityResult : StatelessValidationResult :=
     let sv ← deserialize sszStatelessValidationResultType bytes
     sszToValidationResult sv).toOption == some sanityResult
 
--- v0.5.0 witness resource bounds from `stateless_ssz.py`.
+-- v0.6.0 witness resource bounds from `stateless_ssz.py`.
 #guard MAX_WITNESS_NODES == 2 ^ 22
 #guard MAX_WITNESS_CODES == 2 ^ 18
 #guard MAX_BYTES_PER_WITNESS_NODE == 2 ^ 10

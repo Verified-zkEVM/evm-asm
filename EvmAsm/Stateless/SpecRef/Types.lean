@@ -50,8 +50,6 @@ inductive SpecError where
   | sszError (why : String)
   /-- `stateless_input_to_ssz`: a transaction public key ≠ 65 bytes. -/
   | publicKeyWrongLength (len : Nat)
-  /-- `_ssz_to_protocol_fork`: enum value out of range. -/
-  | unknownProtocolFork (value : Nat)
   /-- `validate_headers`: more than 256 witness headers. -/
   | tooManyHeaders (count : Nat)
   /-- `_decode_header`: RLP decode failed for both current and previous fork. -/
@@ -64,9 +62,6 @@ inductive SpecError where
   /-- `validate_chain_config`: active fork not active for the payload
       (`InactiveForkConfigError`). -/
   | inactiveForkConfig
-  /-- `validate_chain_config`: fork ≠ Amsterdam or blob schedule mismatch
-      (`UnsupportedForkConfigError`). -/
-  | unsupportedForkConfig (why : String)
   /-- `_decode_account_from_leaf`: leaf RLP is not a 4-item list. -/
   | accountLeafMalformed
   /-- `_trie_lookup`: hit an unresolved `HashedNode`. -/
@@ -115,11 +110,13 @@ inductive SpecError where
   | executionRejected (why : String)
   deriving Repr, BEq, DecidableEq
 
-/-! ## Protocol forks (`stateless.py:83` `ProtocolFork`) -/
+/-! ## Protocol forks (`stateless.py:81` `ProtocolFork`) -/
 
-/-- Semantic execution-layer fork names understood by stateless inputs.
-    Constructor order MUST match Python declaration order, because
-    `_protocol_fork_to_ssz` uses `tuple(ProtocolFork).index(fork)`. -/
+/-- Stable execution-layer fork identifiers used by stateless schemas.
+    v0.6.0 turns this into an `IntEnum` (`Frontier = 0x01` …
+    `Amsterdam = 0x15`); the value no longer travels in the SSZ payload —
+    its only wire use is the schema-id prefix
+    (`STATELESS_INPUT_SCHEMA_FORK_INDEX`, `stateless_ssz.py:89`). -/
 inductive ProtocolFork where
   | Frontier | Homestead | DAOFork | TangerineWhistle | SpuriousDragon
   | Byzantium | StPetersburg | Istanbul | MuirGlacier | Berlin | London
@@ -127,36 +124,33 @@ inductive ProtocolFork where
   | BPO1 | BPO2 | Amsterdam
   deriving Repr, BEq, DecidableEq
 
-/-- `tuple(ProtocolFork)` — the SSZ enum ordering (`stateless_ssz.py:249`). -/
-def protocolForks : List ProtocolFork :=
-  [.Frontier, .Homestead, .DAOFork, .TangerineWhistle, .SpuriousDragon,
-   .Byzantium, .StPetersburg, .Istanbul, .MuirGlacier, .Berlin, .London,
-   .ArrowGlacier, .GrayGlacier, .Paris, .Shanghai, .Cancun, .Prague, .Osaka,
-   .BPO1, .BPO2, .Amsterdam]
+/-- The `IntEnum` value of a fork (`stateless.py:86`–`106`): declaration
+    index + 1, spelled out to keep each value visibly tied to the spec. -/
+def ProtocolFork.value : ProtocolFork → Nat
+  | .Frontier => 0x01 | .Homestead => 0x02 | .DAOFork => 0x03
+  | .TangerineWhistle => 0x04 | .SpuriousDragon => 0x05 | .Byzantium => 0x06
+  | .StPetersburg => 0x07 | .Istanbul => 0x08 | .MuirGlacier => 0x09
+  | .Berlin => 0x0A | .London => 0x0B | .ArrowGlacier => 0x0C
+  | .GrayGlacier => 0x0D | .Paris => 0x0E | .Shanghai => 0x0F
+  | .Cancun => 0x10 | .Prague => 0x11 | .Osaka => 0x12
+  | .BPO1 => 0x13 | .BPO2 => 0x14 | .Amsterdam => 0x15
 
-/-! ## Chain-config dataclasses (`stateless.py:139`–`183`) -/
+/-! ## Chain-config dataclasses (`stateless.py:126`–`160`) -/
 
-/-- `ForkActivation` (`stateless.py:141`). -/
+/-- `ForkActivation` (`stateless.py:130`). -/
 structure ForkActivation where
   blockNumber : Option U64
   timestamp : Option U64
   deriving Repr, BEq, DecidableEq
 
-/-- `BlobSchedule` (`stateless.py:152`). -/
-structure BlobSchedule where
-  target : U64
-  max : U64
-  baseFeeUpdateFraction : U64
-  deriving Repr, BEq, DecidableEq
-
-/-- `ForkConfig` (`stateless.py:164`). -/
+/-- `ForkConfig` (`stateless.py:142`). v0.6.0 drops the `fork` and
+    `blob_schedule` fields: fork identity is carried by the schema id
+    and the blob schedule is compiled into the guest. -/
 structure ForkConfig where
-  fork : ProtocolFork
   activation : ForkActivation
-  blobSchedule : Option BlobSchedule
   deriving Repr, BEq, DecidableEq
 
-/-- `ChainConfig` (`stateless.py:176`). -/
+/-- `ChainConfig` (`stateless.py:153`). -/
 structure ChainConfig where
   chainId : U64
   activeFork : ForkConfig
@@ -304,14 +298,5 @@ structure Header where
   /-- amsterdam-only (`0` when `isCurrentFork = false`). -/
   slotNumber : U64
   deriving Repr, BEq, DecidableEq
-
-/-! ## Amsterdam-compiled constants (`vm/gas.py`) -/
-
-/-- `BLOB_SCHEDULE_TARGET` (`vm/gas.py:106`). -/
-def blobScheduleTarget : U64 := 14
-/-- `BLOB_SCHEDULE_MAX` (`vm/gas.py:109`). -/
-def blobScheduleMax : U64 := 21
-/-- `BLOB_BASE_FEE_UPDATE_FRACTION` (`vm/gas.py:111`). -/
-def blobBaseFeeUpdateFraction : Uint := 11684671
 
 end EvmAsm.Stateless.SpecRef

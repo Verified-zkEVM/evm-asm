@@ -3,7 +3,7 @@
 
   Port of the transaction-envelope *decode* side of
   `execution-specs/src/ethereum/forks/amsterdam/transactions.py`
-  (`@tests-zkevm@v0.5.0`, `bd8c673`):
+  (`@tests-zkevm@v0.6.0`, `40f956fab`):
 
   * the five transaction dataclasses (classes `LegacyTransaction`,
     `AccessListTransaction`, `FeeMarketTransaction`, `BlobTransaction`,
@@ -20,7 +20,8 @@
     same names)
   * `validate_transaction`, `calculate_intrinsic_cost`,
     `count_tokens_in_data` (functions of the same names)
-  * `recover_sender`, `recover_transaction_public_key`,
+  * `chain_id` (function `chain_id`, v0.6.0/EIP-155), `recover_sender`,
+    `recover_transaction_public_key`,
     `recover_sender_from_public_key`, `_sender_address_from_public_key`,
     `_signature_recovery_parameters`, and the five `signing_hash_*`
     (functions of the same names) — secp256k1 recovery delegates to
@@ -424,7 +425,9 @@ def get_transaction_hash (encoded_tx : Bytes) : Hash32 :=
 /-! ## Intrinsic gas (`IntrinsicGasCost`, `validate_transaction`,
 `calculate_intrinsic_cost`, `count_tokens_in_data`) -/
 
-/-- `IntrinsicGasCost` (class `IntrinsicGasCost`). -/
+/-- `IntrinsicGasCost` (class `IntrinsicGasCost`). v0.6.0 wraps the
+    fields in `RegularGas`/`StateGas` NewTypes (type hygiene only, no
+    numeric change); the port keeps plain `Uint`. -/
 structure IntrinsicGasCost where
   regular : Uint
   state : Uint
@@ -448,18 +451,26 @@ def count_tokens_in_data (data : Bytes) : Uint :=
   let num_zeros := data.countP (· == 0)
   num_zeros + (data.length - num_zeros) * 4
 
-/-- `calculate_intrinsic_cost(tx, sender)`. -/
+/-- `calculate_intrinsic_cost(tx, sender)`. v0.6.0 (EIP-2780 rework):
+    state-dependent charges leave the intrinsic — a creation's
+    `NEW_ACCOUNT` state gas is charged at the top frame
+    (`prepare_dispatch`), and an authorization's account-creation /
+    delegation-write costs are charged by `set_delegation`; only the
+    state-independent `REGULAR_PER_AUTH_BASE_COST` remains per tuple.
+    `init_code_cost` is split out of the recipient gas, and the calldata
+    floor is anchored on `base_regular_gas = TX_BASE +
+    recipient_regular_gas` rather than `TX_BASE` alone. -/
 def calculate_intrinsic_cost (tx : Transaction) (sender : Address) :
     IntrinsicGasCost :=
   let tokens_in_calldata := count_tokens_in_data tx.data
   let data_cost := tokens_in_calldata * GasCosts.TX_DATA_TOKEN_STANDARD
   let is_create := tx.to == none
   let is_self_transfer := tx.to == some sender
-  let (recipient_regular_gas, recipient_state_gas) :=
+  let (recipient_regular_gas, init_code_gas) :=
     if is_create then
-      (GasCosts.CREATE_ACCESS + init_code_cost tx.data.length
+      (GasCosts.CREATE_ACCESS
         + (if tx.value > 0 then GasCosts.TRANSFER_LOG_COST else 0),
-       StateGasCosts.NEW_ACCOUNT)
+       init_code_cost tx.data.length)
     else if !is_self_transfer then
       (GasCosts.COLD_ACCOUNT_ACCESS
         + (if tx.value > 0 then GasCosts.TRANSFER_LOG_COST + GasCosts.TX_VALUE_COST else 0),
@@ -475,21 +486,20 @@ def calculate_intrinsic_cost (tx : Transaction) (sender : Address) :
            + access.slots.length * ACCESS_LIST_STORAGE_KEY_FLOOR_TOKENS)) (0, 0)
   let access_list_cost := access_list_cost
     + tokens_in_access_list * GasCosts.TX_DATA_TOKEN_FLOOR
-  let (auth_regular_gas, auth_state_gas) :=
+  let auth_regular_gas :=
     match tx with
-    | .setCode t =>
-        ((GasCosts.ACCOUNT_WRITE + GasCosts.REGULAR_PER_AUTH_BASE_COST)
-           * t.authorizations.length,
-         (StateGasCosts.NEW_ACCOUNT + StateGasCosts.AUTH_BASE)
-           * t.authorizations.length)
-    | _ => (0, 0)
+    | .setCode t => GasCosts.REGULAR_PER_AUTH_BASE_COST * t.authorizations.length
+    | _ => 0
   let floor_tokens_in_calldata := tx.data.length * GasCosts.TX_DATA_TOKEN_STANDARD
   let total_floor_tokens := floor_tokens_in_calldata + tokens_in_access_list
-  { regular := GasCosts.TX_BASE + data_cost + recipient_regular_gas
+  -- Decomposed regular-gas intrinsic base (EIP-2780), which also anchors
+  -- the calldata floor.
+  let base_regular_gas := GasCosts.TX_BASE + recipient_regular_gas
+  { regular := base_regular_gas + init_code_gas + data_cost
       + access_list_cost + auth_regular_gas
-    state := recipient_state_gas + auth_state_gas
+    state := 0
     calldataFloor := total_floor_tokens * GasCosts.TX_DATA_TOKEN_FLOOR
-      + GasCosts.TX_BASE }
+      + base_regular_gas }
 
 /-- `validate_transaction(tx, sender)`: each raise is a distinct
     rejection reason. -/
@@ -500,14 +510,14 @@ def validate_transaction (tx : Transaction) (sender : Address) :
     throw (.invalidTransaction "Insufficient intrinsic gas")
   if intrinsic.calldataFloor > tx.gas then
     throw (.invalidTransaction "Insufficient calldata floor")
+  if tx.to == none && tx.data.length > MAX_INIT_CODE_SIZE then
+    throw (.invalidTransaction "Code size too large")
   if intrinsic.regular > TX_MAX_GAS_LIMIT then
     throw (.invalidTransaction "Intrinsic regular gas exceeds TX_MAX_GAS_LIMIT")
   if intrinsic.calldataFloor > TX_MAX_GAS_LIMIT then
     throw (.invalidTransaction "Intrinsic calldata floor exceeds TX_MAX_GAS_LIMIT")
   if tx.nonce ≥ 2^64 - 1 then
     throw (.invalidTransaction "Nonce too high")
-  if tx.to == none && tx.data.length > MAX_INIT_CODE_SIZE then
-    throw (.invalidTransaction "Code size too large")
   pure intrinsic
 
 /-! ## Sender recovery (`_signature_recovery_parameters`,
@@ -604,10 +614,29 @@ def recover_transaction_public_key (chain_id : U64) (tx : Transaction) :
 def _sender_address_from_public_key (public_key : Bytes) : Address :=
   (keccak256 (public_key.drop 1)).drop 12
 
-/-- `recover_sender(chain_id, tx)` (function `recover_sender`). -/
-def recover_sender (chain_id : U64) (tx : Transaction) :
-    Except SpecError Address := do
-  pure (_sender_address_from_public_key (← recover_transaction_public_key chain_id tx))
+/-- `chain_id(tx)` (function `chain_id`, v0.6.0/EIP-155): the chain
+    identifier a transaction commits to, or `none` for a pre-155 legacy
+    transaction (`v ∈ {27, 28}`). A legacy `v < 35` outside that pair is
+    an invalid signature. -/
+def chain_id (tx : Transaction) : Except SpecError (Option U64) :=
+  match tx with
+  | .legacy t =>
+      if t.v == 27 || t.v == 28 then pure none
+      else if t.v < 35 then throw (.invalidSignature "bad v")
+      else pure (some ((t.v - 35) >>> 1))
+  | .accessList t => pure (some t.chainId)
+  | .feeMarket t => pure (some t.chainId)
+  | .blob t => pure (some t.chainId)
+  | .setCode t => pure (some t.chainId)
+
+/-- `recover_sender(tx)` (function `recover_sender`). v0.6.0 drops the
+    `chain_id` parameter: the recovery chain id comes from the
+    transaction itself (`0` for pre-155 legacy). -/
+def recover_sender (tx : Transaction) : Except SpecError Address := do
+  let tx_chain_id ← chain_id tx
+  let recovery_chain_id := tx_chain_id.getD 0
+  pure (_sender_address_from_public_key
+    (← recover_transaction_public_key recovery_chain_id tx))
 
 /-- `recover_sender_from_public_key(chain_id, tx, public_key)`: verify
     the supplied key by full recovery + comparison (the stateless-guest
@@ -685,14 +714,16 @@ private def vTx1 : LegacyTransaction :=
     value := 5, data := [0x00, 0x01, 0x02, 0x00], v := 27, r := 1, s := 1 }
 
 #guard calculate_intrinsic_cost (.legacy vTx1) vSender
-  == { regular := 21040, state := 0, calldataFloor := 12256 }
+  == { regular := 21040, state := 0, calldataFloor := 21256 }
 
--- Creation with value: CREATE_ACCESS + init-code words + transfer log +
--- NEW_ACCOUNT state gas.
+-- Creation with value: CREATE_ACCESS + init-code words + transfer log;
+-- v0.6.0 charges no NEW_ACCOUNT state gas here (top frame instead), and
+-- the floor is anchored on TX_BASE + CREATE_ACCESS + TRANSFER_LOG_COST
+-- (init-code gas excluded from the anchor).
 #guard calculate_intrinsic_cost (.legacy
     { nonce := 1, gasPrice := 10, gas := 500000, to := none, value := 1,
       data := List.replicate 40 0x60, v := 27, r := 1, s := 1 }) vSender
-  == { regular := 25400, state := 183600, calldataFloor := 14560 }
+  == { regular := 25400, state := 0, calldataFloor := 27316 }
 
 -- Self-transfer with an access list: recipient/value charges skipped.
 #guard calculate_intrinsic_cost (.feeMarket
@@ -711,11 +742,11 @@ private def vTx1 : LegacyTransaction :=
       authorizations := [{ chainId := 1, address := List.replicate 20 0xDD,
                            nonce := 0, yParity := 0, r := 1, s := 1 }],
       yParity := 0, r := 1, s := 1 }) vSender
-  == { regular := 30816, state := 218790, calldataFloor := 12000 }
+  == { regular := 22816, state := 0, calldataFloor := 15000 }
 
 -- validate_transaction: vTx1 passes; a 21k-gas creation is short.
 #guard (validate_transaction (.legacy vTx1) vSender).toOption
-  == some { regular := 21040, state := 0, calldataFloor := 12256 }
+  == some { regular := 21040, state := 0, calldataFloor := 21256 }
 #guard match validate_transaction (.legacy { vTx1 with to := none, gas := 21000 })
     vSender with
   | .error (.invalidTransaction _) => true | _ => false
@@ -736,8 +767,13 @@ private def vPubKey : Bytes :=
     ++ natToBytesBE 32 0x70beaf8f588b541507fed6a642c5ab42dfdf8120a7f639de5122d47a69a8e8d1)
 
 #guard (recover_transaction_public_key 1 (.legacy vTx1Signed)).toOption == some vPubKey
-#guard (recover_sender 1 (.legacy vTx1Signed)).toOption.map bytesBEtoNat
+-- v0.6.0 `recover_sender` derives the chain id from the tx (v = 38 → 1).
+#guard (recover_sender (.legacy vTx1Signed)).toOption.map bytesBEtoNat
   == some 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+#guard (chain_id (.legacy vTx1Signed)).toOption == some (some 1)
+#guard (chain_id (.legacy vTx1)).toOption == some none  -- v = 27, pre-155
+#guard match chain_id (.legacy { vTx1 with v := 30 }) with
+  | .error (.invalidSignature _) => true | _ => false
 #guard (recover_sender_from_public_key 1 (.legacy vTx1Signed) vPubKey).toOption.map bytesBEtoNat
   == some 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 -- A wrong supplied key is InvalidSignatureError.
@@ -745,7 +781,7 @@ private def vPubKey : Bytes :=
     (0x04 :: List.replicate 64 0x01) with
   | .error (.invalidSignature _) => true | _ => false
 -- High-s rejects (EIP-2).
-#guard match recover_sender 1 (.legacy { vTx1Signed with s := SECP256K1N - 1 }) with
+#guard match recover_sender (.legacy { vTx1Signed with s := SECP256K1N - 1 }) with
   | .error (.invalidSignature _) => true | _ => false
 
 -- encode_transaction round-trips through decode_transaction.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the EEST stateless-guest regression window immediately after
-# random_statetest in tests-zkevm@v0.5.0 fixture order.
+# random_statetest in tests-zkevm@v0.6.0 fixture order.
 #
 # The preceding random_statetest class starts at skip 16582 and has 503 blocks;
 # this gate starts at 17085 and covers the next 1000 selected stateless blocks.

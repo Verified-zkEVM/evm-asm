@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.5.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
 JOBS="${EEST_EIP150_SELFDESTRUCT_SYSTEM_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP150_SELFDESTRUCT_SYSTEM_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP150_SELFDESTRUCT_SYSTEM_RUN_DIR:-gen-out/eest-eip150-selfdestruct-system}"
