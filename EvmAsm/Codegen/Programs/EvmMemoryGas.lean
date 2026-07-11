@@ -26,8 +26,14 @@ def runtimeMemoryArenaLimitBytes : Nat := 0x20000
 
 /-- Runtime EVM memory arena size for the depth-0 frame. This larger root arena
     lets gas replay charge valid high-memory top-level opcodes without growing
-    every nested frame slot. -/
-def rootRuntimeMemoryArenaLimitBytes : Nat := 0x50000
+    every nested frame slot. One MiB covers the Frontier identity-precompile
+    boundary where a 1,000,000-byte CALL window expands successfully before
+    the child itself runs out of its separately forwarded gas. -/
+def rootRuntimeMemoryArenaLimitBytes : Nat := 0x100000
+
+-- Frontier's large identity-precompile case expands a 1,000,000-byte CALL
+-- input window before the child call itself fails for insufficient gas.
+#guard 1000000 ≤ rootRuntimeMemoryArenaLimitBytes
 
 /-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
 
