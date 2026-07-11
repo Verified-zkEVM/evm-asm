@@ -36,7 +36,7 @@ import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Env.Spec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
-import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
+import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.Push.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
@@ -1573,90 +1573,79 @@ theorem evmMStoreHandlerSpec
 -- 21. Concrete instance — MLOAD (0x51)
 -- ============================================================================
 
-/-- Handler-level spec for `h_MLOAD` (opcode 0x51). `x10`-clean, so it lifts
-    through the clean-ret tail; the underlying body spec is the full
-    `evm_mload_stack_spec_within` (94-instruction unaligned framed load).
-    Working registers + the limb window data stay as parameters. -/
+/-- Handler-level MLOAD spec against the folded EVM-memory assertion. -/
 theorem evmMLoadHandlerSpec
     (offReg byteReg accReg addrReg memBaseReg : Reg)
     (sp offset offOld addrOld memBase byteOld accOld : Word)
     (offsetWord : EvmAsm.Evm64.EvmWord) (rest : List EvmAsm.Evm64.EvmWord)
     (dstOld1 dstOld2 dstOld3 : Word)
-    (loAddr0 hiAddr0 loVal0 hiVal0 : Word)
-    (loAddr1 hiAddr1 loVal1 hiVal1 : Word)
-    (loAddr2 hiAddr2 loVal2 hiVal2 : Word)
-    (loAddr3 hiAddr3 loVal3 hiVal3 : Word)
-    (start : Nat) (base : Word) (x10_init x1_init : Word)
+    (capacity : Nat) (contents : List (BitVec 8))
+    (base x10_init x1_init : Word)
     (h_offset0 : offsetWord.getLimbN 0 = offset)
     (h_offset1 : offsetWord.getLimbN 1 = dstOld1)
     (h_offset2 : offsetWord.getLimbN 2 = dstOld2)
     (h_offset3 : offsetWord.getLimbN 3 = dstOld3)
     (h_off_ne_x0 : offReg ≠ .x0) (h_addr_ne_x0 : addrReg ≠ .x0)
     (h_byte_ne_x0 : byteReg ≠ .x0) (h_acc_ne_x0 : accReg ≠ .x0)
-    (h_window0 : EvmAsm.Evm64.mloadLimbWindowOk (memBase + offset) loAddr0 hiAddr0 start 24 25 26 27 28 29 30 31)
-    (h_window1 : EvmAsm.Evm64.mloadLimbWindowOk (memBase + offset) loAddr1 hiAddr1 start 16 17 18 19 20 21 22 23)
-    (h_window2 : EvmAsm.Evm64.mloadLimbWindowOk (memBase + offset) loAddr2 hiAddr2 start 8 9 10 11 12 13 14 15)
-    (h_window3 : EvmAsm.Evm64.mloadLimbWindowOk (memBase + offset) loAddr3 hiAddr3 start 0 1 2 3 4 5 6 7) :
-    let loaded3 := EvmAsm.Evm64.mloadPackedLimbFromDwordPair loVal3 hiVal3 start
+    (hlen : contents.length = capacity)
+    (halignB : memBase.toNat % 8 = 0)
+    (hin : 8 * (offset.toNat / 8) + 40 ≤ contents.length)
+    (hbound : memBase.toNat + contents.length ≤ 2 ^ 64)
+    (hvalid : ∀ i : Nat, i < contents.length →
+      isValidMemAddr (memBase + BitVec.ofNat 64 i) = true) :
     cpsTripleWithin ((2 + (23 + 23 + 23 + 23)) + 2) base (x1_init &&& ~~~1)
       (cleanRetHandlerCode base
         (EvmAsm.Evm64.evm_mload offReg byteReg accReg addrReg memBaseReg) 1)
-      (((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
-        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
-        EvmAsm.Evm64.evmStackIs sp (offsetWord :: rest)) **
-       ((byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
-        (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) **
-        (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
-        (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
-        (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3)))
-       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
-      ((EvmAsm.Evm64.evmStackIs sp
-         (EvmAsm.Evm64.mloadStackOutputWordFromDwordPairs
-           loVal0 hiVal0 start loVal1 hiVal1 start
-           loVal2 hiVal2 start loVal3 hiVal3 start :: rest) **
-        (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
-         (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
-         (byteReg ↦ᵣ
-           (EvmAsm.Evm64.mloadByteFromDwordPair loVal3 hiVal3 start 7).zeroExtend 64) **
-         (accReg ↦ᵣ loaded3) **
-         (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) **
-         (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
-         (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
-         (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3)))
-       ** (.x10 ↦ᵣ (x10_init + signExtend12 1)) ** (.x1 ↦ᵣ x1_init)) := by
-  intro loaded3
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       EvmAsm.Evm64.evmStackIs sp (offsetWord :: rest) **
+       (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       EvmAsm.Evm64.evmMemoryIs memBase capacity contents **
+       (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (EvmAsm.Evm64.evmStackIs sp
+         (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat :: rest) **
+       ((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (byteReg ↦ᵣ
+         (getByteAt contents (offset.toNat + 7)).zeroExtend 64) **
+       (accReg ↦ᵣ
+         (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat).getLimbN 3) **
+       EvmAsm.Evm64.evmMemoryIs memBase capacity contents **
+       (.x10 ↦ᵣ (x10_init + signExtend12 1)) ** (.x1 ↦ᵣ x1_init)) := by
   have h_body := EvmAsm.Evm64.evm_mload_stack_spec_within
     offReg byteReg accReg addrReg memBaseReg
     sp offset offOld addrOld memBase byteOld accOld offsetWord rest
-    dstOld1 dstOld2 dstOld3
-    loAddr0 hiAddr0 loVal0 hiVal0 loAddr1 hiAddr1 loVal1 hiVal1
-    loAddr2 hiAddr2 loVal2 hiVal2 loAddr3 hiAddr3 loVal3 hiVal3 start base
+    dstOld1 dstOld2 dstOld3 capacity contents base
     h_offset0 h_offset1 h_offset2 h_offset3
     h_off_ne_x0 h_addr_ne_x0 h_byte_ne_x0 h_acc_ne_x0
-    h_window0 h_window1 h_window2 h_window3
+    hlen halignB hin hbound hvalid
   simp only [EvmAsm.Evm64.evm_mload_code] at h_body
-  have hBodyLen : (EvmAsm.Evm64.evm_mload offReg byteReg accReg addrReg memBaseReg).length
-      = 2 + (23 + 23 + 23 + 23) := by
+  have hBodyLen :
+      (EvmAsm.Evm64.evm_mload offReg byteReg accReg addrReg memBaseReg).length =
+        2 + (23 + 23 + 23 + 23) := by
     rw [EvmAsm.Evm64.evm_mload_length]
-  have hExitEq : (base + (376 : Word)) = base + fourTimes (2 + (23 + 23 + 23 + 23)) := by
-    simp only [fourTimes]; bv_omega
+  have hExitEq : (base + (376 : Word)) =
+      base + fourTimes (2 + (23 + 23 + 23 + 23)) := by
+    simp only [fourTimes]
+    bv_omega
   rw [hExitEq] at h_body
   have hQpcFree :
-      ((EvmAsm.Evm64.evmStackIs sp
-         (EvmAsm.Evm64.mloadStackOutputWordFromDwordPairs
-           loVal0 hiVal0 start loVal1 hiVal1 start
-           loVal2 hiVal2 start loVal3 hiVal3 start :: rest) **
-        (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
-         (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
-         (byteReg ↦ᵣ
-           (EvmAsm.Evm64.mloadByteFromDwordPair loVal3 hiVal3 start 7).zeroExtend 64) **
-         (accReg ↦ᵣ loaded3) **
-         (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) **
-         (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
-         (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
-         (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3))) : Assertion).pcFree := by pcFree
-  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
-  exact h
+      (EvmAsm.Evm64.evmStackIs sp
+         (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat :: rest) **
+       ((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (byteReg ↦ᵣ
+         (getByteAt contents (offset.toNat + 7)).zeroExtend 64) **
+       (accReg ↦ᵣ
+         (EvmAsm.Evm64.evmMemoryReadWord contents offset.toNat).getLimbN 3) **
+       EvmAsm.Evm64.evmMemoryIs memBase capacity contents : Assertion).pcFree := by
+    pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide)
+    h_body 1 x10_init x1_init
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by sep_perm hp)
+    (fun _ hp => by sep_perm hp)
+    h
 
 -- ============================================================================
 -- 22. Passthrough handler lift (x10-preserving bodies, e.g. PUSHn)

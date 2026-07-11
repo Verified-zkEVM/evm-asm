@@ -290,8 +290,10 @@ def registry : List OpcodeEntry := [
 
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
   entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
-  entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
-      "aligned spec proven; unaligned _public variants in progress",
+  entry "MLOAD" .conditional (some "evm_mload_stack_spec_within")
+      ("all byte alignments; memory framed by evmMemoryIs; conditional on the " ++
+       "40-byte aligned backing window lying within the fixed allocation")
+      (coverRef := some "mload_precondition_reachable"),
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
       "aligned spec proven; unaligned _public variants in progress",
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
@@ -427,9 +429,9 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 67 := by decide
+theorem provenCount_eq      : provenCount      = 66 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 4  := by decide
+theorem conditionalCount_eq : conditionalCount = 5  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 14 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
@@ -461,9 +463,9 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 127 := by decide
+theorem provenBytes_eq      : provenBytes      = 126 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 4   := by decide
+theorem conditionalBytes_eq : conditionalBytes = 5   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 18  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
@@ -577,6 +579,7 @@ private noncomputable abbrev _selfdestruct_witness :=
   @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
+private noncomputable abbrev _mload_cover        := @EvmAsm.Evm64.mload_precondition_reachable
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
 private noncomputable abbrev _mstore8_witness    := @EvmAsm.Evm64.evm_mstore8_stack_spec_within
 private noncomputable abbrev _msize_witness      := @EvmAsm.Evm64.evm_msize_stack_spec_within
@@ -594,7 +597,7 @@ private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack
     assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
 
 private noncomputable abbrev _evm_memory_is_mload_witness :=
-  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+  @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _evm_memory_is_peel_witness :=
   @EvmAsm.Evm64.evmMemoryIs_peel_window64
 private noncomputable abbrev _mpt_node_kind_spec_witness :=
