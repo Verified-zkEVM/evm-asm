@@ -10,6 +10,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCC
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
 
 open EvmAsm.Rv64.Tactics

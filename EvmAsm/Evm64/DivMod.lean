@@ -372,6 +372,13 @@ import EvmAsm.Evm64.DivMod.LoopIterN2V5.IterPostV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxAddbackV5NoNop
+-- Compatibility modules retained for the pre-split API surface.
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+import EvmAsm.Evm64.DivMod.LoopBodyN2
+import EvmAsm.Evm64.DivMod.LoopBodyN3
+import EvmAsm.Evm64.DivMod.LoopBodyN4
+import EvmAsm.Evm64.DivMod.LoopIterN1
+import EvmAsm.Evm64.DivMod.LoopIterN1.Max
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5NoNop
