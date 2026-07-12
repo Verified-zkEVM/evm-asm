@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.CallExtraGas
 
 namespace EvmAsm.Codegen
 
@@ -149,18 +150,6 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
 
     Calling convention:  a0 = is_cold, a1 = value_nonzero  ->  a0 = extra_gas.
     Clobbers t0/t1. -/
-def callExtraGas_prog : Program :=
-  [ .ADDI .x5 .x0 (100 : BitVec 12),
-    .BEQ .x10 .x0 (12 : BitVec 13),
-    .LUI .x5 (1 : BitVec 20),
-    .ADDIW .x5 .x5 (-1496 : BitVec 12),
-    .BEQ .x11 .x0 (16 : BitVec 13),
-    .LUI .x6 (2 : BitVec 20),
-    .ADDIW .x6 .x6 (808 : BitVec 12),
-    .ADD .x5 .x5 .x6,
-    .MV .x10 .x5,
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-
 def callExtraGasFunction : String :=
   "call_extra_gas:\n" ++ emitProgram callExtraGas_prog
 
@@ -168,8 +157,6 @@ theorem callExtraGasFunction_eq_prog :
     callExtraGasFunction = "call_extra_gas:\n" ++ emitProgram callExtraGas_prog := rfl
 
 #guard callExtraGasFunction.startsWith "call_extra_gas:\n"
-#guard callExtraGas_prog.length = 10
-
 /-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
     value_nonzero) cases.
     Output:

@@ -28,7 +28,7 @@ import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
