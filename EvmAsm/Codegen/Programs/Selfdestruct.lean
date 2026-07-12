@@ -35,7 +35,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  bnez t6, .L_selfdestruct_surcharge_done\n" ++
+    "  bnez t6, .L_selfdestruct_surcharge_done\n" ++
   -- The spec reads the originator's LIVE balance (system.py selfdestruct:
   -- get_account(current_target).balance != 0). A zero-header-balance contract
   -- funded THIS tx (the tx value credit, or an earlier same-tx transfer) must
@@ -45,7 +45,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  jal ra, nonstorage_effect_latest_balance\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
-  "  beqz t6, .L_selfdestruct_origin_env_bal\n" ++
+    "  beqz t6, .L_selfdestruct_origin_env_bal\n" ++
   "  la t0, evm_selfdestruct_balance_scratch\n  li t2, 4\n" ++
   ".L_selfdestruct_origin_live_scan:\n" ++
   "  ld t1, 0(t0)\n  bnez t1, .L_selfdestruct_origin_nonzero\n" ++
@@ -70,7 +70,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t1, 24(t0)\n" ++
   "  beqz t1, .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_origin_nonzero:\n" ++
-  "  addi sp, sp, -32\n" ++
+    "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
   "  ld a0, 576(x20)\n" ++
@@ -111,7 +111,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_selfdestruct_no_ctx_bal_loop\n" ++
   "  j .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
-  -- `is_account_alive` reads the live transaction state. A prior committed
+    -- `is_account_alive` reads the live transaction state. A prior committed
   -- value transfer can therefore make a pre-state-empty beneficiary alive even
   -- when it came from a different SELFDESTRUCT origin (CALLCODE/DELEGATECALL).
   -- Consult the frame-journaled nonstorage effect log before the origin-only
@@ -128,7 +128,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t2, 0(t0)\n  bnez t2, .L_selfdestruct_surcharge_done\n" ++
   "  addi t0, t0, 8\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_live_beneficiary_scan\n" ++
   ".L_selfdestruct_live_beneficiary_done:\n" ++
-  -- A prior SELFDESTRUCT of this origin moved its entire live balance to its beneficiary.
+    -- A prior SELFDESTRUCT of this origin moved its entire live balance to its beneficiary.
   -- Consult the transaction journal so repeated execution observes balance zero.
   "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
   runtimeAccessWordToBe20Asm "selfdestruct_seen_origin" "t0" "t1" "t2" "t3" ++
@@ -146,7 +146,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   ".L_selfdestruct_seen_next:\n" ++
   "  addi t2, t2, 32\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_seen_scan\n" ++
   ".L_selfdestruct_seen_scan_done:\n" ++
-  -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
+    -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
   -- NEW_ACCOUNT state-gas charge on `not is_account_alive(beneficiary)` (amsterdam
   -- vm/instructions/system.py selfdestruct: needs_state_gas). `is_account_alive` consults the LIVE
   -- state, which includes accounts CREATEd earlier in this same tx (tx_state.created_accounts) --
@@ -202,7 +202,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- state-gas dimension (vm/instructions/system.py selfdestruct). Charge the
   -- ACCOUNT_WRITE regular gas before touching the state-gas reservoir so a
   -- regular-gas OOG does not inflate parent state gas on frame failure.
-  "  ld t1, 568(x20)\n" ++
+    "  ld t1, 568(x20)\n" ++
   "  li t2, 8000\n" ++
   "  bltu t1, t2, .exit_outofgas\n" ++
   "  sub t1, t1, t2\n" ++
@@ -224,8 +224,23 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
   ".L_selfdestruct_surcharge_done:\n"
 
-/-- Append the current origin to the transaction-journaled SELFDESTRUCT set. -/
+/-- Append the current origin to the transaction-journaled SELFDESTRUCT set.
+
+    The set models "a prior SELFDESTRUCT of this origin moved its ENTIRE live
+    balance away" (the repeated-SELFDESTRUCT no-charge shortcut). A
+    SELFDESTRUCT whose beneficiary IS the origin moves the balance to itself
+    (system.py move_ether originator -> originator), so the origin's balance
+    survives and a LATER selfdestruct to an absent beneficiary still charges
+    NEW_ACCOUNT (double_selfdestruct code-self-destruct*): do not record it. -/
 def selfdestructRecordSeenOriginAsm : String :=
+  "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+  runtimeAccessWordToBe20Asm "selfdestruct_seen_selfchk" "t0" "t1" "t2" "t4" ++
+  "  la t0, " ++ runtimeAccessSeedScratchLabel ++ "\n  la t1, evm_selfdestruct_beneficiary\n  li t2, 20\n" ++
+  ".L_selfdestruct_seen_selfcmp:\n" ++
+  "  beqz t2, .L_selfdestruct_seen_record_done\n" ++
+  "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .L_selfdestruct_seen_notself\n" ++
+  "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .L_selfdestruct_seen_selfcmp\n" ++
+  ".L_selfdestruct_seen_notself:\n" ++
   "  la t0, evm_selfdestruct_seen_overflow\n  ld t1, 0(t0)\n  bnez t1, .L_selfdestruct_seen_record_done\n" ++
   "  la t0, evm_selfdestruct_seen_count\n  ld t1, 0(t0)\n  li t2, " ++ toString selfdestructSeenOriginCap ++ "\n" ++
   "  bgeu t1, t2, .L_selfdestruct_seen_record_overflow\n" ++
