@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.WitnessCodeLookup
+import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 

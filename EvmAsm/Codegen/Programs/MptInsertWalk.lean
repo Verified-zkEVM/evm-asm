@@ -41,7 +41,6 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Mpt
-import EvmAsm.Codegen.Programs.MptSet
 
 namespace EvmAsm.Codegen
 

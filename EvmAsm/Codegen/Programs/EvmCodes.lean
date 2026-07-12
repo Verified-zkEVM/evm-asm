@@ -7,6 +7,7 @@
   defined there.
 -/
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
