@@ -6,7 +6,7 @@
   on the head `BEQ`: empty input versus nonempty input.
 -/
 
-import EvmAsm.Rv64.WP
+import EvmAsm.Rv64.WP.Core
 import EvmAsm.Rv64.RLP.WalkInit
 
 namespace EvmAsm.Rv64.RLP
