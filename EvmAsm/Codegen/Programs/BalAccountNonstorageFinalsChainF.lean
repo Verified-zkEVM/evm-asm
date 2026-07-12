@@ -8,6 +8,8 @@
 
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE
 
+set_option maxRecDepth 8000
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.RLP
@@ -108,6 +110,88 @@ theorem bansf_nonceCapture_callee_bounds (aB : Word) (aLen tEnd off : Nat)
   exact hvalid ((vNext - vLen - aB).toNat + k) (by omega)
 
 #print axioms bansf_nonceCapture_callee_bounds
+
+/-- Status-zero tail of the nonce capture (slots 131--134): fall through the
+    status check, store the scalar, and set `has_nonce`. -/
+theorem bansf_nonceCapture_successTail_spec (oB image : Word) :
+    cpsTripleWithin 4 (B + 524) (B + 540) bansfCR
+      (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x5 **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((.x5 : Reg) ↦ᵣ (1 : Word)) **
+       ((oB + 40) ↦ₘ (1 : Word)) ** ((oB + 48) ↦ₘ image) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word))) := by
+  have hbne := bne_spec_gen_within .x11 .x0 (208 : BitVec 13)
+    (0 : Word) (0 : Word) (B + 524)
+  rw [show (B + 524) + 4 = B + 528 from by bv_omega] at hbne
+  have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 524) bansfProg 131
+        (.BNE .x11 .x0 (208 : BitVec 13))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+    hbne
+  have hfall := cpsBranchWithin_ntakenPath hbneL
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  have hfallF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ image) ** ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x5 **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)))
+    (by pcf) hfall
+  have hsd48 := sd_spec_gen_within .x18 .x10 oB image (0 : Word)
+    (48 : BitVec 12) (B + 528)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+      show (B + 528) + 4 = B + 532 from by bv_omega] at hsd48
+  have hsd48L := liftCode (cr' := bansfCR) hsd48
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 528) bansfProg 132
+        (.SD .x18 .x10 (48 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hli : cpsTripleWithin 1 (B + 532) (B + 536) bansfCR
+      (regOwn .x5) ((.x5 : Reg) ↦ᵣ (1 : Word)) := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn_single (fun vOld => ?_)
+    have h := li_spec_gen_within .x5 vOld (1 : Word) (B + 532) (by decide)
+    rw [show (B + 532) + 4 = B + 536 from by bv_omega] at h
+    exact liftCode (cr' := bansfCR) h
+      (fun a i hh => CodeReq.union_mono_left a i
+        (CodeReq.ofProg_mem_at B (B + 532) bansfProg 133 (.LI .x5 (1 : Word))
+          (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i hh))
+  have hsd40 := sd_spec_gen_within .x18 .x5 oB (1 : Word) (0 : Word)
+    (40 : BitVec 12) (B + 536)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+      show (B + 536) + 4 = B + 540 from by bv_omega] at hsd40
+  have hsd40L := liftCode (cr' := bansfCR) hsd40
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 536) bansfProg 134
+        (.SD .x18 .x5 (40 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hsd48F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (by pcf) hsd48L
+  have hliF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
+     ((oB + 48) ↦ₘ image) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (by pcf) hli
+  have hsd40F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+     ((oB + 48) ↦ₘ image) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (by pcf) hsd40L
+  have h1 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hp2 := sepConj_mono_left (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+      xperm_hyp hp2)
+    hfallF hsd48F
+  have h2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h1 hliF
+  have h3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h2 hsd40F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) h3
+
+#print axioms bansf_nonceCapture_successTail_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
