@@ -31,9 +31,9 @@
                        here on the matching return.
     `frame_parent_bases` 1025 × 16 B (parent memory base, parent env base) indexed
                        by the CHILD depth.
-    `call_frame_arena` base for frames 1..1024 (FRAME_STRIDE 0x39000);
+    `call_frame_arena` base for frames 1..1024 (FRAME_STRIDE 0x19000);
     `evm_memory`/`evm_env` the depth-0 register bases.
-  Child-frame sub-offsets: frameMemOff=0, frameEnvOff=0x38400.
+  Child-frame sub-offsets: frameMemOff=0, frameEnvOff=0x18400.
 -/
 
 import EvmAsm.Rv64.Program
@@ -281,12 +281,12 @@ def frameReturnFunction : String :=
   "  j 5f\n" ++
   "4:\n" ++
   "  addi t2, t1, -1               # (parent_depth - 1)\n" ++
-  "  li t3, 0x39000               # FRAME_STRIDE\n" ++
+  "  li t3, 0x19000               # FRAME_STRIDE\n" ++
   "  mul t2, t2, t3\n" ++
   "  la t3, call_frame_arena\n" ++
   "  add t2, t3, t2               # frame_base(parent_depth)\n" ++
   -- Frame-relative stack bounds: restore the guards to the parent frame's stack.
-  "  li t3, 0x28200\n" ++
+  "  li t3, 0x8200\n" ++
   "  add t3, t2, t3               # parent stack top = frame_base + frameStackTopOff\n" ++
   "  la t4, evm_cur_stack_top; sd t3, 0(t4)\n" ++
   "  li t4, 0x8000\n" ++
@@ -641,7 +641,7 @@ def sparseWindowWriteFunction : String :=
       +48 evm_call_depth after            (expect 0)
     Output (depth-2→1 case):
       +40 running bloom word0 after REVERT (expect checkpoint[1] word0)
-      +56 packed x20/x13 deltas           (expect 0x38400:0 against call_frame_arena)
+      +56 packed x20/x13 deltas           (expect 0x18400:0 against call_frame_arena)
       +64 running bloom word31 after REVERT
       +72 x12 - &fr_pstack2               (expect 160 = netPopBytes)
       +80 success word at x12             (expect 0 — REVERT path)
@@ -649,7 +649,7 @@ def sparseWindowWriteFunction : String :=
       +96 first copied returndata byte at outoff_abs (expect 0xab)
     Frame-relative stack-bound restores:
       +104 evm_cur_stack_top - &evm_stack_top   (scenario A, expect 0)
-      +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x28200)
+      +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x8200)
     Returndata staging into evm_precompile_frame:
       +120 precompile_frame size after scenario A (STOP, expect 0)
       +128 scenario B pack: data[299] << 32 | size (expect 0x5a<<32 | 300 —
@@ -721,17 +721,17 @@ def ziskFrameReturnPrologue : String :=
   "  la t1, fr_out; sd t1, 8(t0)\n" ++
   "  li t1, 1; sd t1, 16(t0)\n" ++
   "  li t1, 160; sd t1, 24(t0)\n" ++
-  "  la t0, frame_parent_bases; addi t0, t0, 32; la t1, call_frame_arena; sd t1, 0(t0); li t1, 0x38400; la t2, call_frame_arena; add t1, t1, t2; sd t1, 8(t0)\n" ++
+  "  la t0, frame_parent_bases; addi t0, t0, 32; la t1, call_frame_arena; sd t1, 0(t0); li t1, 0x18400; la t2, call_frame_arena; add t1, t1, t2; sd t1, 8(t0)\n" ++
   -- returndata source: 300 bytes (> the old 256 cap) — first byte 0xab, a
   -- marker 0x5a at index 299 to witness full-length staging past 256.
   "  la t0, fr_ret; li t1, 0xab; sb t1, 0(t0)\n" ++
   "  li t1, 0x5a; sb t1, 299(t0)\n" ++
   "  la x20, fr_child_env\n" ++
   "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
-  "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
+  "  la t0, call_frame_arena; li t2, 0x18400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
   -- Revert should preserve the parent's pre-child cursors and ignore the child lengths.
   "  la t0, fr_child_env; li t1, 99; sd t1, 448(t0); li t1, 98; sd t1, 464(t0); li t1, 97; sd t1, 472(t0)\n" ++
-  "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; li t1, 21; sd t1, 448(t0); li t1, 22; sd t1, 464(t0); li t1, 23; sd t1, 472(t0)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x18400; add t0, t0, t2; li t1, 21; sd t1, 448(t0); li t1, 22; sd t1, 464(t0); li t1, 23; sd t1, 472(t0)\n" ++
   -- nxio8.4.1: child mutated the state-gas globals to 444/766; the pre-child
   -- snapshot (555/666) lives in the child env at +624/632. A REVERT must roll the
   -- globals back to the snapshot (incorporate_child_on_error returns the child's
@@ -752,7 +752,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 88(s0)        # expect 1\n" ++
   "  la t0, fr_out; lbu t1, 0(t0); sd t1, 96(s0)               # expect 0xab\n" ++
   -- frame-relative stack bounds restored to the parent frame[1] arena stack.
-  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x28200\n" ++
+  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x8200\n" ++
   -- returndata staging: retlen 300 -> precompile_frame size 300; first byte
   -- 0xab @ +16; byte 299 (past the old 256 cap) staged @ +16+299, packed into
   -- the size cell's high half (the 256-byte probe output window is full).
@@ -761,13 +761,13 @@ def ziskFrameReturnPrologue : String :=
   "  sd t1, 128(s0)                                               # expect 0x5a<<32 | 300\n" ++
   "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
   -- EIP-150 gas refund: parent gas 200 + child leftover 30 = 230.
-  "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
+  "  la t0, call_frame_arena; li t2, 0x18400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
   -- nxio8.4.1: REVERT restored the state-gas globals to the child-env snapshot.
   "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 176(s0)  # expect 555\n" ++
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 184(s0)  # expect 666\n" ++
   "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 200(s0)      # expect 777 (revert restores)\n" ++
   "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 216(s0)  # expect 44 (revert restores)\n" ++
-  "  la t0, call_frame_arena; li t2, 0x38400; add t0, t0, t2; ld t1, 448(t0); sd t1, 240(s0)  # expect 21 (revert preserves persistent)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x18400; add t0, t0, t2; ld t1, 448(t0); sd t1, 240(s0)  # expect 21 (revert preserves persistent)\n" ++
   "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 248(s0)  # expect 22<<32 | 23\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
@@ -786,7 +786,7 @@ def ziskFrameReturnDataSection : String :=
   ".balign 16\n" ++
   "frame_parent_bases:\n  .zero 16400\n" ++          -- 1025 × 16 B
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x19000 : Nat) ++ "\n" ++
   ".balign 32\n" ++
   "evm_memory:\n  .zero 64\n" ++
   "evm_env:\n  .zero 640\n" ++          -- enlarged: frame_return refunds gas at env+568

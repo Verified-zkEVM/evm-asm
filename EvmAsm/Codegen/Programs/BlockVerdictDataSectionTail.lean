@@ -75,6 +75,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - (bsrMaxBalItems * baapStorageDescBytes) - 3 * (bsrMaxBalItems * bsrPathBytes)) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   ".balign 8\n" ++
+  "evm_memory_pool:\n  .zero " ++ toString evmMemoryPoolBytes ++ "\n" ++
+  "evm_memory_pool_end:\n" ++
+  ".balign 8\n" ++
   "rb_running_block_bloom:\n  .zero 256\n" ++
   "rb_running_receipt_bloom:\n  .zero 256\n" ++
   "rb_bloom_checkpoints:\n  .zero 262144\n" ++

@@ -10,7 +10,7 @@
   register bases (x13=base+frameMemOff, x12=base+frameStackTopOff,
   x20=base+frameEnvOff) on a depth bump.
 
-  `FRAME_STRIDE = 0x39000` (CallFrameLayout.frameStride). The arena symbol
+  `FRAME_STRIDE = 0x19000` (CallFrameLayout.frameStride). The arena symbol
   `call_frame_arena` is a standalone pre-zeroed block in the guest (it aliased
   `basr_values` under the retired 1G layout, #8513); this module's probe links
   a local stub to test the offset arithmetic in isolation.
@@ -28,12 +28,12 @@ open EvmAsm.Rv64
 
 /-! ## frame_base
 
-    a0 = depth (>= 1). Returns a0 = `call_frame_arena + (depth-1) * 0x39000`.
+    a0 = depth (>= 1). Returns a0 = `call_frame_arena + (depth-1) * 0x19000`.
     (depth 0 is NOT handled here — it uses the existing evm_memory/stack/env
     labels directly; see the layout doc §1.) Clobbers t0/t1. -/
 def frameBase_prog : Program :=
   [ .ADDI .x5 .x10 (-1 : BitVec 12),
-    .LUI .x6 (57 : BitVec 20),
+    .LUI .x6 (25 : BitVec 20),
     .MUL .x5 .x5 .x6,
     .AUIPC .x6 (laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
     .ADDI .x6 .x6 (laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
@@ -61,16 +61,16 @@ theorem frameBaseFunction_eq_prog :
 #guard frameBase_prog.length = 7
 /-- `zisk_frame_base`: probe over a local `call_frame_arena` stub. Verifies the
     offsets `frame_base(d) - call_frame_arena` for d = 1, 2, 1024 are
-    `0`, `0x39000`, `1023*0x39000` respectively (the layout arithmetic). -/
+    `0`, `0x19000`, `1023*0x19000` respectively (the layout arithmetic). -/
 def ziskFrameBasePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
   "  la s1, call_frame_arena\n" ++
   -- frame_base(1) - arena -> expect 0
   "  li a0, 1; jal ra, frame_base; sub a0, a0, s1; sd a0, 0(s0)\n" ++
-  -- frame_base(2) - arena -> expect 0x39000
+  -- frame_base(2) - arena -> expect 0x19000
   "  li a0, 2; jal ra, frame_base; sub a0, a0, s1; sd a0, 8(s0)\n" ++
-  -- frame_base(1024) - arena -> expect 1023*0x39000 = 0xe3c7000
+  -- frame_base(1024) - arena -> expect 1023*0x19000 = 0x63e7000
   "  li a0, 1024; jal ra, frame_base; sub a0, a0, s1; sd a0, 16(s0)\n" ++
   "  j .Lfb_done\n" ++
   frameBaseFunction ++ "\n" ++
