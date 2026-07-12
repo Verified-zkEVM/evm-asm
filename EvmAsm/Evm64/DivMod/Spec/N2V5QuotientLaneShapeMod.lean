@@ -12,7 +12,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 
 namespace EvmAsm.Evm64
 

@@ -15,7 +15,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 

@@ -15,8 +15,7 @@
   `condSub_mask_eq` / `sum_minus_masked_N_eq_addmod` value bridges.
 -/
 
-import EvmAsm.Evm64.AddMod.Compose.CarryLd
-import EvmAsm.Evm64.AddMod.Compose.CarryCompose
+import EvmAsm.Evm64.AddMod.CarryLdShared
 import EvmAsm.Evm64.EvmWordArith.Comparison
 
 namespace EvmAsm.Evm64.AddMod.Compose

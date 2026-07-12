@@ -56,7 +56,7 @@ import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
-import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.SpecShared
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 import EvmAsm.Evm64.SDiv.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.Compose.StackSpecV5

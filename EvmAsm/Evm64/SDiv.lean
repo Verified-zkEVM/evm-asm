@@ -93,5 +93,4 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallReturnV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallReturnHandoffV5
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
-import EvmAsm.Evm64.SDiv.Spec
-import EvmAsm.Evm64.SDiv.SpecResultBranches
+import EvmAsm.Evm64.SDiv.SpecShared
