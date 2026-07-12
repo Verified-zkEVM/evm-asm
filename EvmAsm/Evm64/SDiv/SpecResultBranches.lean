@@ -4,7 +4,7 @@
   Sign-branch refinements for the top-level SDIV stack spec.
 -/
 
-import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.SpecShared
 
 namespace EvmAsm.Evm64
 
