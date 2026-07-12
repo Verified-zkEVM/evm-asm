@@ -5,7 +5,8 @@
   dividend and divisor sign-bit probes.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlocks
+import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlockSpecs
+import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPost
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
@@ -56,14 +57,26 @@ theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCodeV4
   have hPrefix : EvmAsm.Rv64.cpsTripleWithin 3 base (base + divisorSignOff)
       (sdivCodeV4 base) pre mid := by
     dsimp [pre, mid]
+    have hSave :=
+      EvmAsm.Rv64.cpsTripleWithin_frameR
+        (((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
+          ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+            dividendTop)))
+        (by pcFree)
+        (saveRa_spec_in_sdivCodeV4 vRa vSavedOld base)
+    have hSign :=
+      EvmAsm.Rv64.cpsTripleWithin_frameL
+        (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)))))
+        (by pcFree)
+        (dividendSign_spec_in_sdivCodeV4 sp sDividendOld dividendTop base)
+    have hFirst := EvmAsm.Rv64.cpsTripleWithin_seq_same_cr hSave hSign
     simpa [dividendSignOff, divisorSignOff, BitVec.add_assoc] using
       (EvmAsm.Rv64.cpsTripleWithin_frameR
         ((.x9 ↦ᵣ sDivisorOld) **
          ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
           divisorTop))
         (by pcFree)
-        (saveRa_then_dividendSign_spec_in_sdivCodeV4
-          vRa vSavedOld sp sDividendOld dividendTop base))
+        hFirst)
   have hDivisor : EvmAsm.Rv64.cpsTripleWithin 2 (base + divisorSignOff)
       ((base + divisorSignOff) + 8) (sdivCodeV4 base) midDivisor post := by
     dsimp [midDivisor, post]
