@@ -4,7 +4,7 @@
   Lift squaring marshal/unmarshal blocks into the full-loop EXP+MUL code bundle.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.SquaringWithMulShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -1,14 +1,11 @@
 /- Shared declaration home for the EXP full-loop and saved-bit-with-mul helpers. -/
 
-import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.SquaringWithMulShared
 import EvmAsm.Evm64.Exp.Compose.LoopControlBlocks
 import EvmAsm.Evm64.Exp.Compose.SquaringMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.CondMulMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.CondMulSkipBlock
-import EvmAsm.Evm64.Exp.Compose.SquaringCallPath
-import EvmAsm.Evm64.Exp.Compose.CondMulCallPath
-import EvmAsm.Evm64.Exp.Compose.SquaringCallBlock
-import EvmAsm.Evm64.Exp.Compose.CondMulCallBlock
+import EvmAsm.Evm64.Exp.CondMulWithMulShared
 import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
 import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
 import EvmAsm.Evm64.Multiply.Callable

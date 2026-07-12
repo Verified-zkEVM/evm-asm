@@ -5,7 +5,7 @@
   bundle.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.SquaringWithMulShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

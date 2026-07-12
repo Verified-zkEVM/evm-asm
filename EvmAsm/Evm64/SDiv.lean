@@ -64,8 +64,7 @@ import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactHandoff
 import EvmAsm.Evm64.SDiv.Compose.DivCallN1V4Handoff
-import EvmAsm.Evm64.SDiv.Compose.DivCallBzeroHandoff
-import EvmAsm.Evm64.SDiv.Compose.DivCallBzeroCallableHandoff
+import EvmAsm.Evm64.SDiv.DivCallExactShared
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactResultSignFixHandoff
 import EvmAsm.Evm64.SDiv.Compose.DivCallBzeroResultSignFixHandoff
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactReturnHandoff
