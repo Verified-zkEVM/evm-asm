@@ -1122,6 +1122,10 @@ run_case() {
 
   run_specref_oracle() {
     [[ "$SPECREF_ORACLE" -eq 1 ]] || return 0
+    # Only successful guest executions have an output whose bytes/verdict can
+    # be compared with the oracle.  Keep emulator ERROR/BUDGET classification
+    # authoritative instead of turning those cases into oracle divergences.
+    [[ -n "${actual_hex:-}" ]] || return 0
     local oracle_out="$RUN_DIR/$label.specref.output"
     local oracle_log="$RUN_DIR/$label.specref.log"
     local oracle_hex
@@ -1171,14 +1175,13 @@ run_case() {
       return 0
     fi
   fi
-  local expected_bytes=$(( ${#expected_hex} / 2 ))
-  actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+  actual_hex="$(xxd -p "$out" 2>/dev/null | tr -d '\n' || true)"
   if [[ "${#actual_hex}" -lt "${#expected_hex}" ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
     if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
       if retry_budget_case; then
-        actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+        actual_hex="$(xxd -p "$out" 2>/dev/null | tr -d '\n' || true)"
         if [[ "${#actual_hex}" -ge "${#expected_hex}" ]]; then
           if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
             run_specref_oracle || true
