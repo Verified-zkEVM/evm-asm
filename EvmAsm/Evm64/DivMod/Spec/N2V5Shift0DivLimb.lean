@@ -10,7 +10,7 @@
   bridge `n2_shift0_epiloguePost_to_divStackDispatchPostV5` (#7475).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0QuotientLane
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
 import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 
 namespace EvmAsm.Evm64

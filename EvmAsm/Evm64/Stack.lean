@@ -6,11 +6,24 @@
 -/
 
 import EvmAsm.Evm64.Basic
-import EvmAsm.Evm64.SpAddr
+import EvmAsm.Rv64.Tactics.SeqFrame
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+
+theorem spAddr32_8 {sp : Word} : sp + 32 + 8  = sp + 40 := by bv_addr
+theorem spAddr32_16 {sp : Word} : sp + 32 + 16 = sp + 48 := by bv_addr
+theorem spAddr32_24 {sp : Word} : sp + 32 + 24 = sp + 56 := by bv_addr
+
+/-- Third-slot siblings of `spAddr32_*`: flatten `(sp + 64) + {8,16,24}` →
+    `sp + {72,80,88}`. Parallel to the `(sp + 32) + …` family above but for
+    the third operand of ternary 256-bit opcodes (ADDMOD / MULMOD),
+    which lives at stack offset `sp + 64`. Also covers the internal
+    address bumps `evmWordIs_sp64_unfold` needs. -/
+theorem spAddr64_8 {sp : Word} : sp + 64 + 8  = sp + 72 := by bv_addr
+theorem spAddr64_16 {sp : Word} : sp + 64 + 16 = sp + 80 := by bv_addr
+theorem spAddr64_24 {sp : Word} : sp + 64 + 24 = sp + 88 := by bv_addr
 
 open EvmWord
 
@@ -597,5 +610,6 @@ theorem evmStackIs_split_at (sp : Word) (stack : List EvmWord) (k : Nat)
       rw [evmStackIs_cons, ih (sp + 32) vs hk', a1, a2]
       simp only [List.take_succ_cons, List.drop_succ_cons, List.getElem_cons_succ]
       simp only [evmStackIs_cons, sepConj_assoc']
+
 
 end EvmAsm.Evm64

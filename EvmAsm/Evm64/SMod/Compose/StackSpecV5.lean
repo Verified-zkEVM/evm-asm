@@ -10,8 +10,7 @@
   witness `evm_sdiv_exact_callable_return_stack_spec_within_v5`.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallReturnV5
-import EvmAsm.Evm64.SMod.Compose.ModCallExactHandoffV5
+import EvmAsm.Evm64.SMod.ModCallV5Shared
 
 namespace EvmAsm.Evm64.SMod.Compose
 
