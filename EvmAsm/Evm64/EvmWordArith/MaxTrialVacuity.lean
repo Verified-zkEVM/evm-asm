@@ -21,7 +21,7 @@
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 import EvmAsm.Evm64.EvmWordArith.Common
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
-import Mathlib.Tactic.Ring
+import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
 namespace EvmAsm.Evm64
 
