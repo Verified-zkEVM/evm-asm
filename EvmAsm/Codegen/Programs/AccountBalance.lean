@@ -30,7 +30,7 @@ import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.MptSet
-import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountFieldExtract
 
 namespace EvmAsm.Codegen
 
