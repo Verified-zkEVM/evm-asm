@@ -5,7 +5,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Spec.N2V5BundleOfShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
 
 namespace EvmAsm.Evm64
