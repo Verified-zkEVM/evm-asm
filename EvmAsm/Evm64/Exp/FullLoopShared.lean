@@ -2,7 +2,7 @@
   Shared declaration home for the saved-bit full-loop prefix, squaring, and branch stages.
 -/
 
-import EvmAsm.Evm64.Exp.SavedBitWithMulShared
+import EvmAsm.Evm64.Exp.SavedBitWithMulLoopShared
 import EvmAsm.Evm64.Exp.AddrNorm
 
 namespace EvmAsm.Evm64.Exp.Compose
