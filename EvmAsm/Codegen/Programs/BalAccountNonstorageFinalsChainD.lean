@@ -92,6 +92,18 @@ def balStationRej (aB newSp oB : Word) (aLen : Nat)
   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
   bytesRegion aB acctBytes ** F
 
+/-- Swap the two exits of a branch (the find-last loop reports its clean
+    exit FIRST; the station convention keeps the reject exit first). -/
+theorem cpsBranchWithin_swap {n : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {e1 : Word} {Q1 : Assertion} {e2 : Word} {Q2 : Assertion}
+    (h : cpsBranchWithin n entry cr P e1 Q1 e2 Q2) :
+    cpsBranchWithin n entry cr P e2 Q2 e1 Q1 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hcase⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, hcase.symm⟩
+
+#print axioms cpsBranchWithin_swap
+
 /-!
 ## Balance-station assembly plan (slice 4g, `bansf_balStation_spec`)
 
