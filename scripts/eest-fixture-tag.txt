@@ -1,1 +1,1 @@
-tests-zkevm@v0.6.0
+tests-zkevm@v0.6.1
