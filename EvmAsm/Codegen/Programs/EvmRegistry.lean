@@ -137,13 +137,19 @@ def callFrameGuestRegistry : List OpcodeHandlerSpec :=
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
+  -- sparseWindows = true (evm-asm-0w05f.13): depth-1+ CALL-frame RETURN/REVERT
+  -- windows beyond the dense arena are charged-only + materialized from the
+  -- sparse word store (`sparse_window_read`, linked via the runtime
+  -- dispatcher's embedded helpers). The roundtrip probe registry above keeps
+  -- the dense arena bail (no sparse cells in its data section).
+  mcopyHandlers ++ haltHandlers true true ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
   childFrameHandlers
     (callDescendFallThrough "call_target" 192 64 96 128 160 192 0)
     (callDescendFallThrough "callcode_target" 192 64 96 128 160 192 2)
     (callDescendFallThrough "delegatecall_target" 160 0 64 96 128 160 3)
-    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 1) ++
+    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 1)
+    (sparseWindows := true) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandlerCF]
 
