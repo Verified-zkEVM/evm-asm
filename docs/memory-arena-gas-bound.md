@@ -43,7 +43,7 @@ Guest: the `2^24` regular cap is already enforced in `BlockVerdictGasGate`
 - **Total-live bound (all frames on the stack at once):** `Σ wᵢ²/512 ≤ 2^24`
   ⇒ `Σ wᵢ ≤ √(k · 512 · 2^24)` ≈ **90 MiB** at `k = 1024`.
 
-## Why this matters: the current arenas under-serve the affordable bound
+## Why this mattered before the shared pool
 
 - `rootRuntimeMemoryArenaLimitBytes = 4 MiB` (depth 0): **correct** — covers the
   full 2.90 MiB affordable, rejects beyond it legitimately.
@@ -54,10 +54,12 @@ Guest: the `2^24` regular cap is already enforced in `BlockVerdictGasGate`
   OOG. So the sparse approach, at today's capacity, *also* false-rejects a frame
   using 256 KiB … 2.90 MiB of memory.
 
-Net: every path caps effective nested-frame memory at ~256 KiB, while the spec
-allows ~2.90 MiB — a false-reject band of 256 KiB … 2.90 MiB per nested frame.
+Pre-pool, every path capped effective nested-frame memory at ~256 KiB while the
+spec allows ~2.90 MiB. The implemented 96 MiB shared stack-pool closes this
+false-reject band: live child memories occupy disjoint LIFO slices, and the
+~70 MiB joint total-live invariant stays below the pool capacity.
 
-## Arena-sizing options to fully close the class (open decision)
+## Arena-sizing decision
 
 All must provision up to ~2.90 MiB/frame and ~90 MiB total-live. Following
 execution-specs (flat growable `bytearray`, every window op via
@@ -72,13 +74,14 @@ execution-specs (flat growable `bytearray`, every window op via
    closed structurally. Cost: non-uniform frame stride (prefix-sum offsets
    instead of `d · 0x39000`) — a change to the byte-tied `frame_base`
    arithmetic and its proofs; ~360 MiB footprint is tight vs the RAM window.
-3. **Dynamic per-frame memory pool (~90 MiB shared).** Bump-allocate a frame's
-   arena on descend, free on return; flat per-frame memory, no sparse, tightest
-   footprint; pool exhaustion = legitimate OOG. Cost: a runtime allocator +
-   save/restore discipline across the call stack.
+3. **IMPLEMENTED: shared stack-pool (96 MiB).** A child's base is
+   `parent_base + ceil32(parent_MSIZE)`; return reclaims the child slice by
+   stack discipline. This is a call-stack high-water layout, not a general
+   allocator: there is no free-list, fragmentation, or independently mutable
+   bump pointer. Flat per-frame memory needs no opcode-specific sparse glue;
+   pool exhaustion is legitimate OOG under the transaction gas invariant.
 
-Trade-off summary: (1) is the least structural change but keeps per-opcode
-sparse glue and needs the store grown; (2)/(3) close the class structurally
-(no per-opcode work, spec-faithful flat memory) at the cost of a frame-layout /
-allocator change. The `evm-asm-274cr` umbrella currently assumes (1); (2)/(3)
-would supersede its per-family plan. Decision pending.
+The shared stack-pool was chosen because it closes the class structurally and
+fits the 512 MiB RAM window: removing 128 MiB of fixed per-slot memory and
+adding the 96 MiB pool reduces `.data` by roughly 33 MiB. The sparse paths are
+left in place as dead fallback code for a separate retirement PR.

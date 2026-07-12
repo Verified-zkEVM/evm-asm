@@ -51,14 +51,11 @@ Consequences (numbers from `3·w + w²/512 ≤ 2^24`):
   live frames on the call stack is bounded by `sum(wᵢ²/512) ≤ 2^24 ⇒`
   **≈ 90 MiB total-live** (k = 1024).
 
-Design impact (see `docs/memory-arena-gas-bound.md`): a nested frame can
-legitimately afford up to ~2.90 MiB, but `runtimeMemoryArenaLimitBytes` below
-is only 128 KiB, and the sparse word store is only 4096 words = 128 KiB — so
-BOTH under-serve the affordable bound (a nested frame using 256 KiB … 2.90 MiB
-of memory is a false-reject today). Fully closing the beyond-dense window
-false-reject class (`evm-asm-274cr`) therefore requires provisioning up to
-~2.90 MiB/frame (≈90 MiB total-live); the options + trade-offs are in the docs
-note. -/
+Design impact (see `docs/memory-arena-gas-bound.md`): nested memory was
+under-served before the pool (fixed 128 KiB dense arena plus a 4096-word sparse
+store). The shared `evm_memory_pool` now serves the full affordable
+~2.90 MiB/frame, bounded by the ~70 MiB joint total-live invariant; an access
+beyond the 96 MiB pool is therefore a legitimate OOG. -/
 
 /-- Runtime EVM memory arena size for nested call/create frames. This remains
     tied to the preallocated call-frame layout. NOTE (evm-asm-274cr): 128 KiB
@@ -105,14 +102,15 @@ def sparseMemoryWordCapacity : Nat := 4096
     which dominates (MODEXP ≤ 1024, all other precompiles ≤ 256). -/
 def precompileFrameReturndataCapBytes : Nat := rootRuntimeMemoryArenaLimitBytes
 
-/-- Load the materialized memory-arena bound for the current frame into `limitReg`.
-    Depth 0 uses the larger root arena; nested frames use the fixed call-frame
-    layout bound. -/
+/-- Load the frame-relative materialized memory bound into `limitReg`.
+    Depth 0 uses its 4 MiB root arena. Nested frames receive the remaining
+    shared pool capacity, `evm_memory_pool_end - x13`. -/
 def memoryArenaLimitAsm (tag limitReg : String) : String :=
   "  la " ++ limitReg ++ ", evm_call_depth\n" ++
   "  ld " ++ limitReg ++ ", 0(" ++ limitReg ++ ")\n" ++
   "  beqz " ++ limitReg ++ ", .Lmemlimit_root_" ++ tag ++ "\n" ++
-  "  li " ++ limitReg ++ ", " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+  "  la " ++ limitReg ++ ", evm_memory_pool_end\n" ++
+  "  sub " ++ limitReg ++ ", " ++ limitReg ++ ", x13\n" ++
   "  j .Lmemlimit_have_" ++ tag ++ "\n" ++
   ".Lmemlimit_root_" ++ tag ++ ":\n" ++
   "  li " ++ limitReg ++ ", " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
@@ -171,6 +169,17 @@ def updateActiveMemorySizeAsm
     "  sub " ++ maskReg ++ ", " ++ maskReg ++ ", " ++ gasTmpReg ++ "\n" ++
     "  sd " ++ maskReg ++ ", 568(x20)\n"
    else "") ++
+  -- Fresh-zero exactly the newly expanded interval. Both endpoints are
+  -- 32-byte multiples, so aligned 8-byte stores cover [old, new) exactly.
+  "  ld " ++ currentReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+  "  add " ++ maskReg ++ ", x13, " ++ currentReg ++ "\n" ++
+  "  add " ++ gasTmpReg ++ ", x13, " ++ roundedReg ++ "\n" ++
+  ".Lmemsize_" ++ tag ++ "_zero:\n" ++
+  "  beq " ++ maskReg ++ ", " ++ gasTmpReg ++ ", .Lmemsize_" ++ tag ++ "_zero_done\n" ++
+  "  sd zero, 0(" ++ maskReg ++ ")\n" ++
+  "  addi " ++ maskReg ++ ", " ++ maskReg ++ ", 8\n" ++
+  "  j .Lmemsize_" ++ tag ++ "_zero\n" ++
+  ".Lmemsize_" ++ tag ++ "_zero_done:\n" ++
   "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
   ".Lmemsize_" ++ tag ++ "_done:\n"
 
