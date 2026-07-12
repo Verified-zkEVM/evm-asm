@@ -764,5 +764,70 @@ theorem bansf_nonceCapture_tooLongCall_spec (aB oB : Word)
 
 #print axioms bansf_nonceCapture_tooLongCall_spec
 
+/-- Complete nonce-value capture (slots 128--134), with reject/found exits. -/
+theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
+    (vNext vLen vStatus v5 v6 v7 v28 vRa : Word)
+    (acctBytes : List (BitVec 8)) (P : Assertion)
+    (hP : P.pcFree) (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffle : off ≤ tEnd)
+    (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+      (aB + BitVec.ofNat 64 tEnd) vNext vLen) :
+    cpsBranchWithin (7 * vLen.toNat + 18) (B + 512) bansfCR
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ vStatus) **
+       ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+       ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+       bytesRegion aB acctBytes ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      (B + 736) (nonceCaptureRejectPost aB oB vLen acctBytes P)
+      (B + 540) (nonceCaptureFoundPost aB oB vLen
+        (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+          ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+        vLen.toNat acctBytes P) := by
+  have hover9 : aB.toNat + tEnd + 9 < 2 ^ 64 := by omega
+  obtain ⟨hrepS, _, _⟩ := rlpItemDecode_spanStart hdec hoffle hover9
+  by_cases htl : 8 < vLen.toNat
+  · have hc := bansf_nonceCapture_tooLongCall_spec aB oB
+      vNext vLen vStatus v5 v6 v7 v28 vRa vLen.toNat acctBytes P hP rfl htl hrepS
+    have ht := bansf_nonceCapture_tooLong_spec aB oB vLen vLen.toNat acctBytes P hP
+    have hfull := cpsTripleWithin_seq_same_cr hc ht
+    have hfull' := cpsTripleWithin_weaken
+      (Q' := nonceCaptureRejectPost aB oB vLen acctBytes P) (fun _ hp => hp)
+      (fun _ hq => Or.inl hq) hfull
+    exact cpsBranchWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_as_cpsBranchWithin_left (B + 540)
+        (nonceCaptureFoundPost aB oB vLen
+          (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+            ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+          vLen.toNat acctBytes P) hfull')
+  · have hlen8 : vLen.toNat ≤ 8 := by omega
+    let PF : Assertion :=
+      ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
+      ((oB + 48) ↦ₘ (0 : Word)) ** P
+    have hPF : PF.pcFree := by dsimp only [PF]; pcf; exact hP
+    have hc := bansf_nonceCapture_call_spec aB aLen tEnd off
+      vNext vLen vStatus v5 v6 v7 v28 vRa acctBytes PF hPF hsalign
+      hslack hover hvalid htEnd hoffle hdec
+    have hd := bansf_nonceCapture_dispatch_spec aB oB vLen
+      (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+        ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+      (vNext - vLen - aB).toNat vLen.toNat acctBytes P hP hlen8
+    have hfull := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+      (nonceParserPost_to_dispatchPre aB oB vLen
+        (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+          ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+        (vNext - vLen - aB).toNat vLen.toNat acctBytes P rfl)
+      hc hd
+    dsimp only [PF] at hfull
+    exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hq => hq) (fun _ hq => hq) hfull
+
+#print axioms bansf_nonceCapture_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
