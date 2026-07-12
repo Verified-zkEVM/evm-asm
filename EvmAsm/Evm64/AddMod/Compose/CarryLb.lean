@@ -20,6 +20,7 @@
 
 import EvmAsm.Evm64.AddMod.Compose.CarryLa
 import EvmAsm.Evm64.AddMod.Compose.CarryBranch
+import EvmAsm.Evm64.EvmWordArith.Arithmetic
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

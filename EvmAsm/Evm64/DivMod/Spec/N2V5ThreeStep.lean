@@ -16,7 +16,9 @@
   `fullDivN2MulSubEqV5`.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
+import Mathlib.Algebra.Group.Nat.Defs
+import Mathlib.Tactic.Linarith
+import EvmAsm.Evm64.Basic
 
 namespace EvmAsm.Evm64
 

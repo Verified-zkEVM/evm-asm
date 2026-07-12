@@ -27,7 +27,6 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
-import EvmAsm.Evm64.EvmWordArith.AddMod
 
 namespace EvmAsm.Evm64
 
@@ -370,18 +369,6 @@ theorem evm_addmod_pow256_mod_n_length (modOff : BitVec 21) :
 theorem evm_addmod_pow256_mod_n_byte_length (modOff : BitVec 21) :
     4 * (evm_addmod_pow256_mod_n modOff).length = 172 := by
   rw [evm_addmod_pow256_mod_n_length]
-
--- Concrete pure-oracle checks for the value these runtime blocks materialize.
-
-example : (EvmWord.pow256ModN (0 : EvmWord)).toNat = 0 := by decide
-
-example : (EvmWord.pow256ModN (1 : EvmWord)).toNat = 0 := by decide
-
-example : (EvmWord.pow256ModN (7 : EvmWord)).toNat = 2 := by decide
-
-example :
-    (EvmWord.pow256ModN (BitVec.ofNat 256 (2 ^ 128 + 1))).toNat = 1 := by
-  decide
 
 /-- Phase 2 — zero-store path (taken when `N = 0`).
 

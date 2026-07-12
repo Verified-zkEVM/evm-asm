@@ -14,7 +14,6 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
-import EvmAsm.Codegen.Programs.EvmBasic
 
 namespace EvmAsm.Codegen
 

@@ -5,7 +5,8 @@
   satisfy the 1500-line file-size cap.
 -/
 
-import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmTinyInterp
+import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.TxPubkey
