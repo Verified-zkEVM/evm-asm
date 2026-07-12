@@ -8,7 +8,7 @@
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCall
+import EvmAsm.Evm64.Exp.TwoMulCondShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

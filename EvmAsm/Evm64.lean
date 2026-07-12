@@ -7,6 +7,7 @@
 -- Foundations (Basic and Stack are transitively imported by every
 -- opcode Program file via Stack → Basic).
 import EvmAsm.Evm64.CodeRegion
+import EvmAsm.Evm64.SpAddr
 
 -- Accelerator C ABI bridges (zkvm_accelerators.h)
 import EvmAsm.Evm64.Accelerators.Types
@@ -58,20 +59,37 @@ import EvmAsm.Evm64.Multiply
 
 -- Exp (skeleton — GH #92, square-and-multiply over 256-bit exponent)
 import EvmAsm.Evm64.Exp
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
+import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 
 -- DivMod (Knuth Algorithm D)
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 import EvmAsm.Evm64.DivMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1N2V5StackSpecUnconditional
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivAssembly
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
+import EvmAsm.Evm64.DivMod.Compose.V5ReuseV6
+import EvmAsm.Evm64.DivMod.Compose.V5ReuseModV6
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModUnconditionalFull
+import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableBzeroV4
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
 
 -- SDIV / SMOD skeletons (GH #90, signed division/modulo)
 import EvmAsm.Evm64.SDiv
+import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.SpecSemantic
+import EvmAsm.Evm64.SDiv.SpecResultBranches
 import EvmAsm.Evm64.SMod
 
 -- ADDMOD / MULMOD skeletons (GH #91)
 import EvmAsm.Evm64.AddMod
+import EvmAsm.Evm64.AddMod.Compose.ZeroNoCarryArms
+import EvmAsm.Evm64.AddMod.Compose.TotalDispatch
+import EvmAsm.Evm64.AddMod.Compose.ResultStack
 import EvmAsm.Evm64.MulMod
 
 -- Calling convention (LP64)

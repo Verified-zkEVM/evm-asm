@@ -1,4 +1,4 @@
-import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCond
+import EvmAsm.Evm64.Exp.TwoMulCondShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

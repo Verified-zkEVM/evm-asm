@@ -7,8 +7,7 @@
 import EvmAsm.Evm64.SDiv.Compose.Words
 import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
 import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.BzeroReturnZeroWordRestView
-import EvmAsm.Evm64.SDiv.Compose.BzeroReturnStackZeroView
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainB1
 import EvmAsm.Evm64.SDiv.Args
 import EvmAsm.Evm64.SDiv.StackExecutionBridge
 import EvmAsm.Evm64.SDiv.HandlerBridge

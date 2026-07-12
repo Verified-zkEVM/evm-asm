@@ -1,2 +1,2 @@
-/- Compatibility umbrella for the shared SDIV view declarations. -/
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainB2
+/- Compatibility import: declarations live in EvmAsm.Evm64.SDiv.DispatchViewsShared. -/
+import EvmAsm.Evm64.SDiv.DispatchViewsShared
