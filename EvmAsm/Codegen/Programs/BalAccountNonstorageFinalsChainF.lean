@@ -414,5 +414,46 @@ theorem bansf_nonceCapture_empty_spec (aB oB vLen : Word) (len : Nat)
 
 #print axioms bansf_nonceCapture_empty_spec
 
+/-- The leading-zero noncanonical arm is routed to rejection. -/
+theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
+    (srcOff len : Nat) (acctBytes : List (BitVec 8))
+    (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 2 (B + 524) (B + 736) bansfCR
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+          bytesRegion aB acctBytes) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+       bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
+       ((oB + 48) ↦ₘ (0 : Word)) ** P) := by
+  have hr := bansf_nonceCapture_rejectRoute_spec (3 : Word) (0 : Word)
+    (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+     ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
+     ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+    (by decide) (by pcf; exact hP)
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      let R : Assertion :=
+        ((.x11 : Reg) ↦ᵣ (3 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
+         ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+         ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      have hp2 : (R ** ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝) h := by
+        dsimp only [R]
+        xperm_hyp hp
+      exact ((sepConj_pure_right h).1 hp2).1)
+    (fun h hq => by xperm_hyp hq) hr
+
+#print axioms bansf_nonceCapture_noncanonical_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
