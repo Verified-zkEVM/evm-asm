@@ -605,33 +605,6 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ret"
 
 
-/-! ## block_verdict_tx_state_gas_array  (g8zeq.1.4.3)
-
-    Fill a per-tx `tx_state_gas` array from the SSZ transactions section, the
-    state-gas counterpart of the `bvgr_block_gas_increments` regular-gas array.
-    Iterates the SSZ `List[Transaction]` offset table exactly like
-    `block_verdict_tx_gas_limits` and calls `tx_intrinsic_state_gas` per tx, so
-    `out[i] = tx_state_gas(tx i)` for `i in [0, count)`.
-
-    Generic in its output pointer and a SEPARATE pass — it does NOT modify the
-    wired `block_verdict_tx_gas_limits`. g8zeq.1.4.2 calls it with
-    `bvgr_tx_state_gas` once the runtime arena is complete (count == tx_count),
-    then feeds both arrays to `eip8037_block_gas_used`.
-
-    Calling convention:
-      a0 (input)  : SSZ transactions-section ptr (offset table + tx bodies)
-      a1 (input)  : section byte length
-      a2 (input)  : expected transaction count (arena consistency)
-      a3 (input)  : u64 out array ptr (>= 8*count bytes)
-      a4 (input)  : optional BAL ptr (0 disables existing-authority refunds)
-      a5 (input)  : BAL length
-      a6 (input)  : block chain id
-      ra (input)  : return
-      a0 (output) :
-        0 : success (out[0..count) populated)
-        1 : malformed transactions section / offset table
-        2 : tx count disagrees with expected count
-        3 : a per-tx tx_intrinsic_state_gas call failed -/
 def blockVerdictTxStateGasArray_prog : Program :=
   [ .ADDI .x2 .x2 (-112 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -700,10 +673,6 @@ def blockVerdictTxStateGasArray_prog : Program :=
     .SLLI .x5 .x21 (3 : BitVec 6),
     .ADD .x6 .x19 .x5,
     .LD .x7 .x6 (0 : BitVec 12),
-    -- v0.6.0: the helper returns exact CHARGES; ADD them to the
-    -- creation-term intrinsic instead of subtracting refunds. Two dead
-    -- filler slots keep the instruction count (96) and every branch
-    -- offset unchanged.
     .ADD .x7 .x7 .x10,
     .SD .x6 .x7 (0 : BitVec 12),
     .JAL .x0 (12 : BitVec 21),
@@ -757,6 +726,7 @@ theorem blockVerdictTxStateGasArrayFunction_eq_prog :
 
 #guard blockVerdictTxStateGasArrayFunction.startsWith "block_verdict_tx_state_gas_array:\n"
 #guard blockVerdictTxStateGasArray_prog.length = 96
+
 /-! ## block_verdict_eip7702_auth_nonstorage_effects
 
     EIP-7702 set_delegation increments each successfully authorized authority's
