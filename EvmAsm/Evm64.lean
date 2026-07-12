@@ -59,6 +59,9 @@ import EvmAsm.Evm64.Multiply
 
 -- Exp (skeleton — GH #92, square-and-multiply over 256-bit exponent)
 import EvmAsm.Evm64.Exp
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
+import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 
 -- DivMod (Knuth Algorithm D)
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
