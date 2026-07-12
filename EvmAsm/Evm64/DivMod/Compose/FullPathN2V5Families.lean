@@ -5,7 +5,7 @@
   Mirrors FullPathN3V4.lean (lines 141-275) for n=2.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
 
