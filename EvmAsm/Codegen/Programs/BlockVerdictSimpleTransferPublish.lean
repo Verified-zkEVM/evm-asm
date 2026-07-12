@@ -21,6 +21,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_no_log" "bv_simple_transfer_tx" ++
   "  sd t0, 40(sp)\n" ++
@@ -35,6 +36,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_emit" "bv_simple_transfer_tx" ++
   "  sd t0, 40(sp)\n" ++
@@ -66,7 +68,11 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  bltu t5, t6, .Lbv_simple_transfer_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_gas_have_left\n" ++
   ".Lbv_simple_transfer_gas_exhausted:\n" ++
+  -- v0.6.0 (C8): charge-point OOG -- failed tx, all gas burned, prep
+  -- state charges refill.
   "  li t5, 0\n" ++
+  "  la t4, tgbpv_direct_oog; li t6, 1; sd t6, 0(t4)\n" ++
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n" ++
   ".Lbv_simple_transfer_gas_have_left:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
@@ -79,6 +85,9 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_publish_status_success\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_publish_status_store\n" ++
   ".Lbv_simple_transfer_publish_status_success:\n" ++
+  "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_stp_status_one\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_publish_status_store\n" ++
+  ".Lbv_stp_status_one:\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_publish_status_store:\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++

@@ -1082,6 +1082,19 @@ def balCodePreimagesValidFunction : String :=
   -- warming call in emitRuntimeDispatcherSetup (Part B) so the seed lands in the
   -- EXECUTION phase (the pre-reset resolutions are wiped by runtime_access_seed_initial_accounts).
   -- runtime_access_account_seed preserves s-regs (s9/s10 intact); a0..a3 reloaded below.
+  -- v0.6.0 (C7): export the delegate address for the warm/cold
+  -- top-frame access decision at the staging sites.
+  -- a3=2 is a pure PROBE: resolve without charging AND without warming. The
+  -- value-CALL aliveness check uses it — the spec's is_account_alive(to) never
+  -- touches accessed_addresses, and a free-warm here made the later charged
+  -- resolution of the same CALL see the delegate WARM (100) where the spec
+  -- charges COLD (3000): a 2,900 receipt under-count on every first delegated
+  -- access behind a value CALL (set_code_to_system_contract bv_fail=53).
+  "  la t0, bsbd_deleg_target; addi t1, s9, 3; li t2, 20\n" ++
+  ".Lbsbd_deleg_export:\n" ++
+  "  beqz t2, .Lbsbd_deleg_exported\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lbsbd_deleg_export\n" ++
+  ".Lbsbd_deleg_exported:\n" ++
   "  bnez s10, .Lbsbd_skip_freewarm\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -1095,7 +1108,7 @@ def balCodePreimagesValidFunction : String :=
   -- skipped it -> gas under-counted -> bv_fail=34 on EIP-7702 fixtures.
   -- x20 is the caller runtime env; reload the saved env pointer before
   -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
-  "  beqz s10, .Lbsbd_skip_charge\n" ++
+  "  li t2, 1; bne s10, t2, .Lbsbd_skip_charge\n" ++
   "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
   "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++

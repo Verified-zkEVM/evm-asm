@@ -145,6 +145,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_sender_fail:\n" ++   -- bmvmx.3.2: a witness public_keys[i] != recovered tx[i] signer (or recovery failed)
   "  li t0, 52; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_chain_id_gate_fail:\n" ++        -- evm-asm-7zzfv: chain_id(tx) present and != block chain id (WrongChainIdError)
+  "  li t0, 57; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++

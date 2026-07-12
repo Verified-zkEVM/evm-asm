@@ -105,6 +105,11 @@ EIP-2780 intrinsic rework, EIP-7702 `set_delegation` rewrite, new
 floor, SSTORE/CREATE reorders, builder predeploy addresses) and
 decomposed into child beads `evm-asm-0w05f.1`–`.10`
 (phases: submodule bump → fixtures → SpecRef 4a–4d → guest 5a–5c).
+Status 2026-07-12: phases 1–4 merged (SpecRef succ FAIL 0 at v0.6.0);
+guest 5a = PR #10222, 5b = PR #10224 (stacked) — full-suite guest A/B
+33 FAIL / 6 ERROR on 25,687 fixtures (v0.5.0-level goal <35/<7 met).
+Remaining fail census + debug/regen workflow: /tmp/fable2-v06-report.md
+and the v06-migration-status memory.
 
 ### Evm64 (PRIMARY) — 52 opcodes
 
