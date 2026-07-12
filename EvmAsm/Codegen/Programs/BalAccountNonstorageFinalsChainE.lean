@@ -1470,5 +1470,50 @@ theorem bansf_balStation_spec (aB newSp oB : Word) (aLen off3 : Nat)
 
 #print axioms bansf_balStation_spec
 
+/-!
+## Nonce/code station plan (slices 4h/4i, next)
+
+**Nonce station** (slots 88–134, `B+352 → B+736 | B+540`), mirrors balance:
+- 88–91 outer item-4 unit (LDs 48/56(sp), `jal rlp_walk_next` site 90 —
+  adapter `bansf_callSite90_walk_next`, BNE 368 → B+732) — tupleItem0-shaped
+  at spills 48/56; gives the nonce-field decode `(n4, l4)` chained from
+  `(n3 − aB).toNat` (the balance station leaves spill-48 ↦ n3; needs the
+  `rlpItemDecode_advance` cursor bridge n3 = aB + ofNat (n3−aB).toNat).
+- 92 SD 48(sp) cursor respill; 93–96 span capture (spanCapture-shaped at
+  B+372); 97–98 field walk_init (site 97, `bansf_callSite97_walk_init`,
+  BNE 340); 99 BEQ empty → B+540; 100–101 spills 64/72;
+  102–112 `bansf_findLastLoop2_spec` (header B+408); 113–114 loop-exit MVs
+  (B+452); 115–116 tuple walk_init (site 115); 117–118 tuple spills;
+  119–123 index unit (site 121); 124–127 value unit (site 126);
+  128–131 u64 capture: SUB a0,a0,a2; MV a1,a2; `jal rlp_content_to_u64`
+  (site 130); **BNE x11** (status in a1, VALUE in a0!);
+  132 SD a0 → 48(x18) (post_nonce); 133–134 LI x5,1; SD → 40(x18) flag.
+- capture via the four `rlp_content_to_u64_*_spec_within` sub-specs at the
+  lemma level (`vLen ≤ 8`, a0 = the `fromBytesBE` u64 image on success);
+  nonceStationPost mirrors balStationPost with found-arm cells
+  (oB+40) ↦ₘ 1, (oB+48) ↦ₘ image, pure `FieldFinal … ∧ vLen.toNat ≤ 8 ∧
+  image = ofNat (fromBytesBE content)`-shaped fact aligned to the
+  `FinalsDerivation` nonce component.
+- continuations: cont512 (u64 capture), cont504?/… mirror cont{324,308,280,
+  264,208} at entries B+512?, B+496, B+468, B+452, B+396; reject exits all
+  land B+736 via a nonceStationRej (balStationRej + released 40/48 cells —
+  note the balance-station cells oB/oB+8.. are ALREADY WRITTEN (has_balance
+  set or zero) when the nonce station rejects: the station-2 reject must
+  carry them as owned; extend the rej shape accordingly).
+
+**Code station** (slots 135–180, `B+540 → B+736 | B+724`): no parser —
+SUB x29,a0,a2 twice computes the (off,len) window relative to aB (s0=x8);
+SDs to 64/72(x18) (code_off/code_len out cells), flag at 56(x18);
+empty-skip at slot ~145 jumps to B+724 (`bansf_successTail_spec`);
+loop 3 (`bansf_findLastLoop3_spec`).  Disassemble slots 135–183 first.
+
+**Then** (slice 4j): station-2/3 chaining through `bansf_balStation_spec`'s
+B+352 exit (balStationPost is ∨-shaped: case-split, both arms carry the
+spill-48 ↦ n3 the nonce station consumes), the SEG-B chain (`bansf_chainA_spec`
+; `bansf_chainItems_spec` with acc3 destructured to feed `hdec3`), the
+success/reject tails, `abiFrame_spec_own` ⇒ **`bansf_spec_within`**, and the
+non-absent success witness.
+-/
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
