@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Rv64.MemRegionWrite
+import EvmAsm.Rv64.MemRegion
 
 namespace EvmAsm.Rv64
 
