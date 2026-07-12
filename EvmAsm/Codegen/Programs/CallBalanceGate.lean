@@ -96,6 +96,8 @@ def callBalanceGatePrologue : String :=
   callFrameForwardGasFunction ++ "\n" ++
   callFrameDescendFunction ++ "\n" ++
   frameReturnFunction ++ "\n" ++
+  sparseWindowReadFunction ++ "\n" ++   -- referenced by the guest registry's depth-aware RETURN/REVERT tails
+  sparseWindowWriteFunction ++ "\n" ++
   -- The CREATE handler's descend arm and the CALL gate's code-resolution arm are
   -- assembled (though the insufficient-balance path never runs them), so their
   -- symbols must resolve.
