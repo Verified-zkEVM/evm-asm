@@ -3,7 +3,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 
 namespace EvmAsm.Evm64
 

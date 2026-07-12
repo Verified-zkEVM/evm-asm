@@ -22,7 +22,7 @@
   code requirement, mirroring `SavedBitFixedSaveRestoreCompose.lean`.
 -/
 import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalChain
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

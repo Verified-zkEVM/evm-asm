@@ -14,7 +14,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DenormPre
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DigitLoopForm
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeR0V5
+import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

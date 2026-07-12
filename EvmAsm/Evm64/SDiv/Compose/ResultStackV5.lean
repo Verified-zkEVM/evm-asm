@@ -11,7 +11,7 @@
 -/
 
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
-import EvmAsm.Evm64.SDiv.SpecResultBranches
+import EvmAsm.Evm64.SDiv.SpecShared
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

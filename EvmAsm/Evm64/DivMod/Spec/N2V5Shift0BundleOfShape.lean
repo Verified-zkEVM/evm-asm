@@ -12,10 +12,10 @@
   satisfiable-from-shape carry hypothesis the shift=0 loop consumes.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryOfCallShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBoundShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5MaxCarryOfMaxShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5IterSelectedEq
-import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
+import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBoundShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
 
 namespace EvmAsm.Evm64

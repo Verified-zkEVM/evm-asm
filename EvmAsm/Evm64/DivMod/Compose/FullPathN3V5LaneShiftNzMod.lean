@@ -13,7 +13,7 @@
   `unifiedDivBound`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOffMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5ShapeToNopShared
 import EvmAsm.Evm64.DivMod.Spec.N3V5PostToDispatchPostV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
