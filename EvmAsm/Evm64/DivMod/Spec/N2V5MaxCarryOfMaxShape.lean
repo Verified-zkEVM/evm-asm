@@ -14,7 +14,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
-import EvmAsm.Evm64.DivMod.Spec.N2V5HvSmall
+import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBoundShared
 import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
 
 namespace EvmAsm.Evm64

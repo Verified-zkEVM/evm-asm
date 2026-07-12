@@ -7,6 +7,7 @@
 -- Foundations (Basic and Stack are transitively imported by every
 -- opcode Program file via Stack → Basic).
 import EvmAsm.Evm64.CodeRegion
+import EvmAsm.Evm64.SpAddr
 
 -- Accelerator C ABI bridges (zkvm_accelerators.h)
 import EvmAsm.Evm64.Accelerators.Types

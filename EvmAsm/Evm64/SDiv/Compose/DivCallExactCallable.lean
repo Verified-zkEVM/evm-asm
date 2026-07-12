@@ -5,7 +5,7 @@
   postcondition sidecar proofs.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFreeBasics
+import EvmAsm.Evm64.SDiv.DivCallHandoffShared
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
 
