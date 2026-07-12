@@ -372,8 +372,18 @@ def sparseWindowReadFunction : String :=
   "  ld t0, 0(t0)\n" ++
   "  beqz t0, 9f\n" ++
   "  la t1, evm_sparse_memory_entries\n" ++
+  -- evm-asm-m8pdu: match by frame TAG = (depth-epoch << 16) | depth (see
+  -- sparseMemoryStoreWordAsm) so a returned same-depth sibling's stale
+  -- entries never replay into this frame's window.
   "  la t2, evm_call_depth\n" ++
   "  ld t2, 0(t2)\n" ++
+  "  la t3, evm_sparse_memory_epoch_by_depth\n" ++
+  "  slli t2, t2, 3\n" ++
+  "  add t3, t3, t2\n" ++
+  "  ld t3, 0(t3)\n" ++
+  "  slli t3, t3, 16\n" ++
+  "  srli t2, t2, 3\n" ++
+  "  or t2, t3, t2\n" ++
   "  add t6, a1, a2                 # window end\n" ++
   "4:\n" ++
   "  ld t3, 0(t1)                   # entry depth\n" ++
@@ -444,10 +454,25 @@ def sparseWindowReadFunction : String :=
 
     Byte-to-limb layout matches dense MSTORE (`Evm64.MStore.mstore_one_limb`):
     window byte `8*(3-j)+i` is bit `(7-i)*8..` of limb `j`.
-    Preserves a0-a4; clobbers t0-t6. Uses a 48-byte sp scratch frame. -/
+    Entries are stamped/matched by frame TAG = (depth-epoch << 16) | depth
+    (evm-asm-m8pdu), so a returned same-depth sibling frame's stale entries
+    are never read back or shadow-matched.
+    Preserves a0-a4; clobbers t0-t6 and a7. Uses a 48-byte sp scratch frame. -/
 def sparseWindowWriteFunction : String :=
   "sparse_window_write:\n" ++
   "  addi sp, sp, -48\n" ++
+  -- evm-asm-m8pdu: entries are stamped with the TARGET frame's TAG =
+  -- (evm_sparse_memory_epoch_by_depth[a4] << 16) | a4 — the parent is still
+  -- live at write-back time, so its epoch cell is current. The partial-chunk
+  -- current-word scan below matches the same tag, so a returned same-depth
+  -- sibling's stale entries are never read back. a7 holds the tag for the
+  -- whole call (nothing else uses it).
+  "  la t0, evm_sparse_memory_epoch_by_depth\n" ++
+  "  slli t1, a4, 3\n" ++
+  "  add t0, t0, t1\n" ++
+  "  ld a7, 0(t0)\n" ++
+  "  slli a7, a7, 16\n" ++
+  "  or a7, a7, a4\n" ++
   -- Dense prefix: copy [offset, min(end, dense_limit)) raw.
   "  li t0, " ++ toString EvmAsm.Codegen.runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bgeu a1, t0, 2f\n" ++
@@ -486,7 +511,7 @@ def sparseWindowWriteFunction : String :=
   "  add t4, t4, t5                 # t4 = new entry ptr\n" ++
   "  addi t3, t3, 1\n" ++
   "  sd t3, 0(t2)\n" ++
-  "  sd a4, 0(t4)                   # entry depth = target frame depth\n" ++
+  "  sd a7, 0(t4)                   # entry tag = (epoch << 16) | target depth\n" ++
   "  sd t0, 8(t4)                   # entry offset = window-aligned chunk offset\n" ++
   -- Stage the chunk\'s 32 BE bytes at sp[0..32): src bytes for [0, min(rem,32)),
   -- current-model bytes (exact-offset backward scan, zeros default) for the rest.
@@ -507,7 +532,7 @@ def sparseWindowWriteFunction : String :=
   "  la t5, evm_sparse_memory_entries\n" ++
   "  add t3, t3, t5                 # t3 = scanned entry ptr\n" ++
   "  ld t5, 0(t3)\n" ++
-  "  bne t5, a4, 41b                # depth mismatch\n" ++
+  "  bne t5, a7, 41b                # frame-tag mismatch (depth or epoch)\n" ++
   "  ld t5, 8(t3)\n" ++
   "  bne t5, t0, 41b                # offset mismatch\n" ++
   -- Hit: unpack the entry\'s limbs to BE bytes at sp[0..32)
