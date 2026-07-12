@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Program
+import EvmAsm.Evm64.EvmWordArith.AddMod
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Rv64.Execution
 
