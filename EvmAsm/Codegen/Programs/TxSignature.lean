@@ -23,7 +23,6 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpWalk
-import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
 

@@ -6,7 +6,7 @@
   `StateCompose` so it can reference the string-constant helpers
   defined there.
 -/
-import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
