@@ -623,5 +623,46 @@ theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
 
 #print axioms bansf_nonceCapture_dispatch_spec
 
+/-- Distribute the station frame into the parser's four-way post for the
+    nonce-capture dispatch theorem. -/
+theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
+    (srcOff len : Nat) (acctBytes : List (BitVec 8)) (P : Assertion)
+    (himage : image = BitVec.ofNat 64
+      (EL.RLP.Nat.fromBytesBE ((acctBytes.drop srcOff).take len))) :
+    ∀ h,
+      (nonceParserPost aB srcOff len acctBytes **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P) h →
+      (nonceCaptureTooLongPre aB oB vLen len acctBytes P h ∨
+       (nonceCaptureEmptyPre aB oB vLen len acctBytes P h ∨
+        (nonceCaptureNoncanonicalPre aB oB vLen srcOff len acctBytes P h ∨
+         nonceCaptureCanonicalPre aB oB vLen image srcOff len acctBytes P h))) := by
+  intro h hp
+  let F : Assertion :=
+    ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+    ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
+  have hp0 : (nonceParserPost aB srcOff len acctBytes ** F) h := by
+    dsimp only [F]
+    xperm_hyp hp
+  obtain ⟨g1, g2, hd, hu, hnp, hF⟩ := hp0
+  unfold nonceParserPost at hnp
+  obtain ⟨b1, b2, hdb, hub, hbase, harms⟩ := hnp
+  rcases harms with htl | he | hnc | hc
+  · left
+    unfold nonceCaptureTooLongPre
+    exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, htl⟩, hF⟩
+  · right; left
+    unfold nonceCaptureEmptyPre
+    exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, he⟩, hF⟩
+  · right; right; left
+    unfold nonceCaptureNoncanonicalPre
+    exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, hnc⟩, hF⟩
+  · right; right; right
+    unfold nonceCaptureCanonicalPre
+    rw [himage]
+    exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, hc⟩, hF⟩
+
+#print axioms nonceParserPost_to_dispatchPre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
