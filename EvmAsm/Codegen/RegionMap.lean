@@ -210,8 +210,9 @@ def schemeAAnchors : List GuestRegion :=
     preserved. Grew by `0x1cc` when depth-1+ RETURN/REVERT windows gained
     sparse materialization (`sparse_window_read`, evm-asm-0w05f.13), and by
     `0x3c8` more for the nested-caller OUT-window write-back
-    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2). -/
-def textSizeBytes : Nat := 0x57da0
+    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2), and by `0x7c`
+    for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu). -/
+def textSizeBytes : Nat := 0x57e1c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
