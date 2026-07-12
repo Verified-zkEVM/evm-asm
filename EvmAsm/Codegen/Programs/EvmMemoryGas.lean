@@ -20,13 +20,59 @@ namespace EvmAsm.Codegen
     `mcopyActiveMemorySizeOff` in `EvmMcopyGas.lean`.) -/
 def activeMemorySizeOff : Nat := 488
 
+/-!
+### Memory-affordability invariant (which gas limit bounds EVM memory?)
+
+This was under-documented and is easy to get wrong, because v0.6.0 has THREE
+distinct "gas limits" and only ONE of them bounds EVM memory:
+
+* **Per-tx REGULAR gas ≤ `TX_MAX_GAS_LIMIT = 16_777_216 = 2^24`.** The spec
+  caps a transaction's regular-gas dimension at this value
+  (`execution-specs amsterdam/transactions.py:63` + the `intrinsic.regular >
+  TX_MAX_GAS_LIMIT` reject at `:624`; the guest enforces the same bound in
+  `BlockVerdictGasGate` — `li …, 16777216`). Memory-expansion gas
+  (`calculate_memory_gas_cost`, `3·w + w²/512` words) is charged against the
+  REGULAR dimension, so **this is the only limit that bounds EVM memory.**
+* **Per-tx STATE gas** (EIP-7778/8037): a separate dimension; does NOT pay for
+  memory.
+* **Block gas limit** (`header.gas_limit`, ~200M–500M in the SSZ sizing notes
+  `stateless_ssz.py:57-81`): the TOTAL block budget (all txs, both dimensions)
+  used for BAL / tx-count array sizing. It does **not** bound a single frame's
+  memory — do not size memory arenas against it.
+
+Consequences (numbers from `3·w + w²/512 ≤ 2^24`):
+* Max affordable memory in ONE frame ≈ **92_681 words ≈ 2.90 MiB** — a memory
+  offset whose expansion needs more than that is **legitimately OOG**, NOT a
+  false-reject. So `rootRuntimeMemoryArenaLimitBytes = 4 MiB` genuinely covers
+  every affordable depth-0 expansion, and anything past it is correctly
+  rejected.
+* Because CALL forwards ≤ 63/64 of remaining gas per descent, the affordable
+  memory PER FRAME decays with depth; the affordable memory summed over ALL
+  live frames on the call stack is bounded by `sum(wᵢ²/512) ≤ 2^24 ⇒`
+  **≈ 90 MiB total-live** (k = 1024).
+
+Design impact (see `docs/memory-arena-gas-bound.md`): a nested frame can
+legitimately afford up to ~2.90 MiB, but `runtimeMemoryArenaLimitBytes` below
+is only 128 KiB, and the sparse word store is only 4096 words = 128 KiB — so
+BOTH under-serve the affordable bound (a nested frame using 256 KiB … 2.90 MiB
+of memory is a false-reject today). Fully closing the beyond-dense window
+false-reject class (`evm-asm-274cr`) therefore requires provisioning up to
+~2.90 MiB/frame (≈90 MiB total-live); the options + trade-offs are in the docs
+note. -/
+
 /-- Runtime EVM memory arena size for nested call/create frames. This remains
-    tied to the preallocated call-frame layout. -/
+    tied to the preallocated call-frame layout. NOTE (evm-asm-274cr): 128 KiB
+    under-serves the ~2.90 MiB a nested frame can legitimately afford under the
+    `TX_MAX_GAS_LIMIT = 2^24` regular-gas cap — see the invariant note above and
+    `docs/memory-arena-gas-bound.md`. -/
 def runtimeMemoryArenaLimitBytes : Nat := 0x20000
 
 /-- Runtime EVM memory arena size for the depth-0 frame. Four MiB covers every
-    memory expansion affordable under Amsterdam's 16,777,216 regular-gas cap:
-    the quadratic term alone exceeds the cap above roughly 2.9 MiB. Keeping a
+    memory expansion affordable under the `TX_MAX_GAS_LIMIT = 16_777_216 = 2^24`
+    per-tx REGULAR-gas cap (spec `transactions.py:63,624`): the quadratic term
+    `w²/512` alone exceeds `2^24` above ≈ 2.90 MiB, so a larger depth-0 offset is
+    legitimately OOG (not a false-reject). Memory is bounded by this regular-gas
+    cap, NOT by the block gas limit — see the invariant note above. Keeping a
     rounded margin avoids rejecting valid high-memory RETURN/CALL programs while
     leaving nested frame slots at their fixed 128 KiB capacity. -/
 def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
