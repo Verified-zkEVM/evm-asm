@@ -10,7 +10,11 @@
   the j=1 iteration (using divK_store_loop_jgt0_spec_within) is in a follow-up.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBodyN3
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
+import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
+import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
 
 open EvmAsm.Rv64.Tactics
 
@@ -18,6 +22,30 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)
+
+-- ============================================================================
+-- Address rewriting lemmas for n=3 (no let-bindings, suitable for rw)
+-- ============================================================================
+
+/-- For n=3: uAddr = uBase + signExtend12 4072 -/
+theorem u_addr_eq_n3 {sp j : Word} :
+    sp + signExtend12 4056 - (j + (3 : Word)) <<< (3 : BitVec 6).toNat =
+    (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
+  divmod_addr
+
+/-- For n=3: (uBase + signExtend12 4072) + 8 = uBase + signExtend12 4080 -/
+theorem u_addr8_eq_n3 {sp j : Word} :
+    ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) + 8 =
+    (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
+  divmod_addr
+
+/-- For n=3: vtopBase + signExtend12 32 = sp + signExtend12 48 -/
+theorem vtop_eq_v2_n3 {sp : Word} :
+    (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
+    sp + signExtend12 48 := by
+  divmod_addr
+
+
 
 -- ============================================================================
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904

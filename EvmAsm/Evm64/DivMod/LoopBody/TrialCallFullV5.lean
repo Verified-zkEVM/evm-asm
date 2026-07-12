@@ -20,6 +20,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
 import EvmAsm.Evm64.DivMod.Compose.V5Code
 import EvmAsm.Evm64.DivMod.Compose.Div128V5
 
