@@ -476,8 +476,15 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   -- touched-but-unapplied authority: the prep was rolled back -- flag it
   -- so the APPLIED return zeroes while the would-be totals still drive
   -- the runtime pools to the same OOG point.
+  -- An APPLIED authorization bumps the authority nonce past auth.nonce
+  -- (post_nonce >= auth.nonce + 1). A SELF-SPONSORED authority's nonce final
+  -- is present even on rollback (the inclusion bump), but then stops at
+  -- exactly auth.nonce (auth.nonce = sender_pre + 1 = the inclusion result),
+  -- so compare the final VALUE, not just tuple presence.
   "  la t0, teer_acct_ptr; ld t1, 0(t0); beqz t1, .Lteer_applied_known\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); bnez t1, .Lteer_applied_known\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_mark_rolled_back\n" ++
+  "  la t0, teer_finals; ld t1, 48(t0); ld t2, 144(sp); bgtu t1, t2, .Lteer_applied_known\n" ++
+  ".Lteer_mark_rolled_back:\n" ++
   "  la t0, teer_rolled_back; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lteer_applied_known:\n" ++
   -- ---- v0.6.0 exact charges for this VALID authorization ----
