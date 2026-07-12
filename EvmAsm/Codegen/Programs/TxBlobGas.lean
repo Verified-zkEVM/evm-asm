@@ -11,7 +11,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Tx
-import EvmAsm.Codegen.Programs.TxDecode
+import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
