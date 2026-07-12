@@ -207,6 +207,14 @@ def blockVerdictFunction : String :=
   -- and bv_chain_id (captured by chain_config_valid).
   "  jal ra, verify_public_keys_match_senders\n" ++
   "  bnez a0, .Lbv_public_keys_sender_fail\n" ++
+  -- evm-asm-7zzfv (v0.6.0 item 8): per-tx chain-id-vs-block gate,
+  -- fork.py:1051-1055 process_transaction: reject the block when chain_id(tx)
+  -- is present and != block_env.chain_id (WrongChainIdError). Typed txs embed
+  -- their own chain id in the signing hash, so the sender recovery above
+  -- succeeds regardless of the block chain id -- without this gate a
+  -- wrong-chain typed tx was a verdict false-accept.
+  "  jal ra, block_verdict_chain_id_gate\n" ++
+  "  bnez a0, .Lbv_chain_id_gate_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++

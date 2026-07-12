@@ -1,63 +1,97 @@
 block_verdict_tx_state_gas_array:
-  addi sp, sp, -112
-  sd ra, 0(sp)
-  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
-  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)
-  mv s0, a0                   # tx-section ptr
-  mv s1, a1                   # tx-section len
-  mv s2, a2                   # expected count
-  mv s3, a3                   # out array
-  mv s8, a4                   # optional BAL ptr
-  mv s9, a5                   # BAL len
-  mv s10, a6                  # chain id
-  li t0, 4; bltu s1, t0, .Lbvtsg_malformed
-  mv a0, s0; jal ra, bgv_u32le             # first offset = 4 * tx_count
-  andi t0, a0, 3; bnez t0, .Lbvtsg_malformed
-  bgtu a0, s1, .Lbvtsg_malformed
-  srli s4, a0, 2              # tx_count
-  bne s4, s2, .Lbvtsg_mismatch
-  beqz s4, .Lbvtsg_ok
-  mv s5, zero                 # index
-.Lbvtsg_loop:
-  beq s5, s4, .Lbvtsg_ok
-  slli t0, s5, 2; add a0, s0, t0; jal ra, bgv_u32le; mv s6, a0   # cur offset
-  slli t0, s4, 2; bltu s6, t0, .Lbvtsg_malformed                 # >= offset-table end
-  bgtu s6, s1, .Lbvtsg_malformed
-  addi t0, s5, 1; beq t0, s4, .Lbvtsg_last
-  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le; mv s7, a0   # next offset
-  j .Lbvtsg_have
-.Lbvtsg_last:
-  mv s7, s1                   # final tx ends at section end
-.Lbvtsg_have:
-  bltu s7, s6, .Lbvtsg_malformed
-  bgtu s7, s1, .Lbvtsg_malformed
-  add a0, s0, s6              # tx ptr
-  sub a1, s7, s6             # tx len
-  slli t0, s5, 3; add a2, s3, t0   # &out[i]
-  jal ra, tx_intrinsic_state_gas
-  bnez a0, .Lbvtsg_tx_fail
-  beqz s8, .Lbvtsg_after_refund
-  add a0, s0, s6; sub a1, s7, s6; mv a2, s8; mv a3, s9; mv a4, s10; addi a5, s5, 1
-  jal ra, tx_eip7702_existing_authority_refund
-  slli t0, s5, 3; add t1, s3, t0; ld t2, 0(t1); bgtu a0, t2, .Lbvtsg_refund_clamp
-  sub t2, t2, a0; sd t2, 0(t1); j .Lbvtsg_after_refund
-.Lbvtsg_refund_clamp:
-  sd zero, 0(t1)
-.Lbvtsg_after_refund:
-  addi s5, s5, 1; j .Lbvtsg_loop
-.Lbvtsg_ok:
-  li a0, 0; j .Lbvtsg_ret
-.Lbvtsg_malformed:
-  li a0, 1; j .Lbvtsg_ret
-.Lbvtsg_mismatch:
-  li a0, 2; j .Lbvtsg_ret
-.Lbvtsg_tx_fail:
-  li a0, 3
-.Lbvtsg_ret:
-  ld ra, 0(sp)
-  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
-  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)
-  addi sp, sp, 112
-  ret
+  addi x2, x2, -112
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  sd x22, 56(x2)
+  sd x23, 64(x2)
+  sd x24, 72(x2)
+  sd x25, 80(x2)
+  sd x26, 88(x2)
+  sd x27, 96(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  mv x24, x14
+  mv x25, x15
+  mv x26, x16
+  li x5, 4
+  bltu x9, x5, .+216
+  mv x10, x8
+  jal x1, bgv_u32le
+  andi x5, x10, 3
+  bne x5, x0, .+200
+  bltu x9, x10, .+196
+  srli x20, x10, 2
+  bne x20, x18, .+196
+  beq x20, x0, .+176
+  mv x21, x0
+  beq x21, x20, .+168
+  slli x5, x21, 2
+  add x10, x8, x5
+  jal x1, bgv_u32le
+  mv x22, x10
+  slli x5, x20, 2
+  bltu x22, x5, .+152
+  bltu x9, x22, .+148
+  addi x5, x21, 1
+  beq x5, x20, .+24
+  slli x6, x5, 2
+  add x10, x8, x6
+  jal x1, bgv_u32le
+  mv x23, x10
+  jal x0, .+8
+  mv x23, x9
+  bltu x23, x22, .+112
+  bltu x9, x23, .+108
+  add x10, x8, x22
+  sub x11, x23, x22
+  slli x5, x21, 3
+  add x12, x19, x5
+  jal x1, tx_intrinsic_state_gas
+  bne x10, x0, .+100
+  beq x24, x0, .+64
+  add x10, x8, x22
+  sub x11, x23, x22
+  mv x12, x24
+  mv x13, x25
+  mv x14, x26
+  addi x15, x21, 1
+  jal x1, tx_eip7702_existing_authority_refund
+  slli x5, x21, 3
+  add x6, x19, x5
+  ld x7, 0(x6)
+  add x7, x7, x10
+  sd x7, 0(x6)
+  jal x0, .+12
+  jal x0, .+8
+  sd x0, 0(x6)
+  addi x21, x21, 1
+  jal x0, .-164
+  li x10, 0
+  jal x0, .+24
+  li x10, 1
+  jal x0, .+16
+  li x10, 2
+  jal x0, .+8
+  li x10, 3
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  ld x22, 56(x2)
+  ld x23, 64(x2)
+  ld x24, 72(x2)
+  ld x25, 80(x2)
+  ld x26, 88(x2)
+  ld x27, 96(x2)
+  addi x2, x2, 112
+  jalr x0, 0(x1)
