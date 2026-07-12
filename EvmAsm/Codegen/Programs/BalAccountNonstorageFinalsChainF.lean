@@ -237,5 +237,114 @@ theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
 
 #print axioms bansf_nonceCapture_rejectRoute_spec
 
+/-- Exact four-way post exported by the nonce parser at slot 130. -/
+@[irreducible] def nonceParserPost (aB : Word) (srcOff len : Nat)
+    (acctBytes : List (BitVec 8)) : Assertion :=
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+   bytesRegion aB acctBytes) **
+  (fun h =>
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
+      ⌜8 < len⌝) h ∨
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ⌜len = 0⌝) h ∨
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
+      ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝) h ∨
+    (((.x10 : Reg) ↦ᵣ BitVec.ofNat 64
+        (EL.RLP.Nat.fromBytesBE ((acctBytes.drop srcOff).take len))) **
+      ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝) h)
+
+/-- Slots 128--130: form the value-content window and invoke the unified u64
+    parser.  The result is left in its exact four-way post for the two tails. -/
+theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
+    (vNext vLen vStatus v5 v6 v7 v28 vRa : Word)
+    (acctBytes : List (BitVec 8)) (P : Assertion)
+    (hP : P.pcFree) (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffle : off ≤ tEnd)
+    (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+      (aB + BitVec.ofNat 64 tEnd) vNext vLen) :
+    cpsTripleWithin (7 * vLen.toNat + 14) (B + 512) (B + 524) bansfCR
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ vStatus) **
+       ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+       ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+       bytesRegion aB acctBytes ** P)
+      (nonceParserPost aB (vNext - vLen - aB).toNat vLen.toNat acctBytes **
+       ((.x12 : Reg) ↦ᵣ vLen) ** P) := by
+  obtain ⟨hlen64, hslen, hsover, hsvalid⟩ :=
+    bansf_nonceCapture_callee_bounds aB aLen tEnd off vNext vLen acctBytes
+      hslack hover hvalid htEnd hoffle hdec
+  have hover9 : aB.toNat + tEnd + 9 < 2 ^ 64 := by omega
+  obtain ⟨hrepS, _, _⟩ := rlpItemDecode_spanStart hdec hoffle hover9
+  have h128 := sub_spec_gen_rd_eq_rs1_within .x10 .x12 vNext vLen
+    (B + 512) (by decide)
+  rw [hrepS, show (B + 512) + 4 = B + 516 from by bv_omega] at h128
+  have h128L := liftCode (cr' := bansfCR) h128
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 512) bansfProg 128 (.SUB .x10 .x10 .x12)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have h129 := mv_spec_gen_within .x11 .x12 vLen vStatus
+    (B + 516) (by decide)
+  rw [show (B + 516) + 4 = B + 520 from by bv_omega] at h129
+  have h129L := liftCode (cr' := bansfCR) h129
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 516) bansfProg 129 (.MV .x11 .x12)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have h128F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ vStatus) **
+     ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+     ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+     bytesRegion aB acctBytes ** P)
+    (by pcf; exact hP) h128L
+  have h129F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat)) **
+     ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+     ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+     bytesRegion aB acctBytes ** P)
+    (by pcf; exact hP) h129L
+  have hsetup := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h128F h129F
+  have hcallee := rlp_content_to_u64_spec_within C6 aB (B + 524)
+    v5 v6 v7 v28 acctBytes (vNext - vLen - aB).toNat vLen.toNat
+    hlen64 hsalign hslen hsover hsvalid
+  have hlenrep : vLen = BitVec.ofNat 64 vLen.toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  rw [← hlenrep] at hcallee
+  have hPrest :
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat)) **
+       ((.x11 : Reg) ↦ᵣ vLen) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+       ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes).pcFree := by
+    pcf
+  have hcallee' := cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hcallee
+    (P' := ((.x1 : Reg) ↦ᵣ (B + 524)) **
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat)) **
+       ((.x11 : Reg) ↦ᵣ vLen) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+       ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes))
+  have hcall := bansf_callSite130_content_to_u64 (n := 7 * vLen.toNat + 11)
+    vRa hPrest hcallee'
+  have hcallF := cpsTripleWithin_frameR (((.x12 : Reg) ↦ᵣ vLen) ** P)
+    (by pcf; exact hP) hcall
+  have hfull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hsetup hcallF
+  rw [show B + 520 + 4 = B + 524 from by bv_omega] at hfull
+  rw [nonceParserPost]
+  rw [show 7 * vLen.toNat + 14 = 1 + 1 + (1 + (7 * vLen.toNat + 11)) from by omega]
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hfull
+
+#print axioms bansf_nonceCapture_call_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
