@@ -5,8 +5,7 @@
   (the `CodeReq.ofProg` handle for the assembled top-level `evm_addmod`
   Program from slice 3c, beads `evm-asm-xl2jn`), plus per-block
   subsumption helpers tying each sub-block's `CodeReq.ofProg` handle
-  back to `evm_addmod_program_code` for use by the slice-3d composition
-  (`evm-asm-s7v49`, `evm_addmod_stack_spec_within`).
+  back to `evm_addmod_program_code` for use by composition clients.
 
   Mirrors `EvmAsm.Evm64.Byte.Spec` §"CodeReq subsumption" — each helper
   is a thin wrapper around `CodeReq.ofProg_mono_sub` with the byte
@@ -215,7 +214,7 @@ theorem evm_addmod_epilogue_evm_addmod_spec_within
     (h := evm_addmod_epilogue_spec_within vOld (base + 128))
 
 -- ============================================================================
--- Multi-block composition (toward `evm_addmod_stack_spec_within`)
+-- Multi-block composition
 -- ============================================================================
 
 /-- Compose `evm_addmod_prologue_evm_addmod_spec_within` (30 instr, bytes
@@ -224,8 +223,7 @@ theorem evm_addmod_epilogue_evm_addmod_spec_within
     `evm_addmod_program_code base modOff`, threading the 257th carry bit
     `carry3` from `x5` into `x7` via the `ADDI x7 x5 0` MV instruction.
 
-    First compose step toward the full `evm_addmod_stack_spec_within`
-    (slice 3d, beads `evm-asm-s7v49`).
+    First compose step for clients consuming the consolidated program code.
 
     Distinctive token: evm_addmod_prologue_phase1_spec_within #91. -/
 theorem evm_addmod_prologue_phase1_spec_within
