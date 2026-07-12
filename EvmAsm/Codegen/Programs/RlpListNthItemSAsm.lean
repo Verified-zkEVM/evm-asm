@@ -15,6 +15,7 @@ import EvmAsm.Rv64.WP.Call
 namespace EvmAsm.Codegen.RlpListNthItemSAsm
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP
+open EvmAsm.Rv64.SAsm
 open EvmAsm.EL.RLP
 
 /-! ## Pure strict semantics -/
@@ -147,11 +148,12 @@ theorem StrictPrefix.step_bounds {bytes : List (BitVec 8)} {base : Word}
       (base + BitVec.ofNat 64 endOff) next len)
     (hoff : off ≤ endOff)
     (hover : base.toNat + endOff + 9 < 2 ^ 64) :
-    off < (next - base).toNat ∧ (next - base).toNat ≤ endOff ∧
+    next = base + BitVec.ofNat 64 (next - base).toNat ∧
+      off < (next - base).toNat ∧ (next - base).toNat ≤ endOff ∧
       StrictPrefix bytes base (base + BitVec.ofNat 64 endOff)
         startOff (count + 1) (next - base).toNat := by
   have ha := BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hitem hoff hover
-  exact ⟨ha.2.1, ha.2.2, StrictPrefix.step hprefix hitem⟩
+  exact ⟨ha.1, ha.2.1, ha.2.2, StrictPrefix.step hprefix hitem⟩
 
 /-- Successful K20 meaning: the complete input is one strict list and its
     zero-based `index` child exists.  The ABI outputs are the selected content
@@ -301,13 +303,19 @@ def savedFrame (newSp : Word) (saved : Saved) : Assertion :=
   ((newSp + 48) ↦ₘ saved.s5)
 
 /-- Registers and framed resources stable across the K20 index loop. -/
-def loopFrame (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
-    (saved : Saved)
-    (bytes : List (BitVec 8)) : Assertion :=
-  ((.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+def stableFrame (newSp listBase _indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) : Assertion :=
+  ((.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) **
    (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) ** (.x20 ↦ᵣ endPtr) **
    savedFrame newSp saved **
-   (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen) **
+   (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+
+/-- Full resources stable at the loop header; the call-clobbered part is
+    deliberately separate from `stableFrame` for call composition. -/
+def loopFrame (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) : Assertion :=
+  stableFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved **
+  ((.x9 ↦ᵣ indexW) **
    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
    regOwn .x1 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)
@@ -352,6 +360,28 @@ def nextCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
   (.x1 ↦ᵣ (B + 72)) ** bytesRegion listBase bytes
+
+def nextScratch (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (B + 72)) ** bytesRegion listBase bytes
+
+def nextScratchOwned (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** regOwn .x1 ** bytesRegion listBase bytes
+
+theorem nextScratch_implies_owned (listBase : Word) (bytes : List (BitVec 8)) :
+    ∀ h, nextScratch listBase bytes h → nextScratchOwned listBase bytes h := by
+  intro h hp
+  unfold nextScratch at hp
+  unfold nextScratchOwned
+  exact sepConj_mono (fun _ x => x)
+    (sepConj_mono (fun _ x => x)
+      (sepConj_mono (fun _ x => x)
+        (sepConj_mono (fun _ x => x)
+          (sepConj_mono (fun _ x => x)
+            (sepConj_mono (fun _ x => x)
+              (sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x)))))))) h hp
 
 /-- Slot 16's `mv a1,s4` followed by the local verified WalkNext call. -/
 theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
@@ -554,5 +584,143 @@ theorem incrementBack (count : Nat) (F : Assertion) (hF : F.pcFree)
 #print axioms indexSelected
 #print axioms indexContinue
 #print axioms incrementBack
+
+/-! ## Semantic dispatch adapters -/
+
+theorem dispatchFailure
+    (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index cursorOff count off : Nat) (status : Word)
+    (hstatus : status ≠ 0)
+    (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
+    (hcount : count ≤ index)
+    (hprefix : StrictPrefix bytes listBase endPtr cursorOff count off)
+    (hwalk : WalkFailure bytes off (listBase + BitVec.ofNat 64 off) endPtr) :
+    cpsTripleWithin 1 (B + 72) (B + 112) code
+      (nextScratch listBase bytes **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ status) **
+         (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+         (.x21 ↦ᵣ BitVec.ofNat 64 count) **
+         (.x9 ↦ᵣ indexW) **
+         stableFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved))
+      (loopRejected newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+        saved bytes listLen index cursorOff) := by
+  have ht := statusReject status
+    (nextScratch listBase bytes **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x12 ↦ᵣ (0 : Word)) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 count) **
+       (.x9 ↦ᵣ indexW) **
+       stableFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved))
+    (by pcf) hstatus
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) ht
+  · xperm_hyp hp
+  · unfold loopRejected loopFrame
+    refine ⟨count, off, status, ?_⟩
+    have hq' := sepConj_mono
+      (fun _ x => x)
+      (sepConj_mono (nextScratch_implies_owned listBase bytes) (fun _ x => x)) h hq
+    refine (sepConj_pure_right h).2
+      ⟨?_, hstatus, hcount, hlist, hprefix, hwalk⟩
+    unfold nextScratchOwned at hq'
+    xperm_hyp hq'
+
+#print axioms dispatchFailure
+
+theorem dispatchSuccess
+    (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index cursorOff count off j : Nat) (next len : Word)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
+    (hcount : count ≤ index) (hj : j = index + 1 - count)
+    (hoff : off ≤ listLen)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hprefix : StrictPrefix bytes listBase endPtr cursorOff count off)
+    (hitem : rlpItemDecode bytes off (listBase + BitVec.ofNat 64 off)
+      endPtr next len) :
+    cpsBranchWithin 4 (B + 72) code
+      (nextScratch listBase bytes **
+       ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ BitVec.ofNat 64 count) **
+        (.x9 ↦ᵣ indexW) **
+        stableFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved))
+      (B + 88)
+        (loopSelected newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+          saved bytes index cursorOff)
+      (B + 64) (fun h => ∃ j', j' < j ∧
+        loopInv newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+          saved bytes listLen index cursorOff j' h) := by
+  subst indexW
+  have hs := statusOk
+    (nextScratch listBase bytes **
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 count) **
+       (.x9 ↦ᵣ BitVec.ofNat 64 index) **
+       stableFrame newSp listBase (BitVec.ofNat 64 index) offsetPtr lenPtr endPtr oldOffset oldLen saved))
+    (by pcf)
+  by_cases heq : count = index
+  · subst count
+    have hi := indexSelected (BitVec.ofNat 64 index)
+      (nextScratch listBase bytes **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+         (.x0 ↦ᵣ (0 : Word)) **
+         stableFrame newSp listBase (BitVec.ofNat 64 index) offsetPtr lenPtr endPtr oldOffset oldLen saved))
+      (by pcf)
+    have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs hi
+    refine cpsTripleWithin_as_cpsBranchWithin_left _ _
+      (cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) hc))
+    unfold loopSelected loopFrame
+    refine ⟨next, len, ?_⟩
+    have hq' := sepConj_mono
+      (fun _ x => x)
+      (sepConj_mono (nextScratch_implies_owned listBase bytes) (fun _ x => x)) h hq
+    refine (sepConj_pure_right h).2 ⟨?_, StrictPrefix.select hprefix hitem⟩
+    unfold nextScratchOwned at hq'
+    xperm_hyp hq'
+  · have hlt : count < index := by omega
+    have hword : BitVec.ofNat 64 count ≠ BitVec.ofNat 64 index := by
+      intro he
+      have he' := congrArg BitVec.toNat he
+      simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (Nat.lt_trans hlt hindex),
+        Nat.mod_eq_of_lt hindex] at he'
+      omega
+    have hi := indexContinue (BitVec.ofNat 64 count) (BitVec.ofNat 64 index)
+      (nextScratch listBase bytes **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+         (.x0 ↦ᵣ (0 : Word)) **
+         stableFrame newSp listBase (BitVec.ofNat 64 index) offsetPtr lenPtr endPtr oldOffset oldLen saved))
+      (by pcf) hword
+    have hb := incrementBack count
+      (nextScratch listBase bytes **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+         (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ BitVec.ofNat 64 index) **
+         stableFrame newSp listBase (BitVec.ofNat 64 index) offsetPtr lenPtr endPtr oldOffset oldLen saved))
+      (by pcf)
+    have hc1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs hi
+    have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hc1 hb
+    refine cpsTripleWithin_as_cpsBranchWithin_right _ _
+      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) hc)
+    have hend := hlist.end_eq
+    subst endPtr
+    have hstep := StrictPrefix.step_bounds hprefix hitem hoff (by omega)
+    refine ⟨index + 1 - (count + 1), by omega, ?_⟩
+    unfold loopInv loopFrame
+    refine ⟨count + 1, (next - listBase).toNat, ?_⟩
+    have hq' := sepConj_mono
+      (fun _ x => x)
+      (sepConj_mono (nextScratch_implies_owned listBase bytes)
+        (sepConj_mono (fun _ x => x)
+          (sepConj_mono (regIs_implies_regOwn .x11)
+            (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x))))) h hq
+    refine (sepConj_pure_right h).2
+      ⟨?_, rfl, by omega, hstep.2.2.1, hstep.2.2.2⟩
+    rw [hstep.1] at hq'
+    unfold nextScratchOwned at hq'
+    xperm_hyp hq'
+
+#print axioms dispatchSuccess
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
