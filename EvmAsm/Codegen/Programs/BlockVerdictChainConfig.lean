@@ -93,14 +93,16 @@ def publicKeysValidFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret"
 
-/-! ## chain_config_valid -- execution-specs validate_chain_config mirror.
+/-! ## chain_config_valid -- execution-specs validate_chain_config mirror
+    (tests-zkevm@v0.6.0, 40f956fab: `ForkConfig` = `{activation}`; the
+    Amsterdam-fork and blob-schedule checks are DELETED upstream — fork
+    identity travels in the schema id).
     a0 = SSZ_BASE   a1 = exec_payload ptr
-    a0 (output) = 0 ok, 1 unsupported/inactive/malformed chain_config.
+    a0 (output) = 0 ok, 1 inactive/malformed chain_config.
 
     This checks the Amsterdam stateless guest's semantic chain-config contract:
-    active_fork.fork is Amsterdam, activation sets block_number or timestamp and
-    is active for the target payload, and blob_schedule is exactly the Amsterdam
-    schedule compiled into execution-specs. -/
+    activation sets block_number or timestamp and is active for the target
+    payload. -/
 def chainConfigValidFunction : String :=
   "chain_config_valid:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -126,22 +128,18 @@ def chainConfigValidFunction : String :=
   "  sub t0, s3, s2; li t1, 12; bltu t0, t1, .Lccv_fail\n" ++
   "  addi a0, s2, 8; jal ra, bgv_u32le\n" ++
   "  li t0, 12; bne a0, t0, .Lccv_fail\n" ++
-  "  add s4, s2, a0              # active_fork ptr\n" ++
+  "  add s4, s2, a0              # active_fork (fork_config) ptr\n" ++
   "  bltu s3, s4, .Lccv_fail\n" ++
-  "  sub s10, s3, s4             # active_fork len\n" ++
-  "  li t0, 40; bltu s10, t0, .Lccv_fail\n" ++
-  "  mv a0, s4; jal ra, bgv_u64le\n" ++
-  "  li t0, 20                   # ProtocolFork.Amsterdam enum index (tests-zkevm@v0.5.0)\n" ++
-  "  bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s4, 8; jal ra, bgv_u32le\n" ++
-  "  li t0, 16; bne a0, t0, .Lccv_fail\n" ++
-  "  mv s11, a0                  # activation offset\n" ++
-  "  addi a0, s4, 12; jal ra, bgv_u32le\n" ++
-  "  mv s8, a0                   # blob_schedule offset\n" ++
-  "  bltu s8, s11, .Lccv_fail\n" ++
-  "  bgtu s8, s10, .Lccv_fail\n" ++
-  "  add s5, s4, s11             # activation ptr\n" ++
-  "  sub s6, s8, s11             # activation len\n" ++
+  "  sub s10, s3, s4             # fork_config len (4-byte offset table + activation)\n" ++
+  "  li t0, 12; bltu s10, t0, .Lccv_fail\n" ++
+  -- v0.6.0: SszForkConfig = {activation}. Its one-entry offset table
+  -- must read 4 (canonical); the activation container fills the rest.
+  -- The v0.5.0 fork-enum (li t0, 20) and blob-schedule checks are gone
+  -- with their fields.
+  "  mv a0, s4; jal ra, bgv_u32le\n" ++
+  "  li t0, 4; bne a0, t0, .Lccv_fail   # offset_activation == 4\n" ++
+  "  addi s5, s4, 4              # activation ptr\n" ++
+  "  addi s6, s10, -4            # activation len\n" ++
   "  li t0, 8; beq s6, t0, .Lccv_fail\n" ++
   "  li t0, 16; beq s6, t0, .Lccv_activation_len16\n" ++
   "  li t0, 24; beq s6, t0, .Lccv_activation_len24\n" ++
@@ -166,28 +164,21 @@ def chainConfigValidFunction : String :=
   "  mv s9, a0\n" ++
   "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
   "  bltu a0, s9, .Lccv_fail\n" ++
-  "  j .Lccv_check_blob\n" ++
+  "  j .Lccv_activation_ok\n" ++
   ".Lccv_check_bn_at8:\n" ++
   "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
   "  mv s9, a0\n" ++
   "  addi a0, s1, 404; jal ra, bgv_u64le\n" ++
   "  bltu a0, s9, .Lccv_fail\n" ++
-  "  j .Lccv_check_blob\n" ++
+  "  j .Lccv_activation_ok\n" ++
   ".Lccv_check_ts_at8:\n" ++
   "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
   "  mv s9, a0\n" ++
   "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
   "  bltu a0, s9, .Lccv_fail\n" ++
-  ".Lccv_check_blob:\n" ++
-  "  sub s6, s10, s8             # blob_schedule len\n" ++
-  "  li t0, 24; bne s6, t0, .Lccv_fail\n" ++
-  "  add s5, s4, s8              # blob_schedule ptr\n" ++
-  "  mv a0, s5; jal ra, bgv_u64le\n" ++
-  "  li t0, 14; bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
-  "  li t0, 21; bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s5, 16; jal ra, bgv_u64le\n" ++
-  "  li t0, 11684671; bne a0, t0, .Lccv_fail\n" ++
+  -- v0.6.0: no blob-schedule section follows the activation; a valid
+  -- activation is the whole remaining contract.
+  ".Lccv_activation_ok:\n" ++
   "  li a0, 0; j .Lccv_ret\n" ++
   ".Lccv_fail:\n" ++
   "  li a0, 1\n" ++
