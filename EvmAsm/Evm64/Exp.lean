@@ -40,6 +40,7 @@ import EvmAsm.Evm64.Exp.Compose.TopCondMulMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.TopPairBlocks
 import EvmAsm.Evm64.Exp.Compose.TopCodeSpecs
 import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.SquaringWithMulShared
 import EvmAsm.Evm64.Exp.Compose.LoopControlBlocks
 import EvmAsm.Evm64.Exp.Compose.SquaringMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.CondMulMarshalBlocks

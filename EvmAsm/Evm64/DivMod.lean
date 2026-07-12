@@ -641,6 +641,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0Mod
 
 -- v5 MOD lanes (bead evm-asm-wbc4i.10.3.2)
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
