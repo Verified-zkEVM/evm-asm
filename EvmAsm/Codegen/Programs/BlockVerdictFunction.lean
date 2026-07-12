@@ -571,6 +571,7 @@ def blockVerdictFunction : String :=
   "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_direct_oog; sd zero, 0(t1)\n" ++
   "  la t0, tgbpv_top_state_gas; ld t0, 0(t0)\n" ++
   "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_direct_state_publish_ok\n" ++
   "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
@@ -588,13 +589,20 @@ def blockVerdictFunction : String :=
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_gas_exhausted:\n" ++
+  -- v0.6.0 (C8): charge-point OOG -- failed tx, all gas burned, all
+  -- prep state charges refill (exec state 0).
   "  li t5, 0\n" ++
+  "  la t4, tgbpv_direct_oog; li t6, 1; sd t6, 0(t4)\n" ++
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n" ++
   ".Lbv_simple_transfer_direct_gas_have_left:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
   "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_direct_status_success\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
   ".Lbv_simple_transfer_direct_status_success:\n" ++
+  "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_std_status_one\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
+  ".Lbv_std_status_one:\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_direct_status_store:\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++

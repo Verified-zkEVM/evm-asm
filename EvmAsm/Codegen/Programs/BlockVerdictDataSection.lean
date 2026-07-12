@@ -170,6 +170,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
   ".balign 8\n" ++
+  -- v0.6.0: begin-of-block system-call code gates (process_unchecked_system_
+  -- transaction runs the CONTRACT's code; an absent/codeless history or
+  -- beacon-roots contract writes nothing).
+  "bsr_sys_has_2935:\n  .zero 8\n" ++
+  "bsr_sys_has_4788:\n  .zero 8\n" ++
+  "bsr_sys_acct:\n  .zero 104\n" ++
+  "bsr_sys_slot_2935:\n  .zero 8\n" ++
+  "bsr_sys_slot_4788:\n  .zero 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
   "bgv_size:\n  .zero 8\n" ++
@@ -484,6 +492,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
   "teer_invalid_auth_count:\n  .zero 8\n" ++
+  "teer_recipient_ptr:\n  .zero 8\n" ++
+  "teer_recipient_len:\n  .zero 8\n" ++
+  "teer_value_nonzero:\n  .zero 8\n" ++
+  "teer_prior_count:\n  .zero 8\n" ++
+  "teer_prior_set_flag:\n  .zero 8\n" ++
+  "teer_acct_absent:\n  .zero 8\n" ++
+  "teer_rolled_back:\n  .zero 8\n" ++
+  "teer_wouldbe_state:\n  .zero 8\n" ++
+  "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
@@ -1013,9 +1030,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "ins_ref2:\n  .zero 64\n" ++
   ".balign 8\n" ++
-  "ins_node:\n  .zero 131072\n" ++
+  "ins_node:\n  .zero 1048576\n" ++
   ".balign 8\n" ++
-  "ins_node2:\n  .zero 131072\n" ++
+  "ins_node2:\n  .zero 1048576\n" ++
   ".balign 8\n" ++
   "ins_empty_branch:\n" ++
   "  .byte 0xd1,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
@@ -1172,6 +1189,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- delegating EOA (so SSTORE keys the EOA's storage, per interpreter.py message setup).
   ".balign 8\n" ++
   "dtrc_deleg_target:\n  .zero 32\n" ++
+  "bsbd_deleg_target:\n  .zero 24\n" ++
+  "dwp_al_off:\n  .zero 8\n" ++
+  "dwp_al_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.

@@ -621,10 +621,12 @@ def callDescendFallThrough
     -- EIP-7702: authorization processing runs before message execution. A same-block
     -- delegation marker therefore makes the original CALL recipient alive even when it was
     -- absent from the block-pre witness. execution-specs tests is_account_alive(to), not the
-    -- delegated code address. Resolve the BAL marker without charging; status 0 (code target)
-    -- or 2 (precompile target) proves the recipient is alive, while status 1 is a miss.
+    -- delegated code address. Resolve the BAL marker as a pure probe (a3=2: no
+    -- charge, no free-warm — is_account_alive never touches accessed_addresses);
+    -- status 0 (code target) or 2 (precompile target) proves the recipient is
+    -- alive, while status 1 is a miss.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 0\n" ++
+    "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 2\n" ++
     "  jal ra, bal_same_block_delegation_code_resolve\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++

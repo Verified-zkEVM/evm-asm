@@ -208,7 +208,7 @@ def schemeAAnchors : List GuestRegion :=
     and the self-funded EIP-7702 authorization refund fix landed. Grew by
     `0x30` when EIP-2780 direct-authorization gas context started being
     preserved. -/
-def textSizeBytes : Nat := 0x56e34
+def textSizeBytes : Nat := 0x5718c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
