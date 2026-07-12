@@ -386,5 +386,33 @@ theorem bansf_nonceCapture_tooLong_spec (aB oB vLen : Word) (len : Nat)
 
 #print axioms bansf_nonceCapture_tooLong_spec
 
+/-- The empty-content success arm stores scalar zero and sets the nonce flag. -/
+theorem bansf_nonceCapture_empty_spec (aB oB vLen : Word) (len : Nat)
+    (acctBytes : List (BitVec 8)) (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 4 (B + 524) (B + 540) bansfCR
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+          bytesRegion aB acctBytes) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+         ⌜len = 0⌝)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (1 : Word)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+       bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (1 : Word)) **
+       ((oB + 48) ↦ₘ (0 : Word)) ** ⌜len = 0⌝ ** P) := by
+  have ht := bansf_nonceCapture_successTail_spec oB (0 : Word)
+  have htF := cpsTripleWithin_frameR
+    (regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+     ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
+     ((.x12 : Reg) ↦ᵣ vLen) ** ⌜len = 0⌝ ** P)
+    (by pcf; exact hP) ht
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) htF
+
+#print axioms bansf_nonceCapture_empty_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
