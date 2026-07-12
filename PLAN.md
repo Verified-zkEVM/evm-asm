@@ -106,10 +106,21 @@ floor, SSTORE/CREATE reorders, builder predeploy addresses) and
 decomposed into child beads `evm-asm-0w05f.1`–`.10`
 (phases: submodule bump → fixtures → SpecRef 4a–4d → guest 5a–5c).
 Status 2026-07-12: phases 1–4 merged (SpecRef succ FAIL 0 at v0.6.0);
-guest 5a = PR #10222, 5b = PR #10224 (stacked) — full-suite guest A/B
+guest 5a+5b merged to main via PR #10222 — full-suite guest A/B
 33 FAIL / 6 ERROR on 25,687 fixtures (v0.5.0-level goal <35/<7 met).
-Remaining fail census + debug/regen workflow: /tmp/fable2-v06-report.md
-and the v06-migration-status memory.
+Residual burn-down in flight: `.13` re-rooted (three rounds) to the
+depth-1+ memory-WINDOW model — RETURN/REVERT data windows and CALL
+out-windows past the 128 KiB dense arena conservatively burned the
+frame while word MSTORE/MLOAD were already sparse-served. Fix =
+`sparse_window_read` (child RETURN materialization into
+`evm_precompile_frame+16`) + `sparse_window_write` (nested-caller
+out-window write-back as word entries) + charge-only gas at depth 1+
+(depth-0 root guard and CREATE-frame deposit bail preserved; CALL IN
+window and precompile-output windows keep the dense bail
+conservatively). All 6 `{callcode,delegatecall}_to_precompile_*`
+fixtures flip fail→pass. Remaining fail census + debug/regen
+workflow: /tmp/fable2-v06-report.md and the v06-migration-status
+memory.
 
 ### Evm64 (PRIMARY) — 52 opcodes
 
