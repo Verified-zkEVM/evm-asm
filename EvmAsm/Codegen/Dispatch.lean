@@ -2193,13 +2193,13 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
@@ -3451,13 +3451,13 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)

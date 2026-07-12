@@ -30,7 +30,7 @@ open Bn254FieldConvSAsm (bnfBeToLeFn bnfBeToLeFn_spec bnfLeToBeFn bnfLeToBeFn_sp
 
 /-- The arena base (`bnf_le_a`) and its 232-byte extent
     (`_a/_b/_d/_zero/_one/_p` 32-byte cells + the 40-byte `mul_params`). -/
-def arenaB : Word := 0xbcfe38b0
+def arenaB : Word := 0xbd6e38b0
 
 /-- The frame and body of the emitted routine. -/
 def mulFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
@@ -407,7 +407,7 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 32 < 2 ^ 64)
     (hovalid : ∀ k, k < 32 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
     (harval : ∀ j, j < 232 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
-    (hdO : (0xbcfe3910 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xbcfe38f0 : Nat))
+    (hdO : (0xbd6e3910 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xbd6e38f0 : Nat))
     (hpa₂ : wsDword img₂ 0xC0 = arenaB + BitVec.ofNat 64 0)
     (hpb₂ : wsDword img₂ 0xC8 = arenaB + BitVec.ofNat 64 0x20)
     (hpc₂ : wsDword img₂ 0xD0 = arenaB + BitVec.ofNat 64 0x60)
@@ -513,14 +513,14 @@ theorem stageC_spec (aPtr bPtr outPtr : Word)
             apply BitVec.eq_of_toNat_eq
             rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
               BitVec.toNat_ofNat,
-              show ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbcfe38f0 from by decide,
-              show (arenaB).toNat = 0xbcfe38b0 from by decide]
+              show ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbd6e38f0 from by decide,
+              show (arenaB).toNat = 0xbd6e38b0 from by decide]
             omega]
           exact harval (0x40 + k) (by omega))
       ⟨hoal, by omega, hovalid⟩
       (by decide) (by omega)
       (by
-        have hsrc : ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbcfe38f0 := by decide
+        have hsrc : ((GuestAddrs.bnf_le_d : Word)).toNat = 0xbd6e38f0 := by decide
         rcases hdO with h | h
         · left
           rw [hsrc]
