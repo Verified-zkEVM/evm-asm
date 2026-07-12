@@ -14,17 +14,6 @@ namespace EvmAsm.Codegen
 
 
 
-/-- Sparse high-memory backing for 32-byte MSTORE/MLOAD windows that exceed the
-    materialized per-frame arena. This preserves execution-specs memory-expansion
-    gas/MSIZE behavior for high offsets without treating the guest's dense arena
-    limit as an EVM OOG condition. Entries are append-only per dispatch; MLOAD
-    scans backward so later writes shadow earlier ones. Depth epochs prevent
-    stale entries from a reused child-frame slot from becoming visible to a
-    later frame at the same depth. The stored payload is the EVM stack-word limb
-    representation, which is exactly what a matching MLOAD reconstructs from the
-    big-endian byte layout of MSTORE. -/
-def sparseMemoryWordCapacity : Nat := 4096
-
 def sparseMemoryStoreWordAsm (tag : String) : String :=
   -- x15 holds the low offset limb and memory gas/MSIZE has already been charged.
   memoryArenaLimitAsm ("sparse_store_" ++ tag) "x18" ++
