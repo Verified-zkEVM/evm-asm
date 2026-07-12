@@ -193,5 +193,49 @@ theorem bansf_nonceCapture_successTail_spec (oB image : Word) :
 
 #print axioms bansf_nonceCapture_successTail_spec
 
+/-- Nonzero-status route from the nonce parser check (slot 131) through the
+    shared reject stub (slot 183). -/
+theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
+    (hst : st ≠ 0) (hP : P.pcFree) :
+    cpsTripleWithin 2 (B + 524) (B + 736) bansfCR
+      (((.x11 : Reg) ↦ᵣ st) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x10 : Reg) ↦ᵣ oldA0) ** P)
+      (((.x11 : Reg) ↦ᵣ st) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x10 : Reg) ↦ᵣ (1 : Word)) ** P) := by
+  have hbne := bne_spec_gen_within .x11 .x0 (208 : BitVec 13)
+    st (0 : Word) (B + 524)
+  rw [show (B + 524) + signExtend13 (208 : BitVec 13) = B + 732 from by
+        rw [show signExtend13 (208 : BitVec 13) = (208 : Word) from by decide]
+        bv_omega,
+      show (B + 524) + 4 = B + 528 from by bv_omega] at hbne
+  have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 524) bansfProg 131
+        (.BNE .x11 .x0 (208 : BitVec 13))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+    hbne
+  have hbneF := cpsBranchWithin_frameR (((.x10 : Reg) ↦ᵣ oldA0) ** P)
+    (by pcf; exact hP) hbneL
+  have htaken := cpsBranchWithin_takenPath hbneF
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+      exact hst (((sepConj_pure_right _).1 h_pure).2))
+  have hrej := liftCode (cr' := bansfCR)
+    (bansf_rejectTail_spec B oldA0 (by decide))
+    (fun a i h => CodeReq.union_mono_left a i h)
+  have hrejF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ st) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)
+    (by pcf; exact hP) hrej
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hp2 := sepConj_mono_left (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+      xperm_hyp hp2)
+    htaken hrejF
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_nonceCapture_rejectRoute_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
