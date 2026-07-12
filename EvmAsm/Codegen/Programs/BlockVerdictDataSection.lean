@@ -170,6 +170,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
   ".balign 8\n" ++
+  -- v0.6.0: begin-of-block system-call code gates (process_unchecked_system_
+  -- transaction runs the CONTRACT's code; an absent/codeless history or
+  -- beacon-roots contract writes nothing).
+  "bsr_sys_has_2935:\n  .zero 8\n" ++
+  "bsr_sys_has_4788:\n  .zero 8\n" ++
+  "bsr_sys_acct:\n  .zero 104\n" ++
+  "bsr_sys_slot_2935:\n  .zero 8\n" ++
+  "bsr_sys_slot_4788:\n  .zero 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
   "bgv_size:\n  .zero 8\n" ++
