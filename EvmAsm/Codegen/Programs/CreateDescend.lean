@@ -20,7 +20,6 @@
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Address
-import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen

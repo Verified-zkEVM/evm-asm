@@ -7,7 +7,7 @@
   advances the parent PC, and resumes without entering `call_frame_descend`.
 -/
 
-import EvmAsm.Codegen.Programs.EvmBasic
+import EvmAsm.Codegen.Layout
 
 namespace EvmAsm.Codegen
 
