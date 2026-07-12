@@ -29,6 +29,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.StaticContext
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
 
@@ -619,10 +620,63 @@ def ziskCallDescendDataSection : String :=
   "cfd_to_word:\n  .quad 0xaaaaaaaa, 0, 0, 0\n" ++       -- call target
   "cfd_value_word:\n  .quad 0xcccccccc, 0, 0, 0\n"       -- call value
 
+/-- Positive witness for the shared memory pool. A depth-1 frame expands past
+    the former 128 KiB limit, a depth-2 child occupies the next LIFO slice, and
+    a reused sibling slice is zeroed on expansion without touching the parent. -/
+def ziskMemoryPoolWitnessPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- Enter depth 1 at the pool base.
+  "  la t0, evm_call_depth; li t1, 1; sd t1, 0(t0)\n" ++
+  "  li a0, 1; jal ra, call_frame_enter\n" ++
+  "  mv s7, a0; mv s8, a2\n" ++
+  "  li t0, 16777216; sd t0, 568(s8); sd zero, 488(s8)\n" ++
+  "  mv x13, s7; mv x20, s8\n" ++
+  "  li x14, 0x30000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  "  li t0, 0x1122334455667788; add t1, s7, x14; sd t0, 0(t1)\n" ++
+  -- Enter depth 2. Its base must be parent base + parent MSIZE.
+  "  la t0, frame_parent_bases; addi t0, t0, 32; sd s7, 0(t0); sd s8, 8(t0)\n" ++
+  "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
+  "  li a0, 2; jal ra, call_frame_enter\n" ++
+  "  mv s9, a0; mv s10, a2\n" ++
+  "  li t0, 16777216; sd t0, 568(s10); sd zero, 488(s10)\n" ++
+  "  mv x13, s9; mv x20, s10\n" ++
+  "  li x14, 0x40000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  "  li t0, 0x8877665544332211; add t1, s9, x14; sd t0, 0(t1)\n" ++
+  -- Record child isolation and parent readback.
+  "  sub t0, s9, s7; sd t0, 0(s0)\n" ++
+  "  add t1, s7, x14; li t2, 0x30000; sub t1, t1, x14; add t1, t1, t2; ld t0, 0(t1); sd t0, 8(s0)\n" ++
+  "  add t1, s9, x14; ld t0, 0(t1); sd t0, 16(s0)\n" ++
+  -- Re-enter the same depth as a sibling. Expansion must erase stale child bytes.
+  "  li a0, 2; jal ra, call_frame_enter\n" ++
+  "  mv s11, a0; mv s6, a2; li t0, 16777216; sd t0, 568(s6); sd zero, 488(s6)\n" ++
+  "  mv x13, s11; mv x20, s6; li x14, 0x40000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  "  add t1, s11, x14; ld t0, 0(t1); sd t0, 24(s0)\n" ++
+  "  li t0, 0xaabbccddeeff0011; sd t0, 0(t1); ld t0, 0(t1); sd t0, 32(s0)\n" ++
+  "  li t2, 0x30000; add t1, s7, t2; ld t0, 0(t1); sd t0, 40(s0)\n" ++
+  "  sub t0, s11, s9; sd t0, 48(s0)\n" ++
+  "  j .Lpool_witness_done\n" ++
+  ".exit_outofgas:\n  li t0, -1; sd t0, 56(s0); j .Lpool_witness_done\n" ++
+  frameBaseFunction ++ "\n" ++ frameDepthPushFunction ++ "\n" ++
+  callFrameEnterFunction ++ "\n" ++
+  ".Lpool_witness_done:"
+
+def ziskMemoryPoolWitnessDataSection : String :=
+  ".section .data\n.balign 32\n" ++
+  "call_frame_arena:\n  .zero 0x32000\n" ++
+  ".balign 8\nevm_memory_pool:\n  .zero 0x100000\nevm_memory_pool_end:\n" ++
+  "evm_call_depth:\n  .zero 8\n" ++
+  "evm_sparse_memory_next_epoch:\n  .quad 1\n" ++
+  "evm_sparse_memory_epoch_by_depth:\n  .zero 8200\n" ++
+  "frame_parent_bases:\n  .zero 16400\n"
+
 def ziskCallDescendProbeUnit : BuildUnit := {
   body        := NOP
-  prologueAsm := ziskCallDescendPrologue
-  dataAsm     := ziskCallDescendDataSection
+  prologueAsm := ziskMemoryPoolWitnessPrologue
+  dataAsm     := ziskMemoryPoolWitnessDataSection
 }
 
 /-- `zisk_call_frame_descend`: end-to-end probe for `call_frame_descend`. Sets up
