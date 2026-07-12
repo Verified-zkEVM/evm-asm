@@ -39,7 +39,7 @@ def nonceStationPost (aB newSp oB : Word) (aLen fOff fSpanN : Nat)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
       bytesRegion aB acctBytes ** F) **
-     assertPure (FieldFinal acctBytes aB fOff fSpanN none) empAssertion) h ∨
+     ⌜FieldFinal acctBytes aB fOff fSpanN none⌝) h ∨
     -- FOUND arm: rlp_content_to_u64 returns the big-endian scalar in a0.
     (∃ vNext vLen : Word,
       let image := BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
@@ -60,8 +60,8 @@ def nonceStationPost (aB newSp oB : Word) (aLen fOff fSpanN : Nat)
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
         bytesRegion aB acctBytes ** F) **
-       assertPure (FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen)) ∧
-        vLen.toNat ≤ 8) empAssertion) h)
+       ⌜FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen)) ∧
+        vLen.toNat ≤ 8⌝) h)
 
 /-- Shared-reject exit from station 2.  In particular, `G` and every out-block
     cell remain owned, so an earlier balance result cannot be forgotten. -/
@@ -903,6 +903,133 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
     xperm_hyp hq3
 
 #print axioms nonceCaptureReject_to_stationRej
+
+/-- Reframe either successful nonce-parser arm as the station found post. -/
+theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)
+    (aLen fOff fSpanN : Nat) (acctBytes : List (BitVec 8))
+    (G F : Assertion)
+    (hFF : FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    ∀ h,
+      nonceCaptureFoundPost aB oB vLen
+        (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+          ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+        vLen.toNat acctBytes
+        (G **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) **
+         ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         memOwn (newSp + 64) ** memOwn (newSp + 72) **
+         ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+         ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F) h →
+      nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F h := by
+  intro h hq
+  unfold nonceCaptureFoundPost at hq
+  unfold nonceStationPost
+  refine Or.inr ⟨vNext, vLen, ?_⟩
+  let image : Word := BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+    ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat))
+  rcases hq with he | hc
+  · let R : Assertion :=
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ vLen) ** ((.x5 : Reg) ↦ᵣ (1 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (B + 524)) **
+      (G ** ((oB + 40) ↦ₘ (1 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)
+    have he2 : (R ** ⌜vLen.toNat = 0⌝) h := by
+      dsimp only [R]
+      xperm_hyp he
+    obtain ⟨hR, hzero⟩ := (sepConj_pure_right h).1 he2
+    have himage0 : image = (0 : Word) := by
+      dsimp only [image]
+      rw [hzero]
+      rfl
+    let S : Assertion :=
+      G ** ((oB + 40) ↦ₘ (1 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+      ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x19 ** regOwn .x20 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F
+    let T : Assertion := ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ vLen) **
+      ((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524))
+    have hR2 : (T ** S) h := by
+      dsimp only [T, S]
+      xperm_hyp hR
+    dsimp only [T] at hR2
+    have hR' := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x10)
+       (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+         (sepConj_mono (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x1)))))
+      (fun _ x => x) h hR2
+    refine (sepConj_pure_right h).2 ⟨?_, ⟨hFF, by omega⟩⟩
+    dsimp only [image] at himage0
+    rw [himage0]
+    xperm_hyp hR'
+  · let R : Assertion :=
+      ((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ vLen) ** ((.x5 : Reg) ↦ᵣ (1 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (B + 524)) **
+      (G ** ((oB + 40) ↦ₘ (1 : Word)) ** ((oB + 48) ↦ₘ image) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)
+    have hc2 : (R ** ⌜vLen.toNat ≤ 8⌝) h := by
+      dsimp only [R, image]
+      xperm_hyp hc
+    obtain ⟨hR, hlen8⟩ := (sepConj_pure_right h).1 hc2
+    let S : Assertion :=
+      G ** ((oB + 40) ↦ₘ (1 : Word)) ** ((oB + 48) ↦ₘ image) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+      ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x19 ** regOwn .x20 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F
+    let T : Assertion := ((.x10 : Reg) ↦ᵣ image) **
+      ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ vLen) **
+      ((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524))
+    have hR2 : (T ** S) h := by
+      dsimp only [T, S]
+      xperm_hyp hR
+    dsimp only [T] at hR2
+    have hR' := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x10)
+       (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+         (sepConj_mono (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x1)))))
+      (fun _ x => x) h hR2
+    refine (sepConj_pure_right h).2 ⟨?_, ⟨hFF, hlen8⟩⟩
+    dsimp only [image] at hR' ⊢
+    xperm_hyp hR'
+
+#print axioms nonceCaptureFound_to_stationPost
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
