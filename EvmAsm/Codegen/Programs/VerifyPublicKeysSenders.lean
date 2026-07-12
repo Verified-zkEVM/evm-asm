@@ -263,6 +263,241 @@ def ziskVerifyPublicKeysMatchSendersProbeUnit : BuildUnit := {
   dataAsm     := ziskVerifyPublicKeysMatchSendersDataSection
 }
 
+/-! ## block_verdict_chain_id_gate (evm-asm-7zzfv, v0.6.0 item 8)
+
+    Live per-transaction chain-id-vs-block gate, mirroring execution-specs
+    `process_transaction` (fork.py:1051-1055) + `chain_id(tx)`
+    (transactions.py:772-787) at 40f956fab:
+
+      * legacy: `v in {27, 28}` -> no chain id (skip); otherwise the tx passes
+        iff `v == 35 + 2*chain_id` or `v == 36 + 2*chain_id` (any other `v` is
+        either `v < 35` -> InvalidSignatureError("bad v") or a chain-id
+        mismatch / U64-overflowing chain id -> WrongChainIdError; every case
+        rejects the block). `v` is compared in 128 bits so `35 + 2*chain_id`
+        for chain ids near 2^64 stays exact; a `v` longer than 16 bytes always
+        exceeds every representable `35/36 + 2*U64`, so it rejects.
+      * typed (2930/1559/4844/7702): inner RLP field 0 is the tx chain id; a
+        scalar longer than 8 bytes overflows the spec's U64 decode (raises ->
+        invalid tx), otherwise it must equal the block chain id.
+
+    Typed transactions embed their own chain id in the signing hash, so sender
+    recovery succeeds regardless of the block chain id -- without this gate a
+    wrong-chain typed tx was a verdict FALSE-ACCEPT (the one soundness gap in
+    the v0.6.0 port; legacy txs were already caught because EIP-155 recovery
+    consumes bv_chain_id in the signing hash).
+
+    Malformed structure (offset table, tx type, RLP parse) is DEFERRED (return
+    0): verify_public_keys_match_senders runs the same walk immediately after
+    and rejects those shapes (status 90/10), so deferral cannot false-accept.
+
+    Reads the same block globals as verify_public_keys_match_senders
+    (bv_tx_list_ptr / bv_tx_list_len / bv_chain_id).
+
+    a0 (output): 0 = every tx chain id absent-or-matching; 1 = some tx has a
+    present, mismatching (or spec-invalid) chain id -> REJECT the block. -/
+def blockVerdictChainIdGate_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_ptr (GuestAddrs.block_verdict_chain_id_gate + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_ptr (GuestAddrs.block_verdict_chain_id_gate + 32)),
+    .LD .x8 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_len (GuestAddrs.block_verdict_chain_id_gate + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_len (GuestAddrs.block_verdict_chain_id_gate + 44)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BLTU .x9 .x5 (532 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_chain_id_gate + 68)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (516 : BitVec 13),
+    .SRLI .x18 .x10 (2 : BitVec 6),
+    .BEQ .x18 .x0 (508 : BitVec 13),
+    .LI .x19 (0 : Word),
+    .BEQ .x19 .x18 (500 : BitVec 13),
+    .SLLI .x5 .x19 (2 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_chain_id_gate + 104)),
+    .MV .x20 .x10,
+    .ADDI .x5 .x19 (1 : BitVec 12),
+    .BEQ .x5 .x18 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x10 .x8 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_chain_id_gate + 128)),
+    .MV .x21 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x21 .x9,
+    .SLLI .x5 .x18 (2 : BitVec 6),
+    .BLTU .x20 .x5 (444 : BitVec 13),
+    .BLTU .x21 .x20 (440 : BitVec 13),
+    .BLTU .x9 .x21 (436 : BitVec 13),
+    .ADD .x10 .x8 .x20,
+    .SUB .x11 .x21 .x20,
+    .BEQ .x11 .x0 (424 : BitVec 13),
+    .AUIPC .x12 (laHi GuestAddrs.cig_type (GuestAddrs.block_verdict_chain_id_gate + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.cig_type (GuestAddrs.block_verdict_chain_id_gate + 172)),
+    .AUIPC .x13 (laHi GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 180)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 180)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.block_verdict_chain_id_gate + 188)),
+    .BNE .x10 .x0 (400 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cig_type (GuestAddrs.block_verdict_chain_id_gate + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_type (GuestAddrs.block_verdict_chain_id_gate + 196)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (216 : BitVec 13),
+    .ADD .x10 .x8 .x20,
+    .SUB .x11 .x21 .x20,
+    .LI .x12 (6 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 224)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 224)),
+    .AUIPC .x14 (laHi GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 232)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 232)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.block_verdict_chain_id_gate + 240)),
+    .BNE .x10 .x0 (348 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 248)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (16 : Word),
+    .BLTU .x7 .x6 (336 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 268)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x5 .x5 .x8,
+    .ADD .x5 .x5 .x20,
+    .LI .x28 (0 : Word),
+    .LI .x29 (0 : Word),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .SRLI .x30 .x29 (56 : BitVec 6),
+    .OR .x28 .x28 .x30,
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .OR .x29 .x29 .x30,
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .BNE .x28 .x0 (20 : BitVec 13),
+    .LI .x30 (27 : Word),
+    .BEQ .x29 .x30 (240 : BitVec 13),
+    .LI .x30 (28 : Word),
+    .BEQ .x29 .x30 (232 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_chain_id (GuestAddrs.block_verdict_chain_id_gate + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_chain_id (GuestAddrs.block_verdict_chain_id_gate + 356)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .SLLI .x31 .x30 (1 : BitVec 6),
+    .SRLI .x30 .x30 (63 : BitVec 6),
+    .ADDI .x5 .x31 (35 : BitVec 12),
+    .BGEU .x5 .x31 (8 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .BNE .x28 .x30 (8 : BitVec 13),
+    .BEQ .x29 .x5 (192 : BitVec 13),
+    .ADDI .x6 .x5 (1 : BitVec 12),
+    .MV .x7 .x30,
+    .BNE .x6 .x0 (8 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .BNE .x28 .x7 (188 : BitVec 13),
+    .BNE .x29 .x6 (184 : BitVec 13),
+    .JAL .x0 (164 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 424)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 424)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x20,
+    .ADD .x10 .x10 .x7,
+    .SUB .x11 .x21 .x20,
+    .SUB .x11 .x11 .x7,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 456)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 456)),
+    .AUIPC .x14 (laHi GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 464)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 464)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.block_verdict_chain_id_gate + 472)),
+    .BNE .x10 .x0 (116 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 480)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_len (GuestAddrs.block_verdict_chain_id_gate + 480)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BLTU .x7 .x6 (104 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 500)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cig_off (GuestAddrs.block_verdict_chain_id_gate + 500)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x5 .x5 .x8,
+    .ADD .x5 .x5 .x20,
+    .AUIPC .x28 (laHi GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 520)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.cig_inner_off (GuestAddrs.block_verdict_chain_id_gate + 520)),
+    .LD .x28 .x28 (0 : BitVec 12),
+    .ADD .x5 .x5 .x28,
+    .LI .x29 (0 : Word),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .OR .x29 .x29 .x30,
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bv_chain_id (GuestAddrs.block_verdict_chain_id_gate + 568)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_chain_id (GuestAddrs.block_verdict_chain_id_gate + 568)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-496 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `blockVerdictChainIdGate_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictChainIdGate_relocs : RelocTable :=
+  [ (8, .la .x5 "bv_tx_list_ptr"),
+    (11, .la .x5 "bv_tx_list_len"),
+    (17, .jal .x1 "bgv_u32le"),
+    (26, .jal .x1 "bgv_u32le"),
+    (32, .jal .x1 "bgv_u32le"),
+    (43, .la .x12 "cig_type"),
+    (45, .la .x13 "cig_inner_off"),
+    (47, .jal .x1 "tx_type_dispatch"),
+    (49, .la .x5 "cig_type"),
+    (56, .la .x13 "cig_off"),
+    (58, .la .x14 "cig_len"),
+    (60, .jal .x1 "rlp_list_nth_item"),
+    (62, .la .x5 "cig_len"),
+    (67, .la .x5 "cig_off"),
+    (89, .la .x5 "bv_chain_id"),
+    (106, .la .x5 "cig_inner_off"),
+    (114, .la .x13 "cig_off"),
+    (116, .la .x14 "cig_len"),
+    (118, .jal .x1 "rlp_list_nth_item"),
+    (120, .la .x5 "cig_len"),
+    (125, .la .x5 "cig_off"),
+    (130, .la .x28 "cig_inner_off"),
+    (142, .la .x5 "bv_chain_id") ]
+
+def blockVerdictChainIdGateFunction : String :=
+  "block_verdict_chain_id_gate:\n" ++ emitProgramR blockVerdictChainIdGate_prog blockVerdictChainIdGate_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictChainIdGate_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictChainIdGateFunction_eq_prog :
+    blockVerdictChainIdGateFunction = "block_verdict_chain_id_gate:\n" ++ emitProgramR blockVerdictChainIdGate_prog blockVerdictChainIdGate_relocs := rfl
+
+#guard blockVerdictChainIdGateFunction.startsWith "block_verdict_chain_id_gate:\n"
+#guard blockVerdictChainIdGate_prog.length = 160
 /-- TX-side recovery scratch to APPEND to the guest data section
     (`ziskStatelessVerdictV2DataSection`) when the guest closure links the
     transaction sender-recovery stack (bmvmx.3.2). The secp256k1 constants /
@@ -321,7 +556,13 @@ def verifyPublicKeysSendersGuestDataSection : String :=
   ".balign 8\n" ++
   "bv_chain_id:\n  .zero 8\n" ++
   "vpks_pubkey_out:\n  .zero 64\n" ++
-  "vpks_scratch:\n  .zero 312\n"
+  "vpks_scratch:\n  .zero 312\n" ++
+  -- evm-asm-7zzfv: block_verdict_chain_id_gate scratch (tx type / inner-list
+  -- offset from tx_type_dispatch; item offset/length from rlp_list_nth_item).
+  "cig_type:\n  .zero 8\n" ++
+  "cig_inner_off:\n  .zero 8\n" ++
+  "cig_off:\n  .zero 8\n" ++
+  "cig_len:\n  .zero 8\n"
 
 /-- The transaction sender-recovery function bodies to link into the guest
     closure(s) for the live `verify_public_keys_match_senders` call (bmvmx.3.2).
@@ -347,6 +588,7 @@ def verifyPublicKeysSendersGuestFunctions : String :=
   txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
   txPubkeyRecoverRawFunction ++ "\n" ++
   txPubkeyPublicKeyMatchesFunction ++ "\n" ++
-  verifyPublicKeysMatchSendersFunction
+  verifyPublicKeysMatchSendersFunction ++ "\n" ++
+  blockVerdictChainIdGateFunction
 
 end EvmAsm.Codegen

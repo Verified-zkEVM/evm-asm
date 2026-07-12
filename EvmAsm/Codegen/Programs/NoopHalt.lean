@@ -198,17 +198,9 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      -- execution-specs generic_create credits the CREATE NEW_ACCOUNT state-gas
-      -- charge back when the CREATE target was already alive before child execution.
-      -- The depth-scoped flag was copied to create_target_alive_current_tx before frame_return.
-      "  la t0, create_target_alive_current_tx\n  ld t1, 0(t0)\n" ++
-      "  beqz t1, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_cralive_refund_done_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      ".Lrr_cralive_refund_done_" ++ toString kind ++ ":\n" ++
+      -- v0.6.0 (C11): no target-alive success refund -- an alive target
+      -- was never charged (the conditional charge site skipped it).
+
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
       "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
@@ -491,12 +483,9 @@ private def selfdestructTailAsm : String :=
   "  la t1, create_nonce; ld t2, 0(t0); sd t2, 0(t1)\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
-  -- Constructor SELFDESTRUCT is a successful CREATE child exit. Mirror generic_create's
-  -- target_alive refund using the flag captured before child execution.
-  "  la t0, create_target_alive_current_tx\n  ld t0, 0(t0)\n  beqz t0, .L_sd_create_alive_refund_done\n" ++
-  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n  bltu t1, t2, .L_sd_create_alive_refund_done\n  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
-  ".L_sd_create_alive_refund_done:\n" ++
+  -- v0.6.0 (C11): no target-alive success refund (alive targets are not
+  -- charged at the conditional charge site).
+
   "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
   ".L_sd_create_addr_loop:\n" ++
   "  beqz t3, .L_sd_create_addr_done\n" ++

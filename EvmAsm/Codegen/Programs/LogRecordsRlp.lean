@@ -235,7 +235,7 @@ def logRecordsEncodeRlpFunction : String :=
   "  mv t2, s10\n" ++
   -- payload overflow guard (cap 131072)
   "  add t3, s7, t2\n" ++
-  "  li t4, 131072\n" ++
+  "  li t4, 1048576\n" ++
   "  bgtu t3, t4, .Llrr_overflow\n" ++
   ".Llrr_data_copy:\n" ++
   "  beqz t2, .Llrr_data_copied\n" ++
@@ -312,7 +312,7 @@ def logRecordsRlpDataSection : String :=
   ".balign 8\n" ++
   s!"lrr_inner:\n  .zero {logRecordsRlpScratchCap}\n" ++
   ".balign 8\n" ++
-  "lrr_payload:\n  .zero 131072\n"
+  "lrr_payload:\n  .zero 1048576\n"
 
 /-- `zisk_log_records_encode_rlp`: focused probe.
 

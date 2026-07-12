@@ -104,11 +104,12 @@ def INPUT_BASE : Word := 0x40000000
     payload starts at `INPUT_BASE + INPUT_DATA_OFFSET`. -/
 def INPUT_DATA_OFFSET : BitVec 12 := 16
 
-/-- New-schema (zkevm-projects/d7fe16ab8) input prefix: 2 bytes of
-    schema-ID (`STATELESS_INPUT_SCHEMA_ID = 0x0001`, big-endian)
-    before the SSZ-encoded `SszStatelessInput`. The SSZ container
-    therefore starts at `INPUT_BASE + INPUT_DATA_OFFSET +
-    SCHEMA_ID_SIZE = 0x40000012`. -/
+/-- Schema-prefixed input: 2 bytes of schema-ID
+    (`STATELESS_INPUT_SCHEMA_ID = 0x1501` at tests-zkevm@v0.6.0:
+    fork index `0x15` || revision `0x01`, big-endian) before the
+    SSZ-encoded `SszStatelessInput`. The SSZ container therefore
+    starts at `INPUT_BASE + INPUT_DATA_OFFSET + SCHEMA_ID_SIZE =
+    0x40000012`. -/
 def SCHEMA_ID_SIZE : BitVec 12 := 2
 
 /-- SSZ outer offset table: `SszStatelessInput` has 4 variable-size
@@ -211,11 +212,14 @@ def decode_header_count : Program :=
         bytes [0..8)  : chain_id
         bytes [8..12) : offset_active_fork
 
-    `SszForkConfig`'s first field is `fork: uint64`, so the fork
-    value lives at the very start of the active_fork section. -/
+    v0.6.0: `SszForkConfig` = `{activation}` — the `fork` field is
+    gone (fork identity travels in the schema id), so the reader
+    below is RETIRED from the pipeline (kept only as the unverified
+    ancestor of `ActiveForkSAsm.lean`'s proof patterns). -/
 def CHAIN_CONFIG_ACTIVE_FORK_OFFSET_INNER : BitVec 12 := 8
 
-/-- Read `chain_config.active_fork.fork` (u64 LE) from `INPUT_BASE`
+/-- (Retired at v0.6.0 — reads a field that no longer exists.)
+    Read `chain_config.active_fork.fork` (u64 LE) from `INPUT_BASE`
     into `x12`.
 
     Precondition (left by `read_chain_id`):
