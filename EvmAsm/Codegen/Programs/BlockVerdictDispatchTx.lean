@@ -866,6 +866,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
   "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_create_state_charge; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_regular_refund; sd zero, 0(t4)\n" ++
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++

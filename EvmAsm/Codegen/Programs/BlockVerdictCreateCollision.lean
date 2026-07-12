@@ -65,6 +65,51 @@ def blockVerdictCreateCollisionBranch : String :=
   liAmsterdamNewAccountStateGas "t1" ++
   "  la t0, bvgr_tx_state_refund; sd t1, 0(t0)\n" ++
   ".Lbv_creation_no_alive_refund:\n" ++
+  -- v0.6.0 prepare_dispatch: stage the top-frame NEW_ACCOUNT state charge for
+  -- the dispatcher iff the target is EMPTY (alive target -> refund cell != 0
+  -- above -> no charge). The dispatcher enforces reservoir-first affordability
+  -- and halts before dispatch (all regular gas burned) on shortage.
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
+  "  la t1, bvgr_tx_state_refund; ld t1, 0(t1); bnez t1, .Lbv_creation_charge_staged\n" ++
+  liAmsterdamNewAccountStateGas "t1" ++
+  "  la t0, runtime_tx_create_state_charge; sd t1, 0(t0)\n" ++
+  ".Lbv_creation_charge_staged:\n" ++
+  -- Validated-dispatch staging for the creation tx: the dispatcher's tx-gas
+  -- path (validate_tx_gas = 1) consumes the access-list cardinalities/span
+  -- and the auth/top-frame cells, so stage them exactly like the contract
+  -- dispatch path. A creation tx cannot be type 4 (EIP-7702 requires a
+  -- non-empty `to`), so the auth cells stay zero.
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t0, 160(t0); beqz t0, .Lbv_creation_access_done\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Lbv_creation_access_field\n" ++
+  "  li a2, 8; li t1, 2; beq t0, t1, .Lbv_creation_access_field\n" ++
+  "  li t1, 3; beq t0, t1, .Lbv_creation_access_field\n" ++
+  "  j .Lbv_creation_unsupported\n" ++
+  ".Lbv_creation_access_field:\n" ++
+  "  la t0, bv_simple_transfer_tx; ld a0, 176(t0); ld a1, 184(t0); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_creation_unsupported\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
+  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  bnez a0, .Lbv_creation_unsupported\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd t2, 0(t0)\n" ++
+  "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+  ".Lbv_creation_access_done:\n" ++
   "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n"
 

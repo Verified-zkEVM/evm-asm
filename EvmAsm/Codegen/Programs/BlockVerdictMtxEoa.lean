@@ -53,6 +53,7 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t6, bv_mtx_ctx; ld t0, 160(t6); li t1, 4; bne t0, t1, .Lbv_mtx_eoa_auth_ready\n" ++
   "  ld a0, 176(t6); ld a1, 184(t6); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++

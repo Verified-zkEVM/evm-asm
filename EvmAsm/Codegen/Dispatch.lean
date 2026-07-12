@@ -2717,6 +2717,30 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x9, .exit_outofgas\n" ++
   "  sub x6, x6, x9\n" ++
   ".runtime_tx_auth_state_refund_done:\n" ++
+  -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
+  -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
+  -- reservoir first, spilling the remainder into regular gas; an unaffordable
+  -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
+  -- burned, the charge rolled back -- the state-dimension accounting keeps the
+  -- intrinsic-term model and refunds via eip8037_tx_state_gas's creation-error
+  -- branch). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
+  -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
+  -- target is never charged); probes/non-creation paths leave it zero.
+  "  la x11, runtime_tx_create_state_charge\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_create_state_done\n" ++
+  ".runtime_tx_create_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_create_state_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
@@ -3286,6 +3310,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_create_state_charge:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
