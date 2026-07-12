@@ -664,5 +664,105 @@ theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
 
 #print axioms nonceParserPost_to_dispatchPre
 
+/-- Slots 128--130 on the statically too-long path, using the precise public
+    per-case u64 callee contract. -/
+theorem bansf_nonceCapture_tooLongCall_spec (aB oB : Word)
+    (vNext vLen vStatus v5 v6 v7 v28 vRa : Word) (len : Nat)
+    (acctBytes : List (BitVec 8)) (P : Assertion) (hP : P.pcFree)
+    (hlen : vLen.toNat = len) (htl : 8 < len)
+    (hrepS : vNext - vLen = aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat) :
+    cpsTripleWithin 8 (B + 512) (B + 524) bansfCR
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ vStatus) **
+       ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+       ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+       bytesRegion aB acctBytes ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      (nonceCaptureTooLongPre aB oB vLen len acctBytes P) := by
+  have h128 := sub_spec_gen_rd_eq_rs1_within .x10 .x12 vNext vLen
+    (B + 512) (by decide)
+  rw [hrepS, show (B + 512) + 4 = B + 516 from by bv_omega] at h128
+  have h128L := liftCode (cr' := bansfCR) h128
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 512) bansfProg 128 (.SUB .x10 .x10 .x12)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have h129 := mv_spec_gen_within .x11 .x12 vLen vStatus (B + 516) (by decide)
+  rw [show (B + 516) + 4 = B + 520 from by bv_omega] at h129
+  have h129L := liftCode (cr' := bansfCR) h129
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 516) bansfProg 129 (.MV .x11 .x12)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have h128F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ vStatus) **
+     ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+     ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+     bytesRegion aB acctBytes ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+    (by pcf; exact hP) h128L
+  have h129F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat)) **
+     ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+     ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ vRa) **
+     bytesRegion aB acctBytes ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+    (by pcf; exact hP) h129L
+  have hsetup := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h128F h129F
+  have hult : BitVec.ult (8 : Word) vLen := by
+    simp only [BitVec.ult, decide_eq_true_eq]
+    have h8 : (8 : Word).toNat = 8 := by decide
+    rw [h8, hlen]
+    exact htl
+  have hc := rlp_content_to_u64_too_long_spec_within C6
+    (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat) vLen v5 (B + 524) hult
+  have hc' := cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq) hc
+    (P' := ((.x1 : Reg) ↦ᵣ (B + 524)) **
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (vNext - vLen - aB).toNat)) **
+       ((.x11 : Reg) ↦ᵣ vLen) ** ((.x5 : Reg) ↦ᵣ v5) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word))))
+  have hcall := bansf_callSite130_content_to_u64 (n := 5) vRa (by pcf) hc'
+  have hcallF := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+     ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion aB acctBytes **
+     ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+    (by pcf; exact hP) hcall
+  have hfull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hsetup hcallF
+  rw [show B + 520 + 4 = B + 524 from by bv_omega] at hfull
+  unfold nonceCaptureTooLongPre
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by
+      have hq2 : (((.x5 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+          ((.x28 : Reg) ↦ᵣ v28) **
+          (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+           bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
+           ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
+           ((oB + 48) ↦ₘ (0 : Word)) ** P)) h := by
+        xperm_hyp hq
+      have hq3 := sepConj_mono (regIs_implies_regOwn .x5)
+        (sepConj_mono (regIs_implies_regOwn .x6)
+          (sepConj_mono (regIs_implies_regOwn .x7)
+            (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)))) h hq2
+      let R : Assertion :=
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+         bytesRegion aB acctBytes) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word))) **
+        ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
+      have hR : R h := by dsimp only [R]; xperm_hyp hq3
+      have hRp : (R ** ⌜8 < len⌝) h := (sepConj_pure_right h).2 ⟨hR, htl⟩
+      dsimp only [R] at hRp
+      xperm_hyp hRp) hfull
+
+#print axioms bansf_nonceCapture_tooLongCall_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
