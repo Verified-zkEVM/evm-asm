@@ -36,6 +36,30 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  bnez t6, .L_selfdestruct_surcharge_done\n" ++
+  -- The spec reads the originator's LIVE balance (system.py selfdestruct:
+  -- get_account(current_target).balance != 0). A zero-header-balance contract
+  -- funded THIS tx (the tx value credit, or an earlier same-tx transfer) must
+  -- still charge; prefer the journaled latest balance over the header value.
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n  la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  beqz t6, .L_selfdestruct_origin_env_bal\n" ++
+  "  la t0, evm_selfdestruct_balance_scratch\n  li t2, 4\n" ++
+  ".L_selfdestruct_origin_live_scan:\n" ++
+  "  ld t1, 0(t0)\n  bnez t1, .L_selfdestruct_origin_nonzero\n" ++
+  "  addi t0, t0, 8\n  addi t2, t2, -1\n  bnez t2, .L_selfdestruct_origin_live_scan\n" ++
+  "  j .L_selfdestruct_surcharge_done\n" ++
+  ".L_selfdestruct_origin_env_bal:\n" ++
+  -- env+32 is the frame's live SELFBALANCE word (the staging credits the
+  -- incoming call value into it), so a nonzero byte there is the spec's live
+  -- `get_account(current_target).balance != 0` even when the header-state
+  -- balance is zero (contract funded by this very tx).
+  "  addi t0, x20, 32\n  li t2, 32\n" ++
+  ".L_selfdestruct_origin_env_scan:\n" ++
+  "  lbu t1, 0(t0)\n  bnez t1, .L_selfdestruct_origin_nonzero\n" ++
+  "  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .L_selfdestruct_origin_env_scan\n" ++
   "  la t0, bal_output_scratch\n" ++
   "  ld t1, 0(t0)\n" ++
   "  bnez t1, .L_selfdestruct_origin_nonzero\n" ++

@@ -555,6 +555,64 @@ def statelessVerdictV2Function : String :=
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- v0.6.0 (EIP-8282/C12): process_checked_system_transaction pre-checks that
+  -- each BUILDER predeploy holds code (fork.py:985-1005 via :755-765) and
+  -- raises InvalidBlock when it does not -- even though an absent contract's
+  -- (empty) output would not change requests_hash. The spec reads through a
+  -- TransactionState so a contract deployed EARLIER IN THIS BLOCK counts; the
+  -- exec code-effect log carries that same-block case for the guest.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_bd_same_block\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_bd_code_ok\n" ++
+  ".Lc1_bd_same_block:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  bnez a0, .Lc1_bd_code_ok\n" ++
+  -- The BAL's declared code final for the builder address is the remaining
+  -- same-block deployment signal (a deploy the guest's runtime did not replay,
+  -- e.g. an unsupported top-level creation): the code comparators validate the
+  -- BAL's code claims wherever execution is available, so a declared non-empty
+  -- final mirrors the spec's TransactionState read of the just-deployed code.
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_bd_code_ok:\n" ++
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_exit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_be_same_block\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_be_code_ok\n" ++
+  ".Lc1_be_same_block:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  bnez a0, .Lc1_be_code_ok\n" ++
+  -- The BAL's declared code final for the builder address is the remaining
+  -- same-block deployment signal (a deploy the guest's runtime did not replay,
+  -- e.g. an unsupported top-level creation): the code comparators validate the
+  -- BAL's code claims wherever execution is available, so a declared non-empty
+  -- final mirrors the spec's TransactionState read of the just-deployed code.
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_be_code_ok:\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
   -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
   -- derives above run the predeploy through the dispatcher; when the (modified) predeploy

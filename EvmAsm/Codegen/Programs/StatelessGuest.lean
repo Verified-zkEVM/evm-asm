@@ -111,6 +111,7 @@ def statelessGuestUnit : BuildUnit := {
     "ssc_saved_s0:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
+    builderContractAddrData ++
     deriveBlockSystemRequestsData ++ "\n" ++
     -- 8uld3.2.3.2 (B): deposit-derivation data (DEPOSIT_CONTRACT_ADDRESS, deposit event sig,
     -- pdr_out body buffer, pdr_status). None present in the guest/dispatcher data.
