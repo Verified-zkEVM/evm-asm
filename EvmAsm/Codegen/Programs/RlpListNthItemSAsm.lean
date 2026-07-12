@@ -163,6 +163,14 @@ def Success (bytes : List (BitVec 8)) (base : Word) (listLen index : Nat)
     StrictNthItem bytes base endPtr index cursorOff next len ∧
     offset = next - len - base
 
+/-- The complete failure information exposed by the unified WalkNext theorem:
+    status 2 proves the cursor is at/past the exclusive end; statuses 3--6
+    prove that no strict item decodes at the cursor. -/
+def WalkFailure (bytes : List (BitVec 8)) (off : Nat)
+    (cursor endPtr : Word) : Prop :=
+  (¬ BitVec.ult cursor endPtr = true) ∨
+  (¬ ∃ next len, rlpItemDecode bytes off cursor endPtr next len)
+
 /-- A concrete strict traversal failure.  Either the outer list itself has no
     strict payload, or a canonical prefix of `count ≤ index` children reaches
     a cursor at which no strict next item exists.  The latter uniformly covers
@@ -176,8 +184,7 @@ inductive Failure (bytes : List (BitVec 8)) (base : Word)
       (hlist : StrictListPayload bytes base listLen cursorOff endPtr)
       (hcount : count ≤ index)
       (hprefix : StrictPrefix bytes base endPtr cursorOff count off)
-      (hfail : ¬ ∃ next len, rlpItemDecode bytes off
-        (base + BitVec.ofNat 64 off) endPtr next len) :
+      (hfail : WalkFailure bytes off (base + BitVec.ofNat 64 off) endPtr) :
       Failure bytes base listLen index
 
 /-- Unified semantic result, including the ABI's precise failure behavior:
@@ -337,7 +344,97 @@ def loopRejected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
      ⌜status ≠ 0 ∧ count ≤ index ∧
        StrictListPayload bytes listBase listLen cursorOff endPtr ∧
        StrictPrefix bytes listBase endPtr cursorOff count off ∧
-       ¬ ∃ next len, rlpItemDecode bytes off
-         (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h
+       WalkFailure bytes off (listBase + BitVec.ofNat 64 off) endPtr⌝) h
+
+/-! ## One verified call block -/
+
+def nextCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x1 ↦ᵣ (B + 72)) ** bytesRegion listBase bytes
+
+/-- Slot 16's `mv a1,s4` followed by the local verified WalkNext call. -/
+theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
+    (off listLen : Nat) (v5 v6 v7 v11 v12 v28 v29 v30 v31 oldRa : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ listLen) :
+    cpsTripleWithin 89 (B + 64) (B + 72) code
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ v11) **
+       (.x12 ↦ᵣ v12) ** (.x20 ↦ᵣ endPtr) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+       (.x31 ↦ᵣ v31) ** (.x1 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes ** F)
+      ((nextCommon listBase bytes **
+        (fun h =>
+          rlpWalkNextOk (listBase + BitVec.ofNat 64 off) endPtr bytes off h ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (3 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (4 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (5 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (6 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h))) **
+       ((.x20 ↦ᵣ endPtr) ** F)) := by
+  have hoffb : off < bytes.length := by omega
+  have hmv0 := mv_spec_gen_within .x11 .x20 endPtr v11 (B + 64) (by decide)
+  rw [show (B + 64) + 4 = B + 68 from by bv_omega] at hmv0
+  have hmv := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mono_sub B (B + 64) rlpListNthItem_prog
+      [.MV .x11 .x20] 16 (by bv_omega) (by rfl)
+      (by rw [total_length]; norm_num) (by rw [total_length]; norm_num)) hmv0
+  have hwn := rlp_walk_next_spec_within WN listBase endPtr (B + 72) v12
+    v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoffb (by omega)
+    (hvalid off hoffb)
+    (fun _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
+    (fun hb8 hc0 => by
+      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
+        simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
+        bv_omega
+      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+    (fun hf8 => by
+      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        simp only [BitVec.ult, decide_eq_true_eq] at hf8
+        have h3 := (bytes[off]'hoffb).isLt
+        bv_omega
+      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+  have hwn' := cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwn
+    (P' := (.x1 ↦ᵣ (B + 72)) **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+       (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes))
+  have hcall := callWalkNext (n := 87) oldRa (by pcf) hwn'
+  have hmvF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x12 ↦ᵣ v12) **
+     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+     (.x31 ↦ᵣ v31) ** (.x1 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase bytes ** F) (by pcf; exact hF) hmv
+  have hcallF := cpsTripleWithin_frameR ((.x20 ↦ᵣ endPtr) ** F)
+    (by pcf; exact hF) hcall
+  have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hmvF hcallF
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => by unfold nextCommon; exact hq) hc
+
+#print axioms nextCallBlock
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
