@@ -573,5 +573,129 @@ def balStationPost (aB newSp oB : Word) (aLen fOff fSpanN : Nat)
         vLen.toNat ≤ 32⌝) h)
 
 
+/-! ## §4  The empty-list split (slot 52) and loop entry (slots 53–54) -/
+
+/-- The last decode of a `LastItemAt` derivation, extracted with its
+    in-window position (for `rlpItemDecode_spanStart` at the tuple window). -/
+theorem LastItemAt_decode {bytes : List (BitVec 8)} {base : Word}
+    {off0 endOff : Nat} {n l : Word}
+    (h : LastItemAt bytes base (base + BitVec.ofNat 64 endOff) off0 n l)
+    (hoff0 : off0 ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    ∃ off : Nat, off ≤ endOff ∧
+      rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+        (base + BitVec.ofNat 64 endOff) n l := by
+  induction h with
+  | last o nn ll hi _ => exact ⟨o, hoff0, hi⟩
+  | step o nn ll n' l' hi _ _ ih =>
+      have hadv := rlpItemDecode_advance hi hoff0 hover
+      exact ih hadv.2.2
+
+/-- Empty-field exit (slot 52 taken, `B + 208 → B + 352`): the content
+    cursor equals the window end, so the field list is EMPTY. -/
+theorem bansf_balEmptyTaken_spec (aB : Word) (cOff fEnd : Nat)
+    (heq : cOff = fEnd) :
+    cpsTripleWithin 1 (B + 208) (B + 352) bansfCode
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd))) := by
+  subst heq
+  have hbeq := beq_spec_gen_within .x10 .x11 (144 : BitVec 13)
+    (aB + BitVec.ofNat 64 cOff) (aB + BitVec.ofNat 64 cOff) (B + 208)
+  rw [show (B + 208) + signExtend13 (144 : BitVec 13) = B + 352 from by
+        rw [show signExtend13 (144 : BitVec 13) = (144 : Word) from by decide]
+        bv_omega] at hbeq
+  have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCode)
+    (fun a i h => CodeReq.ofProg_mem_at B (B + 208) bansfProg 52
+      (.BEQ .x10 .x11 (144 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+    hbeq
+  have h := cpsBranchWithin_takenPath hbeqL
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      exact sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
+
+/-- Non-empty fall-through (slot 52 not taken, `B + 208 → B + 212`). -/
+theorem bansf_balEmptyFall_spec (aB : Word) (aLen cOff fEnd : Nat)
+    (hne : cOff ≠ fEnd) (hcle : cOff ≤ aLen) (hfle : fEnd ≤ aLen)
+    (hover9 : aB.toNat + aLen + 9 < 2 ^ 64) :
+    cpsTripleWithin 1 (B + 208) (B + 212) bansfCode
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd))) := by
+  have hwne : aB + BitVec.ofNat 64 cOff ≠ aB + BitVec.ofNat 64 fEnd := by
+    intro hc
+    apply hne
+    have := congrArg BitVec.toNat hc
+    rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
+      BitVec.toNat_ofNat] at this
+    omega
+  have hbeq := beq_spec_gen_within .x10 .x11 (144 : BitVec 13)
+    (aB + BitVec.ofNat 64 cOff) (aB + BitVec.ofNat 64 fEnd) (B + 208)
+  rw [show (B + 208) + 4 = B + 212 from by bv_omega] at hbeq
+  have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCode)
+    (fun a i h => CodeReq.ofProg_mem_at B (B + 208) bansfProg 52
+      (.BEQ .x10 .x11 (144 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+    hbeq
+  have h := cpsBranchWithin_ntakenPath hbeqL
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd (((sepConj_pure_right _).1 h_pure).2) hwne)
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      exact sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
+
+/-- Loop-entry spills (slots 53–54): store the tuple-walk cursor and end. -/
+theorem bansf_loopEntry53_spec (aB newSp : Word) (cOff fEnd : Nat) :
+    cpsTripleWithin 2 (B + 212) (B + 220) bansfCR
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+       ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 fEnd))) := by
+  have hsd1 := sd_spec_gen_own_within .x2 .x10 newSp (aB + BitVec.ofNat 64 cOff)
+    (64 : BitVec 12) (B + 212)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 212) + 4 = B + 216 from by bv_omega] at hsd1
+  have hsd1L := liftCode (cr' := bansfCR) hsd1
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 212) bansfProg 53 (.SD .x2 .x10 (64 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hsd2 := sd_spec_gen_own_within .x2 .x11 newSp (aB + BitVec.ofNat 64 fEnd)
+    (72 : BitVec 12) (B + 216)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 216) + 4 = B + 220 from by bv_omega] at hsd2
+  have hsd2L := liftCode (cr' := bansfCR) hsd2
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 216) bansfProg 54 (.SD .x2 .x11 (72 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hsd1F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) ** memOwn (newSp + 72))
+    (by pcf) hsd1L
+  have hsd2F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+     ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)))
+    (by pcf) hsd2L
+  have hchain := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hsd1F hsd2F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_balEmptyTaken_spec
+#print axioms bansf_balEmptyFall_spec
+#print axioms bansf_loopEntry53_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
