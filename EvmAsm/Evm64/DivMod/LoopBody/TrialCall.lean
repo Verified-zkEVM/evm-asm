@@ -18,7 +18,7 @@
   - `divK_save_trial_load_spec_within`, `divK_trial_call_path_spec_within`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPathBase
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallHelpers
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
 
