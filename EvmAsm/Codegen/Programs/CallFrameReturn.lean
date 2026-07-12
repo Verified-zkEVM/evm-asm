@@ -318,6 +318,288 @@ def frameReturnFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
+/-- `sparse_window_read(a0 = dst, a1 = window offset, a2 = window size,
+    a3 = dense memory base)`: materialize the current frame's EVM-memory
+    window `[offset, offset+size)` into a flat byte buffer at `dst`
+    (evm-asm-0w05f.13, depth-1+ windows beyond the dense arena).
+
+    Semantics: dst gets exactly what a per-byte read of the frame's memory
+    model would produce — zeros, overlaid with the dense arena bytes for
+    `[offset, min(end, runtimeMemoryArenaLimitBytes))`, overlaid with the
+    depth-matching sparse word-store entries replayed in APPEND ORDER (a
+    later MSTORE shadows an earlier one, mirroring `sparseMemoryLoadWordAsm`'s
+    backward-scan-first-hit), each entry's 32 bytes converted from the stored
+    stack-limb payload to the big-endian byte layout dense MSTORE writes
+    (limb `j` at window bytes `[8*(3-j), 8*(3-j)+8)`, MSB first — see
+    `Evm64.MStore.mstore_one_limb`) and clipped per byte at the window edges.
+
+    The caller guarantees `size` fits the destination buffer (the RETURN
+    tail guards `offset+size ≤ precompileFrameReturndataCapBytes`).
+    Preserves a0-a3 and all dispatcher state; clobbers t0-t6 and a4-a7
+    (x14-x17, dead at the RETURN/REVERT tail call sites). -/
+def sparseWindowReadFunction : String :=
+  "sparse_window_read:\n" ++
+  -- Zero dst[0..size).
+  "  mv t0, a0\n" ++
+  "  mv t1, a2\n" ++
+  "1:\n" ++
+  "  beqz t1, 2f\n" ++
+  "  sb x0, 0(t0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j 1b\n" ++
+  "2:\n" ++
+  -- Dense overlap: copy [offset, min(end, dense_limit)) from a3 + offset.
+  "  li t0, " ++ toString EvmAsm.Codegen.runtimeMemoryArenaLimitBytes ++ "\n" ++
+  "  bgeu a1, t0, 3f\n" ++
+  "  sub t1, t0, a1                 # dense bytes available past offset\n" ++
+  "  bltu t1, a2, 21f\n" ++
+  "  mv t1, a2                      # n = min(size, available)\n" ++
+  "21:\n" ++
+  "  add t2, a3, a1                 # src = dense base + offset\n" ++
+  "  mv t3, a0                      # dst cursor\n" ++
+  "22:\n" ++
+  "  beqz t1, 3f\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j 22b\n" ++
+  "3:\n" ++
+  -- Sparse replay, forward (append order): later entries shadow earlier.
+  "  la t0, evm_sparse_memory_count\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  beqz t0, 9f\n" ++
+  "  la t1, evm_sparse_memory_entries\n" ++
+  "  la t2, evm_call_depth\n" ++
+  "  ld t2, 0(t2)\n" ++
+  "  add t6, a1, a2                 # window end\n" ++
+  "4:\n" ++
+  "  ld t3, 0(t1)                   # entry depth\n" ++
+  "  bne t3, t2, 8f\n" ++
+  "  ld t3, 8(t1)                   # entry offset\n" ++
+  "  bgeu t3, t6, 8f                # entry starts at/after window end\n" ++
+  "  addi t4, t3, 32\n" ++
+  "  bgeu a1, t4, 8f                # entry ends at/before window start\n" ++
+  -- Replay the entry's 32 bytes (limb j at bytes 8*(3-j)+0..7, MSB first),
+  -- clipping each byte against [a1, t6).
+  "  li t4, 3                       # j = 3 (high limb first)\n" ++
+  "5:\n" ++
+  "  slli t5, t4, 3\n" ++
+  "  add t5, t1, t5\n" ++
+  "  ld t5, 16(t5)                  # limb value\n" ++
+  "  li a4, 3\n" ++
+  "  sub a4, a4, t4\n" ++
+  "  slli a4, a4, 3\n" ++
+  "  add a4, t3, a4                 # abs byte cursor = entry_off + 8*(3-j)\n" ++
+  "  li a5, 8\n" ++
+  "6:\n" ++
+  "  bltu a4, a1, 7f                # below window start: skip store\n" ++
+  "  bgeu a4, t6, 7f                # at/past window end: skip store\n" ++
+  "  srli a6, t5, 56\n" ++
+  "  sub a7, a4, a1\n" ++
+  "  add a7, a0, a7\n" ++
+  "  sb a6, 0(a7)\n" ++
+  "7:\n" ++
+  "  slli t5, t5, 8\n" ++
+  "  addi a4, a4, 1\n" ++
+  "  addi a5, a5, -1\n" ++
+  "  bnez a5, 6b\n" ++
+  "  beqz t4, 8f\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j 5b\n" ++
+  "8:\n" ++
+  "  addi t1, t1, 48                # entry stride (8 depth + 8 offset + 32 payload)\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  bnez t0, 4b\n" ++
+  "9:\n" ++
+  "  ret"
+
+/-- `sparse_window_write(a0 = src, a1 = window offset, a2 = size,
+    a3 = dense memory base, a4 = frame depth)`: write the flat byte buffer
+    `src[0..size)` into a frame's EVM-memory model at
+    `[offset, offset+size)` when the window's end lies beyond the dense
+    arena (evm-asm-0w05f.13 surface 2 — the CALL out-window write-back for
+    a nested caller; the callee's RETURN tail invokes this on the PARENT's
+    model, so the depth is an argument, not `evm_call_depth`).
+
+    - Bytes below `runtimeMemoryArenaLimitBytes` are copied raw into the
+      dense arena (`a3 + offset`).
+    - Each 32-byte chunk `[offset+32k, offset+32k+32)` whose end exceeds
+      the dense limit is appended as one sparse word entry
+      `(depth = a4, offset = offset+32k, payload = stack limbs)` — chunk
+      offsets are aligned to the WINDOW start, which is exactly where the
+      caller's subsequent MLOADs read (the word store is exact-offset
+      keyed). A later append shadows earlier entries for both
+      `sparseMemoryLoadWordAsm` (backward scan) and `sparse_window_read`
+      (forward replay).
+    - The final partial chunk starts from the frame's CURRENT model word
+      at that offset (backward exact-offset scan, zeros default —
+      mirroring `sparseMemoryLoadWordAsm`) and overlays the `size % 32`
+      src bytes, so unwritten window-tail bytes keep their model value.
+    - Appending past `sparseMemoryWordCapacity` routes to `.exit_outofgas`
+      (conservative frame OOG, mirroring `sparseMemoryStoreWordAsm`) — a
+      false-reject risk only, never a false accept.
+
+    Byte-to-limb layout matches dense MSTORE (`Evm64.MStore.mstore_one_limb`):
+    window byte `8*(3-j)+i` is bit `(7-i)*8..` of limb `j`.
+    Preserves a0-a4; clobbers t0-t6. Uses a 48-byte sp scratch frame. -/
+def sparseWindowWriteFunction : String :=
+  "sparse_window_write:\n" ++
+  "  addi sp, sp, -48\n" ++
+  -- Dense prefix: copy [offset, min(end, dense_limit)) raw.
+  "  li t0, " ++ toString EvmAsm.Codegen.runtimeMemoryArenaLimitBytes ++ "\n" ++
+  "  bgeu a1, t0, 2f\n" ++
+  "  sub t1, t0, a1                 # dense bytes available past offset\n" ++
+  "  bltu t1, a2, 1f\n" ++
+  "  mv t1, a2                      # n_dense = min(size, available)\n" ++
+  "1:\n" ++
+  "  mv t2, a0                      # src cursor\n" ++
+  "  add t3, a3, a1                 # dst cursor = dense base + offset\n" ++
+  "11:\n" ++
+  "  beqz t1, 2f\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j 11b\n" ++
+  "2:\n" ++
+  -- Chunk loop: t0 = abs chunk offset, t1 = remaining bytes.
+  "  mv t0, a1\n" ++
+  "  mv t1, a2\n" ++
+  "3:\n" ++
+  "  beqz t1, 9f\n" ++
+  "  addi t2, t0, 32\n" ++
+  "  li t3, " ++ toString EvmAsm.Codegen.runtimeMemoryArenaLimitBytes ++ "\n" ++
+  "  bgeu t3, t2, 8f                # chunk end <= dense limit: dense prefix covered it\n" ++
+  -- Capacity check + claim the new entry (index = old count).
+  "  la t2, evm_sparse_memory_count\n" ++
+  "  ld t3, 0(t2)\n" ++
+  "  li t4, " ++ toString sparseMemoryWordCapacity ++ "\n" ++
+  "  bgeu t3, t4, .Lsww_capacity_oog\n" ++
+  "  slli t4, t3, 5\n" ++
+  "  slli t5, t3, 4\n" ++
+  "  add t4, t4, t5\n" ++
+  "  la t5, evm_sparse_memory_entries\n" ++
+  "  add t4, t4, t5                 # t4 = new entry ptr\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  sd t3, 0(t2)\n" ++
+  "  sd a4, 0(t4)                   # entry depth = target frame depth\n" ++
+  "  sd t0, 8(t4)                   # entry offset = window-aligned chunk offset\n" ++
+  -- Stage the chunk\'s 32 BE bytes at sp[0..32): src bytes for [0, min(rem,32)),
+  -- current-model bytes (exact-offset backward scan, zeros default) for the rest.
+  "  li t2, 32\n" ++
+  "  bgeu t1, t2, 4f\n" ++
+  -- Partial final chunk: seed sp[0..32) from the current model word at t0
+  -- (mirrors sparseMemoryLoadWordAsm: exact-offset match, zeros default).
+  "  sd x0, 0(sp); sd x0, 8(sp); sd x0, 16(sp); sd x0, 24(sp)\n" ++
+  "  la t2, evm_sparse_memory_count\n" ++
+  "  ld t2, 0(t2)\n" ++
+  "  addi t2, t2, -1                # scan only the pre-existing entries\n" ++
+  "41:\n" ++
+  "  beqz t2, 44f\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  slli t3, t2, 5\n" ++
+  "  slli t5, t2, 4\n" ++
+  "  add t3, t3, t5\n" ++
+  "  la t5, evm_sparse_memory_entries\n" ++
+  "  add t3, t3, t5                 # t3 = scanned entry ptr\n" ++
+  "  ld t5, 0(t3)\n" ++
+  "  bne t5, a4, 41b                # depth mismatch\n" ++
+  "  ld t5, 8(t3)\n" ++
+  "  bne t5, t0, 41b                # offset mismatch\n" ++
+  -- Hit: unpack the entry\'s limbs to BE bytes at sp[0..32)
+  -- (limb j -> bytes 8*(3-j)..8*(3-j)+7, MSB first). t3 stays the entry ptr.
+  "  li t5, 3                       # j\n" ++
+  "42:\n" ++
+  "  slli t6, t5, 3\n" ++
+  "  add t6, t3, t6\n" ++
+  "  ld t6, 16(t6)                  # limb j\n" ++
+  "  li t2, 3\n" ++
+  "  sub t2, t2, t5\n" ++
+  "  slli t2, t2, 3\n" ++
+  "  add t2, sp, t2                 # dst byte cursor = sp + 8*(3-j)\n" ++
+  "  li a5, 8\n" ++
+  "43:\n" ++
+  "  srli a6, t6, 56\n" ++
+  "  sb a6, 0(t2)\n" ++
+  "  slli t6, t6, 8\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi a5, a5, -1\n" ++
+  "  bnez a5, 43b\n" ++
+  "  beqz t5, 44f\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j 42b\n" ++
+  "44:\n" ++
+  -- Overlay the src bytes [0, rem) over sp[0..32).
+  "  sub t2, t0, a1                 # chunk offset within window\n" ++
+  "  add t2, a0, t2                 # src cursor\n" ++
+  "  mv t3, sp\n" ++
+  "  mv t5, t1                      # rem (< 32)\n" ++
+  "45:\n" ++
+  "  beqz t5, 5f\n" ++
+  "  lbu t6, 0(t2)\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j 45b\n" ++
+  "4:\n" ++
+  -- Full chunk: stage 32 src bytes at sp[0..32).
+  "  sub t2, t0, a1\n" ++
+  "  add t2, a0, t2                 # src cursor\n" ++
+  "  mv t3, sp\n" ++
+  "  li t5, 32\n" ++
+  "46:\n" ++
+  "  lbu t6, 0(t2)\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  bnez t5, 46b\n" ++
+  "5:\n" ++
+  -- Pack sp[0..32) BE bytes into the entry\'s stack limbs (inverse of the
+  -- unpack above): limb j = be64(sp[8*(3-j) .. 8*(3-j)+8)). t4 = entry ptr.
+  "  li t5, 3                       # j\n" ++
+  "51:\n" ++
+  "  li t2, 3\n" ++
+  "  sub t2, t2, t5\n" ++
+  "  slli t2, t2, 3\n" ++
+  "  add t2, sp, t2                 # src byte cursor = sp + 8*(3-j)\n" ++
+  "  li t3, 8\n" ++
+  "  li t6, 0\n" ++
+  "52:\n" ++
+  "  slli t6, t6, 8\n" ++
+  "  lbu a5, 0(t2)\n" ++
+  "  or t6, t6, a5\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  bnez t3, 52b\n" ++
+  "  slli t2, t5, 3\n" ++
+  "  add t2, t4, t2\n" ++
+  "  sd t6, 16(t2)                  # entry limb j\n" ++
+  "  beqz t5, 6f\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j 51b\n" ++
+  "6:\n" ++
+  -- Advance past a processed chunk; a partial (rem < 32) chunk is the last.
+  "  li t2, 32\n" ++
+  "  bltu t1, t2, 9f\n" ++
+  "8:\n" ++
+  "  addi t0, t0, 32\n" ++
+  "  li t2, 32\n" ++
+  "  bltu t1, t2, 9f\n" ++
+  "  addi t1, t1, -32\n" ++
+  "  j 3b\n" ++
+  "9:\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n" ++
+  ".Lsww_capacity_oog:\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  j .exit_outofgas"
+
 /-- `zisk_frame_return`: unit probe for `frame_return` over synthesized state.
     It builds two return scenarios — a depth-1→0 return (parent uses the
     `evm_memory`/`evm_env` labels) and a depth-2→1 return (parent uses

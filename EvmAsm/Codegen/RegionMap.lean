@@ -207,8 +207,11 @@ def schemeAAnchors : List GuestRegion :=
     prefix admission enforcement, parallel EEST worker result-file isolation,
     and the self-funded EIP-7702 authorization refund fix landed. Grew by
     `0x30` when EIP-2780 direct-authorization gas context started being
-    preserved. -/
-def textSizeBytes : Nat := 0x57494
+    preserved. Grew by `0x1cc` when depth-1+ RETURN/REVERT windows gained
+    sparse materialization (`sparse_window_read`, evm-asm-0w05f.13), and by
+    `0x3c8` more for the nested-caller OUT-window write-back
+    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2). -/
+def textSizeBytes : Nat := 0x57a30
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

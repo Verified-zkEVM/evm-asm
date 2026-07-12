@@ -3027,7 +3027,9 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
   nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   nonstorageEffectAggregateFunction ++ "\n" ++   -- bmvmx.5.5.7.3: O(N) per-account effect aggregation (block_verdict tail)
-  frameReturnFunction
+  frameReturnFunction ++ "\n" ++
+  sparseWindowReadFunction ++ "\n" ++   -- evm-asm-0w05f.13: depth-1+ RETURN/REVERT window materialization
+  sparseWindowWriteFunction   -- evm-asm-0w05f.13 surface 2: nested-caller out-window write-back
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
