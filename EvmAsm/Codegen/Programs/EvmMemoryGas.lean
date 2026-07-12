@@ -35,6 +35,17 @@ def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
 -- input window before the child call itself fails for insufficient gas.
 #guard 1000000 ≤ rootRuntimeMemoryArenaLimitBytes
 
+/-- Sparse high-memory backing for 32-byte MSTORE/MLOAD windows that exceed the
+    materialized per-frame arena. This preserves execution-specs memory-expansion
+    gas/MSIZE behavior for high offsets without treating the guest's dense arena
+    limit as an EVM OOG condition. Entries are append-only per dispatch; MLOAD
+    scans backward so later writes shadow earlier ones. Depth epochs prevent
+    stale entries from a reused child-frame slot from becoming visible to a
+    later frame at the same depth. The stored payload is the EVM stack-word limb
+    representation, which is exactly what a matching MLOAD reconstructs from the
+    big-endian byte layout of MSTORE. -/
+def sparseMemoryWordCapacity : Nat := 4096
+
 /-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
 
     Must be ≥ the largest length any staging path can write at `+8`, so the
@@ -268,8 +279,20 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
     to `.exit_outofgas` before any return/revert output is emitted.
 
     Stack layout before RETURN/REVERT body: `offset` at `0(x12)`, `size` at
-    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered. -/
-def returnRevertMemoryGasAsm (tag : String) : String :=
+    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered.
+
+    `sparseWindows = true` (call-frame guest only, evm-asm-0w05f.13): a
+    depth-1+ CALL frame's window is valid iff its quadratic expansion gas is
+    affordable, independent of the dense arena — `updateActiveMemorySizeAsm`
+    charges the exact spec delta and the tail materializes the beyond-dense
+    bytes from the sparse word store (`sparse_window_read`). The depth-0 root
+    guard is preserved verbatim, and a CREATE child frame
+    (`create_frame_flag[depth] = 1`) keeps the conservative dense bail: its
+    RETURN deposits code via a raw `x13+offset` read (no sparse
+    materialization), so out-of-arena initcode windows must still burn.
+    `sparseWindows = false` keeps the original arena bail byte-identical
+    (standalone probes; no `create_frame_flag` symbol dependency). -/
+def returnRevertMemoryGasAsm (tag : String) (sparseWindows : Bool := false) : String :=
   -- Any non-zero high size limb means size is non-zero but not representable.
   "  ld x18, 40(x12)\n" ++
   "  bnez x18, .exit_outofgas\n" ++
@@ -289,8 +312,25 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
   "  ld x14, 0(x12)\n" ++
   "  add x18, x14, x15\n" ++
   "  bltu x18, x14, .exit_outofgas\n" ++
-  memoryArenaLimitAsm ("return_" ++ tag) "x19" ++
-  "  bltu x19, x18, .exit_outofgas\n" ++
+  (if sparseWindows then
+    "  la x19, evm_call_depth\n" ++
+    "  ld x19, 0(x19)\n" ++
+    "  bnez x19, .Lrrmem_nested_" ++ tag ++ "\n" ++
+    "  li x19, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x19, x18, .exit_outofgas\n" ++
+    "  j .Lrrmem_guard_done_" ++ tag ++ "\n" ++
+    ".Lrrmem_nested_" ++ tag ++ ":\n" ++
+    "  la x16, create_frame_flag\n" ++
+    "  slli x17, x19, 3\n" ++
+    "  add x16, x16, x17\n" ++
+    "  ld x16, 0(x16)\n" ++
+    "  beqz x16, .Lrrmem_guard_done_" ++ tag ++ "\n" ++
+    "  li x19, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x19, x18, .exit_outofgas\n" ++
+    ".Lrrmem_guard_done_" ++ tag ++ ":\n"
+   else
+    memoryArenaLimitAsm ("return_" ++ tag) "x19" ++
+    "  bltu x19, x18, .exit_outofgas\n") ++
   updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
   ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
 
@@ -303,10 +343,23 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
     offset limbs are tolerated when the corresponding low size limb is zero.
     Non-zero high size limbs, high offsets for non-zero sizes, low-limb
     offset+size wraparound, and ranges past the current materialized memory arena
-    route to `.exit_outofgas`. -/
+    route to `.exit_outofgas`.
+
+    `sparseWindows = true` (call-frame guest only, evm-asm-0w05f.13 surface 3):
+    the OUT window of a depth-1+ frame is charge-only — validity is decided by
+    the quadratic expansion charge, and the write-back into the beyond-dense
+    part is served by `sparse_window_write` at the child's RETURN/REVERT tail
+    (frame descend path). The depth-0 root guard is kept verbatim. The IN
+    window keeps the dense bail at every depth: child calldata is ALIASED into
+    the parent's live memory (`call_frame_set_calldata`), so a beyond-dense
+    args window has no materialized backing for the child's lifetime —
+    conservative, and no known fixture needs it. The precompile dispatch
+    branch re-imposes the dense OUT bound (`basicPrecompileCallTail`), since
+    precompile outputs are written raw to `x13 + outoff`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
-    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
+    (sparseWindows : Bool := false) : String :=
   "  ld x15, " ++ toString inSizeOff ++ "(x12)\n" ++
   "  beqz x15, .Lcallmem_" ++ tag ++ "_out\n" ++
   "  ld x5, " ++ toString (inSizeOff + 8) ++ "(x12)\n" ++
@@ -345,8 +398,16 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  memoryArenaLimitAsm ("call_" ++ tag ++ "_out") "x6" ++
-  "  bltu x6, x5, .exit_outofgas\n" ++
+  (if sparseWindows then
+    "  la x6, evm_call_depth\n" ++
+    "  ld x6, 0(x6)\n" ++
+    "  bnez x6, .Lcallmem_" ++ tag ++ "_out_nested\n" ++
+    "  li x6, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x6, x5, .exit_outofgas\n" ++
+    ".Lcallmem_" ++ tag ++ "_out_nested:\n"
+   else
+    memoryArenaLimitAsm ("call_" ++ tag ++ "_out") "x6" ++
+    "  bltu x6, x5, .exit_outofgas\n") ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
 

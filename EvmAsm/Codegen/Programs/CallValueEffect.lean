@@ -91,6 +91,8 @@ def callValueEffectPrologue : String :=
   callFrameForwardGasFunction ++ "\n" ++
   callFrameDescendFunction ++ "\n" ++
   frameReturnFunction ++ "\n" ++
+  sparseWindowReadFunction ++ "\n" ++   -- referenced by the guest registry's depth-aware RETURN/REVERT tails
+  sparseWindowWriteFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++
   codeAtHeaderStateRootFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
