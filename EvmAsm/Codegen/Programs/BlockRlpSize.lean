@@ -13,8 +13,6 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.BalGasValid
-import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Withdrawal
 
 namespace EvmAsm.Codegen
