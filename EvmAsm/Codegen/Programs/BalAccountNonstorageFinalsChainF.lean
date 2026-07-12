@@ -455,5 +455,46 @@ theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
 
 #print axioms bansf_nonceCapture_noncanonical_spec
 
+/-- The canonical status-zero arm stores the decoded scalar and sets the flag.
+    The caller supplies the static length bound from its pre-call case split. -/
+theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
+    (srcOff len : Nat) (acctBytes : List (BitVec 8))
+    (P : Assertion) (hP : P.pcFree) (hlen8 : len ≤ 8) :
+    cpsTripleWithin 4 (B + 524) (B + 540) bansfCR
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+          bytesRegion aB acctBytes) **
+        (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+         ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
+      ((((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x5 : Reg) ↦ᵣ (1 : Word)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+         bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (1 : Word)) **
+         ((oB + 48) ↦ₘ image) ** P) ** ⌜len ≤ 8⌝) := by
+  have ht := bansf_nonceCapture_successTail_spec oB image
+  have htF := cpsTripleWithin_frameR
+    (regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+     ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
+     ((.x12 : Reg) ↦ᵣ vLen) **
+     ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝ ** P)
+    (by pcf; exact hP) ht
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) htF
+  let R : Assertion :=
+    ((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+    ((.x5 : Reg) ↦ᵣ (1 : Word)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+    bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (1 : Word)) **
+    ((oB + 48) ↦ₘ image) ** P
+  have hq2 : (R ** ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝) h := by
+    dsimp only [R]
+    xperm_hyp hq
+  exact (sepConj_pure_right h).2 ⟨((sepConj_pure_right h).1 hq2).1, hlen8⟩
+
+#print axioms bansf_nonceCapture_canonical_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
