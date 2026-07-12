@@ -270,21 +270,13 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
     (if sparseWindows then
-      -- evm-asm-0w05f.13: a window ending past the dense arena cannot be
-      -- passed as a raw `x13+offset` pointer (the frame slot is only
-      -- `runtimeMemoryArenaLimitBytes` deep); materialize it into the
-      -- returndata staging buffer instead. Affordability (the quadratic
-      -- expansion charge in the preBody) bounds `offset+size` well below
-      -- `precompileFrameReturndataCapBytes`; the explicit guard is
-      -- defense-in-depth, and conservative-OOG on the guarded path keeps
-      -- soundness (never a false ACCEPT). frame_return's own staging copy
-      -- from `a1` into `evm_precompile_frame+16` becomes a byte-wise
-      -- self-copy (src = dst), which is exact. x10/x12/ra are dead here
-      -- (frame_return restores the parent's); sparse_window_read preserves
-      -- a0-a3 and clobbers only t0-t6/a4-a7 (a4/a5 = x14/x15, not needed
-      -- after the call). The retdata src/len are carried in x18/x19, which
-      -- BOTH helpers and the write-back leave untouched (they clobber only
-      -- t0-t6 and a4-a7).
+      -- evm-asm-0w05f.13: materialize only a window that ends beyond this
+      -- frame's actual dense capacity. Under the shared pool that capacity is
+      -- frame-relative (`pool_end - x13`), not the retired 128 KiB slot size.
+      -- Using the old constant routed affordable pool windows through the
+      -- sparse store and returned zeros (ck36u). The staging-cap guard remains
+      -- defense-in-depth. x10/x12/ra are dead here (frame_return restores the
+      -- parent's); the retdata src/len are carried in x18/x19 across helpers.
       "  mv x19, x15                    # retlen (survives the helper calls)\n" ++
       -- A ZERO-SIZE window never touches memory (the preBody skipped all
       -- guards/charges for it, matching the spec), so the offset may be any
@@ -295,7 +287,8 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- guard on offset+0.
       "  beqz x15, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
       "  add t0, x14, x15\n" ++
-      "  li t1, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, x13                # frame-relative pool capacity\n" ++
       "  bgeu t1, t0, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
       "  li t1, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
       "  bltu t1, t0, .exit_outofgas\n" ++
@@ -311,9 +304,9 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  add x18, x13, x14              # retdata src = dense child memory\n" ++
       ".Lrr_call_havesrc_" ++ toString kind ++ ":\n" ++
       -- 0w05f.13 surface 2: when the PARENT's saved out-window
-      -- (frame_call_ctx[d]: outoff_abs/outsize) ends past the PARENT's dense
-      -- arena, frame_return's raw copy to outoff_abs would write outside the
-      -- parent frame slot. Perform the write-back here instead via
+      -- (frame_call_ctx[d]: outoff_abs/outsize) ends past the PARENT's
+      -- frame-relative pool capacity, frame_return's raw copy would write
+      -- outside the pool. Perform the write-back here instead via
       -- sparse_window_write (dense prefix raw + word entries keyed to the
       -- parent depth d-1), then zero ctx.outsize so frame_return skips its
       -- copy. A depth-1 child's parent is the root frame (4 MiB dense,
@@ -340,7 +333,8 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld t6, 8(t3)                   # outoff_abs\n" ++
       "  sub t6, t6, t5                 # raw parent out offset\n" ++
       "  add t0, t6, t4\n" ++
-      "  li t1, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, t5                 # parent-relative pool capacity\n" ++
       "  bgeu t1, t0, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++   -- in-frame: frame_return's raw copy is exact
       "  mv a0, x18                     # src = retdata bytes\n" ++
       "  mv a1, t6                      # raw parent offset\n" ++
