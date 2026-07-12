@@ -142,5 +142,227 @@ theorem bansf_balStationCont324_spec (aB newSp oB : Word)
 
 #print axioms bansf_balStationCont324_spec
 
+/-- Continuation at `B + 308` (the tuple's INDEX item decoded, cursor
+    spilled): run the value item unit, then the capture continuation.
+    `hFF2` finishes the `FieldFinal` derivation from the index/value
+    decode pair. -/
+theorem bansf_balStationCont308_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n3 : Word)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 → isValidByteAccess (oB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF2 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      vLen.toNat ≤ 32 →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin 400 (B + 308) bansfCR
+      (fun h => ∃ next len : Word,
+        (((((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ len) **
+           ((.x2 : Reg) ↦ᵣ newSp) **
+           ((newSp + 64) ↦ₘ next) **
+           ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 tEnd)) **
+           ((newSp + 48) ↦ₘ n3) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) **
+           regOwn .x19 ** regOwn .x20 **
+           (oB ↦ₘ (0 : Word)) **
+           ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+           ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           bytesRegion aB acctBytes ** F) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+         ⌜rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+           (aB + BitVec.ofNat 64 tEnd) next len⌝) h)
+      (B + 736) (balStationRej aB newSp oB aLen acctBytes F)
+      (B + 352) (balStationPost aB newSp oB aLen fOff fSpanN n3 acctBytes F) := by
+  refine cpsBranchWithin_exists_pre (fun next => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hdecI => ?_)
+  obtain ⟨hrepI, hltI, hleI⟩ := rlpItemDecode_advance hdecI hoffleI (by omega)
+  set offN := (next - aB).toNat with hoffN
+  rw [hrepI]
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  -- the out cells fold back into the owned output token
+  have hmemU : ∀ h, ((((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+      ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word))) h) →
+      memOwnU256 (oB + 8) h := by
+    intro h hp
+    rw [show oB + 16 = (oB + 8) + 8 from by bv_omega,
+        show oB + 24 = (oB + 8) + 16 from by bv_omega,
+        show oB + 32 = (oB + 8) + 24 from by bv_omega] at hp
+    exact sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) h hp
+  -- the value item unit (slots 77–80)
+  have hti := bansf_tupleItem1_spec aB newSp aLen tEnd offN
+    acctBytes v5 v6 v7 (aB + BitVec.ofNat 64 offN) (0 : Word) len
+    v28 v29 v30 v31 vRa F hF hsalign hslack hover hvalid htEnd hleI
+  have htiF := cpsBranchWithin_frameR
+    (((newSp + 48) ↦ₘ n3) ** ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+     ((.x18 : Reg) ↦ᵣ oB) **
+     regOwn .x19 ** regOwn .x20 **
+     (oB ↦ₘ (0 : Word)) **
+     ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+     ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)))
+    (by pcf) hti
+  -- the capture continuation at B + 324, pre-weakened to the unit's ok exit
+  have hc324 := bansf_balStationCont324_spec aB newSp oB aLen tEnd
+    offN fOff fSpanN n3 acctBytes F hF hsalign hoalign hslack
+    hover hvalid hovout hovalid htEnd hleI
+    (fun vNext vLen hdecV h32 =>
+      hFF2 next len vNext vLen hdecI (by rw [← hoffN, hrepI]; exact hdecV) h32)
+  have himp : ∀ h, ((tupleValOk aB newSp tEnd offN acctBytes F **
+      (((newSp + 48) ↦ₘ n3) ** ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x19 ** regOwn .x20 **
+       (oB ↦ₘ (0 : Word)) **
+       ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+       ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)))) h) →
+      (∃ vNext vLen : Word,
+        (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ vLen) **
+           ((.x2 : Reg) ↦ᵣ newSp) **
+           memOwn (newSp + 64) ** memOwn (newSp + 72) **
+           ((newSp + 48) ↦ₘ n3) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) **
+           regOwn .x19 ** regOwn .x20 **
+           (oB ↦ₘ (0 : Word)) **
+           ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+           ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           bytesRegion aB acctBytes ** F) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+         ⌜rlpItemDecode acctBytes offN (aB + BitVec.ofNat 64 offN)
+           (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h) := by
+    intro h hp
+    unfold tupleValOk at hp
+    obtain ⟨g1, g2, gd, gu, hVin, hfr⟩ := hp
+    obtain ⟨vN, vL, hVin2⟩ := hVin
+    obtain ⟨hat, hdecv⟩ := (sepConj_pure_right g1).1 hVin2
+    have hR := (⟨g1, g2, gd, gu, hat, hfr⟩ :
+      (((((.x10 : Reg) ↦ᵣ vN) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ vL) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F) **
+       (((newSp + 48) ↦ₘ n3) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x19 ** regOwn .x20 **
+        (oB ↦ₘ (0 : Word)) **
+        ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+        ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)))) h))
+    have hR2 : ((((.x10 : Reg) ↦ᵣ vN) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ vL) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((newSp + 48) ↦ₘ n3) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x19 ** regOwn .x20 **
+        (oB ↦ₘ (0 : Word)) **
+        ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+        ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion aB acctBytes ** F) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) h := by
+      have heq : ((((.x10 : Reg) ↦ᵣ vN) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ vL) **
+          ((.x2 : Reg) ↦ᵣ newSp) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+          bytesRegion aB acctBytes ** F) **
+         (((newSp + 48) ↦ₘ n3) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) **
+          regOwn .x19 ** regOwn .x20 **
+          (oB ↦ₘ (0 : Word)) **
+          ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+          ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word))))
+          = ((((.x10 : Reg) ↦ᵣ vN) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ vL) **
+          ((.x2 : Reg) ↦ᵣ newSp) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((newSp + 48) ↦ₘ n3) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) **
+          regOwn .x19 ** regOwn .x20 **
+          (oB ↦ₘ (0 : Word)) **
+          ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+          ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion aB acctBytes ** F) **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) := by
+        xperm
+      exact (congrFun heq h).mp hR
+    exact ⟨vN, vL, (sepConj_pure_right h).2 ⟨hR2, hdecv⟩⟩
+  have hc324' := cpsBranchWithin_weaken himp (fun _ x => x) (fun _ x => x) hc324
+  have htiW := cpsBranchWithin_weaken
+    (Q_t' := balStationRej aB newSp oB aLen acctBytes F)
+    (fun _ x => x)
+    (fun h hq => by
+      -- reject exit: (tupleRej ** frame) ⇒ balStationRej
+      unfold tupleRej at hq
+      unfold balStationRej
+      have hq2 : (((((newSp + 48) ↦ₘ n3) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          (oB ↦ₘ (0 : Word))) **
+         ((((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+           ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word))) **
+          (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+           memOwn (newSp + 64) ** memOwn (newSp + 72) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) **
+           regOwn .x19 ** regOwn .x20 **
+           regOwn .x11 ** regOwn .x12 **
+           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+           bytesRegion aB acctBytes ** F)))) h := by
+        xperm_hyp hq
+      have hq3 := sepConj_mono
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))
+        (sepConj_mono hmemU (fun _ x => x)) h hq2
+      xperm_hyp hq3)
+    (fun _ x => x) htiF
+  have hchain := cpsBranchWithin_chain_snd htiW hc324'
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ x => x) (fun _ x => x)
+    (cpsBranchWithin_mono_nSteps (by omega) hchain)
+
+#print axioms bansf_balStationCont308_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
