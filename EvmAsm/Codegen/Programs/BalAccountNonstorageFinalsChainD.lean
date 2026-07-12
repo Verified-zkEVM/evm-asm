@@ -92,5 +92,74 @@ def balStationRej (aB newSp oB : Word) (aLen : Nat)
   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
   bytesRegion aB acctBytes ** F
 
+/-!
+## Balance-station assembly plan (slice 4g, `bansf_balStation_spec`)
+
+Goal shape:
+```
+theorem bansf_balStation_spec (aB newSp oB : Word) (aLen off3 : Nat)
+    (n3 l3 v19 v20 : Word) (acctBytes) (F) (hF hsalign hoalign hslack hover
+    hvalid hovout hovalid) (hoff3 : off3 ≤ aLen)
+    (hdec3 : rlpItemDecode acctBytes off3 (aB+ofNat off3) (aB+ofNat aLen) n3 l3) :
+  cpsBranchWithin (98 * (aLen + 1) + 700) (B + 184) bansfCR
+    (x10↦n3 ** x11↦0 ** x12↦l3 ** x19↦v19 ** x20↦v20 **
+     (newSp+48)↦ₘn3 ** (newSp+56)↦ₘ(aB+ofNat aLen) ** memOwn (newSp+64/72) **
+     x2↦newSp ** x8↦aB ** x9↦ofNat aLen ** x18↦oB **
+     oB↦ₘ0 ** (oB+8/16/24/32)↦ₘ0 ** x0↦0 ** bytesRegion aB acctBytes ** F **
+     regOwn x5 x6 x7 x28 x29 x30 x31 x1)          -- owns LAST for regOwn8 intro
+    (B+736) (balStationRej aB newSp oB aLen acctBytes F)
+    (B+352) (balStationPost aB newSp oB aLen ((n3-l3-aB).toNat) l3.toNat n3 acctBytes F)
+```
+Proof skeleton:
+1. `cpsBranchWithin_of_forall_regIs_to_regOwn8` (after a weaken-perm) intros
+   v5 v6 v7 v28 v29 v30 v31 vRa.
+2. `rlpItemDecode_spanStart hdec3 hoff3` ⇒ hrepS (n3−l3 = aB+ofNat fOff),
+   hsple, hspb (fOff + l3.toNat ≤ aLen — discharges fieldInit50's hfB).
+3. spanCapture46 (liftCode bansfCode→bansfCR via union_mono_left, frameR rest,
+   rw [hrepS]) ; seq_branch with fieldInit50 (fOff := (n3−l3−aB).toNat,
+   fSpanW := l3, vRa-old := vRa).  Reject arm: fieldRej ** frame ⇒
+   balStationRej (memIs→memOwn on 48/56/64/72 + oB cells → memOwn oB +
+   hmemU-style memOwnU256 (oB+8), regIs→regOwn x19 x20 x11? note fieldRej
+   owns x11/x12 already).
+4. At B+208: continuation branch with pre `fun h => ∃ cOff, ((fieldInitPost
+   atoms ** frame) ** ⌜FieldInitOk acctBytes fOff l3.toNat cOff⌝) h` connected
+   by a pointwise rebuild lambda (ChainC2-collapse style).  exists_pre +
+   pure_pre_right, then `by_cases hce : cOff = fOff + l3.toNat`:
+   - EMPTY: balEmptyTaken (lift, frame all) ⇒ B+352; weaken to balStationPost
+     EMPTY arm (FieldFinal.empty b hb (hok.2.1 ▸ hce); regIs→regOwn
+     x10 x11 x12 x19 x20).  `cpsTripleWithin_as_cpsBranchWithin_right`.
+   - NONEMPTY: balEmptyFall (hne := hce, hcle/hfle by omega from FieldInitOk
+     + hspb) ; loopEntry53 ; findLastLoop1 (off0 := cOff, endOff := fOff +
+     l3.toNat, j := endOff − cOff; hoff0 : cOff < endOff from hok ≤ + hce;
+     flInv entry: ⟨cOff, v19', v20', …, Or.inl rfl⟩; v19'/v20' are the
+     spanCapture-written x19=n3−l3, x20=l3).  Loop exits are (B+264 flExit |
+     B+736 flRej) — FIRST exit continues ⇒ need the swap variant (write
+     `cpsBranchWithin_swap` inline: intro/rcases/Or-swap) before chain_snd.
+     flRej ⇒ balStationRej (oB cells from frame).
+5. At B+264 (flExit): exists_pre n l + pure (LastItemAt).  loopExitMove66
+   (lift, frame) ; `LastItemAt_decode hlast (by omega) (by omega)` ⇒
+   ∃ offT ≤ endOff, decode of the last tuple; `rlpItemDecode_spanStart` on it
+   ⇒ hrepT (n−l = aB+ofNat tOff), tOff + l.toNat ≤ endOff ≤ aLen (fieldInit68
+   hfB ✓).  rw [hrepT]; fieldInit68 (fOff := (n−l−aB).toNat, fSpanW := l).
+6. At B+280: same ∃cOff2/FieldInitOk unpack; tupleSpill70 ; tupleItem0
+   (aLen-param := tOff2 + l.toNat, off := cOff2, hoffle from FieldInitOk;
+   hslack' : tOff2 + l.toNat + 9 ≤ length by omega).  tupleRej ⇒
+   balStationRej.
+7. At B+308 (tupleOk): ∃ next len + idx-decode pure; `rlpItemDecode_advance`
+   ⇒ next = aB+ofNat nOff, cOff2 < nOff ≤ tEnd2.  rw; tupleItem1 (off := nOff).
+8. At B+324 (tupleValOk): ∃ vNext vLen + val-decode; balCapture (tEnd :=
+   tEnd2, off := nOff, hdec := val-decode; hovout/hovalid/hoalign from
+   station hyps).  balCaptureRej ⇒ balStationRej.
+9. At B+352 (balCaptureOk): weaken to balStationPost FOUND arm:
+   FieldFinal.last b n l vNext vLen with hb (field FieldInitOk), hne (hok ▸
+   hce), hlast (flExit pure, off0 rewritten to fOff + listHeaderSize b),
+   hval : TupleValueWindow = ⟨b2, hb2, next, len, idx-decode (cOff2 → tOff2 +
+   listHeaderSize b2), val-decode with cursor rewritten aB+ofNat nOff → next⟩;
+   vLen.toNat ≤ 32 from balCaptureOk's pure; regIs→regOwn x19 x20 (+ x10 etc.
+   already own in balCaptureOk); spills 48/56 & memOwn 64/72 from frame.
+Step budget per path: empty 4+84+1 = 89; found 4+84+1+2+98*(j+1)+2+84+2+93+
+92+260 ≤ 98*(aLen+1)+624.  `cpsBranchWithin_mono_nSteps (by omega)` at the end.
+-/
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
