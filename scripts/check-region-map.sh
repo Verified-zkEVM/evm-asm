@@ -99,15 +99,15 @@ symaddr() { "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n {print $2; exit}'; }
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
   "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
   "$(symaddr baap_storage_delete_paths)" "$(symaddr baap_storage_values)" "$(symaddr call_frame_arena_end)" \
-  "0x$DATA_BASE" "0x$DATA_SIZE" <<'PY' || fail=1
+  "0x$DATA_BASE" "0x$DATA_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" <<'PY' || fail=1
 import sys
-(cfa, bval, bacc, syslog, desc, paths, dpaths, vals, cend, dbase, dsize) = [int(x,16) for x in sys.argv[1:]]
+(cfa, bval, bacc, syslog, desc, paths, dpaths, vals, cend, dbase, dsize, pool, pend) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
 syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
 descB = 100000*40       # bsrMaxBalItems*baapStorageDescBytes
 pathB = 100000*64       # bsrMaxBalItems*bsrPathBytes
-frameArrayBytes = 1025*0x39000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
+frameArrayBytes = 1025*0x19000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
 # 4ch8f.73: bv_system_storage_log is NO LONGER unioned into call_frame_arena; the
 # six remaining children are basr pair + four baap_storage_* (baap at offset 2S).
 exp = {
@@ -133,6 +133,9 @@ bad |= (not within)
 sys_ok = (syslog + syslogL <= cfa) or (cend <= syslog)
 print(f"  {'OK  ' if sys_ok else 'DRIFT'} bv_system_storage_log disjoint from call_frame_arena")
 bad |= (not sys_ok)
+pool_ok = pool == cend and pend - pool == 0x6000000 and pend <= dbase + dsize
+print(f"  {'OK  ' if pool_ok else 'DRIFT'} evm_memory_pool adjacent, 96 MiB, and within .data")
+bad |= (not pool_ok)
 sys.exit(1 if bad else 0)
 PY
 

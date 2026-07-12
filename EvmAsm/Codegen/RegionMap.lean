@@ -210,9 +210,11 @@ def schemeAAnchors : List GuestRegion :=
     preserved. Grew by `0x1cc` when depth-1+ RETURN/REVERT windows gained
     sparse materialization (`sparse_window_read`, evm-asm-0w05f.13), and by
     `0x3c8` more for the nested-caller OUT-window write-back
-    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2), and by `0x7c`
-    for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu). -/
-def textSizeBytes : Nat := 0x57aac
+    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2), by `0x7c`
+    for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu), and by
+    `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
+    (evm-asm-ck36u). -/
+def textSizeBytes : Nat := 0x57e3c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -223,7 +225,7 @@ def textSizeBytes : Nat := 0x57aac
     (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
     `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
     return (evm-asm-pwqhw). -/
-def dataSizeBytes : Nat := 0x1c33e300
+def dataSizeBytes : Nat := 0x1a31e300
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -394,7 +396,33 @@ theorem schemeA_matches_layout :
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xac44d740
+def callFrameArenaBase : Nat := 0xae4214a0
+
+/-- Absolute shared nested-frame EVM-memory pool, emitted immediately after
+    `call_frame_arena`. Both endpoints are link-layout-dependent pins checked
+    against the ELF. -/
+def evmMemoryPoolRegion : GuestRegion :=
+  { name := "evm_memory_pool", base := 0xb483a4a0, size := evmMemoryPoolBytes,
+    mode := .rw, zone := .ram,
+    evidence := "ELF evm_memory_pool..evm_memory_pool_end; 96 MiB shared LIFO frame memory" }
+
+theorem evmMemoryPoolRegion_matches_elf :
+    evmMemoryPoolRegion.base = 0xb483a4a0
+      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xba83a4a0 := by decide
+
+/-- The two runtime frame allocations are adjacent, disjoint, fit RAM, and both
+    lie inside `.data`; this is the pool/slot non-aliasing soundness fence. -/
+def frameRuntimeRegions : List GuestRegion :=
+  [ { name := "call_frame_arena", base := callFrameArenaBase, size := frameArrayBytes,
+      mode := .rw, zone := .ram, evidence := "ELF call_frame_arena..call_frame_arena_end" },
+    evmMemoryPoolRegion ]
+
+theorem frameRuntimeRegions_fit : allFitZones frameRuntimeRegions = true := by decide
+theorem frameRuntimeRegions_pairwise_disjoint :
+    allPairwiseDisjoint frameRuntimeRegions = true := by decide
+theorem frameRuntimeRegions_within_data :
+    frameRuntimeRegions.all (fun r =>
+      decide (dataRegion.base ≤ r.base ∧ r.base + r.size ≤ dataRegion.base + dataRegion.size)) = true := by decide
 
 /-- `S` — the `basr_values`/`basr_accounts` per-arena stride. -/
 def basrArenaBytes : Nat := bsrMaxStateChanges * bsrEncodedAccountBytes
@@ -466,7 +494,7 @@ theorem callFrameArena_within_data :
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
     LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
-def syslogBase : Nat := 0xaa30bea0
+def syslogBase : Nat := 0xac2dfbe0
 
 /-- **The `.73` clobber is closed (load-bearing).** The un-unioned
     `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
