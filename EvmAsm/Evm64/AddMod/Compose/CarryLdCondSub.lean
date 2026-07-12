@@ -15,8 +15,8 @@
   same technique `TotalBase` uses for the whole blocks. No disjointness needed.
 -/
 
-import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
 import EvmAsm.Evm64.AddMod.Compose.TotalBase
+import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

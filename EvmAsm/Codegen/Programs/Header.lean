@@ -42,7 +42,6 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
-import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 

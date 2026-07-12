@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
 import EvmAsm.Evm64.AddMod.Compose.TotalBase
 
 namespace EvmAsm.Evm64.AddMod.Compose

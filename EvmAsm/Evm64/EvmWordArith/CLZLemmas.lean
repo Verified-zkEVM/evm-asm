@@ -14,8 +14,11 @@
   Then chain these through the 6 stages.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
 import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
+import Mathlib.Algebra.Group.Nat.Defs
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Push
 
 namespace EvmAsm.Evm64
 

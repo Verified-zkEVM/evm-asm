@@ -17,6 +17,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.CarryLdChain
+import EvmAsm.Evm64.AddMod.LimbSpec
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

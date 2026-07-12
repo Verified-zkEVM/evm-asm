@@ -18,7 +18,7 @@
   `(base, exponent)` pairs against Python's `pow(base, exp, 2**256)`.
 -/
 
-import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Multiply.Callable
 

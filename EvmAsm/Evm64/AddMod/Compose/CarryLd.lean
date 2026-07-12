@@ -16,6 +16,7 @@
   top (x12 = F+32), exposing the add carry-out in x5.
 -/
 
+import EvmAsm.Evm64.AddMod.Compose.CarryPipeline
 import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
 import EvmAsm.Evm64.AddMod.Compose.CarryCompose
 import EvmAsm.Evm64.AddMod.Compose.CarryLdCondSub

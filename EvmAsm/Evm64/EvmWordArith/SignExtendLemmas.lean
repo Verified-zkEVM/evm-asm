@@ -1,4 +1,3 @@
-import EvmAsm.Evm64.Basic
 import EvmAsm.Rv64.Instructions
 
 namespace EvmAsm.Evm64

@@ -74,6 +74,7 @@
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 
