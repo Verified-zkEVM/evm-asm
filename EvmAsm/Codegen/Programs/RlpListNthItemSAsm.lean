@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.WP.Call
@@ -33,6 +34,7 @@ inductive StrictListPayload (bytes : List (BitVec 8)) (base : Word) :
       (hlen : (b.zeroExtend 64 - (0xc0 : Word)).toNat + 1 = listLen) :
       StrictListPayload bytes base listLen cursorOff
         (base + BitVec.ofNat 64 listLen)
+
   | long (listLen cursorOff : Nat) (b first : BitVec 8)
       (hbyte : bytes[0]? = some b)
       (hlong : ¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true)
@@ -45,6 +47,32 @@ inductive StrictListPayload (bytes : List (BitVec 8)) (base : Word) :
         ((bytes.drop 1).take (b.zeroExtend 64 - (0xf7 : Word)).toNat) = listLen) :
       StrictListPayload bytes base listLen cursorOff
         (base + BitVec.ofNat 64 listLen)
+
+theorem StrictListPayload.end_eq {bytes : List (BitVec 8)} {base endPtr : Word}
+    {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr) :
+    endPtr = base + BitVec.ofNat 64 listLen := by
+  cases h <;> rfl
+
+theorem StrictListPayload.cursor_pos {bytes : List (BitVec 8)} {base endPtr : Word}
+    {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr) :
+    1 ≤ cursorOff := by
+  cases h with
+  | short _ _ _ _ hc _ => omega
+  | long _ _ _ _ _ _ _ hc _ => omega
+
+theorem StrictListPayload.cursor_le {bytes : List (BitVec 8)} {base endPtr : Word}
+    {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr) :
+    cursorOff ≤ listLen := by
+  cases h with
+  | short b _ _ _ hc hl =>
+      subst hc
+      have hb := b.isLt
+      simp only [BitVec.toNat_sub] at hl
+      omega
+  | long _ _ _ _ _ _ _ hc hl => omega
 
 /-- Exactly `index + 1` successful strict `rlp_walk_next` decodes, starting
     at `off`.  The final `(next,len)` is the selected item's advanced cursor
@@ -63,6 +91,68 @@ inductive StrictNthItem (bytes : List (BitVec 8)) (base endPtr : Word) :
         (next - base).toNat finalNext finalLen) :
       StrictNthItem bytes base endPtr (index + 1) off finalNext finalLen
 
+/-- The loop's walked-so-far chain.  A prefix of length zero leaves the
+    cursor at `startOff`; a successor records one canonical decode and the
+    exact cursor handed to the next iteration. -/
+inductive StrictPrefix (bytes : List (BitVec 8)) (base endPtr : Word)
+    (startOff : Nat) : Nat → Nat → Prop
+  | zero : StrictPrefix bytes base endPtr startOff 0 startOff
+  | succ (count off : Nat) (next len : Word)
+      (hprefix : StrictPrefix bytes base endPtr startOff count off)
+      (hitem : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+        endPtr next len) :
+      StrictPrefix bytes base endPtr startOff (count + 1) (next - base).toNat
+
+/-- Append one decode after an already-selected chain. -/
+theorem StrictNthItem.snoc {bytes : List (BitVec 8)} {base endPtr : Word}
+    {index startOff : Nat} {lastNext lastLen next len : Word}
+    (h : StrictNthItem bytes base endPtr index startOff lastNext lastLen)
+    (hitem : rlpItemDecode bytes (lastNext - base).toNat
+      (base + BitVec.ofNat 64 (lastNext - base).toNat) endPtr next len) :
+    StrictNthItem bytes base endPtr (index + 1) startOff next len := by
+  induction h with
+  | zero off n l hi => exact .succ 0 off n l next len hi (.zero _ _ _ hitem)
+  | succ i off n l fn fl hi hr ih =>
+      exact .succ (i + 1) off n l next len hi (ih hitem)
+
+/-- Appending the currently decoded item to a `count`-item prefix identifies
+    that item as the zero-based `count`th child. -/
+theorem StrictPrefix.select {bytes : List (BitVec 8)} {base endPtr : Word}
+    {startOff count off : Nat} {next len : Word}
+    (hprefix : StrictPrefix bytes base endPtr startOff count off)
+    (hitem : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+      endPtr next len) :
+    StrictNthItem bytes base endPtr count startOff next len := by
+  induction hprefix generalizing next len with
+  | zero => exact .zero _ _ _ hitem
+  | succ count off next0 len0 hprefix hitem0 ih =>
+      exact StrictNthItem.snoc (ih hitem0) hitem
+
+/-- A successful non-selected iteration extends the walked prefix by one. -/
+theorem StrictPrefix.step {bytes : List (BitVec 8)} {base endPtr : Word}
+    {startOff count off : Nat} {next len : Word}
+    (hprefix : StrictPrefix bytes base endPtr startOff count off)
+    (hitem : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+      endPtr next len) :
+    StrictPrefix bytes base endPtr startOff (count + 1) (next - base).toNat :=
+  .succ count off next len hprefix hitem
+
+/-- The exact next offset used to re-enter the loop is strictly advanced and
+    remains within the declared list window. -/
+theorem StrictPrefix.step_bounds {bytes : List (BitVec 8)} {base : Word}
+    {endOff startOff count off : Nat} {next len : Word}
+    (hprefix : StrictPrefix bytes base (base + BitVec.ofNat 64 endOff)
+      startOff count off)
+    (hitem : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+      (base + BitVec.ofNat 64 endOff) next len)
+    (hoff : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off < (next - base).toNat ∧ (next - base).toNat ≤ endOff ∧
+      StrictPrefix bytes base (base + BitVec.ofNat 64 endOff)
+        startOff (count + 1) (next - base).toNat := by
+  have ha := BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hitem hoff hover
+  exact ⟨ha.2.1, ha.2.2, StrictPrefix.step hprefix hitem⟩
+
 /-- Successful K20 meaning: the complete input is one strict list and its
     zero-based `index` child exists.  The ABI outputs are the selected content
     offset and length (`next - len - base`, `len`). -/
@@ -73,16 +163,31 @@ def Success (bytes : List (BitVec 8)) (base : Word) (listLen index : Nat)
     StrictNthItem bytes base endPtr index cursorOff next len ∧
     offset = next - len - base
 
-/-- Unified semantic result.  Failure is not an unconstrained catch-all: it
-    states that no strict successful decode exists for this input and index.
-    This covers malformed/non-canonical outer lists, malformed/non-canonical
-    children, and an out-of-bounds index. -/
+/-- A concrete strict traversal failure.  Either the outer list itself has no
+    strict payload, or a canonical prefix of `count ≤ index` children reaches
+    a cursor at which no strict next item exists.  The latter uniformly covers
+    end/OOB, bounds, and structural non-canonicality. -/
+inductive Failure (bytes : List (BitVec 8)) (base : Word)
+    (listLen index : Nat) : Prop
+  | init (h : ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr) :
+      Failure bytes base listLen index
+  | walk (cursorOff count off : Nat) (endPtr : Word)
+      (hlist : StrictListPayload bytes base listLen cursorOff endPtr)
+      (hcount : count ≤ index)
+      (hprefix : StrictPrefix bytes base endPtr cursorOff count off)
+      (hfail : ¬ ∃ next len, rlpItemDecode bytes off
+        (base + BitVec.ofNat 64 off) endPtr next len) :
+      Failure bytes base listLen index
+
+/-- Unified semantic result, including the ABI's precise failure behavior:
+    output cells are unchanged on failure. -/
 inductive Result (bytes : List (BitVec 8)) (base : Word)
-    (listLen index : Nat) : Word → Word → Word → Prop
+    (listLen index : Nat) (oldOffset oldLen : Word) : Word → Word → Word → Prop
   | ok (offset len : Word) (h : Success bytes base listLen index offset len) :
-      Result bytes base listLen index 0 offset len
-  | fail (h : ¬ ∃ offset len, Success bytes base listLen index offset len) :
-      Result bytes base listLen index 1 0 0
+      Result bytes base listLen index oldOffset oldLen 0 offset len
+  | fail (h : Failure bytes base listLen index) :
+      Result bytes base listLen index oldOffset oldLen 1 oldOffset oldLen
 
 /-! ## Emitted-byte ties -/
 
@@ -168,5 +273,71 @@ theorem callWalkNext {n : Nat} {Prest Q : Assertion} (oldRa : Word)
 
 #print axioms callWalkInit
 #print axioms callWalkNext
+
+/-! ## Indexed wrapper-loop assertions -/
+
+/-- Values preserved by K20's 64-byte ABI frame. -/
+structure Saved where
+  ra : Word
+  s0 : Word
+  s1 : Word
+  s2 : Word
+  s3 : Word
+  s4 : Word
+  s5 : Word
+
+/-- Exact seven saved-register cells in the frame. -/
+def savedFrame (newSp : Word) (saved : Saved) : Assertion :=
+  (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) **
+  ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2) **
+  ((newSp + 32) ↦ₘ saved.s3) ** ((newSp + 40) ↦ₘ saved.s4) **
+  ((newSp + 48) ↦ₘ saved.s5)
+
+/-- Registers and framed resources stable across the K20 index loop. -/
+def loopFrame (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+   (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) ** (.x20 ↦ᵣ endPtr) **
+   savedFrame newSp saved **
+   (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen) **
+   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+   regOwn .x1 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)
+
+/-- Header invariant at wrapper slot 16 (`B+64`).  `count` is the number of
+    already accepted children, so the remaining index measure is
+    `index + 1 - count`; the invariant only re-enters while `count ≤ index`. -/
+def loopInv (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index cursorOff : Nat)
+    (j : Nat) : Assertion :=
+  fun h => ∃ count off : Nat,
+    ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved bytes **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) **
+       regOwn .x11 ** regOwn .x12 ** (.x21 ↦ᵣ BitVec.ofNat 64 count))) **
+     ⌜j = index + 1 - count ∧ count ≤ index ∧ off ≤ listLen ∧
+       StrictPrefix bytes listBase endPtr cursorOff count off⌝) h
+
+/-- Loop success station (`B+88`), before the two output stores. -/
+def loopSelected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (index cursorOff : Nat) : Assertion :=
+  fun h => ∃ next len : Word,
+    ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved bytes **
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 index))) **
+     ⌜StrictNthItem bytes listBase endPtr index cursorOff next len⌝) h
+
+/-- Loop reject station (`B+112`), before `li a0,1`. -/
+def loopRejected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index cursorOff : Nat) : Assertion :=
+  fun h => ∃ count off : Nat, ∃ status : Word,
+    ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved bytes **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ status) **
+       (.x12 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ BitVec.ofNat 64 count))) **
+     ⌜status ≠ 0 ∧ count ≤ index ∧
+       StrictListPayload bytes listBase listLen cursorOff endPtr ∧
+       StrictPrefix bytes listBase endPtr cursorOff count off ∧
+       ¬ ∃ next len, rlpItemDecode bytes off
+         (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
