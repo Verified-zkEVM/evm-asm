@@ -19,7 +19,10 @@
   The value-level `EvmWord.modAdd` bridge is the next milestone's job.
 -/
 
-import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
+import EvmAsm.Rv64.CPSSpec
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Evm64.AddMod.Program
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

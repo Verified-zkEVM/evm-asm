@@ -21,6 +21,8 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.CarryLc
+import EvmAsm.Evm64.AddMod.Compose.CarryLb
+import EvmAsm.Evm64.EvmWordArith.AddMod
 
 namespace EvmAsm.Evm64.AddMod.Compose
 
