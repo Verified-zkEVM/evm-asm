@@ -80,5 +80,34 @@ def nonceStationRej (aB newSp oB : Word) (aLen : Nat)
   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
   bytesRegion aB acctBytes ** F
 
+/-- The value decode supplies every account-buffer side condition needed by
+    `rlp_content_to_u64_spec_within`.  Keeping this bridge separate prevents
+    the capture continuation from exposing a field-local bounds hypothesis. -/
+theorem bansf_nonceCapture_callee_bounds (aB : Word) (aLen tEnd off : Nat)
+    (vNext vLen : Word) (acctBytes : List (BitVec 8))
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffle : off ≤ tEnd)
+    (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+      (aB + BitVec.ofNat 64 tEnd) vNext vLen) :
+    let srcOff := (vNext - vLen - aB).toNat
+    vLen.toNat < 2 ^ 64 ∧
+    srcOff + vLen.toNat ≤ acctBytes.length ∧
+    aB.toNat + (srcOff + vLen.toNat) ≤ 2 ^ 64 ∧
+    ∀ k, k < vLen.toNat →
+      isValidByteAccess (aB + BitVec.ofNat 64 (srcOff + k)) = true := by
+  dsimp only
+  have hover9 : aB.toNat + tEnd + 9 < 2 ^ 64 := by omega
+  obtain ⟨_, _, hspan⟩ := rlpItemDecode_spanStart hdec hoffle hover9
+  have hsrcLen : (vNext - vLen - aB).toNat + vLen.toNat ≤ acctBytes.length := by
+    omega
+  refine ⟨vLen.isLt, hsrcLen, by omega, ?_⟩
+  intro k hk
+  exact hvalid ((vNext - vLen - aB).toNat + k) (by omega)
+
+#print axioms bansf_nonceCapture_callee_bounds
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
