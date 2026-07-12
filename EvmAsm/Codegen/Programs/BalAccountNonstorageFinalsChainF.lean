@@ -829,5 +829,80 @@ theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
 
 #print axioms bansf_nonceCapture_spec
 
+/-- Reframe either nonce-parser rejection status as the station reject post. -/
+theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
+    (aLen : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      nonceCaptureRejectPost aB oB vLen acctBytes
+        (G **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) **
+         ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         memOwn (newSp + 64) ** memOwn (newSp + 72) **
+         ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+         ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F) h →
+      nonceStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold nonceCaptureRejectPost at hq
+  rcases hq with hq | hq
+  · have hq2 :
+        ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
+          ((.x12 : Reg) ↦ᵣ vLen) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+          ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+          ((newSp + 48) ↦ₘ n4) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen))) **
+         (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+          ((oB + 72) ↦ₘ (0 : Word)) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hq
+    have hq3 := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x10)
+       (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+         (sepConj_mono (regIs_implies_regOwn .x1)
+          (sepConj_mono memIs_implies_memOwn
+           (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))
+      (fun _ x => x) h hq2
+    unfold nonceStationRej
+    xperm_hyp hq3
+  · have hq2 :
+        ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
+          ((.x12 : Reg) ↦ᵣ vLen) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
+          ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+          ((newSp + 48) ↦ₘ n4) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen))) **
+         (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+          ((oB + 72) ↦ₘ (0 : Word)) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hq
+    have hq3 := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x10)
+       (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+         (sepConj_mono (regIs_implies_regOwn .x1)
+          (sepConj_mono memIs_implies_memOwn
+           (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))
+      (fun _ x => x) h hq2
+    unfold nonceStationRej
+    xperm_hyp hq3
+
+#print axioms nonceCaptureReject_to_stationRej
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
