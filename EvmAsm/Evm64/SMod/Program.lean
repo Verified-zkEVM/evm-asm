@@ -19,7 +19,6 @@
   wrapper fall-through path.
 -/
 
-import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableV1Legacy

@@ -24,7 +24,6 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 

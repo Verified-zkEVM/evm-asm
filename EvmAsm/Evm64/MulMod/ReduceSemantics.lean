@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.Program
+import EvmAsm.Evm64.Stack
 
 namespace EvmAsm.Evm64
 
