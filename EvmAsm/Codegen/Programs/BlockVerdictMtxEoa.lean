@@ -53,6 +53,8 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t6, bv_mtx_ctx; ld t0, 160(t6); li t1, 4; bne t0, t1, .Lbv_mtx_eoa_auth_ready\n" ++
   "  ld a0, 176(t6); ld a1, 184(t6); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
   "  jal ra, rlp_list_nth_item; bnez a0, .Lbv_mtx_bail\n" ++
@@ -63,7 +65,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
   "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  la t0, runtime_tx_auth_state_refund; sd a0, 0(t0); la t0, runtime_tx_auth_regular_refund; sd a1, 0(t0)\n" ++
+  -- v0.6.0: pools driven by WOULD-BE charges (C8 charge-point OOG).
+  "  la t1, teer_wouldbe_state; ld t1, 0(t1); la t0, runtime_tx_auth_state_refund; sd t1, 0(t0)\n" ++
+  "  la t1, teer_wouldbe_regular; ld t1, 0(t1); la t0, runtime_tx_auth_regular_refund; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   "  la t0, teer_auth_count; ld t1, 0(t0); la t0, runtime_tx_auth_count; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_eoa_auth_ready:\n" ++
   -- This shortcut calls the low-level STOP dispatcher directly, bypassing the
@@ -142,7 +147,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
   "  bgeu t2, t0, .Lbv_mtx_eoa_state_res\n" ++
   "  sub t3, t0, t2; sd x0, 0(t1)\n" ++
-  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_bail\n" ++
+  -- v0.6.0 (C8): a prepare_dispatch charge that exceeds the pools halts
+  -- the frame WITHOUT dispatching -- a failed tx burning all gas, not a
+  -- conservative bail.
+  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_eoa_state_oog\n" ++
   "  sub t2, t2, t3; sd t2, 568(t4); j .Lbv_mtx_eoa_state_used\n" ++
   ".Lbv_mtx_eoa_state_res:\n" ++
   "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
@@ -150,7 +158,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
   ".Lbv_mtx_eoa_state_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  la t0, runtime_tx_auth_regular_refund; ld t2, 0(t0); add a1, a1, t2\n" ++
+  "  j .Lbv_mtx_eoa_settled\n" ++
+  ".Lbv_mtx_eoa_state_oog:\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
+  ".Lbv_mtx_eoa_settled:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++

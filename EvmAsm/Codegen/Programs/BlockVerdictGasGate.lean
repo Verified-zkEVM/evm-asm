@@ -364,18 +364,11 @@ def eip8037TxGasGateFunction : String :=
   "  bgeu t4, t1, .Letg_floor_stored\n" ++
   "  sd t1, 0(t3)\n" ++
   ".Letg_floor_stored:\n" ++
-  "  # EIP-8037 intrinsic.state gas: CREATE new-account reserve plus EIP-7702\n" ++
-  "  # authorization reserve (calculate_intrinsic_cost). Computed once here and\n" ++
-  "  # consumed by both the per-tx sufficiency test and the 2D block accounting.\n" ++
-  "  li t6, 0\n" ++
-  "  la t0, bsg_to_len; ld t2, 0(t0); bnez t2, .Letg_after_create_state\n" ++
-  liAmsterdamNewAccountStateGas "t6" ++
-  ".Letg_after_create_state:\n" ++
-  "  la t0, bsg_auth_count; ld t2, 0(t0); beqz t2, .Letg_intrinsic_done\n" ++
-  liAmsterdamAuthStateGas "t3" ++
-  "  mul t2, t2, t3; add t6, t6, t2\n" ++
-  ".Letg_intrinsic_done:\n" ++
-  "  la t0, bsg_state_gas; sd t6, 0(t0)\n" ++
+  "  # v0.6.0 (EIP-2780): intrinsic.state is ZERO -- the CREATE new-account\n" ++
+  "  # and per-authorization state reserves left calculate_intrinsic_cost\n" ++
+  "  # (charged exactly at the top frame / set_delegation instead), so the\n" ++
+  "  # per-tx sufficiency test below reduces to max(regular, floor).\n" ++
+  "  la t0, bsg_state_gas; sd zero, 0(t0)\n" ++
   "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
   "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
@@ -386,10 +379,11 @@ def eip8037TxGasGateFunction : String :=
   "  # TX_MAX_GAS_LIMIT test (spec transactions.py:590) uses max(regular, floor),\n" ++
   "  # no state component.\n" ++
   "  bgtu t0, t4, .Letg_validate_fail\n" ++
-  "  # Per-tx 'insufficient gas' test (spec transactions.py:587-588) uses\n" ++
-  "  # max(intrinsic.regular + intrinsic.state, calldata_floor): fold the state\n" ++
-  "  # component into the regular term before comparing against tx.gas.\n" ++
-  "  la t4, bsg_state_gas; ld t4, 0(t4); add t4, s11, t4\n" ++
+  "  # Per-tx 'insufficient gas' test (spec transactions.py:618-622 at\n" ++
+  "  # v0.6.0) uses max(intrinsic.regular + intrinsic.state, calldata_floor);\n" ++
+  "  # intrinsic.state is zero post-EIP-2780, so the required gas is\n" ++
+  "  # max(regular, floor).\n" ++
+  "  mv t4, s11\n" ++
   "  bgeu t4, t6, .Letg_suff_have\n" ++
   "  mv t4, t6\n" ++
   ".Letg_suff_have:\n" ++

@@ -43,27 +43,30 @@ open EvmAsm.Rv64
     Payload layout for the supported shape:
       +0    u64 bytecode length            (= 1)
       +8    bytecode bytes                 (= 0x00 STOP, padded)
-      +16   u64 calldata length            (= 0)
-      +24   u64 slot_count                 (= 0)
-      +32   blob_base_fee word             (= 0 in this staging-only slice)
-      +64   u64 blob_hash_count            (= 0)
-      +72   u64 current_block_number       (= 0)
-      +80   u64 blockhash_count            (= 0)
-      +88   13 simple-env words
-      +504  SLOTNUM word                   (EIP-7843 slot_number, exec@532)
-      +536  u64 gas_limit                  (= context tx gas limit)
-      +544  u64 validate_tx_gas flag       (= 0; see note below)
-      +552  u64 is_creation flag           (= 1)
-      +560  u64 account-witness header len (= 0)
-      +568  u64 witness.state len          (= 0)
-      +576  u64 witness.codes len          (= 0)
+      +16   u64 calldata length            (= 1; tx.data IS the initcode)
+      +24   calldata bytes                 (= 0x00 STOP, padded)
+      +32   u64 slot_count                 (= 0)
+      +40   blob_base_fee word             (= 0 in this staging-only slice)
+      +72   u64 blob_hash_count            (= 0)
+      +80   u64 current_block_number       (= 0)
+      +88   u64 blockhash_count            (= 0)
+      +96   13 simple-env words
+      +512  SLOTNUM word                   (EIP-7843 slot_number, exec@532)
+      +544  u64 gas_limit                  (= context tx gas limit)
+      +552  u64 validate_tx_gas flag       (= 1; see note below)
+      +560  u64 is_creation flag           (= 1)
+      +568  u64 account-witness header len (= 0)
+      +576  u64 witness.state len          (= 0)
+      +584  u64 witness.codes len          (= 0)
 
-    `validate_tx_gas` is deliberately 0 here. The current dispatcher ABI uses
-    calldata length for creation intrinsic-data and initcode-word gas. This
-    helper stages empty calldata by design, so enabling the dispatcher-side
-    tx-gas gate would undercharge initcode. The integration slice must either
-    precharge before dispatch or extend the ABI before using this for gas-exact
-    receipts.
+    `validate_tx_gas` is 1: the dispatcher computes the v0.6.0 creation
+    intrinsic (TX_BASE + CREATE_ACCESS + data tokens + initcode words +
+    access-list), the calldata floor, the EIP-8037 reservoir split, and the
+    prepare_dispatch NEW_ACCOUNT state charge exactly like execution-specs.
+    For a creation transaction tx.data is the initcode, so it is staged as the
+    dispatcher's calldata for the intrinsic data/initcode-word costs; the
+    supported one-byte STOP shape never reads CALLDATA, so execution is
+    unaffected.
 -/
 def stageCreationRuntimePayloadFunction : String :=
   "stage_creation_runtime_payload:\n" ++
@@ -99,9 +102,9 @@ def stageCreationRuntimePayloadFunction : String :=
   "  li a0, 4\n" ++
   "  j .Lscrp_ret\n" ++
   ".Lscrp_supported:\n" ++
-  -- Zero the fixed 584-byte STOP-shaped payload (73 dwords).
+  -- Zero the fixed 592-byte STOP-shaped payload (74 dwords).
   "  mv t1, s0\n" ++
-  "  li t2, 73\n" ++
+  "  li t2, 74\n" ++
   ".Lscrp_zero:\n" ++
   "  sd zero, 0(t1)\n" ++
   "  addi t1, t1, 8\n" ++
@@ -109,8 +112,13 @@ def stageCreationRuntimePayloadFunction : String :=
   "  bnez t2, .Lscrp_zero\n" ++
   -- bytecode length = 1; bytecode byte is STOP and already zeroed.
   "  li t0, 1; sd t0, 0(s0)\n" ++
-  -- Env trailer starts at +88 for one padded bytecode dword and no calldata/storage.
-  "  addi t6, s0, 88              # env base\n" ++
+  -- calldata length = 1 (tx.data = the initcode); the calldata byte is STOP
+  -- and already zeroed. Staged so the dispatcher's validated intrinsic path
+  -- prices the creation data tokens and initcode words from tx.data.
+  "  li t0, 1; sd t0, 16(s0)\n" ++
+  -- Env trailer starts at +96 for one padded bytecode dword and one padded
+  -- calldata dword, no storage.
+  "  addi t6, s0, 96              # env base\n" ++
   -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
   -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t1, s2, 32; addi t2, t6, 192; li t3, 0\n" ++
@@ -146,9 +154,9 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t2, t2, 1; j .Lscrp_slot\n" ++
   ".Lscrp_slot_done:\n" ++
   "  sd t1, 416(t6)               # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
-  -- Trailer: gas@+448, validate@+456 = 0, is_creation@+464 = 1.
+  -- Trailer: gas@+448, validate@+456 = 1, is_creation@+464 = 1.
   "  ld t1, 40(s1); sd t1, 448(t6)\n" ++
-  "  li t1, 1; sd t1, 464(t6)\n" ++
+  "  li t1, 1; sd t1, 456(t6); sd t1, 464(t6)\n" ++
   "  li a0, 0\n" ++
   ".Lscrp_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -163,9 +171,9 @@ def stageCreationRuntimePayloadFunction : String :=
       +0  stage status                         (expect 0)
       +8  bytecode length                      (expect 1)
       +16 first bytecode byte                  (expect 0)
-      +24 calldata length                      (expect 0)
+      +24 calldata length                      (expect 1; tx.data is the initcode)
       +32 is_creation at env_base+464          (expect 1)
-      +40 validate_tx_gas at env_base+456      (expect 0)
+      +40 validate_tx_gas at env_base+456      (expect 1)
       +48 gas at env_base+448                  (expect 53000)
       +56 callvalue low limb at env_base+96    (expect 0x42)
       +64 non-creation status                  (expect 2)
@@ -195,7 +203,7 @@ def ziskStageCreationRuntimePayloadPrologue : String :=
   "  ld t1, 0(t0); sd t1, 8(s0)\n" ++
   "  lbu t1, 8(t0); sd t1, 16(s0)\n" ++
   "  ld t1, 16(t0); sd t1, 24(s0)\n" ++
-  "  li t2, 88; add t2, t0, t2\n" ++
+  "  li t2, 96; add t2, t0, t2\n" ++
   "  ld t1, 464(t2); sd t1, 32(s0)\n" ++
   "  ld t1, 456(t2); sd t1, 40(s0)\n" ++
   "  ld t1, 448(t2); sd t1, 48(s0)\n" ++
@@ -275,17 +283,12 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
+  "  ld s2, 48(s0)               # reload is_creation (the pre-dispatch save in s2 was clobbered too)\n" ++
   "  mv s3, a2\n" ++
-  "  beqz s3, .Lbvcr_runtime_gas_left_ready\n" ++
-  "  la t4, bvgr_tx_state_refund; ld t4, 0(t4); beqz t4, .Lbvcr_fresh_create_receipt_gas\n" ++
-  "  li t0, 23006            # existing balance-only target: NEW_ACCOUNT state gas is refunded\n" ++
-  "  j .Lbvcr_receipt_gas_have\n" ++
-  ".Lbvcr_fresh_create_receipt_gas:\n" ++
-  "  li t0, 206606           # fresh target: regular intrinsic plus NEW_ACCOUNT state gas\n" ++
-  ".Lbvcr_receipt_gas_have:\n" ++
-  "  bltu a0, t0, .Lbvcr_runtime_gas_left_ready\n" ++
-  "  sub a0, a0, t0          # publish combined left: tx.gas - receipt pre-refund gas\n" ++
-  ".Lbvcr_runtime_gas_left_ready:\n" ++
+  -- The staged payload runs with validate_tx_gas = 1, so the dispatcher
+  -- computed the creation intrinsic / floor / reservoir split / NEW_ACCOUNT
+  -- prepare charge itself and dispatcher_tx_gas_settle's a0 is already the
+  -- published combined gas+state left (no post-settle constant adjustment).
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++

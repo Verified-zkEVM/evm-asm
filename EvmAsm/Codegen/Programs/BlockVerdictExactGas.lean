@@ -24,11 +24,13 @@ def blockVerdictExactGasCheck : String :=
   "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  bnez a0, .Lbv_block_state_gas_fail\n" ++
   -- Derive Amsterdam's block-regular dimension from the exact pre-refund
-  -- combined gas and the net state-gas dimension:
-  --   tx_regular_gas = before_refund - tx_state_gas
+  -- combined gas and the net state-gas dimension (v0.6.0, EIP-2780/fork.py):
+  --   tx_regular_gas = max(before_refund - tx_state_gas, calldata_floor)
   -- `before_refund` is `tx.gas - gas_left - state_gas_left`, so it includes
-  -- regular gas plus state gas. Subtracting `bvgr_tx_total_state_gas` here is
-  -- the execution-specs formula; EIP-7623 calldata-flooring is receipt-only.
+  -- regular gas plus state gas. v0.6.0 makes the EIP-7623/7976 calldata
+  -- floor bind the block-regular dimension too (state gas subtracted
+  -- FIRST, so the floor is not discounted by state spending); it was
+  -- receipt-only at v0.5.0.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
@@ -37,6 +39,9 @@ def blockVerdictExactGasCheck : String :=
   "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
+  "  la t6, bvgr_calldata_floor; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bgeu a0, a1, .Lbv_regular_eip8037_store\n" ++
+  "  mv a0, a1\n" ++
   ".Lbv_regular_eip8037_store:\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; sd a0, 0(t6)\n" ++
   "  addi t1, t1, 1; j .Lbv_regular_eip8037_loop\n" ++

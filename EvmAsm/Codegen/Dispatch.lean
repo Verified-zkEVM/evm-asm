@@ -782,6 +782,7 @@ def emitCreateChildFrameData : String :=
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
   "nse_create_pre_bal:\n  .zero 32\n" ++
+  "cr_alive_bal:\n  .zero 32\n" ++
   -- Amsterdam generic_create computes target_alive from the current tx_state before
   -- incorporating the child. A same-tx-created target can be alive even when its
   -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
@@ -2192,13 +2193,13 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
@@ -2562,6 +2563,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  beqz x8, .runtime_tx_gas_no_create\n" ++
   "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_no_create:\n" ++
   -- EIP-2780 decomposes the non-create recipient/value components out of the
   -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self
@@ -2582,12 +2584,15 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   ".runtime_tx_gas_not_self:\n" ++
   "  li x8, 3000\n" ++             -- COLD_ACCOUNT_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+
   "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
   "  ld x9, 112(x20); or x8, x8, x9\n" ++
   "  ld x9, 120(x20); or x8, x8, x9\n" ++
   "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
   "  li x8, 6000\n" ++             -- TRANSFER_LOG_COST + TX_VALUE_COST
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_recipient_done:\n" ++
   "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
   "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
@@ -2658,15 +2663,16 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- computed floor here; x11 is free (it last held a calldata byte).
   "  la x11, runtime_tx_calldata_floor\n" ++
   "  sd x10, 0(x11)\n" ++
-  -- EIP-7702 adds PER_AUTH_BASE_COST to intrinsic.regular for each
-  -- authorization before the runtime gas reservoir is initialized
-  -- (execution-specs transactions.py: calculate_intrinsic_cost). Charge it in
-  -- the same accumulator used below for both tx.gas validation and the
-  -- tx.gas - gas_left receipt formula.
+  -- v0.6.0 (EIP-2780): the per-authorization intrinsic is the
+  -- state-independent REGULAR_PER_AUTH_BASE_COST 7816 only (the v0.5.0
+  -- worst-case ACCOUNT_WRITE 8000 and the 218790/auth state reserve are
+  -- gone -- the exact state-dependent charges arrive via the staged
+  -- runtime_tx_auth_state_refund / runtime_tx_top_frame_regular_gas
+  -- cells below).
   "  la x11, runtime_tx_auth_count\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_regular_charge_done\n" ++
-  "  li x11, 15816\n" ++
+  "  li x11, 7816\n" ++
   "  mul x9, x9, x11\n" ++
   "  add x7, x7, x9\n" ++
   ".runtime_tx_auth_regular_charge_done:\n" ++
@@ -2675,17 +2681,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
-  -- EIP-7702 intrinsic state gas is part of intrinsic_gas. Subtract the staged
-  -- authorization state dimension from execution gas before the EIP-8037
-  -- reservoir split.
-  "  la x11, runtime_tx_auth_count\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_auth_state_charge_done\n" ++
-  "  li x11, " ++ toString amsterdamAuthStateGasPerAuth ++ "\n" ++
-  "  mul x9, x9, x11\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  ".runtime_tx_auth_state_charge_done:\n" ++
   -- nxio8 (EIP-8037): split execution gas into gas_left and the state-gas
   -- reservoir (fork.py: gas = min(TX_MAX_GAS_LIMIT - intrinsic.regular,
   -- execution_gas); state_gas_reservoir = execution_gas - gas). x7 still holds
@@ -2701,18 +2696,51 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
-  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
-  -- when the recovered authority already exists (and, separately, for existing
-  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
-  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  -- v0.6.0 (EIP-7702 rework): set_delegation CHARGES its exact
+  -- state-dependent costs at the top frame -- reservoir first, spilling
+  -- the remainder into regular gas (OOG halts the frame without
+  -- dispatching, mirroring the spec's prep rollback). Transaction-aware
+  -- callers stage the exact BAL/pre-state charge in
+  -- runtime_tx_auth_state_refund (cell name kept) before this setup runs.
   "  la x11, runtime_tx_auth_state_refund\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
   "  la x11, evm_state_gas_left\n" ++
   "  ld x8, 0(x11)\n" ++
-  "  add x8, x8, x9\n" ++
+  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
   "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_auth_state_refund_done\n" ++
+  ".runtime_tx_auth_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
   ".runtime_tx_auth_state_refund_done:\n" ++
+  -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
+  -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
+  -- reservoir first, spilling the remainder into regular gas; an unaffordable
+  -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
+  -- burned, the charge rolled back -- the state-dimension accounting keeps the
+  -- intrinsic-term model and refunds via eip8037_tx_state_gas's creation-error
+  -- branch). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
+  -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
+  -- target is never charged); probes/non-creation paths leave it zero.
+  "  la x11, runtime_tx_create_state_charge\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_create_state_done\n" ++
+  ".runtime_tx_create_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_create_state_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
@@ -3283,6 +3311,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_create_state_charge:\n" ++
+  "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
    -- t1iqb: 64-byte zero-pad staging window for the VERIFIED arena-free
@@ -3447,13 +3477,13 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)

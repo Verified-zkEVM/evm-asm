@@ -64,7 +64,7 @@ def eip7708SyntheticLogFunctions : String :=
   "  li t0, 3\n" ++
   "  bgtu a0, t0, .Leip7708_bad_topic_count\n" ++
   "  ld t0, 472(x20)\n" ++
-  "  li t1, 1024\n" ++               -- 6c7v9: raised log-descriptor cap from 16
+  "  li t1, 4096\n" ++               -- v0.6.0: descriptor cap raised with evm_event_logs
   "  bgeu t0, t1, .Leip7708_overflow\n" ++
   "  la t2, evm_event_logs\n" ++
   "  slli t1, t0, 8\n" ++
@@ -122,7 +122,7 @@ def eip7708SyntheticLogFunctions : String :=
   "  la t0, evm_log_data_used\n" ++
   "  ld t3, 0(t0)\n" ++
   "  addi t4, t3, 32\n" ++
-  "  li t0, 262144\n" ++
+  "  li t0, 1048576\n" ++
   "  bleu t4, t0, .Leip7708_data_fits\n" ++
   "  la t0, evm_log_data_overflow\n" ++
   "  li t4, 1\n" ++
@@ -305,12 +305,12 @@ def eip7708SyntheticLogDataSection : String :=
   "  .zero 624\n" ++
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- 6c7v9: 1024 × 256-byte LOG event descriptors (was 4096 = 16×256)
+  "  .zero 1048576\n" ++   -- 4096 × 256-byte LOG event descriptors
   -- .63.1.6.2.1: the synthetic-log appender now records its amount in the
   -- full-data surface too; the standalone probe needs the labels.
   ".balign 8\n" ++
-  "evm_log_data:\n  .zero 262144\n" ++
-  "evm_log_data_meta:\n  .zero 16384\n" ++
+  "evm_log_data:\n  .zero 1048576\n" ++
+  "evm_log_data_meta:\n  .zero 65536\n" ++
   "evm_log_data_used:\n  .zero 8\n" ++
   "evm_log_data_overflow:\n  .zero 8\n" ++
   eip7708SyntheticLogTopicData ++
