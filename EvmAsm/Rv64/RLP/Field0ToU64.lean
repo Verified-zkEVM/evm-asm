@@ -469,6 +469,123 @@ theorem rlp_field0_to_u64_restore_ret_spec_within
     xperm_hyp hp
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hp => hp) hs
 
+/-- All semantic outcomes of `rlp_content_to_u64`, together with the wrapper
+state that must survive its call.  `x1` is deliberately excluded: the call
+rule exposes the return address separately for the generic epilogue above. -/
+def rlpField0ContentResult (srcBase savedRa contentLen t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :=
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+    bytesRegion srcBase srcBytes) **
+  (fun h =>
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+      ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+    (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+      (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)) **
+  ((.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) ** (.x29 ↦ᵣ t4Old) **
+    (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
+
+theorem rlpField0ContentResult_pcFree
+    (srcBase savedRa contentLen t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat) :
+    (rlpField0ContentResult srcBase savedRa contentLen t4Old t5Old t6Old
+      srcBytes srcOff len).pcFree := by
+  unfold rlpField0ContentResult
+  let outcomes : Assertion := fun h =>
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+      ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+    (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+      (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)
+  have houtcomes : outcomes.pcFree := by
+    intro h hp
+    rcases hp with hp | hp | hp | hp
+    · exact (by pcFree : (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
+        ⌜8 < len⌝)).pcFree) h hp
+    · exact (by pcFree : (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
+        ⌜len = 0⌝)).pcFree) h hp
+    · exact (by pcFree : (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝)).pcFree) h hp
+    · exact (by pcFree : (((.x10 ↦ᵣ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝)).pcFree) h hp
+  change ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) ** outcomes **
+    ((.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) ** (.x29 ↦ᵣ t4Old) **
+      (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))).pcFree
+  letI : Assertion.PCFree (bytesRegion srcBase srcBytes) :=
+    ⟨bytesRegion_pcFree srcBase srcBytes⟩
+  exact pcFree_sepConj (by pcFree) (pcFree_sepConj houtcomes (by pcFree))
+
+/-- Unified content call at idx 8.  Unlike the earlier success-only helper,
+this consumes the unified callee theorem and preserves its complete outcome
+disjunction for the wrapper epilogue. -/
+theorem rlp_field0_to_u64_content_call_unified_spec_within
+    (base srcBase savedRa x1Old t0Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (hbase0 : base &&& (1 : Word) = 0) (hlen64 : len < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
+    cpsTripleWithin (7 * len + 12) (base + 32) (base + 36)
+      ((rlp_field0_to_u64_code base).union
+        (rlp_content_to_u64_code (base + (1536 : Word))))
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x12 ↦ᵣ BitVec.ofNat 64 len) **
+        (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) **
+        (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ x1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x1 ↦ᵣ (base + 36)) **
+        rlpField0ContentResult srcBase savedRa (BitVec.ofNat 64 len)
+          t4Old t5Old t6Old srcBytes srcOff len) := by
+  have halign := field0_halign base hbase0
+  have hoffset := field0_hoffset base
+  have hdisj : (CodeReq.singleton (base + 32) (.JAL .x1 (1504 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + (1536 : Word))) := by crDisjoint
+  have hcallee := rlp_content_to_u64_spec_within (base + (1536 : Word)) srcBase
+    (base + 32 + 4) t0Old (srcBase + BitVec.ofNat 64 srcOff) t2Old t3Old
+    srcBytes srcOff len hlen64 hsalign hslen hsover hsvalid
+  have hcallee_framed := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ BitVec.ofNat 64 len) ** (.x13 ↦ᵣ savedRa) **
+      (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
+    (by pcFree) hcallee
+  have hPrest : (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x5 ↦ᵣ t0Old) **
+      (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+      ((.x12 ↦ᵣ BitVec.ofNat 64 len) ** (.x13 ↦ᵣ savedRa) **
+        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))).pcFree := by
+    pcFree
+  have hcall := WP.cpsCallWithin (offset := (1504 : BitVec 21)) (vOld := x1Old) hoffset halign
+    hPrest hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hp => hp) hcallee_framed)
+  have hmono : ∀ a i,
+      ((CodeReq.singleton (base + 32) (.JAL .x1 (1504 : BitVec 21))).union
+        (rlp_content_to_u64_code (base + (1536 : Word)))) a = some i →
+      ((rlp_field0_to_u64_code base).union
+        (rlp_content_to_u64_code (base + (1536 : Word)))) a = some i :=
+    CodeReq.union_split_mono
+      (fun a i h => CodeReq.union_mono_left a i
+        (CodeReq.singleton_mono
+          (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 8 (base + 32)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+      (CodeReq.mono_union_right (rlp_field0_to_u64_wrapper_content_disjoint base)
+        (fun _ _ h => h))
+  have hs := cpsTripleWithin_extend_code hmono hcall
+  rw [show (base + 32 + 4 : Word) = base + 36 from by bv_omega] at hs
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hs)
+  unfold rlpField0ContentResult at hp ⊢
+  xperm_hyp hp
+
 /-! ## Branch composition slice: idx 4..14, starting at the branch immediately
 after `rlp_walk_next` returns (`BNE x11 x0 -> parse_fail`), through either the
 success-path call composition proved above or the `parse_fail` fallback.
