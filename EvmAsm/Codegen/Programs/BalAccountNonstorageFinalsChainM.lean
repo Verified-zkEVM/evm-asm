@@ -1089,5 +1089,24 @@ theorem bansf_successTail_semantic
 
 #print axioms bansf_successTail_semantic
 
+/-- A bounded branch whose two arms reach the same PC is a triple with the
+    disjunction of the two postconditions. -/
+theorem cpsBranchWithin_same_exit_to_triple
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q1 Q2 : Assertion}
+    (hbr : cpsBranchWithin nSteps entry cr P exit_ Q1 exit_ Q2) :
+    cpsTripleWithin nSteps entry exit_ cr P (fun h => Q1 h ∨ Q2 h) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hcase⟩ := hbr R hR s hcr hPR hpc
+  rcases hcase with ⟨hpc', hQ1⟩ | ⟨hpc', hQ2⟩
+  · refine ⟨k, hk, s', hstep, hpc', ?_⟩
+    obtain ⟨hp, hcompat, hq⟩ := hQ1
+    exact ⟨hp, hcompat, sepConj_mono_left (fun _ hx => Or.inl hx) hp hq⟩
+  · refine ⟨k, hk, s', hstep, hpc', ?_⟩
+    obtain ⟨hp, hcompat, hq⟩ := hQ2
+    exact ⟨hp, hcompat, sepConj_mono_left (fun _ hx => Or.inr hx) hp hq⟩
+
+#print axioms cpsBranchWithin_same_exit_to_triple
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
