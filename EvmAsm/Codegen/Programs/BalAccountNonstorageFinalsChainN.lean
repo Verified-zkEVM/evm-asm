@@ -279,5 +279,63 @@ theorem bansf_chainMidVerdict_spec
 
 #print axioms bansf_chainMidVerdict_spec
 
+/-- Common verdict after the outer-init chain, including its early reject. -/
+def chainAVerdictPost (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  chainRejB aB newSp oB aLen acctBytes
+      (memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       regOwn .x19 ** regOwn .x20 ** F) h ∨
+  chainMidVerdictPost aB newSp oB aLen acctBytes F h
+
+/-- Compose SEG-B's prologue and outer init with the complete item/value
+    verdict chain. -/
+theorem bansf_chainAVerdict_spec
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (v8 v9 v18 : Word) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (101 + (372 + (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)))
+      (B + 28) (B + 736) bansfCR
+      (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x12 : Reg) ↦ᵣ oB) **
+       ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+       ((.x18 : Reg) ↦ᵣ v18) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 48) ** memOwn (newSp + 56) **
+       memOwn oB ** memOwn (oB + 40) ** memOwn (oB + 56) **
+       memOwn (oB + 64) ** memOwn (oB + 72) ** memOwn (oB + 8) **
+       memOwn (oB + 16) ** memOwn (oB + 24) ** memOwn (oB + 32) **
+       memOwn (oB + 48) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes **
+       (memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        regOwn .x19 ** regOwn .x20 ** F))
+      (chainAVerdictPost aB newSp oB aLen acctBytes F) := by
+  have hFrame : (memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      regOwn .x19 ** regOwn .x20 ** F).pcFree := by
+    letI : Assertion.PCFree F := ⟨hF⟩
+    exact (inferInstance : Assertion.PCFree _).proof
+  have hA := bansf_chainA_spec aB newSp oB aLen acctBytes v8 v9 v18
+    (memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      regOwn .x19 ** regOwn .x20 ** F)
+    hFrame hsalign hslack hover hvalid
+  have hMid := bansf_chainMidVerdict_spec aB newSp oB aLen acctBytes F
+    hF hsalign hoalign hslack hover hvalid hovout hovalid
+  have hbr := cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr hA
+    (fun _ hp => hp) hMid (fun _ hp => hp)
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp)
+    (cpsBranchWithin_same_exit_to_triple hbr)
+
+#print axioms bansf_chainAVerdict_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
