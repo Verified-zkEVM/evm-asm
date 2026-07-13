@@ -218,5 +218,66 @@ theorem bansf_itemsVerdict_spec
 
 #print axioms bansf_itemsVerdict_spec
 
+/-- Verdict post after eliminating the existential outer-header offset carried
+    by `chainMidB`. -/
+def chainMidVerdictPost (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  ∃ off0, itemsVerdictPost aB newSp oB aLen off0 acctBytes F h
+
+/-- The spilled outer-init state contains exactly the ambient resources and
+    pure header fact needed by the item/value chain. -/
+theorem bansf_chainMidVerdict_spec
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (372 + (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2))
+      (B + 104) (B + 736) bansfCR
+      (chainMidB aB newSp oB aLen acctBytes
+        (memOwn (newSp + 64) ** memOwn (newSp + 72) **
+         regOwn .x19 ** regOwn .x20 ** F))
+      (chainMidVerdictPost aB newSp oB aLen acctBytes F) := by
+  unfold chainMidB
+  have existsRule {α : Sort _} {P : α → Assertion} {Q : Assertion}
+      {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+      (ht : ∀ x, cpsTripleWithin nSteps entry exit_ cr (P x) Q) :
+      cpsTripleWithin nSteps entry exit_ cr (fun hp => ∃ x, P x hp) Q := by
+    intro R hR s hcr hPR hpc
+    obtain ⟨hp, hcompat, ha, hb, hd, hu, ⟨x, hP⟩, hRb⟩ := hPR
+    exact ht x R hR s hcr
+      ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+  have pureRule {fact : Prop} {P Q : Assertion}
+      {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+      (ht : fact → cpsTripleWithin nSteps entry exit_ cr P Q) :
+      cpsTripleWithin nSteps entry exit_ cr (P ** ⌜fact⌝) Q := by
+    intro R hR s hcr hPR hpc
+    obtain ⟨hp, hcompat, ha, hb, hd, hu, hPf, hRb⟩ := hPR
+    obtain ⟨hP, hf⟩ := (sepConj_pure_right ha).1 hPf
+    exact ht hf R hR s hcr
+      ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+  refine existsRule (fun off0 => ?_)
+  refine pureRule (fun hOuter => ?_)
+  rcases hOuter with ⟨_b0, _hb0, _hoff0, _hoff0pos, hoff0le⟩
+  have hOuter : OuterInitOk acctBytes aLen off0 :=
+    ⟨_b0, _hb0, _hoff0, _hoff0pos, hoff0le⟩
+  have ht := bansf_itemsVerdict_spec aB newSp oB aLen off0 acctBytes F
+    hF hsalign hoalign hslack hover hvalid hovout hovalid hoff0le
+  exact cpsTripleWithin_weaken (by
+    intro h hp
+    have hpp := (sepConj_pure_right h).2 ⟨hp, hOuter⟩
+    unfold valueEntryAmbient
+    xperm_hyp hpp) (fun _ hp => ⟨off0, hp⟩) ht
+
+#print axioms bansf_chainMidVerdict_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
