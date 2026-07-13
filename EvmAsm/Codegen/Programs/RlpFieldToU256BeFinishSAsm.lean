@@ -263,4 +263,192 @@ theorem selectedLength
 
 #print axioms selectedLength
 
+def lengthRest (sp0 listBase offset len : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) (v11 v12 : Word) :
+    Assertion :=
+  (.x5 ↦ᵣ lengthCell) ** (.x8 ↦ᵣ listBase) ** regOwn .x28 **
+  regOwn .x29 ** (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len) **
+  selectedPathCarry sp0 listBase saved bytes v11 v12 **
+  ⌜ListSuccess bytes listBase listLen index offset len⌝
+
+theorem pcFree_lengthRest sp0 listBase offset len saved bytes listLen index v11
+    v12 : (lengthRest sp0 listBase offset len saved bytes listLen index v11
+      v12).pcFree := by
+  unfold lengthRest
+  pcf
+
+def lengthTooLong (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v11 v12,
+    (((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+      lengthRest sp0 listBase offset len saved bytes listLen index v11 v12) **
+      ⌜32 < len.toNat⌝) h
+
+def lengthFits (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v11 v12,
+    (((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+      lengthRest sp0 listBase offset len saved bytes listLen index v11 v12) **
+      ⌜len.toNat ≤ 32⌝) h
+
+private theorem lengthBranchCase
+    (sp0 listBase offset len v11 v12 : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsBranchWithin 1 (B + 80) code
+      ((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+        lengthRest sp0 listBase offset len saved bytes listLen index v11 v12)
+      (B + 144) (lengthTooLong sp0 listBase saved bytes listLen index)
+      (B + 84) (lengthFits sp0 listBase saved bytes listLen index) := by
+  have hb0 := bltu_spec_gen_within .x7 .x6 (64 : BitVec 13)
+    (32 : Word) len (B + 80)
+  rw [show B + 80 + signExtend13 (64 : BitVec 13) = B + 144 from by decide,
+    show B + 80 + 4 = B + 84 from by bv_omega] at hb0
+  have hb1 := cpsBranchWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 80) rlpFieldToU256Be_prog 20
+      (.BLTU .x7 .x6 (64 : BitVec 13)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
+  let R := lengthRest sp0 listBase offset len saved bytes listLen index v11 v12
+  have hbF := cpsBranchWithin_frameR R
+    (pcFree_lengthRest _ _ _ _ _ _ _ _ _ _) hb1
+  have hbC := cpsBranchWithin_extend_code (cr' := code)
+    (fun a i hi => wrapperCode_mono a i hi) hbF
+  refine cpsBranchWithin_weaken (fun _ hp => by
+      unfold R
+      xperm_hyp hp) (fun h hp => ?_) (fun h hp => ?_) hbC
+  · extract_pure_deep hp
+    obtain ⟨h_lt, hp⟩ := hp
+    unfold lengthTooLong
+    refine ⟨offset, len, v11, v12, ?_⟩
+    apply (sepConj_pure_right h).2
+    exact ⟨(by unfold R at hp; xperm_hyp hp), (by
+      simpa [BitVec.ult] using h_lt)⟩
+  · extract_pure_deep hp
+    obtain ⟨h_nlt, hp⟩ := hp
+    unfold lengthFits
+    refine ⟨offset, len, v11, v12, ?_⟩
+    apply (sepConj_pure_right h).2
+    refine ⟨(by unfold R at hp; xperm_hyp hp), ?_⟩
+    simp [BitVec.ult] at h_nlt
+    omega
+
+/-- K35 instruction 20 exposes the genuine `len > 32` versus `len ≤ 32`
+    semantic split. -/
+theorem lengthBranch
+    (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsBranchWithin 1 (B + 80) code
+      (lengthReady sp0 listBase saved bytes listLen index)
+      (B + 144) (lengthTooLong sp0 listBase saved bytes listLen index)
+      (B + 84) (lengthFits sp0 listBase saved bytes listLen index) := by
+  unfold lengthReady
+  refine cpsBranchWithin_exists_pre (fun offset => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_exists_pre (fun v11 => ?_)
+  refine cpsBranchWithin_exists_pre (fun v12 => ?_)
+  exact cpsBranchWithin_weaken (fun _ hp => by
+      unfold lengthRest
+      xperm_hyp hp) (fun _ hp => hp) (fun _ hp => hp)
+    (lengthBranchCase sp0 listBase offset len v11 v12 saved bytes listLen index)
+
+#print axioms lengthBranch
+
+/-- Materialize the selected source cursor and right-aligned destination cursor
+    (instructions 21--26). -/
+theorem cursorSetupExact
+    (listBase outputPtr offset len old5 old28 old29 : Word)
+    (hfit : len.toNat ≤ 32) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 6 (B + 84) (B + 108) code
+      (((.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+        (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) **
+        (.x28 ↦ᵣ old28) ** (.x29 ↦ᵣ old29) **
+        (offsetCell ↦ₘ offset)) ** F)
+      (((.x5 ↦ᵣ offsetCell) ** (.x6 ↦ᵣ len) **
+        (.x7 ↦ᵣ BitVec.ofNat 64 (32 - len.toNat)) **
+        (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) **
+        (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 offset.toNat)) **
+        (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len.toNat))) **
+        (offsetCell ↦ₘ offset)) ** F) := by
+  have hau := CodeReq.ofProg_mem_at B (B + 84) rlpFieldToU256Be_prog 21
+    (.AUIPC .x5 (laHi GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had := CodeReq.ofProg_mem_at B (B + 88) rlpFieldToU256Be_prog 22
+    (.ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h0 := la_materialize_within .x5 old5 (B + 84) offsetCell
+    (by decide) (by unfold B offsetCell; decide) hau had
+  have h1 := ld_spec_gen_within .x28 .x5 offsetCell old28 offset
+    (0 : BitVec 12) (B + 92) (by decide)
+  rw [show offsetCell + signExtend12 (0 : BitVec 12) = offsetCell from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h1
+  have h1' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 92) rlpFieldToU256Be_prog 23
+      (.LD .x28 .x5 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h1
+  have h2 := add_spec_gen_rd_eq_rs2_within .x28 .x8 listBase offset
+    (B + 96) (by decide)
+  have h2' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 96) rlpFieldToU256Be_prog 24
+      (.ADD .x28 .x8 .x28) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h2
+  have h3 := sub_spec_gen_rd_eq_rs1_within .x7 .x6 (32 : Word) len
+    (B + 100) (by decide)
+  have h3' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 100) rlpFieldToU256Be_prog 25
+      (.SUB .x7 .x7 .x6) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h3
+  have h4 := add_spec_gen_within .x29 .x9 .x7 outputPtr
+    ((32 : Word) - len) old29 (B + 104) (by decide)
+  have h4' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 104) rlpFieldToU256Be_prog 26
+      (.ADD .x29 .x9 .x7) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h4
+  have h0F := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ listBase) **
+      (.x9 ↦ᵣ outputPtr) ** (.x28 ↦ᵣ old28) ** (.x29 ↦ᵣ old29) **
+      (offsetCell ↦ₘ offset)) (by pcf) h0
+  have h1F := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ listBase) **
+      (.x9 ↦ᵣ outputPtr) ** (.x29 ↦ᵣ old29)) (by pcf) h1'
+  have h2F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ offsetCell) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+      (.x9 ↦ᵣ outputPtr) ** (.x29 ↦ᵣ old29) ** (offsetCell ↦ₘ offset))
+    (by pcf) h2'
+  have h3F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ offsetCell) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) **
+      (.x28 ↦ᵣ (listBase + offset)) ** (.x29 ↦ᵣ old29) **
+      (offsetCell ↦ₘ offset)) (by pcf) h3'
+  have h4F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ offsetCell) ** (.x6 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+      (.x28 ↦ᵣ (listBase + offset)) ** (offsetCell ↦ₘ offset)) (by pcf) h4'
+  have s01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have s012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s01 h2F
+  have s0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s012 h3F
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s0123 h4F
+  have hs := cpsTripleWithin_weaken
+    (P' := (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) **
+      (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) ** (.x28 ↦ᵣ old28) **
+      (.x29 ↦ᵣ old29) ** (offsetCell ↦ₘ offset))
+    (Q' := (.x5 ↦ᵣ offsetCell) ** (.x6 ↦ᵣ len) **
+      (.x7 ↦ᵣ BitVec.ofNat 64 (32 - len.toNat)) ** (.x8 ↦ᵣ listBase) **
+      (.x9 ↦ᵣ outputPtr) **
+      (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 offset.toNat)) **
+      (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len.toNat))) **
+      (offsetCell ↦ₘ offset))
+    (fun _ hp => by xperm_hyp hp) (fun _ hp => by
+      have hoff : BitVec.ofNat 64 offset.toNat = offset := by
+        rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+      have hsub : (32 : Word) - len = BitVec.ofNat 64 (32 - len.toNat) := by
+        apply BitVec.eq_of_toNat_eq
+        rw [BitVec.toNat_sub, BitVec.toNat_ofNat]
+        simp only [show (32 : Word).toNat = 32 from rfl]
+        omega
+      rw [hoff, ← hsub]
+      xperm_hyp hp) s
+  exact cpsTripleWithin_frameR F hF
+    (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hs)
+
+#print axioms cursorSetupExact
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
