@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 
 namespace EvmAsm.Codegen
 
@@ -33,9 +34,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
+  "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
+  "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
+  "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  beqz a0, .Lbv_mtx_bail                         # non-deposit interaction -> conservative\n" ++
+  "  j .Lbv_mtx_deposit_capture_mark\n" ++
+  ".Lbv_mtx_independent_deposit_check:\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
+  ".Lbv_mtx_deposit_capture_mark:\n" ++
+  "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
+  ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted sender index once from public keys. The exact per-tx nonce
   -- check below binary-searches this table and mutates the count field as the
   -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
@@ -241,6 +253,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
@@ -266,6 +279,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  -- OOG/exceptional depth-0 exits do not pass through frame_return's REVERT
+  -- truncation. Restore the persistent SSTORE log to the exact pre-dispatch
+  -- count before publishing committed storage for the next transaction.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
@@ -281,6 +298,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxCoinbaseFeeEffect ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
+  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
+  "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
+  -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
+  -- them to the common exact-gas/EIP-7778 and receipt gates just like the
+  -- ordinary multi-transaction lane.
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_publish:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
