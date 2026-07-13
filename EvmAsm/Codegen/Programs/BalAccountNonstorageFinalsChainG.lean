@@ -719,5 +719,60 @@ theorem bansf_nonceStationCont408_spec (aB newSp oB : Word)
 
 #print axioms bansf_nonceStationCont408_spec
 
+/-- Reframe the taken empty-list arm at `B + 540` as the genuine empty
+    disjunct of the nonce station postcondition. -/
+theorem nonceEmpty_to_stationPost (aB newSp oB : Word)
+    (aLen fOff fSpanN cOff : Nat) (n4 : Word) (b : BitVec 8)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hb : acctBytes[fOff]? = some b)
+    (hcontent : fOff + listHeaderSize b = cOff)
+    (hempty : cOff = fOff + fSpanN) :
+    ∀ h,
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+       ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+       (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h →
+      nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F h := by
+  intro h hq
+  unfold nonceStationPost
+  refine Or.inl ((sepConj_pure_right h).2 ⟨?_, ?_⟩)
+  · have hq2 :
+        (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+         ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) **
+         (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+          ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+          ((oB + 72) ↦ₘ (0 : Word)) **
+          ((newSp + 48) ↦ₘ n4) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+          regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 **
+          regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion aB acctBytes ** F)) h := by
+      xperm_hyp hq
+    have hq3 := sepConj_mono (regIs_implies_regOwn .x10)
+      (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+          (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x)))) h hq2
+    xperm_hyp hq3
+  · exact FieldFinal.empty b hb (hcontent.trans hempty)
+
+#print axioms nonceEmpty_to_stationPost
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
