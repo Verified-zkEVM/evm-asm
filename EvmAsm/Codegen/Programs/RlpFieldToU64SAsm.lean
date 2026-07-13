@@ -110,19 +110,230 @@ def listSavedRegs (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion 
   (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
   (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)
 
+def listCallRest
+    (sp0 listBase offsetPtr lenPtr : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (offset len v11 v12 : Word) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+   bytesRegion listBase bytes **
+   (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))
+
+def listCallCore
+    (sp0 listBase offsetPtr lenPtr : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (status offset len v11 v12 : Word) : Assertion :=
+  (.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) **
+  listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len v11 v12
+
 def listCallResult
     (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
   fun h => ∃ status offset len v11 v12,
-    (((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
-      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
-       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
-       (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+    ((listCallCore sp0 listBase offsetPtr lenPtr saved bytes
+        status offset len v11 v12) **
      ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
        oldOffset oldLen status offset len⌝) h
+
+theorem listResult_cases
+    {bytes : List (BitVec 8)} {listBase : Word} {listLen index : Nat}
+    {oldOffset oldLen status offset len : Word}
+    (h : EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
+      oldOffset oldLen status offset len) :
+    (status = 0 ∧
+      EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+        offset len) ∨
+    (status = 1 ∧ offset = oldOffset ∧ len = oldLen ∧
+      EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen index) := by
+  cases h with
+  | ok offset len h_ok => exact Or.inl ⟨rfl, h_ok⟩
+  | fail h_fail => exact Or.inr ⟨rfl, rfl, rfl, h_fail⟩
+
+#print axioms listResult_cases
+
+def listSelected
+    (sp0 listBase offsetPtr lenPtr : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v11 v12,
+    (listCallCore sp0 listBase offsetPtr lenPtr saved bytes 0 offset len v11 v12 **
+     ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+       offset len⌝) h
+
+def listFailed
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ v11 v12,
+    (listCallCore sp0 listBase offsetPtr lenPtr saved bytes 1 oldOffset oldLen
+      v11 v12 **
+     ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen index⌝) h
+
+theorem listCallResult_cases
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : ∀ h,
+    listCallResult sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+      listLen index h →
+    listSelected sp0 listBase offsetPtr lenPtr saved bytes listLen index h ∨
+    listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+      listLen index h := by
+  intro h hq
+  unfold listCallResult at hq
+  obtain ⟨status, offset, len, v11, v12, hq⟩ := hq
+  extract_pure_deep hq
+  obtain ⟨hcore, hresult⟩ := hq
+  rcases listResult_cases hresult with ⟨rfl, h_ok⟩ | ⟨rfl, rfl, rfl, h_fail⟩
+  · left
+    unfold listSelected
+    exact ⟨offset, len, v11, v12,
+      (sepConj_pure_right h).2 ⟨hcore, h_ok⟩⟩
+  · right
+    unfold listFailed
+    exact ⟨v11, v12, (sepConj_pure_right h).2 ⟨hcore, h_fail⟩⟩
+
+#print axioms listCallResult_cases
+
+theorem pcFree_listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
+    v11 v12 : (listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
+      v11 v12).pcFree := by
+  unfold listCallRest listSavedRegs
+  pcf
+
+/-- On a strict K20 success, instruction 12's `bne a0, zero` is necessarily
+    not taken and preserves the selected offset/length witness. -/
+theorem branchSelected
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsBranchWithin 1 (B + 48) code
+      (listSelected sp0 listBase offsetPtr lenPtr saved bytes listLen index)
+      (B + 116)
+        (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+          listLen index)
+      (B + 52)
+        (listSelected sp0 listBase offsetPtr lenPtr saved bytes listLen index) := by
+  unfold listSelected
+  refine cpsBranchWithin_exists_pre (fun offset => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_exists_pre (fun v11 => ?_)
+  refine cpsBranchWithin_exists_pre (fun v12 => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun h_ok => ?_)
+  have hb0 := bne_spec_gen_within .x10 .x0 (68 : BitVec 13)
+    (0 : Word) (0 : Word) (B + 48)
+  rw [show B + 48 + signExtend13 (68 : BitVec 13) = B + 116 from by decide,
+    show B + 48 + 4 = B + 52 from by bv_omega] at hb0
+  have hb1 := cpsBranchWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 48) rlpFieldToU64_prog 12
+      (.BNE .x10 .x0 (68 : BitVec 13)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
+  let R : Assertion :=
+    listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len v11 v12 **
+    ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+      offset len⌝
+  have hbF := cpsBranchWithin_frameR R
+    (pcFree_sepConj (pcFree_listCallRest _ _ _ _ _ _ _ _ _ _)
+      (by pcf)) hb1
+  have hbC := cpsBranchWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hbF
+  refine cpsBranchWithin_weaken (fun h hp => by
+      unfold listCallCore at hp
+      unfold R
+      xperm_pure hp) (fun h hp => by
+      extract_pure_deep hp
+      obtain ⟨h_ne, -⟩ := hp
+      exact False.elim (h_ne rfl)) (fun h hp => ?_) hbC
+  extract_pure_deep hp
+  obtain ⟨-, hstate⟩ := hp
+  refine ⟨offset, len, v11, v12, ?_⟩
+  unfold R at hstate
+  unfold listCallCore
+  xperm_pure hstate
+
+#print axioms branchSelected
+
+/-- On a strict K20 failure, instruction 12's `bne a0, zero` is necessarily
+    taken and preserves the exact unchanged offset/length cells. -/
+theorem branchFailed
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsBranchWithin 1 (B + 48) code
+      (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+        listLen index)
+      (B + 116)
+        (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+          listLen index)
+      (B + 52)
+        (listSelected sp0 listBase offsetPtr lenPtr saved bytes listLen index) := by
+  unfold listFailed
+  refine cpsBranchWithin_exists_pre (fun v11 => ?_)
+  refine cpsBranchWithin_exists_pre (fun v12 => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun h_fail => ?_)
+  have hb0 := bne_spec_gen_within .x10 .x0 (68 : BitVec 13)
+    (1 : Word) (0 : Word) (B + 48)
+  rw [show B + 48 + signExtend13 (68 : BitVec 13) = B + 116 from by decide,
+    show B + 48 + 4 = B + 52 from by bv_omega] at hb0
+  have hb1 := cpsBranchWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 48) rlpFieldToU64_prog 12
+      (.BNE .x10 .x0 (68 : BitVec 13)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
+  let R : Assertion :=
+    listCallRest sp0 listBase offsetPtr lenPtr saved bytes oldOffset oldLen
+      v11 v12 **
+    ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen index⌝
+  have hbF := cpsBranchWithin_frameR R
+    (pcFree_sepConj (pcFree_listCallRest _ _ _ _ _ _ _ _ _ _)
+      (by pcf)) hb1
+  have hbC := cpsBranchWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hbF
+  refine cpsBranchWithin_weaken (fun h hp => by
+      unfold listCallCore at hp
+      unfold R
+      xperm_pure hp) (fun h hp => ?_) (fun h hp => by
+      extract_pure_deep hp
+      obtain ⟨h_eq, -⟩ := hp
+      have h_ne : (1 : Word) ≠ 0 := by decide
+      exact False.elim (h_ne h_eq)) hbC
+  extract_pure_deep hp
+  obtain ⟨-, hstate⟩ := hp
+  refine ⟨v11, v12, ?_⟩
+  unfold R at hstate
+  unfold listCallCore
+  xperm_pure hstate
+
+#print axioms branchFailed
+
+/-- Unified semantic dispatch for instruction 12, directly over K20's
+    existential result post. -/
+theorem listResultBranch
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsBranchWithin 1 (B + 48) code
+      (listCallResult sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+        listLen index)
+      (B + 116)
+        (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+          listLen index)
+      (B + 52)
+        (listSelected sp0 listBase offsetPtr lenPtr saved bytes listLen index) := by
+  have hs := branchSelected sp0 listBase offsetPtr lenPtr oldOffset oldLen saved
+    bytes listLen index
+  have hf := branchFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved
+    bytes listLen index
+  have hor := cpsBranchWithin_pre_or hs hf
+  exact cpsBranchWithin_weaken
+    (fun h hp => listCallResult_cases sp0 listBase offsetPtr lenPtr oldOffset
+      oldLen saved bytes listLen index h hp)
+    (fun _ hq => hq) (fun _ hq => hq) hor
+
+#print axioms listResultBranch
 
 /-- Peel K20's restored `ra` out of its flat post, yielding the exact
     `(ra ** P) -> (ra ** Q)` contract expected by `callWithin_spec`. -/
@@ -163,15 +374,11 @@ theorem listCalleeCallContract
   unfold EvmAsm.Codegen.RlpListNthItemSAsm.flatReturnResult at hq
   obtain ⟨status, offset, len, v11, v12, hq⟩ := hq
   have hfixed : ((.x1 ↦ᵣ saved.ra) **
-      (((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
-        ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
-         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
-         (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+      ((listCallCore sp0 listBase offsetPtr lenPtr saved bytes status offset len
+        v11 v12) **
        ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
          oldOffset oldLen status offset len⌝)) h := by
-    unfold listSavedRegs
+    unfold listCallCore listCallRest listSavedRegs
     rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame] at hq
     xperm_hyp hq
   obtain ⟨hRa, hRest, hd, hu, hra, hrest⟩ := hfixed
