@@ -152,6 +152,20 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t6, 150\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecmul:\n" ++
+  -- A direct transaction to ecMul bypasses the opcode dispatcher, so run the
+  -- same kernel validity gate as the CALL precompile path. The precompile
+  -- zero-pads short input and ignores bytes beyond the first 96. Stage that
+  -- exact window before calling the shared kernel validity gate.
+  "  la t2, bv_simple_transfer_tx; ld t5, 56(t2); ld t4, 64(t2); la t3, evm_precompile_frame; li a0, 0\n" ++
+  ".Lbv_simple_transfer_ecmul_zero:\n" ++
+  "  li a1, 96; beq a0, a1, .Lbv_simple_transfer_ecmul_copy_init; add a2, t3, a0; sb zero, 0(a2); addi a0, a0, 1; j .Lbv_simple_transfer_ecmul_zero\n" ++
+  ".Lbv_simple_transfer_ecmul_copy_init:\n" ++
+  "  li a0, 0; li a1, 96; bleu t4, a1, .Lbv_simple_transfer_ecmul_copy; mv t4, a1\n" ++
+  ".Lbv_simple_transfer_ecmul_copy:\n" ++
+  "  beq a0, t4, .Lbv_simple_transfer_ecmul_run; add a1, t5, a0; lbu a2, 0(a1); add a1, t3, a0; sb a2, 0(a1); addi a0, a0, 1; j .Lbv_simple_transfer_ecmul_copy\n" ++
+  ".Lbv_simple_transfer_ecmul_run:\n" ++
+  "  mv a0, t3; addi a1, t3, 64; addi a2, t3, 128; jal ra, zkvm_bn254_g1_mul\n" ++
+  "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 6000\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecpairing:\n" ++
