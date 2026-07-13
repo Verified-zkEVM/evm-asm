@@ -5,7 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
-import EvmAsm.Evm64.SDiv.Compose.DivCallExactHandoff
+import EvmAsm.Evm64.SDiv.DivCallExactShared
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

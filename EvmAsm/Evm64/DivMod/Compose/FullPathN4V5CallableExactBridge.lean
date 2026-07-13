@@ -14,7 +14,7 @@
   each shift arm instantiate them.  Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.CallablePost

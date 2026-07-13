@@ -18,7 +18,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeV5
+import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 
 namespace EvmAsm.Evm64

@@ -8,8 +8,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
-import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridge
+import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
+import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
 import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas

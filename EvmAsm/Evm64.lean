@@ -66,14 +66,7 @@ import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 -- DivMod (Knuth Algorithm D)
 import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 import EvmAsm.Evm64.DivMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1N2V5StackSpecUnconditional
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivAssembly
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
-import EvmAsm.Evm64.DivMod.Compose.V5ReuseV6
-import EvmAsm.Evm64.DivMod.Compose.V5ReuseModV6
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModUnconditionalFull
-import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
+import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableBzeroV4
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
@@ -87,9 +80,7 @@ import EvmAsm.Evm64.SMod
 
 -- ADDMOD / MULMOD skeletons (GH #91)
 import EvmAsm.Evm64.AddMod
-import EvmAsm.Evm64.AddMod.Compose.ZeroNoCarryArms
-import EvmAsm.Evm64.AddMod.Compose.TotalDispatch
-import EvmAsm.Evm64.AddMod.Compose.ResultStack
+import EvmAsm.Evm64.AddMod.ResultTotalShared
 import EvmAsm.Evm64.MulMod
 
 -- Calling convention (LP64)

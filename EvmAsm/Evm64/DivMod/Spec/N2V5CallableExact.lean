@@ -9,7 +9,7 @@
   and the body triple as hypotheses; the shape-level dischargers come later.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridge
+import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
 namespace EvmAsm.Evm64

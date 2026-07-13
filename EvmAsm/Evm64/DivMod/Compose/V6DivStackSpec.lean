@@ -13,7 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.V6FastArmTriple
-import EvmAsm.Evm64.DivMod.Compose.V5ReuseV6
+import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Compose.DispatchV6
 import EvmAsm.Rv64.Tactics.ExtractPure
 

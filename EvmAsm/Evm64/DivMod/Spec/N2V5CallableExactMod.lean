@@ -9,7 +9,7 @@
   `x9In`/`x2In` (both dead — overwritten by loopSetup/phaseC2).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridgeMod
+import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
 namespace EvmAsm.Evm64

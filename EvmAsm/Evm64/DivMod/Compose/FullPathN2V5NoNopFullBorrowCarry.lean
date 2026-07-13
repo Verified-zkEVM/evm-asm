@@ -7,7 +7,7 @@
   `loopN2SelectedBorrowCarryV5` (satisfiable from shape).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base

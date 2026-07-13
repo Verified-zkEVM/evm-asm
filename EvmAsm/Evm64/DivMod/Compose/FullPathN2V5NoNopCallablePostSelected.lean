@@ -5,7 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
 
 open EvmAsm.Rv64.Tactics
 

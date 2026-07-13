@@ -1,7 +1,7 @@
 /- Shared declaration home for the n=2 DIV concrete and dispatch-post bridges. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.StackPostBridge

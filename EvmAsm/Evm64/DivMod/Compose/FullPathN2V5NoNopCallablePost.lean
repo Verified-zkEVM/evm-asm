@@ -6,8 +6,8 @@
   Mirrors FullPathN2V4NoNopCallablePost (v4 bridges) for the v5 code surface.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopUnifiedPost
+import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 

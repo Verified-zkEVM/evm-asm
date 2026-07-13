@@ -1,7 +1,7 @@
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopIterN1.MaxV4NoNop
+import EvmAsm.Evm64.DivMod.N1MaxChain
 
 open EvmAsm.Rv64.Tactics
 

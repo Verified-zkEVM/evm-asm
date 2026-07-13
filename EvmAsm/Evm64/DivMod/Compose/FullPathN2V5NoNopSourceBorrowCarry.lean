@@ -8,7 +8,7 @@
   borrow-dispatched combo recursion.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSource
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
 
 namespace EvmAsm.Evm64
