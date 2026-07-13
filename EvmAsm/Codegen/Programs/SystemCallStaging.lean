@@ -127,7 +127,8 @@ def stageSystemCallFunction : String :=
   "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
   "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
   -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
-  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN <= 4096 bytes; a
+  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN within
+  -- systemCallReturndataMaxBytes; a
   -- predeploy that ends in a clean STOP (empty return_data, spec fork.py:976-997) or an
   -- oversized return does NOT write it. Without this reset the consolidation system call would
   -- inherit the withdrawal call's stale length -> a spurious consolidation request body ->
