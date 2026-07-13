@@ -201,5 +201,30 @@ theorem fieldFinals_to_finalsDerivation
 
 #print axioms fieldFinals_to_finalsDerivation
 
+/-- Expose the optional balance window encoded by `balResult`, while retaining
+    the complete owned balance footprint. -/
+theorem balResult_attachFinal
+    (aB oB : Word) (fOff fSpanN : Nat) (acctBytes : List (BitVec 8)) :
+    ∀ h, balResult aB oB fOff fSpanN acctBytes h →
+      ∃ bal : Option (Word × Word),
+        (balResult aB oB fOff fSpanN acctBytes **
+          ⌜FieldFinal acctBytes aB fOff fSpanN bal ∧
+            ∀ vNext vLen, bal = some (vNext, vLen) → vLen.toNat ≤ 32⌝) h := by
+  intro h hp
+  have hpKeep := hp
+  unfold balResult at hp
+  rcases hp with hp | hp
+  · refine ⟨none, (sepConj_pure_right h).2 ⟨hpKeep, ?_⟩⟩
+    exact ⟨((sepConj_pure_right h).1 hp).2, by simp⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    refine ⟨some (vNext, vLen), (sepConj_pure_right h).2 ⟨hpKeep, ?_⟩⟩
+    exact ⟨((sepConj_pure_right h).1 hp).2.1, by
+      intro vNext' vLen' heq
+      simp only [Option.some.injEq, Prod.mk.injEq] at heq
+      rcases heq with ⟨rfl, rfl⟩
+      exact ((sepConj_pure_right h).1 hp).2.2⟩
+
+#print axioms balResult_attachFinal
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
