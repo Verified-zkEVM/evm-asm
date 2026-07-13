@@ -432,6 +432,43 @@ theorem rlp_field0_to_u64_content_call_success_spec_within
   refine cpsTripleWithin_mono_nSteps (by ring_nf; omega)
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s5)
 
+/-- Generic wrapper epilogue (idx 9..10).  Keeping the callee result in an
+arbitrary PC-free assertion lets the unified content decoder carry all four
+of its semantic outcomes through `ra` restoration without selecting one. -/
+theorem rlp_field0_to_u64_restore_ret_spec_within
+    (base savedRa : Word) (result : Assertion) (hresult : result.pcFree) :
+    cpsTripleWithin 2 (base + 36) (savedRa &&& ~~~1) (rlp_field0_to_u64_code base)
+      ((.x1 ↦ᵣ (base + 36)) ** (.x13 ↦ᵣ savedRa) ** result)
+      ((.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa) ** result) := by
+  have hmv := mv_spec_gen_within .x1 .x13 savedRa (base + 36) (base + 36) (by decide)
+  have hmono9 : ∀ a i, CodeReq.singleton (base + 36) (.MV .x1 .x13) a = some i →
+      rlp_field0_to_u64_code base a = some i :=
+    fun a i h => CodeReq.singleton_mono
+      (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 9 (base + 36)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h
+  have hA := cpsTripleWithin_extend_code hmono9 hmv
+  rw [show (base + 36 + 4 : Word) = base + 40 from by bv_omega] at hA
+  have hA' := cpsTripleWithin_frameR result hresult hA
+  have hret := jalr_x0_spec_gen_within .x1 savedRa (0 : BitVec 12) (base + 40)
+  simp only [signExtend12_0] at hret
+  rw [show (savedRa + 0 : Word) = savedRa from by bv_omega] at hret
+  have hmono10 : ∀ a i,
+      CodeReq.singleton (base + 40) (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
+      rlp_field0_to_u64_code base a = some i :=
+    fun a i h => CodeReq.singleton_mono
+      (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 10 (base + 40)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h
+  have hB := cpsTripleWithin_extend_code hmono10 hret
+  have hB' := cpsTripleWithin_frameR ((.x13 ↦ᵣ savedRa) ** result)
+    (pcFree_sepConj (by pcFree) hresult) hB
+  have hs := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ hA' hB'
+    intro h hp
+    xperm_hyp hp
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hp => hp) hs
+
 /-! ## Branch composition slice: idx 4..14, starting at the branch immediately
 after `rlp_walk_next` returns (`BNE x11 x0 -> parse_fail`), through either the
 success-path call composition proved above or the `parse_fail` fallback.
