@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.Tactics.DropPure
 import EvmAsm.Rv64.Tactics.XPermPure
 
@@ -2425,17 +2426,17 @@ theorem rejectedTailCore (oldA0 : Word) :
 
 /-- Shared ABI epilogue (slots 29--37), parameterized by arbitrary current
     values of the seven restored registers and an arbitrary framed result. -/
-theorem epilogueExact (sp0 newSp : Word) (saved current : Saved)
+theorem epilogueOwned (sp0 newSp : Word) (saved : Saved)
     (F : Assertion) (hF : F.pcFree)
     (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
     cpsTripleWithin 9 (B + 116) saved.ra code
-      (((.x2 ↦ᵣ newSp) ** regsAt listNthFrame (savedVals current) **
+      (((.x2 ↦ᵣ newSp) ** regsOwnAt listNthFrame **
         savedFrame newSp saved) ** F)
       (((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
         savedFrame newSp saved) ** F) := by
-  have hl0 := loadSeq_spec listNthFrame newSp (savedVals saved)
-    (savedVals current) (B + 116) (by decide) (by decide)
+  have hl0 := loadSeq_spec_own listNthFrame newSp (savedVals saved)
+    (B + 116) (by decide) (by decide)
   have hlMono : ∀ a i,
       CodeReq.ofProg (B + 116) (loadProg listNthFrame) a = some i → code a = some i := by
     intro a i hmem
@@ -2483,6 +2484,6 @@ theorem epilogueExact (sp0 newSp : Word) (saved current : Saved)
     rw [regsAt_listNthFrame]
     xperm_hyp hp) h123
 
-#print axioms epilogueExact
+#print axioms epilogueOwned
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
