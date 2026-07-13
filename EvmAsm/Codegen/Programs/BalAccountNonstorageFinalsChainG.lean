@@ -385,5 +385,147 @@ theorem bansf_nonceLoopExitMove113_own_spec (v19 v20 : Word) :
 
 #print axioms bansf_nonceLoopExitMove113_own_spec
 
+/-- Continuation at `B + 452`: initialize the last nonce tuple and run its
+    index/value/capture chain. -/
+theorem bansf_nonceStationCont452_spec (aB newSp oB : Word)
+    (aLen fOff fSpanN : Nat) (n4 : Word) (b : BitVec 8)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hb : acctBytes[fOff]? = some b)
+    (hne : fOff + listHeaderSize b ≠ fOff + fSpanN)
+    (hoff0le : fOff + listHeaderSize b ≤ fOff + fSpanN)
+    (hfE : fOff + fSpanN ≤ aLen) :
+    cpsBranchWithin (7 * acctBytes.length + 291) (B + 452) bansfCR
+      (fun h => ∃ n l : Word,
+        (((((((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l)) **
+            regOwn .x10 ** regOwn .x11) **
+           (((.x2 : Reg) ↦ᵣ newSp) **
+            ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+            ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+            ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+            ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+            ((newSp + 48) ↦ₘ n4) **
+            ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+            ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+            ((.x18 : Reg) ↦ᵣ oB) **
+            ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+            ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+            ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            bytesRegion aB acctBytes ** G ** F)) **
+          regOwn .x7 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+          ⌜LastItemAt acctBytes aB (aB + BitVec.ofNat 64 (fOff + fSpanN))
+            (fOff + listHeaderSize b) n l⌝) h)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+  refine cpsBranchWithin_exists_pre (fun n => ?_)
+  refine cpsBranchWithin_exists_pre (fun l => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hlast => ?_)
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn7
+    (fun v7 v12 v28 v29 v30 v31 vRa => ?_)
+  obtain ⟨offT, hoffTle, hdecT⟩ := LastItemAt_decode hlast hoff0le (by omega)
+  obtain ⟨hrepT, _, _⟩ := rlpItemDecode_spanStart hdecT hoffTle (by omega)
+  rw [hrepT]
+  have hmv := bansf_nonceLoopExitMove113_own_spec (n - l) l
+  let HM : Assertion :=
+    ((.x2 : Reg) ↦ᵣ newSp) **
+    ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) **
+    ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    ((.x7 : Reg) ↦ᵣ v7) ** ((.x12 : Reg) ↦ᵣ v12) **
+    ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+    ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+    ((.x1 : Reg) ↦ᵣ vRa) ** bytesRegion aB acctBytes ** G ** F
+  have hHM : HM.pcFree := by dsimp only [HM]; pcf; exact hG; exact hF
+  have hmvF := cpsTripleWithin_frameR HM hHM hmv
+  rw [hrepT] at hmvF
+  have hfi := bansf_nonceTupleInit115_spec aB aLen ((n - l - aB).toNat) l
+    acctBytes (aB + BitVec.ofNat 64 (fOff + fSpanN))
+    (aB + BitVec.ofNat 64 (fOff + fSpanN)) v7 v12 v28 v29 v30 v31 vRa
+    F hF hsalign hslack hover hvalid (by omega)
+  let HI : Assertion :=
+    ((.x19 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 ((n - l - aB).toNat))) **
+    ((.x20 : Reg) ↦ᵣ l) ** ((.x2 : Reg) ↦ᵣ newSp) **
+    ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB)
+  have hHI : HI.pcFree := by dsimp only [HI]; pcf; exact hG; pcf
+  have hfiF := cpsBranchWithin_frameR HI hHI hfi
+  have hfiW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => nonceTupleInitReject_to_stationRej aB newSp oB n4
+      (aB + BitVec.ofNat 64 ((n - l - aB).toNat)) l
+      (aB + BitVec.ofNat 64 (fOff + fSpanN))
+      (aB + BitVec.ofNat 64 (fOff + fSpanN)) aLen acctBytes G F h
+      (by dsimp only [HI] at hq; xperm_hyp hq))
+    (fun _ hq => hq) hfiF
+  have hcAll : cpsBranchWithin (7 * acctBytes.length + 205) (B + 468) bansfCR
+      (fun h => ∃ cOff : Nat,
+        (((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+            ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64
+              ((n - l - aB).toNat + l.toNat))) **
+            ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+            memOwn (newSp + 72)) **
+           (((.x12 : Reg) ↦ᵣ (0 : Word)) **
+            ((newSp + 48) ↦ₘ n4) **
+            ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+            ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+            ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+            ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+            ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+            ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+            regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+            bytesRegion aB acctBytes ** G ** F)) **
+          ⌜FieldInitOk acctBytes ((n - l - aB).toNat) l.toNat cOff⌝) h)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+    refine cpsBranchWithin_exists_pre (fun cOff => ?_)
+    refine cpsBranchWithin_pure_pre_right (fun hok => ?_)
+    obtain ⟨b2, hb2, hceq2, _, hcle2⟩ := hok
+    exact bansf_nonceStationCont468_spec aB newSp oB aLen
+      ((n - l - aB).toNat + l.toNat) cOff fOff fSpanN n4 acctBytes G F
+      hG hF hsalign hslack hover hvalid (by omega) hcle2
+      (fun iNext iLen vNext vLen hdecI hdecV =>
+        FieldFinal.last b n l vNext vLen hb hne hlast
+          ⟨b2, hb2, iNext, iLen, hceq2 ▸ hdecI, hdecV⟩)
+  have hcFromInit := cpsBranchWithin_weaken
+    (nonceTupleInitOk_to_cont468Pre aB newSp oB n4
+      (aB + BitVec.ofNat 64 ((n - l - aB).toNat)) l
+      (aB + BitVec.ofNat 64 (fOff + fSpanN))
+      (aB + BitVec.ofNat 64 (fOff + fSpanN)) aLen
+      ((n - l - aB).toNat) l.toNat acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hcAll
+  have hchain := cpsBranchWithin_chain_snd hfiW hcFromInit
+  have hfull := cpsTripleWithin_seq_branch_same_cr hmvF
+    (cpsBranchWithin_weaken (fun h hp => by dsimp only [HM, HI]; xperm_hyp hp)
+      (fun _ hq => hq) (fun _ hq => hq) hchain)
+  exact cpsBranchWithin_weaken (fun h hp => by dsimp only [HM]; xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hfull)
+
+#print axioms bansf_nonceStationCont452_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
