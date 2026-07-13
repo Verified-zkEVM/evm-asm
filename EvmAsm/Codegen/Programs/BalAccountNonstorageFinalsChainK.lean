@@ -755,6 +755,95 @@ theorem codeFieldInitOk_to_cont580Pre (aB newSp oB n5 v19 v20 : Word)
   xperm_hyp hatOwn
 
 #print axioms codeFieldInitOk_to_cont580Pre
+/-- Successful outer code-item continuation: capture its field span,
+    initialize the field window, and run the complete code selector. -/
+theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
+    (aLen off : Nat) (n5 l5 v19 v20 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ aLen)
+    (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+      (aB + BitVec.ofNat 64 aLen) n5 l5) :
+    cpsBranchWithin (98 * (aLen + 1) + (7 * acctBytes.length + 700))
+      (B + 556) bansfCR
+      ((((.x10 : Reg) ↦ᵣ n5) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ l5) ** ((.x19 : Reg) ↦ᵣ v19) **
+       ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ n5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** G **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724) (codeStationPost aB newSp oB aLen
+        ((n5 - l5 - aB).toNat) l5.toNat n5 acctBytes G F) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  obtain ⟨hrep, _, hspan⟩ := rlpItemDecode_spanStart hdec hoff (by omega)
+  have hcap := bansf_codeSpanCapture139_spec n5 l5 v19 v20
+  have hcapL := liftCode (cr' := bansfCR) hcap
+    (fun a i h => CodeReq.union_mono_left a i h)
+  let T : Assertion :=
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 48) ↦ₘ n5) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    memOwn (newSp + 64) ** memOwn (newSp + 72) **
+    ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+    ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+    ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+    ((.x31 : Reg) ↦ᵣ v31) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    ((.x1 : Reg) ↦ᵣ vRa) ** ((.x8 : Reg) ↦ᵣ aB) **
+    ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+    G **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F
+  have hcapF := cpsTripleWithin_frameR T
+    (by dsimp only [T]; pcf; exact hG; pcf; exact hF) hcapL
+  have hfi := bansf_codeFieldInit143_spec aB aLen
+    ((n5 - l5 - aB).toNat) l5 acctBytes v5 v6 v7 l5
+    v28 v29 v30 v31 vRa F hF hsalign hslack hover hvalid hspan
+  rw [← hrep] at hfi
+  let S : Assertion := codeFieldFrame aB newSp oB n5 (n5 - l5) l5 aLen G
+  have hfiF := cpsBranchWithin_frameR S
+    (by dsimp only [S, codeFieldFrame]; pcf; exact hG; pcf) hfi
+  have hfiW := cpsBranchWithin_weaken
+    (Q_t' := codeStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ x => x)
+    (fun h hq => codeFieldInitReject_to_stationRej aB newSp oB n5
+      (n5 - l5) l5 aLen acctBytes G F h
+      (by dsimp only [S] at hq; exact hq))
+    (fun _ x => x) hfiF
+  have hc396 := bansf_codeStationCont580_spec aB newSp oB aLen
+    ((n5 - l5 - aB).toNat) l5.toNat n5 acctBytes G F hG hF
+    hsalign hslack hover hvalid (by omega)
+  have hc396' := cpsBranchWithin_weaken
+    (fun h hp => by
+      have hp' := codeFieldInitOk_to_cont580Pre aB newSp oB n5
+        (n5 - l5) l5 aLen ((n5 - l5 - aB).toNat) l5.toNat
+        acctBytes G F h hp
+      unfold codeCont580Pre at hp'
+      exact hp')
+    (fun _ x => x) (fun _ x => x) hc396
+  have hchain := cpsBranchWithin_chain_snd hfiW hc396'
+  have hfull := cpsTripleWithin_seq_branch_same_cr hcapF
+    (cpsBranchWithin_weaken
+      (fun h hp => by dsimp only [T, S, codeFieldFrame]; xperm_hyp hp)
+      (fun _ x => x) (fun _ x => x) hchain)
+  exact cpsBranchWithin_weaken
+    (fun h hp => by dsimp only [T]; xperm_hyp hp)
+    (fun _ x => x) (fun _ x => x)
+    (cpsBranchWithin_mono_nSteps (by omega) hfull)
+
+#print axioms bansf_codeStationCont556_spec
 
 
 end BalAccountNonstorageFinalsSpec
