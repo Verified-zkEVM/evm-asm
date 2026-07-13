@@ -2423,4 +2423,66 @@ theorem rejectedTailCore (oldA0 : Word) :
 
 #print axioms rejectedTailCore
 
+/-- Shared ABI epilogue (slots 29--37), parameterized by arbitrary current
+    values of the seven restored registers and an arbitrary framed result. -/
+theorem epilogueExact (sp0 newSp : Word) (saved current : Saved)
+    (F : Assertion) (hF : F.pcFree)
+    (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin 9 (B + 116) saved.ra code
+      (((.x2 ↦ᵣ newSp) ** regsAt listNthFrame (savedVals current) **
+        savedFrame newSp saved) ** F)
+      (((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+        savedFrame newSp saved) ** F) := by
+  have hl0 := loadSeq_spec listNthFrame newSp (savedVals saved)
+    (savedVals current) (B + 116) (by decide) (by decide)
+  have hlMono : ∀ a i,
+      CodeReq.ofProg (B + 116) (loadProg listNthFrame) a = some i → code a = some i := by
+    intro a i hmem
+    exact CodeReq.ofProg_mono_sub B (B + 116) rlpListNthItem_prog
+      (loadProg listNthFrame) 29 (by bv_omega) (by rfl)
+      (by rw [total_length]; simp [listNthFrame])
+      (by rw [total_length]; norm_num) a i hmem
+  have hl := cpsTripleWithin_extend_code hlMono hl0
+  rw [show B + 116 + BitVec.ofNat 64 (4 * listNthFrame.length) = B + 144 from by
+    simp [listNthFrame]; bv_omega] at hl
+  rw [frameSlotsSaved_listNthFrame] at hl
+  have hlF := cpsTripleWithin_frameR F hF hl
+  have hd0 := addi_spec_gen_same_within .x2 newSp (64 : BitVec 12) (B + 144)
+    (by decide)
+  rw [show newSp + signExtend12 (64 : BitVec 12) = sp0 from by
+    rw [hnewSp]
+    exact sext_frameRestore sp0 (-64 : BitVec 12) (64 : BitVec 12) (by decide)] at hd0
+  have hd := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 144) rlpListNthItem_prog 36
+      (.ADDI .x2 .x2 (64 : BitVec 12)) (by bv_omega)
+      (by rw [total_length]; norm_num) rfl (by rw [total_length]; norm_num)) hd0
+  have hdF := cpsTripleWithin_frameR
+    (regsAt listNthFrame (savedVals saved) ** savedFrame newSp saved ** F)
+    (by unfold savedFrame; pcf; assumption) hd
+  have hr0 := EvmAsm.Evm64.ret_spec_within' (B + 148) saved.ra
+  rw [hret] at hr0
+  have hr := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 148) rlpListNthItem_prog 37
+      (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega)
+      (by rw [total_length]; norm_num) rfl (by rw [total_length]; norm_num)) hr0
+  have hrF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ sp0) **
+      (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+      (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+      (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+      savedFrame newSp saved) ** F) (by
+        unfold savedFrame
+        pcf
+        assumption) hr
+  have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlF hdF
+  have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    rw [regsAt_listNthFrame] at hp
+    xperm_hyp hp) h12 hrF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hp => by
+    rw [regsAt_listNthFrame]
+    xperm_hyp hp) h123
+
+#print axioms epilogueExact
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
