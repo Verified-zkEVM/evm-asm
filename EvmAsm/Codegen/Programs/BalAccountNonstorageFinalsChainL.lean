@@ -88,5 +88,82 @@ theorem bansf_codeItemSuccess138_spec
 
 #print axioms bansf_codeItemSuccess138_spec
 
+
+/-- Nonzero-status continuation for the final outer code item
+    (`B + 552 → B + 736`). -/
+theorem bansf_codeItemFailure138_spec (aB newSp cur k : Word)
+    (aLen off : Nat) (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree) (hk : k ≠ (0 : Word)) :
+    cpsTripleWithin 2 (B + 552) (B + 736) bansfCR
+      (((.x10 : Reg) ↦ᵣ cur) ** ((.x11 : Reg) ↦ᵣ k) **
+       ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 548 + 4)) **
+       bytesRegion aB acctBytes ** F)
+      (itemRej aB newSp acctBytes F) := by
+  have hbne := bne_spec_gen_within .x11 .x0 (180 : BitVec 13)
+    k (0 : Word) (B + 552)
+  rw [show (B + 552) + signExtend13 (180 : BitVec 13) = B + 732 from by
+        rw [show signExtend13 (180 : BitVec 13) = (180 : Word) from by decide]
+        bv_omega,
+      show (B + 552) + 4 = B + 556 from by bv_omega] at hbne
+  have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+    bansf_codeItemStatus138_code hbne
+  have hbneF := cpsBranchWithin_frameR
+    (((.x10 : Reg) ↦ᵣ cur) ** ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x2 : Reg) ↦ᵣ newSp) **
+     ((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+     ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x1 : Reg) ↦ᵣ (B + 548 + 4)) ** bytesRegion aB acctBytes ** F)
+    (by pcf; exact hF) hbneL
+  have htaken := cpsBranchWithin_takenPath hbneF
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+      exact hk (((sepConj_pure_right _).1 h_pure).2))
+  have hrej := liftCode (cr' := bansfCR)
+    (bansf_rejectTail_spec B cur bansf_item4_code.2.2.2.2)
+    (fun a i h => CodeReq.union_mono_left a i h)
+  have hrejF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ k) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+     ((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+     ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x1 : Reg) ↦ᵣ (B + 548 + 4)) ** bytesRegion aB acctBytes ** F)
+    (by pcf; exact hF) hrej
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hp' := sepConj_mono_left (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+      xperm_hyp hp') htaken hrejF
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_)
+    hchain
+  unfold itemRej
+  have hq' :
+      (((.x11 : Reg) ↦ᵣ k) ** ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x1 : Reg) ↦ᵣ (B + 548 + 4)) **
+       ((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
+    xperm_hyp hq
+  have hqOwn := sepConj_mono (regIs_implies_regOwn .x11)
+    (sepConj_mono (regIs_implies_regOwn .x12)
+      (sepConj_mono (regIs_implies_regOwn .x1)
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn (fun _ x => x))))) h hq'
+  xperm_hyp hqOwn
+
+#print axioms bansf_codeItemFailure138_spec
+
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
