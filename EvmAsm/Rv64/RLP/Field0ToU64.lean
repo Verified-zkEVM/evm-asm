@@ -331,6 +331,143 @@ theorem rlp_field0_to_u64_call_walk_next
 #print axioms rlp_field0_to_u64_call_walk_init
 #print axioms rlp_field0_to_u64_call_walk_next
 
+/-! ## Wrapper parse-failure branches. -/
+
+/-- If `rlp_walk_init` returns any nonzero status in `x12`, the wrapper's
+index-2 branch reaches the shared tail and normalizes the public result to
+`a0 = 0, a1 = 1`, preserving the caller's saved return address. -/
+theorem rlp_field0_to_u64_init_failure_spec_within
+    (base savedRa cursor endPtr initStatus : Word) (srcBase : Word)
+    (srcBytes : List (BitVec 8)) (hstatus : initStatus ≠ 0) :
+    cpsTripleWithin 5 (base + 8) (savedRa &&& ~~~(1 : Word))
+      (rlp_field0_to_u64_full_code base)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 8)) ** bytesRegion srcBase srcBytes) **
+       ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ initStatus) **
+        (.x13 ↦ᵣ savedRa)))
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ initStatus) ** bytesRegion srcBase srcBytes) **
+       rlp_field0_to_u64_parse_fail_post savedRa) := by
+  have hbr0 := bne_spec_gen_within .x12 .x0 (36 : BitVec 13) initStatus (0 : Word) (base + 8)
+  rw [show (base + 8) + signExtend13 (36 : BitVec 13) = base + 44 from by
+    rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by decide]; bv_omega] at hbr0
+  have hmono2 : ∀ a i,
+      CodeReq.singleton (base + 8) (.BNE .x12 .x0 (36 : BitVec 13)) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono
+        (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 2 (base + 8)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+  have hbr := cpsBranchWithin_frameR
+    ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (base + 8)) ** bytesRegion srcBase srcBytes) **
+     ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x13 ↦ᵣ savedRa)))
+    (by pcFree) (cpsBranchWithin_extend_code hmono2 hbr0)
+  have htaken := cpsBranchWithin_takenPath hbr (fun h hp => by
+    extract_pure_deep hp
+    obtain ⟨h_eq, _⟩ := hp
+    exact hstatus h_eq)
+  have hwrapMono : ∀ a i, rlp_field0_to_u64_code base a = some i →
+      rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i h)
+  have htail0 := cpsTripleWithin_extend_code hwrapMono
+    (rlp_field0_to_u64_parse_fail_spec_within base savedRa)
+  have htailBase : cpsTripleWithin (rlp_field0_to_u64_parse_fail_cert base savedRa).nSteps
+      (base + 44) (rlp_field0_to_u64_parse_fail_exit savedRa)
+      (rlp_field0_to_u64_full_code base)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x13 ↦ᵣ savedRa) **
+        (.x1 ↦ᵣ (base + 8)))
+      (rlp_field0_to_u64_parse_fail_post savedRa) :=
+    cpsTripleWithin_weaken (fun h hp =>
+      sepConj_mono (regIs_implies_regOwn .x10)
+        (sepConj_mono (regIs_implies_regOwn .x11)
+          (sepConj_mono (fun _ x => x) (regIs_implies_regOwn .x1))) h hp)
+    (fun _ hp => hp) htail0
+  have htail := cpsTripleWithin_frameR
+    ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x12 ↦ᵣ initStatus) ** bytesRegion srcBase srcBytes) **
+     ⌜initStatus ≠ 0⌝)
+    (by pcFree) htailBase
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) htaken htail
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => by
+      extract_pure_deep hp
+      obtain ⟨_, hp'⟩ := hp
+      xperm_hyp hp') hseq
+
+#print axioms rlp_field0_to_u64_init_failure_spec_within
+
+/-- If `rlp_walk_next` returns a nonzero status in `x11`, the wrapper's
+index-4 branch normalizes it to the public parse-failure result. -/
+theorem rlp_field0_to_u64_next_failure_spec_within
+    (base savedRa cursor nextStatus contentLen srcBase : Word)
+    (srcBytes : List (BitVec 8)) (hstatus : nextStatus ≠ 0) :
+    cpsTripleWithin 5 (base + 16) (savedRa &&& ~~~(1 : Word))
+      (rlp_field0_to_u64_full_code base)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 16)) ** bytesRegion srcBase srcBytes) **
+       ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ nextStatus) ** (.x12 ↦ᵣ contentLen) **
+        (.x13 ↦ᵣ savedRa)))
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ contentLen) ** bytesRegion srcBase srcBytes) **
+       rlp_field0_to_u64_parse_fail_post savedRa) := by
+  have hbr0 := bne_spec_gen_within .x11 .x0 (28 : BitVec 13) nextStatus (0 : Word) (base + 16)
+  rw [show (base + 16) + signExtend13 (28 : BitVec 13) = base + 44 from by
+    rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega] at hbr0
+  have hmono4 : ∀ a i,
+      CodeReq.singleton (base + 16) (.BNE .x11 .x0 (28 : BitVec 13)) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono
+        (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 4 (base + 16)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+  have hbr := cpsBranchWithin_frameR
+    ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (base + 16)) ** bytesRegion srcBase srcBytes) **
+     ((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa)))
+    (by pcFree) (cpsBranchWithin_extend_code hmono4 hbr0)
+  have htaken := cpsBranchWithin_takenPath hbr (fun h hp => by
+    extract_pure_deep hp
+    obtain ⟨h_eq, _⟩ := hp
+    exact hstatus h_eq)
+  have hwrapMono : ∀ a i, rlp_field0_to_u64_code base a = some i →
+      rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i h)
+  have htail0 := cpsTripleWithin_extend_code hwrapMono
+    (rlp_field0_to_u64_parse_fail_spec_within base savedRa)
+  have htailBase : cpsTripleWithin (rlp_field0_to_u64_parse_fail_cert base savedRa).nSteps
+      (base + 44) (rlp_field0_to_u64_parse_fail_exit savedRa)
+      (rlp_field0_to_u64_full_code base)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ nextStatus) ** (.x13 ↦ᵣ savedRa) **
+        (.x1 ↦ᵣ (base + 16)))
+      (rlp_field0_to_u64_parse_fail_post savedRa) :=
+    cpsTripleWithin_weaken (fun h hp =>
+      sepConj_mono (regIs_implies_regOwn .x10)
+        (sepConj_mono (regIs_implies_regOwn .x11)
+          (sepConj_mono (fun _ x => x) (regIs_implies_regOwn .x1))) h hp)
+      (fun _ hp => hp) htail0
+  have htail := cpsTripleWithin_frameR
+    ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x12 ↦ᵣ contentLen) ** bytesRegion srcBase srcBytes) **
+     ⌜nextStatus ≠ 0⌝)
+    (by pcFree) htailBase
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) htaken htail
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => by
+      extract_pure_deep hp
+      obtain ⟨_, hp'⟩ := hp
+      xperm_hyp hp') hseq
+
+#print axioms rlp_field0_to_u64_next_failure_spec_within
+
 /-! ## Call-composition slice: idx 5..10, starting from a successful
 `rlp_walk_next` state. -/
 
