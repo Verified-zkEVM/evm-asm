@@ -96,6 +96,117 @@ theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by unfold nextCommon nextOutcome; exact hp) hc
 
+private theorem liftBeq48 (lhs rhs : Word) :
+    cpsBranchWithin 1 (B + 48) code
+      ((.x10 ↦ᵣ lhs) ** (.x18 ↦ᵣ rhs))
+      (B + 72) ((.x10 ↦ᵣ lhs) ** (.x18 ↦ᵣ rhs) ** ⌜lhs = rhs⌝)
+      (B + 52) ((.x10 ↦ᵣ lhs) ** (.x18 ↦ᵣ rhs) ** ⌜lhs ≠ rhs⌝) := by
+  have h := beq_spec_gen_within .x10 .x18 (24 : BitVec 13) lhs rhs (B + 48)
+  rw [show B + 48 + signExtend13 (24 : BitVec 13) = B + 72 from by decide,
+      show B + 48 + 4 = B + 52 from by decide] at h
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 48) rlpListCountItems_prog 12
+      (.BEQ .x10 .x18 (24 : BitVec 13)) (by bv_omega)
+      (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h
+
+theorem headerDone (cursor : Word) (F : Assertion) (h_F : F.pcFree) :
+    cpsTripleWithin 1 (B + 48) (B + 72) code
+      (((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ cursor)) ** F)
+      (((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ cursor)) ** F) := by
+  have ht := cpsBranchWithin_takenPath (liftBeq48 cursor cursor) (fun _ hf => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := hf
+    exact (((sepConj_pure_right _).1 hpure).2) rfl)
+  have ht' := cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
+    exact sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) ht
+  exact cpsTripleWithin_frameR F h_F ht'
+
+theorem headerContinue (cursor endPtr : Word) (F : Assertion) (h_F : F.pcFree)
+    (h_ne : cursor ≠ endPtr) :
+    cpsTripleWithin 1 (B + 48) (B + 52) code
+      (((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr)) ** F)
+      (((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr)) ** F) := by
+  have hn := cpsBranchWithin_ntakenPath (liftBeq48 cursor endPtr) (fun _ ht => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := ht
+    exact h_ne (((sepConj_pure_right _).1 hpure).2))
+  have hn' := cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
+    exact sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) hn
+  exact cpsTripleWithin_frameR F h_F hn'
+
+private theorem liftBne60 (lhs rhs : Word) :
+    cpsBranchWithin 1 (B + 60) code
+      ((.x11 ↦ᵣ lhs) ** (.x0 ↦ᵣ rhs))
+      (B + 84) ((.x11 ↦ᵣ lhs) ** (.x0 ↦ᵣ rhs) ** ⌜lhs ≠ rhs⌝)
+      (B + 64) ((.x11 ↦ᵣ lhs) ** (.x0 ↦ᵣ rhs) ** ⌜lhs = rhs⌝) := by
+  have h := bne_spec_gen_within .x11 .x0 (24 : BitVec 13) lhs rhs (B + 60)
+  rw [show B + 60 + signExtend13 (24 : BitVec 13) = B + 84 from by decide,
+      show B + 60 + 4 = B + 64 from by decide] at h
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 60) rlpListCountItems_prog 15
+      (.BNE .x11 .x0 (24 : BitVec 13)) (by bv_omega)
+      (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h
+
+theorem statusReject (status : Word) (F : Assertion) (h_F : F.pcFree)
+    (h_status : status ≠ 0) :
+    cpsTripleWithin 1 (B + 60) (B + 84) code
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) ** F)
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) ** F) := by
+  have ht := cpsBranchWithin_takenPath (liftBne60 status 0) (fun _ hf => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := hf
+    exact h_status (((sepConj_pure_right _).1 hpure).2))
+  have ht' := cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
+    exact sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) ht
+  exact cpsTripleWithin_frameR F h_F ht'
+
+theorem statusOk (F : Assertion) (h_F : F.pcFree) :
+    cpsTripleWithin 1 (B + 60) (B + 64) code
+      (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) ** F)
+      (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) ** F) := by
+  have hn := cpsBranchWithin_ntakenPath (liftBne60 0 0) (fun _ ht => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := ht
+    exact (((sepConj_pure_right _).1 hpure).2) rfl)
+  have hn' := cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
+    exact sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) hn
+  exact cpsTripleWithin_frameR F h_F hn'
+
+theorem incrementBack (count : Nat) (F : Assertion) (h_F : F.pcFree) :
+    cpsTripleWithin 2 (B + 64) (B + 48) code
+      ((.x19 ↦ᵣ BitVec.ofNat 64 count) ** F)
+      ((.x19 ↦ᵣ BitVec.ofNat 64 (count + 1)) ** F) := by
+  have ha0 := addi_spec_gen_same_within .x19 (BitVec.ofNat 64 count)
+    (1 : BitVec 12) (B + 64) (by decide)
+  rw [show B + 64 + 4 = B + 68 from by decide] at ha0
+  have ha := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mono_sub B (B + 64) rlpListCountItems_prog
+      [.ADDI .x19 .x19 (1 : BitVec 12)] 16 (by bv_omega) rfl
+      (by rw [total_length]; norm_num) (by rw [total_length]; norm_num)) ha0
+  have hj0 := jal_x0_spec_gen_within (-20 : BitVec 21) (B + 68)
+  rw [show B + 68 + signExtend21 (-20 : BitVec 21) = B + 48 from by decide] at hj0
+  have hj := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mono_sub B (B + 68) rlpListCountItems_prog
+      [.JAL .x0 (-20 : BitVec 21)] 17 (by bv_omega) rfl
+      (by rw [total_length]; norm_num) (by rw [total_length]; norm_num)) hj0
+  have haF := cpsTripleWithin_frameR F h_F ha
+  have h_next : BitVec.ofNat 64 count + signExtend12 (1 : BitVec 12) =
+      BitVec.ofNat 64 (count + 1) := by
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+    bv_omega
+  rw [h_next] at haF
+  have hjF := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ BitVec.ofNat 64 (count + 1)) ** F) (by pcf; exact h_F) hj
+  rw [sepConj_emp_left'] at hjF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) haF hjF
+
 #print axioms nextCallBlock
+#print axioms headerDone
+#print axioms headerContinue
+#print axioms statusReject
+#print axioms statusOk
+#print axioms incrementBack
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm
