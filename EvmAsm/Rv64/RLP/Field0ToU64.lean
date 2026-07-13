@@ -790,11 +790,11 @@ def rlpField0ContentRest (srcBase contentLen t4Old t5Old t6Old : Word)
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
      (((.x10 ↦ᵣ BitVec.ofNat 64
           (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
         (.x11 ↦ᵣ (0 : Word)) **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
 
 theorem rlpField0ContentRest_pcFree
     (srcBase contentLen t4Old t5Old t6Old : Word)
@@ -813,11 +813,11 @@ theorem rlpField0ContentRest_pcFree
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝).pcFree) h hp
   · exact (by pcFree :
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝).pcFree) h hp
+        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝).pcFree) h hp
   · exact (by pcFree :
       ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
         (.x11 ↦ᵣ (0 : Word)) **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝).pcFree) h hp
+        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝).pcFree) h hp
 
 /-- Starting at the content call, cover all scalar outcomes (success, empty,
 too long, and non-canonical), then restore the caller's `ra` and return. -/
