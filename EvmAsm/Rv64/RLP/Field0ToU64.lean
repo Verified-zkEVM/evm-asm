@@ -105,6 +105,128 @@ private theorem field0_hoffset (base : Word) :
     (base + 32) + signExtend21 (1504 : BitVec 21) = base + (1536 : Word) := by
   rw [show signExtend21 (1504 : BitVec 21) = (1504 : Word) from by decide]; bv_omega
 
+private theorem field0_ult_lt {a b : Word} (h : BitVec.ult a b = true) :
+    a.toNat < b.toNat := by
+  simpa [BitVec.ult] using h
+
+private theorem field0_not_ult_le {a b : Word} (h : ¬ BitVec.ult a b = true) :
+    b.toNat ≤ a.toNat := by
+  simp [BitVec.ult] at h
+  exact h
+
+private theorem field0_spanStart_longString {base : Word} {off endOff : Nat}
+    {next header payload len : Word}
+    (hheader1 : 1 ≤ header.toNat) (hheader9 : header.toNat ≤ 9)
+    (hfit1 : ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+      ((base + BitVec.ofNat 64 off) + header) = true)
+    (hfit2 : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff) -
+      ((base + BitVec.ofNat 64 off) + header)) payload = true)
+    (hnext : next = ((base + BitVec.ofNat 64 off) + header) + payload)
+    (hlen : len = payload) (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+      (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit1' := field0_not_ult_le hfit1
+  have hfit2' := field0_not_ult_le hfit2
+  constructor <;> bv_omega
+
+private theorem field0_spanStart_shortList {base : Word} {off endOff : Nat}
+    {next span len : Word}
+    (hspan1 : 1 ≤ span.toNat) (hspan56 : span.toNat ≤ 56)
+    (hfit : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff) -
+      (base + BitVec.ofNat 64 off)) span = true)
+    (hnext : next = (base + BitVec.ofNat 64 off) + span)
+    (hlen : len = span) (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+      (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit' := field0_not_ult_le hfit
+  constructor <;> bv_omega
+
+private theorem field0_spanStart_longList {base : Word} {off endOff : Nat}
+    {next header payload len : Word}
+    (hheader1 : 1 ≤ header.toNat) (hheader9 : header.toNat ≤ 9)
+    (hfit1 : ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+      ((base + BitVec.ofNat 64 off) + header) = true)
+    (hfit2 : ¬ BitVec.ult ((base + BitVec.ofNat 64 endOff) -
+      ((base + BitVec.ofNat 64 off) + header)) payload = true)
+    (hnext : next = ((base + BitVec.ofNat 64 off) + header) + payload)
+    (hlen : len = header + payload) (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    off ≤ (next - len - base).toNat ∧
+      (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hfit1' := field0_not_ult_le hfit1
+  have hfit2' := field0_not_ult_le hfit2
+  constructor <;> bv_omega
+
+private theorem field0_reassocLongList (cursor header payload : Word) :
+    cursor + (header + payload + 1) = (cursor + (header + 1)) + payload := by
+  bv_omega
+
+private theorem field0_addRotate (header payload : Word) :
+    header + payload + 1 = (header + 1) + payload := by
+  bv_omega
+
+/-- Core-layer content-window bridge for an accepted walk item.  This is the
+pure fact needed to feed `next - len` and `len` to the scalar decoder without
+importing the Codegen-layer walk-loop development. -/
+theorem rlpItemDecode_field0_content_span {bytes : List (BitVec 8)} {base : Word}
+    {off endOff : Nat} {next len : Word}
+    (h : rlpItemDecode bytes off (base + BitVec.ofNat 64 off)
+      (base + BitVec.ofNat 64 endOff) next len)
+    (hoffle : off ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    next - len = base + BitVec.ofNat 64 ((next - len - base).toNat) ∧
+    off ≤ (next - len - base).toNat ∧
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  have hrep : next - len = base + BitVec.ofNat 64 ((next - len - base).toNat) := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  refine ⟨hrep, ?_⟩
+  obtain ⟨b, _hb, hd⟩ := h
+  have hb256 : (b.zeroExtend 64).toNat < 256 := by bv_omega
+  rcases hd with ⟨_hp80, hin, hnext, hlen⟩ |
+      ⟨hge80, _hltb8, _hcanon, hfit, hnext, hlen⟩ |
+      ⟨hgeb8, hltc0, _hlead, _hmin, hfit1, hfit2, hnext, hlen⟩ |
+      ⟨hgec0, hltf8, hfit, hnext, hlen⟩ |
+      ⟨hgef8, _hlead, _hmin, hfit1, hfit2, hnext, hlen⟩
+  · have hin' := field0_ult_lt hin
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hnext
+    subst hlen
+    constructor <;> bv_omega
+  · have hfit' := field0_ult_lt hfit
+    have hge' := field0_not_ult_le hge80
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hnext
+    subst hlen
+    constructor <;> bv_omega
+  · have hge' := field0_not_ult_le hgeb8
+    have hlt' := field0_ult_lt hltc0
+    have hheader1 : 1 ≤ ((b.zeroExtend 64 - (0xb7 : Word)) +
+        signExtend12 (1 : BitVec 12)).toNat := by
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+    have hheader9 : ((b.zeroExtend 64 - (0xb7 : Word)) +
+        signExtend12 (1 : BitVec 12)).toNat ≤ 9 := by
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+    exact field0_spanStart_longString hheader1 hheader9 hfit1 hfit2 hnext hlen hoffle hover
+  · have hge' := field0_not_ult_le hgec0
+    have hlt' := field0_ult_lt hltf8
+    have hspan1 : 1 ≤ ((b.zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)).toNat := by
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+    have hspan56 : ((b.zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)).toNat ≤ 56 := by
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+    exact field0_spanStart_shortList hspan1 hspan56 hfit hnext hlen hoffle hover
+  · have hge' := field0_not_ult_le hgef8
+    have hheader1 : 1 ≤ ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word)).toNat := by
+      bv_omega
+    have hheader9 : ((b.zeroExtend 64 - (0xf7 : Word)) + (1 : Word)).toNat ≤ 9 := by
+      bv_omega
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hnext hlen hfit1 hfit2
+    rw [field0_reassocLongList] at hnext
+    rw [field0_addRotate] at hlen
+    exact field0_spanStart_longList hheader1 hheader9 hfit1 hfit2 hnext hlen hoffle hover
+
 /-- The `rlp_field0_to_u64` wrapper body (15 instructions). See the module doc
 comment for the annotated listing and register map. -/
 def rlp_field0_to_u64_prog : List Instr :=
