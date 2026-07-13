@@ -1352,6 +1352,14 @@ theorem cpsNBranchWithin_pre_or_init {n : Nat} {entry : Word} {cr : CodeReq}
   | inl hP => exact h1 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
   | inr hP => exact h2 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
 
+theorem cpsTripleWithin_exists_assertion {α : Sort _} {n : Nat}
+    {entry exit_ : Word} {cr : CodeReq} {P : α → Assertion} {Q : Assertion}
+    (h : ∀ x, cpsTripleWithin n entry exit_ cr (P x) Q) :
+    cpsTripleWithin n entry exit_ cr (fun hp => ∃ x, P x hp) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, ha, hb, hd, hu, ⟨x, hP⟩, hRb⟩ := hPR
+  exact h x R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+
 theorem initNormalizedDispatch (newSp listBase indexW offsetPtr lenPtr oldOffset
     oldLen : Word) (saved : Saved) (bytes : List (BitVec 8))
     (listLen index : Nat) :
@@ -2501,5 +2509,167 @@ theorem epilogueOwned (sp0 newSp : Word) (saved : Saved)
     xperm_hyp hp) h123
 
 #print axioms epilogueOwned
+
+def joinResult (newSp listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ status offset len v11 v12,
+    ((((.x2 ↦ᵣ newSp) ** regsOwnAt listNthFrame ** savedFrame newSp saved) **
+      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+      ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝) h
+
+def selectedExpanded (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (index cursorOff : Nat) : Assertion :=
+  fun h => ∃ next len : Word,
+    ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved bytes **
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 index)) ** (regOwn .x13 ** regOwn .x14)) **
+     ⌜StrictNthItem bytes listBase endPtr index cursorOff next len⌝) h
+
+/-- Adapt the selected scan station through its concrete stores to the genuine
+    semantic success result at the shared restore join. -/
+theorem selectedToJoin
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsTripleWithin 6 (B + 88) (B + 116) code
+      (scanSelected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  unfold scanSelected
+  refine cpsTripleWithin_exists_assertion (fun (cursorOff : Nat) => ?_)
+  refine cpsTripleWithin_exists_assertion (fun (endPtr : Word) => ?_)
+  refine cpsTripleWithin_weaken
+    (P := ⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝ **
+      (loopSelected newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+        saved bytes index cursorOff ** (regOwn .x13 ** regOwn .x14)))
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hlist => ?_)
+  refine cpsTripleWithin_weaken
+    (P := selectedExpanded newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
+      oldLen saved bytes index cursorOff)
+    (P' := loopSelected newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
+      oldLen saved bytes index cursorOff ** (regOwn .x13 ** regOwn .x14))
+    (fun h (hp : (loopSelected newSp listBase indexW offsetPtr lenPtr endPtr
+        oldOffset oldLen saved bytes index cursorOff **
+        (regOwn .x13 ** regOwn .x14)) h) => by
+      show selectedExpanded newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
+        oldLen saved bytes index cursorOff h
+      unfold selectedExpanded
+      unfold loopSelected at hp
+      obtain ⟨h1, h2, hd, hu, hloop, hregs⟩ := hp
+      obtain ⟨next, len, hbody⟩ := hloop
+      refine ⟨next, len, ?_⟩
+      let Hcombined : Assertion :=
+        ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+            saved bytes **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+           (.x21 ↦ᵣ BitVec.ofNat 64 index))) **
+         ⌜StrictNthItem bytes listBase endPtr index cursorOff next len⌝) **
+        (regOwn .x13 ** regOwn .x14)
+      have hcombined : Hcombined h := by
+        exact ⟨h1, h2, hd, hu, hbody, hregs⟩
+      unfold Hcombined at hcombined
+      xperm_hyp hcombined) (fun _ hq => hq) ?_
+  unfold selectedExpanded
+  refine cpsTripleWithin_exists_assertion (fun (next : Word) => ?_)
+  refine cpsTripleWithin_exists_assertion (fun (len : Word) => ?_)
+  let Pitem : Assertion :=
+    ⌜StrictNthItem bytes listBase endPtr index cursorOff next len⌝ **
+    (loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved
+      bytes **
+     ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+      (.x21 ↦ᵣ BitVec.ofNat 64 index)) ** (regOwn .x13 ** regOwn .x14))
+  refine cpsTripleWithin_weaken
+    (P := Pitem)
+    (fun h hp => by unfold Pitem; xperm_hyp hp) (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hnth => ?_)
+  let F : Assertion :=
+    (.x20 ↦ᵣ endPtr) ** (.x9 ↦ᵣ indexW) ** regOwn .x6 ** regOwn .x7 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+    (.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+    (.x11 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ BitVec.ofNat 64 index) **
+    (regOwn .x13 ** regOwn .x14)
+  let Pcore : Assertion :=
+    (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+    (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+    (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen)
+  let Qcore : Assertion :=
+    (.x10 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+    (.x5 ↦ᵣ (next - len - listBase)) ** (.x8 ↦ᵣ listBase) **
+    (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+    (offsetPtr ↦ₘ (next - len - listBase)) ** (lenPtr ↦ₘ len)
+  have hfamily : ∀ v5, cpsTripleWithin 6 (B + 88) (B + 116) code
+      (Pcore ** (.x5 ↦ᵣ v5)) Qcore := by
+    intro v5
+    exact cpsTripleWithin_weaken (fun h hp => by unfold Pcore at hp; xperm_hyp hp)
+      (fun h hq => by unfold Qcore; exact hq)
+      (selectedTailCore listBase next len offsetPtr lenPtr oldOffset oldLen v5)
+  have hcOwn0 := cpsTripleWithin_of_forall_regIs_to_regOwn hfamily
+  have hcOwn := cpsTripleWithin_weaken
+    (P := Pcore ** regOwn .x5)
+    (P' := (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** regOwn .x5 **
+      (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+      (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+    (fun h hp => by
+      unfold Pcore
+      xperm_hyp hp) (fun _ hq => hq) hcOwn0
+  have hcF := cpsTripleWithin_frameR F (by unfold F savedFrame; pcf) hcOwn
+  exact cpsTripleWithin_weaken
+    (P := ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** regOwn .x5 **
+      (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+      (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen)) ** F)
+    (P' := loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+      saved bytes **
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 index)) ** (regOwn .x13 ** regOwn .x14))
+    (fun h hp => by
+      unfold F
+      unfold loopFrame stableFrame stableRest at hp
+      xperm_hyp hp)
+    (fun h hp => by
+      unfold F Qcore at hp
+      have hexplicit :
+          ((regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+             (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+             (.x20 ↦ᵣ endPtr) **
+             (.x21 ↦ᵣ BitVec.ofNat 64 index)) **
+           ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+            (.x10 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (next - len - listBase)) **
+            regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ (0 : Word)) **
+            (.x12 ↦ᵣ len) ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+            (offsetPtr ↦ₘ (next - len - listBase)) ** (lenPtr ↦ₘ len))) h := by
+        xperm_hyp hp
+      have howned := sepConj_mono_left
+        (listNthFrameRegs_implies_owned listBase indexW offsetPtr lenPtr endPtr
+          (BitVec.ofNat 64 index)) h hexplicit
+      let Rwithout : Assertion :=
+        (.x2 ↦ᵣ newSp) ** savedFrame newSp saved ** (.x10 ↦ᵣ (0 : Word)) **
+        regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase bytes ** (offsetPtr ↦ₘ (next - len - listBase)) **
+        (lenPtr ↦ₘ len)
+      obtain ⟨ha, hb, hdab, huab, hframe, hrest⟩ := howned
+      have hrest' : ((.x5 ↦ᵣ (next - len - listBase)) ** Rwithout) hb := by
+        unfold Rwithout
+        xperm_hyp hrest
+      have hrestOwn := sepConj_mono_left (regIs_implies_regOwn .x5) hb hrest'
+      have hallOwned : (regsOwnAt listNthFrame ** (regOwn .x5 ** Rwithout)) h :=
+        ⟨ha, hb, hdab, huab, hframe, hrestOwn⟩
+      unfold joinResult
+      refine ⟨0, next - len - listBase, len, 0, len,
+        (sepConj_pure_right h).2 ⟨?_, ?_⟩⟩
+      · unfold Rwithout at hallOwned
+        xperm_hyp hallOwned
+      · exact Result.ok _ _ ⟨cursorOff, endPtr, next, hlist, hnth, rfl⟩) hcF
+
+#print axioms selectedToJoin
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
