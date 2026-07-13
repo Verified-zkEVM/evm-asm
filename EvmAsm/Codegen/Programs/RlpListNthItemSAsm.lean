@@ -2672,4 +2672,22 @@ theorem selectedToJoin
 
 #print axioms selectedToJoin
 
+theorem scanRejected_implies_failure
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    ∀ h, scanRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index h → Failure bytes listBase listLen index := by
+  intro h hp
+  unfold scanRejected at hp
+  obtain ⟨cursorOff, endPtr, hp⟩ := hp
+  obtain ⟨hleft, _hlist⟩ := (sepConj_pure_right h).1 hp
+  obtain ⟨ha, hb, hd, hu, hreject, _hregs⟩ := hleft
+  unfold loopRejected at hreject
+  obtain ⟨count, off, status, hstate⟩ := hreject
+  obtain ⟨_, hpure⟩ := (sepConj_pure_right ha).1 hstate
+  exact .walk cursorOff count off endPtr hpure.2.2.1 hpure.2.1
+    hpure.2.2.2.1 hpure.2.2.2.2
+
+#print axioms scanRejected_implies_failure
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
