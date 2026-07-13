@@ -389,9 +389,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- frame_return compute used_delta = full CREATE charge (183600), inflating s7 (child
     -- leftover gas) by 183600 → gas_left got the CREATE spill back via EIP-150 (double
     -- refund: gas_left AND state_gas_left). With POST-charge values, used_delta excludes
-    -- the CREATE charge (s7 not inflated). frame_return's CREATE-specific credit path
-    -- (create_frame_flag check) credits state_gas_left += 183600 on child failure,
-    -- matching execution-specs credit_state_gas_refund without touching gas_left.
+    -- the CREATE charge (s7 not inflated). The failed-create credit paths (NoopHalt
+    -- REVERT/invalid-deposit, Dispatch exceptional exits) credit 183600 back on child
+    -- failure IFF the conditional charge above actually fired (target not alive,
+    -- create_target_alive_flag[depth] == 0; evm-asm-0w05f.17.2), matching
+    -- execution-specs `if new_account_charged: credit_state_gas_refund`.
 
     -- drj99.1 part 2: credit child C's env+32 selfBalance with the endowment so the initcode's
     -- SELFBALANCE and its outgoing value-CALL debits operate on the real balance. call_frame_descend

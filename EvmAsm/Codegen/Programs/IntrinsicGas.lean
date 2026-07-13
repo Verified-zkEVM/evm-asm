@@ -544,59 +544,36 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
 /-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
 
     Mirror execution-specs Amsterdam `process_transaction` per-tx state-gas
-    accounting (fork.py ~1122-1130, 1194-1202):
+    accounting (v0.6, fork.py:1174-1182):
 
-      if isinstance(tx.to, Bytes0) and (
-          tx_output.error is not None or tx_output.created_target_alive
-      ):                                                # creation
-              new_account_refund =
-                  STATE_BYTES_PER_NEW_ACCOUNT * COST_PER_STATE_BYTE   # 183600
-              tx_output.state_gas_left  += new_account_refund
-              tx_output.state_refund    += new_account_refund
+      tx_state_gas = int(tx_env.intrinsic_state_gas) + tx_output.state_gas_used
+      block_output.block_state_gas_used += Uint(max(0, tx_state_gas))
 
-      tx_state_gas =
-          tx_env.intrinsic_state_gas
-          + tx_output.state_gas_used
-          - tx_output.state_refund
-
-      block_output.block_state_gas_used += tx_state_gas
-
-    The guest is BAL-replay-only and does not execute opcodes, so the runtime
-    `state_gas_used` / `state_refund` from SSTORE/CREATE are NOT derivable here;
-    they are supplied by the caller's conservative model (zero in the common
-    BAL-replay path). This helper implements the BAL-derivable subset:
-    `intrinsic_state_gas`, runtime `state_gas_used`, and the top-level
-    creation new-account refund when execution-specs applies it,
-    then forms `tx_state_gas`. `state_refund` exceeding
-    `intrinsic_state_gas + state_gas_used` (a Uint underflow in Python) is
-    reported as a nonzero status rather than wrapping. -/
+    There is NO v0.5.0 creation-revert refund subtraction: a failed or
+    colliding creation's NEW_ACCOUNT charge is already credited back inside
+    execution (`credit_state_gas_refund`, system.py:117-125/157-159), so the
+    executed `state_gas_used` the dispatcher captures is net of it. The
+    executed component is `frame_state_gas_used(evm) + auth_state_gas_used`
+    (interpreter.py:172), captured per tx by
+    `dispatcher_capture_exec_state_gas` into `bvgr_tx_exec_state_gas`.
+    (The spec value is an `int` that can go negative when refunds exceed
+    charges; the guest's u64 running counter guards each refund subtraction
+    against underflow, so its captured value is always >= 0 — the settled sum
+    here mirrors `Uint(max(0, tx_state_gas))`.) -/
 def eip8037TxStateGasFunction : String :=
   "eip8037_tx_state_gas:\n" ++
-  "  # a0=intrinsic_state_gas, a1=state_gas_used, a2=state_refund,\n" ++
-  "  # a3=error_flag, a4=creation_error_refund_eligible, a5=tx_state_gas_out\n" ++
-  "  beq a3, zero, .Le8037sg_settle\n" ++
-  "  beq a4, zero, .Le8037sg_settle\n" ++
-  liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
-  "  add a2, a2, t0            # creation revert: state_refund += new_account_refund\n" ++
-  ".Le8037sg_settle:\n" ++
-  "  add t1, a0, a1            # intrinsic_state_gas + state_gas_used\n" ++
-  "  bltu t1, a2, .Le8037sg_underflow\n" ++
-  "  sub t2, t1, a2           # tx_state_gas\n" ++
-  "  sd t2, 0(a5)\n" ++
+  "  # a0=intrinsic_state_gas, a1=state_gas_used (executed), a5=tx_state_gas_out\n" ++
+  "  # a2-a4 are the retired v0.5 refund/error/creation args, ignored; the\n" ++
+  "  # positions are kept so g8zeq.1.3 callers (tx_intrinsic_state_gas) stand.\n" ++
+  "  add t0, a0, a1            # tx_state_gas = intrinsic.state + executed state\n" ++
+  "  sd t0, 0(a5)\n" ++
   "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Le8037sg_underflow:\n" ++
-  "  sd zero, 0(a5)\n" ++
-  "  li a0, 1\n" ++
   "  ret"
 
 /-- `zisk_eip8037_tx_state_gas`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):
       bytes  8..16 : intrinsic_state_gas
-      bytes 16..24 : state_gas_used   (conservative model input)
-      bytes 24..32 : state_refund     (conservative model input)
-      bytes 32..40 : error_flag       (nonzero = tx error)
-      bytes 40..48 : is_creation      (nonzero = tx.to is Bytes0)
+      bytes 16..24 : state_gas_used   (executed state gas)
     Output layout:
       bytes  0.. 8 : status
       bytes  8..16 : tx_state_gas -/
@@ -605,9 +582,6 @@ def ziskEip8037TxStateGasPrologue : String :=
   "  li t0, 0x40000000\n" ++
   "  ld a0, 8(t0)                # intrinsic_state_gas\n" ++
   "  ld a1, 16(t0)               # state_gas_used\n" ++
-  "  ld a2, 24(t0)               # state_refund\n" ++
-  "  ld a3, 32(t0)               # error_flag\n" ++
-  "  ld a4, 40(t0)               # is_creation\n" ++
   "  li a5, 0xa0010008           # tx_state_gas out\n" ++
   "  jal ra, eip8037_tx_state_gas\n" ++
   "  li t0, 0xa0010000\n" ++
@@ -630,87 +604,64 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
 
 /-! ## block_verdict_eip8037_tx_state_gas_net_array
 
-    Materialize execution-spec EIP-8037 `tx_state_gas` per transaction from
-    arrays that are already available after runtime gas-result materialization:
+    Materialize execution-spec `tx_state_gas` per transaction from arrays that
+    are already available after runtime gas-result materialization (v0.6,
+    fork.py:1174):
 
-      tx_state_gas = intrinsic_state_gas + state_gas_used - state_refund
+      tx_state_gas = intrinsic_state_gas + state_gas_used
 
-    with the top-level creation refund rule handled by `eip8037_tx_state_gas`:
-    creation errors or already-alive creation targets add the new-account refund before the subtraction.
+    No v0.5.0 creation-revert refund subtraction: failed/colliding creation
+    charges are credited back inside execution, so the captured executed
+    state gas is already net.
 
     ABI:
       a0 = intrinsic_state_gas array ptr
       a1 = executed_state_gas array ptr (raw `evm_state_gas_used` per tx)
-      a2 = state_refund array ptr
-      a3 = tx_status array ptr (1 success, 0 error)
-      a4 = creation-error-refund-eligible array ptr (nonzero iff the error path entered process_create_message)
-      a5 = count
-      a6 = output tx_state_gas array ptr
+      a2 = count
+      a3 = output tx_state_gas array ptr
 
     Returns:
-      a0 = 0 on success, 1 if a row underflows
-      a1 = first failing 0-based index, or 0 on success. -/
+      a0 = 0 (the v0.6 identity cannot underflow)
+      a1 = 0. -/
 def blockVerdictEip8037TxStateGasNetArray_prog : Program :=
-  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
     .SD .x2 .x18 (24 : BitVec 12),
     .SD .x2 .x19 (32 : BitVec 12),
     .SD .x2 .x20 (40 : BitVec 12),
-    .SD .x2 .x21 (48 : BitVec 12),
-    .SD .x2 .x22 (56 : BitVec 12),
-    .SD .x2 .x23 (64 : BitVec 12),
-    .SD .x2 .x24 (72 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x18 .x12,
     .MV .x19 .x13,
-    .MV .x20 .x14,
-    .MV .x21 .x15,
-    .MV .x22 .x16,
-    .LI .x23 (0 : Word),
-    .BEQ .x23 .x21 (72 : BitVec 13),
-    .SLLI .x24 .x23 (3 : BitVec 6),
-    .ADD .x5 .x8 .x24,
-    .LD .x10 .x5 (0 : BitVec 12),
-    .ADD .x5 .x9 .x24,
-    .LD .x11 .x5 (0 : BitVec 12),
-    .ADD .x5 .x18 .x24,
-    .LD .x12 .x5 (0 : BitVec 12),
-    .ADD .x5 .x19 .x24,
-    .LD .x6 .x5 (0 : BitVec 12),
-    .SLTIU .x13 .x6 (1 : BitVec 12),
-    .ADD .x5 .x20 .x24,
-    .LD .x14 .x5 (0 : BitVec 12),
-    .ADD .x15 .x22 .x24,
-    .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 132)),
-    .BNE .x10 .x0 (24 : BitVec 13),
-    .ADDI .x23 .x23 (1 : BitVec 12),
-    .JAL .x0 (-68 : BitVec 21),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x18 (40 : BitVec 13),
+    .SLLI .x5 .x20 (3 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LD .x10 .x6 (0 : BitVec 12),
+    .ADD .x6 .x9 .x5,
+    .LD .x11 .x6 (0 : BitVec 12),
+    .ADD .x15 .x19 .x5,
+    .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 76)),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
     .LI .x10 (0 : Word),
     .LI .x11 (0 : Word),
-    .JAL .x0 (12 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .MV .x11 .x23,
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
     .LD .x18 .x2 (24 : BitVec 12),
     .LD .x19 .x2 (32 : BitVec 12),
     .LD .x20 .x2 (40 : BitVec 12),
-    .LD .x21 .x2 (48 : BitVec 12),
-    .LD .x22 .x2 (56 : BitVec 12),
-    .LD .x23 .x2 (64 : BitVec 12),
-    .LD .x24 .x2 (72 : BitVec 12),
-    .ADDI .x2 .x2 (80 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `blockVerdictEip8037TxStateGasNetArray_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def blockVerdictEip8037TxStateGasNetArray_relocs : RelocTable :=
-  [ (33, .jal .x1 "eip8037_tx_state_gas") ]
+  [ (19, .jal .x1 "eip8037_tx_state_gas") ]
 
 def blockVerdictEip8037TxStateGasNetArrayFunction : String :=
   "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs
@@ -724,24 +675,21 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
     blockVerdictEip8037TxStateGasNetArrayFunction = "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs := rfl
 
 #guard blockVerdictEip8037TxStateGasNetArrayFunction.startsWith "block_verdict_eip8037_tx_state_gas_net_array:\n"
-#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 54
+#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 32
 /-- `zisk_eip8037_tx_state_gas_net_array`: focused array probe for the
-    block-verdict net state-gas materializer.
+    block-verdict tx-state-gas materializer (v0.6 identity).
 
     Output:
-      +0  success-array status (expect 0)
-      +8  success-array fail index (expect 0)
-      +16 tx_state_gas[0] success intrinsic-only creation (expect 183600)
-      +24 tx_state_gas[1] success used-refund (expect 217520)
-      +32 tx_state_gas[2] error non-creation (expect 183600)
-      +40 tx_state_gas[3] error creation refund cancels intrinsic (expect 0)
-      +48 underflow-array status (expect 1)
-      +56 underflow-array fail index (expect 0)
-      +64 underflow output cell (expect 0). -/
+      +0  status (expect 0)
+      +8  fail index (expect 0)
+      +16 tx_state_gas[0] intrinsic-only creation (expect 183600)
+      +24 tx_state_gas[1] intrinsic + SSTORE set (expect 281520)
+      +32 tx_state_gas[2] executed-only (expect 97920)
+      +40 tx_state_gas[3] zero row (expect 0). -/
 def ziskEip8037TxStateGasNetArrayPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  la a0, e8037nga_intrinsic; la a1, e8037nga_exec; la a2, e8037nga_refund\n" ++
-  "  la a3, e8037nga_status; la a4, e8037nga_creation; li a5, 4; la a6, e8037nga_out\n" ++
+  "  la a0, e8037nga_intrinsic; la a1, e8037nga_exec\n" ++
+  "  li a2, 4; la a3, e8037nga_out\n" ++
   "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0); sd a1, 8(t0)\n" ++
@@ -750,12 +698,6 @@ def ziskEip8037TxStateGasNetArrayPrologue : String :=
   "  ld t2, 8(t1); sd t2, 24(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 32(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 40(t0)\n" ++
-  "  la a0, e8037nga_bad_intrinsic; la a1, e8037nga_bad_exec; la a2, e8037nga_bad_refund\n" ++
-  "  la a3, e8037nga_bad_status; la a4, e8037nga_bad_creation; li a5, 1; la a6, e8037nga_bad_out\n" ++
-  "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 48(t0); sd a1, 56(t0)\n" ++
-  "  la t1, e8037nga_bad_out; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  j .Le8037nga_pdone\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
@@ -765,22 +707,10 @@ def ziskEip8037TxStateGasNetArrayDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "e8037nga_intrinsic:\n" ++
-  "  .quad 183600, 183600, 183600, 183600\n" ++
+  "  .quad 183600, 183600, 0, 0\n" ++
   "e8037nga_exec:\n" ++
-  "  .quad 0, 97920, 97920, 97920\n" ++
-  "e8037nga_refund:\n" ++
-  "  .quad 0, 64000, 0, 0\n" ++
-  "e8037nga_status:\n" ++
-  "  .quad 1, 1, 0, 0\n" ++
-  "e8037nga_creation:\n" ++
-  "  .quad 1, 0, 0, 1\n" ++
-  "e8037nga_out:\n  .zero 32\n" ++
-  "e8037nga_bad_intrinsic:\n  .quad 100\n" ++
-  "e8037nga_bad_exec:\n  .quad 0\n" ++
-  "e8037nga_bad_refund:\n  .quad 5000\n" ++
-  "e8037nga_bad_status:\n  .quad 1\n" ++
-  "e8037nga_bad_creation:\n  .quad 0\n" ++
-  "e8037nga_bad_out:\n  .zero 8\n"
+  "  .quad 0, 97920, 97920, 0\n" ++
+  "e8037nga_out:\n  .zero 32\n"
 
 def ziskEip8037TxStateGasNetArrayProbeUnit : BuildUnit := {
   body        := NOP

@@ -120,7 +120,17 @@ window and precompile-output windows keep the dense bail
 conservatively). All 6 `{callcode,delegatecall}_to_precompile_*`
 fixtures flip fail→pass. Remaining fail census + debug/regen
 workflow: /tmp/fable2-v06-report.md and the v06-migration-status
-memory.
+memory. `.17.2` (per-tx state-gas settlement identity, fork.py:1174-1182)
+fixed 2026-07-13: the EIP-7778 gate's per-tx block increment now
+subtracts `tx_state_gas = intrinsic.state + executed state`
+(`bvgr_tx_total_state_gas`, materialized by the simplified v0.6
+`block_verdict_eip8037_tx_state_gas_net_array` before the gate), and
+the failed-create NEW_ACCOUNT 183600 refund (NoopHalt REVERT /
+invalid-deposit, Dispatch exceptional exits) is gated on
+`create_target_alive_flag[depth] == 0` (charge actually made) via the
+`create_failed_refund_skip` stash. Flips `cumulative_block_state_gas_boundary`
+exact_fit, `create_collision_to_empty2` d0-g1-v0, and
+`create2_revert_preserves_balance` fail→pass.
 
 ### Evm64 (PRIMARY) — 52 opcodes
 

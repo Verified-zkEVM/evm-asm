@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # codegen-zisk-tx-intrinsic-state-gas-check.sh -- g8zeq.1.4.3.1.
 #
-# Per-tx EIP-8037 intrinsic state-gas: in the BAL-replay path
-#   tx_state_gas = (is_creation ? 183600 : 0) + auth_count * 218790
+# Per-tx EIP-8037 intrinsic state-gas (v0.6, execution-specs
+# calculate_intrinsic_cost): intrinsic_state_gas is 0 for every tx shape --
+# the creation NEW_ACCOUNT charge and the EIP-7702 auth charges are
+# state-dependent and charged at the top frame (captured as EXECUTED state
+# gas), not here. The probe still exercises the per-type to/auth parsing.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -92,12 +95,12 @@ EMPTY=""
 
 FAILED=0
 run_case "legacy_call"        legacy   "$ALICE" 0 0 0        || FAILED=1
-run_case "legacy_create"      legacy   "$EMPTY"  0 0 183600   || FAILED=1
+run_case "legacy_create"      legacy   "$EMPTY"  0 0 0        || FAILED=1
 run_case "eip1559_call"       eip1559  "$ALICE" 0 0 0        || FAILED=1
-run_case "eip1559_create"     eip1559  "$EMPTY"  0 0 183600   || FAILED=1
-run_case "eip7702_1auth"      eip7702  "$ALICE" 1 0 218790   || FAILED=1
-run_case "eip7702_2auth"      eip7702  "$ALICE" 2 0 437580   || FAILED=1
-run_case "eip7702_create_1auth" eip7702 "$EMPTY" 1 0 402390  || FAILED=1
+run_case "eip1559_create"     eip1559  "$EMPTY"  0 0 0        || FAILED=1
+run_case "eip7702_1auth"      eip7702  "$ALICE" 1 0 0        || FAILED=1
+run_case "eip7702_2auth"      eip7702  "$ALICE" 2 0 0        || FAILED=1
+run_case "eip7702_create_1auth" eip7702 "$EMPTY" 1 0 0       || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

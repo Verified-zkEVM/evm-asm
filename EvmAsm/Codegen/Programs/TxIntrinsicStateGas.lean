@@ -98,15 +98,15 @@ def txIntrinsicStateGasFunction : String :=
   "  bnez a0, .Ltisg_fail2\n" ++
   -- v0.6.0 (EIP-2780): the per-authorization worst-case state reserve is
   -- gone -- exact auth charges come from tx_eip7702_existing_authority_refund
-  -- (now a charge computer) in the callers. The creation NEW_ACCOUNT term
-  -- stays as the model of prepare_dispatch's top-frame charge for a fresh
-  -- target.
+  -- (now a charge computer) in the callers. The creation NEW_ACCOUNT term is
+  -- gone too (evm-asm-0w05f.17.2): spec calculate_intrinsic_cost keeps
+  -- intrinsic_state_gas = 0 for creation ("charged at the top frame, not
+  -- here", transactions.py:657-659) -- the conditional top-frame charge is
+  -- already captured in the EXECUTED state gas the dispatcher records
+  -- (runtime_tx_create_state_charge -> evm_state_gas_used), so folding it in
+  -- here double-counted under tx_state = intrinsic + executed.
   "  li s4, 0                    # intrinsic_state_gas accumulator\n" ++
-  "  la t0, tis_is_creation; ld t1, 0(t0); beqz t1, .Ltisg_after_create\n" ++
-  liAmsterdamNewAccountStateGas "t2" ++
-  "  add s4, s4, t2\n" ++
-  ".Ltisg_after_create:\n" ++
-  "  # tx_state_gas = eip8037_tx_state_gas(intrinsic, 0, 0, error=0, is_creation)\n" ++
+  "  # tx_state_gas = eip8037_tx_state_gas(intrinsic, 0)\n" ++
   "  mv a0, s4; li a1, 0; li a2, 0; li a3, 0\n" ++
   "  la t0, tis_is_creation; ld a4, 0(t0)\n" ++
   "  mv a5, s2\n" ++

@@ -1387,6 +1387,20 @@ def blockVerdictFunction : String :=
   "  beq t4, t3, .Lbv_state_gas_filled\n" ++
   "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_state_gas_zero\n" ++
   ".Lbv_state_gas_filled:\n" ++
+  -- 0w05f.17.2: materialize the v0.6 per-tx settlement identity (fork.py:1174)
+  --   tx_state_gas = intrinsic.state + executed state gas
+  -- into bvgr_tx_total_state_gas BEFORE the EIP-7778 gate, so the per-tx
+  -- regular increment below can subtract it (fork.py:1176-1181). The executed
+  -- component was captured per tx by dispatcher_capture_exec_state_gas; on the
+  -- tx_state_gas_array bail above the intrinsic component is zero (the legacy
+  -- over-approximation, reject-conservative as before).
+  "  la a0, bvgr_tx_state_gas\n" ++
+  "  la a1, bvgr_tx_exec_state_gas\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_tx_total_state_gas\n" ++
+  "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
+  "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
+  "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++
@@ -1394,7 +1408,7 @@ def blockVerdictFunction : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t2, bvgr_arena_tx_count; ld a5, 0(t2)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
-  "  la a7, bvgr_tx_state_gas    # .57.11.6.5.2: per-tx intrinsic.state -> spec 2D regular test\n" ++
+  "  la a7, bvgr_tx_total_state_gas   # 0w05f.17.2: per-tx intrinsic+executed state -> tx_regular = max(before_refund - state, floor)\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
