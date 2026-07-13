@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.Tactics.DropPure
 import EvmAsm.Rv64.Tactics.XPermPure
@@ -404,6 +405,46 @@ theorem setupMovesZero
   exact hall
 
 #print axioms setupMovesZero
+
+/-- Materialize `rfu_offset` and `rfu_length` in `a3/a4`
+    (instructions 7--10), with both addresses proved by `la_resolve`. -/
+theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (B + 28) (B + 44) code
+      (((.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14)) ** F)
+      (((.x13 ↦ᵣ offsetCell) ** (.x14 ↦ᵣ lengthCell)) ** F) := by
+  have hau0 := CodeReq.ofProg_mem_at B (B + 28) rlpFieldToU64_prog 7
+    (.AUIPC .x13 (laHi GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u64 + 28))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had0 := CodeReq.ofProg_mem_at B (B + 32) rlpFieldToU64_prog 8
+    (.ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u64 + 28))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h0 := la_materialize_within .x13 old13 (B + 28) offsetCell
+    (by decide) (by unfold B offsetCell; decide) hau0 had0
+  have hau1 := CodeReq.ofProg_mem_at B (B + 36) rlpFieldToU64_prog 9
+    (.AUIPC .x14 (laHi GuestAddrs.rfu_length
+      (GuestAddrs.rlp_field_to_u64 + 36))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had1 := CodeReq.ofProg_mem_at B (B + 40) rlpFieldToU64_prog 10
+    (.ADDI .x14 .x14 (laLo GuestAddrs.rfu_length
+      (GuestAddrs.rlp_field_to_u64 + 36))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h1 := la_materialize_within .x14 old14 (B + 36) lengthCell
+    (by decide) (by unfold B lengthCell; decide) hau1 had1
+  have h0F := cpsTripleWithin_frameR ((.x14 ↦ᵣ old14)) (by pcf) h0
+  have h1F := cpsTripleWithin_frameR ((.x13 ↦ᵣ offsetCell)) (by pcf) h1
+  have hlocal := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have hlocal' := cpsTripleWithin_weaken
+    (P' := (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14))
+    (Q' := (.x13 ↦ᵣ offsetCell) ** (.x14 ↦ᵣ lengthCell))
+    (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hlocal
+  have hframed := cpsTripleWithin_frameR F hF hlocal'
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hframed
+
+#print axioms setupGlobals
 
 theorem frameRegs_implies_owned (s0 s1 : Word) : ∀ h,
     (regOwn .x1 ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1)) h →
