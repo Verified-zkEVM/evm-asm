@@ -997,6 +997,97 @@ theorem nonceFieldInitOk_to_cont396Pre (aB newSp oB n4 v19 v20 : Word)
 
 #print axioms nonceFieldInitOk_to_cont396Pre
 
+/-- Successful outer-item continuation (`B + 372`): capture its field span,
+    initialize the field window, and run the complete nonce parser. -/
+theorem bansf_nonceStationCont372_spec (aB newSp oB : Word)
+    (aLen off : Nat) (n4 l4 v19 v20 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ aLen)
+    (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+      (aB + BitVec.ofNat 64 aLen) n4 l4) :
+    cpsBranchWithin (98 * (aLen + 1) + (7 * acctBytes.length + 700))
+      (B + 372) bansfCR
+      ((((.x10 : Reg) ↦ᵣ n4) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ l4) ** ((.x19 : Reg) ↦ᵣ v19) **
+       ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** G **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540) (nonceStationPost aB newSp oB aLen
+        ((n4 - l4 - aB).toNat) l4.toNat n4 acctBytes G F) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  obtain ⟨hrep, _, hspan⟩ := rlpItemDecode_spanStart hdec hoff (by omega)
+  have hcap := bansf_nonceSpanCapture93_spec n4 l4 v19 v20
+  have hcapL := liftCode (cr' := bansfCR) hcap
+    (fun a i h => CodeReq.union_mono_left a i h)
+  let T : Assertion :=
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    memOwn (newSp + 64) ** memOwn (newSp + 72) **
+    ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+    ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+    ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+    ((.x31 : Reg) ↦ᵣ v31) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    ((.x1 : Reg) ↦ᵣ vRa) ** ((.x8 : Reg) ↦ᵣ aB) **
+    ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F
+  have hcapF := cpsTripleWithin_frameR T
+    (by dsimp only [T]; pcf; exact hG; pcf; exact hF) hcapL
+  have hfi := bansf_nonceFieldInit97_spec aB aLen
+    ((n4 - l4 - aB).toNat) l4 acctBytes v5 v6 v7 l4
+    v28 v29 v30 v31 vRa F hF hsalign hslack hover hvalid hspan
+  rw [← hrep] at hfi
+  let S : Assertion := nonceFieldFrame aB newSp oB n4 (n4 - l4) l4 aLen G
+  have hfiF := cpsBranchWithin_frameR S
+    (by dsimp only [S, nonceFieldFrame]; pcf; exact hG; pcf) hfi
+  have hfiW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ x => x)
+    (fun h hq => nonceFieldInitReject_to_stationRej aB newSp oB n4
+      (n4 - l4) l4 aLen acctBytes G F h
+      (by dsimp only [S] at hq; exact hq))
+    (fun _ x => x) hfiF
+  have hc396 := bansf_nonceStationCont396_spec aB newSp oB aLen
+    ((n4 - l4 - aB).toNat) l4.toNat n4 acctBytes G F hG hF
+    hsalign hslack hover hvalid (by omega)
+  have hc396' := cpsBranchWithin_weaken
+    (fun h hp => by
+      have hp' := nonceFieldInitOk_to_cont396Pre aB newSp oB n4
+        (n4 - l4) l4 aLen ((n4 - l4 - aB).toNat) l4.toNat
+        acctBytes G F h hp
+      unfold nonceCont396Pre at hp'
+      exact hp')
+    (fun _ x => x) (fun _ x => x) hc396
+  have hchain := cpsBranchWithin_chain_snd hfiW hc396'
+  have hfull := cpsTripleWithin_seq_branch_same_cr hcapF
+    (cpsBranchWithin_weaken
+      (fun h hp => by dsimp only [T, S, nonceFieldFrame]; xperm_hyp hp)
+      (fun _ x => x) (fun _ x => x) hchain)
+  exact cpsBranchWithin_weaken
+    (fun h hp => by dsimp only [T]; xperm_hyp hp)
+    (fun _ x => x) (fun _ x => x)
+    (cpsBranchWithin_mono_nSteps (by omega) hfull)
+
+#print axioms bansf_nonceStationCont372_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
