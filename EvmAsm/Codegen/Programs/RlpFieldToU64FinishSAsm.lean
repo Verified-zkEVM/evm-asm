@@ -217,4 +217,129 @@ theorem successMachineTail
 
 #print axioms successMachineTail
 
+/-- Scalar status two is preserved as wrapper status two
+    (instructions 25, 26, 31). -/
+theorem tooLongMachineTail
+    (old5 old10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 3 (B + 100) (B + 128) code
+      ((.x5 ↦ᵣ old5) ** (.x11 ↦ᵣ (2 : Word)) **
+        (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      ((.x10 ↦ᵣ (2 : Word)) ** (.x5 ↦ᵣ (2 : Word)) **
+        (.x11 ↦ᵣ (2 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  have hl0 := li_spec_gen_within .x5 old5 (2 : Word) (B + 100) (by decide)
+  have hl := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 100) rlpFieldToU64_prog 25
+      (.LI .x5 (2 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hl0
+  let R0 : Assertion :=
+    (.x11 ↦ᵣ (2 : Word)) ** (.x10 ↦ᵣ old10) **
+    (.x0 ↦ᵣ (0 : Word)) ** F
+  have hlF := cpsTripleWithin_frameR R0 (by unfold R0; pcf; exact hF) hl
+  have hb0 := beq_spec_gen_within .x11 .x5 (20 : BitVec 13)
+    (2 : Word) (2 : Word) (B + 104)
+  rw [show B + 104 + signExtend13 (20 : BitVec 13) = B + 124 from by decide,
+    show B + 104 + 4 = B + 108 from by bv_omega] at hb0
+  have hb := cpsBranchWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 104) rlpFieldToU64_prog 26
+      (.BEQ .x11 .x5 (20 : BitVec 13)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
+  let R1 : Assertion :=
+    (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F
+  have hbF := cpsBranchWithin_frameR R1 (by unfold R1; pcf; exact hF) hb
+  have hbTaken := cpsBranchWithin_takenPath hbF (fun h hp => by
+    extract_pure_deep hp
+    obtain ⟨h_ne, -⟩ := hp
+    exact h_ne rfl)
+  have hr0 := li_spec_gen_within .x10 old10 (2 : Word) (B + 124) (by decide)
+  have hr := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 124) rlpFieldToU64_prog 31
+      (.LI .x10 (2 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hr0
+  let R2 : Assertion :=
+    (.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** F
+  have hrF := cpsTripleWithin_frameR R2 (by unfold R2; pcf; exact hF) hr
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hlF hbTaken
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨-, hp⟩ := hp
+    xperm_hyp hp) h01 hrF
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) h012
+
+#print axioms tooLongMachineTail
+
+/-- Scalar status three (leading-zero rejection) maps to wrapper status one
+    (instructions 25--28). -/
+theorem noncanonicalMachineTail
+    (old5 old10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (B + 100) (B + 128) code
+      ((.x5 ↦ᵣ old5) ** (.x11 ↦ᵣ (3 : Word)) **
+        (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      ((.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+        (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  have hl0 := li_spec_gen_within .x5 old5 (2 : Word) (B + 100) (by decide)
+  have hl := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 100) rlpFieldToU64_prog 25
+      (.LI .x5 (2 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hl0
+  let R0 : Assertion :=
+    (.x11 ↦ᵣ (3 : Word)) ** (.x10 ↦ᵣ old10) **
+    (.x0 ↦ᵣ (0 : Word)) ** F
+  have hlF := cpsTripleWithin_frameR R0 (by unfold R0; pcf; exact hF) hl
+  have hb0 := beq_spec_gen_within .x11 .x5 (20 : BitVec 13)
+    (3 : Word) (2 : Word) (B + 104)
+  rw [show B + 104 + signExtend13 (20 : BitVec 13) = B + 124 from by decide,
+    show B + 104 + 4 = B + 108 from by bv_omega] at hb0
+  have hb := cpsBranchWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 104) rlpFieldToU64_prog 26
+      (.BEQ .x11 .x5 (20 : BitVec 13)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
+  let R1 : Assertion :=
+    (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F
+  have hbF := cpsBranchWithin_frameR R1 (by unfold R1; pcf; exact hF) hb
+  have hbFall := cpsBranchWithin_ntakenPath hbF (fun h hp => by
+    extract_pure_deep hp
+    obtain ⟨h_eq, -⟩ := hp
+    have h_ne : (3 : Word) ≠ 2 := by decide
+    exact h_ne h_eq)
+  have hs0 := li_spec_gen_within .x10 old10 (1 : Word) (B + 108) (by decide)
+  have hs := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 108) rlpFieldToU64_prog 27
+      (.LI .x10 (1 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hs0
+  let R2 : Assertion :=
+    (.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** F
+  have hsF := cpsTripleWithin_frameR R2 (by unfold R2; pcf; exact hF) hs
+  have hj0 := jal_x0_spec_gen_within (16 : BitVec 21) (B + 112)
+  rw [show B + 112 + signExtend21 (16 : BitVec 21) = B + 128 from by decide]
+    at hj0
+  have hj := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 112) rlpFieldToU64_prog 28
+      (.JAL .x0 (16 : BitVec 21)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hj0
+  let R3 : Assertion :=
+    (.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+    (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F
+  have hjF0 := cpsTripleWithin_frameR R3 (by unfold R3; pcf; exact hF) hj
+  have hjF := cpsTripleWithin_weaken
+    (fun h hp => (sepConj_emp_left h).2 hp)
+    (fun h hp => (sepConj_emp_left h).1 hp) hjF0
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hlF hbFall
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨-, hp⟩ := hp
+    xperm_hyp hp) h01 hsF
+  have h0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    h012 hjF
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) h0123
+
+#print axioms noncanonicalMachineTail
+
 end EvmAsm.Codegen.RlpFieldToU64SAsm
