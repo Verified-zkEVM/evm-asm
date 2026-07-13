@@ -1076,5 +1076,19 @@ theorem bansf_nonceTupleSpill117_spec (newSp v10 v11 : Word) :
 
 #print axioms bansf_nonceTupleSpill117_spec
 
+/-- Slots 113–114 (`B + 452 → B + 460`): move the last nonce tuple span
+    into the tuple `rlp_walk_init` argument registers. -/
+theorem bansf_nonceLoopExitMove113_spec (v19 v20 v10 v11 : Word) :
+    cpsTripleWithin 2 (B + 452) (B + 460) bansfCode
+      (((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11))
+      (((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x10 : Reg) ↦ᵣ v19) ** ((.x11 : Reg) ↦ᵣ v20)) := by
+  have s1 := mv_spec_gen_within .x10 .x19 v19 v10 (B + 452) (by decide)
+  have s2 := mv_spec_gen_within .x11 .x20 v20 v11 (B + 456) (by decide)
+  runBlock s1 s2
+
+#print axioms bansf_nonceLoopExitMove113_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
