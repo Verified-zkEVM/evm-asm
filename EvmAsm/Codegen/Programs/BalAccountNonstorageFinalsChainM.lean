@@ -226,5 +226,56 @@ theorem balResult_attachFinal
 
 #print axioms balResult_attachFinal
 
+/-- Pure semantic witnesses accumulated after balance and nonce stations. -/
+def balNonceFinals (acctBytes : List (BitVec 8)) (aB : Word)
+    (balOff balSpan nonceOff nonceSpan : Nat)
+    (bal nonce : Option (Word × Word)) : Prop :=
+  FieldFinal acctBytes aB balOff balSpan bal ∧
+  (∀ vNext vLen, bal = some (vNext, vLen) → vLen.toNat ≤ 32) ∧
+  FieldFinal acctBytes aB nonceOff nonceSpan nonce ∧
+  (∀ vNext vLen, nonce = some (vNext, vLen) → vLen.toNat ≤ 8)
+
+/-- Lift the balance witness through `nonceResult` and expose the nonce
+    witness, retaining the complete nested owned footprint. -/
+theorem nonceResult_attachFinals
+    (aB oB : Word) (balOff balSpan nonceOff nonceSpan : Nat)
+    (acctBytes : List (BitVec 8)) :
+    ∀ h,
+      nonceResult aB oB nonceOff nonceSpan acctBytes
+        (balResult aB oB balOff balSpan acctBytes) h →
+      ∃ bal nonce : Option (Word × Word),
+        (nonceResult aB oB nonceOff nonceSpan acctBytes
+            (balResult aB oB balOff balSpan acctBytes) **
+          ⌜balNonceFinals acctBytes aB balOff balSpan nonceOff nonceSpan
+            bal nonce⌝) h := by
+  intro h hp
+  have hpKeep := hp
+  unfold nonceResult at hp
+  rcases hp with hp | hp
+  · have hCore := ((sepConj_pure_right h).1 hp).1
+    obtain ⟨hBal, hRest, _, _, hBalResult, _⟩ := hCore
+    obtain ⟨bal, hAttached⟩ :=
+      balResult_attachFinal aB oB balOff balSpan acctBytes hBal hBalResult
+    have hBalFacts := ((sepConj_pure_right hBal).1 hAttached).2
+    have hNonce := ((sepConj_pure_right h).1 hp).2
+    refine ⟨bal, none, (sepConj_pure_right h).2 ⟨hpKeep, ?_⟩⟩
+    exact ⟨hBalFacts.1, hBalFacts.2, hNonce, by simp⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    have hCore := ((sepConj_pure_right h).1 hp).1
+    obtain ⟨hBal, hRest, _, _, hBalResult, _⟩ := hCore
+    obtain ⟨bal, hAttached⟩ :=
+      balResult_attachFinal aB oB balOff balSpan acctBytes hBal hBalResult
+    have hBalFacts := ((sepConj_pure_right hBal).1 hAttached).2
+    have hNonce := ((sepConj_pure_right h).1 hp).2
+    refine ⟨bal, some (vNext, vLen),
+      (sepConj_pure_right h).2 ⟨hpKeep, ?_⟩⟩
+    refine ⟨hBalFacts.1, hBalFacts.2, hNonce.1, ?_⟩
+    intro vNext' vLen' heq
+    simp only [Option.some.injEq, Prod.mk.injEq] at heq
+    rcases heq with ⟨rfl, rfl⟩
+    exact hNonce.2
+
+#print axioms nonceResult_attachFinals
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
