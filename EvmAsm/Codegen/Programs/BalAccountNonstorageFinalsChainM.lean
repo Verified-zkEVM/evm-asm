@@ -91,5 +91,45 @@ theorem nonceStationPost_to_resultFrame
 
 #print axioms nonceStationPost_to_resultFrame
 
+/-- Persistent balance+nonce+code result carried into the verdict tail. -/
+def codeResult (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G : Assertion) : Assertion := fun h =>
+  (((G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word))) **
+    ⌜FieldFinal acctBytes aB fOff fSpanN none⌝) h) ∨
+  (∃ vNext vLen : Word,
+    (((G ** ((oB + 56) ↦ₘ (1 : Word)) **
+        ((oB + 64) ↦ₘ BitVec.ofNat 64 ((vNext - vLen - aB).toNat)) **
+        ((oB + 72) ↦ₘ BitVec.ofNat 64 vLen.toNat)) **
+      ⌜FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))⌝) h))
+
+/-- Split a code-station success into its persistent result and verdict frame. -/
+theorem codeStationPost_to_resultFrame
+    (aB newSp oB n5 : Word) (aLen fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h, codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F h →
+      (codeResult aB oB fOff fSpanN acctBytes G **
+       (((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F)) h := by
+  intro h hp
+  unfold codeStationPost at hp
+  unfold codeResult
+  rcases hp with hp | hp
+  · refine sepConj_mono_left (fun h' hp' => Or.inl hp') h ?_
+    xperm_hyp hp
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    refine sepConj_mono_left (fun h' hp' => Or.inr ⟨vNext, vLen, hp'⟩) h ?_
+    xperm_pure hp
+
+#print axioms codeStationPost_to_resultFrame
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
