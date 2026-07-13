@@ -1037,7 +1037,6 @@ theorem bansf_nonceTupleItem0_spec (aB newSp : Word) (aLen off : Nat)
         bytesRegion aB acctBytes ** F)) h := by
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
-
 #print axioms bansf_nonceTupleItem0_spec
 
 
@@ -1073,7 +1072,6 @@ theorem bansf_nonceTupleSpill117_spec (newSp v10 v11 : Word) :
     hsd1F hsd2F
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
-
 #print axioms bansf_nonceTupleSpill117_spec
 
 /-- Slots 113–114 (`B + 452 → B + 460`): move the last nonce tuple span
@@ -1087,7 +1085,6 @@ theorem bansf_nonceLoopExitMove113_spec (v19 v20 v10 v11 : Word) :
   have s1 := mv_spec_gen_within .x10 .x19 v19 v10 (B + 452) (by decide)
   have s2 := mv_spec_gen_within .x11 .x20 v20 v11 (B + 456) (by decide)
   runBlock s1 s2
-
 #print axioms bansf_nonceLoopExitMove113_spec
 
 /-- Loop-entry spills (slots 100–101): store the tuple-walk cursor and end. -/
@@ -1129,7 +1126,6 @@ theorem bansf_nonceLoopEntry100_spec (aB newSp : Word) (cOff fEnd : Nat) :
     hsd1F hsd2F
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
-
 #print axioms bansf_nonceLoopEntry100_spec
 
 /-- Slot 99, taken arm: an empty nonce list skips to the station join. -/
@@ -1159,7 +1155,6 @@ theorem bansf_nonceEmptyTaken_spec (aB : Word) (cOff fEnd : Nat)
     (fun h hq => by
       exact sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
-
 #print axioms bansf_nonceEmptyTaken_spec
 
 /-- Slot 99, fall-through arm: a nonempty nonce list enters its tuple loop. -/
@@ -1194,7 +1189,6 @@ theorem bansf_nonceEmptyFall_spec (aB : Word) (aLen cOff fEnd : Nat)
     (fun h hq => by
       exact sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
-
 #print axioms bansf_nonceEmptyFall_spec
 
 /-- Slots 92–96 (`B + 368 → B + 388`): respill the outer item-4 cursor,
@@ -1244,7 +1238,6 @@ theorem bansf_nonceSpanCapture92_spec (newSp n4 l4 v19 v20 : Word) :
     (fun h hp => by xperm_hyp hp) hsdF hcapF
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
-
 #print axioms bansf_nonceSpanCapture92_spec
 
 /-- Slot 98, status-zero arm (`B + 392 → B + 396`): preserve the successful
@@ -1289,7 +1282,6 @@ theorem bansf_nonceFieldInitSuccess98_spec (aB : Word) (fOff fSpanN cOff : Nat)
   have hq' := sepConj_mono_left (sepConj_mono_right
     (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
   xperm_hyp hq'
-
 #print axioms bansf_nonceFieldInitSuccess98_spec
 
 /-- Slot 98, nonzero-status arm (`B + 392 → B + 736`): branch through the
@@ -1355,7 +1347,6 @@ theorem bansf_nonceFieldInitFailure98_spec (aB cur endW k : Word)
     (sepConj_mono (regIs_implies_regOwn .x12)
       (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x))) h hq'
   xperm_hyp hqOwn
-
 #print axioms bansf_nonceFieldInitFailure98_spec
 
 /-- Concrete code witnesses for the four non-call instructions of the outer
@@ -1387,7 +1378,6 @@ theorem bansf_item4_code :
     exact CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 368) bansfProg 92 (.SD .x2 .x10 (48 : BitVec 12))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
-
 #print axioms bansf_item4_code
 
 /-- Slots 93–96 (`B + 372 → B + 388`): capture the already-respilled outer
@@ -1405,7 +1395,6 @@ theorem bansf_nonceSpanCapture93_spec (n4 l4 v19 v20 : Word) :
   have s3 := mv_spec_gen_within .x10 .x19 (n4 - l4) n4 (B + 380) (by decide)
   have s4 := mv_spec_gen_within .x11 .x20 l4 (0 : Word) (B + 384) (by decide)
   runBlock s1 s2 s3 s4
-
 #print axioms bansf_nonceSpanCapture93_spec
 
 /-- Slots 139–142 (`B + 556 → B + 572`): capture the outer code item span
@@ -1423,7 +1412,6 @@ theorem bansf_codeSpanCapture139_spec (n5 l5 v19 v20 : Word) :
   have s3 := mv_spec_gen_within .x10 .x19 (n5 - l5) n5 (B + 564) (by decide)
   have s4 := mv_spec_gen_within .x11 .x20 l5 (0 : Word) (B + 568) (by decide)
   runBlock s1 s2 s3 s4
-
 #print axioms bansf_codeSpanCapture139_spec
 
 /-- Concrete code witness for the code-field status gate at slot 144. -/
@@ -1436,7 +1424,6 @@ theorem bansf_codeFieldStatus144_code :
       (.BNE .x12 .x0 (156 : BitVec 13))
       (by decide +kernel) (by decide +kernel) (by decide +kernel)
       (by decide) a i h)
-
 #print axioms bansf_codeFieldStatus144_code
 
 /-- Concrete code witness for the code-field empty split at slot 145. -/
@@ -1448,7 +1435,6 @@ theorem bansf_codeEmpty145_code :
     (.BEQ .x10 .x11 (144 : BitVec 13))
     (by decide +kernel) (by decide +kernel) (by decide +kernel)
     (by decide) a i h
-
 #print axioms bansf_codeEmpty145_code
 
 /-- Concrete code witnesses for the station-3 loop-entry spills. -/
@@ -1466,7 +1452,6 @@ theorem bansf_codeLoopEntry_code :
     exact CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 588) bansfProg 147 (.SD .x2 .x11 (72 : BitVec 12))
         (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
-
 #print axioms bansf_codeLoopEntry_code
 
 /-- Concrete code witnesses for the code-window materialization tail. -/
@@ -1484,8 +1469,18 @@ theorem bansf_codeMaterialize_code :
   · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+712) bansfProg 178 (.SD .x18 .x12 (72:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
   · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+716) bansfProg 179 (.LI .x5 (1:Word)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
   · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+720) bansfProg 180 (.SD .x18 .x5 (56:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
-
 #print axioms bansf_codeMaterialize_code
+
+/-- Concrete code witnesses for the code tuple's value-item argument setup. -/
+theorem bansf_codeValueArgs_code :
+    (∀ a i, CodeReq.singleton (B+680) (.LD .x28 .x2 (64:BitVec 12)) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+684) (.LD .x11 .x2 (72:BitVec 12)) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+688) (.MV .x10 .x28) a = some i → bansfCR a = some i) := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+680) bansfProg 170 (.LD .x28 .x2 (64:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+684) bansfProg 171 (.LD .x11 .x2 (72:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+688) bansfProg 172 (.MV .x10 .x28) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+#print axioms bansf_codeValueArgs_code
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
