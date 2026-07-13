@@ -724,8 +724,8 @@ def statelessVerdictV2Function : String :=
   -- extraction (`input + 12`, `off1 - 12`) leaves an 8-byte phantom body
   -- when deposits are empty and makes execution_requests_hash reject every
   -- transaction-bearing builder fixture with bv_fail=24.
-  "  la t0, c1_er_input; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le; mv t2, a0\n" ++
-  "  addi a0, t1, 4; jal ra, bgv_u32le; sub a1, a0, t2; add a0, t1, t2\n" ++
+  "  addi t1, s0, 16; add t1, t1, s3; mv s2, t1; mv a0, t1; jal ra, bgv_u32le; mv t2, a0\n" ++
+  "  addi a0, s2, 4; jal ra, bgv_u32le; sub a1, a0, t2; add a0, s2, t2\n" ++
   "  j .Lv2_er_deposits_ready\n" ++
   ".Lv2_er_empty_deposits:\n" ++
   "  la a0, c1_dbody; li a1, 0\n" ++
