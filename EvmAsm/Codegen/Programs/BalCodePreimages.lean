@@ -1160,6 +1160,26 @@ def balCodePreimagesValidFunction : String :=
   -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers;
   -- x20 (env) is preserved here (the buggy 40(sp) reload above is on the pre-state-hit path).
   ".Lbsbd_target_sameblock:\n" ++
+  -- The BAL contains the block-final code, but an address currently being
+  -- CREATEd has empty code until its constructor returns successfully and the
+  -- deposit completes.  In particular, an EIP-7702 pointer may target its own
+  -- not-yet-created delegate from inside that delegate's initcode.  Do not make
+  -- the final BAL bytes visible early: scan all active CREATE ancestors and
+  -- resolve a matching target as empty code.  The delegation access charge was
+  -- already applied above, so only code visibility changes here.
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t2, create_frame_flag; la t3, create_address_by_depth\n" ++
+  ".Lbsbd_active_create_scan:\n" ++
+  "  beqz t1, .Lbsbd_active_create_done\n" ++
+  "  slli t4, t1, 3; add t5, t2, t4; ld t5, 0(t5); beqz t5, .Lbsbd_active_create_next\n" ++
+  "  slli t4, t1, 5; add t5, t3, t4; addi t6, s9, 3; li a0, 20\n" ++
+  ".Lbsbd_active_create_cmp:\n" ++
+  "  beqz a0, .Lbsbd_active_create_empty\n" ++
+  "  lbu a1, 0(t5); lbu a2, 0(t6); bne a1, a2, .Lbsbd_active_create_next\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbsbd_active_create_cmp\n" ++
+  ".Lbsbd_active_create_next:\n" ++
+  "  addi t1, t1, -1; j .Lbsbd_active_create_scan\n" ++
+  ".Lbsbd_active_create_done:\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s9, 3             # single-hop target address ptr\n" ++
   "  la a3, bsbd_tgt_ptr; la a4, bsbd_tgt_len\n" ++
@@ -1182,6 +1202,9 @@ def balCodePreimagesValidFunction : String :=
   -- charge already applied above (.Lbsbd_skip_charge)
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_active_create_empty:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbsbd_ret\n" ++
   -- A delegation target may have been CREATEd earlier in this transaction and
   -- SELFDESTRUCTed before the delegated CALL.  EIP-6780 deletes that account at
   -- transaction finalization; it does not erase its code during message
@@ -1193,7 +1216,11 @@ def balCodePreimagesValidFunction : String :=
   ".Lbsbd_target_create_effect:\n" ++
   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); addi a2, s9, 3\n" ++
   "  jal ra, find_code_effect_by_address\n" ++
-  "  beqz a0, .Lbsbd_no\n" ++
+  -- The delegation marker was found and its target access was already charged.
+  -- If no committed CREATE effect exists, the target has empty code (for
+  -- example because its CREATE frame reverted); do not report a generic miss,
+  -- which makes the caller fall back to and charge the stale pre-state marker.
+  "  beqz a0, .Lbsbd_active_create_empty\n" ++
   "  ld t1, 40(a0); la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
   "  addi t1, a0, 48; ld t2, 104(sp); ld t2, 608(t2); sub t1, t1, t2\n" ++
   "  la t2, cahsr_code_offset; sd t1, 0(t2)\n" ++
