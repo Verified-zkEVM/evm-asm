@@ -1031,5 +1031,95 @@ theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)
 
 #print axioms nonceCaptureFound_to_stationPost
 
+theorem cpsBranchWithin_of_forall_regIs_to_regOwn5
+    {n : Nat} {entry : Word} {r1 r2 r3 r4 r5 : Reg}
+    {P : Assertion} {e1 : Word} {Q1 : Assertion} {e2 : Word} {Q2 : Assertion}
+    {cr : CodeReq}
+    (h : ∀ v1 v2 v3 v4 v5, cpsBranchWithin n entry cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) **
+       (r4 ↦ᵣ v4) ** (r5 ↦ᵣ v5)) e1 Q1 e2 Q2) :
+    cpsBranchWithin n entry cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 ** regOwn r5)
+      e1 Q1 e2 Q2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, ⟨v5, hv5⟩⟩ := hO4
+  exact h v1 v2 v3 v4 v5 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3,
+       hv2, g6, g7, d4, u4, hv3, g8, g9, d5, u5, hv4, hv5⟩, hRb⟩ hpc
+
+#print axioms cpsBranchWithin_of_forall_regIs_to_regOwn5
+
+/-- Continuation at `B + 512` (the nonce value item decoded): run the scalar
+    capture and route both exits to the nonce-station boundary assertions. -/
+theorem bansf_nonceStationCont512_spec (aB newSp oB : Word)
+    (aLen tEnd offV fOff fSpanN : Nat) (n4 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffle : offV ≤ tEnd)
+    (hFF : ∀ vNext vLen : Word,
+      rlpItemDecode acctBytes offV (aB + BitVec.ofNat 64 offV)
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 18) (B + 512) bansfCR
+      (fun h => ∃ vNext vLen : Word,
+        (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ vLen) **
+           ((.x2 : Reg) ↦ᵣ newSp) **
+           ((newSp + 48) ↦ₘ n4) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           memOwn (newSp + 64) ** memOwn (newSp + 72) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+           ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word)) **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** G **
+           regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x1) **
+         ⌜rlpItemDecode acctBytes offV (aB + BitVec.ofNat 64 offV)
+           (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+  refine cpsBranchWithin_exists_pre (fun vNext => ?_)
+  refine cpsBranchWithin_exists_pre (fun vLen => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hdecV => ?_)
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn5
+    (fun v5 v6 v7 v28 vRa => ?_)
+  let P : Assertion :=
+    G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    memOwn (newSp + 64) ** memOwn (newSp + 72) **
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+    ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F
+  have hP : P.pcFree := by dsimp only [P]; pcf; exact hG; pcf; exact hF
+  have hc := bansf_nonceCapture_spec aB oB aLen tEnd offV
+    vNext vLen 0 v5 v6 v7 v28 vRa acctBytes P hP hsalign hslack
+    hover hvalid htEnd hoffle hdecV
+  obtain ⟨_, hsrcLen, _, _⟩ := bansf_nonceCapture_callee_bounds aB aLen tEnd
+    offV vNext vLen acctBytes hslack hover hvalid htEnd hoffle hdecV
+  refine cpsBranchWithin_weaken (fun h hp => by dsimp only [P]; xperm_hyp hp)
+    (fun h hq => nonceCaptureReject_to_stationRej
+      aB newSp oB n4 vLen aLen acctBytes G F h hq)
+    (fun h hq => nonceCaptureFound_to_stationPost
+      aB newSp oB n4 vNext vLen aLen fOff fSpanN acctBytes G F
+      (hFF vNext vLen hdecV) h hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hc)
+
+#print axioms bansf_nonceStationCont512_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
