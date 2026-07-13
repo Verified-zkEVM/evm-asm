@@ -85,5 +85,45 @@ theorem bansf_codeStationCont700_spec
 
 #print axioms bansf_codeStationCont700_spec
 
+/-- A rejected code value item carries the untouched station frame needed for
+    the shared code-station reject boundary. -/
+theorem codeTupleReject_to_stationRej (aB newSp oB n5 : Word)
+    (aLen : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (tupleRej aB newSp acctBytes F **
+       (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h →
+      codeStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold tupleRej at hq
+  have hq2 :
+      ((((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x10 : Reg) ↦ᵣ (1 : Word))) **
+       (G ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F)) h := by
+    xperm_hyp hq
+  have hq3 := sepConj_mono
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn (fun _ x => x))))))
+    (fun _ x => x) h hq2
+  unfold codeStationRej
+  xperm_hyp hq3
+
+#print axioms codeTupleReject_to_stationRej
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
