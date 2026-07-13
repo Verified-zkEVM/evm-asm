@@ -356,5 +356,62 @@ theorem codeLoopExit_to_cont636Pre (aB newSp oB n5 : Word)
 #print axioms codeLoopExit_to_cont636Pre
 
 
+
+theorem bansf_codeStationCont592_spec (aB newSp oB : Word)
+    (aLen fOff fSpanN j : Nat) (n5 : Word) (b : BitVec 8)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hb : acctBytes[fOff]? = some b)
+    (hne : fOff + listHeaderSize b ≠ fOff + fSpanN)
+    (hoff0le : fOff + listHeaderSize b ≤ fOff + fSpanN)
+    (hfE : fOff + fSpanN ≤ aLen) :
+    cpsBranchWithin (98 * (j + 1) + (7 * acctBytes.length + 291))
+      (B + 592) bansfCR
+      (flInv aB newSp acctBytes (fOff + listHeaderSize b)
+        (fOff + fSpanN) F j **
+       (G **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB)))
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724)
+        (codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F) := by
+  have hloop := bansf_findLastLoop3_spec aB newSp acctBytes
+    (fOff + listHeaderSize b) (fOff + fSpanN) F hF hsalign
+    (by omega) hover hvalid (by omega) j
+  let H : Assertion :=
+    G **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB)
+  have hH : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have hloopF := cpsBranchWithin_frameR H hH hloop
+  have hloopSw := cpsBranchWithin_swap hloopF
+  have hloopW := cpsBranchWithin_weaken
+    (Q_t' := codeStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => codeLoopReject_to_stationRej aB newSp oB n5 aLen
+      acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) hloopSw
+  have hc452 := bansf_codeStationCont636_spec aB newSp oB aLen fOff fSpanN
+    n5 b acctBytes G F hG hF hsalign hslack hover hvalid hb hne hoff0le hfE
+  have hc452' := cpsBranchWithin_weaken
+    (codeLoopExit_to_cont636Pre aB newSp oB n5 aLen
+      (fOff + listHeaderSize b) (fOff + fSpanN) acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hc452
+  exact cpsBranchWithin_chain_snd hloopW hc452'
+
+#print axioms bansf_codeStationCont592_spec
+
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
