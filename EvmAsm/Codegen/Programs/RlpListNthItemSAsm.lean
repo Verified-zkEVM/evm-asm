@@ -613,12 +613,169 @@ structure Saved where
   s4 : Word
   s5 : Word
 
+def listNthFrame : FrameDesc :=
+  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32),
+   (.x20, 40), (.x21, 48)]
+
+def savedVals (saved : Saved) : Reg → Word
+  | .x1 => saved.ra
+  | .x8 => saved.s0
+  | .x9 => saved.s1
+  | .x18 => saved.s2
+  | .x19 => saved.s3
+  | .x20 => saved.s4
+  | .x21 => saved.s5
+  | _ => 0
+
+theorem listNthFrame_length : listNthFrame.length = 7 := by decide
+
+theorem regsAt_listNthFrame (saved : Saved) :
+    regsAt listNthFrame (savedVals saved) =
+      ((.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+       (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+       (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)) := by
+  simp [listNthFrame, regsAt, savedVals]
+  rw [sepConj_emp_right']
+
 /-- Exact seven saved-register cells in the frame. -/
 def savedFrame (newSp : Word) (saved : Saved) : Assertion :=
   (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) **
   ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2) **
   ((newSp + 32) ↦ₘ saved.s3) ** ((newSp + 40) ↦ₘ saved.s4) **
   ((newSp + 48) ↦ₘ saved.s5)
+
+theorem frameSlotsSaved_listNthFrame (newSp : Word) (saved : Saved) :
+    frameSlotsSaved listNthFrame newSp (savedVals saved) = savedFrame newSp saved := by
+  simp [listNthFrame, frameSlotsSaved, savedFrame, savedVals,
+    sepConj_emp_right', signExtend12]
+
+/-- Wrapper slots 8--11 copy the four stable ABI arguments into saved
+    registers after the frame has been stored. -/
+theorem setupMoves (listBase indexW offsetPtr lenPtr : Word)
+    (v8 v9 v18 v19 : Word) :
+    cpsTripleWithin 4 (B + 32) (B + 48) code
+      ((.x8 ↦ᵣ v8) ** (.x10 ↦ᵣ listBase) **
+       (.x9 ↦ᵣ v9) ** (.x12 ↦ᵣ indexW) **
+       (.x18 ↦ᵣ v18) ** (.x13 ↦ᵣ offsetPtr) **
+       (.x19 ↦ᵣ v19) ** (.x14 ↦ᵣ lenPtr))
+      ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+       (.x9 ↦ᵣ indexW) ** (.x12 ↦ᵣ indexW) **
+       (.x18 ↦ᵣ offsetPtr) ** (.x13 ↦ᵣ offsetPtr) **
+       (.x19 ↦ᵣ lenPtr) ** (.x14 ↦ᵣ lenPtr)) := by
+  have h0 := mv_spec_gen_within .x8 .x10 listBase v8 (B + 32) (by decide)
+  have h1 := mv_spec_gen_within .x9 .x12 indexW v9 (B + 36) (by decide)
+  have h2 := mv_spec_gen_within .x18 .x13 offsetPtr v18 (B + 40) (by decide)
+  have h3 := mv_spec_gen_within .x19 .x14 lenPtr v19 (B + 44) (by decide)
+  have l0 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 32) rlpListNthItem_prog 8 (.MV .x8 .x10)
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) h0
+  have l1 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 36) rlpListNthItem_prog 9 (.MV .x9 .x12)
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) h1
+  have l2 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 40) rlpListNthItem_prog 10 (.MV .x18 .x13)
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) h2
+  have l3 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 44) rlpListNthItem_prog 11 (.MV .x19 .x14)
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) h3
+  have s0 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ v9) ** (.x12 ↦ᵣ indexW) **
+     (.x18 ↦ᵣ v18) ** (.x13 ↦ᵣ offsetPtr) **
+     (.x19 ↦ᵣ v19) ** (.x14 ↦ᵣ lenPtr)) (by pcf) l0
+  have s1 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+     (.x18 ↦ᵣ v18) ** (.x13 ↦ᵣ offsetPtr) **
+     (.x19 ↦ᵣ v19) ** (.x14 ↦ᵣ lenPtr)) (by pcf) l1
+  have s2 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+     (.x9 ↦ᵣ indexW) ** (.x12 ↦ᵣ indexW) **
+     (.x19 ↦ᵣ v19) ** (.x14 ↦ᵣ lenPtr)) (by pcf) l2
+  have s3 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+     (.x9 ↦ᵣ indexW) ** (.x12 ↦ᵣ indexW) **
+     (.x18 ↦ᵣ offsetPtr) ** (.x13 ↦ᵣ offsetPtr)) (by pcf) l3
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s0 s1
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h01 s2
+  have h0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h012 s3
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) h0123
+
+def entryRest (listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ indexW) **
+   (.x13 ↦ᵣ offsetPtr) ** (.x14 ↦ᵣ lenPtr) **
+   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+   bytesRegion listBase bytes ** (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+
+def setupPost (newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) : Assertion :=
+  ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ saved.ra) **
+   (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+   (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+   (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+   savedFrame newSp saved ** entryRest listBase listLenW indexW offsetPtr lenPtr
+     oldOffset oldLen bytes)
+
+theorem wrapperPrologue (sp0 newSp listBase listLenW indexW offsetPtr lenPtr
+    oldOffset oldLen : Word) (saved : Saved) (bytes : List (BitVec 8))
+    (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12)) :
+    cpsTripleWithin 12 B (B + 48) code
+      ((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+       frameSlotsOwn listNthFrame newSp **
+       entryRest listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen bytes)
+      (setupPost newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes) := by
+  have ha0 := addi_spec_gen_same_within .x2 sp0 (-64 : BitVec 12) B (by decide)
+  rw [← hnewSp] at ha0
+  have ha := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B B rlpListNthItem_prog 0
+      (.ADDI .x2 .x2 (-64 : BitVec 12)) rfl
+      (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) ha0
+  rw [show B + 4 = B + 4 from rfl] at ha
+  have haF := cpsTripleWithin_frameR
+    (regsAt listNthFrame (savedVals saved) ** frameSlotsOwn listNthFrame newSp **
+      entryRest listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen bytes)
+    (by pcf) ha
+  have hs0 := storeSeq_spec listNthFrame newSp (savedVals saved) (B + 4) (by decide)
+  have hstoreMono : ∀ a i,
+      CodeReq.ofProg (B + 4) (storeProg listNthFrame) a = some i → code a = some i := by
+    intro a i hmem
+    exact CodeReq.ofProg_mono_sub B (B + 4) rlpListNthItem_prog
+      (storeProg listNthFrame) 1 (by bv_omega) (by rfl)
+      (by rw [total_length]; simp [listNthFrame])
+      (by rw [total_length]; norm_num) a i hmem
+  have hs := cpsTripleWithin_extend_code hstoreMono hs0
+  rw [show B + 4 + BitVec.ofNat 64 (4 * listNthFrame.length) = B + 32 from by
+    simp [listNthFrame]; bv_omega] at hs
+  have hsF := cpsTripleWithin_frameR
+    (entryRest listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen bytes)
+    (by pcf) hs
+  have hm0 := setupMoves listBase indexW offsetPtr lenPtr
+    saved.s0 saved.s1 saved.s2 saved.s3
+  have hmF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ saved.ra) **
+     (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+     savedFrame newSp saved **
+     ((.x11 ↦ᵣ listLenW) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+      (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))) (by pcf) hm0
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) haF hsF
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    rw [regsAt_listNthFrame, frameSlotsSaved_listNthFrame] at hp
+    unfold entryRest at hp
+    xperm_hyp hp) h01 hmF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by unfold setupPost entryRest; xperm_hyp hp) h012
+
+#print axioms setupMoves
+#print axioms wrapperPrologue
 
 /-- Stable resources other than `s4`; `x20` is separated because slot 16 reads
     it while preparing the WalkNext call. -/
