@@ -487,5 +487,20 @@ theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
 
 #print axioms nonceResult_pcFree
 
+/-- The complete persistent code result is PC-free when its preserved
+    balance+nonce footprint is. -/
+theorem codeResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G : Assertion) (hG : G.pcFree) :
+    (codeResult aB oB fOff fSpanN acctBytes G).pcFree := by
+  letI : Assertion.PCFree G := ⟨hG⟩
+  intro h hp
+  unfold codeResult at hp
+  rcases hp with hp | hp
+  · exact (inferInstance : Assertion.PCFree _).proof h hp
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    exact (inferInstance : Assertion.PCFree _).proof h hp
+
+#print axioms codeResult_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
