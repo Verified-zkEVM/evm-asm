@@ -210,13 +210,33 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
-  -- execution-specs applies the EIP-4788 system transaction before user
+  -- execution-specs applies the EIP-2935 and EIP-4788 system transactions before user
   -- transactions. Nested-callee seeds otherwise contain the authenticated
-  -- parent-state value and make calls into the beacon-roots contract observe
-  -- stale storage. Overlay the two current-block system writes here, just as
+  -- parent-state value and make calls into the history / beacon-roots contracts observe
+  -- stale storage. Overlay the current-block system writes here, just as
   -- the direct-recipient preload does below. This changes storage contents
   -- only; it does not seed EIP-2929 warmth (system-call warmth is discarded
   -- before the user transaction).
+  "  la t0, csce_addrp; ld t0, 0(t0); la t1, bsr_addr_2935; li t2, 20\n" ++
+  ".Lscs_2935_acmp:\n" ++
+  "  beqz t2, .Lscs_2935_addr_match\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_2935_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_2935_acmp\n" ++
+  ".Lscs_2935_addr_match:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_2935_slot; li t2, 32\n" ++
+  ".Lscs_2935_slot_cmp:\n" ++
+  "  beqz t2, .Lscs_2935_use_value\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_2935_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_2935_slot_cmp\n" ++
+  ".Lscs_2935_use_value:\n" ++
+  "  la t0, swd_2935_val; la t1, swd_2935_vlen; ld t2, 0(t1)\n" ++
+  "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
+  "  beqz t2, .Lscs_2935_overlay_done\n" ++
+  "  add t0, t0, t2; addi t0, t0, -1; addi t1, t4, 64\n" ++
+  ".Lscs_2935_value_loop:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lscs_2935_value_loop\n" ++
+  ".Lscs_2935_overlay_done:\n" ++
   "  la t0, csce_addrp; ld t0, 0(t0); la t1, bsr_addr_4788; li t2, 20\n" ++
   ".Lscs_4788_acmp:\n" ++
   "  beqz t2, .Lscs_4788_addr_match\n" ++
