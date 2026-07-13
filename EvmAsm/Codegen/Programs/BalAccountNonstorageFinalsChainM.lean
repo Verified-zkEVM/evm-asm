@@ -324,5 +324,44 @@ theorem codeResult_attachFinals
 
 #print axioms codeResult_attachFinals
 
+/-- The complete six-item outer AccountChanges decode chain. -/
+def outerDecodes (acctBytes : List (BitVec 8)) (aB : Word) (aLen : Nat)
+    (b0 : BitVec 8) (n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 : Word) : Prop :=
+  acctBytes[0]? = some b0 ∧
+  rlpItemDecode acctBytes (listHeaderSize b0)
+    (aB + BitVec.ofNat 64 (listHeaderSize b0))
+    (aB + BitVec.ofNat 64 aLen) n0 l0 ∧
+  rlpItemDecode acctBytes (n0 - aB).toNat n0
+    (aB + BitVec.ofNat 64 aLen) n1 l1 ∧
+  rlpItemDecode acctBytes (n1 - aB).toNat n1
+    (aB + BitVec.ofNat 64 aLen) n2 l2 ∧
+  rlpItemDecode acctBytes (n2 - aB).toNat n2
+    (aB + BitVec.ofNat 64 aLen) n3 l3 ∧
+  rlpItemDecode acctBytes (n3 - aB).toNat n3
+    (aB + BitVec.ofNat 64 aLen) n4 l4 ∧
+  rlpItemDecode acctBytes (n4 - aB).toNat n4
+    (aB + BitVec.ofNat 64 aLen) n5 l5
+
+/-- Convert the packaged outer chain and three packaged station finals into
+    the genuine semantic derivation used by the capstone postcondition. -/
+theorem outerAndFieldFinals_to_derivation
+    (acctBytes : List (BitVec 8)) (aB : Word) (aLen : Nat)
+    (b0 : BitVec 8) (n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 : Word)
+    (bal nonce code : Option (Word × Word))
+    (hOuter : outerDecodes acctBytes aB aLen b0
+      n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5)
+    (hFinals : allFieldFinals acctBytes aB
+      (n3 - l3 - aB).toNat l3.toNat
+      (n4 - l4 - aB).toNat l4.toNat
+      (n5 - l5 - aB).toNat l5.toNat bal nonce code) :
+    FinalsDerivation acctBytes aB aLen (finalsOutOf acctBytes aB bal nonce code) := by
+  rcases hOuter with ⟨h0, hd0, hd1, hd2, hd3, hd4, hd5⟩
+  rcases hFinals with ⟨⟨hbal, hbalBound, hnonce, hnonceBound⟩, hcode⟩
+  exact fieldFinals_to_finalsDerivation acctBytes aB aLen b0
+    n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 bal nonce code
+    h0 hd0 hd1 hd2 hd3 hd4 hd5 hbal hnonce hcode hbalBound hnonceBound
+
+#print axioms outerAndFieldFinals_to_derivation
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
