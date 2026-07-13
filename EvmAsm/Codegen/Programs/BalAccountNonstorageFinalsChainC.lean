@@ -13,7 +13,7 @@
   sites (68/97/115/143/161) instantiate by the concrete address table.
 -/
 
-import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB3
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB
 
 set_option maxRecDepth 8000
 

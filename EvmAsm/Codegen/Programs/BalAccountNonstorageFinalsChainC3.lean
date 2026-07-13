@@ -19,6 +19,7 @@
   the packaged four-way dispatch post cannot supply it.
 -/
 
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC2
 
 set_option maxRecDepth 8000

@@ -7,7 +7,7 @@
   generated from the SEG-B outer item template by the address table.
 -/
 
-import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop3
 
 set_option maxRecDepth 8000
 
