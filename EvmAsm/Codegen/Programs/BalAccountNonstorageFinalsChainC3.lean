@@ -1197,5 +1197,55 @@ theorem bansf_nonceEmptyFall_spec (aB : Word) (aLen cOff fEnd : Nat)
 
 #print axioms bansf_nonceEmptyFall_spec
 
+/-- Slots 92–96 (`B + 368 → B + 388`): respill the outer item-4 cursor,
+    capture its span in `s3`/`s4`, and prepare `rlp_walk_init`. -/
+theorem bansf_nonceSpanCapture92_spec (newSp n4 l4 v19 v20 : Word) :
+    cpsTripleWithin 5 (B + 368) (B + 388) bansfCR
+      (((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 48))
+      (((.x10 : Reg) ↦ᵣ (n4 - l4)) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ (n4 - l4)) ** ((.x20 : Reg) ↦ᵣ l4) **
+       ((.x11 : Reg) ↦ᵣ l4) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ n4)) := by
+  have hsd := sd_spec_gen_own_within .x2 .x10 newSp n4
+    (48 : BitVec 12) (B + 368)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+      show (B + 368) + 4 = B + 372 from by bv_omega] at hsd
+  have hsdL := liftCode (cr' := bansfCR) hsd
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 368) bansfProg 92
+        (.SD .x2 .x10 (48 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide) a i h))
+  have hsdF := cpsTripleWithin_frameR
+    (((.x12 : Reg) ↦ᵣ l4) ** ((.x19 : Reg) ↦ᵣ v19) **
+     ((.x20 : Reg) ↦ᵣ v20) ** ((.x11 : Reg) ↦ᵣ (0 : Word)))
+    (by pcf) hsdL
+  have s1 := sub_spec_gen_within .x19 .x10 .x12 n4 l4 v19 (B + 372) (by decide)
+  have s2 := mv_spec_gen_within .x20 .x12 l4 v20 (B + 376) (by decide)
+  have s3 := mv_spec_gen_within .x10 .x19 (n4 - l4) n4 (B + 380) (by decide)
+  have s4 := mv_spec_gen_within .x11 .x20 l4 (0 : Word) (B + 384) (by decide)
+  have hcap : cpsTripleWithin 4 (B + 372) (B + 388) bansfCode
+      (((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x11 : Reg) ↦ᵣ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ (n4 - l4)) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ (n4 - l4)) ** ((.x20 : Reg) ↦ᵣ l4) **
+       ((.x11 : Reg) ↦ᵣ l4)) := by
+    runBlock s1 s2 s3 s4
+  have hcapL := liftCode (cr' := bansfCR) hcap
+    (fun a i h => CodeReq.union_mono_left a i h)
+  have hcapF := cpsTripleWithin_frameR
+    (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 48) ↦ₘ n4))
+    (by pcf) hcapL
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hsdF hcapF
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_nonceSpanCapture92_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
