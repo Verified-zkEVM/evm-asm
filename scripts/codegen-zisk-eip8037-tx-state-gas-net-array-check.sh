@@ -40,10 +40,11 @@ python3 - <<'INNER'
 from pathlib import Path
 import struct
 out = Path('gen-out/zisk_eip8037_tx_state_gas_net_array.output').read_bytes()
-if len(out) < 72:
+if len(out) < 48:
     raise SystemExit('FAIL: short output')
-vals = list(struct.unpack('<9Q', out[:72]))
-expected = [0, 0, 183600, 217520, 183600, 0, 1, 0, 0]
+vals = list(struct.unpack('<6Q', out[:48]))
+# v0.6 identity (fork.py:1174): tx_state_gas = intrinsic + executed, no refund.
+expected = [0, 0, 183600, 281520, 97920, 0]
 if vals != expected:
     print('FAIL: unexpected output')
     print('  actual  ', vals)

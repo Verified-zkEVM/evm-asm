@@ -787,7 +787,13 @@ def emitCreateChildFrameData : String :=
   -- incorporating the child. A same-tx-created target can be alive even when its
   -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
   "create_target_alive_current_tx:\n  .zero 8\n" ++
-  "create_state_gas_charged_current:\n  .zero 8\n"
+  "create_state_gas_charged_current:\n  .zero 8\n" ++
+  -- v0.6 (evm-asm-0w05f.17.2): failed-create NEW_ACCOUNT refund gate. The
+  -- REVERT/invalid-deposit/exceptional-halt paths stash the by-depth
+  -- create_target_alive_flag here before frame_return pops the depth; a
+  -- nonzero value (alive target -> charge skipped) suppresses the
+  -- credit_state_gas_refund mirror.
+  "create_failed_refund_skip:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -1303,9 +1309,15 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  la x6, evm_state_gas_left; sd x28, 0(x6)\n" ++
   "  ld x5, 632(x20); la x6, evm_state_gas_used; sd x5, 0(x6)\n" ++
   "  ld x5, 760(x20); la x6, evm_state_gas_spilled; sd x5, 0(x6)\n" ++
-  -- generic_create credits NEW_ACCOUNT state gas back on child error. Save
-  -- whether this is a CREATE frame before frame_return restores the parent.
+  -- generic_create credits NEW_ACCOUNT state gas back on child error ONLY when
+  -- it charged it (system.py:157-159 `if new_account_charged:`); an alive
+  -- target skipped the conditional charge (v0.6, evm-asm-0w05f.17.2). Save
+  -- "CREATE frame AND target not alive" before frame_return pops the depth.
   "  la x5, create_frame_flag; slli x6, x18, 3; add x5, x5, x6; ld x6, 0(x5); sd x0, 0(x5)\n" ++
+  "  la x5, create_target_alive_flag; slli x7, x18, 3; add x5, x5, x7; ld x7, 0(x5)\n" ++
+  "  beqz x7, 8f\n" ++
+  "  li x6, 0\n" ++
+  "8:\n" ++
   "  la x5, create_target_alive_current_tx; sd x6, 0(x5)\n" ++
   "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
@@ -2721,25 +2733,40 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
   -- reservoir first, spilling the remainder into regular gas; an unaffordable
   -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
-  -- burned, the charge rolled back -- the state-dimension accounting keeps the
-  -- intrinsic-term model and refunds via eip8037_tx_state_gas's creation-error
-  -- branch). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
+  -- burned, the charge rolled back -- OOG-checked before the counters are
+  -- touched). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
   -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
   -- target is never charged); probes/non-creation paths leave it zero.
+  -- 0w05f.17.2: mirror charge_state_gas COMPLETELY -- the charge counts into
+  -- evm_state_gas_used (and its spill into evm_state_gas_spilled), because the
+  -- v0.6 settlement identity reports it as EXECUTED state gas
+  -- (tx_state = intrinsic + executed, fork.py:1174; spec intrinsic_state_gas
+  -- is 0 for creation). x7 carries the full staged charge across the spill
+  -- split; it is dead here and reloaded from the input header below.
   "  la x11, runtime_tx_create_state_charge\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  mv x7, x9\n" ++
   "  la x11, evm_state_gas_left\n" ++
   "  ld x8, 0(x11)\n" ++
   "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
   "  sub x8, x8, x9\n" ++
   "  sd x8, 0(x11)\n" ++
-  "  j .runtime_tx_create_state_done\n" ++
+  "  j .runtime_tx_create_state_used\n" ++
   ".runtime_tx_create_state_spill:\n" ++
   "  sub x9, x9, x8\n" ++
-  "  sd x0, 0(x11)\n" ++
   "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sd x0, 0(x11)\n" ++
   "  sub x6, x6, x9\n" ++
+  "  la x11, evm_state_gas_spilled\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_used:\n" ++
+  "  la x11, evm_state_gas_used\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x7\n" ++
+  "  sd x8, 0(x11)\n" ++
   ".runtime_tx_create_state_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas

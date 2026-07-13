@@ -215,7 +215,7 @@ def schemeAAnchors : List GuestRegion :=
     for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu), and by
     `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
     (evm-asm-ck36u). -/
-def textSizeBytes : Nat := 0x57ec4
+def textSizeBytes : Nat := 0x57f5c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -229,7 +229,7 @@ def textSizeBytes : Nat := 0x57ec4
 def dataSizeBytes : Nat := 0x5310
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. -/
-def bssSizeBytes : Nat := 0x1a318fa0
+def bssSizeBytes : Nat := 0x1a318fc0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -308,7 +308,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xa3005310`, `.bss` ends `0xbe318fa0`,
+    (`0xa3000000`); `.data` ends `0xa3005310`, `.bss` ends `0xbe318fc0`,
     both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
     is expanded — as its own inventory —

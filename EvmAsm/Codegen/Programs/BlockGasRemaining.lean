@@ -148,6 +148,17 @@ def ziskEip7778RemainingBlockGasCheckProbeUnit : BuildUnit := {
       a4 = pointer to `count` u64 calldata_floor_gas_cost values
       a5 = count
       a6 = scratch pointer for `count` u64 block-gas increments
+      a7 = pointer to `count` u64 per-tx total state gas
+           (intrinsic.state + executed state gas, fork.py:1174), or 0 for the
+           legacy 1D increment (`max(before_refund, floor)`)
+
+    With a nonzero a7, the per-tx block-gas increment follows the v0.6
+    settlement identity (fork.py:1176-1181):
+
+      tx_regular_gas = max(before_refund - tx_state_gas, calldata_floor)
+
+    i.e. only the regular dimension accumulates into `block_gas_used`; state
+    gas is admitted/settled on its own dimension.
 
     Returns:
       a0 = status:
@@ -155,9 +166,11 @@ def ziskEip7778RemainingBlockGasCheckProbeUnit : BuildUnit := {
         1 transaction gas exceeds currently available block gas
         2 cumulative block-gas-used overflow while applying increments
         3 invalid runtime gas result (`gas_left > tx_gas_limit`)
+        4 per-tx state gas exceeds before-refund gas (Uint underflow in
+          fork.py:1178 -> invalid block)
       a1 = first failing transaction index, 1-based; 0 on success
       a2 = block_gas_used before the failing transaction/increment, or final
-           block_gas_used on success. For status 3 this is currently 0. -/
+           block_gas_used on success. For status 3/4 this is currently 0. -/
 def eip7778RemainingBlockGasFromResults_prog : Program :=
   [ .ADDI .x2 .x2 (-80 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -179,7 +192,7 @@ def eip7778RemainingBlockGasFromResults_prog : Program :=
     .MV .x21 .x15,
     .MV .x22 .x16,
     .LI .x23 (0 : Word),
-    .BEQ .x23 .x21 (68 : BitVec 13),
+    .BEQ .x23 .x21 (112 : BitVec 13),
     .SLLI .x5 .x23 (3 : BitVec 6),
     .ADD .x6 .x9 .x5,
     .LD .x10 .x6 (0 : BitVec 12),
@@ -190,20 +203,35 @@ def eip7778RemainingBlockGasFromResults_prog : Program :=
     .ADD .x6 .x20 .x5,
     .LD .x13 .x6 (0 : BitVec 12),
     .JAL .x1 (jalOff GuestAddrs.tx_gas_result_increments (GuestAddrs.eip7778_remaining_block_gas_from_results + 120)),
-    .BNE .x10 .x0 (52 : BitVec 13),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .BEQ .x24 .x0 (44 : BitVec 13),
+    .SLLI .x5 .x23 (3 : BitVec 6),
+    .ADD .x6 .x24 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .BLTU .x13 .x7 (92 : BitVec 13),
+    .SUB .x13 .x13 .x7,
+    .ADD .x6 .x20 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .BGEU .x13 .x7 (8 : BitVec 13),
+    .MV .x13 .x7,
+    .MV .x11 .x13,
     .SLLI .x5 .x23 (3 : BitVec 6),
     .ADD .x6 .x22 .x5,
     .SD .x6 .x11 (0 : BitVec 12),
     .ADDI .x23 .x23 (1 : BitVec 12),
-    .JAL .x0 (-64 : BitVec 21),
+    .JAL .x0 (-108 : BitVec 21),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x22,
     .MV .x13 .x21,
     .MV .x14 .x24,
-    .JAL .x1 (jalOff GuestAddrs.eip7778_remaining_block_gas_check (GuestAddrs.eip7778_remaining_block_gas_from_results + 168)),
-    .JAL .x0 (16 : BitVec 21),
+    .JAL .x1 (jalOff GuestAddrs.eip7778_remaining_block_gas_check (GuestAddrs.eip7778_remaining_block_gas_from_results + 212)),
+    .JAL .x0 (32 : BitVec 21),
     .LI .x10 (3 : Word),
+    .ADDI .x11 .x23 (1 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (4 : Word),
     .ADDI .x11 .x23 (1 : BitVec 12),
     .LI .x12 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -224,7 +252,7 @@ def eip7778RemainingBlockGasFromResults_prog : Program :=
     above carries the concrete guest-linked immediates for verification. -/
 def eip7778RemainingBlockGasFromResults_relocs : RelocTable :=
   [ (30, .jal .x1 "tx_gas_result_increments"),
-    (42, .jal .x1 "eip7778_remaining_block_gas_check") ]
+    (53, .jal .x1 "eip7778_remaining_block_gas_check") ]
 
 def eip7778RemainingBlockGasFromResultsFunction : String :=
   "eip7778_remaining_block_gas_from_results:\n" ++ emitProgramR eip7778RemainingBlockGasFromResults_prog eip7778RemainingBlockGasFromResults_relocs
@@ -238,7 +266,7 @@ theorem eip7778RemainingBlockGasFromResultsFunction_eq_prog :
     eip7778RemainingBlockGasFromResultsFunction = "eip7778_remaining_block_gas_from_results:\n" ++ emitProgramR eip7778RemainingBlockGasFromResults_prog eip7778RemainingBlockGasFromResults_relocs := rfl
 
 #guard eip7778RemainingBlockGasFromResultsFunction.startsWith "eip7778_remaining_block_gas_from_results:\n"
-#guard eip7778RemainingBlockGasFromResults_prog.length = 59
+#guard eip7778RemainingBlockGasFromResults_prog.length = 74
 /-- `zisk_eip7778_remaining_block_gas_from_results`: focused zisk probe.
     Host input payload after the zisk length prefix:
       +0  block_gas_limit u64
