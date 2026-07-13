@@ -439,4 +439,207 @@ theorem copyBody_spec_within
 
 #print axioms copyBody_spec_within
 
+/-- Exact bounded closure of K35's top-tested copy loop (instructions 27--33).
+    The post exposes the genuine right-aligned byte window. -/
+theorem copyLoop_spec_within
+    (listBase outputPtr old30 : Word) (bytes : List (BitVec 8))
+    (offset len : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hdalign : outputPtr.toNat % 8 = 0)
+    (hfit : len ≤ 32) (hbound : offset + len ≤ bytes.length)
+    (hsrc : listBase.toNat + bytes.length < 2 ^ 64)
+    (hdst : outputPtr.toNat + 32 < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (houtvalid : ∀ k, k < 32 →
+      isValidByteAccess (outputPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (7 * len + 1) (B + 108) (B + 136) code
+      ((.x6 ↦ᵣ BitVec.ofNat 64 len) **
+       (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 offset)) **
+       (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len))) **
+       (.x30 ↦ᵣ old30) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes **
+       bytesRegion outputPtr (List.replicate 32 0))
+      ((.x6 ↦ᵣ (0 : Word)) **
+       (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + len))) **
+       (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 32)) ** regOwn .x30 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       bytesRegion outputPtr (rightAligned32 bytes
+         (BitVec.ofNat 64 offset) (BitVec.ofNat 64 len))) := by
+  have hbmono : ∀ a ins, CodeReq.singleton (B + 108)
+      (.BEQ .x6 .x0 (28 : BitVec 13)) a = some ins → code a = some ins := by
+    intro a ins hi
+    exact wrapperCode_mono a ins (CodeReq.ofProg_mem_at B (B + 108)
+      rlpFieldToU256Be_prog 27 (.BEQ .x6 .x0 (28 : BitVec 13))
+      (by bv_omega) (by rw [program_length]; decide) rfl
+      (by rw [program_length]; decide) a ins hi)
+  have htgt : B + 108 + signExtend13 (28 : BitVec 13) = B + 136 := by decide
+  have hfall : B + 108 + 4 = B + 112 := by bv_omega
+  have hback : B + 132 + signExtend21 (-24 : BitVec 21) = B + 108 := by decide
+  have loopAux : ∀ (n i : Nat) (v30 : Word), i + n = len →
+      cpsTripleWithin (7 * n + 1) (B + 108) (B + 136) code
+        ((.x6 ↦ᵣ BitVec.ofNat 64 n) **
+         (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+         (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+         (.x30 ↦ᵣ v30) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes ** bytesRegion outputPtr
+           (copyWin bytes offset len i))
+        ((.x6 ↦ᵣ (0 : Word)) **
+         (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + len))) **
+         (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 32)) ** regOwn .x30 **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+         bytesRegion outputPtr (copyWin bytes offset len len)) := by
+    intro n
+    induction n with
+    | zero =>
+        intro i v30 hsum
+        have hb := beq_spec_gen_within .x6 .x0 (28 : BitVec 13)
+          (BitVec.ofNat 64 0) (0 : Word) (B + 108)
+        rw [htgt, hfall] at hb
+        have hbF := cpsBranchWithin_frameR
+          ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+           (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+           (.x30 ↦ᵣ v30) ** bytesRegion listBase bytes **
+           bytesRegion outputPtr (copyWin bytes offset len i)) (by pcf) hb
+        have ht := cpsBranchWithin_takenPath
+          (cpsBranchWithin_extend_code hbmono hbF) (fun hp hq => by
+            obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hq
+            exact ((sepConj_pure_right _).1 h_pure).2 (by decide))
+        have hi_eq : i = len := by omega
+        subst i
+        rw [show (0#64 : Word) = 0 by decide] at ht
+        simpa only [Nat.zero_add, Nat.add_zero, show (0#64 : Word) = 0 by decide]
+          using cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+            (fun h hp => by
+              let Rest : Assertion :=
+                (.x6 ↦ᵣ (0 : Word)) **
+                (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + len))) **
+                (.x29 ↦ᵣ (outputPtr + (32 : Word))) **
+                (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+                bytesRegion outputPtr (copyWin bytes offset len len)
+              have hp0 : (((.x30 ↦ᵣ v30) ** Rest) h) := by
+                unfold Rest
+                have hnat : 32 - len + len = 32 := by omega
+                have hword : BitVec.ofNat 64 (32 - len + len) = (32 : Word) := by
+                  rw [hnat]
+                  decide
+                rw [hword] at hp
+                let Fr : Assertion :=
+                  (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + len))) **
+                  (.x29 ↦ᵣ (outputPtr + (32 : Word))) **
+                  (.x30 ↦ᵣ v30) ** bytesRegion listBase bytes **
+                  bytesRegion outputPtr (copyWin bytes offset len len)
+                have hp' : ((((.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+                    Fr) h) := by
+                  obtain ⟨g1, g2, gd, gu, hleft, hfr⟩ := hp
+                  exact ⟨g1, g2, gd, gu,
+                    sepConj_mono_right
+                      (fun h' hh => ((sepConj_pure_right h').1 hh).1)
+                      g1 hleft, hfr⟩
+                unfold Fr at hp'
+                xperm_hyp hp'
+              have hp1 := sepConj_mono (regIs_implies_regOwn .x30)
+                (fun _ hh => hh) h hp0
+              unfold Rest at hp1
+              rw [show BitVec.ofNat 64 32 = (32 : Word) by decide]
+              xperm_hyp hp1) ht
+    | succ k ih =>
+        intro i v30 hsum
+        have hi : i < len := by omega
+        have hb := beq_spec_gen_within .x6 .x0 (28 : BitVec 13)
+          (BitVec.ofNat 64 (k + 1)) (0 : Word) (B + 108)
+        rw [htgt, hfall] at hb
+        have hbF := cpsBranchWithin_frameR
+          ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+           (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+           (.x30 ↦ᵣ v30) ** bytesRegion listBase bytes **
+           bytesRegion outputPtr (copyWin bytes offset len i)) (by pcf) hb
+        have hk64 : k + 1 < 2 ^ 64 := by omega
+        have hne : BitVec.ofNat 64 (k + 1) ≠ (0 : Word) := by
+          intro h_eq
+          have ht := congrArg BitVec.toNat h_eq
+          rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk64] at ht
+          simp at ht
+        have hf := cpsBranchWithin_ntakenPath
+          (cpsBranchWithin_extend_code hbmono hbF) (fun hp hq => by
+            obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hq
+            exact hne ((sepConj_pure_right _).1 h_pure).2)
+        have hf' : cpsTripleWithin 1 (B + 108) (B + 112) code
+            (((.x6 ↦ᵣ BitVec.ofNat 64 (k + 1)) ** (.x0 ↦ᵣ (0 : Word))) **
+              ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+               (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+               (.x30 ↦ᵣ v30) ** bytesRegion listBase bytes **
+               bytesRegion outputPtr (copyWin bytes offset len i)))
+            ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+             (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+             (.x30 ↦ᵣ v30) ** (.x6 ↦ᵣ BitVec.ofNat 64 (k + 1)) **
+             bytesRegion listBase bytes **
+             bytesRegion outputPtr (copyWin bytes offset len i) **
+             (.x0 ↦ᵣ (0 : Word))) := cpsTripleWithin_weaken (fun _ hp => hp)
+          (fun h hp => by
+            have hp' := sepConj_mono_left
+              (sepConj_mono_right (fun h' hh => ((sepConj_pure_right h').1 hh).1)) h hp
+            xperm_hyp hp') hf
+        have hbody := copyBody_spec_within listBase outputPtr v30
+          (BitVec.ofNat 64 (k + 1)) bytes (copyWin bytes offset len i)
+          offset len i hsalign hdalign hi hfit hbound hsrc hdst hvalid
+          houtvalid (length_copyWin bytes offset len i hfit (by omega))
+        have hdec : BitVec.ofNat 64 (k + 1) + signExtend12 (-1 : BitVec 12) =
+            BitVec.ofNat 64 k := by
+          rw [show signExtend12 (-1 : BitVec 12) = (-1 : Word) by decide]
+          apply BitVec.eq_of_toNat_eq
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+            Nat.mod_eq_of_lt hk64]
+          simp only [show (-1 : Word).toNat = 2 ^ 64 - 1 by decide]
+          omega
+        have hwin : (copyWin bytes offset len i).set (32 - len + i)
+            (copyByte bytes offset i) = copyWin bytes offset len (i + 1) := by
+          rw [← setBytes_singleton, copyWin_step bytes offset len i hfit hi]
+        rw [hdec, hwin] at hbody
+        rw [show offset + i + 1 = offset + (i + 1) by omega,
+          show 32 - len + i + 1 = 32 - len + (i + 1) by omega] at hbody
+        have hbody0 := cpsTripleWithin_frameR (.x0 ↦ᵣ (0 : Word)) (by pcf) hbody
+        have hj := jal_x0_spec_gen_within (-24 : BitVec 21) (B + 132)
+        rw [hback] at hj
+        have hj' := cpsTripleWithin_extend_code (cr' := code) (fun a ins hmem =>
+          wrapperCode_mono a ins (CodeReq.ofProg_mem_at B (B + 132)
+            rlpFieldToU256Be_prog 33 (.JAL .x0 (-24 : BitVec 21))
+            (by bv_omega) (by rw [program_length]; decide) rfl
+            (by rw [program_length]; decide) a ins hmem)) hj
+        let R : Assertion :=
+          (.x6 ↦ᵣ BitVec.ofNat 64 k) **
+          (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + (i + 1)))) **
+          (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + (i + 1)))) **
+          (.x30 ↦ᵣ (copyByte bytes offset i).zeroExtend 64) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+          bytesRegion outputPtr (copyWin bytes offset len (i + 1))
+        have hjF := cpsTripleWithin_frameR R (by unfold R; pcf) hj'
+        have hjS : cpsTripleWithin 1 (B + 132) (B + 108) code R R :=
+          cpsTripleWithin_weaken
+            (fun h hp => by simpa only [sepConj_emp_left'] using hp)
+            (fun h hp => by simpa only [sepConj_emp_left'] using hp) hjF
+        have htail := ih (i + 1)
+          ((copyByte bytes offset i).zeroExtend 64) (by omega)
+        have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+          hf' hbody0
+        have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+          s1 hjS
+        have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+          s2 htail
+        rw [show 7 * (k + 1) + 1 = 1 + 5 + 1 + (7 * k + 1) by ring]
+        exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hp => hp) s3
+  have h0 := loopAux len 0 old30 (by omega)
+  rw [copyWin_zero bytes offset len hfit] at h0
+  have hdone := copyWin_done bytes offset len hfit hbound
+  have hlen64 : len < 2 ^ 64 := by omega
+  have hoff64 : offset < 2 ^ 64 := by omega
+  unfold rightAligned32 selectedBytes
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlen64,
+    Nat.mod_eq_of_lt hoff64]
+  rw [hdone] at h0
+  simpa only [Nat.zero_add, show 32 - len + len = 32 by omega] using h0
+
+#print axioms copyLoop_spec_within
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
