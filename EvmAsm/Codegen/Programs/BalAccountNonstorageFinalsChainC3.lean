@@ -1162,6 +1162,40 @@ theorem bansf_nonceEmptyTaken_spec (aB : Word) (cOff fEnd : Nat)
 
 #print axioms bansf_nonceEmptyTaken_spec
 
+/-- Slot 99, fall-through arm: a nonempty nonce list enters its tuple loop. -/
+theorem bansf_nonceEmptyFall_spec (aB : Word) (aLen cOff fEnd : Nat)
+    (hne : cOff ≠ fEnd) (hcle : cOff ≤ aLen) (hfle : fEnd ≤ aLen)
+    (hover9 : aB.toNat + aLen + 9 < 2 ^ 64) :
+    cpsTripleWithin 1 (B + 396) (B + 400) bansfCode
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd))) := by
+  have hwne : aB + BitVec.ofNat 64 cOff ≠ aB + BitVec.ofNat 64 fEnd := by
+    intro hc
+    apply hne
+    have := congrArg BitVec.toNat hc
+    rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
+      BitVec.toNat_ofNat] at this
+    omega
+  have hbeq := beq_spec_gen_within .x10 .x11 (144 : BitVec 13)
+    (aB + BitVec.ofNat 64 cOff) (aB + BitVec.ofNat 64 fEnd) (B + 396)
+  rw [show (B + 396) + 4 = B + 400 from by bv_omega] at hbeq
+  have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCode)
+    (fun a i h => CodeReq.ofProg_mem_at B (B + 396) bansfProg 99
+      (.BEQ .x10 .x11 (144 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+    hbeq
+  have h := cpsBranchWithin_ntakenPath hbeqL
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd (((sepConj_pure_right _).1 h_pure).2) hwne)
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      exact sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
+
+#print axioms bansf_nonceEmptyFall_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
