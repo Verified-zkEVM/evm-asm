@@ -989,5 +989,38 @@ theorem nonceCodePost_to_successPost
 
 #print axioms nonceCodePost_to_successPost
 
+/-- Success-state remainder after factoring the verdict register `a0`. -/
+def bansfSuccessRest (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  ∃ out : FinalsOut, ∃ spill : Word,
+    ((finalOutBlock acctBytes aB oB out **
+      (((newSp + 48) ↦ₘ spill) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes ** F)) **
+     ⌜FinalsDerivation acctBytes aB aLen out⌝) h
+
+/-- Factor `regOwn a0` from the semantic success boundary for the verdict
+    stub, leaving a PC-free remainder to frame unchanged. -/
+theorem bansfSuccessPost_to_a0Rest
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h, bansfSuccessPost aB newSp oB aLen acctBytes F h →
+      (regOwn .x10 ** bansfSuccessRest aB newSp oB aLen acctBytes F) h := by
+  intro h hp
+  unfold bansfSuccessPost at hp
+  unfold bansfSuccessRest
+  obtain ⟨out, spill, hp⟩ := hp
+  exact sepConj_mono_right (fun h' hp' => ⟨out, spill, hp'⟩) h (by
+    xperm_hyp hp)
+
+#print axioms bansfSuccessPost_to_a0Rest
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
