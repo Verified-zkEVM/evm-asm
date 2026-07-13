@@ -9,7 +9,7 @@
   `callAddbackCarry2NzV5_of_borrow_n2` (#7431).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIter
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
 
 namespace EvmAsm.Evm64

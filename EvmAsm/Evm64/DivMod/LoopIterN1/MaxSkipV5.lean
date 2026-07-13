@@ -15,7 +15,7 @@
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopBodyN1
+import EvmAsm.Evm64.DivMod.N1CallBase
 
 namespace EvmAsm.Evm64
 

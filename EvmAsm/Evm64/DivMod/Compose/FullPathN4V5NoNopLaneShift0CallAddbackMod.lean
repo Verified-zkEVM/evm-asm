@@ -13,7 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
 

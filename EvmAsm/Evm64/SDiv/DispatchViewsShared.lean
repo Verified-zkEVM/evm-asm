@@ -4,7 +4,6 @@
 
 import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
-import EvmAsm.Evm64.SDiv.Compose.SignXorPost
 import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
 import EvmAsm.Evm64.SDiv.Compose.Base
 import EvmAsm.Evm64.SDiv.Compose.Bridges

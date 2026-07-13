@@ -15,7 +15,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeR0V5
+import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 namespace EvmAsm.Evm64
