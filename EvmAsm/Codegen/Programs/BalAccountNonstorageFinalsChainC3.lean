@@ -1247,5 +1247,50 @@ theorem bansf_nonceSpanCapture92_spec (newSp n4 l4 v19 v20 : Word) :
 
 #print axioms bansf_nonceSpanCapture92_spec
 
+/-- Slot 98, status-zero arm (`B + 392 → B + 396`): preserve the successful
+    nonce-field `rlp_walk_init` result as the unified field-init post. -/
+theorem bansf_nonceFieldInitSuccess98_spec (aB : Word) (fOff fSpanN cOff : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hok : FieldInitOk acctBytes fOff fSpanN cOff) :
+    cpsTripleWithin 1 (B + 392) (B + 396) bansfCR
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+       ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) **
+       bytesRegion aB acctBytes ** F)
+      (fieldInitPost aB fOff fSpanN acctBytes (B + 388 + 4) F) := by
+  have hbne := bne_spec_gen_within .x12 .x0 (340 : BitVec 13)
+    (0 : Word) (0 : Word) (B + 392)
+  rw [show (B + 392) + 4 = B + 396 from by bv_omega] at hbne
+  have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 392) bansfProg 98
+        (.BNE .x12 .x0 (340 : BitVec 13))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide) a i h)) hbne
+  have hfall := cpsBranchWithin_ntakenPath hbneL
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  have hfallF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+     ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) ** bytesRegion aB acctBytes ** F)
+    (by pcf; exact hF) hfall
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_)
+    hfallF
+  unfold fieldInitPost
+  refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
+  have hq' := sepConj_mono_left (sepConj_mono_right
+    (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
+  xperm_hyp hq'
+
+#print axioms bansf_nonceFieldInitSuccess98_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
