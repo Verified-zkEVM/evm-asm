@@ -92,5 +92,54 @@ theorem chainRejB_to_abiReject
 
 #print axioms chainRejB_to_abiReject
 
+/-- An item-walk reject carries the same ABI anchors and conservative result;
+    the successful outer-header fact is irrelevant once rejection is chosen. -/
+theorem itemRejAmbient_to_abiReject
+    (aB newSp oB : Word) (aLen off0 : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h,
+      (itemRej aB newSp acctBytes
+          (valueEntryAmbient aB newSp oB aLen F) **
+        ⌜OuterInitOk acctBytes aLen off0⌝) h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfRejectResult aB newSp oB acctBytes F) h := by
+  intro h hp
+  obtain ⟨hp, _⟩ := (sepConj_pure_right h).1 hp
+  unfold itemRej valueEntryAmbient at hp
+  have hq :
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) **
+       (zeroOutBlock oB ** earlyRejectRest aB newSp acctBytes F)) h := by
+    unfold zeroOutBlock earlyRejectRest
+    xperm_hyp hp
+  have hAnchors : ∀ h',
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) h') →
+      (((regOwn .x8 ** regOwn .x9) ** regOwn .x18) h') :=
+    sepConj_mono (sepConj_mono (regIs_implies_regOwn .x8)
+      (regIs_implies_regOwn .x9)) (regIs_implies_regOwn .x18)
+  have hOut : ∀ h', zeroOutBlock oB h' → ownOutBlock oB h' := by
+    unfold zeroOutBlock ownOutBlock
+    exact sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn
+              (sepConj_mono memIs_implies_memOwn
+                (sepConj_mono memIs_implies_memOwn
+                  (sepConj_mono memIs_implies_memOwn
+                    (sepConj_mono memIs_implies_memOwn
+                      memIs_implies_memOwn))))))))
+  have hq' := sepConj_mono hAnchors
+    (sepConj_mono hOut (fun _ hx => hx)) h hq
+  unfold earlyRejectRest ownOutBlock at hq'
+  unfold bansfRejectResult
+  simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
+  xperm_hyp hq'
+
+#print axioms itemRejAmbient_to_abiReject
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
