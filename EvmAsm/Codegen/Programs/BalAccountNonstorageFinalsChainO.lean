@@ -258,6 +258,38 @@ theorem bytesRegion32_to_memOwnU256 (base : Word) (bs : List (BitVec 8))
 
 #print axioms bytesRegion32_to_memOwnU256
 
+/-- Either semantic balance result owns exactly the five balance output cells,
+    independently of whether the field was absent or materialized. -/
+theorem balResult_to_balOwnBlock
+    (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) :
+    ∀ h, balResult aB oB fOff fSpanN acctBytes h → balOwnBlock oB h := by
+  intro h hp
+  unfold balResult at hp
+  rcases hp with hp | hp
+  · obtain ⟨hCells, _⟩ := (sepConj_pure_right h).1 hp
+    unfold balOwnBlock
+    exact sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))) h hCells
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    obtain ⟨hCells, _⟩ := (sepConj_pure_right h).1 hp
+    have h_len : (copyN (List.replicate 32 (0 : BitVec 8)) acctBytes
+        (32 - vLen.toNat) (vNext - vLen - aB).toNat vLen.toNat).length = 32 := by
+      rw [copyN_length]
+      simp
+    have hOwned := sepConj_mono memIs_implies_memOwn
+      (bytesRegion32_to_memOwnU256 (oB + 8) _ h_len) h hCells
+    unfold memOwnU256 at hOwned
+    rw [show (oB + 8) + 8 = oB + 16 from by bv_omega,
+        show (oB + 8) + 16 = oB + 24 from by bv_omega,
+        show (oB + 8) + 24 = oB + 32 from by bv_omega] at hOwned
+    unfold balOwnBlock
+    exact hOwned
+
+#print axioms balResult_to_balOwnBlock
+
 /-- A code-station reject normalizes to the common ABI reject result whenever
     the already-materialized balance and nonce footprint owns its cells. -/
 theorem codeStationRej_to_abiReject
