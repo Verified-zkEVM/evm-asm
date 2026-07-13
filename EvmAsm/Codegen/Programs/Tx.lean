@@ -200,6 +200,7 @@ def ziskRlpFieldToU64Prologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lrfu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   ".Lrfu_pdone:"
 
