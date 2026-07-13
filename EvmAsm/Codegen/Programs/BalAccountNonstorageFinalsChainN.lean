@@ -162,5 +162,61 @@ theorem bansf_valueStations_from_acc3
 
 #print axioms bansf_valueStations_from_acc3
 
+/-- Common B+736 post after outer items 0--3 and all value stations. -/
+def itemsVerdictPost (aB newSp oB : Word) (aLen off0 : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  (itemRej aB newSp acctBytes (valueEntryAmbient aB newSp oB aLen F) **
+      ⌜OuterInitOk acctBytes aLen off0⌝) h ∨
+  valueStationsFromAcc3Post aB newSp oB aLen acctBytes F h
+
+/-- Outer items 0--3 followed by all value stations, with both parse rejection
+    and the semantic verdict reaching the common epilogue entry. -/
+theorem bansf_itemsVerdict_spec
+    (aB newSp oB : Word) (aLen off0 : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true)
+    (hoff0le : off0 ≤ aLen) :
+    cpsTripleWithin (372 + (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2))
+      (B + 104) (B + 736) bansfCR
+      (((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off0)) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 off0)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes **
+       (valueEntryAmbient aB newSp oB aLen F **
+        ⌜OuterInitOk acctBytes aLen off0⌝))
+      (itemsVerdictPost aB newSp oB aLen off0 acctBytes F) := by
+  have hAmbient := valueEntryAmbient_pcFree aB newSp oB aLen F hF
+  have hItems := bansf_chainItems_spec aB newSp aLen off0 acctBytes
+    (valueEntryAmbient aB newSp oB aLen F)
+    hAmbient hsalign hslack hover hvalid hoff0le
+  have hItemsF := cpsBranchWithin_frameR
+    (⌜OuterInitOk acctBytes aLen off0⌝)
+    (inferInstance : Assertion.PCFree
+      (⌜OuterInitOk acctBytes aLen off0⌝)).proof hItems
+  have hValues := bansf_valueStations_from_acc3 aB newSp oB aLen off0
+    acctBytes F hF hsalign hoalign hslack hover hvalid hovout hovalid
+  have hbr := cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr hItemsF
+    (fun _ hp => hp) hValues (fun _ hp => hp)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+    (cpsBranchWithin_same_exit_to_triple hbr)
+
+#print axioms bansf_itemsVerdict_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
