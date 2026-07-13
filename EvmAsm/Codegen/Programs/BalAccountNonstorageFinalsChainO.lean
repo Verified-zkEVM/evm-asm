@@ -489,5 +489,66 @@ theorem bansfSuccessVerdict_to_abiSuccess
 
 #print axioms bansfSuccessVerdict_to_abiSuccess
 
+/-- Observable result of the body: exact rejection status, or exact success
+    status together with the window-anchored semantic derivation. -/
+def bansfVerdictResult (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  bansfRejectResult aB newSp oB acctBytes F h ∨
+  bansfSuccessResult aB newSp oB aLen acctBytes F h
+
+/-- Normalize every nested body verdict into the common ABI body-post shape. -/
+theorem chainAVerdictPost_to_abiVerdict
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h, chainAVerdictPost aB newSp oB aLen acctBytes F h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfVerdictResult aB newSp oB aLen acctBytes F) h := by
+  intro h hp
+  have reject (hr : (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+      bansfRejectResult aB newSp oB acctBytes F) h) :
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfVerdictResult aB newSp oB aLen acctBytes F) h := by
+    unfold bansfVerdictResult
+    exact sepConj_mono_right (sepConj_mono_right (fun _ hx => Or.inl hx)) h hr
+  have success (hs : (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+      bansfSuccessResult aB newSp oB aLen acctBytes F) h) :
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfVerdictResult aB newSp oB aLen acctBytes F) h := by
+    unfold bansfVerdictResult
+    exact sepConj_mono_right (sepConj_mono_right (fun _ hx => Or.inr hx)) h hs
+  unfold chainAVerdictPost at hp
+  rcases hp with hp | hp
+  · exact reject (chainRejB_to_abiReject aB newSp oB aLen acctBytes F h hp)
+  · unfold chainMidVerdictPost at hp
+    obtain ⟨off0, hp⟩ := hp
+    unfold itemsVerdictPost at hp
+    rcases hp with hp | hp
+    · exact reject (itemRejAmbient_to_abiReject aB newSp oB aLen off0
+        acctBytes F h hp)
+    · unfold valueStationsFromAcc3Post at hp
+      obtain ⟨n3, l3, hp⟩ := hp
+      unfold valueStationsVerdictPost at hp
+      rcases hp with hp | hp
+      · unfold valueStationsRej at hp
+        rcases hp with hp | hp
+        · exact reject (balStationRej_to_abiReject aB newSp oB aLen
+            acctBytes F h hp)
+        · unfold nonceCodeChainRej at hp
+          rcases hp with hp | hp
+          · exact reject (nonceStationRej_to_abiReject aB newSp oB aLen
+              acctBytes
+              (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes)
+              F (balResult_to_balOwnBlock aB oB
+                (n3 - l3 - aB).toNat l3.toNat acctBytes) h hp)
+          · exact reject (nonceCodeRej_to_abiReject aB newSp oB aLen
+              (n3 - aB).toNat acctBytes
+              (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes)
+              F (balResult_to_balOwnBlock aB oB
+                (n3 - l3 - aB).toNat l3.toNat acctBytes) h hp)
+      · exact success (bansfSuccessVerdict_to_abiSuccess aB newSp oB aLen
+          acctBytes F h hp)
+
+#print axioms chainAVerdictPost_to_abiVerdict
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
