@@ -400,4 +400,573 @@ theorem rlp_field0_to_u64_next_outcome_spec_within
 
 #print axioms rlp_field0_to_u64_next_outcome_spec_within
 
+/-- Compose the successful init fallthrough with the complete walk-next and
+scalar continuation, from the wrapper's status branch through final return. -/
+theorem rlp_field0_to_u64_after_init_success_spec_within
+    (base srcBase savedRa v5 v6 v7 v28 v29 v30 v31 oldRa : Word)
+    (srcBytes : List (BitVec 8)) (itemOff endOff : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : endOff + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hoff : itemOff ≤ endOff) :
+    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+       (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 endOff)) **
+       (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ savedRa) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+       (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
+       bytesRegion srcBase srcBytes)
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+        savedRa srcBytes) := by
+  have hcall := rlp_field0_to_u64_walk_next_call_spec_within
+    base srcBase savedRa (srcBase + BitVec.ofNat 64 endOff)
+    v5 v6 v7 v28 v29 v30 v31 oldRa srcBytes itemOff endOff
+    hbase0 hsalign hslack hover hvalid hoff
+  have hcont := rlp_field0_to_u64_next_outcome_spec_within
+    base srcBase savedRa srcBytes itemOff endOff hbase0 hsalign hslack
+    hover hvalid hoff
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hcall hcont
+
+#print axioms rlp_field0_to_u64_after_init_success_spec_within
+
+/-- Ownership-only form of the successful-init continuation, matching the
+scratch ownership returned by `rlp_walk_init`. -/
+theorem rlp_field0_to_u64_after_init_success_owned_spec_within
+    (base srcBase savedRa : Word) (srcBytes : List (BitVec 8))
+    (itemOff endOff : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : endOff + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hoff : itemOff ≤ endOff) :
+    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 8)) ** bytesRegion srcBase srcBytes) **
+       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+        (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 endOff)) **
+        (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ savedRa)))
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+        savedRa srcBytes) := by
+  let P : Assertion :=
+    (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 8)) **
+    bytesRegion srcBase srcBytes **
+    (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+    (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 endOff)) **
+    (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ savedRa)
+  have hs : ∀ v5 v6 v7 v28 v29 v30 v31,
+      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+         (.x31 ↦ᵣ v31))
+        (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+          savedRa srcBytes) := by
+    intro v5 v6 v7 v28 v29 v30 v31
+    exact cpsTripleWithin_weaken (fun h hp => by
+      dsimp only [P] at hp
+      xperm_hyp hp) (fun _ hp => hp)
+      (rlp_field0_to_u64_after_init_success_spec_within
+        base srcBase savedRa v5 v6 v7 v28 v29 v30 v31 (base + 8)
+        srcBytes itemOff endOff hbase0 hsalign hslack hover hvalid hoff)
+  have ho := field0_ownify7
+    (r1 := .x5) (r2 := .x6) (r3 := .x7) (r4 := .x28)
+    (r5 := .x29) (r6 := .x30) (r7 := .x31) hs
+  exact cpsTripleWithin_weaken (fun h hp => by
+    dsimp only [P]
+    xperm_hyp hp) (fun _ hp => hp) ho
+
+#print axioms rlp_field0_to_u64_after_init_success_owned_spec_within
+
+/-- Resources common to all nine strict walk-init outcomes at wrapper index 2. -/
+def rlpField0InitCommon (base srcBase savedRa : Word)
+    (srcBytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x1 ↦ᵣ (base + 8)) ** bytesRegion srcBase srcBytes **
+  (.x13 ↦ᵣ savedRa)
+
+/-- Exact nine-way post exported by `rlp_walk_init`, specialized to a list at
+offset zero.  Keeping the guards preserves the strict emitted semantics. -/
+def rlpField0InitOutcome (srcBase : Word) (srcBytes : List (BitVec 8))
+    (listLen : Nat) (hoff : 0 < srcBytes.length) : Assertion := fun h =>
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+    ⌜BitVec.ofNat 64 listLen = (0 : Word)⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (1 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true⌝) h) ∨
+  (((.x10 ↦ᵣ (srcBase + signExtend12 (1 : BitVec 12))) **
+    (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) = srcBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (3 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) ≠ srcBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (4 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+        (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (5 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+        (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      srcBytes[1]? = some (0 : BitVec 8)⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (6 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+        (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+      BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+        (56 : Word) = true⌝) h) ∨
+  (((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (7 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+        (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+        (56 : Word) = true ∧
+      srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+          ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) ≠
+        srcBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      signExtend12 (1 : BitVec 12)))) **
+    (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+        (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+        (56 : Word) = true ∧
+      srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+          ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) =
+        srcBase + BitVec.ofNat 64 listLen⌝) h)
+
+/-- Call `rlp_walk_init` from wrapper index 1 and expose its exact nine-way
+post together with the saved outer return address. -/
+theorem rlp_field0_to_u64_init_call_spec_within
+    (base srcBase savedRa indexW v5 v6 v7 v28 v29 v30 v31 oldRa : Word)
+    (srcBytes : List (BitVec 8)) (listLen : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 82 (base + 4) (base + 8)
+      (rlp_field0_to_u64_full_code base)
+      ((.x1 ↦ᵣ oldRa) ** (.x10 ↦ᵣ srcBase) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ indexW) **
+       (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+       (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes)
+      (rlpField0InitCommon base srcBase savedRa srcBytes **
+       rlpField0InitOutcome srcBase srcBytes listLen (by omega)) := by
+  have hoff : 0 < srcBytes.length := by omega
+  have hwi := rlp_walk_init_spec_within (base + (256 : Word)) srcBase
+    (base + 8) (BitVec.ofNat 64 listLen) indexW v5 v6 v7 v28 v29 v30 v31
+    srcBytes 0 hsalign hoff (by omega) (hvalid 0 hoff)
+    (fun hf8 => by
+      have hb := (srcBytes[0]'hoff).isLt
+      simp only [BitVec.ult, decide_eq_true_eq] at hf8
+      have hlo : ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        bv_omega
+      omega)
+    (fun hf8 => by
+      have hb := (srcBytes[0]'hoff).isLt
+      simp only [BitVec.ult, decide_eq_true_eq] at hf8
+      have hlo : ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        bv_omega
+      omega)
+    (fun hf8 => by
+      intro k hk
+      have hb := (srcBytes[0]'hoff).isLt
+      simp only [BitVec.ult, decide_eq_true_eq] at hf8
+      have hlo : ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        bv_omega
+      exact hvalid _ (by omega))
+  rw [show srcBase + BitVec.ofNat 64 0 = srcBase from by bv_omega] at hwi
+  have hwiF := cpsTripleWithin_frameR ((.x13 ↦ᵣ savedRa)) (by pcFree) hwi
+  let Prest : Assertion :=
+    (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
+    (.x12 ↦ᵣ indexW) ** (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ v5) **
+    (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+    (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes
+  let Q : Assertion := rlpField0InitCommon base srcBase savedRa srcBytes **
+    rlpField0InitOutcome srcBase srcBytes listLen hoff
+  have hwi' : cpsTripleWithin 81 (base + (256 : Word))
+      ((base + 8) &&& ~~~(1 : Word))
+      (rlp_walk_init_code (base + (256 : Word)))
+      ((.x1 ↦ᵣ (base + 8)) ** Prest) Q :=
+    cpsTripleWithin_weaken (fun h hp => by
+      dsimp only [Prest] at hp ⊢
+      xperm_hyp hp)
+    (fun h hp => by
+      dsimp only [Q]
+      unfold rlpField0InitCommon rlpField0InitOutcome
+      simp only [Nat.zero_add] at hp ⊢
+      xperm_hyp hp) hwiF
+  have hwiCall : cpsTripleWithin 81 (base + (256 : Word))
+      ((base + 4 + 4) &&& ~~~(1 : Word))
+      (rlp_walk_init_code (base + (256 : Word)))
+      ((.x1 ↦ᵣ (base + 4 + 4)) ** Prest) Q := by
+    simpa only [show (base + 4 + 4 : Word) = base + 8 from by bv_omega] using hwi'
+  exact cpsTripleWithin_weaken (fun h hp => by
+    dsimp only [Prest]
+    xperm_hyp hp) (fun h hp => by
+      change Q h at hp
+      exact hp)
+    (rlp_field0_to_u64_call_walk_init (nSteps := 81) (Prest := Prest) (Q := Q)
+      base oldRa hbase0 (by
+      show Prest.pcFree
+      dsimp only [Prest]
+      pcFree) hwiCall)
+
+#print axioms rlp_field0_to_u64_init_call_spec_within
+
+/-- Eliminate all nine strict walk-init outcomes: seven failures normalize to
+public status 1, while the short- and long-list successes continue at field 0. -/
+theorem rlp_field0_to_u64_init_outcome_spec_within
+    (base srcBase savedRa : Word) (srcBytes : List (BitVec 8))
+    (listLen : Nat) (hoff : 0 < srcBytes.length)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (rlpField0InitCommon base srcBase savedRa srcBytes **
+       rlpField0InitOutcome srcBase srcBytes listLen hoff)
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 listLen)
+        savedRa srcBytes) := by
+  let common := rlpField0InitCommon base srcBase savedRa srcBytes
+  let final := rlpField0Result srcBase (srcBase + BitVec.ofNat 64 listLen)
+    savedRa srcBytes
+  have hfailure (status cursor endPtr : Word) (guard : Prop)
+      (hstatus : status ≠ 0) :
+      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (common ** ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ status) ** ⌜guard⌝)) final := by
+    have hf := rlp_field0_to_u64_init_failure_spec_within
+      base savedRa cursor endPtr status srcBase srcBytes hstatus
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => by
+        extract_pure_deep hp
+        obtain ⟨_, hp'⟩ := hp
+        unfold common rlpField0InitCommon at hp'
+        xperm_hyp hp') (fun h hp => ?_) hf)
+    exact Or.inr ⟨status, hp⟩
+  have hf2 := hfailure (2 : Word) srcBase (0 : Word)
+    (BitVec.ofNat 64 listLen = (0 : Word)) (by decide)
+  have hf1 := hfailure (1 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen)
+    (BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (by decide)
+  let shortGuard : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+      signExtend12 (1 : BitVec 12)) = srcBase + BitVec.ofNat 64 listLen
+  have hshort0 : shortGuard →
+      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (common ** ((.x10 ↦ᵣ (srcBase + signExtend12 (1 : BitVec 12))) **
+          (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+          (.x12 ↦ᵣ (0 : Word)))) final := by
+    intro hg
+    have hlen64 : listLen < 2 ^ 64 := by omega
+    have hlenPos : 1 ≤ listLen := by
+      by_contra h
+      have hz : listLen = 0 := by omega
+      subst listLen
+      exact hg.1 rfl
+    have hs := rlp_field0_to_u64_after_init_success_owned_spec_within
+      base srcBase savedRa srcBytes 1 listLen hbase0 hsalign hslack hover
+      hvalid hlenPos
+    refine cpsTripleWithin_weaken (fun h hp => by
+      unfold common rlpField0InitCommon at hp
+      rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide] at hp
+      simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+      (fun _ hp => hp) hs
+  have hshort : cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18))
+      (base + 8) (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (common ** ((.x10 ↦ᵣ (srcBase + signExtend12 (1 : BitVec 12))) **
+        (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+        (.x12 ↦ᵣ (0 : Word)) ** ⌜shortGuard⌝)) final :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold shortGuard
+      xperm_hyp hp) (fun _ hp => hp)
+    (cpsTripleWithin_pure_pre hshort0)
+  let g3 : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+      signExtend12 (1 : BitVec 12)) ≠ srcBase + BitVec.ofNat 64 listLen
+  have hf3 := hfailure (3 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen) g3 (by decide)
+  let g4 : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+      (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true
+  have hf4 := hfailure (4 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen) g4 (by decide)
+  let g5 : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+      (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true ∧
+    srcBytes[1]? = some (0 : BitVec 8)
+  have hf5 := hfailure (5 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen) g5 (by decide)
+  let g6 : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+      (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true ∧
+    srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+    BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+      ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+      (56 : Word) = true
+  have hf6 := hfailure (6 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen) g6 (by decide)
+  let g7 : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+      (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true ∧
+    srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+    ¬ BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+      ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+      (56 : Word) = true ∧
+    srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      signExtend12 (1 : BitVec 12)) +
+      BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) ≠
+      srcBase + BitVec.ofNat 64 listLen
+  have hf7 := hfailure (7 : Word) srcBase
+    (srcBase + BitVec.ofNat 64 listLen) g7 (by decide)
+  let cursorOff := 1 +
+    ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+  let longGuard : Prop :=
+    BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+    ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+    ¬ BitVec.ult (srcBase + BitVec.ofNat 64 listLen)
+      (srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true ∧
+    srcBytes[1]? ≠ some (0 : BitVec 8) ∧
+    ¬ BitVec.ult (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+      ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+      (56 : Word) = true ∧
+    srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      signExtend12 (1 : BitVec 12)) +
+      BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE ((srcBytes.drop 1).take
+        ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) =
+      srcBase + BitVec.ofNat 64 listLen
+  have hlong0 : longGuard →
+      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (common ** ((.x10 ↦ᵣ (srcBase +
+          (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12)))) **
+          (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+          (.x12 ↦ᵣ (0 : Word)))) final := by
+    intro hg
+    unfold longGuard at hg
+    have hb := (srcBytes[0]'hoff).isLt
+    have hnlt248 := hg.2.2.1
+    have hge : 0xf8 ≤ ((srcBytes[0]'hoff).zeroExtend 64).toNat := by
+      simp only [BitVec.ult, decide_eq_true_eq] at hnlt248
+      bv_omega
+    have hcursorBound : cursorOff ≤ 9 := by
+      unfold cursorOff
+      bv_omega
+    have hcur : srcBase +
+        (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+        srcBase + BitVec.ofNat 64 cursorOff := by
+      unfold cursorOff
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+      bv_omega
+    have hcursorLe : cursorOff ≤ listLen := by
+      have hnltCursor := hg.2.2.2.1
+      simp only [BitVec.ult, decide_eq_true_eq] at hnltCursor
+      have hendNoWrap : srcBase.toNat + listLen < 2 ^ 64 := by omega
+      have hcursorNoWrap : srcBase.toNat + cursorOff < 2 ^ 64 := by omega
+      rw [hcur] at hnltCursor
+      bv_omega
+    have hs := rlp_field0_to_u64_after_init_success_owned_spec_within
+      base srcBase savedRa srcBytes cursorOff listLen hbase0 hsalign hslack
+      hover hvalid hcursorLe
+    refine cpsTripleWithin_weaken (fun h hp => by
+      unfold common rlpField0InitCommon at hp
+      rw [hcur] at hp
+      xperm_hyp hp)
+      (fun _ hp => hp) hs
+  have hlong : cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18))
+      (base + 8) (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (common ** ((.x10 ↦ᵣ (srcBase +
+        (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)))) **
+        (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
+        (.x12 ↦ᵣ (0 : Word)) ** ⌜longGuard⌝)) final :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold longGuard
+      xperm_hyp hp) (fun _ hp => hp)
+    (cpsTripleWithin_pure_pre hlong0)
+  have hall := cpsTripleWithin_pre_or hf2
+    (cpsTripleWithin_pre_or hf1
+      (cpsTripleWithin_pre_or hshort
+        (cpsTripleWithin_pre_or hf3
+          (cpsTripleWithin_pre_or hf4
+            (cpsTripleWithin_pre_or hf5
+              (cpsTripleWithin_pre_or hf6
+                (cpsTripleWithin_pre_or hf7 hlong)))))))
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) hall
+  unfold rlpField0InitOutcome at hp
+  unfold common rlpField0InitCommon
+  rcases hp with ⟨h1, h2, hd, hu, hc, hout⟩
+  rcases hout with hout | hout | hout | hout | hout | hout | hout | hout | hout
+  · exact Or.inl ⟨h1, h2, hd, hu, hc, hout⟩
+  · exact Or.inr (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩)
+  · exact Or.inr (Or.inr (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩)))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩))))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inl ⟨h1, h2, hd, hu, hc, hout⟩)))))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inr ⟨h1, h2, hd, hu, hc, hout⟩)))))))
+
+#print axioms rlp_field0_to_u64_init_outcome_spec_within
+
+/-- Caller-facing unified specification for the complete emitted
+`rlp_field0_to_u64` wrapper.  The postcondition reports either a strict parse
+failure or the decoded field-0 scalar and its exact source span. -/
+theorem rlp_field0_to_u64_spec_within
+    (base srcBase callerRa indexW old13 v5 v6 v7 v28 v29 v30 v31 : Word)
+    (srcBytes : List (BitVec 8)) (listLen : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (82 + (89 + (7 * (2 ^ 64 - 1) + 18)))) base
+      (callerRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      ((.x1 ↦ᵣ callerRa) ** (.x10 ↦ᵣ srcBase) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ indexW) **
+       (.x13 ↦ᵣ old13) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+       (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes)
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 listLen)
+        callerRa srcBytes) := by
+  have hsave0 := mv_spec_gen_within .x13 .x1 callerRa old13 base (by decide)
+  have hmono0 : ∀ a i, CodeReq.singleton base (.MV .x13 .x1) a = some i →
+      rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono
+        (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 0 base
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+  have hsave := cpsTripleWithin_extend_code hmono0 hsave0
+  have hsaveF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
+      (.x12 ↦ᵣ indexW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+      (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+      (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion srcBase srcBytes) (by pcFree) hsave
+  have hinit := rlp_field0_to_u64_init_call_spec_within
+    base srcBase callerRa indexW v5 v6 v7 v28 v29 v30 v31 callerRa
+    srcBytes listLen hbase0 hsalign hslack hover hvalid
+  have hcont := rlp_field0_to_u64_init_outcome_spec_within
+    base srcBase callerRa srcBytes listLen (by omega) hbase0 hsalign hslack
+    hover hvalid
+  have hafter := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hinit hcont
+  have hsave' : cpsTripleWithin 1 base (base + 4)
+      (rlp_field0_to_u64_full_code base)
+      ((.x1 ↦ᵣ callerRa) ** (.x10 ↦ᵣ srcBase) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ indexW) **
+       (.x13 ↦ᵣ old13) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+       (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes)
+      ((.x1 ↦ᵣ callerRa) ** (.x10 ↦ᵣ srcBase) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ indexW) **
+       (.x13 ↦ᵣ callerRa) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+       (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes) :=
+    cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp) hsaveF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hsave' hafter
+
+#print axioms rlp_field0_to_u64_spec_within
+
 end EvmAsm.Rv64.RLP
