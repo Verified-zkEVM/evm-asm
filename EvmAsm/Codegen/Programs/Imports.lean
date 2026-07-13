@@ -462,3 +462,5 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainM
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainN
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainO
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
