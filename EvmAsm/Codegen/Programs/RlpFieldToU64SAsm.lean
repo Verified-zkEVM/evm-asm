@@ -269,6 +269,86 @@ theorem frameSlotsSaved_frame (newSp : Word) (saved : Saved) :
   simp [frame, frameSlotsSaved, savedFrame, savedVals, sepConj_emp_right',
     signExtend12]
 
+@[irreducible] def setupRest
+    (listBase listLenW indexW outputPtr oldOut oldOffset oldLen : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ indexW) **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+  (outputPtr ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) **
+  (lengthCell ↦ₘ oldLen)
+
+theorem pcFree_setupRest listBase listLenW indexW outputPtr oldOut oldOffset oldLen
+    bytes : (setupRest listBase listLenW indexW outputPtr oldOut oldOffset oldLen
+      bytes).pcFree := by
+  unfold setupRest
+  pcf
+
+private theorem reassoc4_to_frame {A C D F : Assertion} : ∀ h,
+    (A ** C ** D ** F) h → (((A ** C ** D) ** F) h) := by
+  intro h hp
+  have h1 := (sepConj_assoc h).mpr hp
+  have h2 := (sepConj_assoc h).mpr h1
+  exact sepConj_mono_left (fun h' hh => (sepConj_assoc h').mp hh) h h2
+
+private theorem frame_to_reassoc4 {A C D F : Assertion} : ∀ h,
+    (((A ** C ** D) ** F) h) → (A ** C ** D ** F) h := by
+  intro h hp
+  have h1 := sepConj_mono_left (fun h' hh => (sepConj_assoc h').mpr hh) h hp
+  have h2 := (sepConj_assoc h).mp h1
+  exact (sepConj_assoc h).mp h2
+
+/-- Allocate K34's 32-byte frame and save `ra/s0/s1` (instructions 0--3). -/
+theorem setupPrologue
+    (sp0 newSp : Word) (saved : Saved) (F : Assertion)
+    (hnewSp : newSp = sp0 + signExtend12 (-32 : BitVec 12)) (hF : F.pcFree) :
+    cpsTripleWithin 4 B (B + 16) code
+      ((.x2 ↦ᵣ sp0) ** regsAt frame (savedVals saved) **
+       frameSlotsOwn frame newSp ** F)
+      ((.x2 ↦ᵣ newSp) ** regsAt frame (savedVals saved) **
+       savedFrame newSp saved ** F) := by
+  have ha0 := addi_spec_gen_same_within .x2 sp0 (-32 : BitVec 12) B (by decide)
+  rw [← hnewSp] at ha0
+  have ha := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B B rlpFieldToU64_prog 0
+      (.ADDI .x2 .x2 (-32 : BitVec 12)) rfl (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) ha0
+  have haF := cpsTripleWithin_frameR
+    (regsAt frame (savedVals saved) ** frameSlotsOwn frame newSp ** F)
+    (pcFree_sepConj (pcFree_regsAt _ _)
+      (pcFree_sepConj (pcFree_frameSlotsOwn _ _) hF)) ha
+  have hs0 := storeSeq_spec frame newSp (savedVals saved) (B + 4) (by decide)
+  have hstoreMono : ∀ a i,
+      CodeReq.ofProg (B + 4) (storeProg frame) a = some i →
+        wrapperCode a = some i := by
+    intro a i hi
+    exact CodeReq.ofProg_mono_sub B (B + 4) rlpFieldToU64_prog
+      (storeProg frame) 1 (by bv_omega) (by rfl)
+      (by rw [program_length]; simp [frame])
+      (by rw [program_length]; decide) a i hi
+  have hs := cpsTripleWithin_extend_code hstoreMono hs0
+  rw [show B + 4 + BitVec.ofNat 64 (4 * frame.length) = B + 16 from by
+    simp [frame]; bv_omega] at hs
+  have hsF := cpsTripleWithin_frameR
+    F hF hs
+  have hsF' := cpsTripleWithin_weaken (P' :=
+      (.x2 ↦ᵣ newSp) ** regsAt frame (savedVals saved) **
+        frameSlotsOwn frame newSp ** F)
+    (Q' := (.x2 ↦ᵣ newSp) ** regsAt frame (savedVals saved) **
+      savedFrame newSp saved ** F)
+    (fun h hp => reassoc4_to_frame h hp)
+    (fun h hq => by
+      rw [frameSlotsSaved_frame] at hq
+      exact frame_to_reassoc4 h hq) hsF
+  have hlocal := cpsTripleWithin_seq_same_cr haF hsF'
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hlocal
+
+#print axioms setupPrologue
+
 theorem frameRegs_implies_owned (s0 s1 : Word) : ∀ h,
     (regOwn .x1 ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1)) h →
       regsOwnAt frame h := by
