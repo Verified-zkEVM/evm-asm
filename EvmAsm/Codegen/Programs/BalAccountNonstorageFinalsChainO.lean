@@ -550,5 +550,25 @@ theorem chainAVerdictPost_to_abiVerdict
 
 #print axioms chainAVerdictPost_to_abiVerdict
 
+/-- Pull an ambient assertion out of either observable verdict arm. -/
+theorem bansfVerdictResult_frame_out
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (A F : Assertion) :
+    ∀ h, bansfVerdictResult aB newSp oB aLen acctBytes (A ** F) h →
+      (A ** bansfVerdictResult aB newSp oB aLen acctBytes F) h := by
+  intro h hp
+  unfold bansfVerdictResult at hp ⊢
+  rcases hp with hp | hp
+  · refine sepConj_mono_right (fun _ hx => Or.inl hx) h ?_
+    unfold bansfRejectResult at hp ⊢
+    xperm_hyp hp
+  · refine sepConj_mono_right (fun _ hx => Or.inr hx) h ?_
+    unfold bansfSuccessResult at hp ⊢
+    obtain ⟨out, spill, hp⟩ := hp
+    refine sepConj_mono_right (fun _ hp' => ⟨out, spill, hp'⟩) h ?_
+    xperm_hyp hp
+
+#print axioms bansfVerdictResult_frame_out
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
