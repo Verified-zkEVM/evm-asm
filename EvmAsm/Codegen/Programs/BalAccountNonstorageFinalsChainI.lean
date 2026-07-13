@@ -645,6 +645,90 @@ theorem codeLoopReject_to_stationRej (aB newSp oB n5 : Word) (aLen : Nat)
 
 #print axioms codeLoopReject_to_stationRej
 
+/-- Slots 175–180 (`B + 700 → B + 724`): materialize the selected code
+    value as the relative `(offset,length)` window and set `has_code`. -/
+theorem bansf_codeMaterialize175_spec (aB oB vNext vLen v29 v5 : Word) :
+    cpsTripleWithin 6 (B + 700) (B + 724) bansfCR
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((.x29 : Reg) ↦ᵣ v29) ** ((.x5 : Reg) ↦ᵣ v5) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+       ((.x5 : Reg) ↦ᵣ (1 : Word)) **
+       ((oB + 56) ↦ₘ (1 : Word)) **
+       ((oB + 64) ↦ₘ (vNext - vLen - aB)) **
+       ((oB + 72) ↦ₘ vLen)) := by
+  have s1 := sub_spec_gen_within .x29 .x10 .x12 vNext vLen v29
+    (B + 700) (by decide)
+  rw [show (B + 700) + 4 = B + 704 from by bv_omega] at s1
+  have s1L := liftCode (cr' := bansfCR) s1 bansf_codeMaterialize_code.1
+  have s2 := sub_spec_gen_rd_eq_rs1_within .x29 .x8 (vNext - vLen) aB
+    (B + 704) (by decide)
+  rw [show (B + 704) + 4 = B + 708 from by bv_omega] at s2
+  have s2L := liftCode (cr' := bansfCR) s2 bansf_codeMaterialize_code.2.1
+  have s3 := sd_spec_gen_within .x18 .x29 oB (vNext - vLen - aB)
+    (0 : Word) (64 : BitVec 12) (B + 708)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 708) + 4 = B + 712 from by bv_omega] at s3
+  have s3L := liftCode (cr' := bansfCR) s3 bansf_codeMaterialize_code.2.2.1
+  have s4 := sd_spec_gen_within .x18 .x12 oB vLen
+    (0 : Word) (72 : BitVec 12) (B + 712)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 712) + 4 = B + 716 from by bv_omega] at s4
+  have s4L := liftCode (cr' := bansfCR) s4 bansf_codeMaterialize_code.2.2.2.1
+  have s5 := li_spec_gen_within .x5 v5 (1 : Word) (B + 716) (by decide)
+  rw [show (B + 716) + 4 = B + 720 from by bv_omega] at s5
+  have s5L := liftCode (cr' := bansfCR) s5 bansf_codeMaterialize_code.2.2.2.2.1
+  have s6 := sd_spec_gen_within .x18 .x5 oB (1 : Word)
+    (0 : Word) (56 : BitVec 12) (B + 720)
+  rw [show signExtend12 (56 : BitVec 12) = (56 : Word) from by decide,
+      show (B + 720) + 4 = B + 724 from by bv_omega] at s6
+  have s6L := liftCode (cr' := bansfCR) s6 bansf_codeMaterialize_code.2.2.2.2.2
+  have s1F := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((.x5 : Reg) ↦ᵣ v5) ** ((oB + 56) ↦ₘ (0 : Word)) **
+     ((oB + 64) ↦ₘ (0 : Word)) ** ((oB + 72) ↦ₘ (0 : Word)))
+    (by pcf) s1L
+  have s2F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+     ((.x18 : Reg) ↦ᵣ oB) ** ((.x5 : Reg) ↦ᵣ v5) **
+     ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+     ((oB + 72) ↦ₘ (0 : Word))) (by pcf) s2L
+  have s3F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x5 : Reg) ↦ᵣ v5) **
+     ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 72) ↦ₘ (0 : Word)))
+    (by pcf) s3L
+  have s4F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x8 : Reg) ↦ᵣ aB) **
+     ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) ** ((.x5 : Reg) ↦ᵣ v5) **
+     ((oB + 56) ↦ₘ (0 : Word)) **
+     ((oB + 64) ↦ₘ (vNext - vLen - aB))) (by pcf) s4L
+  have s5F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+     ((oB + 56) ↦ₘ (0 : Word)) **
+     ((oB + 64) ↦ₘ (vNext - vLen - aB)) ** ((oB + 72) ↦ₘ vLen))
+    (by pcf) s5L
+  have s6F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+     ((oB + 64) ↦ₘ (vNext - vLen - aB)) ** ((oB + 72) ↦ₘ vLen))
+    (by pcf) s6L
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s1F s2F
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 s3F
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c2 s4F
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c3 s5F
+  have c5 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c4 s6F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) c5
+
+#print axioms bansf_codeMaterialize175_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
