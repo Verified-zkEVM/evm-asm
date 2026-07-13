@@ -719,9 +719,13 @@ def statelessVerdictV2Function : String :=
   -- the general requests_hash failure path. Tx-bearing paths keep the existing SSZ
   -- deposit prelude until the receipt tail derives deposits from materialized logs.
   "  la t0, svf_tx_count; ld t0, 0(t0); beqz t0, .Lv2_er_empty_deposits\n" ++
-  "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
-  "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
-  "  mv a0, t2; mv a1, t3\n" ++
+  -- The v0.6.2 container has five u32 offsets (fixed part = 20 bytes).
+  -- Use the first two offsets for the deposit body; the old four-field
+  -- extraction (`input + 12`, `off1 - 12`) leaves an 8-byte phantom body
+  -- when deposits are empty and makes execution_requests_hash reject every
+  -- transaction-bearing builder fixture with bv_fail=24.
+  "  la t0, c1_er_input; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le; mv t2, a0\n" ++
+  "  addi a0, t1, 4; jal ra, bgv_u32le; sub a1, a0, t2; add a0, t1, t2\n" ++
   "  j .Lv2_er_deposits_ready\n" ++
   ".Lv2_er_empty_deposits:\n" ++
   "  la a0, c1_dbody; li a1, 0\n" ++
