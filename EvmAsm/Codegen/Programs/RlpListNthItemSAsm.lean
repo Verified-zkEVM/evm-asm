@@ -1,4 +1,5 @@
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmScan
+import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.RlpListNthItemSAsm
 
@@ -775,5 +776,208 @@ theorem rlpListNthItem_spec_within
   exact cpsTripleWithin_seq_same_cr (cpsTripleWithin_seq_same_cr hp hc) he
 
 #print axioms rlpListNthItem_spec_within
+
+/-! ## Call-site adapter -/
+
+private theorem frameSlotAddr0 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (0 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 8) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 8) = (64 : Word) from by decide]
+  bv_omega
+
+private theorem frameSlotAddr8 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (8 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 7) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 7) = (56 : Word) from by decide]
+  bv_omega
+
+private theorem frameSlotAddr16 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (16 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 6) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 6) = (48 : Word) from by decide]
+  bv_omega
+
+private theorem frameSlotAddr24 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (24 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 5) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 5) = (40 : Word) from by decide]
+  bv_omega
+
+
+private theorem frameSlotAddr32 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (32 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 4) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 4) = (32 : Word) from by decide]
+  bv_omega
+
+private theorem frameSlotAddr40 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (40 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 3) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 3) = (24 : Word) from by decide]
+  bv_omega
+
+private theorem frameSlotAddr48 (sp : Word) :
+    (sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (48 : BitVec 12) =
+      sp - BitVec.ofNat 64 (8 * 2) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 2) = (16 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr0 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) = sp - BitVec.ofNat 64 (8 * 8) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 8) = (64 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr8 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 8 = sp - BitVec.ofNat 64 (8 * 7) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 7) = (56 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr16 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 16 = sp - BitVec.ofNat 64 (8 * 6) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 6) = (48 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr24 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 24 = sp - BitVec.ofNat 64 (8 * 5) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 5) = (40 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr32 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 32 = sp - BitVec.ofNat 64 (8 * 4) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 4) = (32 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr40 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 40 = sp - BitVec.ofNat 64 (8 * 3) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 3) = (24 : Word) from by decide]
+  bv_omega
+
+private theorem savedSlotAddr48 (sp : Word) :
+    sp + signExtend12 (-64 : BitVec 12) + 48 = sp - BitVec.ofNat 64 (8 * 2) := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show BitVec.ofNat 64 (8 * 2) = (16 : Word) from by decide]
+  bv_omega
+
+/-- K20's result with its private 64-byte frame released back to the caller as
+    eight free stack dwords.  This is the footprint shape consumed by
+    `callWithin_spec`: a caller can frame its own saved slots and globals while
+    K20 temporarily owns only the stack immediately below the current `sp`. -/
+def flatReturnResult
+    (sp0 listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ status offset len v11 v12,
+    ((((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+       stackFree sp0 8) **
+      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+     ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝) h
+
+/-- Call-compatible strict K20 contract.  The eight free dwords are exactly
+    the seven saved-register slots plus the unused shallow slot of K20's
+    64-byte ABI allocation; all eight are returned as ownership. -/
+theorem rlpListNthItem_flat_spec_within
+    (sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin
+      ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+      B saved.ra code
+      ((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+       stackFree sp0 8 **
+       entryRest listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen bytes)
+      (flatReturnResult sp0 listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  have hbase := rlpListNthItem_spec_within sp0 newSp listBase listLenW indexW
+    offsetPtr lenPtr oldOffset oldLen saved bytes listLen index rfl hlistLenW
+    hindexW hindex hsalign hslack hover hvalid hret
+  let extra : Assertion := memOwn (sp0 - BitVec.ofNat 64 (8 * 1))
+  have hframed := cpsTripleWithin_frameR extra (by unfold extra; pcf) hbase
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hframed
+  · unfold extra newSp
+    rw [regsAt_listNthFrame] at hp ⊢
+    simp only [frameSlotsOwn, listNthFrame,
+      List.foldr_cons, List.foldr_nil, sepConj_emp_right',
+      frameSlotAddr0, frameSlotAddr8, frameSlotAddr16,
+      frameSlotAddr24, frameSlotAddr32, frameSlotAddr40, frameSlotAddr48]
+    simp only [stackFree_succ, stackFree_zero, sepConj_emp_right'] at hp
+    xperm_hyp hp
+  · change (returnResult sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index **
+      memOwn (sp0 - BitVec.ofNat 64 (8 * 1))) h at hq
+    unfold returnResult at hq
+    unfold flatReturnResult
+    obtain ⟨hLeft, hExtra, hdisj, hunion, hret, hextra⟩ := hq
+    obtain ⟨status, offset, len, v11, v12, hcore⟩ := hret
+    refine ⟨status, offset, len, v11, v12, ?_⟩
+    let Tail : Assertion :=
+      (((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved)) **
+        ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+         (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+       ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝
+    have hslots :
+        ((newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) **
+         ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2) **
+         ((newSp + 32) ↦ₘ saved.s3) ** ((newSp + 40) ↦ₘ saved.s4) **
+         ((newSp + 48) ↦ₘ saved.s5) ** Tail) hLeft := by
+      unfold savedFrame at hcore
+      unfold Tail
+      xperm_hyp hcore
+    have howns := sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn
+              (sepConj_mono memIs_implies_memOwn
+                (sepConj_mono memIs_implies_memOwn (fun _ ht => ht)))))))
+      hLeft hslots
+    let Owned : Assertion :=
+      memOwn newSp ** memOwn (newSp + 8) ** memOwn (newSp + 16) **
+      memOwn (newSp + 24) ** memOwn (newSp + 32) ** memOwn (newSp + 40) **
+      memOwn (newSp + 48) ** Tail
+    have hq1 : (Owned ** memOwn (sp0 - BitVec.ofNat 64 (8 * 1))) h :=
+      ⟨hLeft, hExtra, hdisj, hunion, howns, hextra⟩
+    unfold Owned Tail at hq1
+    unfold newSp at hq1
+    rw [savedSlotAddr48, savedSlotAddr40, savedSlotAddr32, savedSlotAddr24,
+      savedSlotAddr16, savedSlotAddr8, savedSlotAddr0] at hq1
+    simp only [stackFree_succ, stackFree_zero, sepConj_emp_right']
+    xperm_hyp hq1
+
+#print axioms rlpListNthItem_flat_spec_within
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
