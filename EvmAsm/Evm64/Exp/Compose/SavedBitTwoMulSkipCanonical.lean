@@ -4,7 +4,7 @@
   Canonical-code views of the saved-bit two-MUL zero-bit skip path.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkip
+import EvmAsm.Evm64.Exp.TwoMulCondShared
 
 namespace EvmAsm.Evm64.Exp.Compose
 

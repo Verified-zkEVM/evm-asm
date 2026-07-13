@@ -6,8 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateResidualBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateStep
+import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
 
 namespace EvmAsm.Evm64.Exp.Compose

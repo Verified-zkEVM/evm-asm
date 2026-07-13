@@ -21,8 +21,7 @@
   Bead `evm-asm-wbc4i.4.7`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
 
