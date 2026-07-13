@@ -1358,5 +1358,37 @@ theorem bansf_nonceFieldInitFailure98_spec (aB cur endW k : Word)
 
 #print axioms bansf_nonceFieldInitFailure98_spec
 
+/-- Concrete code witnesses for the four non-call instructions of the outer
+    nonce item unit (slots 88, 89, 91, and 92). -/
+theorem bansf_item4_code :
+    (∀ a i, CodeReq.singleton (B + 352) (.LD .x10 .x2 (48 : BitVec 12)) a = some i →
+      bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B + 356) (.LD .x11 .x2 (56 : BitVec 12)) a = some i →
+      bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B + 364) (.BNE .x11 .x0 (368 : BitVec 13)) a = some i →
+      bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B + 368) (.SD .x2 .x10 (48 : BitVec 12)) a = some i →
+      bansfCR a = some i) ∧
+    4 * bansfProg.length < 2 ^ 64 := by
+  refine ⟨?_, ?_, ?_, ?_, by decide +kernel⟩
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 352) bansfProg 88 (.LD .x10 .x2 (48 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 356) bansfProg 89 (.LD .x11 .x2 (56 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 364) bansfProg 91 (.BNE .x11 .x0 (368 : BitVec 13))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 368) bansfProg 92 (.SD .x2 .x10 (48 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+
+#print axioms bansf_item4_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
