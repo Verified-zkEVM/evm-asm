@@ -1469,5 +1469,23 @@ theorem bansf_codeLoopEntry_code :
 
 #print axioms bansf_codeLoopEntry_code
 
+/-- Concrete code witnesses for the code-window materialization tail. -/
+theorem bansf_codeMaterialize_code :
+    (∀ a i, CodeReq.singleton (B+700) (.SUB .x29 .x10 .x12) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+704) (.SUB .x29 .x29 .x8) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+708) (.SD .x18 .x29 (64:BitVec 12)) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+712) (.SD .x18 .x12 (72:BitVec 12)) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+716) (.LI .x5 (1:Word)) a = some i → bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B+720) (.SD .x18 .x5 (56:BitVec 12)) a = some i → bansfCR a = some i) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+700) bansfProg 175 (.SUB .x29 .x10 .x12) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+704) bansfProg 176 (.SUB .x29 .x29 .x8) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+708) bansfProg 177 (.SD .x18 .x29 (64:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+712) bansfProg 178 (.SD .x18 .x12 (72:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+716) bansfProg 179 (.LI .x5 (1:Word)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+720) bansfProg 180 (.SD .x18 .x5 (56:BitVec 12)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+
+#print axioms bansf_codeMaterialize_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
