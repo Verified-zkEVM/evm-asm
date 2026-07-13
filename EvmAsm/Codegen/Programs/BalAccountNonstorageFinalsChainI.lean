@@ -465,6 +465,33 @@ theorem bansf_codeFieldInit143_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word
 
 #print axioms bansf_codeFieldInit143_spec
 
+/-- Slot 145, taken arm (`B + 580 → B + 724`): an empty code field skips
+    directly to the success stub. -/
+theorem bansf_codeEmptyTaken145_spec (aB : Word) (cOff fEnd : Nat)
+    (heq : cOff = fEnd) :
+    cpsTripleWithin 1 (B + 580) (B + 724) bansfCode
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd))) := by
+  subst heq
+  have hbeq := beq_spec_gen_within .x10 .x11 (144 : BitVec 13)
+    (aB + BitVec.ofNat 64 cOff) (aB + BitVec.ofNat 64 cOff) (B + 580)
+  rw [show (B + 580) + signExtend13 (144 : BitVec 13) = B + 724 from by
+        rw [show signExtend13 (144 : BitVec 13) = (144 : Word) from by decide]
+        bv_omega] at hbeq
+  have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCode)
+    bansf_codeEmpty145_code hbeq
+  have h := cpsBranchWithin_takenPath hbeqL
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
+
+#print axioms bansf_codeEmptyTaken145_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
