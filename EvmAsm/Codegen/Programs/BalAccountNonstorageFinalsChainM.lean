@@ -853,5 +853,53 @@ theorem nonceResult_to_indexed
 
 #print axioms nonceResult_to_indexed
 
+/-- Code output cells indexed by the optional final value window. -/
+def codeOutCells (aB oB : Word) : Option (Word × Word) → Assertion
+  | none =>
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word))
+  | some (vNext, vLen) =>
+      ((oB + 56) ↦ₘ (1 : Word)) **
+      ((oB + 64) ↦ₘ BitVec.ofNat 64 ((vNext - vLen - aB).toNat)) **
+      ((oB + 72) ↦ₘ BitVec.ofNat 64 vLen.toNat)
+
+/-- Re-express the complete nested result with all three optional windows
+    syntactically indexing the exact 80-byte output-block ownership. -/
+theorem codeResult_to_indexed
+    (aB oB : Word)
+    (balOff balSpan nonceOff nonceSpan codeOff codeSpan : Nat)
+    (acctBytes : List (BitVec 8)) :
+    ∀ h,
+      codeResult aB oB codeOff codeSpan acctBytes
+        (nonceResult aB oB nonceOff nonceSpan acctBytes
+          (balResult aB oB balOff balSpan acctBytes)) h →
+      ∃ bal nonce code : Option (Word × Word),
+        (((balOutCells acctBytes aB oB bal ** nonceOutCells acctBytes aB oB nonce) **
+            codeOutCells aB oB code) **
+          ⌜allFieldFinals acctBytes aB balOff balSpan nonceOff nonceSpan
+            codeOff codeSpan bal nonce code⌝) h := by
+  intro h hp
+  unfold codeResult at hp
+  rcases hp with hp | hp
+  · obtain ⟨hCore, hCodeFinal⟩ := (sepConj_pure_right h).1 hp
+    obtain ⟨hBN, hCode, hd, hu, hBNResult, hCodeCells⟩ := hCore
+    obtain ⟨bal, nonce, hBNIndexed⟩ := nonceResult_to_indexed aB oB
+      balOff balSpan nonceOff nonceSpan acctBytes hBN hBNResult
+    obtain ⟨hBNCells, hBNFinals⟩ := (sepConj_pure_right hBN).1 hBNIndexed
+    refine ⟨bal, nonce, none, (sepConj_pure_right h).2 ⟨?_, hBNFinals, hCodeFinal⟩⟩
+    exact ⟨hBN, hCode, hd, hu, hBNCells, by simpa [codeOutCells] using hCodeCells⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    obtain ⟨hCore, hCodeFinal⟩ := (sepConj_pure_right h).1 hp
+    obtain ⟨hBN, hCode, hd, hu, hBNResult, hCodeCells⟩ := hCore
+    obtain ⟨bal, nonce, hBNIndexed⟩ := nonceResult_to_indexed aB oB
+      balOff balSpan nonceOff nonceSpan acctBytes hBN hBNResult
+    obtain ⟨hBNCells, hBNFinals⟩ := (sepConj_pure_right hBN).1 hBNIndexed
+    refine ⟨bal, nonce, some (vNext, vLen),
+      (sepConj_pure_right h).2 ⟨?_, hBNFinals, hCodeFinal⟩⟩
+    exact ⟨hBN, hCode, hd, hu, hBNCells,
+      by simpa [codeOutCells] using hCodeCells⟩
+
+#print axioms codeResult_to_indexed
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
