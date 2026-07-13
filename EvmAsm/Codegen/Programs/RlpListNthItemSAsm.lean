@@ -108,6 +108,89 @@ theorem shortInit_to_strict (bytes : List (BitVec 8)) (base : Word)
       Nat.mod_eq_of_lt h_len] using hw
   exact .short listLen 1 (bytes[0]'hoff) (by simp) hnotlist hshort rfl hnat
 
+/-- Convert WalkInit's canonical long-list success facts at offset zero into
+    the wrapper's strict outer-list relation. -/
+theorem longInit_to_strict (bytes : List (BitVec 8)) (base : Word)
+    (listLen : Nat) (hoff : 0 < bytes.length)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hfit : ¬ BitVec.ult (base + BitVec.ofNat 64 listLen)
+      (base + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true)
+    (hfirst : bytes[1]? = some (bytes[1]'(by omega)))
+    (hnz : bytes[1]'(by omega) ≠ 0)
+    (hminimal : 56 ≤ Nat.fromBytesBE
+      ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+    (hend : base +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) =
+      base + BitVec.ofNat 64 listLen) :
+    StrictListPayload bytes base listLen
+      (1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)
+      (base + BitVec.ofNat 64 listLen) := by
+  let n := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+  let dec := Nat.fromBytesBE ((bytes.drop 1).take n)
+  have hn : n ≤ 8 := by
+    have hb := (bytes[0]'hoff).isLt
+    have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+    dsimp [n]
+    bv_omega
+  have hdec : dec < 2 ^ 64 := by
+    have hp := Nat.fromBytesBE_lt ((bytes.drop 1).take n)
+    have htake : ((bytes.drop 1).take n).length ≤ 8 := by simp [hn]
+    dsimp [dec]
+    calc
+      Nat.fromBytesBE ((bytes.drop 1).take n) <
+          256 ^ ((bytes.drop 1).take n).length := hp
+      _ ≤ 256 ^ 8 := Nat.pow_le_pow_right (by omega) htake
+      _ = 2 ^ 64 := by norm_num
+  have hnat : 1 + n + dec = listLen := by
+    have hbaseEnd : base.toNat + listLen < 2 ^ 64 := by omega
+    have hbaseCursor : base.toNat + (1 + n) < 2 ^ 64 := by omega
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide] at hend hfit
+    have hhead :
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + (1 : Word) =
+          BitVec.ofNat 64 (1 + n) := by
+      dsimp [n] at hn ⊢
+      bv_omega
+    rw [hhead] at hend hfit
+    change base + BitVec.ofNat 64 (1 + n) + BitVec.ofNat 64 dec =
+      base + BitVec.ofNat 64 listLen at hend
+    have hcursorEnd := BalAccountNonstorageFinalsSpec.not_ult_le hfit
+    have heq := congrArg BitVec.toNat hend
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt hdec] at heq
+    have hcursorNat :
+        (base.toNat + (1 + n) % 2 ^ 64) % 2 ^ 64 =
+          base.toNat + (1 + n) := by
+      have hm : (1 + n) % 2 ^ 64 = 1 + n := Nat.mod_eq_of_lt (by omega)
+      omega
+    have hendNat :
+        (base.toNat + listLen % 2 ^ 64) % 2 ^ 64 =
+          base.toNat + listLen := by
+      have hm : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+      omega
+    rw [hcursorNat, hendNat] at heq
+    have hcursorLe : base.toNat + (1 + n) ≤ base.toNat + listLen := by
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at hcursorEnd
+      have hnmod : (1 + n) % 2 ^ 64 = 1 + n := Nat.mod_eq_of_lt (by omega)
+      have hlmod : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+      rw [hnmod, hlmod, Nat.mod_eq_of_lt hbaseCursor,
+        Nat.mod_eq_of_lt hbaseEnd] at hcursorEnd
+      exact hcursorEnd
+    by_cases hsum : base.toNat + (1 + n) + dec < 2 ^ 64
+    · rw [Nat.mod_eq_of_lt hsum] at heq
+      omega
+    · have hsum2 : base.toNat + (1 + n) + dec < 2 * 2 ^ 64 := by omega
+      rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at heq
+      omega
+  exact .long listLen _ (bytes[0]'hoff) (bytes[1]'(by omega)) (by simp)
+    hlong hfirst hnz hminimal rfl hnat
+
 /-- Exactly `index + 1` successful strict `rlp_walk_next` decodes, starting
     at `off`.  The final `(next,len)` is the selected item's advanced cursor
     and reported content length.  Every step uses `rlpItemDecode`, so bounds
