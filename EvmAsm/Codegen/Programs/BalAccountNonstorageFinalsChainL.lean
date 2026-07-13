@@ -47,5 +47,19 @@ theorem bansf_codeItemArgs135_spec (newSp cursor endW v10 v11 : Word) :
 
 #print axioms bansf_codeItemArgs135_spec
 
+/-- Concrete code witness for the final outer-item status gate at slot 138. -/
+theorem bansf_codeItemStatus138_code :
+    ∀ a i,
+      CodeReq.singleton (B + 552) (.BNE .x11 .x0 (180 : BitVec 13)) a = some i →
+      bansfCR a = some i := by
+  intro a i h
+  exact CodeReq.union_mono_left a i
+    (CodeReq.ofProg_mem_at B (B + 552) bansfProg 138
+      (.BNE .x11 .x0 (180 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) a i h)
+
+#print axioms bansf_codeItemStatus138_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
