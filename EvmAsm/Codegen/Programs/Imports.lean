@@ -467,3 +467,4 @@ import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmFrame
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmInit
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmLoop
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmNext
