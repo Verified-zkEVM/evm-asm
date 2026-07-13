@@ -770,9 +770,8 @@ theorem rlp_field0_to_u64_branch_spec_within
     (srcBytes : List (BitVec 8)) (advanced contentLen walkNextStatus : Word)
     (srcOff len : Nat)
     (hbase0 : base &&& (1 : Word) = 0)
-    (hlen0 : 0 < len) (hlen8 : len ≤ 8)
-    (hsalign : srcBase.toNat % 8 = 0) (hsoff : srcOff < srcBytes.length)
-    (hcanon : srcBytes[srcOff]'hsoff ≠ 0)
+    (hlen64 : len < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0)
     (hslen : srcOff + len ≤ srcBytes.length)
     (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
@@ -785,11 +784,9 @@ theorem rlp_field0_to_u64_branch_spec_within
         (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
       (fun h =>
-        ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
-            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) **
-            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-            (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
-            (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h ∨
+        (((.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa) **
+          rlpField0ContentResult srcBase contentLen t4Old t5Old t6Old
+            srcBytes srcOff len) h) ∨
         ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ contentLen) **
             (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
             (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
@@ -847,22 +844,19 @@ theorem rlp_field0_to_u64_branch_spec_within
     cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp) hbrCR
   let br0 : WP.Branch (base + 16) CR := WP.Branch.ofSpec hbrCR'
-  -- The shared join postcondition: success (x11 = 0) or parse_fail (x11 = 1).
+  -- The shared join postcondition: a content outcome or wrapper parse failure.
   let finalPost : Assertion := fun h =>
-    (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
-        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) **
-        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
-        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h ∨
+    (((.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa) **
+        rlpField0ContentResult srcBase contentLen t4Old t5Old t6Old
+          srcBytes srcOff len) h ∨
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ contentLen) **
         (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
         (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h)
-  -- Not-taken continuation: the success-path call composition proved above.
-  have hsuccess := rlp_field0_to_u64_content_call_success_spec_within base srcBase savedRa
-    x1Val t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes
-    (srcBase + BitVec.ofNat 64 (srcOff + len)) contentLen srcOff len hbase0 hlen0 hlen8 hsalign
-    hsoff hcanon hslen hsover hsvalid rfl hcontentLen
+  -- Not-taken continuation: all unified content-decoder outcomes.
+  have hsuccess := rlp_field0_to_u64_content_tail_unified_spec_within
+    base srcBase savedRa x1Val t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+    srcBytes srcOff len hbase0 hlen64 hsalign hslen hsover hsvalid
   let successCert : WP.CFG.Cert (base + 20) (savedRa &&& ~~~1) CR finalPost :=
     WP.CFG.weakenPost (WP.CFG.leaf hsuccess) (fun h hp => Or.inl hp)
   -- Taken continuation: the parse_fail leaf, extended into `CR` and framed
