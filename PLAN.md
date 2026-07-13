@@ -2638,6 +2638,16 @@ calling convention so it is a literal drop-in.
   proof audits to the three permitted classical axioms. Guest-link regeneration
   and EEST A/B remain the byte-changing deployment gates.
 
+- ✅ **`rlp_field_to_u256_be` strict SAsm replacement** (bead
+  `evm-asm-4ch8f.14.10`): the framed K35 caller composes the verified strict
+  list selector with an exact bounded right-aligned 32-byte copy loop. Its
+  unified `Result` covers malformed/OOB input (status 1, zero output), selected
+  payloads wider than 32 bytes (status 2, zero output), and success (status 0,
+  exact right-aligned bytes). All outer ABI registers are restored, source
+  bytes remain read-only, and the top theorem audits to the three permitted
+  classical axioms. Guest-link regeneration and EEST A/B are the byte-changing
+  deployment gates.
+
 - ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
   first caller-level verification step composing the cursor-walk leaves
   (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper
