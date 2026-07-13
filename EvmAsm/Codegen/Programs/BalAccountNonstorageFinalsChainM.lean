@@ -803,5 +803,55 @@ theorem balResult_to_indexed
 
 #print axioms balResult_to_indexed
 
+/-- Nonce output cells indexed by the optional final value window. -/
+def nonceOutCells (acctBytes : List (BitVec 8)) (aB oB : Word) :
+    Option (Word × Word) → Assertion
+  | none => ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word))
+  | some (vNext, vLen) =>
+      ((oB + 40) ↦ₘ (1 : Word)) **
+      ((oB + 48) ↦ₘ BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+        ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
+
+/-- Re-express the nested balance+nonce result with both optional windows
+    syntactically indexing their exact owned output cells. -/
+theorem nonceResult_to_indexed
+    (aB oB : Word) (balOff balSpan nonceOff nonceSpan : Nat)
+    (acctBytes : List (BitVec 8)) :
+    ∀ h,
+      nonceResult aB oB nonceOff nonceSpan acctBytes
+        (balResult aB oB balOff balSpan acctBytes) h →
+      ∃ bal nonce : Option (Word × Word),
+        ((balOutCells acctBytes aB oB bal ** nonceOutCells acctBytes aB oB nonce) **
+          ⌜balNonceFinals acctBytes aB balOff balSpan nonceOff nonceSpan
+            bal nonce⌝) h := by
+  intro h hp
+  unfold nonceResult at hp
+  rcases hp with hp | hp
+  · obtain ⟨hCore, hNonceFinal⟩ := (sepConj_pure_right h).1 hp
+    obtain ⟨hBal, hNonce, hd, hu, hBalResult, hNonceCells⟩ := hCore
+    obtain ⟨bal, hBalIndexed⟩ := balResult_to_indexed aB oB
+      balOff balSpan acctBytes hBal hBalResult
+    obtain ⟨hBalCells, hBalFinal⟩ := (sepConj_pure_right hBal).1 hBalIndexed
+    refine ⟨bal, none, (sepConj_pure_right h).2 ⟨?_, ?_⟩⟩
+    · exact ⟨hBal, hNonce, hd, hu, hBalCells, by simpa [nonceOutCells] using hNonceCells⟩
+    · exact ⟨hBalFinal.1, hBalFinal.2, hNonceFinal, by simp⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    obtain ⟨hCore, hNonceFinal⟩ := (sepConj_pure_right h).1 hp
+    obtain ⟨hBal, hNonce, hd, hu, hBalResult, hNonceCells⟩ := hCore
+    obtain ⟨bal, hBalIndexed⟩ := balResult_to_indexed aB oB
+      balOff balSpan acctBytes hBal hBalResult
+    obtain ⟨hBalCells, hBalFinal⟩ := (sepConj_pure_right hBal).1 hBalIndexed
+    refine ⟨bal, some (vNext, vLen),
+      (sepConj_pure_right h).2 ⟨?_, ?_⟩⟩
+    · exact ⟨hBal, hNonce, hd, hu, hBalCells,
+        by simpa [nonceOutCells] using hNonceCells⟩
+    · refine ⟨hBalFinal.1, hBalFinal.2, hNonceFinal.1, ?_⟩
+      intro vNext' vLen' heq
+      simp only [Option.some.injEq, Prod.mk.injEq] at heq
+      rcases heq with ⟨rfl, rfl⟩
+      exact hNonceFinal.2
+
+#print axioms nonceResult_to_indexed
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
