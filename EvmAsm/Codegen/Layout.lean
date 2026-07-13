@@ -119,16 +119,14 @@ private def joinNonEmpty (xs : List String) : String :=
     makes the file contain every byte of the guest's large scratch arenas.  The
     source generators intentionally keep labels, alignment, and nonzero tables
     interleaved, so the final data string is split here at the common
-    `BuildUnit` boundary.  A zero item carries its immediately preceding
-    alignment/label prefix with it; a following nonzero item switches back to
-    `.data`.  This preserves every symbol's relative order within its new
-    section while leaving the emitted instruction text untouched. -/
-
-private inductive DataSection where
-  | other
-  | data
-  | bss
-  deriving DecidableEq
+    `BuildUnit` boundary, GROUP-wise: a group is an alignment/label prefix plus
+    the payload lines that follow it, and it moves to `.bss` only when every
+    payload line is a zero directive.  A group with any nonzero payload stays
+    whole in `.data` — splitting mid-group tears the nonzero tail away from its
+    label (e.g. `blsg_b_be: .zero 47 / .byte 0x04`, the BLS12-381 curve
+    constant, would read as b = 0 and break every finite-G1 on-curve check).
+    This preserves every symbol's relative order within its new section while
+    leaving the emitted instruction text untouched. -/
 
 private def trimmed (line : String) : String := line.trimAscii.toString
 
@@ -158,38 +156,71 @@ private def isPopSection (line : String) : Bool :=
 private def flushPending (pending : List String) (outRev : List String) : List String :=
   pending.reverse.foldl (fun acc line => line :: acc) outRev
 
+/-- Emit one buffered group (prefix + payload, both reversed) into `.bss` when
+    the payload is nonempty and all-zero, else into `.data`, inserting a section
+    switch when the target differs from the currently open one.  Returns the
+    section left open. -/
+private def flushGroup (curIsBss : Bool)
+    (prefixRev payloadRev : List String) (outRev : List String) :
+    Bool × List String :=
+  if prefixRev.isEmpty && payloadRev.isEmpty then (curIsBss, outRev)
+  else
+    let toBss := !payloadRev.isEmpty && payloadRev.all isZeroDirective
+    let outRev :=
+      if curIsBss == toBss then outRev
+      else (if toBss then ".section .bss,\"aw\",@nobits"
+            else ".section .data") :: outRev
+    (toBss, flushPending payloadRev (flushPending prefixRev outRev))
+
 private def moveZeroDataLines
-    (lines : List String) (sec : DataSection) (pending : List String)
-    (outRev : List String) : List String :=
+    (lines : List String) (inData curIsBss : Bool)
+    (prefixRev payloadRev : List String) (outRev : List String) : List String :=
   match lines with
-  | [] => flushPending pending outRev
+  | [] => (flushGroup curIsBss prefixRev payloadRev outRev).2
   | line :: rest =>
-      if isSectionDirective line then
-        moveZeroDataLines rest
-          (if isSection ".data" line then .data
-           else if isSection ".bss" line then .bss else .other) []
-          (line :: flushPending pending outRev)
-      else if isPushDataSection line then
-        moveZeroDataLines rest .data [] (line :: flushPending pending outRev)
-      else if isPopSection line then
-        moveZeroDataLines rest .other [] (line :: flushPending pending outRev)
-      else if sec == .data && isZeroDirective line then
-        moveZeroDataLines rest .bss []
-          (line :: flushPending pending
-            (".section .bss,\"aw\",@nobits" :: outRev))
-      else if sec == .bss && isZeroDirective line then
-        moveZeroDataLines rest .bss [] (line :: flushPending pending outRev)
-      else if (sec == .data || sec == .bss) && isZeroPrefix line then
-        moveZeroDataLines rest sec (line :: pending) outRev
-      else if sec == .bss then
-        moveZeroDataLines rest .data []
-          (line :: flushPending pending (".section .data" :: outRev))
+      if isSectionDirective line || isPushDataSection line || isPopSection line then
+        let (curIsBss, outRev) := flushGroup curIsBss prefixRev payloadRev outRev
+        -- a `.popsection` restores the pushed section, so close any `.bss`
+        -- we opened inside the pushed `.data` region first
+        let outRev :=
+          if isPopSection line && curIsBss then ".section .data" :: outRev else outRev
+        let inData' :=
+          if isPushDataSection line then true
+          else if isPopSection line then false
+          else isSection ".data" line
+        moveZeroDataLines rest inData' false [] [] (line :: outRev)
+      else if inData then
+        if isZeroPrefix line then
+          if payloadRev.isEmpty then
+            moveZeroDataLines rest inData curIsBss (line :: prefixRev) [] outRev
+          else
+            let (curIsBss, outRev) := flushGroup curIsBss prefixRev payloadRev outRev
+            moveZeroDataLines rest inData curIsBss [line] [] outRev
+        else
+          moveZeroDataLines rest inData curIsBss prefixRev (line :: payloadRev) outRev
       else
-        moveZeroDataLines rest sec [] (line :: flushPending pending outRev)
+        moveZeroDataLines rest inData curIsBss [] [] (line :: outRev)
 
 private def moveZeroDataToBss (asm : String) : String :=
   String.intercalate "\n"
-    ((moveZeroDataLines (asm.splitOn "\n") .other [] []).reverse)
+    ((moveZeroDataLines (asm.splitOn "\n") false false [] [] []).reverse)
+
+-- A mixed group (zero run + nonzero tail under one label) must stay WHOLE in
+-- `.data`; only the following all-zero group moves.  Splitting the mixed group
+-- was the b = 4 → 0 curve-constant regression (bead evm-asm-rowr9).
+#guard moveZeroDataToBss
+    ".section .data\nblsg_b_be:\n  .zero 47\n  .byte 0x04\nnext:\n  .zero 8" =
+  ".section .data\nblsg_b_be:\n  .zero 47\n  .byte 0x04\n" ++
+    ".section .bss,\"aw\",@nobits\nnext:\n  .zero 8"
+
+-- All-zero groups move to `.bss` with their alignment/label prefix; a
+-- following nonzero group switches back to `.data`.
+#guard moveZeroDataToBss
+    (".section .data\nfoo:\n  .byte 0x01\n.balign 8\nbar:\n  .zero 48\n" ++
+      "baz:\n  .byte 0x02") =
+  ".section .data\nfoo:\n  .byte 0x01\n" ++
+    ".section .bss,\"aw\",@nobits\n.balign 8\nbar:\n  .zero 48\n" ++
+    ".section .data\nbaz:\n  .byte 0x02"
 
 /-- Render a full `.s` file from a `BuildUnit` and halt convention. -/
 def emitBuildUnit (hc : HaltConv) (u : BuildUnit) : String :=

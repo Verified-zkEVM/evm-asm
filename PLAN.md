@@ -131,6 +131,19 @@ invalid-deposit, Dispatch exceptional exits) is gated on
 `create_failed_refund_skip` stash. Flips `cumulative_block_state_gas_boundary`
 exact_fit, `create_collision_to_empty2` d0-g1-v0, and
 `create2_revert_preserves_balance` fail→pass.
+`evm-asm-rowr9` (P0, 2026-07-13): the 4 `value_move_to_precompiles`
+0x0a KZG false-rejects were NOT a crypto-kernel bug — the
+`moveZeroDataToBss` splitter (bd0666afa) tore mixed zero/nonzero data
+groups, so `blsg_b_be` (BLS12-381 b = 4) and `p256_one_be` read as 0
+in the guest image: every finite-G1 EIP-2537 wire decode failed
+on-curve (breaking 0x0f pairing + 0x0a KZG re-validation) and
+P256VERIFY's pow accumulator initialized to 0. Pure false-reject (the
+y²=x³ cusp group has order p, gcd(n,p)=1, so the subgroup gate still
+rejected everything the broken on-curve gate admitted). Fix =
+group-based splitter (a label group moves to `.bss` only when its
+whole payload is zero-directives) + `#guard` tearing tests +
+general-proof (degree-1 via `[τ]₁`) + real-fixture rows in
+`codegen-zisk-bls12-kzg-check.sh`.
 
 ### Evm64 (PRIMARY) — 52 opcodes
 
