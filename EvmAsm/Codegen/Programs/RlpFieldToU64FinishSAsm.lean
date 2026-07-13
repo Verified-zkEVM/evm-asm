@@ -423,10 +423,10 @@ theorem scalarOutcome_result
 #print axioms scalarOutcome_result
 
 def stableRest
-    (sp0 listBase offset len v12 : Word)
+    (ra sp0 listBase offset len v12 : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) : Assertion :=
-  (.x1 ↦ᵣ (B + 84)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+  (.x1 ↦ᵣ ra) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   bytesRegion listBase bytes ** (.x2 ↦ᵣ sp0) **
   (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
   (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
@@ -434,16 +434,16 @@ def stableRest
   regOwn .x30 ** regOwn .x31 ** (.x8 ↦ᵣ listBase) **
   (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)
 
-theorem pcFree_stableRest sp0 listBase offset len v12 saved bytes :
-    (stableRest sp0 listBase offset len v12 saved bytes).pcFree := by
+theorem pcFree_stableRest ra sp0 listBase offset len v12 saved bytes :
+    (stableRest ra sp0 listBase offset len v12 saved bytes).pcFree := by
   unfold stableRest
   pcf
 
 def joinCore
-    (sp0 listBase offset len v12 x5 scalarStatus wrapperStatus outputValue : Word)
+    (ra sp0 listBase offset len v12 x5 scalarStatus wrapperStatus outputValue : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) : Assertion :=
-  stableRest sp0 listBase offset len v12 saved bytes **
+  stableRest ra sp0 listBase offset len v12 saved bytes **
   (.x5 ↦ᵣ x5) ** (.x9 ↦ᵣ saved.s1) ** (.x10 ↦ᵣ wrapperStatus) **
   (.x11 ↦ᵣ scalarStatus) ** (.x0 ↦ᵣ (0 : Word)) **
   (saved.s1 ↦ₘ outputValue)
@@ -452,8 +452,8 @@ def joinedResult
     (sp0 listBase : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
-  fun h => ∃ offset len v12 x5 scalarStatus wrapperStatus outputValue,
-    (joinCore sp0 listBase offset len v12 x5 scalarStatus wrapperStatus
+  fun h => ∃ offset len v12 ra x5 scalarStatus wrapperStatus outputValue,
+    (joinCore ra sp0 listBase offset len v12 x5 scalarStatus wrapperStatus
       outputValue saved bytes **
      ⌜Result bytes listBase listLen index wrapperStatus outputValue⌝) h
 
@@ -477,18 +477,18 @@ private theorem successSemanticTail
       (joinedResult sp0 listBase saved bytes listLen index) := by
   let F : Assertion :=
     (.x5 ↦ᵣ x5) ** (.x11 ↦ᵣ (0 : Word)) **
-    stableRest sp0 listBase offset len v12 saved bytes
+    stableRest (B + 84) sp0 listBase offset len v12 saved bytes
   have ht := successMachineTail saved.s1 value 0 F (by
     unfold F
     exact pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs
-        (pcFree_stableRest _ _ _ _ _ _ _)))
+        (pcFree_stableRest _ _ _ _ _ _ _ _)))
   refine cpsTripleWithin_weaken (fun h hp => by
       unfold scalarCoreAt5 contentCarry listOtherSaved at hp
       unfold F stableRest
       xperm_hyp hp) (fun h hp => ?_) ht
   unfold joinedResult
-  refine ⟨offset, len, v12, x5, 0, 0, value, ?_⟩
+  refine ⟨offset, len, v12, B + 84, x5, 0, 0, value, ?_⟩
   apply (sepConj_pure_right h).2
   constructor
   · unfold F stableRest at hp
@@ -509,18 +509,18 @@ private theorem tooLongSemanticTail
       (joinedResult sp0 listBase saved bytes listLen index) := by
   let F : Assertion :=
     (.x9 ↦ᵣ saved.s1) ** (saved.s1 ↦ₘ (0 : Word)) **
-    stableRest sp0 listBase offset len v12 saved bytes
+    stableRest (B + 84) sp0 listBase offset len v12 saved bytes
   have ht := tooLongMachineTail x5 0 F (by
     unfold F
     exact pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_memIs
-        (pcFree_stableRest _ _ _ _ _ _ _)))
+        (pcFree_stableRest _ _ _ _ _ _ _ _)))
   refine cpsTripleWithin_weaken (fun h hp => by
       unfold scalarCoreAt5 contentCarry listOtherSaved at hp
       unfold F stableRest
       xperm_hyp hp) (fun h hp => ?_) ht
   unfold joinedResult
-  refine ⟨offset, len, v12, 2, 2, 2, 0, ?_⟩
+  refine ⟨offset, len, v12, B + 84, 2, 2, 2, 0, ?_⟩
   apply (sepConj_pure_right h).2
   constructor
   · unfold F stableRest at hp
@@ -541,18 +541,18 @@ private theorem noncanonicalSemanticTail
       (joinedResult sp0 listBase saved bytes listLen index) := by
   let F : Assertion :=
     (.x9 ↦ᵣ saved.s1) ** (saved.s1 ↦ₘ (0 : Word)) **
-    stableRest sp0 listBase offset len v12 saved bytes
+    stableRest (B + 84) sp0 listBase offset len v12 saved bytes
   have ht := noncanonicalMachineTail x5 0 F (by
     unfold F
     exact pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_memIs
-        (pcFree_stableRest _ _ _ _ _ _ _)))
+        (pcFree_stableRest _ _ _ _ _ _ _ _)))
   refine cpsTripleWithin_weaken (fun h hp => by
       unfold scalarCoreAt5 contentCarry listOtherSaved at hp
       unfold F stableRest
       xperm_hyp hp) (fun h hp => ?_) ht
   unfold joinedResult
-  refine ⟨offset, len, v12, 2, 3, 1, 0, ?_⟩
+  refine ⟨offset, len, v12, B + 84, 2, 3, 1, 0, ?_⟩
   apply (sepConj_pure_right h).2
   constructor
   · unfold F stableRest at hp
@@ -850,5 +850,187 @@ theorem contentDone_framed_to_scalarResult
 
 #print axioms scalarDispatch
 #print axioms contentDone_framed_to_scalarResult
+
+theorem callContentWithOutput
+    (sp0 listBase vOld : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+      (B + 80) (B + 84) code
+      (((.x1 ↦ᵣ vOld) ** contentReady sp0 listBase saved bytes listLen index) **
+       (saved.s1 ↦ₘ (0 : Word)))
+      (scalarResult sp0 listBase saved bytes listLen index **
+       (saved.s1 ↦ₘ (0 : Word))) := by
+  have hc := callContent sp0 listBase vOld saved bytes listLen index hsalign
+    hslack hover hvalid
+  have hcF := cpsTripleWithin_frameR (saved.s1 ↦ₘ (0 : Word)) (by pcf) hc
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (contentDone_framed_to_scalarResult sp0 listBase saved bytes listLen index)
+    hcF
+
+theorem selectedToJoin
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hs0 : saved.s0 = listBase)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin
+      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      (B + 52) (B + 128) code
+      (((.x1 ↦ᵣ (B + 48)) **
+        listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index) **
+       (saved.s1 ↦ₘ (0 : Word)))
+      (joinedResult sp0 listBase saved bytes listLen index) := by
+  have hs0' := selectedSetup sp0 listBase saved bytes listLen index hs0
+  have hs := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))) (by pcf) hs0'
+  have hc := callContentWithOutput sp0 listBase (B + 48) saved bytes listLen
+    index hsalign hslack hover hvalid
+  have hsc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hs hc
+  have hsc' := cpsTripleWithin_weaken (P' :=
+      (((.x1 ↦ᵣ (B + 48)) **
+        listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index) **
+       (saved.s1 ↦ₘ (0 : Word))))
+    (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hsc
+  have hd := scalarDispatch sp0 listBase saved bytes listLen index
+  exact cpsTripleWithin_seq_same_cr hsc' hd
+
+#print axioms callContentWithOutput
+#print axioms selectedToJoin
+
+def failureResultAtJoin
+    (sp0 listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h =>
+    ((((.x1 ↦ᵣ (B + 48)) **
+       listFailed sp0 listBase offsetCell lengthCell oldOffset oldLen saved bytes
+         listLen index) ** (saved.s1 ↦ₘ (0 : Word))) **
+     ⌜Result bytes listBase listLen index 1 0⌝) h
+
+def allJoinedResult
+    (sp0 listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => joinedResult sp0 listBase saved bytes listLen index h ∨
+    failureResultAtJoin sp0 listBase oldOffset oldLen saved bytes listLen index h
+
+theorem selectedToAllJoin
+    (sp0 listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hs0 : saved.s0 = listBase)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin
+      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      (B + 52) (B + 128) code
+      (((.x1 ↦ᵣ (B + 48)) **
+        listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index) **
+       (saved.s1 ↦ₘ (0 : Word)))
+      (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) := by
+  have hs := selectedToJoin sp0 listBase saved bytes listLen index hs0 hsalign
+    hslack hover hvalid
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => Or.inl hp) hs
+
+theorem failureToAllJoin
+    (sp0 listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsTripleWithin 2 (B + 116) (B + 128) code
+      (((.x1 ↦ᵣ (B + 48)) **
+        listFailed sp0 listBase offsetCell lengthCell oldOffset oldLen saved bytes
+          listLen index) ** (saved.s1 ↦ₘ (0 : Word)))
+      (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) := by
+  have hf0 := failureJoin sp0 listBase offsetCell lengthCell oldOffset oldLen
+    saved bytes listLen index
+  have hf := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))) (by pcf) hf0
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hf
+  have h_fail : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase
+      listLen index := by
+    obtain ⟨h1, h2, hd, hu, hlist, hframe⟩ := hp
+    unfold listFailed at hlist
+    obtain ⟨v11, v12, hlist⟩ := hlist
+    exact ((sepConj_pure_right h1).1 hlist).2
+  right
+  unfold failureResultAtJoin
+  apply (sepConj_pure_right h).2
+  constructor
+  · xperm_hyp hp
+  · exact .listFailure h_fail
+
+#print axioms selectedToAllJoin
+#print axioms failureToAllJoin
+
+theorem listDispatchToJoin
+    (sp0 listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hs0 : saved.s0 = listBase)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    cpsTripleWithin (1 + tailSteps) (B + 48) (B + 128) code
+      (((.x1 ↦ᵣ (B + 48)) **
+        listCallResult sp0 listBase offsetCell lengthCell oldOffset oldLen saved
+          bytes listLen index) ** (saved.s1 ↦ₘ (0 : Word)))
+      (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) := by
+  dsimp
+  have hb0 := listResultBranch sp0 listBase offsetCell lengthCell oldOffset
+    oldLen saved bytes listLen index
+  have hb := cpsBranchWithin_frameR
+    ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))) (by pcf) hb0
+  have hs0' := selectedToAllJoin sp0 listBase oldOffset oldLen saved bytes
+    listLen index hs0 hsalign hslack hover hvalid
+  have hs : cpsTripleWithin
+      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      (B + 52) (B + 128) code
+      (listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index **
+       ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))))
+      (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) :=
+    cpsTripleWithin_weaken (fun h hp => by
+      simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+      (fun _ hp => hp) hs0'
+  have hf0 := failureToAllJoin sp0 listBase oldOffset oldLen saved bytes
+    listLen index
+  have hf : cpsTripleWithin
+      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      (B + 116) (B + 128) code
+      (listFailed sp0 listBase offsetCell lengthCell oldOffset oldLen saved bytes
+        listLen index **
+       ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))))
+      (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) := by
+    have hf1 : cpsTripleWithin 2 (B + 116) (B + 128) code
+        (listFailed sp0 listBase offsetCell lengthCell oldOffset oldLen saved bytes
+          listLen index **
+         ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))))
+        (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) :=
+      cpsTripleWithin_weaken (fun h hp => by
+        simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+        (fun _ hp => hp) hf0
+    exact cpsTripleWithin_mono_nSteps (by omega) hf1
+  have hm := cpsBranchWithin_merge_same_cr hb hf hs
+  exact cpsTripleWithin_weaken (fun h hp => by
+      simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+    (fun _ hp => hp) hm
+
+#print axioms listDispatchToJoin
 
 end EvmAsm.Codegen.RlpFieldToU64SAsm
