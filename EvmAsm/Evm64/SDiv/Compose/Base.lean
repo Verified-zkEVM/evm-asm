@@ -16,11 +16,9 @@ import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.AddrNorm
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
-import EvmAsm.Evm64.SDiv.Compose.BaseCode
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
 import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
-import EvmAsm.Evm64.SDiv.Compose.BaseDividendAbsSequence
-import EvmAsm.Evm64.SDiv.Compose.BaseDivisorAbsSequence
 import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
 import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpec
 import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs

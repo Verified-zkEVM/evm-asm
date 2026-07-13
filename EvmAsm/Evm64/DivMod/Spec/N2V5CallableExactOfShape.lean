@@ -11,9 +11,9 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ShapeCallableShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0QuotientLane
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
 import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
 
 namespace EvmAsm.Evm64

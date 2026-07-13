@@ -15,7 +15,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
-import EvmAsm.Evm64.DivMod.Spec.N1V5CodeQuotNoBorrow
+import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
 
 namespace EvmAsm.Evm64
 

@@ -1,6 +1,6 @@
 /- Shared declaration home for the n=2 MOD post bridges. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
+import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.CallablePost

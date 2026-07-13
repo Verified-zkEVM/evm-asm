@@ -10,12 +10,8 @@
 import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
 import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlocks
 import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
-import EvmAsm.Evm64.SDiv.Compose.BaseDividendAbsSequence
-import EvmAsm.Evm64.SDiv.Compose.DivisorAbsSequence
-import EvmAsm.Evm64.SDiv.Compose.SignXorSequence
-import EvmAsm.Evm64.SDiv.Compose.DivCallPrefix
-import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchFrame
-import EvmAsm.Evm64.SDiv.Compose.DispatchPrefix
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+import EvmAsm.Evm64.SDiv.DispatchViewsShared
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

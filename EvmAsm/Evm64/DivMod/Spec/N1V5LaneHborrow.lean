@@ -10,8 +10,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
-import EvmAsm.Evm64.DivMod.Spec.N1V5NoBorrow
-import EvmAsm.Evm64.DivMod.Spec.N1V5CodeQuotNoBorrow
+import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
 
 namespace EvmAsm.Evm64
 

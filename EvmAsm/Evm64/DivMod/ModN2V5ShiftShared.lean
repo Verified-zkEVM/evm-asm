@@ -14,7 +14,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
 import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
-import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridgeMod
+import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
 import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas

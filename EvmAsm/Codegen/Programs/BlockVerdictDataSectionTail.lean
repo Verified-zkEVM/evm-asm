@@ -334,6 +334,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- compatibility/debug signals for the paths that originally introduced them.
   "bv_receipts_completeness_shape:\n  .zero 8\n" ++
   "bv_receipts_enforce_enabled:\n  .zero 8\n" ++
+  -- Capture-only deposit dispatch deliberately leaves the receipt/gas arena
+  -- unpublished; completeness means its per-tx log windows are authoritative.
+  "bv_deposit_capture_only:\n  .zero 8\n" ++
+  "bv_deposit_runtime_capture_complete:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++
