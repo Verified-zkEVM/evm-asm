@@ -422,4 +422,80 @@ theorem scalarOutcome_result
 
 #print axioms scalarOutcome_result
 
+def stableRest
+    (sp0 listBase offset len v12 : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) : Assertion :=
+  (.x1 ↦ᵣ (B + 84)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+  bytesRegion listBase bytes ** (.x2 ↦ᵣ sp0) **
+  (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+  (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+  (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x8 ↦ᵣ listBase) **
+  (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)
+
+theorem pcFree_stableRest sp0 listBase offset len v12 saved bytes :
+    (stableRest sp0 listBase offset len v12 saved bytes).pcFree := by
+  unfold stableRest
+  pcf
+
+def joinCore
+    (sp0 listBase offset len v12 x5 scalarStatus wrapperStatus outputValue : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) : Assertion :=
+  stableRest sp0 listBase offset len v12 saved bytes **
+  (.x5 ↦ᵣ x5) ** (.x9 ↦ᵣ saved.s1) ** (.x10 ↦ᵣ wrapperStatus) **
+  (.x11 ↦ᵣ scalarStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+  (saved.s1 ↦ₘ outputValue)
+
+def joinedResult
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12 x5 scalarStatus wrapperStatus outputValue,
+    (joinCore sp0 listBase offset len v12 x5 scalarStatus wrapperStatus
+      outputValue saved bytes **
+     ⌜Result bytes listBase listLen index wrapperStatus outputValue⌝) h
+
+def scalarCoreAt5
+    (sp0 listBase offset len v12 x5 value status : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) : Assertion :=
+  (.x1 ↦ᵣ (B + 84)) ** (.x5 ↦ᵣ x5) ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+  ((.x10 ↦ᵣ value) ** (.x11 ↦ᵣ status)) **
+  contentCarry sp0 listBase offset len v12 saved
+
+private theorem successSemanticTail
+    (sp0 listBase offset len v12 x5 value : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h_result : Result bytes listBase listLen index 0 value) :
+    cpsTripleWithin 3 (B + 88) (B + 128) code
+      (scalarCoreAt5 sp0 listBase offset len v12 x5 value 0 saved bytes **
+       (saved.s1 ↦ₘ (0 : Word)))
+      (joinedResult sp0 listBase saved bytes listLen index) := by
+  let F : Assertion :=
+    (.x5 ↦ᵣ x5) ** (.x11 ↦ᵣ (0 : Word)) **
+    stableRest sp0 listBase offset len v12 saved bytes
+  have ht := successMachineTail saved.s1 value 0 F (by
+    unfold F
+    exact pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_stableRest _ _ _ _ _ _ _)))
+  refine cpsTripleWithin_weaken (fun h hp => by
+      unfold scalarCoreAt5 contentCarry listOtherSaved at hp
+      unfold F stableRest
+      xperm_hyp hp) (fun h hp => ?_) ht
+  unfold joinedResult
+  refine ⟨offset, len, v12, x5, 0, 0, value, ?_⟩
+  apply (sepConj_pure_right h).2
+  constructor
+  · unfold F stableRest at hp
+    unfold joinCore stableRest
+    xperm_hyp hp
+  · exact h_result
+
+#print axioms successSemanticTail
+
 end EvmAsm.Codegen.RlpFieldToU64SAsm
