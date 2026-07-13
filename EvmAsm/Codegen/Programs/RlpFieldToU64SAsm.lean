@@ -103,6 +103,30 @@ theorem wrapper_list_disjoint :
   · rw [program_length, EvmAsm.Codegen.RlpListNthItemSAsm.total_length]
     decide
 
+theorem wrapper_content_disjoint : wrapperCode.Disjoint contentCode := by
+  unfold wrapperCode contentCode rlp_content_to_u64_code B C64B
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [rlp_content_to_u64_prog_length]; decide
+  · rw [program_length, rlp_content_to_u64_prog_length]; decide
+
+theorem list_content_disjoint :
+    EvmAsm.Codegen.RlpListNthItemSAsm.code.Disjoint contentCode := by
+  unfold EvmAsm.Codegen.RlpListNthItemSAsm.code contentCode
+    EvmAsm.Codegen.RlpListNthItemSAsm.B rlp_content_to_u64_code C64B
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+  · rw [rlp_content_to_u64_prog_length]; decide
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length,
+      rlp_content_to_u64_prog_length]
+    decide
+
+theorem contentCode_mono : ∀ a i, contentCode a = some i → code a = some i := by
+  intro a i hi
+  unfold code
+  exact CodeReq.mono_union_right wrapper_content_disjoint
+    (CodeReq.mono_union_right list_content_disjoint (fun _ _ h => h)) a i hi
+
 /-! ## Strict list-callee call shape -/
 
 def listOtherSaved (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
@@ -974,6 +998,127 @@ theorem selectedSetup
       xperm_pure hp) (fun _ hq => hq) howned
 
 #print axioms selectedSetup
+
+theorem strictNthItem_last_decode
+    {bytes : List (BitVec 8)} {base : Word} {endOff index off : Nat}
+    {next len : Word}
+    (h : EvmAsm.Codegen.RlpListNthItemSAsm.StrictNthItem bytes base
+      (base + BitVec.ofNat 64 endOff) index off next len)
+    (hoff : off ≤ endOff) (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    ∃ lastOff, lastOff ≤ endOff ∧
+      rlpItemDecode bytes lastOff (base + BitVec.ofNat 64 lastOff)
+        (base + BitVec.ofNat 64 endOff) next len := by
+  induction h with
+  | zero off next len hitem => exact ⟨off, hoff, hitem⟩
+  | succ index off next0 len0 finalNext finalLen hitem hrest ih =>
+      have ha := BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hitem hoff hover
+      exact ih ha.2.2
+
+/-- A strict selected item exposes exactly the bounds required by the scalar
+    callee at `(base + offset, len)`. -/
+theorem success_content_bounds
+    {bytes : List (BitVec 8)} {base offset len : Word} {listLen index : Nat}
+    (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes base listLen index
+      offset len)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    offset.toNat + len.toNat ≤ bytes.length ∧
+    base.toNat + (offset.toNat + len.toNat) ≤ 2 ^ 64 := by
+  obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoffset⟩ := h
+  have hend := EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload.end_eq hlist
+  subst endPtr
+  have hcursor := EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
+  have hover' : base.toNat + listLen + 9 < 2 ^ 64 := by omega
+  obtain ⟨lastOff, hlast, hitem⟩ :=
+    strictNthItem_last_decode hnth hcursor hover'
+  have hs := BalAccountNonstorageFinalsSpec.rlpItemDecode_spanStart
+    hitem hlast hover'
+  subst offset
+  constructor
+  · omega
+  · omega
+
+#print axioms strictNthItem_last_decode
+#print axioms success_content_bounds
+
+def contentOutcome (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :=
+  fun h =>
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+      ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+    (((.x10 ↦ᵣ BitVec.ofNat 64
+        (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+      (.x11 ↦ᵣ (0 : Word)) **
+      ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)
+
+def contentCallPost (srcBase : Word) (srcBytes : List (BitVec 8))
+    (srcOff len : Nat) : Assertion :=
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+  contentOutcome srcBytes srcOff len
+
+def contentRawPost (srcBase : Word) (srcBytes : List (BitVec 8))
+    (srcOff len : Nat) : Assertion :=
+  (.x1 ↦ᵣ (B + 84)) ** contentCallPost srcBase srcBytes srcOff len
+
+/-- Actual instruction-20 call, specialized to the selected Word offset/len
+    and the verified scalar callee's unified four-way post. -/
+theorem callContentExact
+    (srcBase offset len vOld x6Old x7Old x28Old : Word)
+    (srcBytes : List (BitVec 8))
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : offset.toNat + len.toNat ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (offset.toNat + len.toNat) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len.toNat →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (offset.toNat + k)) = true) :
+    cpsTripleWithin (1 + (7 * len.toNat + 11)) (B + 80) (B + 84) code
+      ((.x1 ↦ᵣ vOld) **
+       ((.x10 ↦ᵣ (srcBase + offset)) ** (.x11 ↦ᵣ len) **
+        (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+        (.x28 ↦ᵣ x28Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes))
+      (contentRawPost srcBase srcBytes offset.toNat len.toNat) := by
+  have hcallee0 := rlp_content_to_u64_spec_within C64B srcBase (B + 84)
+    lengthCell x6Old x7Old x28Old srcBytes offset.toNat len.toNat
+    len.isLt hsalign hslen hsover hsvalid
+  rw [show (B + 84) &&& ~~~(1 : Word) = B + 84 from by unfold B; decide,
+    show srcBase + BitVec.ofNat 64 offset.toNat = srcBase + offset from by
+      rw [BitVec.ofNat_toNat, BitVec.setWidth_eq],
+    show (BitVec.ofNat 64 len.toNat : Word) = len from by
+      rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]] at hcallee0
+  have hcallee1 := cpsTripleWithin_extend_code contentCode_mono hcallee0
+  have hcallee : cpsTripleWithin (7 * len.toNat + 11) C64B (B + 84) code
+      ((.x1 ↦ᵣ (B + 84)) **
+       ((.x10 ↦ᵣ (srcBase + offset)) ** (.x11 ↦ᵣ len) **
+        (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+        (.x28 ↦ᵣ x28Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes))
+      ((.x1 ↦ᵣ (B + 84)) **
+       contentCallPost srcBase srcBytes offset.toNat len.toNat) := by
+    refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hq => ?_) hcallee1
+    unfold contentCallPost contentOutcome
+    xperm_pure hq
+  have hmem : ∀ a i, CodeReq.singleton (B + 80)
+      (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64
+        (GuestAddrs.rlp_field_to_u64 + 80))) a = some i → code a = some i := by
+    intro a i hi
+    unfold code
+    apply CodeReq.union_mono_left
+    exact CodeReq.ofProg_mem_at B (B + 80) rlpFieldToU64_prog 20
+      (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64
+        (GuestAddrs.rlp_field_to_u64 + 80))) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+      a i hi
+  have hcall := callWithin_spec (B + 80) C64B vOld
+    (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.rlp_field_to_u64 + 80))
+    (7 * len.toNat + 11) (by unfold B C64B; decide) hmem
+    (by pcf) hcallee
+  unfold contentRawPost
+  exact hcall
+
+#print axioms callContentExact
 
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
