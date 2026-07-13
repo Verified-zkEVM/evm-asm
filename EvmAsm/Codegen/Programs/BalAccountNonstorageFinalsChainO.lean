@@ -660,5 +660,24 @@ theorem bansfCallerPre_pcFree
 
 #print axioms bansfCallerPre_pcFree
 
+/-- Both exact verdict arms are PC-free when the ambient assertion is. -/
+theorem bansfVerdictResult_pcFree
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
+    (bansfVerdictResult aB newSp oB aLen acctBytes F).pcFree := by
+  letI : Assertion.PCFree F := ⟨hF⟩
+  intro h hp
+  unfold bansfVerdictResult at hp
+  rcases hp with hp | hp
+  · unfold bansfRejectResult at hp
+    exact (inferInstance : Assertion.PCFree _).proof h hp
+  · unfold bansfSuccessResult at hp
+    obtain ⟨out, spill, hp⟩ := hp
+    letI : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
+      ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
+    exact (inferInstance : Assertion.PCFree _).proof h hp
+
+#print axioms bansfVerdictResult_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
