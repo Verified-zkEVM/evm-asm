@@ -594,5 +594,57 @@ theorem bansf_nonceCodeStations_spec
 
 #print axioms bansf_nonceCodeStations_spec
 
+/-- Pre-zeroed nonce and code output cells carried ambiently through balance. -/
+def laterFieldZeros (oB : Word) (F : Assertion) : Assertion :=
+  ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+  ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+  ((oB + 72) ↦ₘ (0 : Word)) ** F
+
+/-- A successful balance station satisfies the exact nonce-station entry at
+    the advanced outer cursor, with its balance result used as `G`. -/
+theorem balStationPost_to_noncePre
+    (aB newSp oB n3 : Word) (aLen fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h, balStationPost aB newSp oB aLen fOff fSpanN n3 acctBytes
+      (laterFieldZeros oB F) h →
+      (((nonceStationOuterBase aB newSp oB aLen (n3 - aB).toNat acctBytes
+          (balResult aB oB fOff fSpanN acctBytes) F **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x19 ** regOwn .x20) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) h) := by
+  intro h hp
+  unfold laterFieldZeros at hp
+  unfold balStationPost at hp
+  have hpFrame :
+      (balResult aB oB fOff fSpanN acctBytes **
+       (((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n3) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+        regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F)) h := by
+    unfold balResult
+    rcases hp with hp | hp
+    · refine sepConj_mono_left (fun h' hp' => Or.inl hp') h ?_
+      xperm_hyp hp
+    · obtain ⟨vNext, vLen, hp⟩ := hp
+      refine sepConj_mono_left (fun h' hp' => Or.inr ⟨vNext, vLen, hp'⟩) h ?_
+      xperm_hyp hp
+  have hrep : n3 = aB + BitVec.ofNat 64 (n3 - aB).toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  unfold nonceStationOuterBase
+  rw [← hrep]
+  xperm_hyp hpFrame
+
+#print axioms balStationPost_to_noncePre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
