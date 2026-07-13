@@ -277,5 +277,52 @@ theorem nonceResult_attachFinals
 
 #print axioms nonceResult_attachFinals
 
+/-- Pure semantic witnesses accumulated after all three value stations. -/
+def allFieldFinals (acctBytes : List (BitVec 8)) (aB : Word)
+    (balOff balSpan nonceOff nonceSpan codeOff codeSpan : Nat)
+    (bal nonce code : Option (Word × Word)) : Prop :=
+  balNonceFinals acctBytes aB balOff balSpan nonceOff nonceSpan bal nonce ∧
+  FieldFinal acctBytes aB codeOff codeSpan code
+
+/-- Lift the balance and nonce witnesses through `codeResult`, expose the code
+    witness, and retain the complete nested owned output footprint. -/
+theorem codeResult_attachFinals
+    (aB oB : Word)
+    (balOff balSpan nonceOff nonceSpan codeOff codeSpan : Nat)
+    (acctBytes : List (BitVec 8)) :
+    ∀ h,
+      codeResult aB oB codeOff codeSpan acctBytes
+        (nonceResult aB oB nonceOff nonceSpan acctBytes
+          (balResult aB oB balOff balSpan acctBytes)) h →
+      ∃ bal nonce code : Option (Word × Word),
+        (codeResult aB oB codeOff codeSpan acctBytes
+            (nonceResult aB oB nonceOff nonceSpan acctBytes
+              (balResult aB oB balOff balSpan acctBytes)) **
+          ⌜allFieldFinals acctBytes aB balOff balSpan nonceOff nonceSpan
+            codeOff codeSpan bal nonce code⌝) h := by
+  intro h hp
+  have hpKeep := hp
+  unfold codeResult at hp
+  rcases hp with hp | hp
+  · have hCore := ((sepConj_pure_right h).1 hp).1
+    obtain ⟨hBN, hRest, _, _, hBNResult, _⟩ := hCore
+    obtain ⟨bal, nonce, hAttached⟩ := nonceResult_attachFinals aB oB
+      balOff balSpan nonceOff nonceSpan acctBytes hBN hBNResult
+    have hBNFacts := ((sepConj_pure_right hBN).1 hAttached).2
+    have hCode := ((sepConj_pure_right h).1 hp).2
+    refine ⟨bal, nonce, none,
+      (sepConj_pure_right h).2 ⟨hpKeep, hBNFacts, hCode⟩⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    have hCore := ((sepConj_pure_right h).1 hp).1
+    obtain ⟨hBN, hRest, _, _, hBNResult, _⟩ := hCore
+    obtain ⟨bal, nonce, hAttached⟩ := nonceResult_attachFinals aB oB
+      balOff balSpan nonceOff nonceSpan acctBytes hBN hBNResult
+    have hBNFacts := ((sepConj_pure_right hBN).1 hAttached).2
+    have hCode := ((sepConj_pure_right h).1 hp).2
+    refine ⟨bal, nonce, some (vNext, vLen),
+      (sepConj_pure_right h).2 ⟨hpKeep, hBNFacts, hCode⟩⟩
+
+#print axioms codeResult_attachFinals
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
