@@ -1121,5 +1121,46 @@ theorem bansf_nonceStationCont512_spec (aB newSp oB : Word)
 
 #print axioms bansf_nonceStationCont512_spec
 
+/-- A rejected nonce value-item unit carries enough untouched station frame to
+    establish the shared nonce-station reject assertion. -/
+theorem nonceTupleReject_to_stationRej (aB newSp oB n4 : Word)
+    (aLen : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (tupleRej aB newSp acctBytes F **
+        (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h →
+      nonceStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold tupleRej at hq
+  have hq2 :
+      ((((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((newSp + 48) ↦ₘ n4) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x10 : Reg) ↦ᵣ (1 : Word))) **
+       (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F)) h := by
+    xperm_hyp hq
+  have hq3 := sepConj_mono
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn (regIs_implies_regOwn .x10)))))
+    (fun _ x => x) h hq2
+  unfold nonceStationRej
+  xperm_hyp hq3
+
+#print axioms nonceTupleReject_to_stationRej
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
