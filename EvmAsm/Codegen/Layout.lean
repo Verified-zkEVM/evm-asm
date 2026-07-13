@@ -113,15 +113,93 @@ def textPreamble : String :=
 private def joinNonEmpty (xs : List String) : String :=
   String.intercalate "\n" (xs.filter (fun s => ¬ s.isEmpty))
 
+/-! ## Zero-initialized data
+
+    GNU `as` emits `.zero` inside a normal `.data` section as PROGBITS, which
+    makes the file contain every byte of the guest's large scratch arenas.  The
+    source generators intentionally keep labels, alignment, and nonzero tables
+    interleaved, so the final data string is split here at the common
+    `BuildUnit` boundary.  A zero item carries its immediately preceding
+    alignment/label prefix with it; a following nonzero item switches back to
+    `.data`.  This preserves every symbol's relative order within its new
+    section while leaving the emitted instruction text untouched. -/
+
+private inductive DataSection where
+  | other
+  | data
+  | bss
+  deriving DecidableEq
+
+private def trimmed (line : String) : String := line.trimAscii.toString
+
+private def isSection (name line : String) : Bool :=
+  (trimmed line).startsWith (".section " ++ name)
+
+private def isZeroDirective (line : String) : Bool :=
+  let t := trimmed line
+  t == ".zero" || t.startsWith ".zero " || t.startsWith ".zero\t" ||
+    t.startsWith ".skip " || t.startsWith ".skip\t" ||
+    t.startsWith ".space " || t.startsWith ".space\t"
+
+private def isZeroPrefix (line : String) : Bool :=
+  let t := trimmed line
+  t.isEmpty || t.startsWith "#" || t.startsWith ".balign " ||
+    (t.endsWith ":" && !t.startsWith ".")
+
+private def isSectionDirective (line : String) : Bool :=
+  (trimmed line).startsWith ".section "
+
+private def isPushDataSection (line : String) : Bool :=
+  (trimmed line).startsWith ".pushsection .data"
+
+private def isPopSection (line : String) : Bool :=
+  trimmed line == ".popsection"
+
+private def flushPending (pending : List String) (outRev : List String) : List String :=
+  pending.reverse.foldl (fun acc line => line :: acc) outRev
+
+private def moveZeroDataLines
+    (lines : List String) (sec : DataSection) (pending : List String)
+    (outRev : List String) : List String :=
+  match lines with
+  | [] => flushPending pending outRev
+  | line :: rest =>
+      if isSectionDirective line then
+        moveZeroDataLines rest
+          (if isSection ".data" line then .data
+           else if isSection ".bss" line then .bss else .other) []
+          (line :: flushPending pending outRev)
+      else if isPushDataSection line then
+        moveZeroDataLines rest .data [] (line :: flushPending pending outRev)
+      else if isPopSection line then
+        moveZeroDataLines rest .other [] (line :: flushPending pending outRev)
+      else if sec == .data && isZeroDirective line then
+        moveZeroDataLines rest .bss []
+          (line :: flushPending pending
+            (".section .bss,\"aw\",@nobits" :: outRev))
+      else if sec == .bss && isZeroDirective line then
+        moveZeroDataLines rest .bss [] (line :: flushPending pending outRev)
+      else if (sec == .data || sec == .bss) && isZeroPrefix line then
+        moveZeroDataLines rest sec (line :: pending) outRev
+      else if sec == .bss then
+        moveZeroDataLines rest .data []
+          (line :: flushPending pending (".section .data" :: outRev))
+      else
+        moveZeroDataLines rest sec [] (line :: flushPending pending outRev)
+
+private def moveZeroDataToBss (asm : String) : String :=
+  String.intercalate "\n"
+    ((moveZeroDataLines (asm.splitOn "\n") .other [] []).reverse)
+
 /-- Render a full `.s` file from a `BuildUnit` and halt convention. -/
 def emitBuildUnit (hc : HaltConv) (u : BuildUnit) : String :=
   joinNonEmpty
     [ textPreamble
     , u.prologueAsm
     , emitProgram u.body
-    , u.epilogueAsm
+    , moveZeroDataToBss u.epilogueAsm
     , emitHaltStub hc
-    , u.dataAsm
+    , moveZeroDataToBss u.dataAsm
     , ""  -- trailing newline
     ]
 

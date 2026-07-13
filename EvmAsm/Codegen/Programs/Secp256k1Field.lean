@@ -92,13 +92,13 @@ def secp256k1FieldDataSection : String :=
   -- d; `secf_le_zero` doubles as the read-only c = 0.
   ".balign 8\n" ++
   "secf_le_a:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "secf_le_b:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "secf_le_d:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "secf_le_zero:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "secf_le_p:\n" ++
   "  .quad 0xFFFFFFFEFFFFFC2F, 0xFFFFFFFFFFFFFFFF\n" ++
   "  .quad 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF\n" ++
