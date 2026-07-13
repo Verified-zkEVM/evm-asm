@@ -1090,5 +1090,47 @@ theorem bansf_nonceLoopExitMove113_spec (v19 v20 v10 v11 : Word) :
 
 #print axioms bansf_nonceLoopExitMove113_spec
 
+/-- Loop-entry spills (slots 100–101): store the tuple-walk cursor and end. -/
+theorem bansf_nonceLoopEntry100_spec (aB newSp : Word) (cOff fEnd : Nat) :
+    cpsTripleWithin 2 (B + 400) (B + 408) bansfCR
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+       ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 fEnd))) := by
+  have hsd1 := sd_spec_gen_own_within .x2 .x10 newSp (aB + BitVec.ofNat 64 cOff)
+    (64 : BitVec 12) (B + 400)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 400) + 4 = B + 404 from by bv_omega] at hsd1
+  have hsd1L := liftCode (cr' := bansfCR) hsd1
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 400) bansfProg 100 (.SD .x2 .x10 (64 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hsd2 := sd_spec_gen_own_within .x2 .x11 newSp (aB + BitVec.ofNat 64 fEnd)
+    (72 : BitVec 12) (B + 404)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 404) + 4 = B + 408 from by bv_omega] at hsd2
+  have hsd2L := liftCode (cr' := bansfCR) hsd2
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 404) bansfProg 101 (.SD .x2 .x11 (72 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h))
+  have hsd1F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) ** memOwn (newSp + 72))
+    (by pcf) hsd1L
+  have hsd2F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+     ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)))
+    (by pcf) hsd2L
+  have hchain := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hsd1F hsd2F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_nonceLoopEntry100_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
