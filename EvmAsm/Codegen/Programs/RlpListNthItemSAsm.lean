@@ -1021,4 +1021,35 @@ theorem loopRound
 
 #print axioms loopRound
 
+/-- The strict list scan folded over the remaining-index measure. -/
+theorem listNthLoop
+    (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index cursorOff : Nat)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (j : Nat) :
+    cpsBranchWithin (93 * (j + 1)) (B + 64) code
+      (loopInv newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+        saved bytes listLen index cursorOff j)
+      (B + 88) (loopSelected newSp listBase indexW offsetPtr lenPtr endPtr
+        oldOffset oldLen saved bytes index cursorOff)
+      (B + 112) (loopRejected newSp listBase indexW offsetPtr lenPtr endPtr
+        oldOffset oldLen saved bytes listLen index cursorOff) :=
+  cpsBranchWithin_of_nBranch2
+    (measureTwoExitLoop_spec 93
+      (loopInv newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+        saved bytes listLen index cursorOff)
+      (fun j' => loopRound newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
+        oldLen saved bytes listLen index cursorOff hindexW hindex hlist hsalign
+        hslack hover hvalid j') j)
+
+#print axioms listNthLoop
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
