@@ -679,5 +679,82 @@ theorem bansfVerdictResult_pcFree
 
 #print axioms bansfVerdictResult_pcFree
 
+/-- Static account/output geometry required by the verified memory model.
+    It contains no decode result or branch outcome. -/
+def BansfRegionInvariant (aB oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) : Prop :=
+  aB.toNat % 8 = 0 ∧ oB.toNat % 8 = 0 ∧
+  aLen + 9 ≤ acctBytes.length ∧
+  aB.toNat + acctBytes.length < 2 ^ 64 ∧
+  (∀ k, k < acctBytes.length →
+    isValidByteAccess (aB + BitVec.ofNat 64 k) = true) ∧
+  oB.toNat + 80 ≤ 2 ^ 64 ∧
+  (∀ k, k < 80 →
+    isValidByteAccess (oB + BitVec.ofNat 64 k) = true)
+
+/-- Whole-routine capstone: from a standard ABI frame and static region
+    invariant, return with the frame restored and an exact reject/success
+    verdict.  The success arm retains a window-anchored `FinalsDerivation`. -/
+theorem bansf_spec_within
+    (sp0 ret aB oB : Word) (aLen : Nat) (vals : Reg → Word)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hret : vals .x1 = ret)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret)
+    (hRegions : BansfRegionInvariant aB oB aLen acctBytes) :
+    cpsTripleWithin
+      (1 + bansfFrame.length +
+        (101 + (372 + (((98 * (aLen + 1) + 700) +
+          2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2))) +
+        bansfFrame.length + 1 + 1)
+      B ret bansfCR
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt bansfFrame vals **
+       frameSlotsOwn bansfFrame
+         (sp0 + signExtend12 (-80 : BitVec 12)) **
+       bansfCallerPre aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+         aLen acctBytes F)
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt bansfFrame vals **
+       frameSlotsSaved bansfFrame
+         (sp0 + signExtend12 (-80 : BitVec 12)) vals **
+       bansfVerdictResult aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+         aLen acctBytes F) := by
+  rcases hRegions with
+    ⟨hsalign, hoalign, hslack, hover, hvalid, hovout, hovalid⟩
+  have hbody := bansf_body_spec sp0 aB oB aLen vals acctBytes F hF
+    hsalign hoalign hslack hover hvalid hovout hovalid
+  have hBodyLen : bansfBody.length = 177 := by decide +kernel
+  apply abiFrame_spec_own B sp0 ret (-80 : BitVec 12) (80 : BitVec 12)
+    bansfFrame (0 : BitVec 12)
+    [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
+    vals bansfBody
+    (101 + (372 + (((98 * (aLen + 1) + 700) +
+      2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)))
+    (bansfCallerPre aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+      aLen acctBytes F)
+    (bansfVerdictResult aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+      aLen acctBytes F) bansfCR
+  · rfl
+  · decide
+  · decide
+  · rw [← bansf_prog_eq_abiFrame]
+    decide +kernel
+  · exact hret
+  · exact halignRet
+  · rw [show signExtend12 (-80 : BitVec 12) = (-80 : Word) by decide,
+        show signExtend12 (80 : BitVec 12) = (80 : Word) by decide]
+    bv_omega
+  · exact bansfCallerPre_pcFree aB
+      (sp0 + signExtend12 (-80 : BitVec 12)) oB aLen acctBytes F hF
+  · exact bansfVerdictResult_pcFree aB
+      (sp0 + signExtend12 (-80 : BitVec 12)) oB aLen acctBytes F hF
+  · intro a i hi
+    rw [← bansf_prog_eq_abiFrame] at hi
+    unfold bansfCR
+    exact CodeReq.union_mono_left a i hi
+  · simpa only [bansfFrame, List.length_cons, List.length_nil, hBodyLen,
+      Nat.reduceAdd, Nat.reduceMul] using hbody
+
+#print axioms bansf_spec_within
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
