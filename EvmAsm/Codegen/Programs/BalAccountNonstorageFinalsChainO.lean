@@ -202,5 +202,63 @@ theorem balStationRej_to_abiReject
 
 #print axioms balStationRej_to_abiReject
 
+private def balOwnBlock (oB : Word) : Assertion :=
+  memOwn oB ** memOwn (oB + 8) ** memOwn (oB + 16) **
+  memOwn (oB + 24) ** memOwn (oB + 32)
+
+private def codeZeroBlock (oB : Word) : Assertion :=
+  ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+  ((oB + 72) ↦ₘ (0 : Word))
+
+private def codeOwnBlock (oB : Word) : Assertion :=
+  memOwn (oB + 56) ** memOwn (oB + 64) ** memOwn (oB + 72)
+
+private def balanceNonceOwnBlock (oB : Word) : Assertion :=
+  memOwn oB ** memOwn (oB + 8) ** memOwn (oB + 16) **
+  memOwn (oB + 24) ** memOwn (oB + 32) ** memOwn (oB + 40) **
+  memOwn (oB + 48)
+
+/-- A code-station reject normalizes to the common ABI reject result whenever
+    the already-materialized balance and nonce footprint owns its cells. -/
+theorem codeStationRej_to_abiReject
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : ∀ h, G h → balanceNonceOwnBlock oB h) :
+    ∀ h, codeStationRej aB newSp oB aLen acctBytes G F h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfRejectResult aB newSp oB acctBytes F) h := by
+  intro h hp
+  unfold codeStationRej at hp
+  have hq :
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) **
+       (G **
+        (memOwn (oB + 56) ** memOwn (oB + 64) ** memOwn (oB + 72) **
+         memOwn (newSp + 48) ** memOwn (newSp + 56) **
+         memOwn (newSp + 64) ** memOwn (newSp + 72) **
+         ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+         regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20 **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+         bytesRegion aB acctBytes ** F))) h := by
+    xperm_hyp hp
+  have hAnchors : ∀ h',
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) h') →
+      (((regOwn .x8 ** regOwn .x9) ** regOwn .x18) h') :=
+    sepConj_mono (sepConj_mono (regIs_implies_regOwn .x8)
+      (regIs_implies_regOwn .x9)) (regIs_implies_regOwn .x18)
+  have hq' := sepConj_mono hAnchors
+    (sepConj_mono hG (fun _ hx => hx)) h hq
+  unfold balanceNonceOwnBlock at hq'
+  unfold bansfRejectResult
+  simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
+  xperm_hyp hq'
+
+#print axioms codeStationRej_to_abiReject
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
