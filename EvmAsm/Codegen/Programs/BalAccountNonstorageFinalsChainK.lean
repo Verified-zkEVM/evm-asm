@@ -85,5 +85,40 @@ theorem codeTupleInitOk_to_cont652Pre
 
 #print axioms codeTupleInitOk_to_cont652Pre
 
+/-- Slots 159–160 (`B + 636 → B + 644`): move the last code tuple span into
+    the tuple `rlp_walk_init` arguments, accepting owned destination regs. -/
+theorem bansf_codeLoopExitMove159_own_spec (v19 v20 : Word) :
+    cpsTripleWithin 2 (B + 636) (B + 644) bansfCR
+      (((((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+        regOwn .x10 ** regOwn .x11))
+      ((((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+       ((.x10 : Reg) ↦ᵣ v19) ** ((.x11 : Reg) ↦ᵣ v20)) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn2
+    (r1 := .x10) (r2 := .x11) (fun v10 v11 => ?_)
+  have s1 := mv_spec_gen_within .x10 .x19 v19 v10 (B + 636) (by decide)
+  rw [show (B + 636) + 4 = B + 640 from by bv_omega] at s1
+  have s1L := liftCode (cr' := bansfCR) s1
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 636) bansfProg 159 (.MV .x10 .x19)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h))
+  have s2 := mv_spec_gen_within .x11 .x20 v20 v11 (B + 640) (by decide)
+  rw [show (B + 640) + 4 = B + 644 from by bv_omega] at s2
+  have s2L := liftCode (cr' := bansfCR) s2
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 640) bansfProg 160 (.MV .x11 .x20)
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h))
+  have s1F := cpsTripleWithin_frameR
+    (((.x20 : Reg) ↦ᵣ v20) ** ((.x11 : Reg) ↦ᵣ v11)) (by pcf) s1L
+  have s2F := cpsTripleWithin_frameR
+    (((.x19 : Reg) ↦ᵣ v19) ** ((.x10 : Reg) ↦ᵣ v19)) (by pcf) s2L
+  have hc := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) s1F s2F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hc
+
+#print axioms bansf_codeLoopExitMove159_own_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
