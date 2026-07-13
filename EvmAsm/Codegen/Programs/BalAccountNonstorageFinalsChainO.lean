@@ -218,6 +218,46 @@ private def balanceNonceOwnBlock (oB : Word) : Assertion :=
   memOwn (oB + 24) ** memOwn (oB + 32) ** memOwn (oB + 40) **
   memOwn (oB + 48)
 
+/-- A byte region of exactly 32 bytes can be conservatively forgotten to the
+    four-dword ownership token used by the balance result. -/
+theorem bytesRegion32_to_memOwnU256 (base : Word) (bs : List (BitVec 8))
+    (h_len : bs.length = 32) :
+    ∀ h, bytesRegion base bs h → memOwnU256 base h := by
+  intro h hp
+  have hne0 : bs ≠ [] := by
+    apply List.ne_nil_of_length_pos
+    omega
+  have hne1 : bs.drop 8 ≠ [] := by
+    apply List.ne_nil_of_length_pos
+    simp only [List.length_drop]
+    omega
+  have hne2 : (bs.drop 8).drop 8 ≠ [] := by
+    apply List.ne_nil_of_length_pos
+    simp only [List.length_drop]
+    omega
+  have hne3 : ((bs.drop 8).drop 8).drop 8 ≠ [] := by
+    apply List.ne_nil_of_length_pos
+    simp only [List.length_drop]
+    omega
+  rw [bytesRegion_eq_cons base bs hne0,
+      bytesRegion_eq_cons (base + 8) (bs.drop 8) hne1,
+      bytesRegion_eq_cons (base + 8 + 8) ((bs.drop 8).drop 8) hne2,
+      bytesRegion_eq_cons (base + 8 + 8 + 8) (((bs.drop 8).drop 8).drop 8) hne3]
+      at hp
+  have hdrop : ((((bs.drop 8).drop 8).drop 8).drop 8) = [] := by
+    apply List.eq_nil_of_length_eq_zero
+    simp only [List.length_drop]
+    omega
+  rw [hdrop, bytesRegion_nil, sepConj_emp_right',
+      show base + 8 + 8 = base + 16 from by bv_omega,
+      show base + 16 + 8 = base + 24 from by bv_omega] at hp
+  unfold memOwnU256
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) h hp
+
+#print axioms bytesRegion32_to_memOwnU256
+
 /-- A code-station reject normalizes to the common ABI reject result whenever
     the already-materialized balance and nonce footprint owns its cells. -/
 theorem codeStationRej_to_abiReject
