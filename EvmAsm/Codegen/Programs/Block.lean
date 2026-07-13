@@ -711,9 +711,9 @@ def ziskBlockValidateBlobGasConsistencyProbeUnit : BuildUnit := {
     downstream (receipts, MPT keys, etc.).
 
     Composes:
-      - PR-K47 `rlp_list_count_items` — N
-      - PR-K20 `rlp_list_nth_item`    — per-item bounds
-      - PR-K3  `zkvm_keccak256`       — per-item hash
+      - `rlp_walk_init` — validate the list and initialize its cursor
+      - `rlp_walk_next` — advance once per item and return its bounds
+      - PR-K3 `zkvm_keccak256` — per-item hash
 
     Calling convention:
       a0 (input)  : txs_list_rlp ptr (the txs sub-list bytes)
@@ -725,8 +725,8 @@ def ziskBlockValidateBlobGasConsistencyProbeUnit : BuildUnit := {
 
     Status decade encoding:
       0          : success — N hashes written, *count = N
-      101        : `rlp_list_count_items` failed
-      201        : `rlp_list_nth_item` failed (mid-loop)
+      101        : `rlp_walk_init` failed
+      201        : `rlp_walk_next` failed (mid-loop)
 
     Uses 32 bytes of `.data` scratch (`bcth_item_off` +
     `bcth_item_len` + `bcth_count`). -/
@@ -740,41 +740,34 @@ def blockComputeTxHashesFunction : String :=
   "  mv s1, a1                   # txs_len\n" ++
   "  mv s2, a2                   # out hashes buffer\n" ++
   "  mv s3, a3                   # out count ptr\n" ++
-  "  # Step 1: rlp_list_count_items.\n" ++
-  "  la a2, bcth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  beqz a0, .Lbcth_loop_init\n" ++
+  "  # Step 1: validate the list and initialize its cursor.\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  beqz a2, .Lbcth_loop_init\n" ++
   "  li a0, 101\n" ++
   "  j .Lbcth_ret\n" ++
   ".Lbcth_loop_init:\n" ++
-  "  la t0, bcth_count\n" ++
-  "  ld s5, 0(t0)                # N = tx_count\n" ++
-  "  li s4, 0                    # i = 0\n" ++
+  "  mv s4, a0                   # cursor\n" ++
+  "  mv s5, a1                   # end\n" ++
+  "  li s6, 0                    # N = tx_count\n" ++
   ".Lbcth_loop:\n" ++
   "  beq s4, s5, .Lbcth_done\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s4\n" ++
-  "  la a3, bcth_item_off\n" ++
-  "  la a4, bcth_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  beqz a0, .Lbcth_after_nth\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, s5\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  beqz a1, .Lbcth_after_next\n" ++
   "  li a0, 201\n" ++
   "  j .Lbcth_ret\n" ++
-  ".Lbcth_after_nth:\n" ++
-  "  la t0, bcth_item_off\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  la t0, bcth_item_len\n" ++
-  "  ld t2, 0(t0)\n" ++
-  "  add a0, s0, t1              # tx_ptr\n" ++
-  "  mv a1, t2                   # tx_len\n" ++
-  "  slli s6, s4, 5              # i × 32\n" ++
-  "  add a2, s2, s6              # &out[i*32]\n" ++
+  ".Lbcth_after_next:\n" ++
+  "  mv s4, a0                   # preserve advanced cursor\n" ++
+  "  sub a0, a0, a2              # tx_ptr = advanced - content_len\n" ++
+  "  mv a1, a2                   # tx_len\n" ++
+  "  slli t0, s6, 5              # i × 32\n" ++
+  "  add a2, s2, t0              # &out[i*32]\n" ++
   "  jal ra, zkvm_keccak256\n" ++
-  "  addi s4, s4, 1\n" ++
+  "  addi s6, s6, 1\n" ++
   "  j .Lbcth_loop\n" ++
   ".Lbcth_done:\n" ++
-  "  sd s5, 0(s3)                # *count = N\n" ++
+  "  sd s6, 0(s3)                # *count = N\n" ++
   "  li a0, 0\n" ++
   ".Lbcth_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
@@ -807,8 +800,7 @@ def ziskBlockComputeTxHashesPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbcth_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   blockComputeTxHashesFunction ++ "\n" ++
   ".Lbcth_pdone:"
 
