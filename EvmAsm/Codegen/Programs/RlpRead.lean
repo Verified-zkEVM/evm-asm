@@ -304,85 +304,45 @@ theorem rlpListNthItemFunction_eq_prog :
       a0 (output) : 0 on success, 1 on parse error
                     (not a list, truncated, item runs past end)
 
-    Pure register arithmetic except for the count store; no
-    scratch memory; leaf-callable. -/
-def rlpListCountItems_prog : Program :=
-  [ .BEQ .x11 .x0 (292 : BitVec 13),
-    .LBU .x5 .x10 (0 : BitVec 12),
-    .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (280 : BitVec 13),
-    .LI .x6 (248 : Word),
-    .BLTU .x5 .x6 (24 : BitVec 13),
-    .LI .x6 (247 : Word),
-    .SUB .x7 .x5 .x6,
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADD .x28 .x10 .x7,
-    .JAL .x0 (8 : BitVec 21),
-    .ADDI .x28 .x10 (1 : BitVec 12),
-    .ADD .x29 .x10 .x11,
-    .LI .x30 (0 : Word),
-    .BEQ .x28 .x29 (224 : BitVec 13),
-    .BLTU .x29 .x28 (232 : BitVec 13),
-    .LBU .x5 .x28 (0 : BitVec 12),
-    .LI .x6 (128 : Word),
-    .BLTU .x5 .x6 (196 : BitVec 13),
-    .LI .x6 (184 : Word),
-    .BLTU .x5 .x6 (168 : BitVec 13),
-    .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (96 : BitVec 13),
-    .LI .x6 (248 : Word),
-    .BLTU .x5 .x6 (68 : BitVec 13),
-    .LI .x6 (247 : Word),
-    .SUB .x7 .x5 .x6,
-    .LI .x13 (0 : Word),
-    .MV .x14 .x7,
-    .ADDI .x15 .x28 (1 : BitVec 12),
-    .BEQ .x14 .x0 (28 : BitVec 13),
-    .SLLI .x13 .x13 (8 : BitVec 6),
-    .LBU .x16 .x15 (0 : BitVec 12),
-    .OR .x13 .x13 .x16,
-    .ADDI .x15 .x15 (1 : BitVec 12),
-    .ADDI .x14 .x14 (-1 : BitVec 12),
-    .JAL .x0 (-24 : BitVec 21),
-    .ADDI .x16 .x7 (1 : BitVec 12),
-    .ADD .x16 .x16 .x13,
-    .ADD .x28 .x28 .x16,
-    .JAL .x0 (112 : BitVec 21),
-    .LI .x6 (192 : Word),
-    .SUB .x16 .x5 .x6,
-    .ADDI .x16 .x16 (1 : BitVec 12),
-    .ADD .x28 .x28 .x16,
-    .JAL .x0 (92 : BitVec 21),
-    .LI .x6 (183 : Word),
-    .SUB .x7 .x5 .x6,
-    .LI .x13 (0 : Word),
-    .MV .x14 .x7,
-    .ADDI .x15 .x28 (1 : BitVec 12),
-    .BEQ .x14 .x0 (28 : BitVec 13),
-    .SLLI .x13 .x13 (8 : BitVec 6),
-    .LBU .x16 .x15 (0 : BitVec 12),
-    .OR .x13 .x13 .x16,
-    .ADDI .x15 .x15 (1 : BitVec 12),
-    .ADDI .x14 .x14 (-1 : BitVec 12),
-    .JAL .x0 (-24 : BitVec 21),
-    .ADDI .x16 .x7 (1 : BitVec 12),
-    .ADD .x16 .x16 .x13,
-    .ADD .x28 .x28 .x16,
-    .JAL .x0 (28 : BitVec 21),
-    .LI .x6 (128 : Word),
-    .SUB .x16 .x5 .x6,
-    .ADDI .x16 .x16 (1 : BitVec 12),
-    .ADD .x28 .x28 .x16,
-    .JAL .x0 (8 : BitVec 21),
-    .ADDI .x28 .x28 (1 : BitVec 12),
-    .ADDI .x30 .x30 (1 : BitVec 12),
-    .JAL .x0 (-220 : BitVec 21),
-    .SD .x12 .x30 (0 : BitVec 12),
+    The framed wrapper embeds the verified strict walk initializer and item
+    decoder so every standalone closure remains self-contained. -/
+def rlpListCountItemsWrapper_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .JAL .x1 (88 : BitVec 21),
+    .BNE .x12 .x0 (48 : BitVec 13),
+    .MV .x18 .x11,
+    .LI .x19 (0 : Word),
+    .BEQ .x10 .x18 (24 : BitVec 13),
+    .MV .x11 .x18,
+    .JAL .x1 (276 : BitVec 21),
+    .BNE .x11 .x0 (24 : BitVec 13),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .SD .x9 .x19 (0 : BitVec 12),
     .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .SD .x12 .x0 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
     .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Strict count re-emission: a small framed counting loop followed by exact
+    copies of the verified strict list initializer and item walker. -/
+def rlpListCountItems_prog : Program :=
+  (show List Instr from rlpListCountItemsWrapper_prog) ++
+    EvmAsm.Rv64.RLP.rlp_walk_init_prog ++ EvmAsm.Rv64.RLP.rlp_walk_next_prog
 
 def rlpListCountItemsFunction : String :=
   "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog
@@ -395,7 +355,13 @@ theorem rlpListCountItemsFunction_eq_prog :
     rlpListCountItemsFunction = "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog := rfl
 
 #guard rlpListCountItemsFunction.startsWith "rlp_list_count_items:\n"
-#guard rlpListCountItems_prog.length = 76
+#guard rlpListCountItemsWrapper_prog.length = 30
+#guard rlpListCountItems_prog.length = 186
+#guard (rlpListCountItems_prog.drop rlpListCountItemsWrapper_prog.length).take
+    EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
+#guard rlpListCountItems_prog.drop
+    (rlpListCountItemsWrapper_prog.length + EvmAsm.Rv64.RLP.rlp_walk_init_prog.length) =
+      EvmAsm.Rv64.RLP.rlp_walk_next_prog
 /-! ## rlp_encode_list_prefix -- PR-K129
 
     Write the RLP list-header prefix bytes for a list whose total

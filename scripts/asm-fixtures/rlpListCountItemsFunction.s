@@ -1,93 +1,187 @@
 rlp_list_count_items:
-  beqz a1, .Lrlc_fail        # empty input cannot encode a list
-  lbu t0, 0(a0)
-  li t1, 0xc0
-  bltu t0, t1, .Lrlc_fail    # not an RLP list
-  li t1, 0xf8
-  bltu t0, t1, .Lrlc_short_outer
-  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)
-  li t1, 0xf7
-  sub t2, t0, t1             # lol
-  addi t2, t2, 1             # total prefix bytes
-  add t3, a0, t2             # cursor at first item
-  j .Lrlc_walk
-.Lrlc_short_outer:
-  addi t3, a0, 1
-.Lrlc_walk:
-  add t4, a0, a1             # end-of-list cursor (exclusive)
-  li t5, 0                   # count
-.Lrlc_loop:
-  beq t3, t4, .Lrlc_done
-  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed
-  lbu t0, 0(t3)
-  li t1, 0x80
-  bltu t0, t1, .Lrlc_skip_single
-  li t1, 0xb8
-  bltu t0, t1, .Lrlc_skip_short_str
-  li t1, 0xc0
-  bltu t0, t1, .Lrlc_skip_long_str
-  li t1, 0xf8
-  bltu t0, t1, .Lrlc_skip_short_list
-  # Long list at t3: lol = t0 - 0xf7
-  li t1, 0xf7
-  sub t2, t0, t1             # lol
-  li a3, 0                   # decoded length accumulator
-  mv a4, t2                  # remaining length bytes
-  addi a5, t3, 1
-.Lrlc_skll_be:
-  beqz a4, .Lrlc_skll_done
-  slli a3, a3, 8
-  lbu a6, 0(a5)
-  or  a3, a3, a6
-  addi a5, a5, 1
-  addi a4, a4, -1
-  j .Lrlc_skll_be
-.Lrlc_skll_done:
-  addi a6, t2, 1
-  add  a6, a6, a3            # 1 + lol + decoded
-  add  t3, t3, a6
-  j .Lrlc_step
-.Lrlc_skip_short_list:
-  li t1, 0xc0
-  sub a6, t0, t1
-  addi a6, a6, 1             # 1 + (t0 - 0xc0)
-  add  t3, t3, a6
-  j .Lrlc_step
-.Lrlc_skip_long_str:
-  li t1, 0xb7
-  sub t2, t0, t1             # lol
-  li a3, 0
-  mv a4, t2
-  addi a5, t3, 1
-.Lrlc_skls_be:
-  beqz a4, .Lrlc_skls_done
-  slli a3, a3, 8
-  lbu a6, 0(a5)
-  or  a3, a3, a6
-  addi a5, a5, 1
-  addi a4, a4, -1
-  j .Lrlc_skls_be
-.Lrlc_skls_done:
-  addi a6, t2, 1
-  add  a6, a6, a3
-  add  t3, t3, a6
-  j .Lrlc_step
-.Lrlc_skip_short_str:
-  li t1, 0x80
-  sub a6, t0, t1
-  addi a6, a6, 1
-  add  t3, t3, a6
-  j .Lrlc_step
-.Lrlc_skip_single:
-  addi t3, t3, 1
-.Lrlc_step:
-  addi t5, t5, 1
-  j .Lrlc_loop
-.Lrlc_done:
-  sd t5, 0(a2)
-  li a0, 0
-  ret
-.Lrlc_fail:
-  sd zero, 0(a2)
-  li a0, 1
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  mv x8, x10
+  mv x9, x12
+  jal x1, .+88
+  bne x12, x0, .+48
+  mv x18, x11
+  li x19, 0
+  beq x10, x18, .+24
+  mv x11, x18
+  jal x1, .+276
+  bne x11, x0, .+24
+  addi x19, x19, 1
+  jal x0, .-20
+  sd x19, 0(x9)
+  li x10, 0
+  jal x0, .+12
+  sd x0, 0(x9)
+  li x10, 1
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)
+  beq x11, x0, .+156
+  add x11, x10, x11
+  lbu x5, 0(x10)
+  li x6, 192
+  bltu x5, x6, .+148
+  li x6, 248
+  bltu x5, x6, .+100
+  li x6, 247
+  sub x7, x5, x6
+  addi x28, x7, 1
+  add x29, x10, x28
+  bltu x11, x29, .+136
+  addi x6, x10, 1
+  lbu x30, 0(x6)
+  beq x30, x0, .+132
+  li x31, 0
+  mv x30, x7
+  beq x30, x0, .+28
+  slli x31, x31, 8
+  lbu x28, 0(x6)
+  or x31, x31, x28
+  addi x6, x6, 1
+  addi x30, x30, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x31, x6, .+96
+  add x6, x29, x31
+  bne x6, x11, .+96
+  mv x10, x29
+  li x12, 0
+  jalr x0, 0(x1)
+  li x6, 192
+  sub x7, x5, x6
+  addi x28, x7, 1
+  add x29, x10, x28
+  bne x29, x11, .+32
+  addi x10, x10, 1
+  li x12, 0
+  jalr x0, 0(x1)
+  li x12, 2
+  jalr x0, 0(x1)
+  li x12, 1
+  jalr x0, 0(x1)
+  li x12, 3
+  jalr x0, 0(x1)
+  li x12, 4
+  jalr x0, 0(x1)
+  li x12, 5
+  jalr x0, 0(x1)
+  li x12, 6
+  jalr x0, 0(x1)
+  li x12, 7
+  jalr x0, 0(x1)
+  bgeu x10, x11, .+352
+  lbu x5, 0(x10)
+  li x6, 128
+  bltu x5, x6, .+288
+  li x6, 184
+  bltu x5, x6, .+228
+  li x6, 192
+  bltu x5, x6, .+120
+  li x6, 248
+  bltu x5, x6, .+280
+  li x6, 247
+  sub x7, x5, x6
+  addi x6, x7, 1
+  add x29, x10, x6
+  bltu x11, x29, .+308
+  addi x30, x10, 1
+  lbu x31, 0(x30)
+  beq x31, x0, .+320
+  li x28, 0
+  mv x6, x7
+  beq x6, x0, .+28
+  slli x28, x28, 8
+  lbu x31, 0(x30)
+  or x28, x28, x31
+  addi x30, x30, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x28, x6, .+264
+  add x31, x7, x28
+  addi x31, x31, 1
+  sub x6, x11, x29
+  bltu x6, x28, .+236
+  add x10, x31, x10
+  mv x12, x31
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 183
+  sub x7, x5, x6
+  addi x6, x7, 1
+  add x29, x10, x6
+  bltu x11, x29, .+200
+  addi x30, x10, 1
+  lbu x31, 0(x30)
+  beq x31, x0, .+212
+  li x28, 0
+  mv x6, x7
+  beq x6, x0, .+28
+  slli x28, x28, 8
+  lbu x31, 0(x30)
+  or x28, x28, x31
+  addi x30, x30, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x28, x6, .+156
+  sub x6, x11, x29
+  bltu x6, x28, .+136
+  add x10, x29, x28
+  mv x12, x28
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 128
+  sub x12, x5, x6
+  addi x7, x10, 1
+  sub x28, x11, x10
+  bgeu x12, x28, .+100
+  li x6, 1
+  bne x12, x6, .+16
+  lbu x6, 0(x7)
+  li x29, 128
+  bltu x6, x29, .+116
+  add x10, x7, x12
+  li x11, 0
+  jalr x0, 0(x1)
+  addi x10, x10, 1
+  li x12, 1
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 192
+  sub x31, x5, x6
+  addi x31, x31, 1
+  sub x6, x11, x10
+  bltu x6, x31, .+32
+  add x10, x31, x10
+  mv x12, x31
+  li x11, 0
+  jalr x0, 0(x1)
+  li x11, 2
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 3
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 4
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 5
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 6
+  li x12, 0
+  jalr x0, 0(x1)
