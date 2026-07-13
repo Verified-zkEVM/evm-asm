@@ -73,10 +73,18 @@ def _encode_withdrawal (w : WithdrawalRequest) : Bytes :=
 def _encode_consolidation (c : ConsolidationRequest) : Bytes :=
   c.sourceAddress ++ c.sourcePubkey ++ c.targetPubkey
 
+/-- `_encode_builder_deposit` (EIP-8282). -/
+def _encode_builder_deposit (b : BuilderDepositRequest) : Bytes :=
+  b.pubkey ++ b.withdrawalCredentials ++ leBytes8 b.amount ++ b.signature
+
+/-- `_encode_builder_exit` (EIP-8282). -/
+def _encode_builder_exit (b : BuilderExitRequest) : Bytes :=
+  b.sourceAddress ++ b.pubkey
+
 /-- `encode_execution_requests(requests)`: each non-empty list becomes
     one `TYPE_BYTE ++ concat(items)` blob, ascending type order
-    (deposit `0x00`, withdrawal `0x01`, consolidation `0x02`); empty
-    lists are omitted. -/
+    (deposit `0x00`, withdrawal `0x01`, consolidation `0x02`, builder
+    deposit `0x03`, builder exit `0x04`); empty lists are omitted. -/
 def encode_execution_requests (requests : ExecutionRequests) : List Bytes :=
   (if requests.deposits.isEmpty then [] else
     [0x00 :: (requests.deposits.flatMap _encode_deposit)])
@@ -84,6 +92,10 @@ def encode_execution_requests (requests : ExecutionRequests) : List Bytes :=
     [0x01 :: (requests.withdrawals.flatMap _encode_withdrawal)])
   ++ (if requests.consolidations.isEmpty then [] else
     [0x02 :: (requests.consolidations.flatMap _encode_consolidation)])
+  ++ (if requests.builderDeposits.isEmpty then [] else
+    [0x03 :: (requests.builderDeposits.flatMap _encode_builder_deposit)])
+  ++ (if requests.builderExits.isEmpty then [] else
+    [0x04 :: (requests.builderExits.flatMap _encode_builder_exit)])
 
 /-! ## `compute_requests_hash` (`requests.py`, function `compute_requests_hash`) -/
 
@@ -428,14 +440,36 @@ def executeSeamShell : ExecutionSeam := fun input => do
 
 -- encode_execution_requests: empty container → no blobs; a single
 -- withdrawal request gets the 0x01 type byte and 76-byte body.
-#guard encode_execution_requests { deposits := [], withdrawals := [], consolidations := [] } == []
+#guard encode_execution_requests {
+  deposits := [], withdrawals := [], consolidations := [], builderDeposits := [], builderExits := []
+} == []
 #guard
   let w : WithdrawalRequest :=
     { sourceAddress := List.replicate 20 0xAA,
       validatorPubkey := List.replicate 48 0xBB, amount := 5 }
-  encode_execution_requests { deposits := [], withdrawals := [w], consolidations := [] }
+  encode_execution_requests {
+    deposits := [], withdrawals := [w], consolidations := [], builderDeposits := [], builderExits := [] }
     == [0x01 :: (List.replicate 20 0xAA ++ List.replicate 48 0xBB
           ++ [0x05, 0, 0, 0, 0, 0, 0, 0])]
+
+#guard
+  let b : BuilderDepositRequest :=
+    { pubkey := List.replicate 48 0x11,
+      withdrawalCredentials := List.replicate 32 0x22,
+      amount := 0x0102030405060708,
+      signature := List.replicate 96 0x33 }
+  encode_execution_requests {
+    deposits := [], withdrawals := [], consolidations := [], builderDeposits := [b], builderExits := [] }
+    == [0x03 :: (List.replicate 48 0x11 ++ List.replicate 32 0x22
+      ++ [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
+      ++ List.replicate 96 0x33)]
+
+#guard
+  let b : BuilderExitRequest :=
+    { sourceAddress := List.replicate 20 0x44, pubkey := List.replicate 48 0x55 }
+  encode_execution_requests {
+    deposits := [], withdrawals := [], consolidations := [], builderDeposits := [], builderExits := [b] }
+    == [0x04 :: (List.replicate 20 0x44 ++ List.replicate 48 0x55)]
 
 -- check_gas_limit boundaries.
 -- max_adjustment_delta = 30000000/1024 = 29296: strict bounds both sides.

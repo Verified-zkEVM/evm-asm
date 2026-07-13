@@ -91,7 +91,9 @@ def sanityInput : StatelessInput :=
       { executionPayload := sanityPayload
         versionedHashes := []
         parentBeaconBlockRoot := z 32
-        executionRequests := { deposits := [], withdrawals := [], consolidations := [] } }
+        executionRequests := {
+          deposits := [], withdrawals := [], consolidations := [],
+          builderDeposits := [], builderExits := [] } }
     witness := { state := [], codes := [], headers := [sanityHeader] }
     chainConfig := sanityHappyChainConfig
     publicKeys := [] }

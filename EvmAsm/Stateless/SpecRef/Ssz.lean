@@ -30,6 +30,8 @@ def MAX_BLOB_COMMITMENTS_PER_BLOCK : Nat := 4096
 def MAX_DEPOSIT_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 13
 def MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 4
 def MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 1
+def MAX_BUILDER_DEPOSIT_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 6
+def MAX_BUILDER_EXIT_REQUESTS_PER_PAYLOAD : Nat := 2 ^ 4
 def MAX_BLOCK_ACCESS_LIST_BYTES : Nat := MAX_BYTES_PER_TRANSACTION
 def MAX_WITNESS_NODES : Nat := 2 ^ 22
 def MAX_WITNESS_CODES : Nat := 2 ^ 18
@@ -93,11 +95,21 @@ def sszWithdrawalRequestType : SszType :=
 def sszConsolidationRequestType : SszType :=
   .container [.byteVector 20, .byteVector 48, .byteVector 48]
 
+/-- `SszBuilderDepositRequest` (`stateless_ssz.py:141`). -/
+def sszBuilderDepositRequestType : SszType :=
+  .container [.byteVector 48, bytes32Type, u64Type, .byteVector 96]
+
+/-- `SszBuilderExitRequest` (`stateless_ssz.py:150`). -/
+def sszBuilderExitRequestType : SszType :=
+  .container [.byteVector 20, .byteVector 48]
+
 /-- `SszExecutionRequests` (`stateless_ssz.py:141`). -/
 def sszExecutionRequestsType : SszType :=
   .container [.list sszDepositRequestType MAX_DEPOSIT_REQUESTS_PER_PAYLOAD,
     .list sszWithdrawalRequestType MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD,
-    .list sszConsolidationRequestType MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD]
+    .list sszConsolidationRequestType MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD,
+    .list sszBuilderDepositRequestType MAX_BUILDER_DEPOSIT_REQUESTS_PER_PAYLOAD,
+    .list sszBuilderExitRequestType MAX_BUILDER_EXIT_REQUESTS_PER_PAYLOAD]
 
 /-- `SszNewPayloadRequest` (`stateless_ssz.py:153`). -/
 def sszNewPayloadRequestType : SszType :=
@@ -256,6 +268,27 @@ def sszToConsolidationRequest (sv : SszValue) : Except SpecError ConsolidationRe
   let targetPubkey ← asBytesV (← getField fs 2)
   pure { sourceAddress, sourcePubkey, targetPubkey }
 
+def builderDepositRequestToSsz (b : BuilderDepositRequest) : SszValue :=
+  .container [.byteVector b.pubkey, .byteVector b.withdrawalCredentials,
+    .uint 8 b.amount, .byteVector b.signature]
+
+def sszToBuilderDepositRequest (sv : SszValue) : Except SpecError BuilderDepositRequest := do
+  let fs ← asContainerV sv
+  let pubkey ← asBytesV (← getField fs 0)
+  let withdrawalCredentials ← asBytesV (← getField fs 1)
+  let amount ← asUintV (← getField fs 2)
+  let signature ← asBytesV (← getField fs 3)
+  pure { pubkey, withdrawalCredentials, amount, signature }
+
+def builderExitRequestToSsz (b : BuilderExitRequest) : SszValue :=
+  .container [.byteVector b.sourceAddress, .byteVector b.pubkey]
+
+def sszToBuilderExitRequest (sv : SszValue) : Except SpecError BuilderExitRequest := do
+  let fs ← asContainerV sv
+  let sourceAddress ← asBytesV (← getField fs 0)
+  let pubkey ← asBytesV (← getField fs 1)
+  pure { sourceAddress, pubkey }
+
 /-! ## `_execution_requests_to_ssz` / `_ssz_to_execution_requests` (`:392`, `:409`) -/
 
 def executionRequestsToSsz (er : ExecutionRequests) : SszValue :=
@@ -263,14 +296,20 @@ def executionRequestsToSsz (er : ExecutionRequests) : SszValue :=
     .list MAX_DEPOSIT_REQUESTS_PER_PAYLOAD none (er.deposits.map depositRequestToSsz),
     .list MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD none (er.withdrawals.map withdrawalRequestToSsz),
     .list MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD none
-      (er.consolidations.map consolidationRequestToSsz)]
+      (er.consolidations.map consolidationRequestToSsz),
+    .list MAX_BUILDER_DEPOSIT_REQUESTS_PER_PAYLOAD none
+      (er.builderDeposits.map builderDepositRequestToSsz),
+    .list MAX_BUILDER_EXIT_REQUESTS_PER_PAYLOAD none
+      (er.builderExits.map builderExitRequestToSsz)]
 
 def sszToExecutionRequests (sv : SszValue) : Except SpecError ExecutionRequests := do
   let fs ← asContainerV sv
   let deposits ← (← asListV (← getField fs 0)).mapM sszToDepositRequest
   let withdrawals ← (← asListV (← getField fs 1)).mapM sszToWithdrawalRequest
   let consolidations ← (← asListV (← getField fs 2)).mapM sszToConsolidationRequest
-  pure { deposits, withdrawals, consolidations }
+  let builderDeposits ← (← asListV (← getField fs 3)).mapM sszToBuilderDepositRequest
+  let builderExits ← (← asListV (← getField fs 4)).mapM sszToBuilderExitRequest
+  pure { deposits, withdrawals, consolidations, builderDeposits, builderExits }
 
 /-! ## `_new_payload_request_to_ssz` / `_ssz_to_new_payload_request` (`:424`, `:438`) -/
 
