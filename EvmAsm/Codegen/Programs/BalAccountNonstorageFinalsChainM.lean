@@ -394,5 +394,37 @@ theorem nonceStationOuterPost_to_resultFrame
 
 #print axioms nonceStationOuterPost_to_resultFrame
 
+/-- Reframe the successful outer code item as the complete persistent result,
+    verdict frame, and its retained outer decode. -/
+theorem codeStationOuterPost_to_resultFrame
+    (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h, codeStationOuterPost aB newSp oB aLen off acctBytes G F h →
+      ∃ n5 l5 : Word,
+        ((codeResult aB oB (n5 - l5 - aB).toNat l5.toNat acctBytes G **
+          (((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           memOwn (newSp + 64) ** memOwn (newSp + 72) **
+           ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+           ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+           regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+           regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+           bytesRegion aB acctBytes ** F)) **
+         ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+           (aB + BitVec.ofNat 64 aLen) n5 l5⌝) h := by
+  intro h hp
+  unfold codeStationOuterPost at hp
+  obtain ⟨n5, l5, hp⟩ := hp
+  obtain ⟨hStation, hDecode⟩ := (sepConj_pure_right h).1 hp
+  refine ⟨n5, l5, (sepConj_pure_right h).2 ⟨?_, hDecode⟩⟩
+  have hResult := codeStationPost_to_resultFrame aB newSp oB
+    (aB + BitVec.ofNat 64 off) aLen (n5 - l5 - aB).toNat l5.toNat
+    acctBytes G F h hStation
+  exact hResult
+
+#print axioms codeStationOuterPost_to_resultFrame
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
