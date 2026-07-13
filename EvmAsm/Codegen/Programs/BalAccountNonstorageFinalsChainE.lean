@@ -9,6 +9,7 @@
   have already accumulated.
 -/
 
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB3
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainD
 
 set_option maxRecDepth 8000
