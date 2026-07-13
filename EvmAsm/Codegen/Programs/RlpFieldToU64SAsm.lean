@@ -87,8 +87,20 @@ abbrev lengthCell : Word := (GuestAddrs.rfu_length : Word)
 
 def wrapperCode : CodeReq := CodeReq.ofProg B rlpFieldToU64_prog
 def contentCode : CodeReq := rlp_content_to_u64_code C64B
-def code : CodeReq := EvmAsm.Codegen.RlpListNthItemSAsm.code.union
-  (wrapperCode.union contentCode)
+def code : CodeReq := wrapperCode.union
+  (EvmAsm.Codegen.RlpListNthItemSAsm.code.union contentCode)
+
+theorem wrapper_list_disjoint :
+    wrapperCode.Disjoint EvmAsm.Codegen.RlpListNthItemSAsm.code := by
+  unfold wrapperCode EvmAsm.Codegen.RlpListNthItemSAsm.code B
+    EvmAsm.Codegen.RlpListNthItemSAsm.B
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]
+    decide
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]
+    decide
+  · rw [program_length, EvmAsm.Codegen.RlpListNthItemSAsm.total_length]
+    decide
 
 /-! ## Strict list-callee call shape -/
 
@@ -141,7 +153,8 @@ theorem listCalleeCallContract
     listLen index hlistLenW hindexW hindex hsalign hslack hover hvalid hret
   have hcode := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
     unfold code
-    exact CodeReq.union_mono_left a i hi) hflat
+    exact CodeReq.mono_union_right wrapper_list_disjoint
+      CodeReq.union_mono_left a i hi) hflat
   refine cpsTripleWithin_weaken (fun h hp => by
     unfold listSavedRegs at hp
     rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame]
@@ -166,6 +179,66 @@ theorem listCalleeCallContract
   exact ⟨status, offset, len, v11, v12, hrest⟩
 
 #print axioms listCalleeCallContract
+
+/-- The real `jal` at wrapper instruction 11 composed with strict K20. -/
+theorem callListNth
+    (sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen vOld : Word)
+    (s0 s1 s2 s3 s4 s5 : Word) (bytes : List (BitVec 8))
+    (listLen index : Nat)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := s0, s1 := s1, s2 := s2, s3 := s3,
+        s4 := s4, s5 := s5 }
+    cpsTripleWithin
+      (1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9))
+      (B + 44) (B + 48) code
+      ((.x1 ↦ᵣ vOld) **
+       ((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
+        EvmAsm.Codegen.RlpListNthItemSAsm.entryRest listBase listLenW indexW
+          offsetPtr lenPtr oldOffset oldLen bytes))
+      ((.x1 ↦ᵣ (B + 48)) **
+       listCallResult sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+         listLen index) := by
+  dsimp
+  let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+    { ra := B + 48, s0 := s0, s1 := s1, s2 := s2, s3 := s3,
+      s4 := s4, s5 := s5 }
+  have hret : saved.ra &&& ~~~(1 : Word) = saved.ra := by
+    dsimp [saved, B]
+    decide
+  have hcallee := listCalleeCallContract sp0 listBase listLenW indexW offsetPtr
+    lenPtr oldOffset oldLen saved bytes listLen index hlistLenW hindexW hindex
+    hsalign hslack hover hvalid hret
+  have htarget : (B + 44) + signExtend21
+      (jalOff GuestAddrs.rlp_list_nth_item
+        (GuestAddrs.rlp_field_to_u64 + 44)) = K20B := by
+    unfold B K20B
+    decide
+  have hmem : ∀ a i, CodeReq.singleton (B + 44)
+      (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
+        (GuestAddrs.rlp_field_to_u64 + 44))) a = some i → code a = some i := by
+    intro a i hi
+    unfold code
+    apply CodeReq.union_mono_left
+    exact CodeReq.ofProg_mem_at B (B + 44) rlpFieldToU64_prog 11
+      (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
+        (GuestAddrs.rlp_field_to_u64 + 44))) (by bv_omega) (by decide) rfl
+      (by decide) a i hi
+  have hcall := callWithin_spec (B + 44) K20B vOld
+    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u64 + 44))
+    ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+    htarget hmem (by pcf) hcallee
+  dsimp [saved] at hcall
+  exact hcall
+
+#print axioms callListNth
 
 /-! ## Three-register ABI frame -/
 
