@@ -349,6 +349,62 @@ theorem setupPrologue
 
 #print axioms setupPrologue
 
+/-- Save the input/output pointers and zero the caller-visible output cell
+    (instructions 4--6), before either strict callee can fail. -/
+theorem setupMovesZero
+    (listBase outputPtr oldOut old8 old9 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 3 (B + 16) (B + 28) code
+      (((.x8 ↦ᵣ old8) ** (.x9 ↦ᵣ old9) ** (.x10 ↦ᵣ listBase) **
+       (.x13 ↦ᵣ outputPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (outputPtr ↦ₘ oldOut)) ** F)
+      (((.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) ** (.x10 ↦ᵣ listBase) **
+       (.x13 ↦ᵣ outputPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (outputPtr ↦ₘ (0 : Word))) ** F) := by
+  have h0 := mv_spec_gen_within .x8 .x10 listBase old8 (B + 16) (by decide)
+  have h0' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 16) rlpFieldToU64_prog 4 (.MV .x8 .x10)
+      (by bv_omega) (by rw [program_length]; decide) rfl
+      (by rw [program_length]; decide)) h0
+  have h1 := mv_spec_gen_within .x9 .x13 outputPtr old9 (B + 20) (by decide)
+  have h1' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 20) rlpFieldToU64_prog 5 (.MV .x9 .x13)
+      (by bv_omega) (by rw [program_length]; decide) rfl
+      (by rw [program_length]; decide)) h1
+  have h2 := sd_spec_gen_within .x9 .x0 outputPtr (0 : Word) oldOut
+    (0 : BitVec 12) (B + 24)
+  rw [show outputPtr + signExtend12 (0 : BitVec 12) = outputPtr from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h2
+  have h2' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 24) rlpFieldToU64_prog 6
+      (.SD .x9 .x0 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h2
+  have h0F := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ old9) ** (.x13 ↦ᵣ outputPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+      (outputPtr ↦ₘ oldOut)) (by pcf) h0'
+  have h1F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+      (.x0 ↦ᵣ (0 : Word)) ** (outputPtr ↦ₘ oldOut)) (by pcf) h1'
+  have h2F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x10 ↦ᵣ listBase) **
+      (.x13 ↦ᵣ outputPtr)) (by pcf) h2'
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h01 h2F
+  have hlocal := cpsTripleWithin_weaken
+    (P' := (.x8 ↦ᵣ old8) ** (.x9 ↦ᵣ old9) ** (.x10 ↦ᵣ listBase) **
+      (.x13 ↦ᵣ outputPtr) ** (.x0 ↦ᵣ (0 : Word)) ** (outputPtr ↦ₘ oldOut))
+    (Q' := (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ outputPtr) **
+      (.x10 ↦ᵣ listBase) ** (.x13 ↦ᵣ outputPtr) **
+      (.x0 ↦ᵣ (0 : Word)) ** (outputPtr ↦ₘ (0 : Word)))
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h012
+  have hframed := cpsTripleWithin_frameR F hF hlocal
+  have hall := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hframed
+  exact hall
+
+#print axioms setupMovesZero
+
 theorem frameRegs_implies_owned (s0 s1 : Word) : ∀ h,
     (regOwn .x1 ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1)) h →
       regsOwnAt frame h := by
