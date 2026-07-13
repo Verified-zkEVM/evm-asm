@@ -249,11 +249,11 @@ theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
     (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
       ⌜len = 0⌝) h ∨
     (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝) h ∨
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝) h ∨
     (((.x10 : Reg) ↦ᵣ BitVec.ofNat 64
         (EL.RLP.Nat.fromBytesBE ((acctBytes.drop srcOff).take len))) **
       ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝) h)
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝) h)
 
 /-- Slots 128--130: form the value-content window and invoke the unified u64
     parser.  The result is left in its exact four-way post for the two tails. -/
@@ -423,7 +423,7 @@ theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
           bytesRegion aB acctBytes) **
         (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-         ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝)) **
+         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝)) **
        ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
@@ -447,7 +447,7 @@ theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
          ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
          ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
          ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
-      have hp2 : (R ** ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝) h := by
+      have hp2 : (R ** ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝) h := by
         dsimp only [R]
         xperm_hyp hp
       exact ((sepConj_pure_right h).1 hp2).1)
@@ -465,7 +465,7 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
           bytesRegion aB acctBytes) **
         (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-         ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
+         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
        ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
       ((((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
@@ -479,7 +479,7 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
     (regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
      ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
      ((.x12 : Reg) ↦ᵣ vLen) **
-     ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝ ** P)
+     ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝ ** P)
     (by pcf; exact hP) ht
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) htF
   let R : Assertion :=
@@ -489,7 +489,7 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
     bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
     ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (1 : Word)) **
     ((oB + 48) ↦ₘ image) ** P
-  have hq2 : (R ** ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝) h := by
+  have hq2 : (R ** ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝) h := by
     dsimp only [R]
     xperm_hyp hq
   exact (sepConj_pure_right h).2 ⟨((sepConj_pure_right h).1 hq2).1, hlen8⟩
@@ -552,7 +552,7 @@ def nonceCaptureNoncanonicalPre (aB oB vLen : Word) (srcOff len : Nat)
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
       bytesRegion aB acctBytes) **
     (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ getByteAt acctBytes srcOff = 0⌝)) **
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝)) **
   ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
   ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
 
@@ -562,7 +562,7 @@ def nonceCaptureCanonicalPre (aB oB vLen image : Word) (srcOff len : Nat)
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
       bytesRegion aB acctBytes) **
     (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
   ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
   ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
 
