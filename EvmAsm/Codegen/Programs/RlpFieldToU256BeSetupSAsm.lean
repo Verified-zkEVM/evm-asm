@@ -166,4 +166,41 @@ theorem zeroOutput (outputPtr : Word) (orig : List (BitVec 8))
 
 #print axioms zeroOutput
 
+/-- Materialize K20's offset and length result cells (instructions 10--13). -/
+theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (B + 40) (B + 56) code
+      (((.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14)) ** F)
+      (((.x13 ↦ᵣ offsetCell) ** (.x14 ↦ᵣ lengthCell)) ** F) := by
+  have hau0 := CodeReq.ofProg_mem_at B (B + 40) rlpFieldToU256Be_prog 10
+    (.AUIPC .x13 (laHi GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had0 := CodeReq.ofProg_mem_at B (B + 44) rlpFieldToU256Be_prog 11
+    (.ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset
+      (GuestAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h0 := la_materialize_within .x13 old13 (B + 40) offsetCell
+    (by decide) (by unfold B offsetCell; decide) hau0 had0
+  have hau1 := CodeReq.ofProg_mem_at B (B + 48) rlpFieldToU256Be_prog 12
+    (.AUIPC .x14 (laHi GuestAddrs.rfu_length
+      (GuestAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had1 := CodeReq.ofProg_mem_at B (B + 52) rlpFieldToU256Be_prog 13
+    (.ADDI .x14 .x14 (laLo GuestAddrs.rfu_length
+      (GuestAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
+    (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h1 := la_materialize_within .x14 old14 (B + 48) lengthCell
+    (by decide) (by unfold B lengthCell; decide) hau1 had1
+  have h0F := cpsTripleWithin_frameR ((.x14 ↦ᵣ old14)) (by pcf) h0
+  have h1F := cpsTripleWithin_frameR ((.x13 ↦ᵣ offsetCell)) (by pcf) h1
+  have hs := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have hs' := cpsTripleWithin_weaken
+    (P' := (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14))
+    (Q' := (.x13 ↦ᵣ offsetCell) ** (.x14 ↦ᵣ lengthCell))
+    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hs
+  exact cpsTripleWithin_frameR F hF
+    (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hs')
+
+#print axioms setupGlobals
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
