@@ -955,7 +955,30 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_rnc_sender_guard\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bacc_finals; jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lbv_rnc_sender_guard; la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbv_rnc_sender_guard\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  -- EIP-7702 NULL delegation is the dual of installing a 23-byte marker: the
+  -- authenticated authority's BAL code change is present but empty, and its
+  -- nonce advances from the signed authorization nonce by exactly one. Skip
+  -- the local unchanged-recipient shortcut only for that precise effect; the
+  -- all-account code/nonstorage comparators still validate the BAL row.
+  "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0; la t3, teer_success_table\n" ++
+  ".Lbv_rnc_clear_find:\n" ++
+  "  beq t2, t1, .Lbv_rnc_marker_check\n" ++
+  "  mv t4, t3; la t5, bv_simple_transfer_tx; addi t5, t5, 72; li t6, 20\n" ++
+  ".Lbv_rnc_clear_addr_cmp:\n" ++
+  "  beqz t6, .Lbv_rnc_clear_addr_match\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbv_rnc_clear_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbv_rnc_clear_addr_cmp\n" ++
+  ".Lbv_rnc_clear_addr_match:\n" ++
+  "  lw t4, 20(t3); beqz t4, .Lbv_rnc_clear_next\n" ++
+  "  la t4, bacc_finals; ld t5, 56(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 72(t4); bnez t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 40(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 48(t4); ld t6, 24(t3); addi t6, t6, 1; bne t5, t6, .Lbv_rnc_marker_check\n" ++
+  "  j .Lbv_recipient_nc_done\n" ++
+  ".Lbv_rnc_clear_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lbv_rnc_clear_find\n" ++
+  ".Lbv_rnc_marker_check:\n" ++
+  "  la t0, bacc_finals; ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbv_rnc_sender_guard; lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbv_rnc_sender_guard\n" ++
   "  lbu t3, 2(t2); bnez t3, .Lbv_rnc_sender_guard; j .Lbv_recipient_nc_done\n" ++
   ".Lbv_rnc_sender_guard:\n" ++
