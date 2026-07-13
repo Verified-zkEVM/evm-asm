@@ -768,6 +768,52 @@ theorem bansf_codeValueArgs170_spec (newSp cursor endW v28 v11 v10 : Word) :
 
 #print axioms bansf_codeValueArgs170_spec
 
+/-- Status-zero continuation for the code tuple value (`B + 696 → B + 724`):
+    fall through the gate and materialize its relative window. -/
+theorem bansf_codeValueSuccess174_spec
+    (aB oB vNext vLen v29 v5 : Word) :
+    cpsTripleWithin 7 (B + 696) (B + 724) bansfCR
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+       ((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((oB + 56) ↦ₘ (1 : Word)) **
+       ((oB + 64) ↦ₘ (vNext - vLen - aB)) ** ((oB + 72) ↦ₘ vLen)) := by
+  have hbne := bne_spec_gen_within .x11 .x0 (36 : BitVec 13)
+    (0 : Word) (0 : Word) (B + 696)
+  rw [show (B + 696) + 4 = B + 700 from by bv_omega] at hbne
+  have hbneL := cpsBranchWithin_extend_code (cr' := bansfCR)
+    bansf_codeValueStatus174_code hbne
+  have hfall := cpsBranchWithin_ntakenPath hbneL
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  have hfallF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x12 : Reg) ↦ᵣ vLen) **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+     ((.x29 : Reg) ↦ᵣ v29) ** ((.x5 : Reg) ↦ᵣ v5) **
+     ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+     ((oB + 72) ↦ₘ (0 : Word))) (by pcf) hfall
+  have hmat := bansf_codeMaterialize175_spec aB oB vNext vLen v29 v5
+  have hmatF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (by pcf) hmat
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hp' := sepConj_mono_left (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+      xperm_hyp hp') hfallF hmatF
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_codeValueSuccess174_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
