@@ -656,5 +656,68 @@ theorem laterFieldZeros_pcFree (oB : Word) (F : Assertion) (hF : F.pcFree) :
 
 #print axioms laterFieldZeros_pcFree
 
+/-- Unified reject assertion for the balance→nonce→code value-station chain. -/
+def valueStationsRej (aB newSp oB n3 l3 : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  balStationRej aB newSp oB aLen acctBytes (laterFieldZeros oB F) h ∨
+  nonceCodeChainRej aB newSp oB aLen (n3 - aB).toNat acctBytes
+    (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes) F h
+
+/-- Compose all three value stations from the decoded outer balance item to
+    the code-success stub, retaining the materialized balance result. -/
+theorem bansf_valueStations_spec
+    (aB newSp oB n3 l3 v19 v20 : Word) (aLen off3 : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true)
+    (hoff3 : off3 ≤ aLen)
+    (hdec3 : rlpItemDecode acctBytes off3 (aB + BitVec.ofNat 64 off3)
+      (aB + BitVec.ofNat 64 aLen) n3 l3) :
+    cpsBranchWithin ((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800)))
+      (B + 184) bansfCR
+      ((((.x10 : Reg) ↦ᵣ n3) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ l3) ** ((.x19 : Reg) ↦ᵣ v19) **
+        ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((newSp + 48) ↦ₘ n3) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** (oB ↦ₘ (0 : Word)) **
+        ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+        ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes **
+        laterFieldZeros oB F) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (B + 736) (valueStationsRej aB newSp oB n3 l3 aLen acctBytes F)
+      (B + 724) (nonceCodePost aB newSp oB aLen (n3 - aB).toNat acctBytes
+        (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes) F) := by
+  have hFz := laterFieldZeros_pcFree oB F hF
+  have hb := bansf_balStation_spec aB newSp oB aLen off3 n3 l3 v19 v20
+    acctBytes (laterFieldZeros oB F) hFz hsalign hoalign hslack hover hvalid
+    hovout hovalid hoff3 hdec3
+  have hover9 : aB.toNat + aLen + 9 < 2 ^ 64 := by omega
+  obtain ⟨_, _, hoff4⟩ := rlpItemDecode_advance hdec3 hoff3 hover9
+  have hBalPc := balResult_pcFree aB oB (n3 - l3 - aB).toNat
+    l3.toNat acctBytes
+  have hnc := bansf_nonceCodeStations_spec aB newSp oB aLen (n3 - aB).toNat
+    acctBytes (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes) F
+    hBalPc hF hsalign hslack hover hvalid hoff4
+  exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr hb
+    (balStationPost_to_noncePre aB newSp oB n3 aLen
+      (n3 - l3 - aB).toNat l3.toNat acctBytes F)
+    hnc (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
+
+#print axioms bansf_valueStations_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
