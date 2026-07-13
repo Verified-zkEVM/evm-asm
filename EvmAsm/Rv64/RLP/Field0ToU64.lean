@@ -330,8 +330,43 @@ theorem rlp_field0_to_u64_call_walk_next
   rw [show (base + 12 + 4 : Word) = base + 16 from by bv_omega] at hcall
   exact cpsTripleWithin_extend_code hmono hcall
 
+/-- Compose the wrapper's index-8 content decoder call with an arbitrary
+verified postcondition, lifted into the complete fixed-offset image. -/
+theorem rlp_field0_to_u64_call_content
+    {nSteps : Nat} {Prest Q : Assertion} (base oldRa : Word)
+    (hbase0 : base &&& (1 : Word) = 0) (hpre : Prest.pcFree)
+    (hcallee : cpsTripleWithin nSteps (base + (1536 : Word))
+      ((base + 32 + 4) &&& ~~~(1 : Word))
+      (rlp_content_to_u64_code (base + (1536 : Word)))
+      ((.x1 ↦ᵣ (base + 32 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + nSteps) (base + 32) (base + 36)
+      (rlp_field0_to_u64_full_code base) ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  have hdisj : (CodeReq.singleton (base + 32) (.JAL .x1 (1504 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + (1536 : Word))) := by crDisjoint
+  have hcall := WP.cpsCallWithin (offset := (1504 : BitVec 21)) (vOld := oldRa)
+    (field0_hoffset base) (field0_halign base hbase0) hpre hdisj hcallee
+  have hleftContent : ((rlp_field0_to_u64_code base).union
+      (rlp_walk_init_code (base + (256 : Word)))).Disjoint
+      (rlp_content_to_u64_code (base + (1536 : Word))) := by crDisjoint
+  have hmono : ∀ a i,
+      ((CodeReq.singleton (base + 32) (.JAL .x1 (1504 : BitVec 21))).union
+        (rlp_content_to_u64_code (base + (1536 : Word)))) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    CodeReq.union_split_mono
+      (fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+        (CodeReq.singleton_mono
+          (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 8 (base + 32)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h)))
+      (fun a i h => CodeReq.mono_union_right hleftContent
+        (CodeReq.mono_union_right (rlp_field0_to_u64_walkNext_content_disjoint base)
+          (fun _ _ h' => h')) a i h)
+  rw [show (base + 32 + 4 : Word) = base + 36 from by bv_omega] at hcall
+  exact cpsTripleWithin_extend_code hmono hcall
+
 #print axioms rlp_field0_to_u64_call_walk_init
 #print axioms rlp_field0_to_u64_call_walk_next
+#print axioms rlp_field0_to_u64_call_content
 
 /-! ## Wrapper parse-failure branches. -/
 
@@ -469,6 +504,147 @@ theorem rlp_field0_to_u64_next_failure_spec_within
       xperm_hyp hp') hseq
 
 #print axioms rlp_field0_to_u64_next_failure_spec_within
+
+/-! ## Unified content-decoder return path. -/
+
+/-- Resources and four-way scalar outcome that survive the wrapper's final
+`ra` restore and `ret`. -/
+def rlpField0ContentRest (srcBase contentLen t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+   ((.x12 ↦ᵣ contentLen) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+    (.x31 ↦ᵣ t6Old)) **
+   (fun h =>
+     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+     (((.x10 ↦ᵣ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+
+theorem rlpField0ContentRest_pcFree
+    (srcBase contentLen t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat) :
+    (rlpField0ContentRest srcBase contentLen t4Old t5Old t6Old srcBytes srcOff len).pcFree := by
+  unfold rlpField0ContentRest
+  apply pcFree_sepConj
+  · pcFree
+  apply pcFree_sepConj
+  · pcFree
+  intro h hp
+  rcases hp with hp | hp | hp | hp
+  · exact (by pcFree :
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝).pcFree) h hp
+  · exact (by pcFree :
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝).pcFree) h hp
+  · exact (by pcFree :
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝).pcFree) h hp
+  · exact (by pcFree :
+      ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝).pcFree) h hp
+
+/-- Starting at the content call, cover all scalar outcomes (success, empty,
+too long, and non-canonical), then restore the caller's `ra` and return. -/
+theorem rlp_field0_to_u64_content_call_spec_within
+    (base srcBase savedRa x1Val t0Old x6Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (contentLen : Word) (srcOff len : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
+    (hcontentLen : contentLen = BitVec.ofNat 64 len) :
+    cpsTripleWithin (7 * len + 14) (base + 32) (savedRa &&& ~~~(1 : Word))
+      (rlp_field0_to_u64_full_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ contentLen) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
+       (.x28 ↦ᵣ t3Old) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) **
+       (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+      (rlpField0ContentRest srcBase contentLen t4Old t5Old t6Old srcBytes srcOff len **
+       (.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa)) := by
+  subst hcontentLen
+  have hcallee0 := rlp_content_to_u64_spec_within (base + (1536 : Word)) srcBase
+    (base + 32 + 4) t0Old x6Old t2Old t3Old srcBytes srcOff len hlen64 hsalign hslen hsover hsvalid
+  have hcallee1 := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ BitVec.ofNat 64 len) ** (.x13 ↦ᵣ savedRa) **
+      (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
+    (by pcFree) hcallee0
+  let Prest : Assertion :=
+    ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) **
+      (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x12 ↦ᵣ BitVec.ofNat 64 len) **
+      (.x13 ↦ᵣ savedRa) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+      (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+  let Q : Assertion :=
+    ((.x1 ↦ᵣ (base + 36)) ** (.x13 ↦ᵣ savedRa) **
+      rlpField0ContentRest srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len)
+  have hcallee : cpsTripleWithin (7 * len + 11) (base + (1536 : Word))
+      ((base + 32 + 4) &&& ~~~(1 : Word))
+      (rlp_content_to_u64_code (base + (1536 : Word)))
+      ((.x1 ↦ᵣ (base + 32 + 4)) ** Prest) Q :=
+    cpsTripleWithin_weaken (fun h hp => by dsimp [Prest] at hp ⊢; xperm_hyp hp)
+      (fun h hp => by
+        rw [show (base + 32 + 4 : Word) = base + 36 from by bv_omega] at hp
+        dsimp [Q, rlpField0ContentRest] at hp ⊢
+        xperm_hyp hp) hcallee1
+  have hcall := rlp_field0_to_u64_call_content base x1Val hbase0 (by pcFree) hcallee
+  have hcall' : cpsTripleWithin (1 + (7 * len + 11)) (base + 32) (base + 36)
+      (rlp_field0_to_u64_full_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) **
+       (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x12 ↦ᵣ BitVec.ofNat 64 len) **
+       (.x13 ↦ᵣ savedRa) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+       (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ x1Val) **
+       bytesRegion srcBase srcBytes)
+      ((.x1 ↦ᵣ (base + 36)) ** (.x13 ↦ᵣ savedRa) **
+       rlpField0ContentRest srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len) :=
+    cpsTripleWithin_weaken (fun h hp => by dsimp [Prest] at hp ⊢; xperm_hyp hp)
+      (fun h hp => by dsimp [Q] at hp; exact hp) hcall
+  have hmv1 := mv_spec_gen_within .x1 .x13 savedRa (base + 36) (base + 36) (by decide)
+  have hmono9 : ∀ a i, CodeReq.singleton (base + 36) (.MV .x1 .x13) a = some i →
+      rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono
+        (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 9 (base + 36)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+  have hmv := cpsTripleWithin_frameR
+    (rlpField0ContentRest srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len)
+    (rlpField0ContentRest_pcFree srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len)
+    (cpsTripleWithin_extend_code hmono9 hmv1)
+  rw [show (base + 36 + 4 : Word) = base + 40 from by bv_omega] at hmv
+  have hret0 := jalr_x0_spec_gen_within .x1 savedRa (0 : BitVec 12) (base + 40)
+  simp only [signExtend12_0] at hret0
+  rw [show (savedRa + 0 : Word) = savedRa from by bv_omega] at hret0
+  have hmono10 : ∀ a i,
+      CodeReq.singleton (base + 40) (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono
+        (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 10 (base + 40)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+          (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h))
+  have hret := cpsTripleWithin_frameR
+    (rlpField0ContentRest srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len **
+      (.x13 ↦ᵣ savedRa))
+    (pcFree_sepConj
+      (rlpField0ContentRest_pcFree srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old
+        srcBytes srcOff len) pcFree_regIs)
+    (cpsTripleWithin_extend_code hmono10 hret0)
+  have hs1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcall' hmv
+  have hs2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs1 hret
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp) hs2)
+
+#print axioms rlp_field0_to_u64_content_call_spec_within
 
 /-! ## Call-composition slice: idx 5..10, starting from a successful
 `rlp_walk_next` state. -/
