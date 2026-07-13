@@ -893,6 +893,88 @@ theorem selectedSetupExact
 
 #print axioms selectedSetupExact
 
+def selectedCarry
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (v12 : Word) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** listOtherSaved saved ** stackFree sp0 8 **
+  regOwn .x6 ** regOwn .x7 ** (.x12 ↦ᵣ v12) **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion listBase bytes
+
+theorem pcFree_selectedCarry sp0 listBase saved bytes v12 :
+    (selectedCarry sp0 listBase saved bytes v12).pcFree := by
+  unfold selectedCarry listOtherSaved
+  pcf
+
+def contentReady
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12,
+    ((((.x5 ↦ᵣ lengthCell) ** (.x10 ↦ᵣ (listBase + offset)) **
+       (.x11 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+       (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) **
+      selectedCarry sp0 listBase saved bytes v12) **
+     ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+       offset len⌝) h
+
+/-- Lift `selectedSetupExact` over K20's owned `x5` scratch register and its
+    existential selected item. -/
+theorem selectedSetup
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hs0 : saved.s0 = listBase) :
+    cpsTripleWithin 7 (B + 52) (B + 80) code
+      (listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index)
+      (contentReady sp0 listBase saved bytes listLen index) := by
+  unfold listSelected
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun offset => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun len => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v11 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
+    (fun _ hq => hq) (cpsTripleWithin_pure_pre
+      (P := EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+        index offset len)
+      (H := listCallCore sp0 listBase offsetCell lengthCell saved bytes 0 offset
+        len v11 v12) (fun h_ok => ?_))
+  let P : Assertion :=
+    (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x8 ↦ᵣ listBase) **
+    (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len) **
+    selectedCarry sp0 listBase saved bytes v12 **
+    ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+      offset len⌝
+  have howned := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5) (P := P)
+    (Q := contentReady sp0 listBase saved bytes listLen index)
+    (fun old5 => by
+      have hs := selectedSetupExact listBase offset len old5 v11
+        (selectedCarry sp0 listBase saved bytes v12 **
+          ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+            offset len⌝)
+        (pcFree_sepConj (pcFree_selectedCarry _ _ _ _ _) (by pcf))
+      refine cpsTripleWithin_weaken
+        (Q' := contentReady sp0 listBase saved bytes listLen index)
+        (fun h hp => by
+          unfold P at hp
+          xperm_pure hp) (fun h hq => ?_) hs
+      unfold contentReady
+      refine ⟨offset, len, v12, ?_⟩
+      xperm_pure hq)
+  refine cpsTripleWithin_weaken (fun h hp => by
+      unfold listCallCore listCallRest listSavedRegs at hp
+      unfold P selectedCarry
+      rw [hs0] at hp
+      xperm_pure hp) (fun _ hq => hq) howned
+
+#print axioms selectedSetup
+
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
 
