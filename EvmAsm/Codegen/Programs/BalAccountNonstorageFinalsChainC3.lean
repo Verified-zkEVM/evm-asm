@@ -1439,5 +1439,17 @@ theorem bansf_codeFieldStatus144_code :
 
 #print axioms bansf_codeFieldStatus144_code
 
+/-- Concrete code witness for the code-field empty split at slot 145. -/
+theorem bansf_codeEmpty145_code :
+    ∀ a i, CodeReq.singleton (B + 580) (.BEQ .x10 .x11 (144 : BitVec 13)) a = some i →
+      bansfCode a = some i := by
+  intro a i h
+  exact CodeReq.ofProg_mem_at B (B + 580) bansfProg 145
+    (.BEQ .x10 .x11 (144 : BitVec 13))
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide) a i h
+
+#print axioms bansf_codeEmpty145_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
