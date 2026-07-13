@@ -1120,6 +1120,216 @@ theorem callContentExact
 
 #print axioms callContentExact
 
+def contentCarry
+    (sp0 listBase offset len v12 : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** listOtherSaved saved ** stackFree sp0 8 **
+  (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x8 ↦ᵣ listBase) ** (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)
+
+theorem pcFree_contentCarry sp0 listBase offset len v12 saved :
+    (contentCarry sp0 listBase offset len v12 saved).pcFree := by
+  unfold contentCarry listOtherSaved
+  pcf
+
+/-- Exact-scratch scalar call framed by every K34/K20 resource the scalar
+    callee does not touch. -/
+theorem callContentFramedExact
+    (sp0 listBase offset len vOld x6Old x7Old x28Old v12 : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h_ok : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+      index offset len)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (7 * len.toNat + 11)) (B + 80) (B + 84) code
+      ((((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
+         (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+         (.x28 ↦ᵣ x28Old) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes)) **
+        contentCarry sp0 listBase offset len v12 saved) **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+         offset len⌝)
+      (((contentRawPost listBase bytes offset.toNat len.toNat) **
+        contentCarry sp0 listBase offset len v12 saved) **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+         offset len⌝) := by
+  have hb := success_content_bounds h_ok hslack hover
+  have hsvalid : ∀ k, k < len.toNat →
+      isValidByteAccess (listBase + BitVec.ofNat 64 (offset.toNat + k)) = true := by
+    intro k hk
+    exact hvalid (offset.toNat + k) (by omega)
+  have hc := callContentExact listBase offset len vOld x6Old x7Old x28Old
+    bytes hsalign hb.1 hb.2 hsvalid
+  have hF : (contentCarry sp0 listBase offset len v12 saved **
+      ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+        offset len⌝).pcFree :=
+    pcFree_sepConj (pcFree_contentCarry _ _ _ _ _ _) (by pcf)
+  have hcf := cpsTripleWithin_frameR
+    (contentCarry sp0 listBase offset len v12 saved **
+      ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+        offset len⌝) hF hc
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
+    (fun h hq => by xperm_pure hq) hcf
+
+#print axioms callContentFramedExact
+
+def contentDone
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12,
+    (((contentRawPost listBase bytes offset.toNat len.toNat) **
+      contentCarry sp0 listBase offset len v12 saved) **
+     ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+       offset len⌝) h
+
+def contentReadyRa
+    (sp0 listBase vOld : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12,
+    ((.x1 ↦ᵣ vOld) **
+      ((((.x5 ↦ᵣ lengthCell) ** (.x10 ↦ᵣ (listBase + offset)) **
+         (.x11 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+         (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) **
+        selectedCarry sp0 listBase saved bytes v12) **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+         offset len⌝)) h
+
+/-- Lift the scalar call over the three scratch registers owned by K20. -/
+theorem callContentOwned
+    (sp0 listBase vOld : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+      (B + 80) (B + 84) code
+      (contentReadyRa sp0 listBase vOld saved bytes listLen index)
+      (contentDone sp0 listBase saved bytes listLen index) := by
+  -- The displayed bound is normalized per selected `len` below; monotonicity
+  -- to a caller-wide bound is supplied by the whole-routine theorem.
+  unfold contentReadyRa
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun offset => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun len => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
+    (fun _ hq => hq) (cpsTripleWithin_pure_pre
+      (P := EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+        index offset len)
+      (H := ((.x1 ↦ᵣ vOld) **
+        (((.x5 ↦ᵣ lengthCell) ** (.x10 ↦ᵣ (listBase + offset)) **
+          (.x11 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+          (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) **
+         selectedCarry sp0 listBase saved bytes v12)))
+      (fun h_ok => ?_))
+  let P6 : Assertion :=
+    ((.x1 ↦ᵣ vOld) **
+      ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
+       (.x5 ↦ᵣ lengthCell) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes)) **
+    contentCarry sp0 listBase offset len v12 saved ** regOwn .x7 **
+    regOwn .x28 **
+    ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+      offset len⌝
+  have h6 := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6) (P := P6)
+    (Q := contentDone sp0 listBase saved bytes listLen index) (fun x6Old => by
+    let P7 : Assertion :=
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
+         (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)) **
+      contentCarry sp0 listBase offset len v12 saved ** regOwn .x28 **
+      ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+        offset len⌝
+    have h7 := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7) (P := P7)
+      (Q := contentDone sp0 listBase saved bytes listLen index) (fun x7Old => by
+      let P28 : Assertion :=
+        ((.x1 ↦ᵣ vOld) **
+          ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
+           (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+           (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)) **
+        contentCarry sp0 listBase offset len v12 saved **
+        ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+          offset len⌝
+      have h28 := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x28)
+        (P := P28) (Q := contentDone sp0 listBase saved bytes listLen index)
+        (fun x28Old => by
+          have hc0 := callContentFramedExact sp0 listBase offset len vOld x6Old
+            x7Old x28Old v12 saved bytes listLen index h_ok hsalign hslack hover
+            hvalid
+          have hc : cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+              (B + 80) (B + 84) code
+              ((((.x1 ↦ᵣ vOld) **
+                ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
+                 (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) **
+                 (.x7 ↦ᵣ x7Old) ** (.x28 ↦ᵣ x28Old) **
+                 (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)) **
+                contentCarry sp0 listBase offset len v12 saved) **
+               ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+                 index offset len⌝)
+              (((contentRawPost listBase bytes offset.toNat len.toNat) **
+                contentCarry sp0 listBase offset len v12 saved) **
+               ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+                 index offset len⌝) := cpsTripleWithin_mono_nSteps (by
+            have := len.isLt
+            omega) hc0
+          refine cpsTripleWithin_weaken (fun h hp => by
+              unfold P28 at hp
+              xperm_pure hp) (fun h hq => ?_) hc
+          unfold contentDone
+          exact ⟨offset, len, v12, hq⟩)
+      refine cpsTripleWithin_weaken (fun h hp => by
+          unfold P7 at hp
+          unfold P28
+          xperm_pure hp) (fun _ hq => hq) h28)
+    refine cpsTripleWithin_weaken (fun h hp => by
+        unfold P6 at hp
+        unfold P7
+        xperm_pure hp) (fun _ hq => hq) h7)
+  refine cpsTripleWithin_weaken (fun h hp => by
+      unfold selectedCarry listOtherSaved at hp
+      unfold P6 contentCarry listOtherSaved
+      xperm_pure hp) (fun _ hq => hq) h6
+
+#print axioms callContentOwned
+
+theorem callContent
+    (sp0 listBase vOld : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+      (B + 80) (B + 84) code
+      ((.x1 ↦ᵣ vOld) ** contentReady sp0 listBase saved bytes listLen index)
+      (contentDone sp0 listBase saved bytes listLen index) := by
+  have hc := callContentOwned sp0 listBase vOld saved bytes listLen index
+    hsalign hslack hover hvalid
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq) hc
+  unfold contentReady at hp
+  unfold contentReadyRa
+  obtain ⟨hRa, hReady, hd, hu, hra,
+    ⟨offset, len, v12, hready⟩⟩ := hp
+  exact ⟨offset, len, v12, hRa, hReady, hd, hu, hra, hready⟩
+
+#print axioms callContent
+
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
 
