@@ -473,5 +473,19 @@ theorem balResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
 
 #print axioms balResult_pcFree
 
+/-- The persistent nonce result is PC-free when its preserved footprint is. -/
+theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G : Assertion) (hG : G.pcFree) :
+    (nonceResult aB oB fOff fSpanN acctBytes G).pcFree := by
+  letI : Assertion.PCFree G := ⟨hG⟩
+  intro h hp
+  unfold nonceResult at hp
+  rcases hp with hp | hp
+  · exact (inferInstance : Assertion.PCFree _).proof h hp
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    exact (inferInstance : Assertion.PCFree _).proof h hp
+
+#print axioms nonceResult_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
