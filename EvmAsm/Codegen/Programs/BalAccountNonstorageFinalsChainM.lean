@@ -1,5 +1,7 @@
 /- Top-level station composition for bal_account_nonstorage_finals. -/
 
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainH
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainL
 
 namespace EvmAsm.Codegen

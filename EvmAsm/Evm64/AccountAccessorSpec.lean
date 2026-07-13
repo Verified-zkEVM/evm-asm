@@ -928,7 +928,7 @@ theorem account_rlp_content_to_u64_nonce_spec_within
     exact ⟨ha, hb', hdisj, hunion, he ▸ hx10, ((sepConj_pure_right hb').1 hin).1⟩
   · -- non-canonical (`content[0] = 0`): refuted by `toBytesBE`'s minimality
     obtain ⟨_, hb', _, _, _, hin⟩ := h3
-    obtain ⟨hlen0, hbyte⟩ := ((sepConj_pure_right hb').1 hin).2
+    obtain ⟨hlen0, _, hbyte⟩ := ((sepConj_pure_right hb').1 hin).2
     have hpos : 0 < a.nonce := by
       by_contra h0
       have hz : a.nonce = 0 := by omega
