@@ -65,6 +65,13 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Rounded capture capacity for the Amsterdam builder-deposit predeploy:
+    64 requests × 184 bytes = 11,776 bytes, rounded to 12 KiB so the RV64
+    immediate remains a single instruction.  The builder-exit body is smaller. -/
+def systemCallReturndataMaxBytes : Nat := 12288
+
+#guard systemCallReturndataMaxBytes = 12288
+
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
 
@@ -2225,7 +2232,7 @@ def emitDispatcherDataSection
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
-  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
+  "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -3526,7 +3533,7 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
-  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
+  "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++

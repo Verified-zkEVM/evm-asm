@@ -967,8 +967,9 @@ def statelessGuestEpilogue : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n" ++
   -- ===== execution_requests hash_tree_root (SszExecutionRequests) =====
-  -- Container of 3 List[Container] fields {deposits, withdrawals,
-  -- consolidations}; root = merkleize([htr(each list)], limit_log2=2).
+  -- Container of 5 List[Container] fields {deposits, withdrawals,
+  -- consolidations, builder_deposits, builder_exits}; root = merkleize
+  -- ([htr(each list)], limit_log2=3).
   -- Built from reusable pieces (all alignment-safe via sg_memcpy; all
   -- save/restore the s-registers they use, and the nested ssz_merkleize
   -- saves s0-s6, so deep nesting is register-safe). Verified byte-for-byte
@@ -1032,6 +1033,30 @@ def statelessGuestEpilogue : String :=
   "  addi a0, s0, 68; la a1, er_leaf_buf; addi a1, a1, 64; jal ra, sg_htr_bv48\n" ++            -- leaf2 target_pubkey
   "  la a0, er_leaf_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(BuilderDepositRequest): 184B {pubkey BV48, wc Bytes32,
+  -- amount u64, signature BV96}; four leaves at limit_log2=2.
+  "sg_htr_bd:\n" ++                          -- a0=w(184), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  mv a0, s0; la a1, er_leaf_buf; jal ra, sg_htr_bv48\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 32; addi a1, s0, 48; li a2, 32; jal ra, sg_memcpy\n" ++
+  "  la t0, er_leaf_buf; sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 64; addi a1, s0, 80; li a2, 8; jal ra, sg_memcpy\n" ++
+  "  addi a0, s0, 88; la a1, er_leaf_buf; addi a1, a1, 96; jal ra, sg_htr_bv96\n" ++
+  "  la a0, er_leaf_buf; li a1, 4; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(BuilderExitRequest): 68B {source_address BV20, pubkey BV48};
+  -- two leaves at limit_log2=1.
+  "sg_htr_be:\n" ++                          -- a0=w(68), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la t0, er_leaf_buf; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la a0, er_leaf_buf; mv a1, s0; li a2, 20; jal ra, sg_memcpy\n" ++
+  "  addi a0, s0, 20; la a1, er_leaf_buf; addi a1, a1, 32; jal ra, sg_htr_bv48\n" ++
+  "  la a0, er_leaf_buf; li a1, 2; li a2, 1; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
   -- hash_tree_root(List[FixedContainer, cap]) via a per-element htr fn ptr.
   --   a0=body, a1=section_len, a2=elem_size, a3=elem_htr_fn, a4=limit_log2,
   --   a5=32-byte out. root = merkleize(child_roots, limit) + mix_in_length(N).
@@ -1057,22 +1082,27 @@ def statelessGuestEpilogue : String :=
   "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); addi sp,sp,64; ret\n" ++
   -- hash_tree_root(SszExecutionRequests): a0=section, a1=section_len, a2=out.
-  -- 3 u32 offsets (deposits/withdrawals/consolidations) at section+0/+4/+8;
-  -- each list body is fixed-size containers (no inner offset table).
+  -- 5 u32 offsets (deposits/withdrawals/consolidations/builder_deposits/
+  -- builder_exits) at section+0/+4/+8/+12/+16; each list body is fixed-size
+  -- containers (no inner offset table).
   "ssz_htr_execution_requests:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0; mv s2, a1; mv s1, a2\n" ++
   "  mv a0, s0; jal ra, sg_load_u32le; mv s3, a0          # deposits offset\n" ++
   "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s4, a0     # withdrawals offset\n" ++
   "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s5, a0     # consolidations offset\n" ++
+  "  addi a0, s0, 12; jal ra, sg_load_u32le; mv s6, a0    # builder deposits offset\n" ++
+  "  addi a0, s0, 16; jal ra, sg_load_u32le; mv s7, a0    # builder exits offset\n" ++
   "  add a0, s0, s3; sub a1, s4, s3; li a2, 192; la a3, sg_htr_deposit; li a4, 13; la a5, er_outer_buf; jal ra, sg_htr_clist\n" ++
   "  add a0, s0, s4; sub a1, s5, s4; li a2, 76;  la a3, sg_htr_wr;      li a4, 4;  la a5, er_outer_buf; addi a5, a5, 32; jal ra, sg_htr_clist\n" ++
-  "  add a0, s0, s5; sub a1, s2, s5; li a2, 116; la a3, sg_htr_cr;      li a4, 1;  la a5, er_outer_buf; addi a5, a5, 64; jal ra, sg_htr_clist\n" ++
-  "  la a0, er_outer_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  add a0, s0, s5; sub a1, s6, s5; li a2, 116; la a3, sg_htr_cr;      li a4, 1;  la a5, er_outer_buf; addi a5, a5, 64; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s6; sub a1, s7, s6; li a2, 184; la a3, sg_htr_bd;      li a4, 6;  la a5, er_outer_buf; addi a5, a5, 96; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s7; sub a1, s2, s7; li a2, 68;  la a3, sg_htr_be;      li a4, 4;  la a5, er_outer_buf; addi a5, a5, 128; jal ra, sg_htr_clist\n" ++
+  "  la a0, er_outer_buf; li a1, 5; li a2, 3; mv a3, s1; jal ra, ssz_merkleize\n" ++
   "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
-  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
+  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); ld s7,64(sp); addi sp,sp,80; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++

@@ -387,7 +387,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   -- txs so the halt path stays byte-identical. x13=mem base, x14=offset, x15=size (read-only).
   (if kind == 1 then
     "  la t0, system_call_mode\n  ld t0, 0(t0)\n  beqz t0, .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    "  li t1, 4096\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
+    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
     "  la t1, system_call_returndata_len\n  sd x15, 0(t1)\n" ++
     "  add t2, x13, x14\n  la t3, system_call_returndata\n  mv t4, x15\n" ++
     ".Lrr_capz_" ++ toString kind ++ ":\n" ++

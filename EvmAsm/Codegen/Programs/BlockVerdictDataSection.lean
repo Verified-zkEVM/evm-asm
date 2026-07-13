@@ -644,6 +644,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_log_records:\n  .zero " ++ toString bvMaxDepositLogRecordBytes ++ "\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
   "c1_ccode_len:\n  .zero 8\n" ++
+  "c1_bd_code_ptr:\n  .zero 8\n" ++
+  "c1_bd_code_len:\n  .zero 8\n" ++
+  "c1_be_code_ptr:\n  .zero 8\n" ++
+  "c1_be_code_len:\n  .zero 8\n" ++
   "c1_bal_acct_ptr:\n  .zero 8\n" ++
   "c1_bal_acct_len:\n  .zero 8\n" ++
   ".balign 8\n" ++

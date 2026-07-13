@@ -154,6 +154,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     deriveBlockSystemRequestsFunction ++ "\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
+    deriveBuilderDepositRequestsFunction ++ "\n" ++
+    deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     blockVerdictAllDirectDepositTxsFunction ++ "\n" ++

@@ -134,6 +134,8 @@ def ziskDepositDerivationE2EDataSection : String :=
   "dde_records:\n  .zero 1024\n" ++
   ".balign 8\n" ++
   "dde_body:\n  .zero 256\n" ++
+  "aer_bd_ptr:\n  .zero 8\naer_bd_len:\n  .zero 8\n" ++
+  "aer_be_ptr:\n  .zero 8\naer_be_len:\n  .zero 8\n" ++
   "dde_status:\n  .zero 8\n" ++
   "dde_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
