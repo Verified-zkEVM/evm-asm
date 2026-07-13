@@ -426,5 +426,39 @@ theorem codeStationOuterPost_to_resultFrame
 
 #print axioms codeStationOuterPost_to_resultFrame
 
+/-- Existential code-station entry obtained from a successful nonce station;
+    the item-4 decode is retained in the ambient assertion. -/
+def nonceToCodePre (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion := fun h =>
+  ∃ n4 l4 : Word,
+    ((codeStationOuterBase aB newSp oB aLen (n4 - aB).toNat acctBytes
+        (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G)
+        (F ** ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+          (aB + BitVec.ofNat 64 aLen) n4 l4⌝) **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+      regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** regOwn .x1) h)
+
+/-- A successful nonce-station outer post satisfies the existential entry
+    assertion consumed by the code station. -/
+theorem nonceStationOuterPost_to_codePre
+    (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h, nonceStationOuterPost aB newSp oB aLen off acctBytes G F h →
+      nonceToCodePre aB newSp oB aLen off acctBytes G F h := by
+  intro h hp
+  obtain ⟨n4, l4, hp⟩ := nonceStationOuterPost_to_resultFrame
+    aB newSp oB aLen off acctBytes G F h hp
+  refine ⟨n4, l4, ?_⟩
+  have hrep : n4 = aB + BitVec.ofNat 64 (n4 - aB).toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  unfold codeStationOuterBase
+  rw [← hrep]
+  xperm_hyp hp
+
+#print axioms nonceStationOuterPost_to_codePre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
