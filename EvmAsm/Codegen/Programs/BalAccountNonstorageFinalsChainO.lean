@@ -141,5 +141,66 @@ theorem itemRejAmbient_to_abiReject
 
 #print axioms itemRejAmbient_to_abiReject
 
+private def lateZeroBlock (oB : Word) : Assertion :=
+  ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+  ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+  ((oB + 72) ↦ₘ (0 : Word))
+
+private def lateOwnBlock (oB : Word) : Assertion :=
+  memOwn (oB + 40) ** memOwn (oB + 48) ** memOwn (oB + 56) **
+  memOwn (oB + 64) ** memOwn (oB + 72)
+
+/-- A balance-station reject, including the still-zero nonce/code cells,
+    factors into the common ABI reject result. -/
+theorem balStationRej_to_abiReject
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h, balStationRej aB newSp oB aLen acctBytes
+        (laterFieldZeros oB F) h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfRejectResult aB newSp oB acctBytes F) h := by
+  intro h hp
+  unfold balStationRej laterFieldZeros at hp
+  have hq :
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) **
+       (lateZeroBlock oB **
+        (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+         memOwn (newSp + 48) ** memOwn (newSp + 56) **
+         memOwn (newSp + 64) ** memOwn (newSp + 72) **
+         memOwn oB ** memOwnU256 (oB + 8) **
+         regOwn .x19 ** regOwn .x20 ** regOwn .x11 ** regOwn .x12 **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+         bytesRegion aB acctBytes ** F))) h := by
+    unfold lateZeroBlock
+    xperm_hyp hp
+  have hAnchors : ∀ h',
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) h') →
+      (((regOwn .x8 ** regOwn .x9) ** regOwn .x18) h') :=
+    sepConj_mono (sepConj_mono (regIs_implies_regOwn .x8)
+      (regIs_implies_regOwn .x9)) (regIs_implies_regOwn .x18)
+  have hLate : ∀ h', lateZeroBlock oB h' → lateOwnBlock oB h' := by
+    unfold lateZeroBlock lateOwnBlock
+    exact sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))
+  have hq' := sepConj_mono hAnchors
+    (sepConj_mono hLate (fun _ hx => hx)) h hq
+  unfold lateOwnBlock memOwnU256 at hq'
+  rw [show (oB + 8) + 8 = oB + 16 from by bv_omega,
+      show (oB + 8) + 16 = oB + 24 from by bv_omega,
+      show (oB + 8) + 24 = oB + 32 from by bv_omega] at hq'
+  unfold bansfRejectResult
+  simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
+  xperm_hyp hq'
+
+#print axioms balStationRej_to_abiReject
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
