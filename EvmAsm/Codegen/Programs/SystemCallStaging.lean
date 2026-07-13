@@ -268,6 +268,26 @@ def builderContractAddrData : String :=
   "builder_exit_contract_addr:\n" ++
   "  .byte 0x00, 0x00, 0x64, 0xd6, 0x78, 0x50, 0x5a, 0xd4, 0x8f, 0x8c, 0xcb, 0x09, 0x3b, 0xc6, 0x56, 0x13, 0x80, 0x0e, 0x82, 0x82\n"
 
+/-! ## EIP-8282 builder request derivation
+
+The builder deposit and exit contracts use the same checked system-call path as
+the EIP-7002/7251 request predeploys. These thin adapters keep the ABI explicit:
+`a0=code`, `a1=code_len`, `a2=block_exec_payload`, `a3=staging_buffer`, and
+return `(return_data_ptr, return_data_len, status)`.
+-/
+
+def deriveBuilderDepositRequestsFunction : String :=
+  "derive_builder_deposit_requests:\n" ++
+  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
+  "  la a0, builder_deposit_contract_addr\n" ++
+  "  j stage_system_call\n"
+
+def deriveBuilderExitRequestsFunction : String :=
+  "derive_builder_exit_requests:\n" ++
+  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
+  "  la a0, builder_exit_contract_addr\n" ++
+  "  j stage_system_call\n"
+
 /-! ## derive_block_system_requests (8uld3.2.3/8uld3.4 verdict glue)
 
     Run BOTH system-call request derivations for a block — withdrawal (EIP-7002) then
@@ -329,10 +349,18 @@ def deriveBlockSystemRequestsData : String :=
   "dbsr_staging:\n  .zero 8\n" ++
   "dbsr_wlen:\n  .zero 8\n" ++
   "dbsr_clen:\n  .zero 8\n" ++
+  "dbsr_bdlen:\n  .zero 8\n" ++
+  "dbsr_belen:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "dbsr_wbody:\n  .zero 2048\n" ++
   ".balign 8\n" ++
   "dbsr_cbody:\n  .zero 2048\n"
+  ++ ".balign 8\n" ++
+  "dbsr_bdbody:\n  .zero 12288\n" ++
+  ".balign 8\n" ++
+  "dbsr_bebody:\n  .zero 2048\n" ++
+  "aer_bd_ptr:\n  .zero 8\naer_bd_len:\n  .zero 8\n" ++
+  "aer_be_ptr:\n  .zero 8\naer_be_len:\n  .zero 8\n"
 
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64

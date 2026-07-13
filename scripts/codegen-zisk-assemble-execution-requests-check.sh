@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # codegen-zisk-assemble-execution-requests-check.sh -- bead evm-asm-8uld3.4 (EIP-7685).
 #
-# assemble_execution_requests builds the SSZ ExecutionRequests section ([u32 off0][u32 off1]
-# [u32 off2][deposits][withdrawals][consolidations]) from the three execution-derived request
+# assemble_execution_requests builds the SSZ ExecutionRequests section ([u32 off0]...[u32 off4]
+# [deposits][withdrawals][consolidations][builder_deposits][builder_exits]) from the five execution-derived request
 # bodies, then execution_requests_hash computes the post-execution requests_hash =
 # SHA256(concat(SHA256(type||body) for each non-empty body)). This verifies the derived-from-
 # bodies path matches the EIP-7685 commitment.
@@ -28,34 +28,41 @@ lake exe codegen --program zisk_assemble_execution_requests --halt linux93 \
 
 REPO_ROOT="$(pwd)"
 
-# run_case <name> <n_deposit> <n_withdrawal> <n_consolidation>
+# run_case <name> <n_deposit> <n_withdrawal> <n_consolidation> <n_builder_deposit> <n_builder_exit>
 run_case() {
-  local name="$1" nd="$2" nw="$3" nc="$4"
+  local name="$1" nd="$2" nw="$3" nc="$4" nbd="$5" nbe="$6"
   local in_file="$REPO_ROOT/gen-out/zisk_aer_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_aer_${name}.output"
   local exp_file="$REPO_ROOT/gen-out/zisk_aer_${name}.expected"
 
-  ND="$nd" NW="$nw" NC="$nc" python3 -c "
+ND="$nd" NW="$nw" NC="$nc" NBD="$nbd" NBE="$nbe" python3 -c "
 import struct, sys, os, hashlib
-nd=int(os.environ['ND']); nw=int(os.environ['NW']); nc=int(os.environ['NC'])
-# DepositRequest=192, WithdrawalRequest=76, ConsolidationRequest=116 fixed-size SSZ elements.
+nd=int(os.environ['ND']); nw=int(os.environ['NW']); nc=int(os.environ['NC']); nbd=int(os.environ['NBD']); nbe=int(os.environ['NBE'])
+# DepositRequest=192, WithdrawalRequest=76, ConsolidationRequest=116,
+# BuilderDepositRequest=184, BuilderExitRequest=68 fixed-size SSZ elements.
 deposit       = bytes((0x11 + i) & 0xff for i in range(192*nd))
 withdrawal    = bytes((0x44 + i) & 0xff for i in range(76*nw))
 consolidation = bytes((0x77 + i) & 0xff for i in range(116*nc))
+builder_deposit = bytes((0x99 + i) & 0xff for i in range(184*nbd))
+builder_exit = bytes((0xbb + i) & 0xff for i in range(68*nbe))
 
 def sha(b): return hashlib.sha256(b).digest()
 digests = b''
 if len(deposit)       > 0: digests += sha(b'\\x00' + deposit)
 if len(withdrawal)    > 0: digests += sha(b'\\x01' + withdrawal)
 if len(consolidation) > 0: digests += sha(b'\\x02' + consolidation)
+if len(builder_deposit) > 0: digests += sha(b'\\x03' + builder_deposit)
+if len(builder_exit) > 0: digests += sha(b'\\x04' + builder_exit)
 req_hash = sha(digests)
-total = 12 + len(deposit) + len(withdrawal) + len(consolidation)
+total = 20 + len(deposit) + len(withdrawal) + len(consolidation) + len(builder_deposit) + len(builder_exit)
 
 with open(sys.argv[1],'wb') as f:
     f.write(struct.pack('<Q', len(deposit)))
     f.write(struct.pack('<Q', len(withdrawal)))
     f.write(struct.pack('<Q', len(consolidation)))
-    body = deposit + withdrawal + consolidation
+    f.write(struct.pack('<Q', len(builder_deposit)))
+    f.write(struct.pack('<Q', len(builder_exit)))
+    body = deposit + withdrawal + consolidation + builder_deposit + builder_exit
     f.write(body)
     pad = (-(32+len(body))) % 8
     if pad: f.write(b'\\x00'*pad)
@@ -81,14 +88,16 @@ with open(sys.argv[2],'wb') as f:
 }
 
 FAILED=0
-# all three request types present -> hash over 3 per-body digests.
-run_case "all_three"     1 1 1 || FAILED=1
+# all five request types present -> hash over 5 per-body digests.
+run_case "all_five"      1 1 1 1 1 || FAILED=1
 # deposits only (withdrawals/consolidations empty -> skipped) -> hash over 1 digest.
-run_case "deposit_only"  2 0 0 || FAILED=1
+run_case "deposit_only"  2 0 0 0 0 || FAILED=1
 # withdrawals + consolidations, no deposits.
-run_case "no_deposit"    0 1 2 || FAILED=1
-# all empty -> total=12, requests_hash = SHA256(b'').
-run_case "empty"         0 0 0 || FAILED=1
+run_case "no_deposit"    0 1 2 0 0 || FAILED=1
+# builder requests only.
+run_case "builders_only" 0 0 0 1 1 || FAILED=1
+# all empty -> total=20, requests_hash = SHA256(b'').
+run_case "empty"         0 0 0 0 0 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

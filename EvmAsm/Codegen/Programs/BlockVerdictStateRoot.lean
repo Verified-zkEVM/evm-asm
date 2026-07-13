@@ -659,6 +659,46 @@ def statelessVerdictV2Function : String :=
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
   ".Lc1_be_code_ok:\n" ++
+  -- EIP-8282: derive the builder deposit and builder exit request bodies through
+  -- the same checked system-call path. Their queues are preloaded from the BAL
+  -- exactly like the EIP-7002/7251 queues; empty return data is represented by
+  -- a zero body length and is therefore omitted by the five-field assembler.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_bd_derive_ready\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_bd_derive_ready:\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_bd_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_bd_code_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_bd_no_preload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, builder_deposit_contract_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_bd_addr:\n  beqz t3, .Lc1_bd_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_addr\n" ++
+  ".Lc1_bd_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_bd_call\n" ++
+  ".Lc1_bd_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_bd_call:\n  la t0, c1_bd_code_ptr; ld a0, 0(t0); la t0, c1_bd_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_deposit_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail; la t0, dbsr_bdlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bdbody; mv t3, a1\n" ++
+  ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
+  ".Lc1_bd_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- Builder exit.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_be_derive_ready\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len; jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_be_no_preload\n  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2); la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, builder_exit_contract_addr; la t2, sps_addr; li t3, 20\n  .Lc1_be_addr:\n  beqz t3, .Lc1_be_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_addr\n  .Lc1_be_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_be_call\n" ++
+  "  .Lc1_be_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
+  "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
   -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
   -- derives above run the predeploy through the dispatcher; when the (modified) predeploy
@@ -691,7 +731,7 @@ def statelessVerdictV2Function : String :=
   ".Lv2_er_deposits_ready:\n" ++
   "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
-  "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; addi t0, t0, 12\n" ++
+  "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; la t1, dbsr_bdlen; ld t1, 0(t1); add t0, t0, t1; la t1, dbsr_belen; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 20\n" ++
   "  li t1, " ++ toString bvMaxExecutionRequestSectionBytes ++ "; bgtu t0, t1, .Lv2_requests_hash_fail\n" ++
   "  la a6, c1_er_assembled\n" ++
   "  jal ra, assemble_execution_requests\n" ++

@@ -71,6 +71,8 @@ def statelessGuestUnit : BuildUnit := {
     deriveBlockSystemRequestsFunction ++ "\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
+    deriveBuilderDepositRequestsFunction ++ "\n" ++
+    deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     -- 8uld3.2.3.2 (B): link the EIP-6110 deposit-request derivation (parse_deposit_requests
