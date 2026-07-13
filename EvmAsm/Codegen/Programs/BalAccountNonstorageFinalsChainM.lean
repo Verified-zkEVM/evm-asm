@@ -1108,5 +1108,70 @@ theorem cpsBranchWithin_same_exit_to_triple
 
 #print axioms cpsBranchWithin_same_exit_to_triple
 
+/-- Unified B+736 post after all value stations and the success verdict stub. -/
+def valueStationsVerdictPost (aB newSp oB n3 l3 : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  valueStationsRej aB newSp oB n3 l3 aLen acctBytes F h ∨
+  bansfSuccessVerdictPost aB newSp oB aLen acctBytes F h
+
+/-- Run all value stations and the success verdict stub to their common
+    epilogue entry, with reject vs genuine semantic success explicit. -/
+theorem bansf_valueStationsVerdict_spec
+    (aB newSp oB : Word) (aLen : Nat) (b0 : BitVec 8)
+    (n0 l0 n1 l1 n2 l2 n3 l3 v19 v20 : Word)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true)
+    (hoff3 : (n2 - aB).toNat ≤ aLen)
+    (hPrefix : outerPrefix acctBytes aB aLen b0
+      n0 l0 n1 l1 n2 l2 n3 l3) :
+    cpsTripleWithin (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)
+      (B + 184) (B + 736) bansfCR
+      ((((.x10 : Reg) ↦ᵣ n3) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ l3) ** ((.x19 : Reg) ↦ᵣ v19) **
+        ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((newSp + 48) ↦ₘ n3) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** (oB ↦ₘ (0 : Word)) **
+        ((oB + 8) ↦ₘ (0 : Word)) ** ((oB + 16) ↦ₘ (0 : Word)) **
+        ((oB + 24) ↦ₘ (0 : Word)) ** ((oB + 32) ↦ₘ (0 : Word)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes **
+        laterFieldZeros oB F) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (valueStationsVerdictPost aB newSp oB n3 l3 aLen acctBytes F) := by
+  have hPrefix' := hPrefix
+  rcases hPrefix' with ⟨_, _, _, _, hdec3⟩
+  have hrep2 : n2 = aB + BitVec.ofNat 64 (n2 - aB).toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  have hdec3' : rlpItemDecode acctBytes (n2 - aB).toNat
+      (aB + BitVec.ofNat 64 (n2 - aB).toNat)
+      (aB + BitVec.ofNat 64 aLen) n3 l3 := by
+    convert hdec3 using 1
+    exact hrep2.symm
+  have hv := bansf_valueStations_spec aB newSp oB n3 l3 v19 v20 aLen
+    (n2 - aB).toNat acctBytes F hF hsalign hoalign hslack hover hvalid
+    hovout hovalid hoff3 hdec3'
+  have hs := bansf_successTail_semantic aB newSp oB aLen acctBytes F hF
+  have hbr := cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr hv
+    (nonceCodePost_to_successPost aB newSp oB aLen b0
+      n0 l0 n1 l1 n2 l2 n3 l3 acctBytes F hPrefix)
+    hs (fun _ hp => hp)
+  exact cpsBranchWithin_same_exit_to_triple hbr
+
+#print axioms bansf_valueStationsVerdict_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
