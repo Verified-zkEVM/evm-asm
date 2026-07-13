@@ -1320,6 +1320,56 @@ theorem codeTupleValOk_to_materializePre
 
 #print axioms codeTupleValOk_to_materializePre
 
+/-- Reframe the materialized code window as the found arm of the code station. -/
+theorem codeMaterialized_to_stationPost
+    (aB newSp oB n5 vNext vLen : Word) (aLen fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hFF : FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    ∀ h,
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x18 : Reg) ↦ᵣ oB) ** ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+       ((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((oB + 56) ↦ₘ (1 : Word)) **
+       ((oB + 64) ↦ₘ (vNext - vLen - aB)) ** ((oB + 72) ↦ₘ vLen) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+       memOwn (newSp + 72) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+       bytesRegion aB acctBytes ** F ** G ** ((newSp + 48) ↦ₘ n5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** regOwn .x19 ** regOwn .x20) h →
+      codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F h := by
+  intro h hp
+  have hp' :
+      (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x29 : Reg) ↦ᵣ (vNext - vLen - aB)) **
+       ((.x5 : Reg) ↦ᵣ (1 : Word)) **
+       (((.x8 : Reg) ↦ᵣ aB) ** ((.x18 : Reg) ↦ᵣ oB) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((oB + 56) ↦ₘ (1 : Word)) **
+        ((oB + 64) ↦ₘ (vNext - vLen - aB)) ** ((oB + 72) ↦ₘ vLen) **
+        ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+        memOwn (newSp + 72) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F ** G ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** regOwn .x19 ** regOwn .x20)) h := by
+    xperm_hyp hp
+  have hpOwn := sepConj_mono (regIs_implies_regOwn .x10)
+    (sepConj_mono (regIs_implies_regOwn .x11)
+      (sepConj_mono (regIs_implies_regOwn .x12)
+        (sepConj_mono (regIs_implies_regOwn .x29)
+          (sepConj_mono (regIs_implies_regOwn .x5) (fun _ x => x))))) h hp'
+  unfold codeStationPost
+  refine Or.inr ⟨vNext, vLen, (sepConj_pure_right h).2 ⟨?_, hFF⟩⟩
+  have h_off : BitVec.ofNat 64 (vNext - vLen - aB).toNat = vNext - vLen - aB := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  have h_len : BitVec.ofNat 64 vLen.toNat = vLen := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  rw [h_off, h_len]
+  xperm_hyp hpOwn
+
+#print axioms codeMaterialized_to_stationPost
+
 
 
 end BalAccountNonstorageFinalsSpec
