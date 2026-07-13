@@ -758,7 +758,7 @@ theorem codeFieldInitOk_to_cont580Pre (aB newSp oB n5 v19 v20 : Word)
 /-- Successful outer code-item continuation: capture its field span,
     initialize the field window, and run the complete code selector. -/
 theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
-    (aLen off : Nat) (n5 l5 v19 v20 : Word)
+    (aLen off : Nat) (n5 l5 spill5 v19 v20 : Word)
     (acctBytes : List (BitVec 8)) (G F : Assertion)
     (hG : G.pcFree) (hF : F.pcFree)
     (hsalign : aB.toNat % 8 = 0)
@@ -774,7 +774,7 @@ theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
       ((((.x10 : Reg) ↦ᵣ n5) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
        ((.x12 : Reg) ↦ᵣ l5) ** ((.x19 : Reg) ↦ᵣ v19) **
        ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
-       ((newSp + 48) ↦ₘ n5) **
+       ((newSp + 48) ↦ₘ spill5) **
        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
        memOwn (newSp + 64) ** memOwn (newSp + 72) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -786,7 +786,7 @@ theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
       (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
       (B + 724) (codeStationPost aB newSp oB aLen
-        ((n5 - l5 - aB).toNat) l5.toNat n5 acctBytes G F) := by
+        ((n5 - l5 - aB).toNat) l5.toNat spill5 acctBytes G F) := by
   refine cpsBranchWithin_of_forall_regIs_to_regOwn8
     (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
   obtain ⟨hrep, _, hspan⟩ := rlpItemDecode_spanStart hdec hoff (by omega)
@@ -794,7 +794,7 @@ theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
   have hcapL := liftCode (cr' := bansfCR) hcap
     (fun a i h => CodeReq.union_mono_left a i h)
   let T : Assertion :=
-    ((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 48) ↦ₘ n5) **
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 48) ↦ₘ spill5) **
     ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
     memOwn (newSp + 64) ** memOwn (newSp + 72) **
     ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
@@ -812,22 +812,22 @@ theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
     ((n5 - l5 - aB).toNat) l5 acctBytes v5 v6 v7 l5
     v28 v29 v30 v31 vRa F hF hsalign hslack hover hvalid hspan
   rw [← hrep] at hfi
-  let S : Assertion := codeFieldFrame aB newSp oB n5 (n5 - l5) l5 aLen G
+  let S : Assertion := codeFieldFrame aB newSp oB spill5 (n5 - l5) l5 aLen G
   have hfiF := cpsBranchWithin_frameR S
     (by dsimp only [S, codeFieldFrame]; pcf; exact hG; pcf) hfi
   have hfiW := cpsBranchWithin_weaken
     (Q_t' := codeStationRej aB newSp oB aLen acctBytes G F)
     (fun _ x => x)
-    (fun h hq => codeFieldInitReject_to_stationRej aB newSp oB n5
+    (fun h hq => codeFieldInitReject_to_stationRej aB newSp oB spill5
       (n5 - l5) l5 aLen acctBytes G F h
       (by dsimp only [S] at hq; exact hq))
     (fun _ x => x) hfiF
   have hc396 := bansf_codeStationCont580_spec aB newSp oB aLen
-    ((n5 - l5 - aB).toNat) l5.toNat n5 acctBytes G F hG hF
+    ((n5 - l5 - aB).toNat) l5.toNat spill5 acctBytes G F hG hF
     hsalign hslack hover hvalid (by omega)
   have hc396' := cpsBranchWithin_weaken
     (fun h hp => by
-      have hp' := codeFieldInitOk_to_cont580Pre aB newSp oB n5
+      have hp' := codeFieldInitOk_to_cont580Pre aB newSp oB spill5
         (n5 - l5) l5 aLen ((n5 - l5 - aB).toNat) l5.toNat
         acctBytes G F h hp
       unfold codeCont580Pre at hp'
