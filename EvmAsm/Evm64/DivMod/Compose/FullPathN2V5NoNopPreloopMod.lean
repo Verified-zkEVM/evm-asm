@@ -17,7 +17,7 @@ import EvmAsm.Evm64.DivMod.Compose.NormBV5Mod
 import EvmAsm.Evm64.DivMod.Compose.NormAV5Mod
 import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
 import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnified
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
 
 open EvmAsm.Rv64.Tactics
 

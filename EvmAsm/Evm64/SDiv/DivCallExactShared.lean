@@ -4,8 +4,7 @@ import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
-import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
-import EvmAsm.Evm64.SDiv.Compose.DispatchStackViews
+import EvmAsm.Evm64.SDiv.DispatchViewsShared
 import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
 import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
 import EvmAsm.Evm64.DivMod.CallableBzeroV4

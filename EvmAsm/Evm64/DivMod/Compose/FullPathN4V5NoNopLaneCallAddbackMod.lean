@@ -14,7 +14,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge

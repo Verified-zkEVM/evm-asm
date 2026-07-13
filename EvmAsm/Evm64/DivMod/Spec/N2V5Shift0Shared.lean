@@ -1,8 +1,8 @@
 /- Shared declaration home for the n=2 shift=0 quotient and remainder limbs. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
+import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 
 namespace EvmAsm.Evm64

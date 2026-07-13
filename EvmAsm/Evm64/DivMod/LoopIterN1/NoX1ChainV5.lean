@@ -20,7 +20,7 @@
   threads x1 (`loopN2UnifiedPostV5NoX1` + `N2V5CallableExact`).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeV5
+import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 
 namespace EvmAsm.Evm64
 

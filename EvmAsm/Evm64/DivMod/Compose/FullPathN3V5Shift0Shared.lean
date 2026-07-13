@@ -1,7 +1,7 @@
 /- Shared declaration home for the n=3 MOD shift=0 path and full path. -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopSelectedBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BorrowPreloopShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PathShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BridgeShift0
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod

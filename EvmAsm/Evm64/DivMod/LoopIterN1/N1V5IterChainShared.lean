@@ -6,7 +6,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.Spec.N1V5CodeQuotNoBorrow
+import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
