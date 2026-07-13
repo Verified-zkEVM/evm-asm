@@ -663,6 +663,78 @@ theorem frameRegs_implies_owned (s0 s1 : Word) : ∀ h,
     (sepConj_mono (regIs_implies_regOwn .x8)
       (regIs_implies_regOwn .x9)) h hp
 
+/-- Shared three-register ABI restore/deallocate/return tail (instructions
+    32--36), generic over the semantic result footprint. -/
+theorem restoreTail (sp0 newSp : Word) (saved : Saved)
+    (F : Assertion) (hF : F.pcFree)
+    (hnewSp : newSp = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin 5 (B + 128) saved.ra code
+      (((.x2 ↦ᵣ newSp) ** regsOwnAt frame ** savedFrame newSp saved) ** F)
+      (((.x2 ↦ᵣ sp0) ** regsAt frame (savedVals saved) **
+        savedFrame newSp saved) ** F) := by
+  have hl0 := loadSeq_spec_own frame newSp (savedVals saved)
+    (B + 128) (by decide) (by decide)
+  have hlMono : ∀ a i,
+      CodeReq.ofProg (B + 128) (loadProg frame) a = some i →
+        wrapperCode a = some i := by
+    intro a i hi
+    exact CodeReq.ofProg_mono_sub B (B + 128) rlpFieldToU64_prog
+      (loadProg frame) 32 (by bv_omega) (by rfl)
+      (by rw [program_length]; simp [frame])
+      (by rw [program_length]; decide) a i hi
+  have hl := cpsTripleWithin_extend_code hlMono hl0
+  rw [show B + 128 + BitVec.ofNat 64 (4 * frame.length) = B + 140 from by
+    simp [frame]; bv_omega] at hl
+  rw [frameSlotsSaved_frame] at hl
+  have hlF := cpsTripleWithin_frameR F hF hl
+  have hd0 := addi_spec_gen_same_within .x2 newSp (32 : BitVec 12) (B + 140)
+    (by decide)
+  rw [show newSp + signExtend12 (32 : BitVec 12) = sp0 from by
+    rw [hnewSp]
+    exact sext_frameRestore sp0 (-32 : BitVec 12) (32 : BitVec 12) (by decide)] at hd0
+  have hd := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 140) rlpFieldToU64_prog 35
+      (.ADDI .x2 .x2 (32 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hd0
+  have hdF := cpsTripleWithin_frameR
+    (regsAt frame (savedVals saved) ** savedFrame newSp saved ** F)
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_regsAt _ _
+      · apply pcFree_sepConj
+        · unfold savedFrame; pcf
+        · exact hF) hd
+  have hr0 := EvmAsm.Evm64.ret_spec_within' (B + 144) saved.ra
+  rw [hret] at hr0
+  have hr := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 144) rlpFieldToU64_prog 36
+      (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hr0
+  have hrF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+      savedFrame newSp saved) ** F) (by
+        apply pcFree_sepConj
+        · exact pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_regIs (by unfold savedFrame; pcf)))
+        · exact hF) hr
+  have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlF hdF
+  have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    rw [regsAt_frame] at hp
+    xperm_hyp hp) h12 hrF
+  have hlocal := cpsTripleWithin_weaken
+    (P' := (((.x2 ↦ᵣ newSp) ** regsOwnAt frame ** savedFrame newSp saved) ** F))
+    (Q' := (((.x2 ↦ᵣ sp0) ** regsAt frame (savedVals saved) **
+      savedFrame newSp saved) ** F))
+    (fun _ hp => by xperm_hyp hp)
+    (fun h hp => by rw [regsAt_frame]; xperm_hyp hp) h123
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hlocal
+
+#print axioms restoreTail
+
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
 
