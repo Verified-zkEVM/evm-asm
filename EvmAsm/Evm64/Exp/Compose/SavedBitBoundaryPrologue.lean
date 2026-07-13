@@ -5,7 +5,7 @@
   two-MUL saved-bit EXP code bundle.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitWithMul
+import EvmAsm.Evm64.Exp.SavedBitWithMulCondMarshalShared
 import EvmAsm.Evm64.Exp.AddrNorm
 import EvmAsm.Rv64.Tactics.XCancelStruct
 

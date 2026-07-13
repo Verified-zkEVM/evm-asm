@@ -7,7 +7,7 @@
 -- Foundations (Basic and Stack are transitively imported by every
 -- opcode Program file via Stack → Basic).
 import EvmAsm.Evm64.CodeRegion
-import EvmAsm.Evm64.SpAddr
+import EvmAsm.Evm64.Stack
 
 -- Accelerator C ABI bridges (zkvm_accelerators.h)
 import EvmAsm.Evm64.Accelerators.Types
@@ -17,21 +17,21 @@ import EvmAsm.Evm64.Accelerators.Dispatch
 import EvmAsm.Evm64.Accelerators.Coverage
 
 -- Stack operations
-import EvmAsm.Evm64.Pop
-import EvmAsm.Evm64.Push0
+import EvmAsm.Evm64.Pop.Spec
+import EvmAsm.Evm64.Push0.Spec
 import EvmAsm.Evm64.Push
-import EvmAsm.Evm64.Dup
-import EvmAsm.Evm64.Swap
+import EvmAsm.Evm64.Dup.Spec
+import EvmAsm.Evm64.Swap.Spec
 
 -- Bitwise operations
-import EvmAsm.Evm64.And
-import EvmAsm.Evm64.Or
-import EvmAsm.Evm64.Xor
-import EvmAsm.Evm64.Not
+import EvmAsm.Evm64.And.Spec
+import EvmAsm.Evm64.Or.Spec
+import EvmAsm.Evm64.Xor.Spec
+import EvmAsm.Evm64.Not.Spec
 
 -- Arithmetic (Add.Spec transitively imports EvmWordArith)
-import EvmAsm.Evm64.Add
-import EvmAsm.Evm64.Sub
+import EvmAsm.Evm64.Add.Spec
+import EvmAsm.Evm64.Sub.Spec
 
 -- EvmWordArith umbrella — pulls in helpers used by DivMod V4.
 -- Most leaves are already transitively reached via Add/DivMod; this
@@ -40,27 +40,26 @@ import EvmAsm.Evm64.Sub
 import EvmAsm.Evm64.EvmWordArith
 
 -- Comparisons (Lt.Spec transitively imports Compare.LimbSpec)
-import EvmAsm.Evm64.Lt
-import EvmAsm.Evm64.Gt
-import EvmAsm.Evm64.Eq
-import EvmAsm.Evm64.IsZero
-import EvmAsm.Evm64.Slt
-import EvmAsm.Evm64.Sgt
+import EvmAsm.Evm64.Lt.Spec
+import EvmAsm.Evm64.Gt.Spec
+import EvmAsm.Evm64.Eq.Spec
+import EvmAsm.Evm64.IsZero.Spec
+import EvmAsm.Evm64.Slt.Spec
+import EvmAsm.Evm64.Sgt.Spec
 
 -- Shifts
 import EvmAsm.Evm64.Shift
 
 -- Byte and SignExtend
-import EvmAsm.Evm64.Byte
-import EvmAsm.Evm64.SignExtend
+import EvmAsm.Evm64.Byte.Spec
+import EvmAsm.Evm64.SignExtend.Spec
 
 -- Multiply
 import EvmAsm.Evm64.Multiply
 
 -- Exp (skeleton — GH #92, square-and-multiply over 256-bit exponent)
 import EvmAsm.Evm64.Exp
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
-import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
+import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
 import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 
 -- DivMod (Knuth Algorithm D)
@@ -73,8 +72,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
 
 -- SDIV / SMOD skeletons (GH #90, signed division/modulo)
 import EvmAsm.Evm64.SDiv
-import EvmAsm.Evm64.SDiv.Spec
-import EvmAsm.Evm64.SDiv.SpecSemantic
+import EvmAsm.Evm64.SDiv.SpecShared
 import EvmAsm.Evm64.SDiv.SpecResultBranches
 import EvmAsm.Evm64.SMod
 
@@ -191,8 +189,8 @@ import EvmAsm.Evm64.LogArgsGas
 import EvmAsm.Evm64.TerminatingGas
 import EvmAsm.Evm64.EvmState
 import EvmAsm.Evm64.Termination
-import EvmAsm.Evm64.MSize
-import EvmAsm.Evm64.MStore8
+import EvmAsm.Evm64.MSize.Program
+import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.MStore
 import EvmAsm.Evm64.MLoad
 

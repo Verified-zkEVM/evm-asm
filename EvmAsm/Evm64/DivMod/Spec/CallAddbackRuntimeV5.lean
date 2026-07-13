@@ -25,7 +25,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 
 namespace EvmAsm.Evm64
 
