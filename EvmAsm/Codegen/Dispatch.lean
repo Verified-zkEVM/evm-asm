@@ -1799,7 +1799,7 @@ def dispatcherTxGasSettle_prog : Program :=
     .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .LD .x29 .x31 (0 : BitVec 12),
-    .SD .x30 .x0 (0 : BitVec 12),
+    .SD .x30 .x28 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
     .BGEU .x29 .x28 (16 : BitVec 13),
     .SUB .x28 .x28 .x29,
