@@ -925,6 +925,77 @@ theorem nonceFieldInitReject_to_stationRej (aB newSp oB n4 v19 v20 : Word)
 
 #print axioms nonceFieldInitReject_to_stationRej
 
+/-- Untouched nonce-station state framed around the field initializer. -/
+def nonceFieldFrame (aB newSp oB n4 v19 v20 : Word) (aLen : Nat)
+    (G : Assertion) : Assertion :=
+  G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+  ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+  ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+  ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+  memOwn (newSp + 64) ** memOwn (newSp + 72) **
+  ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+  ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+  ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)
+
+/-- Existential precondition consumed by the continuation at B + 396. -/
+def nonceCont396Pre (aB newSp oB n4 : Word) (aLen fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  fun h => ∃ cOff : Nat,
+    ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+      ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+      ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) **
+      ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+      (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)) **
+     ⌜FieldInitOk acctBytes fOff fSpanN cOff⌝) h
+
+/-- Reframe a successful nonce-field initialization as the exact B + 396
+    continuation precondition. -/
+theorem nonceFieldInitOk_to_cont396Pre (aB newSp oB n4 v19 v20 : Word)
+    (aLen fOff fSpanN : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (fieldInitPost aB fOff fSpanN acctBytes (B + 388 + 4) F **
+       nonceFieldFrame aB newSp oB n4 v19 v20 aLen G) h →
+      nonceCont396Pre aB newSp oB n4 aLen fOff fSpanN acctBytes G F h := by
+  intro h hp
+  unfold fieldInitPost at hp
+  obtain ⟨cOff, hpC⟩ := (sepConj_exists_left h).1 hp
+  have hp' :
+      (((((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+        (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+         ((.x12 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 **
+         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x1 : Reg) ↦ᵣ (B + 388 + 4)) ** bytesRegion aB acctBytes ** F **
+         ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+         memOwn (newSp + 72) ** ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** G **
+         ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)))) **
+       ⌜FieldInitOk acctBytes fOff fSpanN cOff⌝) h := by
+    unfold nonceFieldFrame at hpC
+    xperm_hyp hpC
+  obtain ⟨hat, hok⟩ := (sepConj_pure_right h).1 hp'
+  have hatOwn := sepConj_mono
+    (sepConj_mono (regIs_implies_regOwn .x19) (regIs_implies_regOwn .x20))
+    (fun _ x => x) h hat
+  unfold nonceCont396Pre
+  refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
+  xperm_hyp hatOwn
+
+#print axioms nonceFieldInitOk_to_cont396Pre
 
 
 end BalAccountNonstorageFinalsSpec
