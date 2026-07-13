@@ -1267,6 +1267,59 @@ theorem bansf_codeTupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
 
 #print axioms bansf_codeTupleItem1_spec
 
+/-- Reframe a successful code tuple value decode as the materialization-tail
+    precondition, retaining its decode derivation. -/
+theorem codeTupleValOk_to_materializePre
+    (aB newSp oB n5 : Word) (aLen tEnd off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (tupleValOk aB newSp tEnd off acctBytes F **
+       (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h →
+      (∃ vNext vLen : Word,
+        (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ vLen) ** ((.x8 : Reg) ↦ᵣ aB) **
+           ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x29 ** regOwn .x5 **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word))) **
+          (((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+           memOwn (newSp + 72) ** regOwn .x6 ** regOwn .x7 **
+           regOwn .x28 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+           bytesRegion aB acctBytes ** F ** G ** ((newSp + 48) ↦ₘ n5) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           regOwn .x19 ** regOwn .x20)) **
+         ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+           (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h) := by
+  intro h hp
+  unfold tupleValOk at hp
+  obtain ⟨vNext, hpN⟩ := (sepConj_exists_left h).1 hp
+  obtain ⟨vLen, hpV⟩ := (sepConj_exists_left h).1 hpN
+  have hp' :
+      (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x12 : Reg) ↦ᵣ vLen) ** ((.x8 : Reg) ↦ᵣ aB) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x29 ** regOwn .x5 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word))) **
+        (((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+         memOwn (newSp + 72) ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x28 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+         bytesRegion aB acctBytes ** F ** G ** ((newSp + 48) ↦ₘ n5) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         regOwn .x19 ** regOwn .x20)) **
+       ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+         (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h := by
+    xperm_hyp hpV
+  exact ⟨vNext, vLen, hp'⟩
+
+#print axioms codeTupleValOk_to_materializePre
+
 
 
 end BalAccountNonstorageFinalsSpec
