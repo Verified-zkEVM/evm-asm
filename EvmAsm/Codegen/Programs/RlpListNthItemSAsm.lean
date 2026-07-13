@@ -2729,4 +2729,368 @@ theorem preTailRejected_implies_result
 
 #print axioms preTailRejected_implies_result
 
+def rejectedExpanded (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ oldA0 v11 v12 s4 s5,
+    (((regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+       (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+       (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5)) **
+      ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+       (.x10 ↦ᵣ oldA0) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))) **
+     ⌜Failure bytes listBase listLen index⌝) h
+
+/-- Both initialization and scan failures expose the same owned ABI station. -/
+theorem preTailRejected_to_expanded
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : ∀ h,
+    preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+      bytes listLen index h →
+    rejectedExpanded newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+      bytes listLen index h := by
+  intro h hp
+  have hfailure := preTailRejected_implies_failure newSp listBase indexW offsetPtr
+    lenPtr oldOffset oldLen saved bytes listLen index h hp
+  unfold preTailRejected at hp
+  unfold rejectedExpanded
+  rcases hp with hscan | hinit
+  · unfold scanRejected at hscan
+    obtain ⟨cursorOff, endPtr, hscan⟩ := hscan
+    have hscanOrig := hscan
+    obtain ⟨hleft, _hlist⟩ := (sepConj_pure_right h).1 hscan
+    obtain ⟨ha, hb, hd, hu, hloop, hregs⟩ := hleft
+    unfold loopRejected at hloop
+    obtain ⟨count, off, status, hstate⟩ := hloop
+    refine ⟨listBase + BitVec.ofNat 64 off, status, 0,
+      endPtr, BitVec.ofNat 64 count, (sepConj_pure_right h).2 ⟨?_, hfailure⟩⟩
+    drop_pure hstate
+    unfold loopFrame stableFrame stableRest at hstate
+    let R : Assertion :=
+      (regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+       (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+       (.x20 ↦ᵣ endPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 count)) **
+      ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+       (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** regOwn .x5 **
+       regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ status) **
+       (.x12 ↦ᵣ (0 : Word)) ** regOwn .x28 ** regOwn .x29 **
+       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes ** (offsetPtr ↦ₘ oldOffset) **
+       (lenPtr ↦ₘ oldLen))
+    have hlocal : R ha := by
+      unfold R
+      xperm_hyp hstate
+    have hjoined : (R ** (regOwn .x13 ** regOwn .x14)) h :=
+      ⟨ha, hb, hd, hu, hlocal, hregs⟩
+    unfold R at hjoined
+    xperm_hyp hjoined
+  · unfold initRejected at hinit
+    obtain ⟨status, cursor, endPtr, hinit⟩ := hinit
+    have hinitOrig := hinit
+    refine ⟨cursor, endPtr, status, saved.s4, saved.s5,
+      (sepConj_pure_right h).2 ⟨?_, hfailure⟩⟩
+    unfold initStable initCommon at hinitOrig
+    drop_pure hinitOrig
+    let R : Assertion :=
+      ((.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) ** (.x18 ↦ᵣ offsetPtr) **
+       (.x19 ↦ᵣ lenPtr) ** (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)) **
+      ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved ** (.x10 ↦ᵣ cursor) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ status) ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+    have hgroup :
+        ((((.x1 ↦ᵣ (B + 52)) ** (.x13 ↦ᵣ offsetPtr) **
+          (.x14 ↦ᵣ lenPtr)) ** R) h) := by
+      unfold R
+      xperm_hyp hinitOrig
+    have howned := sepConj_mono_left
+      (sepConj_mono (regIs_implies_regOwn .x1)
+        (sepConj_mono (regIs_implies_regOwn .x13)
+          (regIs_implies_regOwn .x14))) h hgroup
+    unfold R at howned
+    xperm_hyp howned
+
+#print axioms preTailRejected_to_expanded
+
+/-- Run the one-instruction failure tail and fold its status into `Result.fail`. -/
+theorem rejectedExpandedToJoin
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsTripleWithin 1 (B + 112) (B + 116) code
+      (rejectedExpanded newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  unfold rejectedExpanded
+  refine cpsTripleWithin_exists_assertion (fun oldA0 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun v11 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun v12 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun s4 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun s5 => ?_)
+  let Pbody : Assertion :=
+    (regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+     (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) ** (.x20 ↦ᵣ s4) **
+     (.x21 ↦ᵣ s5)) **
+    ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+     (.x10 ↦ᵣ oldA0) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+  refine cpsTripleWithin_weaken
+    (P := ⌜Failure bytes listBase listLen index⌝ ** Pbody)
+    (fun h hp => by unfold Pbody; xperm_hyp hp) (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hfailure => ?_)
+  let F : Assertion :=
+    (regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+     (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) ** (.x20 ↦ᵣ s4) **
+     (.x21 ↦ᵣ s5)) **
+    ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved ** regOwn .x5 ** regOwn .x6 **
+     regOwn .x7 ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 **
+     regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+     regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+  have ht := cpsTripleWithin_frameR F (by unfold F savedFrame; pcf)
+    (rejectedTailCore oldA0)
+  exact cpsTripleWithin_weaken
+    (fun h hp => by unfold F; xperm_hyp hp)
+    (fun h hp => by
+      unfold F at hp
+      have hexplicit :
+          ((regOwn .x1 ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+             (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+             (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5)) **
+           ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+            (.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+            (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))) h := by
+        xperm_hyp hp
+      have howned := sepConj_mono_left
+        (listNthFrameRegs_implies_owned listBase indexW offsetPtr lenPtr s4 s5)
+        h hexplicit
+      unfold joinResult
+      refine ⟨1, oldOffset, oldLen, v11, v12,
+        (sepConj_pure_right h).2 ⟨?_, .fail hfailure⟩⟩
+      xperm_hyp howned) ht
+
+#print axioms rejectedExpandedToJoin
+
+theorem rejectedToJoin
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsTripleWithin 1 (B + 112) (B + 116) code
+      (preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  exact cpsTripleWithin_weaken
+    (preTailRejected_to_expanded newSp listBase indexW offsetPtr lenPtr oldOffset
+      oldLen saved bytes listLen index)
+    (fun _ hq => hq)
+    (rejectedExpandedToJoin newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index)
+
+#print axioms rejectedToJoin
+
+/-- Initialization, strict child scan, and both semantic tails reconverge at
+    the single ABI restore join. -/
+theorem initScanToJoinExact
+    (newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin ((85 + 93 * (index + 2)) + 6) (B + 48) (B + 116) code
+      (((.x1 ↦ᵣ saved.ra) **
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
+         (.x12 ↦ᵣ indexW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+         (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+         (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes)) **
+       (initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  have hscan := initAndScanExact newSp listBase listLenW indexW offsetPtr lenPtr
+    oldOffset oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31
+    hlistLenW hindexW hindex hsalign hslack hover hvalid
+  have hbranch := cpsBranchWithin_of_nBranch2 hscan
+  have hrejected : cpsTripleWithin 6 (B + 112) (B + 116) code
+      (preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := cpsTripleWithin_mono_nSteps (by omega)
+      (rejectedToJoin newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+  exact cpsBranchWithin_merge_same_cr hbranch
+    (selectedToJoin newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+      bytes listLen index) hrejected
+
+#print axioms initScanToJoinExact
+
+def returnResult (sp0 newSp listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ status offset len v11 v12,
+    ((((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+       savedFrame newSp saved) **
+      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+     ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝) h
+
+/-- The common join restores the seven callee-saved registers and returns while
+    preserving the semantic result and all caller-visible memory. -/
+theorem joinToReturn
+    (sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin 9 (B + 116) saved.ra code
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index)
+      (returnResult sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  unfold joinResult
+  refine cpsTripleWithin_exists_assertion (fun status => ?_)
+  refine cpsTripleWithin_exists_assertion (fun offset => ?_)
+  refine cpsTripleWithin_exists_assertion (fun len => ?_)
+  refine cpsTripleWithin_exists_assertion (fun v11 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun v12 => ?_)
+  let F : Assertion :=
+    (.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+    (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len)
+  refine cpsTripleWithin_weaken
+    (P := ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝ **
+      (((.x2 ↦ᵣ newSp) ** regsOwnAt listNthFrame ** savedFrame newSp saved) ** F))
+    (fun h hp => by unfold F; xperm_hyp hp) (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hresult => ?_)
+  have he := epilogueOwned sp0 newSp saved F (by unfold F; pcf) hnewSp hret
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
+    unfold F at hp
+    unfold returnResult
+    refine ⟨status, offset, len, v11, v12,
+      (sepConj_pure_right h).2 ⟨?_, hresult⟩⟩
+    xperm_hyp hp) he
+
+#print axioms joinToReturn
+
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn7
+    {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {r1 r2 r3 r4 r5 r6 r7 : Reg} {P Q : Assertion}
+    (hspec : ∀ v1 v2 v3 v4 v5 v6 v7, cpsTripleWithin n entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) **
+       (r4 ↦ᵣ v4) ** (r5 ↦ᵣ v5) ** (r6 ↦ᵣ v6) ** (r7 ↦ᵣ v7)) Q) :
+    cpsTripleWithin n entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 **
+       regOwn r5 ** regOwn r6 ** regOwn r7) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPOwn, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP, hO1⟩ := hPOwn
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v5, hv5⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v6, hv6⟩, ⟨v7, hv7⟩⟩ := hO6
+  exact hspec v1 v2 v3 v4 v5 v6 v7 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP, g2, g3, d2, u2, hv1,
+       g4, g5, d3, u3, hv2, g6, g7, d4, u4, hv3,
+       g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
+       g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
+
+/-- Expose arbitrary setup scratch values, then run the complete strict core. -/
+theorem setupToJoin
+    (newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin ((85 + 93 * (index + 2)) + 6) (B + 48) (B + 116) code
+      (setupPost newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes)
+      (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  let P : Assertion :=
+    (.x1 ↦ᵣ saved.ra) ** (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
+    (.x12 ↦ᵣ indexW) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+    initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+    (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)
+  have hvalues : ∀ v5 v6 v7 v28 v29 v30 v31,
+      cpsTripleWithin ((85 + 93 * (index + 2)) + 6) (B + 48) (B + 116) code
+        (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+          (.x31 ↦ᵣ v31))
+        (joinResult newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+          bytes listLen index) := by
+    intro v5 v6 v7 v28 v29 v30 v31
+    exact cpsTripleWithin_weaken (fun h hp => by unfold P at hp; xperm_hyp hp)
+      (fun _ hq => hq)
+      (initScanToJoinExact newSp listBase listLenW indexW offsetPtr lenPtr oldOffset
+        oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31 hlistLenW
+        hindexW hindex hsalign hslack hover hvalid)
+  have howned := cpsTripleWithin_of_forall_regIs_to_regOwn7 hvalues
+  exact cpsTripleWithin_weaken (fun h hp => by
+    unfold setupPost entryRest at hp
+    unfold P initStable
+    xperm_hyp hp) (fun _ hq => hq) howned
+
+#print axioms setupToJoin
+
+/-- Unified whole-routine contract for the strict, spec-aligned K20 replacement.
+    Preconditions are entirely static; success, parse rejection, and OOB are
+    classified by the single genuine `Result` relation in the postcondition. -/
+theorem rlpListNthItem_spec_within
+    (sp0 newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin
+      ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+      B saved.ra code
+      ((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
+       frameSlotsOwn listNthFrame newSp **
+       entryRest listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen bytes)
+      (returnResult sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  have hp := wrapperPrologue sp0 newSp listBase listLenW indexW offsetPtr lenPtr
+    oldOffset oldLen saved bytes hnewSp
+  have hc := setupToJoin newSp listBase listLenW indexW offsetPtr lenPtr oldOffset
+    oldLen saved bytes listLen index hlistLenW hindexW hindex hsalign hslack hover
+    hvalid
+  have he := joinToReturn sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+    saved bytes listLen index hnewSp hret
+  exact cpsTripleWithin_seq_same_cr (cpsTripleWithin_seq_same_cr hp hc) he
+
+#print axioms rlpListNthItem_spec_within
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
