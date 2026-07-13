@@ -2301,4 +2301,65 @@ theorem scanFromInit
 
 #print axioms scanFromInit
 
+def preTailRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h =>
+    scanRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved bytes
+      listLen index h ∨
+    initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved bytes
+      listLen index h
+
+/-- Exact-register entry through initialization and the complete strict scan. -/
+theorem initAndScanExact
+    (newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsNBranchWithin (85 + 93 * (index + 2)) (B + 48) code
+      (((.x1 ↦ᵣ saved.ra) **
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
+         (.x12 ↦ᵣ indexW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+         (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+         (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes)) **
+       (initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))
+      [(B + 88, scanSelected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index),
+       (B + 112, preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index)] := by
+  have hi := initCallDispatchExact newSp listBase listLenW indexW offsetPtr lenPtr
+    oldOffset oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31
+    hlistLenW hsalign hslack hover hvalid
+  have hs := scanFromInit newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+    saved bytes listLen index hindexW hindex hsalign hslack hover hvalid
+  have hc := cpsNBranchWithin_extend_head_nbranch hi hs
+  exact cpsNBranchWithin_weaken_posts hc (by
+    intro ex hex
+    simp only [List.mem_append, List.mem_cons] at hex
+    rcases hex with (rfl | rfl | hf) | (rfl | hf)
+    · exact ⟨(B + 88, scanSelected newSp listBase indexW offsetPtr lenPtr oldOffset
+          oldLen saved bytes listLen index), by simp, rfl, fun _ hp => hp⟩
+    · refine ⟨(B + 112, preTailRejected newSp listBase indexW offsetPtr lenPtr
+          oldOffset oldLen saved bytes listLen index), by simp, rfl, ?_⟩
+      intro h hp
+      unfold preTailRejected
+      exact Or.inl hp
+    · exact absurd hf List.not_mem_nil
+    · refine ⟨(B + 112, preTailRejected newSp listBase indexW offsetPtr lenPtr
+          oldOffset oldLen saved bytes listLen index), by simp, rfl, ?_⟩
+      intro h hp
+      unfold preTailRejected
+      exact Or.inr hp
+    · exact absurd hf List.not_mem_nil)
+
+#print axioms initAndScanExact
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
