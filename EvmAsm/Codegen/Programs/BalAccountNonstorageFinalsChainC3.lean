@@ -1451,5 +1451,23 @@ theorem bansf_codeEmpty145_code :
 
 #print axioms bansf_codeEmpty145_code
 
+/-- Concrete code witnesses for the station-3 loop-entry spills. -/
+theorem bansf_codeLoopEntry_code :
+    (∀ a i, CodeReq.singleton (B + 584) (.SD .x2 .x10 (64 : BitVec 12)) a = some i →
+      bansfCR a = some i) ∧
+    (∀ a i, CodeReq.singleton (B + 588) (.SD .x2 .x11 (72 : BitVec 12)) a = some i →
+      bansfCR a = some i) := by
+  constructor
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 584) bansfProg 146 (.SD .x2 .x10 (64 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+  · intro a i h
+    exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 588) bansfProg 147 (.SD .x2 .x11 (72 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+
+#print axioms bansf_codeLoopEntry_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
