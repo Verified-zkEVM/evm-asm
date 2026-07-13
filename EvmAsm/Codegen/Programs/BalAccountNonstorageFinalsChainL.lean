@@ -199,5 +199,56 @@ theorem codeItemSuccess_to_cont556Pre
 
 #print axioms codeItemSuccess_to_cont556Pre
 
+/-- Successful final outer-item decode, with spill 48 unchanged. -/
+def codeItemFinalOk (aB newSp spill5 : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  fun h => ∃ next len : Word,
+    ((((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ len) ** ((.x2 : Reg) ↦ᵣ newSp) **
+      ((newSp + 48) ↦ₘ spill5) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+      bytesRegion aB acctBytes ** F) **
+     ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+       (aB + BitVec.ofNat 64 aLen) next len⌝) h
+
+/-- Expose a final-item success as the corrected continuation precondition. -/
+theorem codeItemFinalOk_to_cont556Pre
+    (aB newSp oB spill5 v19 v20 : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (codeItemFinalOk aB newSp spill5 aLen off acctBytes F **
+       (G ** memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** ((.x19 : Reg) ↦ᵣ v19) **
+        ((.x20 : Reg) ↦ᵣ v20) ** ((oB + 56) ↦ₘ (0 : Word)) **
+        ((oB + 64) ↦ₘ (0 : Word)) ** ((oB + 72) ↦ₘ (0 : Word)))) h →
+      (∃ next len : Word,
+        (((((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ len) ** ((.x19 : Reg) ↦ᵣ v19) **
+          ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+          ((newSp + 48) ↦ₘ spill5) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) ** G ** ((oB + 56) ↦ₘ (0 : Word)) **
+          ((oB + 64) ↦ₘ (0 : Word)) ** ((oB + 72) ↦ₘ (0 : Word)) **
+          bytesRegion aB acctBytes ** F) ** regOwn .x5 ** regOwn .x6 **
+         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** regOwn .x1) **
+        ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+          (aB + BitVec.ofNat 64 aLen) next len⌝) h) := by
+  intro h hp
+  unfold codeItemFinalOk at hp
+  obtain ⟨next, hpN⟩ := (sepConj_exists_left h).1 hp
+  obtain ⟨len, hpL⟩ := (sepConj_exists_left h).1 hpN
+  refine ⟨next, len, ?_⟩
+  xperm_hyp hpL
+
+#print axioms codeItemFinalOk_to_cont556Pre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
