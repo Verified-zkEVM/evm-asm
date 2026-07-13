@@ -1037,5 +1037,21 @@ theorem finalOutBlock_pcFree (acctBytes : List (BitVec 8)) (aB oB : Word)
 
 #print axioms finalOutBlock_pcFree
 
+/-- The semantic success remainder is PC-free when its ambient assertion is. -/
+theorem bansfSuccessRest_pcFree
+    (aB newSp oB : Word) (aLen : Nat) (acctBytes : List (BitVec 8))
+    (F : Assertion) (hF : F.pcFree) :
+    (bansfSuccessRest aB newSp oB aLen acctBytes F).pcFree := by
+  letI : Assertion.PCFree F := ⟨hF⟩
+  intro h hp
+  unfold bansfSuccessRest at hp
+  obtain ⟨out, spill, hp⟩ := hp
+  obtain ⟨hCore, _⟩ := (sepConj_pure_right h).1 hp
+  letI : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
+    ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
+  exact (inferInstance : Assertion.PCFree _).proof h hCore
+
+#print axioms bansfSuccessRest_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
