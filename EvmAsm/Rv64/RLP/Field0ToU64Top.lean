@@ -324,4 +324,80 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
 
 #print axioms rlp_field0_to_u64_next_outcome_exact_spec_within
 
+/-- Introduce the seven scratch-register values owned by the walk-next
+continuation.  This local adapter keeps the generic SAsm framework unchanged. -/
+private theorem field0_ownify7
+    {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {r1 r2 r3 r4 r5 r6 r7 : Reg} {P Q : Assertion}
+    (hspec : ∀ v1 v2 v3 v4 v5 v6 v7, cpsTripleWithin n entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) **
+       (r4 ↦ᵣ v4) ** (r5 ↦ᵣ v5) ** (r6 ↦ᵣ v6) ** (r7 ↦ᵣ v7)) Q) :
+    cpsTripleWithin n entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 **
+       regOwn r5 ** regOwn r6 ** regOwn r7) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPOwn, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP, hO1⟩ := hPOwn
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v5, hv5⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v6, hv6⟩, ⟨v7, hv7⟩⟩ := hO6
+  exact hspec v1 v2 v3 v4 v5 v6 v7 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP, g2, g3, d2, u2, hv1,
+       g4, g5, d3, u3, hv2, g6, g7, d4, u4, hv3,
+       g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
+       g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
+
+/-- The walk-next continuation consumes only ownership of its seven scratch
+registers, matching the post exported by the call-composition theorem. -/
+theorem rlp_field0_to_u64_next_outcome_spec_within
+    (base srcBase savedRa : Word) (srcBytes : List (BitVec 8))
+    (itemOff endOff : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : endOff + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hoff : itemOff ≤ endOff) :
+    cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (rlpField0NextCommon base srcBase savedRa srcBytes **
+       rlpField0NextOutcome srcBase (srcBase + BitVec.ofNat 64 endOff)
+         srcBytes itemOff)
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+        savedRa srcBytes) := by
+  let P : Assertion :=
+    (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 16)) ** (.x13 ↦ᵣ savedRa) **
+    bytesRegion srcBase srcBytes **
+    rlpField0NextOutcome srcBase (srcBase + BitVec.ofNat 64 endOff)
+      srcBytes itemOff
+  have hs : ∀ v5 v6 v7 v28 v29 v30 v31,
+      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+         (.x31 ↦ᵣ v31))
+        (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+          savedRa srcBytes) := by
+    intro v5 v6 v7 v28 v29 v30 v31
+    exact cpsTripleWithin_weaken (fun h hp => by
+      dsimp only [P] at hp
+      xperm_hyp hp) (fun _ hp => hp)
+      (rlp_field0_to_u64_next_outcome_exact_spec_within
+        base srcBase savedRa v5 v6 v7 v28 v29 v30 v31 srcBytes
+        itemOff endOff hbase0 hsalign hslack hover hvalid hoff)
+  have ho := field0_ownify7
+    (r1 := .x5) (r2 := .x6) (r3 := .x7) (r4 := .x28)
+    (r5 := .x29) (r6 := .x30) (r7 := .x31) hs
+  exact cpsTripleWithin_weaken (fun h hp => by
+    unfold rlpField0NextCommon rlpField0NextCalleeCommon at hp
+    dsimp only [P]
+    xperm_hyp hp) (fun _ hp => hp) ho
+
+#print axioms rlp_field0_to_u64_next_outcome_spec_within
+
 end EvmAsm.Rv64.RLP
