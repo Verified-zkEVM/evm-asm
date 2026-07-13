@@ -1088,6 +1088,160 @@ theorem bansf_nonceStationCont372_spec (aB newSp oB : Word)
 
 #print axioms bansf_nonceStationCont372_spec
 
+/-- Successful outer nonce-station result, retaining the item-4 decode that
+    identifies the field window consumed by `nonceStationPost`. -/
+def nonceStationOuterPost (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  fun h => ∃ n4 l4 : Word,
+    (nonceStationPost aB newSp oB aLen ((n4 - l4 - aB).toNat)
+        l4.toNat n4 acctBytes G F **
+      ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+        (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h
+
+/-- Stable state entering the outer nonce item, excluding caller-saved
+    register ownership peeled by the station theorem. -/
+def nonceStationOuterBase (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  ((newSp + 48) ↦ₘ (aB + BitVec.ofNat 64 off)) **
+  ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+  ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) ** memOwn (newSp + 72) **
+  ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+  ((.x18 : Reg) ↦ᵣ oB) ** G **
+  ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+  ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+  ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion aB acctBytes ** F
+
+/-- **The nonce station** (`B + 352 → B + 736 | B + 540`): decode outer
+    account item 4, parse its last nonce tuple, and materialize the nonce
+    result while retaining the full outer/inner derivation. -/
+theorem bansf_nonceStation_spec (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ aLen) :
+    cpsBranchWithin (98 * (aLen + 1) + (7 * acctBytes.length + 800))
+      (B + 352) bansfCR
+      (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x19 ** regOwn .x20) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1))
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540) (nonceStationOuterPost aB newSp oB aLen off acctBytes G F) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  let V8 : Assertion :=
+    ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+    ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
+    ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+    ((.x31 : Reg) ↦ᵣ v31) ** ((.x1 : Reg) ↦ᵣ vRa)
+  refine cpsBranchWithin_weaken
+    (P' := (nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20) ** V8)
+    (fun h hp => by
+      change (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+        regOwn .x20) ** V8) h) at hp
+      change (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F ** V8) **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+        regOwn .x20) h)
+      dsimp only [V8] at hp ⊢
+      xperm_hyp hp)
+    (fun _ x => x) (fun _ x => x) ?_
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn5
+    (P := nonceStationOuterBase aB newSp oB aLen off acctBytes G F ** V8)
+    (fun v10 v11 v12 v19 v20 => ?_)
+  let H : Assertion :=
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** memOwn (newSp + 64) **
+    memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+    ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+    ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)
+  have hi := bansf_item4_spec aB newSp aLen off acctBytes
+    v5 v6 v7 v10 v11 v12 v28 v29 v30 v31 vRa F hF hsalign
+    hslack hover hvalid hoff
+  have hiF := cpsBranchWithin_frameR H
+    (by dsimp only [H]; pcf; exact hG; pcf) hi
+  have hiW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ x => x)
+    (fun h hq => by
+      have hq' :
+          (((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+           (itemRej aB newSp acctBytes F **
+            (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+             ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+             ((oB + 72) ↦ₘ (0 : Word)) ** memOwn (newSp + 64) **
+             memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+             ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB)))) h := by
+        dsimp only [H] at hq
+        xperm_hyp hq
+      have hqOwn := sepConj_mono (regIs_implies_regOwn .x19)
+        (sepConj_mono (regIs_implies_regOwn .x20) (fun _ x => x)) h hq'
+      exact item4Reject_to_nonceStationRej aB newSp oB aLen
+        acctBytes G F h (by xperm_hyp hqOwn))
+    (fun _ x => x) hiF
+  let SpanPre : Word → Word → Assertion := fun n4 l4 =>
+    (((.x10 : Reg) ↦ᵣ n4) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x12 : Reg) ↦ᵣ l4) ** ((.x19 : Reg) ↦ᵣ v19) **
+     ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+     ((newSp + 48) ↦ₘ n4) **
+     ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+     memOwn (newSp + 64) ** memOwn (newSp + 72) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+     ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+     ((.x18 : Reg) ↦ᵣ oB) ** G **
+     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+     ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+     ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)
+  let ItemSuccess : Assertion := fun h => ∃ n4 l4 : Word,
+    (SpanPre n4 l4 **
+     ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+       (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h
+  have hcont : cpsBranchWithin
+      (98 * (aLen + 1) + (7 * acctBytes.length + 700))
+      (B + 372) bansfCR ItemSuccess
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540) (nonceStationOuterPost aB newSp oB aLen off acctBytes G F) := by
+    refine cpsBranchWithin_exists_pre (fun n4 => ?_)
+    refine cpsBranchWithin_exists_pre (fun l4 => ?_)
+    refine cpsBranchWithin_pure_pre_right (fun hdec => ?_)
+    have hc := bansf_nonceStationCont372_spec aB newSp oB aLen off
+      n4 l4 v19 v20 acctBytes G F hG hF hsalign hslack hover hvalid hoff hdec
+    refine cpsBranchWithin_weaken
+      (fun h hp => by xperm_hyp hp)
+      (fun _ x => x) (fun h hq => ?_) hc
+    unfold nonceStationOuterPost
+    exact ⟨n4, l4, (sepConj_pure_right h).2 ⟨hq, hdec⟩⟩
+  have hcont' := cpsBranchWithin_weaken
+    (fun h hp => by
+      have hp' := item4Ok_to_nonceSpanPre aB newSp oB aLen off v19 v20
+        acctBytes G F h hp
+      change ItemSuccess h
+      obtain ⟨n4, l4, hp4⟩ := hp'
+      refine ⟨n4, l4, ?_⟩
+      dsimp only [SpanPre]
+      xperm_hyp hp4)
+    (fun _ x => x) (fun _ x => x) hcont
+  have hfull := cpsBranchWithin_chain_snd hiW hcont'
+  exact cpsBranchWithin_weaken
+    (fun h hp => by
+      unfold nonceStationOuterBase at hp
+      dsimp only [H, V8]
+      xperm_hyp hp)
+    (fun _ x => x) (fun _ x => x)
+    (cpsBranchWithin_mono_nSteps (by omega) hfull)
+
+#print axioms bansf_nonceStation_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
