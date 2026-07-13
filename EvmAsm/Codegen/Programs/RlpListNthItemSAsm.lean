@@ -937,6 +937,154 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
 
 #print axioms initCallExact
 
+def initNormalized (listBase : Word) (bytes : List (BitVec 8))
+    (listLen index : Nat) : Assertion := fun h =>
+  (∃ cursorOff endPtr,
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+      (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+      ⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝) h)) ∨
+  (∃ status cursor endPtr,
+    (((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
+      ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝) h))
+
+theorem longDecode_minimal_of_not_ult (bytes : List (BitVec 8))
+    (hoff : 0 < bytes.length)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hmin : ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE
+      ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+      (56 : Word) = true) :
+    56 ≤ Nat.fromBytesBE ((bytes.drop 1).take
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) := by
+  have hn : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+    have hb := (bytes[0]'hoff).isLt
+    have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+    bv_omega
+  have hp := Nat.fromBytesBE_lt ((bytes.drop 1).take
+    ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)
+  have htake : ((bytes.drop 1).take
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat).length ≤ 8 :=
+    le_trans (List.length_take_le _ _) hn
+  have hdec : Nat.fromBytesBE ((bytes.drop 1).take
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) < 2 ^ 64 := by
+    calc
+      _ < 256 ^ ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat).length := hp
+      _ ≤ 256 ^ 8 := Nat.pow_le_pow_right (by omega) htake
+      _ = 2 ^ 64 := by norm_num
+  have hge := BalAccountNonstorageFinalsSpec.not_ult_le hmin
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hdec] at hge
+  change 56 ≤ Nat.fromBytesBE ((bytes.drop 1).take
+    ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) at hge
+  exact hge
+
+theorem threeRegs_pure {A B C : Assertion} {P : Prop} :
+    ∀ h, (A ** B ** C ** ⌜P⌝) h → P := by
+  intro h hp
+  extract_pure_deep hp
+  exact hp.1
+
+theorem threeRegs_pure_mono {A B C : Assertion} {P Q : Prop}
+    (himp : P → Q) : ∀ h, (A ** B ** C ** ⌜P⌝) h →
+      (A ** B ** C ** ⌜Q⌝) h := by
+  intro h hp
+  extract_pure_deep hp
+  rw [show (A ** B ** C ** ⌜Q⌝) = (((A ** B) ** C) ** ⌜Q⌝) by ac_rfl]
+  exact (sepConj_pure_right h).2 ⟨hp.2, himp hp.1⟩
+
+theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
+    (listLen index : Nat) (hoff : 0 < bytes.length)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64) :
+    ∀ h, initOutcome listBase bytes listLen hoff h →
+      initNormalized listBase bytes listLen index h := by
+  intro h hp
+  unfold initOutcome at hp
+  unfold initNormalized
+  rcases hp with h0 | h1 | hs | h3 | h4 | h5 | h6 | h7 | hl
+  · have hword : BitVec.ofNat 64 listLen = (0 : Word) := by
+      exact threeRegs_pure h h0
+    have hlen : listLen = 0 := by
+      have hw := congrArg BitVec.toNat hword
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)] at hw
+      simpa using hw
+    refine Or.inr ⟨2, listBase, 0, ?_⟩
+    have hf : Failure bytes listBase listLen index := by
+      subst listLen
+      exact .init (noStrictList_of_empty bytes listBase)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h0
+  · have hc : BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+        BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true := by
+      exact threeRegs_pure h h1
+    refine Or.inr ⟨1, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index :=
+      .init (noStrictList_of_notlist bytes listBase listLen hoff hc.2)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h1
+  · have hc := threeRegs_pure h hs
+    obtain ⟨_, hnot, hshort, hend⟩ := hc
+    have hlist := shortInit_to_strict bytes listBase listLen hoff (by omega)
+      hnot hshort hend
+    refine Or.inl ⟨1, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 by decide] at hs
+    exact threeRegs_pure_mono (fun _ => hlist) h hs
+  · have hc := threeRegs_pure h h3
+    obtain ⟨_, _, hshort, hm⟩ := hc
+    refine Or.inr ⟨3, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index := .init
+      (noStrictList_of_short_mismatch bytes listBase listLen hoff (by omega) hshort hm)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h3
+  · have hc := threeRegs_pure h h4
+    obtain ⟨_, _, hlong, htrunc⟩ := hc
+    refine Or.inr ⟨4, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index := .init
+      (noStrictList_of_long_header_truncated bytes listBase listLen hoff hslack hover
+        hlong htrunc)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h4
+  · have hc := threeRegs_pure h h5
+    obtain ⟨_, _, hlong, _, hzero⟩ := hc
+    refine Or.inr ⟨5, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index := .init
+      (noStrictList_of_long_leading_zero bytes listBase listLen hoff hlong hzero)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h5
+  · have hc := threeRegs_pure h h6
+    obtain ⟨_, _, hlong, _, _, hmin⟩ := hc
+    refine Or.inr ⟨6, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index := .init
+      (noStrictList_of_long_nonminimal bytes listBase listLen hoff hlong hmin)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h6
+  · have hc := threeRegs_pure h h7
+    obtain ⟨_, _, hlong, _, _, _, hm⟩ := hc
+    refine Or.inr ⟨7, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
+    have hf : Failure bytes listBase listLen index := .init
+      (noStrictList_of_long_mismatch bytes listBase listLen hoff hlong hm)
+    exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h7
+  · have hc := threeRegs_pure h hl
+    obtain ⟨_, _, hlong, hfit, hbNZ, hmin, hend⟩ := hc
+    have hoff1 : 1 < bytes.length := by omega
+    have hfirst : bytes[1]? = some (bytes[1]'hoff1) := List.getElem?_eq_getElem hoff1
+    have hnz : bytes[1]'hoff1 ≠ 0 := by
+      intro hz
+      apply hbNZ
+      rw [hfirst, hz]
+    have hminimal := longDecode_minimal_of_not_ult bytes hoff hlong hmin
+    let cursorOff := 1 +
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+    have hlist := longInit_to_strict bytes listBase listLen hoff hslack hover hlong
+      hfit hfirst hnz hminimal hend
+    have hcursor : listBase +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) = listBase + BitVec.ofNat 64 cursorOff := by
+      unfold cursorOff
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+      have hb := (bytes[0]'hoff).isLt
+      have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+      bv_omega
+    rw [hcursor] at hl
+    exact Or.inl ⟨cursorOff, listBase + BitVec.ofNat 64 listLen, by
+      exact threeRegs_pure_mono (fun _ => hlist) h hl⟩
+
+#print axioms initOutcome_to_normalized
+
 def initRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
   fun h => ∃ status cursor endPtr : Word,
@@ -1175,6 +1323,135 @@ theorem initSuccessBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldL
         ⟨by omega, by omega, hlist.cursor_le, StrictPrefix.zero⟩⟩) h hbase) h012
 
 #print axioms initSuccessBranch
+
+theorem cpsNBranchWithin_pre_or_init {n : Nat} {entry : Word} {cr : CodeReq}
+    {P1 P2 : Assertion} {exits : List (Word × Assertion)}
+    (h1 : cpsNBranchWithin n entry cr P1 exits)
+    (h2 : cpsNBranchWithin n entry cr P2 exits) :
+    cpsNBranchWithin n entry cr (fun h => P1 h ∨ P2 h) exits := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, ha, hb, hd, hu, hpor, hRb⟩ := hPR
+  cases hpor with
+  | inl hP => exact h1 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+  | inr hP => exact h2 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+
+theorem initNormalizedDispatch (newSp listBase indexW offsetPtr lenPtr oldOffset
+    oldLen : Word) (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index : Nat) :
+    cpsNBranchWithin 3 (B + 52) code
+      ((((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+          initNormalized listBase bytes listLen index) **
+        initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved) **
+       ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))
+      [(B + 64, initLoopPost newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index),
+       (B + 112, initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index)] := by
+  let successPre : Assertion := fun h => ∃ cursorOff endPtr,
+    ((((((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+         (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)))) **
+       initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved) **
+      ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))) **
+      ⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝) h)
+  let failPre : Assertion := fun h => ∃ status cursor endPtr,
+    ((((((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status))) **
+       initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved) **
+      ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))) **
+      ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝) h)
+  have hs : cpsNBranchWithin 3 (B + 52) code successPre
+      [(B + 64, initLoopPost newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index),
+       (B + 112, initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index)] := by
+    unfold successPre
+    refine cpsNBranchWithin_exists_pre (fun cursorOff => ?_)
+    refine cpsNBranchWithin_exists_pre (fun endPtr => ?_)
+    refine cpsNBranchWithin_pure_pre (fun hlist => ?_)
+    exact cpsNBranchWithin_of_triple (by simp)
+      (cpsTripleWithin_weaken (fun h hp => by
+        unfold initCommon at hp ⊢
+        xperm_hyp hp) (fun _ x => x)
+        (initSuccessBranch newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+          endPtr saved bytes listLen index cursorOff hlist))
+  have hf : cpsNBranchWithin 3 (B + 52) code failPre
+      [(B + 64, initLoopPost newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index),
+       (B + 112, initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+        saved bytes listLen index)] := by
+    unfold failPre
+    refine cpsNBranchWithin_exists_pre (fun status => ?_)
+    refine cpsNBranchWithin_exists_pre (fun cursor => ?_)
+    refine cpsNBranchWithin_exists_pre (fun endPtr => ?_)
+    refine cpsNBranchWithin_pure_pre (fun hpure => ?_)
+    have ht : cpsTripleWithin 3 (B + 52) (B + 112) code
+        (((.x12 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+         ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+           initCommon listBase bytes) **
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+           (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))))
+        (initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+          bytes listLen index) :=
+      cpsTripleWithin_mono_nSteps (by omega)
+        (initRejectBranch newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+          status cursor endPtr saved bytes listLen index hpure.1 hpure.2)
+    have hn : cpsNBranchWithin 3 (B + 52) code _
+        [(B + 64, initLoopPost newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+          saved bytes listLen index),
+         (B + 112, initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+          saved bytes listLen index)] := cpsNBranchWithin_of_triple (by simp) ht
+    exact cpsNBranchWithin_weaken_pre (fun h hp => by
+      unfold initCommon at hp ⊢
+      xperm_hyp hp) hn
+  have harms := cpsNBranchWithin_pre_or_init hs hf
+  exact cpsNBranchWithin_weaken_pre (fun h hp => by
+    unfold initNormalized at hp
+    unfold successPre failPre
+    obtain ⟨h1, h2, hd, hu, hleft, htail⟩ := hp
+    obtain ⟨h3, h4, hd2, hu2, hcn, hstable⟩ := hleft
+    obtain ⟨h5, h6, hd3, hu3, hcommon, hout⟩ := hcn
+    rcases hout with hout | hout
+    · refine Or.inl ?_
+      obtain ⟨cursorOff, endPtr, hs⟩ := hout
+      refine ⟨cursorOff, endPtr, ?_⟩
+      have hall : ((((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+           (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+           ⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝)) **
+          initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved) **
+        ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))) h := ⟨h1, h2, hd, hu,
+        ⟨h3, h4, hd2, hu2, ⟨h5, h6, hd3, hu3, hcommon, hs⟩, hstable⟩,
+        htail⟩
+      have hall' : (⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝ **
+          ((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+           ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+            (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word))) **
+           initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+           ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))) h := by
+        xperm_hyp hall
+      xperm_hyp hall'
+    · refine Or.inr ?_
+      obtain ⟨status, cursor, endPtr, hf⟩ := hout
+      refine ⟨status, cursor, endPtr, ?_⟩
+      have hall : ((((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+           (.x12 ↦ᵣ status) **
+           ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝)) **
+          initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved) **
+        ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))) h := ⟨h1, h2, hd, hu,
+        ⟨h3, h4, hd2, hu2, ⟨h5, h6, hd3, hu3, hcommon, hf⟩, hstable⟩,
+        htail⟩
+      have hall' : (⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝ **
+          ((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+           ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status)) **
+           initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+           ((.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))) h := by
+        xperm_hyp hall
+      xperm_hyp hall'
+    ) harms
+
+#print axioms initNormalizedDispatch
 
 /-- Loop success station (`B+88`), before the two output stores. -/
 def loopSelected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
