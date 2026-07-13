@@ -359,5 +359,25 @@ theorem codeStationRej_to_abiReject
 
 #print axioms codeStationRej_to_abiReject
 
+/-- The existential code reject reached after a successful nonce station also
+    normalizes to the common ABI reject result. -/
+theorem nonceCodeRej_to_abiReject
+    (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : ∀ h, G h → balOwnBlock oB h) :
+    ∀ h, nonceCodeRej aB newSp oB aLen off acctBytes G F h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfRejectResult aB newSp oB acctBytes F) h := by
+  intro h hp
+  unfold nonceCodeRej at hp
+  obtain ⟨n4, l4, hp⟩ := hp
+  obtain ⟨hRej, _⟩ := (sepConj_pure_right h).1 hp
+  exact codeStationRej_to_abiReject aB newSp oB aLen acctBytes
+    (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G) F
+    (nonceResult_to_balanceNonceOwnBlock aB oB
+      (n4 - l4 - aB).toNat l4.toNat acctBytes G hG) h hRej
+
+#print axioms nonceCodeRej_to_abiReject
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
