@@ -2717,4 +2717,16 @@ theorem preTailRejected_implies_failure
 #print axioms initRejected_implies_failure
 #print axioms preTailRejected_implies_failure
 
+theorem preTailRejected_implies_result
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    ∀ h, preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index h →
+      Result bytes listBase listLen index oldOffset oldLen 1 oldOffset oldLen := by
+  intro h hp
+  exact .fail (preTailRejected_implies_failure newSp listBase indexW offsetPtr
+    lenPtr oldOffset oldLen saved bytes listLen index h hp)
+
+#print axioms preTailRejected_implies_result
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
