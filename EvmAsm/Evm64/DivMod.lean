@@ -2,9 +2,6 @@
 -- so silent gaps in @[divmod_addr] coverage become CI failures (issue #263).
 import EvmAsm.Evm64.DivMod.AddrNormSmokeTests
 import EvmAsm.Evm64.DivMod.HalignFromBaseEven
-import EvmAsm.Evm64.DivMod.N1CallableFromBaseEven
-import EvmAsm.Evm64.DivMod.N3CallableFromBaseEven
-import EvmAsm.Evm64.DivMod.N2CallableFromBaseEven
 import EvmAsm.Evm64.DivMod.BzeroPublicPostFramed
 -- Counterexamples pins the n4 call-addback inputs that motivated div128 v4.
 import EvmAsm.Evm64.DivMod.Counterexamples
@@ -119,7 +116,6 @@ import EvmAsm.Evm64.DivMod.Spec.N4QOutConservationGen
 import EvmAsm.Evm64.DivMod.Spec.N4QHatGeTwo
 import EvmAsm.Evm64.DivMod.Spec.N4SemanticGen
 import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
-import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
 import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
@@ -151,7 +147,6 @@ import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallSkipJ0V5
-import EvmAsm.Evm64.DivMod.LoopIterN1.IterPostV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.UnifiedCallV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeR0V5
@@ -183,10 +178,8 @@ import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.MaxAddbackBeqV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.MaxSkipV5NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopMax
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqV5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddback
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopMaxAddback
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModPreloopN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNop
@@ -231,11 +224,9 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
-import EvmAsm.Evm64.DivMod.Spec.N2V5C3Invariant
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromBorrow
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryOfCallShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5MaxCarryOfMaxShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5IterSelectedEq
 import EvmAsm.Evm64.DivMod.Spec.N2V5BundleOfShape
@@ -295,7 +286,6 @@ import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
 import EvmAsm.Evm64.DivMod.Spec.N2V5DigitConservation
-import EvmAsm.Evm64.DivMod.Spec.N2V5R2Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
@@ -323,7 +313,6 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxAddbackV5NoNop
 -- Compatibility modules retained for the pre-split API surface.
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
-import EvmAsm.Evm64.DivMod.LoopIterN1.Max
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5NoNop
@@ -465,7 +454,6 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfCerts
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
