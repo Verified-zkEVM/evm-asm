@@ -21,7 +21,7 @@ dispatcher_tx_gas_settle:
   ld x28, 0(x30)
   la x31, evm_state_gas_spilled
   ld x29, 0(x31)
-  sd x0, 0(x30)
+  sd x28, 0(x30)
   sd x0, 0(x31)
   bgeu x29, x28, .+16
   sub x28, x28, x29

@@ -11,6 +11,42 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
+/-- Return one exactly when every transaction is a canonical direct call to the
+    EIP-6110 deposit contract. This narrow predicate admits sequential runtime
+    dispatch for log capture when the general independence test reports the
+    expected same-recipient interaction. -/
+def blockVerdictAllDirectDepositTxsFunction : String :=
+  "block_verdict_all_direct_deposit_txs:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  li s0, 0; la t0, bv_tx_count; ld s1, 0(t0)\n" ++
+  ".Lbvadt_loop:\n" ++
+  "  beq s0, s1, .Lbvadt_yes\n" ++
+  "  la a0, bv_mtx_skip_ctx; mv a1, s0; jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bv_mtx_skip_ctx\n" ++
+  "  ld t1, 0(t0); bnez t1, .Lbvadt_no\n" ++
+  "  ld t1, 48(t0); bnez t1, .Lbvadt_no\n" ++
+  "  ld t1, 64(t0); li t2, 404; bne t1, t2, .Lbvadt_no\n" ++
+  "  addi t1, t0, 72; la t2, pdr_deposit_addr; li t3, 20\n" ++
+  ".Lbvadt_addr_cmp:\n" ++
+  "  beqz t3, .Lbvadt_selector\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbvadt_no\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvadt_addr_cmp\n" ++
+  ".Lbvadt_selector:\n" ++
+  "  ld t0, 56(t0)\n" ++
+  "  lbu t1, 0(t0); li t2, 0x22; bne t1, t2, .Lbvadt_no\n" ++
+  "  lbu t1, 1(t0); li t2, 0x89; bne t1, t2, .Lbvadt_no\n" ++
+  "  lbu t1, 2(t0); li t2, 0x51; bne t1, t2, .Lbvadt_no\n" ++
+  "  lbu t1, 3(t0); li t2, 0x18; bne t1, t2, .Lbvadt_no\n" ++
+  "  addi s0, s0, 1; j .Lbvadt_loop\n" ++
+  ".Lbvadt_yes:\n" ++
+  "  li a0, 1; j .Lbvadt_ret\n" ++
+  ".Lbvadt_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbvadt_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32\n" ++
+  "  ret\n"
+
 /-- Try to append one canonical direct EOA deposit transaction.
     a0 = 192-byte tx context, a1 = output cursor, a2 = deposit index.
     Returns a0 = 1 and a1 = cursor+192 on append, otherwise a0 = 0 and a1 unchanged. -/
