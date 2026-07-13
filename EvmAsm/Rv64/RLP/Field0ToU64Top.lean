@@ -1,10 +1,12 @@
 import EvmAsm.Rv64.RLP.Field0ToU64
 import EvmAsm.Rv64.SAsm.MeasureLoop
+import EvmAsm.Rv64.SAsm.StmtSoundCall
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64.SAsm
 
 /-! Completion of the caller-facing `rlp_field0_to_u64` theorem.  This is
 split from `Field0ToU64.lean` so the leaf/call adapters remain below the core
@@ -182,5 +184,144 @@ theorem rlp_field0_to_u64_decode_success_exact_spec_within
       (fun h hp => (sepConj_pure_right h).2 ⟨hp, hdecode⟩) hseq)
 
 #print axioms rlp_field0_to_u64_decode_success_exact_spec_within
+
+/-- Caller-visible result after the first field has either been decoded by
+the scalar routine or rejected by one of the strict walk checks. -/
+def rlpField0Result (srcBase endPtr savedRa : Word)
+    (srcBytes : List (BitVec 8)) : Assertion := fun h =>
+  (∃ itemOff next len v29 v30 v31,
+    ((rlpField0ContentRest srcBase len v29 v30 v31 srcBytes
+        (next - len - srcBase).toNat len.toNat **
+      (.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa) **
+      ⌜rlpItemDecode srcBytes itemOff (srcBase + BitVec.ofNat 64 itemOff)
+        endPtr next len⌝) h)) ∨
+  (∃ status,
+    (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ status) ** bytesRegion srcBase srcBytes) **
+      rlp_field0_to_u64_parse_fail_post savedRa) h))
+
+/-- Eliminate the six-way `rlp_walk_next` post for fixed clobbered-register
+values: the success arm runs the scalar continuation, while all five strict
+walk failures use the shared public parse-failure tail. -/
+theorem rlp_field0_to_u64_next_outcome_exact_spec_within
+    (base srcBase savedRa v5 v6 v7 v28 v29 v30 v31 : Word)
+    (srcBytes : List (BitVec 8)) (itemOff endOff : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslack : endOff + 9 ≤ srcBytes.length)
+    (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hoff : itemOff ≤ endOff) :
+    cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+        (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 16)) ** (.x13 ↦ᵣ savedRa) **
+        bytesRegion srcBase srcBytes) **
+       rlpField0NextOutcome srcBase (srcBase + BitVec.ofNat 64 endOff)
+         srcBytes itemOff)
+      (rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+        savedRa srcBytes) := by
+  let common : Assertion :=
+    (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+    (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x1 ↦ᵣ (base + 16)) ** (.x13 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes
+  let final := rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
+    savedRa srcBytes
+  have hsuccessFamily : ∀ next len,
+      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (⌜rlpItemDecode srcBytes itemOff (srcBase + BitVec.ofNat 64 itemOff)
+            (srcBase + BitVec.ofNat 64 endOff) next len⌝ **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** common))
+        final := by
+    intro next len
+    refine cpsTripleWithin_pure_pre (fun hdecode => ?_)
+    have hs := rlp_field0_to_u64_decode_success_exact_spec_within
+      base srcBase savedRa next len v5 v6 v7 v28 v29 v30 v31 srcBytes
+      itemOff endOff hbase0 hsalign hslack hover hvalid hoff hdecode
+    refine cpsTripleWithin_mono_nSteps (by have := len.isLt; omega)
+      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+        (fun h hp => ?_) hs)
+    exact Or.inl ⟨itemOff, next, len, v29, v30, v31, by
+      xperm_hyp hp⟩
+  have hsuccess0 := cpsTripleWithin_exists_pre_gen (fun next =>
+    cpsTripleWithin_exists_pre_gen (fun len => hsuccessFamily next len))
+  have hsuccess : cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+      (common ** rlpWalkNextOk (srcBase + BitVec.ofNat 64 itemOff)
+        (srcBase + BitVec.ofNat 64 endOff) srcBytes itemOff) final :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold rlpWalkNextOk at hp
+      obtain ⟨hc, hok, hd, hu, hcommon, next, len, hout⟩ := hp
+      refine ⟨next, len, ?_⟩
+      have hcombined : (common **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+            ⌜rlpItemDecode srcBytes itemOff (srcBase + BitVec.ofNat 64 itemOff)
+              (srcBase + BitVec.ofNat 64 endOff) next len⌝)) h :=
+        ⟨hc, hok, hd, hu, hcommon, hout⟩
+      xperm_hyp hcombined) (fun _ hp => hp) hsuccess0
+  have hcommonOwned : ∀ h, common h →
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 16)) ** (.x13 ↦ᵣ savedRa) **
+        bytesRegion srcBase srcBytes) h := by
+    intro h hp
+    exact sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono (regIs_implies_regOwn .x6)
+        (sepConj_mono (regIs_implies_regOwn .x7)
+          (sepConj_mono (regIs_implies_regOwn .x28)
+            (sepConj_mono (regIs_implies_regOwn .x29)
+              (sepConj_mono (regIs_implies_regOwn .x30)
+                (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x))))))) h hp
+  have hfailure (status : Word) (hstatus : status ≠ 0) :
+      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+        (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
+        (common ** ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+          (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ (0 : Word)))) final := by
+    have hf := rlp_field0_to_u64_next_failure_spec_within base savedRa
+      (srcBase + BitVec.ofNat 64 itemOff) status (0 : Word) srcBase srcBytes hstatus
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => by
+        have hp'' := sepConj_mono_left hcommonOwned h hp
+        xperm_hyp hp'') (fun h hp => ?_) hf)
+    exact Or.inr ⟨0, hp⟩
+  have h2 := hfailure (2 : Word) (by decide)
+  have h3 := hfailure (3 : Word) (by decide)
+  have h4 := hfailure (4 : Word) (by decide)
+  have h5 := hfailure (5 : Word) (by decide)
+  have h6 := hfailure (6 : Word) (by decide)
+  have hall := cpsTripleWithin_pre_or hsuccess
+    (cpsTripleWithin_pre_or h2
+      (cpsTripleWithin_pre_or h3
+        (cpsTripleWithin_pre_or h4 (cpsTripleWithin_pre_or h5 h6))))
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) hall
+  unfold rlpField0NextOutcome at hp
+  rcases hp with ⟨hc, ho, hd, hu, hcommon, hout⟩
+  have dropGuard (status : Word) (guard : Prop) : ∀ h,
+      (common ** ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+        (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ (0 : Word)) ** ⌜guard⌝)) h →
+      (common ** ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
+        (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ (0 : Word)))) h := by
+    intro h hp
+    extract_pure_deep hp
+    obtain ⟨_, hp'⟩ := hp
+    xperm_hyp hp'
+  rcases hout with hout | hout | hout | hout | hout | hout
+  · exact Or.inl ⟨hc, ho, hd, hu, hcommon, hout⟩
+  · exact Or.inr (Or.inl (dropGuard 2 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩))
+  · exact Or.inr (Or.inr (Or.inl (dropGuard 3 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl
+      (dropGuard 4 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
+      (dropGuard 5 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩)))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (dropGuard 6 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩)))))
+
+#print axioms rlp_field0_to_u64_next_outcome_exact_spec_within
 
 end EvmAsm.Rv64.RLP
