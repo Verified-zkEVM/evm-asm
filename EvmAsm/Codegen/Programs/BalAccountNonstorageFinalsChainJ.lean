@@ -696,5 +696,85 @@ theorem codeTupleOk_to_cont680Pre (aB newSp oB n5 : Word)
 
 #print axioms codeTupleOk_to_cont680Pre
 
+/-- Continuation at `B + 680`: decode the code tuple's value item and
+    materialize its selected byte window. -/
+theorem bansf_codeStationCont680_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n5 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF2 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 110) (B + 680) bansfCR
+      (fun h => ∃ next len : Word,
+        (((((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ len) ** ((.x2 : Reg) ↦ᵣ newSp) **
+           ((newSp + 64) ↦ₘ next) **
+           ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 tEnd)) **
+           ((newSp + 48) ↦ₘ n5) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           bytesRegion aB acctBytes ** G ** F) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+         ⌜rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+           (aB + BitVec.ofNat 64 tEnd) next len⌝) h)
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724)
+        (codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F) := by
+  refine cpsBranchWithin_exists_pre (fun next => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hdecI => ?_)
+  obtain ⟨hrepI, _, hleI⟩ := rlpItemDecode_advance hdecI hoffleI (by omega)
+  set offN := (next - aB).toNat with hoffN
+  rw [hrepI]
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  have hti := bansf_codeTupleItem1_spec aB newSp aLen tEnd offN acctBytes
+    v5 v6 v7 (aB + BitVec.ofNat 64 offN) 0 len v28 v29 v30 v31 vRa F hF
+    hsalign hslack hover hvalid htEnd hleI
+  let H : Assertion :=
+    G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20
+  have hHF : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have htiF := cpsBranchWithin_frameR H hHF hti
+  have hc700 := bansf_codeStationCont700_spec aB newSp oB n5 aLen tEnd offN
+    fOff fSpanN acctBytes G F hG hF
+    (fun vNext vLen hdecV =>
+      hFF2 next len vNext vLen hdecI (by rw [← hoffN, hrepI]; exact hdecV))
+  have hc700' := cpsTripleWithin_weaken
+    (P' := tupleValOk aB newSp tEnd offN acctBytes F ** H)
+    (fun h hp => by dsimp only [H] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => hq) hc700
+  have hc700B := cpsTripleWithin_as_cpsBranchWithin_right (B + 736)
+    (codeStationRej aB newSp oB aLen acctBytes G F) hc700'
+  have htiW := cpsBranchWithin_weaken
+    (Q_t' := codeStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => codeTupleReject_to_stationRej
+      aB newSp oB n5 aLen acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) htiF
+  have hchain := cpsBranchWithin_chain_snd htiW hc700B
+  exact cpsBranchWithin_weaken (fun h hp => by dsimp only [H]; xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hchain)
+
+#print axioms bansf_codeStationCont680_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
