@@ -646,5 +646,15 @@ theorem balStationPost_to_noncePre
 
 #print axioms balStationPost_to_noncePre
 
+/-- The pre-zeroed later-field footprint is PC-free whenever its ambient
+    assertion is PC-free. -/
+theorem laterFieldZeros_pcFree (oB : Word) (F : Assertion) (hF : F.pcFree) :
+    (laterFieldZeros oB F).pcFree := by
+  letI : Assertion.PCFree F := ⟨hF⟩
+  unfold laterFieldZeros
+  exact (inferInstance : Assertion.PCFree _).proof
+
+#print axioms laterFieldZeros_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
