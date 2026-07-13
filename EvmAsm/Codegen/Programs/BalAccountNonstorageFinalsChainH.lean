@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainG
+import EvmAsm.Rv64.SAsm.RwSubwindow
 
 namespace EvmAsm.Codegen
 
@@ -823,6 +824,64 @@ theorem item4Reject_to_nonceStationRej (aB newSp oB : Word) (aLen : Nat)
   xperm_hyp hqOwn'
 
 #print axioms item4Reject_to_nonceStationRej
+
+/-- Expose a successful outer item-4 decode as the exact slot-92 span-capture
+    precondition, retaining the decode derivation for station bounds. -/
+theorem item4Ok_to_nonceSpanPre (aB newSp oB : Word) (aLen off : Nat)
+    (v19 v20 : Word) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (itemOk aB newSp aLen off acctBytes F **
+       (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** memOwn (newSp + 64) **
+        memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20))) h →
+      (∃ n4 l4 : Word,
+        (((((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
+           ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+           ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+           memOwn (newSp + 48)) **
+          (((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           memOwn (newSp + 64) ** memOwn (newSp + 72) **
+           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+           bytesRegion aB acctBytes ** F ** G **
+           ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word)) ** ((.x8 : Reg) ↦ᵣ aB) **
+           ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB))) **
+         ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+           (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h) := by
+  intro h hq
+  unfold itemOk at hq
+  obtain ⟨n4, hqN⟩ := (sepConj_exists_left h).1 hq
+  obtain ⟨l4, hq4⟩ := (sepConj_exists_left h).1 hqN
+  have hq' :
+      ((((newSp + 48) ↦ₘ n4) **
+       (((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
+        ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+        ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F ** G **
+        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB))) **
+       ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+         (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h := by
+    xperm_hyp hq4
+  obtain ⟨hat, hdec⟩ := (sepConj_pure_right h).1 hq'
+  have hatOwn := sepConj_mono_left memIs_implies_memOwn h hat
+  refine ⟨n4, l4, (sepConj_pure_right h).2 ⟨?_, hdec⟩⟩
+  xperm_hyp hatOwn
+
+#print axioms item4Ok_to_nonceSpanPre
 
 
 
