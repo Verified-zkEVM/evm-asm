@@ -625,6 +625,40 @@ theorem bansf_codeItem5_spec (aB newSp : Word) (aLen off : Nat)
 
 #print axioms bansf_codeItem5_spec
 
+/-- Reframe final outer-item failure as the code-station reject post. -/
+theorem item5Reject_to_codeStationRej (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (itemRej aB newSp acctBytes F **
+       (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** memOwn (newSp + 64) **
+        memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x19 ** regOwn .x20)) h →
+      codeStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold itemRej at hq
+  have hq' :
+      ((((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word))) **
+       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 48) ** memOwn (newSp + 56) **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F ** G ** memOwn (newSp + 64) **
+        memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x19 ** regOwn .x20)) h := by
+    xperm_hyp hq
+  have hqOwn := sepConj_mono
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))
+    (fun _ x => x) h hq'
+  unfold codeStationRej
+  xperm_hyp hqOwn
+
+#print axioms item5Reject_to_codeStationRej
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
