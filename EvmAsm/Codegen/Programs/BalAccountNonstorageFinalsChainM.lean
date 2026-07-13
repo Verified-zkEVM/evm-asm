@@ -901,5 +901,93 @@ theorem codeResult_to_indexed
 
 #print axioms codeResult_to_indexed
 
+/-- Exact output-block ownership indexed by the abstract `FinalsOut`. -/
+def finalOutBlock (acctBytes : List (BitVec 8)) (aB oB : Word)
+    (out : FinalsOut) : Assertion := fun h =>
+  ∃ bal nonce code : Option (Word × Word),
+    ((((balOutCells acctBytes aB oB bal ** nonceOutCells acctBytes aB oB nonce) **
+        codeOutCells aB oB code) **
+      ⌜out = finalsOutOf acctBytes aB bal nonce code⌝) h)
+
+/-- Prefix of the outer six-item chain available before the value stations. -/
+def outerPrefix (acctBytes : List (BitVec 8)) (aB : Word) (aLen : Nat)
+    (b0 : BitVec 8) (n0 l0 n1 l1 n2 l2 n3 l3 : Word) : Prop :=
+  acctBytes[0]? = some b0 ∧
+  rlpItemDecode acctBytes (listHeaderSize b0)
+    (aB + BitVec.ofNat 64 (listHeaderSize b0))
+    (aB + BitVec.ofNat 64 aLen) n0 l0 ∧
+  rlpItemDecode acctBytes (n0 - aB).toNat n0
+    (aB + BitVec.ofNat 64 aLen) n1 l1 ∧
+  rlpItemDecode acctBytes (n1 - aB).toNat n1
+    (aB + BitVec.ofNat 64 aLen) n2 l2 ∧
+  rlpItemDecode acctBytes (n2 - aB).toNat n2
+    (aB + BitVec.ofNat 64 aLen) n3 l3
+
+/-- Genuine success boundary at the verdict stub: exact output ownership,
+    reusable frame, and the window-anchored semantic derivation. -/
+def bansfSuccessPost (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  ∃ out : FinalsOut, ∃ spill : Word,
+    ((finalOutBlock acctBytes aB oB out **
+      (((newSp + 48) ↦ₘ spill) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+       regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes ** F)) **
+     ⌜FinalsDerivation acctBytes aB aLen out⌝) h
+
+/-- Turn the operational value-station success into the exact memory-linked
+    semantic success post using the retained outer item-4/item-5 decodes. -/
+theorem nonceCodePost_to_successPost
+    (aB newSp oB : Word) (aLen : Nat)
+    (b0 : BitVec 8) (n0 l0 n1 l1 n2 l2 n3 l3 : Word)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hPrefix : outerPrefix acctBytes aB aLen b0 n0 l0 n1 l1 n2 l2 n3 l3) :
+    ∀ h,
+      nonceCodePost aB newSp oB aLen (n3 - aB).toNat acctBytes
+        (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes) F h →
+      bansfSuccessPost aB newSp oB aLen acctBytes F h := by
+  intro h hp
+  unfold nonceCodePost at hp
+  obtain ⟨n4, l4, hp⟩ := hp
+  obtain ⟨hCodeOuter, hdec4⟩ := (sepConj_pure_right h).1 hp
+  obtain ⟨n5, l5, hp5⟩ := codeStationOuterPost_to_resultFrame
+    aB newSp oB aLen (n4 - aB).toNat acctBytes
+    (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes
+      (balResult aB oB (n3 - l3 - aB).toNat l3.toNat acctBytes)) F h hCodeOuter
+  obtain ⟨hRF, hdec5⟩ := (sepConj_pure_right h).1 hp5
+  obtain ⟨hResult, hFrame, hd, hu, hCodeResult, hFrameOwn⟩ := hRF
+  obtain ⟨bal, nonce, code, hIndexed⟩ := codeResult_to_indexed aB oB
+    (n3 - l3 - aB).toNat l3.toNat
+    (n4 - l4 - aB).toNat l4.toNat
+    (n5 - l5 - aB).toNat l5.toNat acctBytes hResult hCodeResult
+  obtain ⟨hCells, hFinals⟩ := (sepConj_pure_right hResult).1 hIndexed
+  rcases hPrefix with ⟨h0, hd0, hd1, hd2, hd3⟩
+  have hrep3 : n3 = aB + BitVec.ofNat 64 (n3 - aB).toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  have hrep4 : n4 = aB + BitVec.ofNat 64 (n4 - aB).toNat := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    bv_omega
+  rw [← hrep3] at hdec4
+  rw [← hrep4] at hdec5
+  have hOuter : outerDecodes acctBytes aB aLen b0
+      n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 :=
+    ⟨h0, hd0, hd1, hd2, hd3, hdec4, hdec5⟩
+  have hDeriv := outerAndFieldFinals_to_derivation acctBytes aB aLen b0
+    n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 bal nonce code hOuter hFinals
+  refine ⟨finalsOutOf acctBytes aB bal nonce code,
+    aB + BitVec.ofNat 64 (n4 - aB).toNat,
+    (sepConj_pure_right h).2 ⟨?_, hDeriv⟩⟩
+  refine ⟨hResult, hFrame, hd, hu, ?_, hFrameOwn⟩
+  exact ⟨bal, nonce, code, (sepConj_pure_right hResult).2 ⟨hCells, rfl⟩⟩
+
+#print axioms nonceCodePost_to_successPost
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
