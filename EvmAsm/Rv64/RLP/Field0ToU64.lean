@@ -242,6 +242,97 @@ theorem rlp_field0_to_u64_walkNext_content_disjoint (base : Word) :
       (rlp_content_to_u64_code (base + (1536 : Word))) := by
   crDisjoint
 
+/-! ## Call-site adapters for the two cursor-walk callees. -/
+
+private theorem field0_init_halign (base : Word) (hbase0 : base &&& (1 : Word) = 0) :
+    (base + 4 + 4) &&& ~~~(1 : Word) = base + 4 + 4 := by
+  rw [show (base + 4 + 4 : Word) = base + 8 from by bv_omega]
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase0 (by decide)
+
+private theorem field0_init_hoffset (base : Word) :
+    (base + 4) + signExtend21 (252 : BitVec 21) = base + (256 : Word) := by
+  rw [show signExtend21 (252 : BitVec 21) = (252 : Word) from by decide]
+  bv_omega
+
+/-- Compose the wrapper's call at index 1 with an arbitrary verified
+`rlp_walk_init` postcondition, and lift the local call/callee union into the
+complete fixed-offset field-0 image. -/
+theorem rlp_field0_to_u64_call_walk_init
+    {nSteps : Nat} {Prest Q : Assertion} (base oldRa : Word)
+    (hbase0 : base &&& (1 : Word) = 0) (hpre : Prest.pcFree)
+    (hcallee : cpsTripleWithin nSteps (base + (256 : Word))
+      ((base + 4 + 4) &&& ~~~(1 : Word))
+      (rlp_walk_init_code (base + (256 : Word)))
+      ((.x1 ↦ᵣ (base + 4 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + nSteps) (base + 4) (base + 8)
+      (rlp_field0_to_u64_full_code base) ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  have hdisj : (CodeReq.singleton (base + 4) (.JAL .x1 (252 : BitVec 21))).Disjoint
+      (rlp_walk_init_code (base + (256 : Word))) := by crDisjoint
+  have hcall := WP.cpsCallWithin (offset := (252 : BitVec 21)) (vOld := oldRa)
+    (field0_init_hoffset base) (field0_init_halign base hbase0) hpre
+    hdisj hcallee
+  have hmono : ∀ a i,
+      ((CodeReq.singleton (base + 4) (.JAL .x1 (252 : BitVec 21))).union
+        (rlp_walk_init_code (base + (256 : Word)))) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    CodeReq.union_split_mono
+      (fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+        (CodeReq.singleton_mono
+          (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 1 (base + 4)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h)))
+      (fun a i h => CodeReq.union_mono_left a i (CodeReq.mono_union_right
+        (rlp_field0_to_u64_wrapper_walkInit_disjoint base) (fun _ _ h' => h') a i h))
+  rw [show (base + 4 + 4 : Word) = base + 8 from by bv_omega] at hcall
+  exact cpsTripleWithin_extend_code hmono hcall
+
+private theorem field0_next_halign (base : Word) (hbase0 : base &&& (1 : Word) = 0) :
+    (base + 12 + 4) &&& ~~~(1 : Word) = base + 12 + 4 := by
+  rw [show (base + 12 + 4 : Word) = base + 16 from by bv_omega]
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase0 (by decide)
+
+private theorem field0_next_hoffset (base : Word) :
+    (base + 12) + signExtend21 (756 : BitVec 21) = base + (768 : Word) := by
+  rw [show signExtend21 (756 : BitVec 21) = (756 : Word) from by decide]
+  bv_omega
+
+/-- Compose the wrapper's call at index 3 with an arbitrary verified
+`rlp_walk_next` postcondition, lifted into the complete fixed-offset image. -/
+theorem rlp_field0_to_u64_call_walk_next
+    {nSteps : Nat} {Prest Q : Assertion} (base oldRa : Word)
+    (hbase0 : base &&& (1 : Word) = 0) (hpre : Prest.pcFree)
+    (hcallee : cpsTripleWithin nSteps (base + (768 : Word))
+      ((base + 12 + 4) &&& ~~~(1 : Word))
+      (rlp_walk_next_code (base + (768 : Word)))
+      ((.x1 ↦ᵣ (base + 12 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + nSteps) (base + 12) (base + 16)
+      (rlp_field0_to_u64_full_code base) ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  have hdisj : (CodeReq.singleton (base + 12) (.JAL .x1 (756 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + (768 : Word))) := by crDisjoint
+  have hcall := WP.cpsCallWithin (offset := (756 : BitVec 21)) (vOld := oldRa)
+    (field0_next_hoffset base) (field0_next_halign base hbase0) hpre
+    hdisj hcallee
+  have hleftNext : ((rlp_field0_to_u64_code base).union
+      (rlp_walk_init_code (base + (256 : Word)))).Disjoint
+      (rlp_walk_next_code (base + (768 : Word))) := by crDisjoint
+  have hmono : ∀ a i,
+      ((CodeReq.singleton (base + 12) (.JAL .x1 (756 : BitVec 21))).union
+        (rlp_walk_next_code (base + (768 : Word)))) a = some i →
+        rlp_field0_to_u64_full_code base a = some i :=
+    CodeReq.union_split_mono
+      (fun a i h => CodeReq.union_mono_left a i (CodeReq.union_mono_left a i
+        (CodeReq.singleton_mono
+          (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 3 (base + 12)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+            (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h)))
+      (fun a i h => CodeReq.mono_union_right hleftNext
+        (fun a i h' => CodeReq.union_mono_left a i h') a i h)
+  rw [show (base + 12 + 4 : Word) = base + 16 from by bv_omega] at hcall
+  exact cpsTripleWithin_extend_code hmono hcall
+
+#print axioms rlp_field0_to_u64_call_walk_init
+#print axioms rlp_field0_to_u64_call_walk_next
+
 /-! ## Call-composition slice: idx 5..10, starting from a successful
 `rlp_walk_next` state. -/
 
