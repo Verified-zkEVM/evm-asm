@@ -80,5 +80,87 @@ theorem bansf_valueStationsVerdict_own1920
 
 #print axioms bansf_valueStationsVerdict_own1920
 
+/-- Unified verdict post after entering the value stations from the existential
+    item-3 accumulator produced by SEG-B. -/
+def valueStationsFromAcc3Post (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  ∃ n3 l3, valueStationsVerdictPost aB newSp oB n3 l3 aLen acctBytes F h
+
+/-- Consume the outer item-walk accumulator: recover its semantic prefix and
+    the item-3 start bound, then run all three value stations to the verdict. -/
+theorem bansf_valueStations_from_acc3
+    (aB newSp oB : Word) (aLen off0 : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)
+      (B + 184) (B + 736) bansfCR
+      (acc3 aB newSp aLen off0 acctBytes
+        (valueEntryAmbient aB newSp oB aLen F) **
+       ⌜OuterInitOk acctBytes aLen off0⌝)
+      (valueStationsFromAcc3Post aB newSp oB aLen acctBytes F) := by
+  unfold acc3
+  have pureRule {fact : Prop} {P Q : Assertion}
+      {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+      (ht : fact → cpsTripleWithin nSteps entry exit_ cr P Q) :
+      cpsTripleWithin nSteps entry exit_ cr (P ** ⌜fact⌝) Q := by
+    intro R hR s hcr hPR hpc
+    obtain ⟨hp, hcompat, ha, hb, hd, hu, hPf, hRb⟩ := hPR
+    obtain ⟨hP, hf⟩ := (sepConj_pure_right ha).1 hPf
+    exact ht hf R hR s hcr
+      ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+  refine pureRule (fun hOuter => ?_)
+  have existsRule {α : Sort _} {P : α → Assertion} {Q : Assertion}
+      {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+      (ht : ∀ x, cpsTripleWithin nSteps entry exit_ cr (P x) Q) :
+      cpsTripleWithin nSteps entry exit_ cr (fun hp => ∃ x, P x hp) Q := by
+    intro R hR s hcr hPR hpc
+    obtain ⟨hp, hcompat, ha, hb, hd, hu, ⟨x, hP⟩, hRb⟩ := hPR
+    exact ht x R hR s hcr
+      ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
+  refine existsRule (fun n0 => ?_)
+  refine existsRule (fun l0 => ?_)
+  refine existsRule (fun n1 => ?_)
+  refine existsRule (fun l1 => ?_)
+  refine existsRule (fun n2 => ?_)
+  refine existsRule (fun l2 => ?_)
+  refine existsRule (fun n3 => ?_)
+  refine existsRule (fun l3 => ?_)
+  rcases hOuter with ⟨b0, hb0, hoff0, _hoff0pos, hoff0le⟩
+  refine pureRule (fun hAcc => ?_)
+  rcases hAcc with ⟨⟨⟨⟨hdec0, hdec1⟩, hdec2⟩, hdec3⟩, _hn3le⟩
+  have hover9 : aB.toNat + aLen + 9 < 2 ^ 64 := by omega
+  have ha0 := rlpItemDecode_advance hdec0 hoff0le hover9
+  have ha1 := rlpItemDecode_advance hdec1 ha0.2.2 hover9
+  have ha2 := rlpItemDecode_advance hdec2 ha1.2.2 hover9
+  have hPrefix : outerPrefix acctBytes aB aLen b0
+      n0 l0 n1 l1 n2 l2 n3 l3 := by
+    refine ⟨hb0, ?_, ?_, ?_, ?_⟩
+    · rw [hoff0] at hdec0
+      exact hdec0
+    · rw [← ha0.1] at hdec1
+      exact hdec1
+    · rw [← ha1.1] at hdec2
+      exact hdec2
+    · rw [← ha2.1] at hdec3
+      exact hdec3
+  have ht := bansf_valueStationsVerdict_own1920 aB newSp oB aLen b0
+    n0 l0 n1 l1 n2 l2 n3 l3 acctBytes F hF hsalign hoalign hslack
+    hover hvalid hovout hovalid ha2.2.2 hPrefix
+  exact cpsTripleWithin_weaken (by
+    unfold valueEntryAmbient valueStationsEntryOwn laterFieldZeros
+    xsimp) (fun _ hp => ⟨n3, l3, hp⟩) ht
+
+#print axioms bansf_valueStations_from_acc3
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
