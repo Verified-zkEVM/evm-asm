@@ -1,5 +1,6 @@
 /- Code-station outer composition for bal_account_nonstorage_finals. -/
 
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainG
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainJ
 
 namespace EvmAsm.Codegen

@@ -4,6 +4,7 @@
   Nonce-station tuple composition (evm-asm-4ch8f.43.5).
 -/
 
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainF
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
 
