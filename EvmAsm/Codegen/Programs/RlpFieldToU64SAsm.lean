@@ -87,8 +87,85 @@ abbrev lengthCell : Word := (GuestAddrs.rfu_length : Word)
 
 def wrapperCode : CodeReq := CodeReq.ofProg B rlpFieldToU64_prog
 def contentCode : CodeReq := rlp_content_to_u64_code C64B
-def code : CodeReq := wrapperCode.union
-  (EvmAsm.Codegen.RlpListNthItemSAsm.code.union contentCode)
+def code : CodeReq := EvmAsm.Codegen.RlpListNthItemSAsm.code.union
+  (wrapperCode.union contentCode)
+
+/-! ## Strict list-callee call shape -/
+
+def listSavedRegs (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
+  (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+  (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+  (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)
+
+def listCallResult
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ status offset len v11 v12,
+    (((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
+      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+       (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+     ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
+       oldOffset oldLen status offset len⌝) h
+
+/-- Peel K20's restored `ra` out of its flat post, yielding the exact
+    `(ra ** P) -> (ra ** Q)` contract expected by `callWithin_spec`. -/
+theorem listCalleeCallContract
+    (sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hindexW : indexW = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
+    cpsTripleWithin
+      ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+      K20B saved.ra code
+      ((.x1 ↦ᵣ saved.ra) **
+       ((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
+        EvmAsm.Codegen.RlpListNthItemSAsm.entryRest listBase listLenW indexW
+          offsetPtr lenPtr oldOffset oldLen bytes))
+      ((.x1 ↦ᵣ saved.ra) **
+       listCallResult sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+         listLen index) := by
+  have hflat := EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_flat_spec_within
+    sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen saved bytes
+    listLen index hlistLenW hindexW hindex hsalign hslack hover hvalid hret
+  have hcode := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hflat
+  refine cpsTripleWithin_weaken (fun h hp => by
+    unfold listSavedRegs at hp
+    rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame]
+    xperm_hyp hp) (fun h hq => ?_) hcode
+  unfold EvmAsm.Codegen.RlpListNthItemSAsm.flatReturnResult at hq
+  obtain ⟨status, offset, len, v11, v12, hq⟩ := hq
+  have hfixed : ((.x1 ↦ᵣ saved.ra) **
+      (((.x2 ↦ᵣ sp0) ** listSavedRegs saved ** stackFree sp0 8 **
+        ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+         (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len))) **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
+         oldOffset oldLen status offset len⌝)) h := by
+    unfold listSavedRegs
+    rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame] at hq
+    xperm_hyp hq
+  obtain ⟨hRa, hRest, hd, hu, hra, hrest⟩ := hfixed
+  refine ⟨hRa, hRest, hd, hu, hra, ?_⟩
+  unfold listCallResult
+  exact ⟨status, offset, len, v11, v12, hrest⟩
+
+#print axioms listCalleeCallContract
 
 /-! ## Three-register ABI frame -/
 
