@@ -104,5 +104,79 @@ theorem nonceTupleOk_to_cont496Pre (aB newSp oB n4 : Word)
 
 #print axioms nonceTupleOk_to_cont496Pre
 
+/-- Continuation at `B + 476`: decode the nonce tuple's index item, then run
+    the value/capture continuation. -/
+theorem bansf_nonceStationCont476_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n4 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF3 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 203) (B + 476) bansfCR
+      ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 offI)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 tEnd)) **
+         ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+         ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 offI)) **
+         ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 tEnd)) **
+         ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+         ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion aB acctBytes ** G ** F) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  have hti := bansf_nonceTupleItem0_spec aB newSp tEnd offI acctBytes
+    v5 v6 v7 (aB + BitVec.ofNat 64 offI) (aB + BitVec.ofNat 64 tEnd) 0
+    v28 v29 v30 v31 vRa F hF hsalign (by omega) hover hvalid hoffleI
+  let H : Assertion :=
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20
+  have hHF : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have htiF := cpsBranchWithin_frameR H hHF hti
+  have hc496 := bansf_nonceStationCont496_spec aB newSp oB aLen tEnd offI
+    fOff fSpanN n4 acctBytes G F hG hF hsalign hslack hover hvalid htEnd
+    hoffleI hFF3
+  have hc496F := cpsBranchWithin_weaken
+    (P' := nonceCont496Pre aB newSp oB n4 aLen tEnd offI acctBytes G F)
+    (fun _ hp => by delta nonceCont496Pre at hp; exact hp)
+    (fun _ hq => hq) (fun _ hq => hq) hc496
+  have hc496' := cpsBranchWithin_weaken
+    (nonceTupleOk_to_cont496Pre aB newSp oB n4 aLen tEnd offI acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hc496F
+  have htiW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => nonceTupleReject_to_stationRej
+      aB newSp oB n4 aLen acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) htiF
+  have hchain := cpsBranchWithin_chain_snd htiW hc496'
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hchain)
+
+#print axioms bansf_nonceStationCont476_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
