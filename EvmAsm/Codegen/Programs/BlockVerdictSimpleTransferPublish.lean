@@ -12,7 +12,17 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   ".Lbv_simple_transfer_precompile_fail:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
-  "  la t4, bv_runtime_gas_left; sd zero, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  -- An exceptional top-frame halt burns regular gas, but
+  -- `refill_frame_state_gas` restores the whole state reservoir.  The
+  -- shortcut publishes one effective gas-left scalar, so retain exactly the
+  -- reservoir carved out above TX_MAX_GAS_LIMIT (the intrinsic-regular term
+  -- cancels from `execution_gas - regular_gas`).
+  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); li t6, 16777216\n" ++
+  "  bleu t5, t6, .Lbv_simple_transfer_precompile_fail_no_reservoir\n" ++
+  "  sub t5, t5, t6; j .Lbv_simple_transfer_precompile_fail_have_gas_left\n" ++
+  ".Lbv_simple_transfer_precompile_fail_no_reservoir:\n  li t5, 0\n" ++
+  ".Lbv_simple_transfer_precompile_fail_have_gas_left:\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   -- A failed direct precompile is the depth-0 frame error case. Mirror
   -- `refill_frame_state_gas` into both the dispatcher counter and its per-tx
