@@ -321,4 +321,122 @@ theorem copyFn_spec (listBase outputPtr : Word) (bytes : List (BitVec 8))
 
 #print axioms copyFn_spec
 
+/-! ## Partial-register bridge for the inline caller composition -/
+
+/-- One emitted copy body (instructions 28--32), stated at separation-logic
+    register granularity so the K35 caller need not regain unrelated
+    caller-clobbered registers after K20. -/
+theorem copyBody_spec_within
+    (listBase outputPtr old30 count : Word) (bytes out : List (BitVec 8))
+    (offset len i : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hdalign : outputPtr.toNat % 8 = 0)
+    (hi : i < len) (hfit : len ≤ 32)
+    (hbound : offset + len ≤ bytes.length)
+    (hsrc : listBase.toNat + bytes.length < 2 ^ 64)
+    (hdst : outputPtr.toNat + 32 < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (houtvalid : ∀ k, k < 32 →
+      isValidByteAccess (outputPtr + BitVec.ofNat 64 k) = true)
+    (hout : out.length = 32) :
+    cpsTripleWithin 5 (B + 112) (B + 132) code
+      ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+       (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+       (.x30 ↦ᵣ old30) ** (.x6 ↦ᵣ count) **
+       bytesRegion listBase bytes ** bytesRegion outputPtr out)
+      ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i + 1))) **
+       (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i + 1))) **
+       (.x30 ↦ᵣ (copyByte bytes offset i).zeroExtend 64) **
+       (.x6 ↦ᵣ (count + signExtend12 (-1 : BitVec 12))) **
+       bytesRegion listBase bytes **
+       bytesRegion outputPtr (out.set (32 - len + i) (copyByte bytes offset i))) := by
+  have hsi : offset + i < bytes.length := by omega
+  have hdi : 32 - len + i < out.length := by rw [hout]; omega
+  have hsov : listBase.toNat + (offset + i) < 2 ^ 64 := by omega
+  have hdov : outputPtr.toNat + (32 - len + i) < 2 ^ 64 := by omega
+  have hl := bytesRegion_lbu_within .x30 .x28 listBase old30 (B + 112)
+    bytes (offset + i) (by decide) hsalign hsi hsov (hvalid _ hsi)
+  have hbyte : bytes[offset + i]'hsi = copyByte bytes offset i := by
+    simp [copyByte, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hsi]
+  rw [hbyte] at hl
+  have hl' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 112) rlpFieldToU256Be_prog 28
+      (.LBU .x30 .x28 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hl
+  have hs := bytesRegion_sb_within .x29 .x30 outputPtr
+    ((copyByte bytes offset i).zeroExtend 64 : Word) (B + 116) out
+    (32 - len + i) hdalign hdi hdov (houtvalid _ (by omega))
+  rw [show ((copyByte bytes offset i).zeroExtend 64).truncate 8 =
+      copyByte bytes offset i by simp] at hs
+  have hs' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 116) rlpFieldToU256Be_prog 29
+      (.SB .x29 .x30 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hs
+  have h28 := addi_spec_gen_same_within .x28
+    (listBase + BitVec.ofNat 64 (offset + i)) (1 : BitVec 12) (B + 120)
+    (by decide)
+  rw [show listBase + BitVec.ofNat 64 (offset + i) +
+      signExtend12 (1 : BitVec 12) =
+      listBase + BitVec.ofNat 64 (offset + i + 1) by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        bv_omega] at h28
+  have h28' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 120) rlpFieldToU256Be_prog 30
+      (.ADDI .x28 .x28 (1 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h28
+  have h29 := addi_spec_gen_same_within .x29
+    (outputPtr + BitVec.ofNat 64 (32 - len + i)) (1 : BitVec 12) (B + 124)
+    (by decide)
+  rw [show outputPtr + BitVec.ofNat 64 (32 - len + i) +
+      signExtend12 (1 : BitVec 12) =
+      outputPtr + BitVec.ofNat 64 (32 - len + i + 1) by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        bv_omega] at h29
+  have h29' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 124) rlpFieldToU256Be_prog 31
+      (.ADDI .x29 .x29 (1 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h29
+  have h6 := addi_spec_gen_same_within .x6 count (-1 : BitVec 12)
+    (B + 128) (by decide)
+  have h6' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 128) rlpFieldToU256Be_prog 32
+      (.ADDI .x6 .x6 (-1 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h6
+  have s0 := cpsTripleWithin_frameR
+    ((.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+      (.x6 ↦ᵣ count) ** bytesRegion outputPtr out) (by pcf) hl'
+  have s1 := cpsTripleWithin_frameR
+    ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i))) **
+      (.x6 ↦ᵣ count) ** bytesRegion listBase bytes) (by pcf) hs'
+  have s2 := cpsTripleWithin_frameR
+    ((.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i))) **
+      (.x30 ↦ᵣ (copyByte bytes offset i).zeroExtend 64) ** (.x6 ↦ᵣ count) **
+      bytesRegion listBase bytes **
+      bytesRegion outputPtr (out.set (32 - len + i) (copyByte bytes offset i)))
+    (by pcf) h28'
+  have s3 := cpsTripleWithin_frameR
+    ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i + 1))) **
+      (.x30 ↦ᵣ (copyByte bytes offset i).zeroExtend 64) ** (.x6 ↦ᵣ count) **
+      bytesRegion listBase bytes **
+      bytesRegion outputPtr (out.set (32 - len + i) (copyByte bytes offset i)))
+    (by pcf) h29'
+  have s4 := cpsTripleWithin_frameR
+    ((.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset + i + 1))) **
+      (.x29 ↦ᵣ (outputPtr + BitVec.ofNat 64 (32 - len + i + 1))) **
+      (.x30 ↦ᵣ (copyByte bytes offset i).zeroExtend 64) **
+      bytesRegion listBase bytes **
+      bytesRegion outputPtr (out.set (32 - len + i) (copyByte bytes offset i)))
+    (by pcf) h6'
+  have s01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s0 s1
+  have s012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s01 s2
+  have s0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s012 s3
+  have sall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s0123 s4
+  exact cpsTripleWithin_extend_code (fun a ins hi => wrapperCode_mono a ins hi)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp) sall)
+
+#print axioms copyBody_spec_within
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
