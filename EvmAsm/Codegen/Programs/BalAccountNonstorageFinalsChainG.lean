@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainF
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
 
 namespace EvmAsm.Codegen
 
@@ -661,6 +662,62 @@ theorem nonceLoopExit_to_cont452Pre (aB newSp oB n4 : Word)
   exact (congrFun heq h).mp hL
 
 #print axioms nonceLoopExit_to_cont452Pre
+
+/-- Continuation at the nonce find-last loop header `B + 408`. -/
+theorem bansf_nonceStationCont408_spec (aB newSp oB : Word)
+    (aLen fOff fSpanN j : Nat) (n4 : Word) (b : BitVec 8)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hb : acctBytes[fOff]? = some b)
+    (hne : fOff + listHeaderSize b ≠ fOff + fSpanN)
+    (hoff0le : fOff + listHeaderSize b ≤ fOff + fSpanN)
+    (hfE : fOff + fSpanN ≤ aLen) :
+    cpsBranchWithin (98 * (j + 1) + (7 * acctBytes.length + 291))
+      (B + 408) bansfCR
+      (flInv aB newSp acctBytes (fOff + listHeaderSize b)
+        (fOff + fSpanN) F j **
+       (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB)))
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+  have hloop := bansf_findLastLoop2_spec aB newSp acctBytes
+    (fOff + listHeaderSize b) (fOff + fSpanN) F hF hsalign
+    (by omega) hover hvalid (by omega) j
+  let H : Assertion :=
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB)
+  have hH : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have hloopF := cpsBranchWithin_frameR H hH hloop
+  have hloopSw := cpsBranchWithin_swap hloopF
+  have hloopW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => nonceLoopReject_to_stationRej aB newSp oB n4 aLen
+      acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) hloopSw
+  have hc452 := bansf_nonceStationCont452_spec aB newSp oB aLen fOff fSpanN
+    n4 b acctBytes G F hG hF hsalign hslack hover hvalid hb hne hoff0le hfE
+  have hc452' := cpsBranchWithin_weaken
+    (nonceLoopExit_to_cont452Pre aB newSp oB n4 aLen
+      (fOff + listHeaderSize b) (fOff + fSpanN) acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hc452
+  exact cpsBranchWithin_chain_snd hloopW hc452'
+
+#print axioms bansf_nonceStationCont408_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
