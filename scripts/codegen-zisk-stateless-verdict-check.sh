@@ -26,7 +26,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
 FILTER="eip4895"
 SKIP=0
 LIMIT=30
