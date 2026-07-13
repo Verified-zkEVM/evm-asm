@@ -790,6 +790,150 @@ def initCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (B + 52)) ** bytesRegion listBase bytes
 
+def initOutcome (listBase : Word) (bytes : List (BitVec 8))
+    (listLen : Nat) (hoff : 0 < bytes.length) : Assertion := fun h =>
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+    ⌜BitVec.ofNat 64 listLen = (0 : Word)⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (1 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true⌝) h) ∨
+  (((.x10 ↦ᵣ (listBase + signExtend12 (1 : BitVec 12))) **
+    (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) = listBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (3 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) ≠ listBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (4 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      BitVec.ult (listBase + BitVec.ofNat 64 listLen)
+        (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (5 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
+        (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧ bytes[1]? = some 0⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (6 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
+        (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true⌝) h) ∨
+  (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
+    (.x12 ↦ᵣ (7 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
+        (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+      listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) ≠
+        listBase + BitVec.ofNat 64 listLen⌝) h) ∨
+  (((.x10 ↦ᵣ (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      signExtend12 (1 : BitVec 12)))) **
+    (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+    ⌜BitVec.ofNat 64 listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
+        (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) = true ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+      listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) =
+        listBase + BitVec.ofNat 64 listLen⌝) h)
+
+theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
+    (listLen : Nat) (indexW : Word)
+    (v5 v6 v7 v28 v29 v30 v31 oldRa : Word)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 82 (B + 48) (B + 52) code
+      ((.x1 ↦ᵣ oldRa) **
+       ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
+        (.x12 ↦ᵣ indexW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase bytes))
+      (((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+        initOutcome listBase bytes listLen (by omega))) := by
+  have hoff : 0 < bytes.length := by omega
+  have hwi := rlp_walk_init_spec_within WI listBase (B + 52)
+    (BitVec.ofNat 64 listLen) indexW v5 v6 v7 v28 v29 v30 v31 bytes 0
+    hsalign hoff (by omega) (hvalid 0 hoff)
+    (fun hf8 => by
+      have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        have h3 := (bytes[0]'hoff).isLt
+        bv_omega
+      omega)
+    (fun hf8 => by
+      have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        have h3 := (bytes[0]'hoff).isLt
+        bv_omega
+      omega)
+    (fun hf8 => by
+      intro k hk
+      have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        have h3 := (bytes[0]'hoff).isLt
+        bv_omega
+      exact hvalid _ (by omega))
+  rw [show listBase + BitVec.ofNat 64 0 = listBase from by bv_omega] at hwi
+  let Prest : Assertion :=
+    ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
+     (.x12 ↦ᵣ indexW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+     (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+     (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase bytes)
+  let Q : Assertion :=
+    ((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
+      initOutcome listBase bytes listLen hoff)
+  have hwi' : cpsTripleWithin 81 WI ((B + 52) &&& ~~~(1 : Word))
+      (rlp_walk_init_code WI) (((.x1 ↦ᵣ (B + 52)) ** Prest)) Q :=
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        unfold Prest at hp
+        xperm_hyp hp) (fun h hp => by
+        unfold Q initCommon initOutcome
+        simp only [Nat.zero_add] at hp ⊢
+        xperm_hyp hp) hwi
+  have hc := callWalkInit oldRa (by unfold Prest; pcf) hwi'
+  simpa [Prest, Q] using hc
+
+#print axioms initCallExact
+
 def initRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
   fun h => ∃ status cursor endPtr : Word,
