@@ -570,5 +570,84 @@ theorem bansfVerdictResult_frame_out
 
 #print axioms bansfVerdictResult_frame_out
 
+/-- Caller-owned resources used by the body, excluding the ABI frame itself. -/
+def bansfCallerPre (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ aB) **
+  ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x12 : Reg) ↦ᵣ oB) **
+  memOwn (newSp + 48) ** memOwn (newSp + 56) **
+  memOwn (newSp + 64) ** memOwn (newSp + 72) **
+  memOwn oB ** memOwn (oB + 8) ** memOwn (oB + 16) **
+  memOwn (oB + 24) ** memOwn (oB + 32) ** memOwn (oB + 40) **
+  memOwn (oB + 48) ** memOwn (oB + 56) ** memOwn (oB + 64) **
+  memOwn (oB + 72) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F
+
+/-- Complete 177-instruction body triple in `abiFrame_spec_own` shape. -/
+theorem bansf_body_spec
+    (sp0 aB oB : Word) (aLen : Nat) (vals : Reg → Word)
+    (acctBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (101 + (372 + (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)))
+      (B + 28) (B + 736) bansfCR
+      (((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-80 : BitVec 12))) **
+       regsAt bansfFrame vals **
+       frameSlotsSaved bansfFrame
+         (sp0 + signExtend12 (-80 : BitVec 12)) vals **
+       bansfCallerPre aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+         aLen acctBytes F)
+      (((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-80 : BitVec 12))) **
+       regsOwnAt bansfFrame **
+       frameSlotsSaved bansfFrame
+         (sp0 + signExtend12 (-80 : BitVec 12)) vals **
+       bansfVerdictResult aB (sp0 + signExtend12 (-80 : BitVec 12)) oB
+         aLen acctBytes F) := by
+  let newSp := sp0 + signExtend12 (-80 : BitVec 12)
+  let FS := frameSlotsSaved bansfFrame newSp vals
+  have hFS : FS.pcFree := by
+    dsimp only [FS]
+    exact pcFree_frameSlotsSaved bansfFrame newSp vals
+  have hAmbient : (FS ** F).pcFree := by
+    letI : Assertion.PCFree FS := ⟨hFS⟩
+    letI : Assertion.PCFree F := ⟨hF⟩
+    exact (inferInstance : Assertion.PCFree (FS ** F)).proof
+  have ht := bansf_chainAVerdict_concrete1920 aB newSp oB aLen acctBytes
+    (vals .x8) (vals .x9) (vals .x18) (vals .x19) (vals .x20) (FS ** F)
+    hAmbient hsalign hoalign hslack hover hvalid hovout hovalid
+  exact cpsTripleWithin_weaken (by
+    intro h hp
+    dsimp only [newSp, FS] at hp ⊢
+    unfold bansfCallerPre at hp
+    unfold chainAConcretePre
+    have hRegs : ∀ h',
+        regsAt bansfFrame vals h' →
+        (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ vals .x8) **
+          ((.x9 : Reg) ↦ᵣ vals .x9) ** ((.x18 : Reg) ↦ᵣ vals .x18) **
+          ((.x19 : Reg) ↦ᵣ vals .x19) ** ((.x20 : Reg) ↦ᵣ vals .x20)) h' := by
+      simp only [regsAt, bansfFrame, List.foldr, sepConj_emp_right']
+      exact sepConj_mono (regIs_implies_regOwn .x1) (fun _ hx => hx)
+    have hp' := sepConj_mono (fun _ hx => hx)
+      (sepConj_mono hRegs (fun _ hx => hx)) h hp
+    xperm_hyp hp') (by
+    intro h hp
+    have hpAbi := chainAVerdictPost_to_abiVerdict aB newSp oB aLen
+      acctBytes (FS ** F) h hp
+    have hpOut := sepConj_mono_right (sepConj_mono_right
+      (bansfVerdictResult_frame_out aB newSp oB aLen acctBytes FS F)) h hpAbi
+    simpa only [newSp, FS] using hpOut) ht
+
+#print axioms bansf_body_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
