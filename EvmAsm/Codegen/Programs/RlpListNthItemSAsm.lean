@@ -2362,4 +2362,65 @@ theorem initAndScanExact
 
 #print axioms initAndScanExact
 
+/-- Concrete success tail (wrapper slots 22--27): compute the content offset,
+    update both ABI output cells, set status zero, and jump to the restore join. -/
+theorem selectedTailCore (listBase next len offsetPtr lenPtr oldOffset oldLen v5 : Word) :
+    cpsTripleWithin 6 (B + 88) (B + 116) code
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x5 ↦ᵣ v5) **
+       (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+       (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+       (.x5 ↦ᵣ (next - len - listBase)) ** (.x8 ↦ᵣ listBase) **
+       (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+       (offsetPtr ↦ₘ (next - len - listBase)) ** (lenPtr ↦ₘ len)) := by
+  have h0 := sub_spec_gen_within .x5 .x10 .x12 next len v5 (B + 88) (by decide)
+  have h0' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 88) rlpListNthItem_prog 22
+      (.SUB .x5 .x10 .x12) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h0
+  have h1 := sub_spec_gen_rd_eq_rs1_within .x5 .x8 (next - len) listBase
+    (B + 92) (by decide)
+  have h1' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 92) rlpListNthItem_prog 23
+      (.SUB .x5 .x5 .x8) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h1
+  have h2 := sd_spec_gen_within .x18 .x5 offsetPtr (next - len - listBase)
+    oldOffset (0 : BitVec 12) (B + 96)
+  have h2' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 96) rlpListNthItem_prog 24
+      (.SD .x18 .x5 (0 : BitVec 12)) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h2
+  have h3 := sd_spec_gen_within .x19 .x12 lenPtr len oldLen
+    (0 : BitVec 12) (B + 100)
+  have h3' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 100) rlpListNthItem_prog 25
+      (.SD .x19 .x12 (0 : BitVec 12)) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h3
+  have h4 := li_spec_gen_within .x10 next (0 : Word) (B + 104) (by decide)
+  have h4' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 104) rlpListNthItem_prog 26
+      (.LI .x10 (0 : Word)) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h4
+  have h5 := jal_x0_spec_gen_within (8 : BitVec 21) (B + 108)
+  rw [show B + 108 + signExtend21 (8 : BitVec 21) = B + 116 by decide] at h5
+  have h5' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 108) rlpListNthItem_prog 27
+      (.JAL .x0 (8 : BitVec 21)) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h5
+  runBlock h0' h1' h2' h3' h4' h5'
+
+#print axioms selectedTailCore
+
+/-- Concrete failure tail (wrapper slot 28): set the ABI status to one. -/
+theorem rejectedTailCore (oldA0 : Word) :
+    cpsTripleWithin 1 (B + 112) (B + 116) code
+      (.x10 ↦ᵣ oldA0) (.x10 ↦ᵣ (1 : Word)) := by
+  have h0 := li_spec_gen_within .x10 oldA0 (1 : Word) (B + 112) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 112) rlpListNthItem_prog 28
+      (.LI .x10 (1 : Word)) (by bv_omega) (by rw [total_length]; norm_num) rfl
+      (by rw [total_length]; norm_num)) h0
+
+#print axioms rejectedTailCore
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
