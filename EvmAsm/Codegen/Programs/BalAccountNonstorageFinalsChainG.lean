@@ -774,5 +774,70 @@ theorem nonceEmpty_to_stationPost (aB newSp oB : Word)
 
 #print axioms nonceEmpty_to_stationPost
 
+/-- Turn the two slot-100/101 spills into the station-2 find-last invariant. -/
+theorem nonceLoopEntry_to_flInv (aB newSp : Word) (acctBytes : List (BitVec 8))
+    (cOff endOff : Nat) (H : Assertion) (hcle : cOff ≤ endOff) :
+    ∀ h,
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+       ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+       regOwn .x19 ** regOwn .x20 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion aB acctBytes ** H) h →
+      flInv aB newSp acctBytes cOff endOff H (endOff - cOff) h := by
+  intro h hp
+  unfold flInv
+  have hp19 :
+      (regOwn .x19 **
+       (regOwn .x20 **
+        ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion aB acctBytes ** H)) h := by
+    xperm_hyp hp
+  obtain ⟨v19, hp19'⟩ := sepConj_choose_regOwn hp19
+  have hp20 :
+      (regOwn .x20 **
+       (((.x19 : Reg) ↦ᵣ v19) **
+        ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion aB acctBytes ** H)) h := by
+    xperm_hyp hp19'
+  obtain ⟨v20, hp20'⟩ := sepConj_choose_regOwn hp20
+  have hpC :
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+       (((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwn .x1 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion aB acctBytes ** H)) h := by
+    xperm_hyp hp20'
+  have hpOwn := sepConj_mono (regIs_implies_regOwn .x10)
+    (sepConj_mono (regIs_implies_regOwn .x11) (fun _ x => x)) h hpC
+  refine ⟨cOff, v19, v20,
+    (sepConj_pure_right h).2 ⟨?_, rfl, Nat.le_refl _, hcle, Or.inl rfl⟩⟩
+  xperm_hyp hpOwn
+
+#print axioms nonceLoopEntry_to_flInv
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
