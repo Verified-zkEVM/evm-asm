@@ -2609,6 +2609,16 @@ calling convention so it is a literal drop-in.
   accepts non-canonical zero-byte encodings (EIP-161 Uint comparison), which
   the strict cursor walk cannot preserve.
 
+- ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
+  `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
+  caller from static inputs through verified `rlp_walk_init` and repeated
+  `rlp_walk_next` calls, with a unified `Result` post covering exact selected
+  `(offset,length)`, malformed/non-canonical input, and out-of-bounds index.
+  The replacement is a single-exit, spec-aligned re-emit; it restores all
+  seven callee-saved registers, keeps source bytes read-only, and audits to the
+  three permitted classical axioms. Guest-link regeneration and EEST A/B are
+  the byte-changing deployment gates.
+
 - ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
   first caller-level verification step composing the cursor-walk leaves
   (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper

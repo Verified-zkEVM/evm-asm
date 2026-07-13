@@ -16,6 +16,8 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkNext
 
 namespace EvmAsm.Codegen
 
@@ -51,7 +53,7 @@ open EvmAsm.Rv64
     another call to `rlp_list_nth_item`).
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def rlpListNthItem_prog : Program :=
+def rlpListNthItem_legacy_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
@@ -213,6 +215,61 @@ def rlpListNthItem_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Strict, spec-aligned K20 wrapper. The verified `rlp_walk_init` and
+    `rlp_walk_next` bodies are embedded after the wrapper so every existing
+    textual K20 closure stays self-contained. The wrapper returns before the
+    embedded bodies and reaches them only through local PC-relative calls. -/
+def rlpListNthItemWrapper_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .JAL .x1 (104 : BitVec 21),
+    .BNE .x12 .x0 (60 : BitVec 13),
+    .MV .x20 .x11,
+    .LI .x21 (0 : Word),
+    .MV .x11 .x20,
+    .JAL .x1 (296 : BitVec 21),
+    .BNE .x11 .x0 (40 : BitVec 13),
+    .BEQ .x21 .x9 (12 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .SUB .x5 .x10 .x12,
+    .SUB .x5 .x5 .x8,
+    .SD .x18 .x5 (0 : BitVec 12),
+    .SD .x19 .x12 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def rlpListNthItem_prog : Program :=
+  (show List Instr from rlpListNthItemWrapper_prog) ++ EvmAsm.Rv64.RLP.rlp_walk_init_prog ++
+    EvmAsm.Rv64.RLP.rlp_walk_next_prog
+
+#guard rlpListNthItemWrapper_prog.length = 38
+#guard (rlpListNthItem_prog.drop rlpListNthItemWrapper_prog.length).take
+    EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
+#guard rlpListNthItem_prog.drop
+    (rlpListNthItemWrapper_prog.length + EvmAsm.Rv64.RLP.rlp_walk_init_prog.length) =
+      EvmAsm.Rv64.RLP.rlp_walk_next_prog
+
 def rlpListNthItemFunction : String :=
   "rlp_list_nth_item:\n" ++ emitProgram rlpListNthItem_prog
 
@@ -224,7 +281,7 @@ theorem rlpListNthItemFunction_eq_prog :
     rlpListNthItemFunction = "rlp_list_nth_item:\n" ++ emitProgram rlpListNthItem_prog := rfl
 
 #guard rlpListNthItemFunction.startsWith "rlp_list_nth_item:\n"
-#guard rlpListNthItem_prog.length = 160
+#guard rlpListNthItem_prog.length = 194
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of

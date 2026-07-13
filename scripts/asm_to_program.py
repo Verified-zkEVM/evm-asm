@@ -935,6 +935,7 @@ SOURCE_DRIFT_ALLOW = {
     'secp256k1FieldIsZeroFunction',
     'bn254FieldEq32Function',
     'bn254FieldIsZeroFunction',
+    'rlpListNthItemFunction',
 }
 
 def check_file(path, funcs, rendered=None):
