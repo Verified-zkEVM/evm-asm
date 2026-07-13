@@ -136,9 +136,9 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 32 < 2 ^ 64)
     (hovalid : ∀ k, k < 32 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
     (harval : ∀ j, j < 232 → isValidMemAddr (arenaS + BitVec.ofNat 64 j) = true)
-    (hdA : aPtr.toNat + 32 ≤ (0xa3c053d8 : Nat) ∨ (0xa3c053f8 : Nat) ≤ aPtr.toNat)
-    (hdB : bPtr.toNat + 32 ≤ (0xa3c053f8 : Nat) ∨ (0xa3c05418 : Nat) ≤ bPtr.toNat)
-    (hdO : (0xa3c05438 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xa3c05418 : Nat))
+    (hdA : aPtr.toNat + 32 ≤ (0xa3000780 : Nat) ∨ (0xa30007a0 : Nat) ≤ aPtr.toNat)
+    (hdB : bPtr.toNat + 32 ≤ (0xa30007a0 : Nat) ∨ (0xa30007c0 : Nat) ≤ bPtr.toNat)
+    (hdO : (0xa30007e0 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xa30007c0 : Nat))
     (hpa : wsDword ws 0xC0 = arenaS + BitVec.ofNat 64 0)
     (hpb : wsDword ws 0xC8 = arenaS + BitVec.ofNat 64 0x20)
     (hpc : wsDword ws 0xD0 = arenaS + BitVec.ofNat 64 0x60)
@@ -218,7 +218,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           ((GuestAddrs.secf_mul_mod_p + 36) : Word) ((GuestAddrs.secf_mul_mod_p + 84) : Word) mulCr
           (⌜wsNat256 ws₁ 0 = beBytesToNat aBE ∧ ws₁.length = 32⌝
             ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 36) : Word)) ** regOwns exposedRegs
-            ** bytesRegion (0xa3c053d8 : Word) ws₁ ** bytesRegion aPtr aBE
+            ** bytesRegion (0xa3000780 : Word) ws₁ ** bytesRegion aPtr aBE
             ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr) ** bytesRegion bPtr bBE
             ** bytesRegion outPtr outOld ** windowRest arenaS ws 0 32)
           (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 80) : Word)) ** (.x8 ↦ᵣ bPtr)
@@ -243,7 +243,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
             ((GuestAddrs.secf_mul_mod_p + 52) : Word) ((GuestAddrs.secf_mul_mod_p + 84) : Word) mulCr
             (⌜wsNat256 ws₂ 0 = beBytesToNat bBE ∧ ws₂.length = 32⌝
               ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 52) : Word)) ** regOwns exposedRegs
-              ** bytesRegion (0xa3c053f8 : Word) ws₂ ** bytesRegion bPtr bBE
+              ** bytesRegion (0xa30007a0 : Word) ws₂ ** bytesRegion bPtr bBE
               ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE
               ** bytesRegion outPtr outOld
               ** windowRest arenaS (setBytes ws 0 ws₁) 0x20 32)
@@ -327,7 +327,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
               ** (bytesRegion (arenaS + BitVec.ofNat 64 0x20) ws₂
                 ** windowRest arenaS (setBytes ws 0 ws₁) 0x20 32))
               : Assertion) h := by
-            rw [show arenaS + BitVec.ofNat 64 0x20 = (0xa3c053f8 : Word)
+            rw [show arenaS + BitVec.ofNat 64 0x20 = (0xa30007a0 : Word)
               from by decide]
             xperm_hyp hp
           rw [← bytesRegion_window_update arenaS (setBytes ws 0 ws₁) ws₂ 0x20 32
@@ -385,7 +385,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
             ** bytesRegion outPtr outOld
             ** (bytesRegion (arenaS + BitVec.ofNat 64 0) ws₁
               ** windowRest arenaS ws 0 32)) : Assertion) h := by
-          rw [show arenaS + BitVec.ofNat 64 0 = (0xa3c053d8 : Word)
+          rw [show arenaS + BitVec.ofNat 64 0 = (0xa3000780 : Word)
             from by decide]
           xperm_hyp hp
         rw [← bytesRegion_window_update arenaS ws ws₁ 0 32 (by omega)
@@ -400,13 +400,13 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           at hmv10
         -- la a1, secf_le_b
         have hla11 := la_materialize_within .x11 (vf .x11) ((GuestAddrs.secf_mul_mod_p + 40) : Word)
-          (0xa3c053f8 : Word) (cr := mulCr) (by decide) (by decide)
+          (0xa30007a0 : Word) (cr := mulCr) (by decide) (by decide)
           (by code_mem) (by code_mem)
         rw [show ((GuestAddrs.secf_mul_mod_p + 40) : Word) + 8 = ((GuestAddrs.secf_mul_mod_p + 48) : Word) from by decide]
           at hla11
         -- the second conversion call over the FOCUSED `_b` window
         have hflat2 := secfBeToLeFlat_spec ((GuestAddrs.secf_mul_mod_p + 52) : Word) bPtr
-          (0xa3c053f8 : Word) bBE (((setBytes ws 0 ws₁).drop 0x20).take 32)
+          (0xa30007a0 : Word) bBE (((setBytes ws 0 ws₁).drop 0x20).take 32)
           hblen
           (by
             rw [List.length_take, List.length_drop, length_setBytes, hwslen]
@@ -414,19 +414,19 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           hwfB
           (by
             refine ⟨?_, ?_, ?_⟩
-            · show ((0xa3c053f8 : Word)).toNat % 8 = 0
+            · show ((0xa30007a0 : Word)).toNat % 8 = 0
               decide
-            · show ((0xa3c053f8 : Word)).toNat + 32 < 2 ^ 64
+            · show ((0xa30007a0 : Word)).toNat + 32 < 2 ^ 64
               decide
             · intro k hk
               have hk' : k < 32 := hk
-              rw [show (0xa3c053f8 : Word) + BitVec.ofNat 64 k
+              rw [show (0xa30007a0 : Word) + BitVec.ofNat 64 k
                   = arenaS + BitVec.ofNat 64 (0x20 + k) from by
                 apply BitVec.eq_of_toNat_eq
                 rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
                   BitVec.toNat_ofNat,
-                  show ((0xa3c053f8 : Word)).toNat = 0xa3c053f8 from by decide,
-                  show (arenaS).toNat = 0xa3c053d8 from by decide]
+                  show ((0xa30007a0 : Word)).toNat = 0xa30007a0 from by decide,
+                  show (arenaS).toNat = 0xa3000780 from by decide]
                 omega]
               exact harval (0x20 + k) (by omega))
           (by
@@ -434,7 +434,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
             rwa [hblen] at h)
           (by decide)
           (by
-            have hdst : ((0xa3c053f8 : Word)).toNat = 0xa3c053f8 := by decide
+            have hdst : ((0xa30007a0 : Word)).toNat = 0xa30007a0 := by decide
             rcases hdB with h | h
             · left
               rw [hdst]
@@ -444,19 +444,19 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
               omega)
           (by decide)
         have hcallee2 : cpsTripleWithin
-            ((secfBeToLeFn bPtr (0xa3c053f8 : Word) bBE
+            ((secfBeToLeFn bPtr (0xa30007a0 : Word) bBE
               (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps + 1)
             (GuestAddrs.secf_be_to_le : Word) ((GuestAddrs.secf_mul_mod_p + 52) : Word) mulCr
             (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 52) : Word))
-              ** ((.x10 ↦ᵣ bPtr) ** (.x11 ↦ᵣ (0xa3c053f8 : Word))
+              ** ((.x10 ↦ᵣ bPtr) ** (.x11 ↦ᵣ (0xa30007a0 : Word))
                 ** regOwns convScratch
-                ** bytesRegion (0xa3c053f8 : Word)
+                ** bytesRegion (0xa30007a0 : Word)
                     (((setBytes ws 0 ws₁).drop 0x20).take 32)
                 ** bytesRegion bPtr bBE))
             (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 52) : Word))
               ** (fun hp => ∃ ws',
                 ((⌜wsNat256 ws' 0 = beBytesToNat bBE ∧ ws'.length = 32⌝
-                  ** regOwns exposedRegs ** bytesRegion (0xa3c053f8 : Word) ws'
+                  ** regOwns exposedRegs ** bytesRegion (0xa30007a0 : Word) ws'
                   ** bytesRegion bPtr bBE)) hp)) := by
           refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
             (fun h hq => ?_) hflat2
@@ -466,12 +466,12 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
         have hcall2 := callWithin_spec ((GuestAddrs.secf_mul_mod_p + 48) : Word) (GuestAddrs.secf_be_to_le : Word)
           ((GuestAddrs.secf_mul_mod_p + 36) : Word)
           (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_p + 48))
-          ((secfBeToLeFn bPtr (0xa3c053f8 : Word) bBE
+          ((secfBeToLeFn bPtr (0xa30007a0 : Word) bBE
             (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps + 1)
           (by decide) (by code_mem) (by pcf) hcallee2
         rw [show ((GuestAddrs.secf_mul_mod_p + 48) : Word) + 4 = ((GuestAddrs.secf_mul_mod_p + 52) : Word) from by decide]
           at hcall2
-        rw [show (secfBeToLeFn bPtr (0xa3c053f8 : Word) bBE
+        rw [show (secfBeToLeFn bPtr (0xa30007a0 : Word) bBE
             (((setBytes ws 0 ws₁).drop 0x20).take 32)).body.steps
           = (secfBeToLeFn 0 0 [] []).body.steps from rfl] at hcall2
         -- ---- frames + chain ----
@@ -503,7 +503,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           (fun h hp => by
             rw [bytesRegion_window_focus arenaS (setBytes ws 0 ws₁) 0x20 32
                   (by rw [length_setBytes]; omega) (by norm_num) (by norm_num),
-                show arenaS + BitVec.ofNat 64 0x20 = (0xa3c053f8 : Word)
+                show arenaS + BitVec.ofNat 64 0x20 = (0xa30007a0 : Word)
                   from by decide] at hp
             xperm_hyp hp) hd1 hcall2F
         have hd2' : cpsTripleWithin
@@ -518,7 +518,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
             (fun hp => ∃ ws₂,
               ((⌜wsNat256 ws₂ 0 = beBytesToNat bBE ∧ ws₂.length = 32⌝
                 ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 52) : Word)) ** regOwns exposedRegs
-                ** bytesRegion (0xa3c053f8 : Word) ws₂ ** bytesRegion bPtr bBE
+                ** bytesRegion (0xa30007a0 : Word) ws₂ ** bytesRegion bPtr bBE
                 ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE
                 ** bytesRegion outPtr outOld
                 ** windowRest arenaS (setBytes ws 0 ws₁) 0x20 32)) hp) := by
@@ -527,7 +527,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
               (fun h hq => ?_) hd2)
           have hq1 : ((fun hp => ∃ ws',
               ((⌜wsNat256 ws' 0 = beBytesToNat bBE ∧ ws'.length = 32⌝
-                ** regOwns exposedRegs ** bytesRegion (0xa3c053f8 : Word) ws'
+                ** regOwns exposedRegs ** bytesRegion (0xa30007a0 : Word) ws'
                 ** bytesRegion bPtr bBE)) hp)
               ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 52) : Word)) ** (.x8 ↦ᵣ bPtr)
                 ** (.x9 ↦ᵣ outPtr) ** bytesRegion aPtr aBE
@@ -553,11 +553,11 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
       (by code_mem)
     rw [show ((GuestAddrs.secf_mul_mod_p + 20) : Word) + 4 = ((GuestAddrs.secf_mul_mod_p + 24) : Word) from by decide] at hm2
     have hla := la_materialize_within .x11 bPtr ((GuestAddrs.secf_mul_mod_p + 24) : Word)
-      (0xa3c053d8 : Word) (cr := mulCr) (by decide) (by decide)
+      (0xa3000780 : Word) (cr := mulCr) (by decide) (by decide)
       (by code_mem) (by code_mem)
     rw [show ((GuestAddrs.secf_mul_mod_p + 24) : Word) + 8 = ((GuestAddrs.secf_mul_mod_p + 32) : Word) from by decide] at hla
     have hflat1 := secfBeToLeFlat_spec ((GuestAddrs.secf_mul_mod_p + 36) : Word) aPtr
-      (0xa3c053d8 : Word) aBE ((ws.drop 0).take 32)
+      (0xa3000780 : Word) aBE ((ws.drop 0).take 32)
       halen
       (by
         rw [List.length_take, List.length_drop, hwslen]
@@ -565,20 +565,20 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
       hwfA
       (by
         refine ⟨?_, ?_, ?_⟩
-        · show ((0xa3c053d8 : Word)).toNat % 8 = 0
+        · show ((0xa3000780 : Word)).toNat % 8 = 0
           decide
-        · show ((0xa3c053d8 : Word)).toNat + 32 < 2 ^ 64
+        · show ((0xa3000780 : Word)).toNat + 32 < 2 ^ 64
           decide
         · intro k hk
           have hk' : k < 32 := hk
-          rw [show (0xa3c053d8 : Word) = arenaS from by decide]
+          rw [show (0xa3000780 : Word) = arenaS from by decide]
           exact harval k (by omega))
       (by
         have h := hwfA.2.1
         rwa [halen] at h)
       (by decide)
       (by
-        have hdst : ((0xa3c053d8 : Word)).toNat = 0xa3c053d8 := by decide
+        have hdst : ((0xa3000780 : Word)).toNat = 0xa3000780 := by decide
         rcases hdA with h | h
         · left
           rw [hdst]
@@ -588,18 +588,18 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           omega)
       (by decide)
     have hcallee1 : cpsTripleWithin
-        ((secfBeToLeFn aPtr (0xa3c053d8 : Word) aBE
+        ((secfBeToLeFn aPtr (0xa3000780 : Word) aBE
           ((ws.drop 0).take 32)).body.steps + 1)
         (GuestAddrs.secf_be_to_le : Word) ((GuestAddrs.secf_mul_mod_p + 36) : Word) mulCr
         (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 36) : Word))
-          ** ((.x10 ↦ᵣ aPtr) ** (.x11 ↦ᵣ (0xa3c053d8 : Word))
+          ** ((.x10 ↦ᵣ aPtr) ** (.x11 ↦ᵣ (0xa3000780 : Word))
             ** regOwns convScratch
-            ** bytesRegion (0xa3c053d8 : Word) ((ws.drop 0).take 32)
+            ** bytesRegion (0xa3000780 : Word) ((ws.drop 0).take 32)
             ** bytesRegion aPtr aBE))
         (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 36) : Word))
           ** (fun hp => ∃ ws',
             ((⌜wsNat256 ws' 0 = beBytesToNat aBE ∧ ws'.length = 32⌝
-              ** regOwns exposedRegs ** bytesRegion (0xa3c053d8 : Word) ws'
+              ** regOwns exposedRegs ** bytesRegion (0xa3000780 : Word) ws'
               ** bytesRegion aPtr aBE)) hp)) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun h hq => ?_) hflat1
@@ -608,12 +608,12 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
       xperm_hyp hin
     have hcall1 := callWithin_spec ((GuestAddrs.secf_mul_mod_p + 32) : Word) (GuestAddrs.secf_be_to_le : Word) ret
       (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_p + 32))
-      ((secfBeToLeFn aPtr (0xa3c053d8 : Word) aBE
+      ((secfBeToLeFn aPtr (0xa3000780 : Word) aBE
         ((ws.drop 0).take 32)).body.steps + 1)
       (by decide) (by code_mem) (by pcf) hcallee1
     rw [show ((GuestAddrs.secf_mul_mod_p + 32) : Word) + 4 = ((GuestAddrs.secf_mul_mod_p + 36) : Word) from by decide]
       at hcall1
-    rw [show (secfBeToLeFn aPtr (0xa3c053d8 : Word) aBE
+    rw [show (secfBeToLeFn aPtr (0xa3000780 : Word) aBE
         ((ws.drop 0).take 32)).body.steps
       = (secfBeToLeFn 0 0 [] []).body.steps from rfl] at hcall1
     -- ---- frames + chain ----
@@ -651,12 +651,12 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
       (fun h hp => by
         rw [bytesRegion_window_focus arenaS ws 0 32 (by omega) (by norm_num)
               (by norm_num),
-            show arenaS + BitVec.ofNat 64 0 = (0xa3c053d8 : Word)
+            show arenaS + BitVec.ofNat 64 0 = (0xa3000780 : Word)
               from by decide] at hp
         have hp1 : ((.x12 ↦ᵣ outPtr)
             ** (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ aPtr)
-              ** (.x11 ↦ᵣ (0xa3c053d8 : Word)) ** regOwns mulRest
-              ** bytesRegion (0xa3c053d8 : Word) ((ws.drop 0).take 32)
+              ** (.x11 ↦ᵣ (0xa3000780 : Word)) ** regOwns mulRest
+              ** bytesRegion (0xa3000780 : Word) ((ws.drop 0).take 32)
               ** bytesRegion aPtr aBE ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion bPtr bBE ** bytesRegion outPtr outOld
               ** windowRest arenaS ws 0 32)) h := by
@@ -665,8 +665,8 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           (fun _ hh => hh) h hp1
         have hp3 : (regOwns convScratch
             ** (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ aPtr)
-              ** (.x11 ↦ᵣ (0xa3c053d8 : Word))
-              ** bytesRegion (0xa3c053d8 : Word) ((ws.drop 0).take 32)
+              ** (.x11 ↦ᵣ (0xa3000780 : Word))
+              ** bytesRegion (0xa3000780 : Word) ((ws.drop 0).take 32)
               ** bytesRegion aPtr aBE ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr)
               ** bytesRegion bPtr bBE ** bytesRegion outPtr outOld
               ** windowRest arenaS ws 0 32)) h := by
@@ -683,7 +683,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
         (fun hp => ∃ ws₁,
           ((⌜wsNat256 ws₁ 0 = beBytesToNat aBE ∧ ws₁.length = 32⌝
             ** ((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 36) : Word)) ** regOwns exposedRegs
-            ** bytesRegion (0xa3c053d8 : Word) ws₁ ** bytesRegion aPtr aBE
+            ** bytesRegion (0xa3000780 : Word) ws₁ ** bytesRegion aPtr aBE
             ** (.x8 ↦ᵣ bPtr) ** (.x9 ↦ᵣ outPtr) ** bytesRegion bPtr bBE
             ** bytesRegion outPtr outOld ** windowRest arenaS ws 0 32)) hp)
         := by
@@ -692,7 +692,7 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
           (fun h hq => ?_) ha3)
       have hq1 : ((fun hp => ∃ ws',
           ((⌜wsNat256 ws' 0 = beBytesToNat aBE ∧ ws'.length = 32⌝
-            ** regOwns exposedRegs ** bytesRegion (0xa3c053d8 : Word) ws'
+            ** regOwns exposedRegs ** bytesRegion (0xa3000780 : Word) ws'
             ** bytesRegion aPtr aBE)) hp)
           ** (((.x1 : Reg) ↦ᵣ ((GuestAddrs.secf_mul_mod_p + 36) : Word)) ** (.x8 ↦ᵣ bPtr)
             ** (.x9 ↦ᵣ outPtr) ** bytesRegion bPtr bBE

@@ -176,7 +176,7 @@ MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
 DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
-DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.6.0}"
+DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.6.1}"
 TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
 USER_GUEST_ELF="${GUEST_ELF:-}"
@@ -654,6 +654,7 @@ patch_bsr_caps_and_relink() {
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
+    --section-start=.bss=0xa4000000 \
     --section-start=.sszscratch=0xbf500000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
@@ -1013,6 +1014,7 @@ ensure_verdict_debug_probe() {
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
+      --section-start=.bss=0xa4000000 \
       --section-start=.sszscratch=0xbf500000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
