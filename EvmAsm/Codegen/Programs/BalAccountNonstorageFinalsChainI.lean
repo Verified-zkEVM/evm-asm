@@ -560,6 +560,91 @@ theorem bansf_codeLoopEntry146_spec (aB newSp : Word) (cOff fEnd : Nat) :
 
 #print axioms bansf_codeLoopEntry146_spec
 
+/-- Shared reject boundary for the code station. `G` is the already-complete
+    balance/nonce footprint and remains untouched. -/
+def codeStationRej (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  G ** memOwn (oB + 56) ** memOwn (oB + 64) ** memOwn (oB + 72) **
+  memOwn (newSp + 48) ** memOwn (newSp + 56) **
+  memOwn (newSp + 64) ** memOwn (newSp + 72) **
+  ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+  ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+  ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+  bytesRegion aB acctBytes ** F
+
+/-- Successful code-station boundary at the success stub. The found arm
+    materializes only a relative byte window; it does not parse code bytes. -/
+def codeStationPost (aB newSp oB : Word) (aLen fOff fSpanN : Nat)
+    (n5 : Word) (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  fun h =>
+    (((G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+       regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes ** F) **
+      ⌜FieldFinal acctBytes aB fOff fSpanN none⌝) h) ∨
+    (∃ vNext vLen : Word,
+      ((G ** ((oB + 56) ↦ₘ (1 : Word)) **
+        ((oB + 64) ↦ₘ BitVec.ofNat 64 ((vNext - vLen - aB).toNat)) **
+        ((oB + 72) ↦ₘ BitVec.ofNat 64 vLen.toNat) **
+        ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
+        regOwn .x20 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F) **
+       ⌜FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))⌝) h)
+
+/-- Reframe a Loop3 parse failure as the code-station reject boundary. -/
+theorem codeLoopReject_to_stationRej (aB newSp oB n5 : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (flRej aB newSp acctBytes F **
+       (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB))) h →
+      codeStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold flRej at hq
+  have hq' :
+      (((newSp + 48) ↦ₘ n5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) **
+       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F ** G ** ((.x8 : Reg) ↦ᵣ aB) **
+        ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB))) h := by
+    xperm_hyp hq
+  have hqOwn := sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn (fun _ x => x))))) h hq'
+  unfold codeStationRej
+  xperm_hyp hqOwn
+
+#print axioms codeLoopReject_to_stationRej
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
