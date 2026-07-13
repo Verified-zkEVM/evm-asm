@@ -13,8 +13,7 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 
 namespace EvmAsm.Evm64
 

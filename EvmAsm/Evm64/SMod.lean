@@ -24,11 +24,7 @@ import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
 import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
 import EvmAsm.Evm64.SMod.Compose.BaseSpecsV5
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwnV5
-import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixV5
-import EvmAsm.Evm64.SMod.Compose.ModCallReturnV5
-import EvmAsm.Evm64.SMod.Compose.ModCallExactCallableV5
-import EvmAsm.Evm64.SMod.Compose.ModCallExactHandoffV5
-import EvmAsm.Evm64.SMod.Compose.PrefixChainV5
+import EvmAsm.Evm64.SMod.ModCallV5Shared
 import EvmAsm.Evm64.SMod.Spec
 import EvmAsm.Evm64.SMod.SpecSemantic
 import EvmAsm.Evm64.SMod.SpecBzero
