@@ -776,5 +776,77 @@ theorem bansf_codeStationCont680_spec (aB newSp oB : Word)
 
 #print axioms bansf_codeStationCont680_spec
 
+/-- Continuation at `B + 660`: decode the code tuple's index item, then its
+    value item, and materialize the selected window. -/
+theorem bansf_codeStationCont660_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n5 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF3 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 203) (B + 660) bansfCR
+      ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 offI)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 tEnd)) **
+         ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+         ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 offI)) **
+         ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 tEnd)) **
+         ((newSp + 48) ↦ₘ n5) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion aB acctBytes ** G ** F) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1)
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724)
+        (codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  have hti := bansf_codeTupleItem0_spec aB newSp tEnd offI acctBytes
+    v5 v6 v7 (aB + BitVec.ofNat 64 offI) (aB + BitVec.ofNat 64 tEnd) 0
+    v28 v29 v30 v31 vRa F hF hsalign (by omega) hover hvalid hoffleI
+  let H : Assertion :=
+    G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20
+  have hHF : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have htiF := cpsBranchWithin_frameR H hHF hti
+  have hc680 := bansf_codeStationCont680_spec aB newSp oB aLen tEnd offI
+    fOff fSpanN n5 acctBytes G F hG hF hsalign hslack hover hvalid htEnd
+    hoffleI hFF3
+  have hc680F := cpsBranchWithin_weaken
+    (P' := codeCont680Pre aB newSp oB n5 aLen tEnd offI acctBytes G F)
+    (fun _ hp => by delta codeCont680Pre at hp; exact hp)
+    (fun _ hq => hq) (fun _ hq => hq) hc680
+  have hc680' := cpsBranchWithin_weaken
+    (codeTupleOk_to_cont680Pre aB newSp oB n5 aLen tEnd offI acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hc680F
+  have htiW := cpsBranchWithin_weaken
+    (Q_t' := codeStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => codeTupleReject_to_stationRej
+      aB newSp oB n5 aLen acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) htiF
+  have hchain := cpsBranchWithin_chain_snd htiW hc680'
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hchain)
+
+#print axioms bansf_codeStationCont660_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
