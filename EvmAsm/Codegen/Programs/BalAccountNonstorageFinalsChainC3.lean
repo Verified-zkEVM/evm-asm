@@ -1132,5 +1132,36 @@ theorem bansf_nonceLoopEntry100_spec (aB newSp : Word) (cOff fEnd : Nat) :
 
 #print axioms bansf_nonceLoopEntry100_spec
 
+/-- Slot 99, taken arm: an empty nonce list skips to the station join. -/
+theorem bansf_nonceEmptyTaken_spec (aB : Word) (cOff fEnd : Nat)
+    (heq : cOff = fEnd) :
+    cpsTripleWithin 1 (B + 396) (B + 540) bansfCode
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd))) := by
+  subst heq
+  have hbeq := beq_spec_gen_within .x10 .x11 (144 : BitVec 13)
+    (aB + BitVec.ofNat 64 cOff) (aB + BitVec.ofNat 64 cOff) (B + 396)
+  rw [show (B + 396) + signExtend13 (144 : BitVec 13) = B + 540 from by
+        rw [show signExtend13 (144 : BitVec 13) = (144 : Word) from by decide]
+        bv_omega] at hbeq
+  have hbeqL := cpsBranchWithin_extend_code (cr' := bansfCode)
+    (fun a i h => CodeReq.ofProg_mem_at B (B + 396) bansfProg 99
+      (.BEQ .x10 .x11 (144 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+    hbeq
+  have h := cpsBranchWithin_takenPath hbeqL
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      exact sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
+
+#print axioms bansf_nonceEmptyTaken_spec
+
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
