@@ -105,10 +105,13 @@ theorem wrapper_list_disjoint :
 
 /-! ## Strict list-callee call shape -/
 
-def listSavedRegs (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
-  (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+def listOtherSaved (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
+  (.x9 ↦ᵣ saved.s1) **
   (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
   (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)
+
+def listSavedRegs (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) : Assertion :=
+  (.x8 ↦ᵣ saved.s0) ** listOtherSaved saved
 
 def listCallRest
     (sp0 listBase offsetPtr lenPtr : Word)
@@ -200,7 +203,7 @@ theorem listCallResult_cases
 theorem pcFree_listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
     v11 v12 : (listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
       v11 v12).pcFree := by
-  unfold listCallRest listSavedRegs
+  unfold listCallRest listSavedRegs listOtherSaved
   pcf
 
 /-- On a strict K20 success, instruction 12's `bne a0, zero` is necessarily
@@ -368,7 +371,7 @@ theorem listCalleeCallContract
     exact CodeReq.mono_union_right wrapper_list_disjoint
       CodeReq.union_mono_left a i hi) hflat
   refine cpsTripleWithin_weaken (fun h hp => by
-    unfold listSavedRegs at hp
+    unfold listSavedRegs listOtherSaved at hp
     rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame]
     xperm_hyp hp) (fun h hq => ?_) hcode
   unfold EvmAsm.Codegen.RlpListNthItemSAsm.flatReturnResult at hq
@@ -378,7 +381,7 @@ theorem listCalleeCallContract
         v11 v12) **
        ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
          oldOffset oldLen status offset len⌝)) h := by
-    unfold listCallCore listCallRest listSavedRegs
+    unfold listCallCore listCallRest listSavedRegs listOtherSaved
     rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame] at hq
     xperm_hyp hq
   obtain ⟨hRa, hRest, hd, hu, hra, hrest⟩ := hfixed
@@ -801,6 +804,94 @@ theorem failureJoin
   xperm_pure hq
 
 #print axioms failureJoin
+
+/-- Selected-item address setup (instructions 13--19): reload K20's exact
+    offset/length cells and form the content pointer for the scalar callee. -/
+theorem selectedSetupExact
+    (listBase offset len old5 v11 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 7 (B + 52) (B + 80) code
+      (((.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **
+        (.x8 ↦ᵣ listBase) ** (offsetCell ↦ₘ offset) **
+        (lengthCell ↦ₘ len)) ** F)
+      (((.x5 ↦ᵣ lengthCell) ** (.x10 ↦ᵣ (listBase + offset)) **
+        (.x11 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+        (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) ** F) := by
+  have hau0 := CodeReq.ofProg_mem_at B (B + 52) rlpFieldToU64_prog 13
+      (.AUIPC .x5 (laHi GuestAddrs.rfu_offset
+        (GuestAddrs.rlp_field_to_u64 + 52))) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had0 := CodeReq.ofProg_mem_at B (B + 56) rlpFieldToU64_prog 14
+      (.ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset
+        (GuestAddrs.rlp_field_to_u64 + 52))) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h0 := la_materialize_within .x5 old5 (B + 52) offsetCell
+    (by decide) (by unfold B offsetCell; decide) hau0 had0
+  have h1 := ld_spec_gen_within .x10 .x5 offsetCell (0 : Word) offset
+    (0 : BitVec 12) (B + 60) (by decide)
+  rw [show offsetCell + signExtend12 (0 : BitVec 12) = offsetCell from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h1
+  have h1' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 60) rlpFieldToU64_prog 15
+      (.LD .x10 .x5 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h1
+  have h2 := add_spec_gen_rd_eq_rs2_within .x10 .x8 listBase offset
+    (B + 64) (by decide)
+  have h2' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 64) rlpFieldToU64_prog 16
+      (.ADD .x10 .x8 .x10) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h2
+  have hau1 := CodeReq.ofProg_mem_at B (B + 68) rlpFieldToU64_prog 17
+      (.AUIPC .x5 (laHi GuestAddrs.rfu_length
+        (GuestAddrs.rlp_field_to_u64 + 68))) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have had1 := CodeReq.ofProg_mem_at B (B + 72) rlpFieldToU64_prog 18
+      (.ADDI .x5 .x5 (laLo GuestAddrs.rfu_length
+        (GuestAddrs.rlp_field_to_u64 + 68))) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
+  have h3 := la_materialize_within .x5 offsetCell (B + 68) lengthCell
+    (by decide) (by unfold B lengthCell; decide) hau1 had1
+  have h4 := ld_spec_gen_within .x11 .x5 lengthCell v11 len
+    (0 : BitVec 12) (B + 76) (by decide)
+  rw [show lengthCell + signExtend12 (0 : BitVec 12) = lengthCell from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h4
+  have h4' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 76) rlpFieldToU64_prog 19
+      (.LD .x11 .x5 (0 : BitVec 12)) (by bv_omega)
+      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) h4
+  have h0F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x8 ↦ᵣ listBase) **
+      (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) (by pcf) h0
+  have h1F := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11) ** (.x8 ↦ᵣ listBase) ** (lengthCell ↦ₘ len))
+    (by pcf) h1'
+  have h2F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ offsetCell) ** (.x11 ↦ᵣ v11) **
+      (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) (by pcf) h2'
+  have h3F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ v11) **
+      (.x8 ↦ᵣ listBase) ** (offsetCell ↦ₘ offset) **
+      (lengthCell ↦ₘ len)) (by pcf) h3
+  have h4F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (listBase + offset)) ** (.x8 ↦ᵣ listBase) **
+      (offsetCell ↦ₘ offset)) (by pcf) h4'
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h01 h2F
+  have h0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h012 h3F
+  have h01234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0123 h4F
+  have hlocal : cpsTripleWithin 7 (B + 52) (B + 80) wrapperCode
+      ((.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **
+        (.x8 ↦ᵣ listBase) ** (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len))
+      ((.x5 ↦ᵣ lengthCell) ** (.x10 ↦ᵣ (listBase + offset)) **
+        (.x11 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+        (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h01234
+  have hframed := cpsTripleWithin_frameR F hF hlocal
+  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hframed
+
+#print axioms selectedSetupExact
 
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
