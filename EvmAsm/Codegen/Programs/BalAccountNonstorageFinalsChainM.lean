@@ -719,5 +719,58 @@ theorem bansf_valueStations_spec
 
 #print axioms bansf_valueStations_spec
 
+/-- Concrete AccountChanges with one final tuple in each value field:
+    balance `1`, nonce `2`, and one-byte code `0x03`. -/
+def nonAbsentWitnessBytes : List (BitVec 8) :=
+  [0xcf, 0x80, 0xc0, 0xc0,
+   0xc3, 0xc2, 0x80, 0x01,
+   0xc3, 0xc2, 0x80, 0x02,
+   0xc3, 0xc2, 0x80, 0x03]
+
+/-- Expected fully-present result for `nonAbsentWitnessBytes`. -/
+def nonAbsentWitnessOut : FinalsOut :=
+  { hasBalance := true
+    balanceBE := List.replicate 31 0 ++ [1]
+    hasNonce := true
+    nonce := 2
+    hasCode := true
+    codeOff := 15
+    codeLen := 1 }
+
+/-- The genuine derivation has a concrete success witness with all three
+    materialized fields present. -/
+theorem finalsDerivation_nonAbsent_witness :
+    FinalsDerivation nonAbsentWitnessBytes 0 16 nonAbsentWitnessOut := by
+  have hbal : FieldFinal nonAbsentWitnessBytes 0 4 4
+      (some ((8 : Word), (1 : Word))) := by
+    refine FieldFinal.last 0xc3 8 3 8 1 rfl (by decide)
+      (LastItemAt.last 5 8 3 ⟨0xc2, rfl, by decide⟩ rfl) ?_
+    exact ⟨0xc2, rfl, 7, 0,
+      ⟨0x80, rfl, by decide⟩, ⟨0x01, rfl, by decide⟩⟩
+  have hnonce : FieldFinal nonAbsentWitnessBytes 0 8 4
+      (some ((12 : Word), (1 : Word))) := by
+    refine FieldFinal.last 0xc3 12 3 12 1 rfl (by decide)
+      (LastItemAt.last 9 12 3 ⟨0xc2, rfl, by decide⟩ rfl) ?_
+    exact ⟨0xc2, rfl, 11, 0,
+      ⟨0x80, rfl, by decide⟩, ⟨0x02, rfl, by decide⟩⟩
+  have hcode : FieldFinal nonAbsentWitnessBytes 0 12 4
+      (some ((16 : Word), (1 : Word))) := by
+    refine FieldFinal.last 0xc3 16 3 16 1 rfl (by decide)
+      (LastItemAt.last 13 16 3 ⟨0xc2, rfl, by decide⟩ rfl) ?_
+    exact ⟨0xc2, rfl, 15, 0,
+      ⟨0x80, rfl, by decide⟩, ⟨0x03, rfl, by decide⟩⟩
+  have hderiv := fieldFinals_to_finalsDerivation nonAbsentWitnessBytes 0 16
+    0xcf 2 0 3 1 4 1 8 4 12 4 16 4
+    (some ((8 : Word), (1 : Word)))
+    (some ((12 : Word), (1 : Word)))
+    (some ((16 : Word), (1 : Word))) rfl
+    ⟨0x80, rfl, by decide⟩ ⟨0xc0, rfl, by decide⟩
+    ⟨0xc0, rfl, by decide⟩ ⟨0xc3, rfl, by decide⟩
+    ⟨0xc3, rfl, by decide⟩ ⟨0xc3, rfl, by decide⟩
+    hbal hnonce hcode (by simp) (by simp)
+  simpa [nonAbsentWitnessOut, finalsOutOf, nonAbsentWitnessBytes] using hderiv
+
+#print axioms finalsDerivation_nonAbsent_witness
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
