@@ -460,5 +460,18 @@ theorem nonceStationOuterPost_to_codePre
 
 #print axioms nonceStationOuterPost_to_codePre
 
+/-- The persistent balance result owns only memory and pure facts. -/
+theorem balResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) :
+    (balResult aB oB fOff fSpanN acctBytes).pcFree := by
+  intro h hp
+  unfold balResult at hp
+  rcases hp with hp | hp
+  · exact (inferInstance : Assertion.PCFree _).proof h hp
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    exact (inferInstance : Assertion.PCFree _).proof h hp
+
+#print axioms balResult_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
