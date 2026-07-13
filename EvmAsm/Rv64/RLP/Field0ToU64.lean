@@ -460,7 +460,7 @@ keeps the certificate composable with the caller's exact pre-branch register
 state without an extra `regIs`-to-`regOwn` conversion at the call site. The
 trailing `JALR` is resolved automatically: its only atom (`x1`) is already
 pinned to `savedRa` by the preceding `MV`. -/
-def rlp_field0_to_u64_parse_fail_cert
+def rlp_field0_to_u64_parse_fail_exact_cert
     (addr savedRa advancedOld walkNextStatusOld x1Old : Word) :
     WP.CFG.Cert addr (savedRa &&& ~~~1)
       (CodeReq.ofProg addr rlp_field0_to_u64_parse_fail_prog)
@@ -475,13 +475,13 @@ def rlp_field0_to_u64_parse_fail_cert
 
 /-- The `parse_fail` leaf, lifted from its own minimal `CodeReq.ofProg` into
 the full `rlp_field0_to_u64_code base` (idx 11, i.e. `base + 44`). -/
-def rlp_field0_to_u64_parse_fail_cert_in_code
+def rlp_field0_to_u64_parse_fail_exact_cert_in_code
     (base savedRa advancedOld walkNextStatusOld x1Old : Word) :
     WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) (rlp_field0_to_u64_code base)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) **
         (.x1 ↦ᵣ savedRa)) :=
   WP.CFG.extendCode
-    (rlp_field0_to_u64_parse_fail_cert (base + 44) savedRa advancedOld walkNextStatusOld x1Old)
+    (rlp_field0_to_u64_parse_fail_exact_cert (base + 44) savedRa advancedOld walkNextStatusOld x1Old)
     (CodeReq.ofProg_mono_sub base (base + 44) rlp_field0_to_u64_prog
       rlp_field0_to_u64_parse_fail_prog 11 (by bv_omega) (by rfl)
       (by rw [rlp_field0_to_u64_prog_length, rlp_field0_to_u64_parse_fail_prog_length])
@@ -613,12 +613,30 @@ theorem rlp_field0_to_u64_branch_spec_within
     WP.CFG.weakenPost (WP.CFG.leaf hsuccess) (fun h hp => Or.inl hp)
   -- Taken continuation: the parse_fail leaf, extended into `CR` and framed
   -- with the registers/bytes the leaf does not touch.
+  let failCertRaw0 :=
+    WP.CFG.extendCode (cr' := CR)
+      (rlp_field0_to_u64_parse_fail_cert base savedRa)
+      (fun a i h => CodeReq.union_mono_left a i h)
+  let failCertRaw : WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) CR
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) ** (.x1 ↦ᵣ savedRa)) :=
+    WP.CFG.weakenPost failCertRaw0 (by
+      intro h hp
+      unfold rlp_field0_to_u64_parse_fail_post at hp
+      xperm_hyp hp)
   let failCertInCR : WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) CR
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) ** (.x1 ↦ᵣ savedRa)) :=
-    WP.CFG.extendCode
-      (rlp_field0_to_u64_parse_fail_cert_in_code base savedRa
-        (srcBase + BitVec.ofNat 64 (srcOff + len)) walkNextStatus x1Val)
-      (fun a i h => CodeReq.union_mono_left a i h)
+    WP.CFG.weakenPre
+      (pre' := ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) **
+        (.x11 ↦ᵣ walkNextStatus) ** (.x13 ↦ᵣ savedRa) ** (.x1 ↦ᵣ x1Val)))
+      failCertRaw (by
+      intro h hp
+      change (regOwn .x10 ** regOwn .x11 ** (.x13 ↦ᵣ savedRa) ** regOwn .x1) h
+      have hp1 := sepConj_mono_left (regIs_implies_regOwn .x10) h hp
+      have hp2 := sepConj_mono_right
+        (sepConj_mono_left (regIs_implies_regOwn .x11)) h hp1
+      have hp3 := sepConj_mono_right
+        (sepConj_mono_right (sepConj_mono_right (regIs_implies_regOwn .x1))) h hp2
+      exact hp3)
   let failCertFramed :=
     WP.CFG.frameR failCertInCR
       ((.x12 ↦ᵣ contentLen) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
@@ -640,6 +658,8 @@ theorem rlp_field0_to_u64_branch_spec_within
           (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
           (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
         successCert.pre := by
+    dsimp only [successCert, WP.CFG.weakenPost, WP.CFG.leaf, WP.CFG.block,
+      WP.Triple.weakenPost, WP.Triple.ofSpec]
     intro h hp
     extract_pure hp
     obtain ⟨heq, hp⟩ := hp
@@ -654,15 +674,29 @@ theorem rlp_field0_to_u64_branch_spec_within
           (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
           (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
         failCert.pre := by
+    dsimp only [failCert, failCertFramed, failCertInCR, WP.CFG.weakenPost,
+      WP.CFG.frameR, WP.CFG.weakenPre, WP.Triple.weakenPost, WP.Triple.frameR,
+      WP.Triple.weakenPre]
     intro h hp
     extract_pure hp
     obtain ⟨_hne, hp⟩ := hp
     xperm_hyp hp
-  have hcert := WP.CFG.branch br0 failCert successCert hlinkTaken hlinkNotTaken
+  let hcert := WP.CFG.branch br0 failCert successCert hlinkTaken hlinkNotTaken
   have hns : hcert.nSteps = 1 + Nat.max failCert.nSteps successCert.nSteps := rfl
   have hnsFail : failCert.nSteps = 4 := rfl
   have hnsSuccess : successCert.nSteps = 7 * len + 17 := rfl
-  refine cpsTripleWithin_mono_nSteps (by rw [hns, hnsFail, hnsSuccess]; omega)
-    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => hp) hcert.sound)
+  have hs : cpsTripleWithin hcert.nSteps (base + 16) (savedRa &&& ~~~1) CR
+      ((.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+        (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes) finalPost := hcert.sound
+  refine cpsTripleWithin_mono_nSteps (by
+    rw [hns, hnsFail, hnsSuccess]
+    have hm : Nat.max 4 (7 * len + 17) = 7 * len + 17 := Nat.max_eq_right (by omega)
+    rw [hm]
+    omega)
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hp => by exact hp) hs)
 
 end EvmAsm.Rv64.RLP
