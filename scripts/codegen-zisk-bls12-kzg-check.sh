@@ -41,9 +41,9 @@ import os
 import subprocess
 import sys
 
-from py_ecc.bls.g2_primitives import G1_to_pubkey
+from py_ecc.bls.g2_primitives import G1_to_pubkey, pubkey_to_G1
 from py_ecc.optimized_bls12_381 import (
-    FQ, G1, multiply, curve_order,
+    FQ, G1, add, multiply, curve_order,
 )
 from ethereum.crypto.kzg import verify_kzg_proof, BLS_MODULUS
 
@@ -140,6 +140,51 @@ while off is None:
     x += 1
 check('off-subgroup commitment rejected', fe(1), fe(7), compress_g1(off), INF48)
 check('off-subgroup proof rejected', fe(1), fe(7), C7, compress_g1(off))
+
+# --- GENERAL (non-constant) polynomial proofs (bead evm-asm-rowr9) ---
+# The constant-poly family above never exercises the full pairing path:
+# its proof is the infinity point (pair 2 skipped) and on valid rows
+# P_minus_y = [c-y]G1 = infinity too (pair 1 skipped), so a kernel that
+# rejects every finite pairing input still passed the accept rows.
+# Degree-1 polynomials f(X) = a + bX need only [tau^1]_1 from the
+# trusted setup: commitment = [a]G1 + b*[tau]_1, y = a + b*z, and the
+# quotient (f(tau) - f(z)) / (tau - z) = b, so proof = [b]G1 -- a real
+# finite proof driving both pairs through the Miller loop + final exp.
+SETUP = ('execution-specs/packages/testing/src/execution_testing/'
+         'test_types/kzg_trusted_setup.txt')
+with open(SETUP) as f:
+    setup_lines = [line.strip() for line in f]
+# file layout: 4096 / 65 / 4096 G1 Lagrange / 65 G2 monomial /
+# 4096 G1 monomial -- [tau^1]_1 is the second monomial G1 point
+TAU1 = pubkey_to_G1(bytes.fromhex(setup_lines[2 + 4096 + 65 + 1]))
+
+def deg1(a, b):
+    commitment = G1_to_pubkey(add(multiply(G1, a), multiply(TAU1, b)))
+    return commitment, compress_g1(multiply(G1, b))
+
+Cd, Pd = deg1(5, 3)
+check('deg-1 p(X)=5+3X at z=7 (true)', fe(7), fe(5 + 3 * 7), Cd, Pd)
+A2 = 0x123456789abcdef0fedcba9876543210deadbeefcafebabe0123456789abcdef % N
+B2 = 0x0f1e2d3c4b5a69788796a5b4c3d2e1f000112233445566778899aabbccddeeff % N
+Z2 = 0x2222222222222222222222222222222222222222222222222222222222222222 % N
+C2, P2 = deg1(A2, B2)
+check('deg-1 wide a/b/z (true)', fe(Z2), fe((A2 + B2 * Z2) % N), C2, P2)
+check('deg-1 wrong y (false)', fe(Z2), fe((A2 + B2 * Z2 + 1) % N), C2, P2)
+check('deg-1 wrong proof (false)', fe(Z2), fe((A2 + B2 * Z2) % N), C2,
+      compress_g1(multiply(G1, B2 + 1)))
+# the real mainnet-setup vector from the EEST value_move_to_precompiles
+# fixture (the false-reject that exposed the torn blsg_b_be constant)
+FIX_Z = bytes.fromhex(
+    '019123bcb9d06356701f7be08b4494625b87a7b02edc566126fb81f6306e915f')
+FIX_Y = bytes.fromhex(
+    '6c2eb1e94c2532935b8465351ba1bd88eabe2b3fa1aadff7d1cd816e8315bd38')
+FIX_C = bytes.fromhex(
+    'a9546d41993e10df2a7429b8490394ea9ee62807bae6f326d1044a51581306f5'
+    '8d4b9dfd5931e044688855280ff3799e')
+FIX_P = bytes.fromhex(
+    'a2ea83d9391e0ee42e0c650acc7a1f842a7d385189485ddb4fd54ade3d9fd50d'
+    '608167dca6c776aad4b8ad5c20691bfe')
+check('EEST value_move fixture proof (true)', FIX_Z, FIX_Y, FIX_C, FIX_P)
 
 if fails:
     print(f'==> FAIL: {fails} KZG point-evaluation case(s) mismatched')

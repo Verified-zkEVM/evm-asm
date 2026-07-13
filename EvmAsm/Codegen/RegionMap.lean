@@ -225,11 +225,13 @@ def textSizeBytes : Nat := 0x58208
     `0x29000→0x39000` (the `call_frame_arena` trailing pad). Grew by `0x4fb00`
     (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
     `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
-    return (evm-asm-pwqhw). -/
-def dataSizeBytes : Nat := 0x5310
+    return (evm-asm-pwqhw). Grew by `0x40` (64 B) when the `.data`→`.bss`
+    splitter was fixed to keep mixed zero/nonzero groups (`blsg_b_be`,
+    `p256_one_be`) whole in `.data` (evm-asm-rowr9). -/
+def dataSizeBytes : Nat := 0x5350
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. -/
-def bssSizeBytes : Nat := 0x1a318fc0
+def bssSizeBytes : Nat := 0x1a318f60
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
