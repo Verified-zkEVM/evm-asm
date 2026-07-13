@@ -77,6 +77,7 @@ def statelessGuestUnit : BuildUnit := {
     -- scans block receipts for DEPOSIT_CONTRACT_ADDRESS logs -> type-0 deposit bodies, +
     -- extract_deposit_data). Self-contained (no dispatcher deps). Additive — unused until .C
     -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
+    blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
     blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++

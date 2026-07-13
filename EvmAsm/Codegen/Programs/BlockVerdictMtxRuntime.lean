@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 
 namespace EvmAsm.Codegen
 
@@ -33,9 +34,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
+  "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
+  "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
+  "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  beqz a0, .Lbv_mtx_bail                         # non-deposit interaction -> conservative\n" ++
+  "  j .Lbv_mtx_deposit_capture_mark\n" ++
+  ".Lbv_mtx_independent_deposit_check:\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
+  ".Lbv_mtx_deposit_capture_mark:\n" ++
+  "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
+  ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted sender index once from public keys. The exact per-tx nonce
   -- check below binary-searches this table and mutates the count field as the
   -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
@@ -281,6 +293,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxCoinbaseFeeEffect ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
+  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
+  "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
+  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 false ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_publish:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
