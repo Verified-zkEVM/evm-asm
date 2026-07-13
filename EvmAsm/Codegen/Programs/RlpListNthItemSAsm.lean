@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.Tactics.DropPure
+import EvmAsm.Rv64.Tactics.XPermPure
 
 namespace EvmAsm.Codegen.RlpListNthItemSAsm
 
@@ -777,6 +779,81 @@ theorem wrapperPrologue (sp0 newSp listBase listLenW indexW offsetPtr lenPtr
 #print axioms setupMoves
 #print axioms wrapperPrologue
 
+def initStable (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) : Assertion :=
+  ((.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+   (.x13 ↦ᵣ offsetPtr) ** (.x14 ↦ᵣ lenPtr) **
+   (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+   savedFrame newSp saved ** (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen))
+
+def initCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (B + 52)) ** bytesRegion listBase bytes
+
+def initRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ status cursor endPtr : Word,
+    (((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+       initCommon listBase bytes) **
+       ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x20 ↦ᵣ saved.s4) **
+        (.x21 ↦ᵣ saved.s5)) **
+      ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝)) h
+
+theorem initRejectBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+    status cursor endPtr : Word) (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index : Nat) (hstatus : status ≠ 0)
+    (hfailure : Failure bytes listBase listLen index) :
+    cpsTripleWithin 1 (B + 52) (B + 112) code
+      (((.x12 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+       ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+         initCommon listBase bytes) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+         (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))))
+      (initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  have hb0 := bne_spec_gen_within .x12 .x0 (60 : BitVec 13) status 0 (B + 52)
+  rw [show B + 52 + signExtend13 (60 : BitVec 13) = B + 112 from by decide] at hb0
+  have hb := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 52) rlpListNthItem_prog 13
+      (.BNE .x12 .x0 (60 : BitVec 13)) (by bv_omega)
+      (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) hb0
+  have ht := cpsBranchWithin_takenPath hb (fun hp hfalse => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := hfalse
+    exact hstatus ((sepConj_pure_right _).1 hpure).2)
+  have htF := cpsTripleWithin_frameR
+    (((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+       initCommon listBase bytes) **
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+       (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)))) (by pcf) ht
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hp => by
+    unfold initRejected
+    refine ⟨status, cursor, endPtr, ?_⟩
+    have hp' : ((((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x20 ↦ᵣ saved.s4) **
+          (.x21 ↦ᵣ saved.s5))) **
+      ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝) h) := by
+      have hpAssoc : ((((initStable newSp listBase indexW offsetPtr lenPtr
+          oldOffset oldLen saved ** initCommon listBase bytes) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x20 ↦ᵣ saved.s4) **
+          (.x21 ↦ᵣ saved.s5))) **
+        ⌜status ≠ 0 ∧ Failure bytes listBase listLen index⌝) h) := by
+        refine (sepConj_pure_right h).2
+          ⟨?_, And.intro hstatus hfailure⟩
+        drop_pure hp
+        unfold initCommon at hp ⊢
+        xperm_hyp hp
+      unfold initCommon at hpAssoc ⊢
+      xperm_hyp hpAssoc
+    unfold initCommon at hp' ⊢
+    xperm_hyp hp') htF
+
+#print axioms initRejectBranch
+
 /-- Stable resources other than `s4`; `x20` is separated because slot 16 reads
     it while preparing the WalkNext call. -/
 def stableRest (newSp listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -811,10 +888,146 @@ def loopInv (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Wo
   fun h => ∃ count off : Nat,
     ((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved bytes **
       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) **
-       (.x11 ↦ᵣ (0 : Word)) ** regOwn .x12 **
+       regOwn .x11 ** regOwn .x12 **
        (.x21 ↦ᵣ BitVec.ofNat 64 count))) **
      ⌜j = index + 1 - count ∧ count ≤ index ∧ off ≤ listLen ∧
        StrictPrefix bytes listBase endPtr cursorOff count off⌝) h
+
+def initLoopPost (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ cursorOff endPtr,
+    ((loopInv newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen saved
+        bytes listLen index cursorOff (index + 1) **
+      (regOwn .x13 ** regOwn .x14)) **
+     ⌜StrictListPayload bytes listBase listLen cursorOff endPtr⌝) h
+
+theorem initSuccessBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+    endPtr : Word) (saved : Saved) (bytes : List (BitVec 8))
+    (listLen index cursorOff : Nat)
+    (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr) :
+    cpsTripleWithin 3 (B + 52) (B + 64) code
+      (((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+       ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+         initCommon listBase bytes) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) ** (.x11 ↦ᵣ endPtr) **
+         (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))))
+      (initLoopPost newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
+        bytes listLen index) := by
+  have hb0 := bne_spec_gen_within .x12 .x0 (60 : BitVec 13) 0 0 (B + 52)
+  have hb := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 52) rlpListNthItem_prog 13
+      (.BNE .x12 .x0 (60 : BitVec 13)) (by bv_omega)
+      (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) hb0
+  have hn := cpsBranchWithin_ntakenPath hb (fun hp hfalse => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := hfalse
+    exact ((sepConj_pure_right _).1 hpure).2 rfl)
+  rw [show B + 52 + 4 = B + 56 from by decide] at hn
+  have hnF := cpsTripleWithin_frameR
+    (((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+       initCommon listBase bytes) **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) ** (.x11 ↦ᵣ endPtr) **
+       (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))))
+    (by pcf) hn
+  have hm0 := mv_spec_gen_within .x20 .x11 endPtr saved.s4 (B + 56) (by decide)
+  have hm := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 56) rlpListNthItem_prog 14 (.MV .x20 .x11)
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) hm0
+  have hmF := cpsTripleWithin_frameR
+    (((.x21 ↦ᵣ saved.s5) **
+      ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+        (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)))))) (by pcf) hm
+  have hl0 := li_spec_gen_within .x21 saved.s5 (0 : Word) (B + 60) (by decide)
+  have hl := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 60) rlpListNthItem_prog 15 (.LI .x21 (0 : Word))
+      (by bv_omega) (by rw [total_length]; norm_num) (by rfl)
+      (by rw [total_length]; norm_num)) hl0
+  have hlF := cpsTripleWithin_frameR
+    (((.x20 ↦ᵣ endPtr) **
+      ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)))))) (by pcf) hl
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    xperm_pure hp) hnF hmF
+  let start : Assertion :=
+    (((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+      ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) ** (.x11 ↦ᵣ endPtr) **
+        (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5))))
+  let mid : Assertion :=
+    (((.x11 ↦ᵣ endPtr) ** (.x20 ↦ᵣ endPtr)) **
+      (.x21 ↦ᵣ saved.s5) **
+      (initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+       (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))))
+  have h01' : cpsTripleWithin 2 (B + 52) (B + 60) code start mid := by
+    simpa [start, mid] using h01
+  have hmid : mid =
+      ((.x21 ↦ᵣ saved.s5) ** (.x20 ↦ᵣ endPtr) **
+       ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+         initCommon listBase bytes) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+         (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+         (.x0 ↦ᵣ (0 : Word))))) := by
+    unfold mid
+    ac_rfl
+  let finish : Assertion :=
+    ((.x21 ↦ᵣ (0 : Word)) ** (.x20 ↦ᵣ endPtr) **
+      ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+        initCommon listBase bytes) **
+       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)))))
+  have hlF' : cpsTripleWithin 1 (B + 60) (B + 64) code mid finish := by
+    rw [hmid]
+    simpa only [finish, show B + 60 + 4 = B + 64 by decide] using hlF
+  have h012 := cpsTripleWithin_seq_same_cr h01' hlF'
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hp => by
+    unfold finish at hp
+    unfold initLoopPost
+    refine ⟨cursorOff, endPtr, ?_⟩
+    refine (sepConj_pure_right h).2 ⟨?_, hlist⟩
+    have hpGrouped : (((.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x13 ↦ᵣ offsetPtr) ** (.x14 ↦ᵣ lenPtr) ** (.x1 ↦ᵣ (B + 52))) **
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+       regOwn .x30 ** regOwn .x31 **
+       ((.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ indexW) **
+        (.x18 ↦ᵣ offsetPtr) ** (.x19 ↦ᵣ lenPtr) **
+        savedFrame newSp saved ** (offsetPtr ↦ₘ oldOffset) ** (lenPtr ↦ₘ oldLen) **
+        (.x20 ↦ᵣ endPtr) ** (.x21 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes))) h := by
+      unfold initStable initCommon at hp
+      xperm_hyp hp
+    have hpOwned := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+          (sepConj_mono (regIs_implies_regOwn .x13)
+            (sepConj_mono (regIs_implies_regOwn .x14)
+              (regIs_implies_regOwn .x1)))))
+      (fun _ x => x) h hpGrouped
+    have hbase :
+        (((loopFrame newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
+            saved bytes **
+          ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) ** regOwn .x11 **
+           regOwn .x12 ** (.x21 ↦ᵣ (0 : Word)))) **
+          (regOwn .x13 ** regOwn .x14)) h) := by
+      unfold loopFrame stableFrame stableRest
+      xperm_hyp hpOwned
+    exact sepConj_mono_left (fun g hg => by
+      unfold loopInv
+      refine ⟨0, cursorOff, ?_⟩
+      exact (sepConj_pure_right g).2 ⟨hg,
+        ⟨by omega, by omega, hlist.cursor_le, StrictPrefix.zero⟩⟩) h hbase) h012
+
+#print axioms initSuccessBranch
 
 /-- Loop success station (`B+88`), before the two output stores. -/
 def loopSelected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
@@ -1217,9 +1430,9 @@ theorem dispatchSuccess
     refine ⟨count + 1, (next - listBase).toNat, ?_⟩
     have hq' := sepConj_mono
       (fun _ x => x)
-      (sepConj_mono (nextScratch_implies_owned listBase bytes)
-        (sepConj_mono (fun _ x => x)
+        (sepConj_mono (nextScratch_implies_owned listBase bytes)
           (sepConj_mono (fun _ x => x)
+          (sepConj_mono (regIs_implies_regOwn .x11)
             (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x))))) h hq
     refine (sepConj_pure_right h).2
       ⟨?_, rfl, by omega, hstep.2.2.1, hstep.2.2.2⟩
@@ -1370,12 +1583,13 @@ theorem loopRound
   refine cpsNBranchWithin_exists_pre (fun off => ?_)
   refine cpsNBranchWithin_pure_pre (fun hfacts => ?_)
   obtain ⟨hj, hcount, hoff, hprefix⟩ := hfacts
-  -- Expose the nine call-clobbered owned registers; x11 is pinned to zero.
+  -- Expose the call-clobbered owned registers; x11 differs on the first
+  -- entry and later reentries but slot 16 overwrites it before the call.
   refine cpsNBranchWithin3_weaken
     (P := ((stableRest newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
       ((.x20 ↦ᵣ endPtr) ** (.x9 ↦ᵣ indexW) **
        (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) **
-       (.x11 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ BitVec.ofNat 64 count) **
+       regOwn .x11 ** (.x21 ↦ᵣ BitVec.ofNat 64 count) **
        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1))
@@ -1383,8 +1597,20 @@ theorem loopRound
     (fun _ x => x) (fun _ x => x) (fun _ x => x) ?_
   refine cpsNBranchWithin_of_forall_regIs_to_regOwn9
     (fun v5 v6 v7 v12 v28 v29 v30 v31 vRa => ?_)
+  let P11 : Assertion :=
+    ((stableRest newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
+      ((.x20 ↦ᵣ endPtr) ** (.x9 ↦ᵣ indexW) **
+       (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) **
+       (.x21 ↦ᵣ BitVec.ofNat 64 count) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes)) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x12 ↦ᵣ v12) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+      (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x1 ↦ᵣ vRa))
+  refine cpsNBranchWithin_weaken_pre (P := P11 ** regOwn .x11)
+    (fun h hp => by unfold P11; xperm_hyp hp) ?_
+  refine cpsNBranchWithin_of_forall_regIs_to_regOwn (P := P11) (fun v11 => ?_)
   have tcall := nextCallBlock listBase endPtr bytes off listLen
-    v5 v6 v7 0 v12 v28 v29 v30 v31 vRa
+    v5 v6 v7 v11 v12 v28 v29 v30 v31 vRa
     (stableRest newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
       (.x9 ↦ᵣ indexW) ** (.x21 ↦ᵣ BitVec.ofNat 64 count))
     (by pcf) hsalign hslack hover hvalid hoff
@@ -1491,6 +1717,7 @@ theorem loopRound
   have hseq := cpsTripleWithin_seq_cpsNBranchWithin_same_cr tcall' hcont
   exact cpsNBranchWithin_mono_nSteps (by omega)
     (cpsNBranchWithin_weaken_pre (fun h hp => by
+      unfold P11 at hp
       unfold stableRest savedFrame at hp ⊢
       xperm_hyp hp) hseq)
 
