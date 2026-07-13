@@ -1176,9 +1176,9 @@ def nonceCont512Pre (aB newSp oB n4 : Word) (aLen tEnd off : Nat)
        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
        ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-       bytesRegion aB acctBytes ** G ** F) **
-      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+       bytesRegion aB acctBytes ** G ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31 ** F) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x1) **
      ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
        (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h
 
@@ -1241,15 +1241,98 @@ theorem nonceTupleValOk_to_cont512Pre (aB newSp oB n4 : Word)
       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
       ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      bytesRegion aB acctBytes ** G ** F) **
-     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-     regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1
+      bytesRegion aB acctBytes ** G ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** F) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x1
   have hL : L h := by dsimp only [L]; exact hR
   have heq : L = R := by dsimp only [L, R]; xperm
   change R h
   exact (congrFun heq h).mp hL
 
 #print axioms nonceTupleValOk_to_cont512Pre
+
+/-- Continuation at `B + 496`: decode the tuple value item, then run the
+    nonce scalar capture at `B + 512`. -/
+theorem bansf_nonceStationCont496_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n4 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF2 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 110) (B + 496) bansfCR
+      (fun h => ∃ next len : Word,
+        (((((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x12 : Reg) ↦ᵣ len) ** ((.x2 : Reg) ↦ᵣ newSp) **
+           ((newSp + 64) ↦ₘ next) **
+           ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 tEnd)) **
+           ((newSp + 48) ↦ₘ n4) **
+           ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+           ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+           ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+           ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+           bytesRegion aB acctBytes ** G ** F) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+         ⌜rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+           (aB + BitVec.ofNat 64 tEnd) next len⌝) h)
+      (B + 736) (nonceStationRej aB newSp oB aLen acctBytes G F)
+      (B + 540)
+        (nonceStationPost aB newSp oB aLen fOff fSpanN n4 acctBytes G F) := by
+  refine cpsBranchWithin_exists_pre (fun next => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hdecI => ?_)
+  obtain ⟨hrepI, _, hleI⟩ := rlpItemDecode_advance hdecI hoffleI (by omega)
+  set offN := (next - aB).toNat with hoffN
+  rw [hrepI]
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn8
+    (fun v5 v6 v7 v28 v29 v30 v31 vRa => ?_)
+  have hti := bansf_nonceTupleItem1_spec aB newSp aLen tEnd offN acctBytes
+    v5 v6 v7 (aB + BitVec.ofNat 64 offN) 0 len v28 v29 v30 v31 vRa F hF
+    hsalign hslack hover hvalid htEnd hleI
+  let H : Assertion :=
+    G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20
+  have hHF : H.pcFree := by dsimp only [H]; pcf; exact hG; pcf
+  have htiF := cpsBranchWithin_frameR H hHF hti
+  have hc512 := bansf_nonceStationCont512_spec aB newSp oB aLen tEnd offN
+    fOff fSpanN n4 acctBytes G F hG hF hsalign hslack hover hvalid htEnd hleI
+    (fun vNext vLen hdecV =>
+      hFF2 next len vNext vLen hdecI (by rw [← hoffN, hrepI]; exact hdecV))
+  have hc512F := cpsBranchWithin_weaken
+    (P' := nonceCont512Pre aB newSp oB n4 aLen tEnd offN acctBytes G F)
+    (fun _ hp => by delta nonceCont512Pre at hp; exact hp)
+    (fun _ hq => hq) (fun _ hq => hq) hc512
+  have hc512' := cpsBranchWithin_weaken
+    (nonceTupleValOk_to_cont512Pre aB newSp oB n4 aLen tEnd offN acctBytes G F)
+    (fun _ hq => hq) (fun _ hq => hq) hc512F
+  have htiW := cpsBranchWithin_weaken
+    (Q_t' := nonceStationRej aB newSp oB aLen acctBytes G F)
+    (fun _ hp => hp)
+    (fun h hq => nonceTupleReject_to_stationRej
+      aB newSp oB n4 aLen acctBytes G F h (by dsimp only [H] at hq; exact hq))
+    (fun _ hq => hq) htiF
+  have hchain := cpsBranchWithin_chain_snd htiW hc512'
+  exact cpsBranchWithin_weaken (fun h hp => by dsimp only [H]; xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq)
+    (cpsBranchWithin_mono_nSteps (by omega) hchain)
+
+#print axioms bansf_nonceStationCont496_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
