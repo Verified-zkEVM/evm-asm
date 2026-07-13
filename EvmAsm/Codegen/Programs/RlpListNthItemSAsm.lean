@@ -75,6 +75,39 @@ theorem StrictListPayload.cursor_le {bytes : List (BitVec 8)} {base endPtr : Wor
       omega
   | long _ _ _ _ _ _ _ hc hl => omega
 
+/-- Convert WalkInit's short-list success facts at offset zero into the
+    wrapper's strict outer-list relation. -/
+theorem shortInit_to_strict (bytes : List (BitVec 8)) (base : Word)
+    (listLen : Nat) (hoff : 0 < bytes.length)
+    (h_len : listLen < 2 ^ 64)
+    (hnotlist : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (hshort : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hend : base +
+      (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) = base + BitVec.ofNat 64 listLen) :
+    StrictListPayload bytes base listLen 1 (base + BitVec.ofNat 64 listLen) := by
+  have hword :
+      ((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 listLen := by
+    bv_omega
+  have hnat :
+      (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)).toNat + 1) = listLen := by
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide] at hword
+    have hge := BalAccountNonstorageFinalsSpec.not_ult_le hnotlist
+    have hsmall :
+        ((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)).toNat + 1 < 2 ^ 64 := by
+      have hb := (bytes[0]'hoff).isLt
+      bv_omega
+    have hof : BitVec.ofNat 64
+        (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)).toNat + 1) =
+        BitVec.ofNat 64 listLen := by
+      rw [BitVec.ofNat_add, BitVec.ofNat_toNat]
+      exact hword
+    have hw := congrArg BitVec.toNat hof
+    simpa only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsmall,
+      Nat.mod_eq_of_lt h_len] using hw
+  exact .short listLen 1 (bytes[0]'hoff) (by simp) hnotlist hshort rfl hnat
+
 /-- Exactly `index + 1` successful strict `rlp_walk_next` decodes, starting
     at `off`.  The final `(next,len)` is the selected item's advanced cursor
     and reported content length.  Every step uses `rlpItemDecode`, so bounds
