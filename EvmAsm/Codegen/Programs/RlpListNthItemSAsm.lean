@@ -2690,4 +2690,31 @@ theorem scanRejected_implies_failure
 
 #print axioms scanRejected_implies_failure
 
+theorem initRejected_implies_failure
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    ∀ h, initRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index h → Failure bytes listBase listLen index := by
+  intro h hp
+  unfold initRejected at hp
+  obtain ⟨status, cursor, endPtr, hp⟩ := hp
+  extract_pure_deep hp
+  exact hp.1.2
+
+theorem preTailRejected_implies_failure
+    (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) :
+    ∀ h, preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
+      saved bytes listLen index h → Failure bytes listBase listLen index := by
+  intro h hp
+  unfold preTailRejected at hp
+  rcases hp with hp | hp
+  · exact scanRejected_implies_failure newSp listBase indexW offsetPtr lenPtr
+      oldOffset oldLen saved bytes listLen index h hp
+  · exact initRejected_implies_failure newSp listBase indexW offsetPtr lenPtr
+      oldOffset oldLen saved bytes listLen index h hp
+
+#print axioms initRejected_implies_failure
+#print axioms preTailRejected_implies_failure
+
 end EvmAsm.Codegen.RlpListNthItemSAsm
