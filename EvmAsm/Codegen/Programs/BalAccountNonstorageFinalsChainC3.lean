@@ -1482,5 +1482,12 @@ theorem bansf_codeValueArgs_code :
   · intro a i h; exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+688) bansfProg 172 (.MV .x10 .x28) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
 #print axioms bansf_codeValueArgs_code
 
+/-- Concrete code witness for the code tuple value-item status gate. -/
+theorem bansf_codeValueStatus174_code :
+    ∀ a i, CodeReq.singleton (B+696) (.BNE .x11 .x0 (36:BitVec 13)) a = some i → bansfCR a = some i := by
+  intro a i h
+  exact CodeReq.union_mono_left a i (CodeReq.ofProg_mem_at B (B+696) bansfProg 174 (.BNE .x11 .x0 (36:BitVec 13)) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide) a i h)
+#print axioms bansf_codeValueStatus174_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
