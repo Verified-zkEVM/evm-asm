@@ -398,4 +398,28 @@ theorem noncanonicalMachineTail
 
 #print axioms noncanonicalMachineTail
 
+theorem scalarOutcome_result
+    {bytes : List (BitVec 8)} {listBase offset len value status : Word}
+    {listLen index : Nat}
+    (h_ok : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+      index offset len)
+    (h_out : ScalarOutcome bytes offset.toNat len.toNat value status) :
+    ∃ wrapperStatus,
+      Result bytes listBase listLen index wrapperStatus value ∧
+      ((status = 0 ∧ wrapperStatus = 0) ∨
+       (status = 2 ∧ wrapperStatus = 2) ∨
+       (status = 3 ∧ wrapperStatus = 1)) := by
+  cases h_out with
+  | tooLong h_len =>
+      exact ⟨2, .tooLong offset len h_ok h_len, Or.inr (Or.inl ⟨rfl, rfl⟩)⟩
+  | empty h_len =>
+      exact ⟨0, .empty offset len h_ok h_len, Or.inl ⟨rfl, rfl⟩⟩
+  | noncanonical h_pos h_fit h_zero =>
+      exact ⟨1, .noncanonical offset len h_ok h_pos h_fit h_zero,
+        Or.inr (Or.inr ⟨rfl, rfl⟩)⟩
+  | success h_pos h_fit h_nz =>
+      exact ⟨0, .success offset len h_ok h_pos h_fit h_nz, Or.inl ⟨rfl, rfl⟩⟩
+
+#print axioms scalarOutcome_result
+
 end EvmAsm.Codegen.RlpFieldToU64SAsm
