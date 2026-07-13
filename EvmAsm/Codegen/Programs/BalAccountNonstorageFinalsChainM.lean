@@ -1022,5 +1022,20 @@ theorem bansfSuccessPost_to_a0Rest
 
 #print axioms bansfSuccessPost_to_a0Rest
 
+/-- The exact output-block assertion owns memory and pure equality only. -/
+theorem finalOutBlock_pcFree (acctBytes : List (BitVec 8)) (aB oB : Word)
+    (out : FinalsOut) : (finalOutBlock acctBytes aB oB out).pcFree := by
+  intro h hp
+  unfold finalOutBlock at hp
+  obtain ⟨bal, nonce, code, hp⟩ := hp
+  obtain ⟨hCells, _⟩ := (sepConj_pure_right h).1 hp
+  rcases bal with _ | ⟨vNext, vLen⟩ <;>
+    rcases nonce with _ | ⟨nNext, nLen⟩ <;>
+    rcases code with _ | ⟨cNext, cLen⟩ <;>
+    simp only [balOutCells, nonceOutCells, codeOutCells] at hCells ⊢ <;>
+    exact (inferInstance : Assertion.PCFree _).proof h hCells
+
+#print axioms finalOutBlock_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
