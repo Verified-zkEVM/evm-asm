@@ -735,6 +735,73 @@ theorem restoreTail (sp0 newSp : Word) (saved : Saved)
 
 #print axioms restoreTail
 
+/-- Failure-status materialization and jump to the shared restore tail
+    (instructions 29--30). -/
+theorem failureJoin
+    (sp0 listBase offsetPtr lenPtr oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) :
+    cpsTripleWithin 2 (B + 116) (B + 128) code
+      (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+        listLen index)
+      (listFailed sp0 listBase offsetPtr lenPtr oldOffset oldLen saved bytes
+        listLen index) := by
+  unfold listFailed
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v11 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
+    (fun _ hq => hq) (cpsTripleWithin_pure_pre
+      (P := EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen index)
+      (H := listCallCore sp0 listBase offsetPtr lenPtr saved bytes 1 oldOffset
+        oldLen v11 v12) (fun h_fail => ?_))
+  have hli0 := li_spec_gen_within .x10 (1 : Word) (1 : Word) (B + 116)
+    (by decide)
+  have hli := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 116) rlpFieldToU64_prog 29
+      (.LI .x10 (1 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hli0
+  let R : Assertion :=
+    (.x0 ↦ᵣ (0 : Word)) **
+    listCallRest sp0 listBase offsetPtr lenPtr saved bytes oldOffset oldLen
+      v11 v12
+  have hliF := cpsTripleWithin_frameR R (by
+    unfold R
+    exact pcFree_sepConj pcFree_regIs
+      (pcFree_listCallRest _ _ _ _ _ _ _ _ _ _)) hli
+  have hj0 := jal_x0_spec_gen_within (8 : BitVec 21) (B + 120)
+  rw [show B + 120 + signExtend21 (8 : BitVec 21) = B + 128 from by decide] at hj0
+  have hj := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 120) rlpFieldToU64_prog 30
+      (.JAL .x0 (8 : BitVec 21)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hj0
+  have hjF0 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (1 : Word)) ** R) (by
+      apply pcFree_sepConj
+      · exact pcFree_regIs
+      · unfold R
+        exact pcFree_sepConj pcFree_regIs
+          (pcFree_listCallRest _ _ _ _ _ _ _ _ _ _)) hj
+  have hjF := cpsTripleWithin_weaken
+    (fun h hp => (sepConj_emp_left h).2 hp)
+    (fun h hq => (sepConj_emp_left h).1 hq) hjF0
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hliF hjF
+  have hcode := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
+    unfold code
+    exact CodeReq.union_mono_left a i hi) hseq
+  refine cpsTripleWithin_weaken (fun h hp => by
+      unfold listCallCore at hp
+      unfold R
+      xperm_hyp hp) (fun h hq => ?_) hcode
+  refine ⟨v11, v12, ?_⟩
+  unfold R at hq
+  unfold listCallCore
+  xperm_pure hq
+
+#print axioms failureJoin
+
 #print axioms Result.status_cases
 #print axioms frameRegs_implies_owned
 
