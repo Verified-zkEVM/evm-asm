@@ -213,11 +213,27 @@ structure ConsolidationRequest where
   targetPubkey : Bytes
   deriving Repr, BEq, DecidableEq
 
+/-- `BuilderDepositRequest` (`execution_engine/requests.py:67`). -/
+structure BuilderDepositRequest where
+  pubkey : Bytes
+  withdrawalCredentials : Bytes
+  amount : U64
+  signature : Bytes
+  deriving Repr, BEq, DecidableEq
+
+/-- `BuilderExitRequest` (`execution_engine/requests.py:78`). -/
+structure BuilderExitRequest where
+  sourceAddress : Address
+  pubkey : Bytes
+  deriving Repr, BEq, DecidableEq
+
 /-- `ExecutionRequests` (`execution_engine/requests.py:67`). -/
 structure ExecutionRequests where
   deposits : List DepositRequest
   withdrawals : List WithdrawalRequest
   consolidations : List ConsolidationRequest
+  builderDeposits : List BuilderDepositRequest
+  builderExits : List BuilderExitRequest
   deriving Repr, BEq, DecidableEq
 
 /-- `NewPayloadRequest` (`execution_engine/types.py:63`). -/
