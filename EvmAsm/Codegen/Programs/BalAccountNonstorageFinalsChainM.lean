@@ -555,5 +555,44 @@ theorem bansf_codeStation_from_noncePost
 
 #print axioms bansf_codeStation_from_noncePost
 
+/-- Unified reject assertion for the nonce→code station chain. -/
+def nonceCodeChainRej (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion := fun h =>
+  nonceStationRej aB newSp oB aLen acctBytes G F h ∨
+  nonceCodeRej aB newSp oB aLen off acctBytes G F h
+
+/-- Compose the nonce and code stations, retaining both outer-item decodes on
+    success and distinguishing either station's genuine reject footprint. -/
+theorem bansf_nonceCodeStations_spec
+    (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ aLen) :
+    cpsBranchWithin (2 * (98 * (aLen + 1) +
+        (7 * acctBytes.length + 800)))
+      (B + 352) bansfCR
+      (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x19 ** regOwn .x20) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1))
+      (B + 736) (nonceCodeChainRej aB newSp oB aLen off acctBytes G F)
+      (B + 724) (nonceCodePost aB newSp oB aLen off acctBytes G F) := by
+  have hn := bansf_nonceStation_spec aB newSp oB aLen off acctBytes G F
+    hG hF hsalign hslack hover hvalid hoff
+  have hc := bansf_codeStation_from_noncePost aB newSp oB aLen off
+    acctBytes G F hG hF hsalign hslack hover hvalid hoff
+  have hcomp := cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr hn
+    (nonceStationOuterPost_to_codePre aB newSp oB aLen off acctBytes G F)
+    hc (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
+  exact cpsBranchWithin_mono_nSteps (by omega) hcomp
+
+#print axioms bansf_nonceCodeStations_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
