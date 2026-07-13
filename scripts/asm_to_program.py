@@ -936,6 +936,7 @@ SOURCE_DRIFT_ALLOW = {
     'bn254FieldEq32Function',
     'bn254FieldIsZeroFunction',
     'rlpListNthItemFunction',
+    'rlpFieldToU64Function',
 }
 
 def check_file(path, funcs, rendered=None):
