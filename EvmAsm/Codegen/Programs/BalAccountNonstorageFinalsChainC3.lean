@@ -1408,5 +1408,23 @@ theorem bansf_nonceSpanCapture93_spec (n4 l4 v19 v20 : Word) :
 
 #print axioms bansf_nonceSpanCapture93_spec
 
+/-- Slots 139–142 (`B + 556 → B + 572`): capture the outer code item span
+    and prepare the code-field `rlp_walk_init` arguments. -/
+theorem bansf_codeSpanCapture139_spec (n5 l5 v19 v20 : Word) :
+    cpsTripleWithin 4 (B + 556) (B + 572) bansfCode
+      (((.x10 : Reg) ↦ᵣ n5) ** ((.x12 : Reg) ↦ᵣ l5) **
+       ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x11 : Reg) ↦ᵣ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ (n5 - l5)) ** ((.x12 : Reg) ↦ᵣ l5) **
+       ((.x19 : Reg) ↦ᵣ (n5 - l5)) ** ((.x20 : Reg) ↦ᵣ l5) **
+       ((.x11 : Reg) ↦ᵣ l5)) := by
+  have s1 := sub_spec_gen_within .x19 .x10 .x12 n5 l5 v19 (B + 556) (by decide)
+  have s2 := mv_spec_gen_within .x20 .x12 l5 v20 (B + 560) (by decide)
+  have s3 := mv_spec_gen_within .x10 .x19 (n5 - l5) n5 (B + 564) (by decide)
+  have s4 := mv_spec_gen_within .x11 .x20 l5 (0 : Word) (B + 568) (by decide)
+  runBlock s1 s2 s3 s4
+
+#print axioms bansf_codeSpanCapture139_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
