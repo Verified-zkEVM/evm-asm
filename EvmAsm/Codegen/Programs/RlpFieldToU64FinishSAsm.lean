@@ -1033,4 +1033,281 @@ theorem listDispatchToJoin
 
 #print axioms listDispatchToJoin
 
+def successPayload
+    (sp0 listBase offset len v12 x5 scalarStatus wrapperStatus outputValue : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  ((regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion listBase bytes **
+    (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+    (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+    (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 ** (offsetCell ↦ₘ offset) **
+    (lengthCell ↦ₘ len) ** (.x5 ↦ᵣ x5) **
+    (.x10 ↦ᵣ wrapperStatus) ** (.x11 ↦ᵣ scalarStatus) **
+    (.x0 ↦ᵣ (0 : Word)) ** (saved.s1 ↦ₘ outputValue)) **
+   ⌜Result bytes listBase listLen index wrapperStatus outputValue⌝)
+
+def successRestoreReady
+    (sp0 newSp listBase : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12 x5 scalarStatus wrapperStatus outputValue,
+    (((.x2 ↦ᵣ sp0) ** regsOwnAt frame ** savedFrame newSp outer) **
+      successPayload sp0 listBase offset len v12 x5 scalarStatus wrapperStatus
+        outputValue saved bytes listLen index) h
+
+theorem joinedResult_to_restoreReady
+    (sp0 newSp listBase : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : ∀ h,
+    (joinedResult sp0 listBase saved bytes listLen index **
+      savedFrame newSp outer) h →
+    successRestoreReady sp0 newSp listBase outer saved bytes listLen index h := by
+  intro h hp
+  obtain ⟨h1, h2, hd, hu, hj, hsf⟩ := hp
+  unfold joinedResult at hj
+  obtain ⟨offset, len, v12, ra, x5, scalarStatus, wrapperStatus, outputValue,
+    hj⟩ := hj
+  obtain ⟨hcore, h_result⟩ := (sepConj_pure_right h1).1 hj
+  let P : Assertion :=
+    regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion listBase bytes **
+    (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+    (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+    (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 ** (offsetCell ↦ₘ offset) **
+    (lengthCell ↦ₘ len) ** (.x5 ↦ᵣ x5) **
+    (.x10 ↦ᵣ wrapperStatus) ** (.x11 ↦ᵣ scalarStatus) **
+    (.x0 ↦ᵣ (0 : Word)) ** (saved.s1 ↦ₘ outputValue)
+  have hsplit : (((.x2 ↦ᵣ sp0) **
+      ((.x1 ↦ᵣ ra) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ saved.s1))) ** P) h1 := by
+    unfold joinCore stableRest at hcore
+    unfold P
+    xperm_hyp hcore
+  obtain ⟨hf, hP, hdfp, hufp, hframe, hpayload⟩ := hsplit
+  have hframe' : ((.x2 ↦ᵣ sp0) ** regsOwnAt frame) hf := by
+    exact sepConj_mono_right (fun h' hregs =>
+      frameRegs_implies_owned listBase saved.s1 h'
+        (sepConj_mono_left (regIs_implies_regOwn .x1) h' hregs)) hf hframe
+  unfold successRestoreReady
+  refine ⟨offset, len, v12, x5, scalarStatus, wrapperStatus, outputValue, ?_⟩
+  have hbase : (((.x2 ↦ᵣ sp0) ** regsOwnAt frame) ** P) h1 :=
+    ⟨hf, hP, hdfp, hufp, hframe', hpayload⟩
+  have hcombined : ((((.x2 ↦ᵣ sp0) ** regsOwnAt frame) ** P) **
+      savedFrame newSp outer) h := ⟨h1, h2, hd, hu, hbase, hsf⟩
+  have himpl : ∀ h', P h' →
+      successPayload sp0 listBase offset len v12 x5 scalarStatus wrapperStatus
+        outputValue saved bytes listLen index h' := by
+    intro h' hp'
+    unfold P at hp'
+    unfold successPayload
+    exact (sepConj_pure_right h').2 ⟨hp', h_result⟩
+  have hcombined' := sepConj_mono_left (sepConj_mono_right himpl) h hcombined
+  xperm_hyp hcombined'
+
+#print axioms joinedResult_to_restoreReady
+
+def failurePayload
+    (sp0 listBase oldOffset oldLen v11 v12 : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+    (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+    (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+    bytesRegion listBase bytes ** (offsetCell ↦ₘ oldOffset) **
+    (lengthCell ↦ₘ oldLen) ** (.x10 ↦ᵣ (1 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** (saved.s1 ↦ₘ (0 : Word))) **
+   ⌜Result bytes listBase listLen index 1 0⌝)
+
+def failureRestoreReady
+    (sp0 newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ v11 v12,
+    (((.x2 ↦ᵣ sp0) ** regsOwnAt frame ** savedFrame newSp outer) **
+      failurePayload sp0 listBase oldOffset oldLen v11 v12 saved bytes listLen
+        index) h
+
+theorem failureResult_to_restoreReady
+    (sp0 newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : ∀ h,
+    (failureResultAtJoin sp0 listBase oldOffset oldLen saved bytes listLen index **
+      savedFrame newSp outer) h →
+    failureRestoreReady sp0 newSp listBase oldOffset oldLen outer saved bytes
+      listLen index h := by
+  intro h hp
+  obtain ⟨h1, h2, hd, hu, hj, hsf⟩ := hp
+  obtain ⟨hj, h_result⟩ := (sepConj_pure_right h1).1 hj
+  obtain ⟨ha, hb, hdab, huab, hmain, hmem⟩ := hj
+  obtain ⟨hraState, hlist, hdraw, hurow, hra, hfailed⟩ := hmain
+  unfold listFailed at hfailed
+  obtain ⟨v11, v12, hfailed⟩ := hfailed
+  obtain ⟨hcore, h_fail⟩ := (sepConj_pure_right hlist).1 hfailed
+  let P : Assertion :=
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+    (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+    (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+    bytesRegion listBase bytes ** (offsetCell ↦ₘ oldOffset) **
+    (lengthCell ↦ₘ oldLen) ** (.x10 ↦ᵣ (1 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** (saved.s1 ↦ₘ (0 : Word))
+  have hflat : (((.x2 ↦ᵣ sp0) **
+      ((.x1 ↦ᵣ (B + 48)) ** (.x8 ↦ᵣ saved.s0) **
+       (.x9 ↦ᵣ saved.s1))) ** P) h1 := by
+    have hinner : ((.x1 ↦ᵣ (B + 48)) **
+        listCallCore sp0 listBase offsetCell lengthCell saved bytes 1 oldOffset
+          oldLen v11 v12) ha := ⟨hraState, hlist, hdraw, hurow, hra, hcore⟩
+    have hall : (((.x1 ↦ᵣ (B + 48)) **
+        listCallCore sp0 listBase offsetCell lengthCell saved bytes 1 oldOffset
+          oldLen v11 v12) ** (saved.s1 ↦ₘ (0 : Word))) h1 :=
+      ⟨ha, hb, hdab, huab, hinner, hmem⟩
+    unfold listCallCore listCallRest listSavedRegs listOtherSaved at hall
+    unfold P
+    xperm_hyp hall
+  obtain ⟨hf, hP, hdfp, hufp, hframe, hpayload⟩ := hflat
+  have hframe' : ((.x2 ↦ᵣ sp0) ** regsOwnAt frame) hf := by
+    exact sepConj_mono_right (fun h' hregs =>
+      frameRegs_implies_owned saved.s0 saved.s1 h'
+        (sepConj_mono_left (regIs_implies_regOwn .x1) h' hregs)) hf hframe
+  unfold failureRestoreReady
+  refine ⟨v11, v12, ?_⟩
+  have hbase : (((.x2 ↦ᵣ sp0) ** regsOwnAt frame) ** P) h1 :=
+    ⟨hf, hP, hdfp, hufp, hframe', hpayload⟩
+  have hcombined : ((((.x2 ↦ᵣ sp0) ** regsOwnAt frame) ** P) **
+      savedFrame newSp outer) h := ⟨h1, h2, hd, hu, hbase, hsf⟩
+  have himpl : ∀ h', P h' →
+      failurePayload sp0 listBase oldOffset oldLen v11 v12 saved bytes listLen
+        index h' := by
+    intro h' hp'
+    unfold P at hp'
+    unfold failurePayload
+    exact (sepConj_pure_right h').2 ⟨hp', h_result⟩
+  have hcombined' := sepConj_mono_left (sepConj_mono_right himpl) h hcombined
+  xperm_hyp hcombined'
+
+#print axioms failureResult_to_restoreReady
+
+def successReturned
+    (spOuter newSp listBase : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12 x5 scalarStatus wrapperStatus outputValue,
+    (((.x2 ↦ᵣ spOuter) ** regsAt frame (savedVals outer) **
+      savedFrame newSp outer) **
+      successPayload newSp listBase offset len v12 x5 scalarStatus wrapperStatus
+        outputValue saved bytes listLen index) h
+
+def failureReturned
+    (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ v11 v12,
+    (((.x2 ↦ᵣ spOuter) ** regsAt frame (savedVals outer) **
+      savedFrame newSp outer) **
+      failurePayload newSp listBase oldOffset oldLen v11 v12 saved bytes listLen
+        index) h
+
+def allRestoreReady
+    (newSp innerSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h =>
+    successRestoreReady newSp innerSp listBase outer saved bytes listLen index h ∨
+    failureRestoreReady newSp innerSp listBase oldOffset oldLen outer saved bytes
+      listLen index h
+
+def allReturned
+    (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h =>
+    successReturned spOuter newSp listBase outer saved bytes listLen index h ∨
+    failureReturned spOuter newSp listBase oldOffset oldLen outer saved bytes
+      listLen index h
+
+theorem restoreSuccess
+    (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
+    (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
+    cpsTripleWithin 5 (B + 128) outer.ra code
+      (successRestoreReady newSp newSp listBase outer saved bytes listLen index)
+      (allReturned spOuter newSp listBase oldOffset oldLen outer saved bytes
+        listLen index) := by
+  unfold successRestoreReady
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun offset => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun len => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun x5 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun scalarStatus => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun wrapperStatus => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun outputValue => ?_)
+  apply cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_)
+    (restoreTail spOuter newSp outer
+      (successPayload newSp listBase offset len v12 x5 scalarStatus wrapperStatus
+        outputValue saved bytes listLen index)
+      (by unfold successPayload; pcf) hnewSp hret)
+  left
+  unfold successReturned
+  exact ⟨offset, len, v12, x5, scalarStatus, wrapperStatus, outputValue, hp⟩
+
+#print axioms restoreSuccess
+
+theorem restoreFailure
+    (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
+    (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
+    cpsTripleWithin 5 (B + 128) outer.ra code
+      (failureRestoreReady newSp newSp listBase oldOffset oldLen outer saved bytes
+        listLen index)
+      (allReturned spOuter newSp listBase oldOffset oldLen outer saved bytes
+        listLen index) := by
+  unfold failureRestoreReady
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v11 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  apply cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_)
+    (restoreTail spOuter newSp outer
+      (failurePayload newSp listBase oldOffset oldLen v11 v12 saved bytes listLen
+        index)
+      (by unfold failurePayload; pcf) hnewSp hret)
+  right
+  unfold failureReturned
+  exact ⟨v11, v12, hp⟩
+
+theorem restoreAll
+    (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
+    (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
+    cpsTripleWithin 5 (B + 128) outer.ra code
+      (allRestoreReady newSp newSp listBase oldOffset oldLen outer saved bytes
+        listLen index)
+      (allReturned spOuter newSp listBase oldOffset oldLen outer saved bytes
+        listLen index) := by
+  unfold allRestoreReady
+  exact cpsTripleWithin_pre_or
+    (cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp)
+      (restoreSuccess spOuter newSp listBase oldOffset oldLen outer saved bytes
+        listLen index hnewSp hret))
+    (restoreFailure spOuter newSp listBase oldOffset oldLen outer saved bytes
+      listLen index hnewSp hret)
+
+#print axioms restoreAll
+
 end EvmAsm.Codegen.RlpFieldToU64SAsm
