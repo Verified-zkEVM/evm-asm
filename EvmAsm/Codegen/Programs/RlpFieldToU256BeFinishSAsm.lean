@@ -175,4 +175,92 @@ theorem selectedLengthExact
 
 #print axioms selectedLengthExact
 
+def selectedPathCarry (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (v11 v12 : Word) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** (.x9 ↦ᵣ saved.s1) **
+  (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+  (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) ** stackFree sp0 8 **
+  (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes
+
+theorem pcFree_selectedPathCarry sp0 listBase saved bytes v11 v12 :
+    (selectedPathCarry sp0 listBase saved bytes v11 v12).pcFree := by
+  unfold selectedPathCarry
+  pcf
+
+def lengthReady (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v11 v12,
+    (((((.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ len) **
+       (.x7 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ listBase) ** regOwn .x28 **
+       regOwn .x29 ** (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len)) **
+      selectedPathCarry sp0 listBase saved bytes v11 v12) **
+     ⌜ListSuccess bytes listBase listLen index offset len⌝)) h
+
+/-- Lift `selectedLengthExact` through K20's existential success package. -/
+theorem selectedLength
+    (sp0 listBase : Word) (saved : ListSaved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (hs0 : saved.s0 = listBase) :
+    cpsTripleWithin 4 (B + 64) (B + 80) code
+      (listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index)
+      (lengthReady sp0 listBase saved bytes listLen index) := by
+  unfold listSelected EvmAsm.Codegen.RlpFieldToU64SAsm.listSelected
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun offset => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun len => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v11 => ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (fun v12 => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
+    (fun _ hp => hp) (cpsTripleWithin_pure_pre
+      (P := ListSuccess bytes listBase listLen index offset len)
+      (H := listCallCore sp0 listBase offsetCell lengthCell saved bytes 0
+        offset len v11 v12) (fun h_ok => ?_))
+  let R0 : Assertion :=
+    ((.x8 ↦ᵣ listBase) ** regOwn .x28 ** regOwn .x29 **
+      (offsetCell ↦ₘ offset)) **
+    selectedPathCarry sp0 listBase saved bytes v11 v12 **
+    ⌜ListSuccess bytes listBase listLen index offset len⌝
+  let R : Assertion := (lengthCell ↦ₘ len) ** R0
+  have h7 (old5 old6 : Word) :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7)
+      (P := (R ** (.x5 ↦ᵣ old5)) ** (.x6 ↦ᵣ old6))
+      (Q := lengthReady sp0 listBase saved bytes listLen index)
+      (fun old7 => by
+        have hs := selectedLengthExact len old5 old6 old7 R0 (by
+          unfold R0 selectedPathCarry
+          pcf)
+        refine cpsTripleWithin_weaken (fun h hp => by
+            unfold R R0 at hp
+            xperm_hyp hp) (fun h hq => ?_) hs
+        unfold lengthReady
+        refine ⟨offset, len, v11, v12, ?_⟩
+        unfold R0 at hq
+        xperm_hyp hq)
+  have h6 (old5 : Word) :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
+      (P := (R ** regOwn .x7) ** (.x5 ↦ᵣ old5))
+      (Q := lengthReady sp0 listBase saved bytes listLen index)
+      (fun old6 => cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+        (fun _ hp => hp) (h7 old5 old6))
+  have howned := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+    (P := (R ** regOwn .x6) ** regOwn .x7)
+    (Q := lengthReady sp0 listBase saved bytes listLen index)
+    (fun old5 => cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hp => hp) (h6 old5))
+  refine cpsTripleWithin_weaken (fun h hp => by
+      unfold listCallCore EvmAsm.Codegen.RlpFieldToU64SAsm.listCallCore
+        EvmAsm.Codegen.RlpFieldToU64SAsm.listCallRest
+        EvmAsm.Codegen.RlpFieldToU64SAsm.listSavedRegs
+        EvmAsm.Codegen.RlpFieldToU64SAsm.listOtherSaved at hp
+      unfold R R0 selectedPathCarry
+      rw [hs0] at hp
+      xperm_pure hp) (fun _ hp => hp) howned
+
+#print axioms selectedLength
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
