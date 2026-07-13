@@ -649,5 +649,16 @@ theorem bansf_body_spec
 
 #print axioms bansf_body_spec
 
+/-- The caller-owned body footprint is PC-free when its ambient frame is. -/
+theorem bansfCallerPre_pcFree
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
+    (bansfCallerPre aB newSp oB aLen acctBytes F).pcFree := by
+  letI : Assertion.PCFree F := ⟨hF⟩
+  unfold bansfCallerPre
+  exact (inferInstance : Assertion.PCFree _).proof
+
+#print axioms bansfCallerPre_pcFree
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
