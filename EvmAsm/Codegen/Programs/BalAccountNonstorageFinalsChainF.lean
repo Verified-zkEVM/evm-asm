@@ -1162,5 +1162,94 @@ theorem nonceTupleReject_to_stationRej (aB newSp oB n4 : Word)
 
 #print axioms nonceTupleReject_to_stationRej
 
+@[irreducible]
+def nonceCont512Pre (aB newSp oB n4 : Word) (aLen tEnd off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion :=
+  fun h => ∃ vNext vLen : Word,
+    (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion aB acctBytes ** G ** F) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+     ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+       (aB + BitVec.ofNat 64 tEnd) vNext vLen⌝) h
+
+/-- Folded success adapter from the nonce value-item post to the capture
+    continuation precondition. -/
+theorem nonceTupleValOk_to_cont512Pre (aB newSp oB n4 : Word)
+    (aLen tEnd off : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (tupleValOk aB newSp tEnd off acctBytes F **
+        (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h →
+      nonceCont512Pre aB newSp oB n4 aLen tEnd off acctBytes G F h := by
+  intro h hp
+  unfold tupleValOk at hp
+  obtain ⟨g1, g2, gd, gu, hVal, hfr⟩ := hp
+  obtain ⟨vNext, vLen, hVal2⟩ := hVal
+  obtain ⟨hregs, hdec⟩ := (sepConj_pure_right g1).1 hVal2
+  have hR := (⟨g1, g2, gd, gu, hregs, hfr⟩ :
+    (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ vLen) ** ((.x2 : Reg) ↦ᵣ newSp) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+      bytesRegion aB acctBytes ** F) **
+     (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h))
+  delta nonceCont512Pre
+  refine ⟨vNext, vLen, (sepConj_pure_right h).2 ⟨?_, hdec⟩⟩
+  let L : Assertion :=
+    (((((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ vLen) ** ((.x2 : Reg) ↦ᵣ newSp) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+      bytesRegion aB acctBytes ** F) **
+     (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)))
+  let R : Assertion :=
+    (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x12 : Reg) ↦ᵣ vLen) ** ((.x2 : Reg) ↦ᵣ newSp) **
+      ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+      ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion aB acctBytes ** G ** F) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+     regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1
+  have hL : L h := by dsimp only [L]; exact hR
+  have heq : L = R := by dsimp only [L, R]; xperm
+  change R h
+  exact (congrFun heq h).mp hL
+
+#print axioms nonceTupleValOk_to_cont512Pre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
