@@ -524,6 +524,42 @@ theorem bansf_codeEmptyFall145_spec (aB : Word) (aLen cOff fEnd : Nat)
 
 #print axioms bansf_codeEmptyFall145_spec
 
+/-- Slots 146–147 (`B + 584 → B + 592`): spill the nonempty code window
+    cursor and end for station-3's find-last loop. -/
+theorem bansf_codeLoopEntry146_spec (aB newSp : Word) (cOff fEnd : Nat) :
+    cpsTripleWithin 2 (B + 584) (B + 592) bansfCR
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) ** memOwn (newSp + 72))
+      (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+       ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+       ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 fEnd))) := by
+  have hsd1 := sd_spec_gen_own_within .x2 .x10 newSp
+    (aB + BitVec.ofNat 64 cOff) (64 : BitVec 12) (B + 584)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 584) + 4 = B + 588 from by bv_omega] at hsd1
+  have hsd1L := liftCode (cr' := bansfCR) hsd1 bansf_codeLoopEntry_code.1
+  have hsd2 := sd_spec_gen_own_within .x2 .x11 newSp
+    (aB + BitVec.ofNat 64 fEnd) (72 : BitVec 12) (B + 588)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 588) + 4 = B + 592 from by bv_omega] at hsd2
+  have hsd2L := liftCode (cr' := bansfCR) hsd2 bansf_codeLoopEntry_code.2
+  have hsd1F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 fEnd)) ** memOwn (newSp + 72))
+    (by pcf) hsd1L
+  have hsd2F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+     ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)))
+    (by pcf) hsd2L
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hsd1F hsd2F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_codeLoopEntry146_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
