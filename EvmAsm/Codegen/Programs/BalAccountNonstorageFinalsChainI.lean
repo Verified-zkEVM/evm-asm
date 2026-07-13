@@ -729,6 +729,45 @@ theorem bansf_codeMaterialize175_spec (aB oB vNext vLen v29 v5 : Word) :
 
 #print axioms bansf_codeMaterialize175_spec
 
+/-- Slots 170–172 (`B + 680 → B + 692`): load the tuple value cursor/end
+    and move the cursor into `a0` for `rlp_walk_next`. -/
+theorem bansf_codeValueArgs170_spec (newSp cursor endW v28 v11 v10 : Word) :
+    cpsTripleWithin 3 (B + 680) (B + 692) bansfCR
+      (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) **
+       ((newSp + 72) ↦ₘ endW) ** ((.x28 : Reg) ↦ᵣ v28) **
+       ((.x11 : Reg) ↦ᵣ v11) ** ((.x10 : Reg) ↦ᵣ v10))
+      (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) **
+       ((newSp + 72) ↦ₘ endW) ** ((.x28 : Reg) ↦ᵣ cursor) **
+       ((.x11 : Reg) ↦ᵣ endW) ** ((.x10 : Reg) ↦ᵣ cursor)) := by
+  have s1 := ld_spec_gen_within .x28 .x2 newSp v28 cursor
+    (64 : BitVec 12) (B + 680) (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 680) + 4 = B + 684 from by bv_omega] at s1
+  have s1L := liftCode (cr' := bansfCR) s1 bansf_codeValueArgs_code.1
+  have s2 := ld_spec_gen_within .x11 .x2 newSp v11 endW
+    (72 : BitVec 12) (B + 684) (by decide)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 684) + 4 = B + 688 from by bv_omega] at s2
+  have s2L := liftCode (cr' := bansfCR) s2 bansf_codeValueArgs_code.2.1
+  have s3 := mv_spec_gen_within .x10 .x28 cursor v10 (B + 688) (by decide)
+  rw [show (B + 688) + 4 = B + 692 from by bv_omega] at s3
+  have s3L := liftCode (cr' := bansfCR) s3 bansf_codeValueArgs_code.2.2
+  have s1F := cpsTripleWithin_frameR
+    (((newSp + 72) ↦ₘ endW) ** ((.x11 : Reg) ↦ᵣ v11) **
+     ((.x10 : Reg) ↦ᵣ v10)) (by pcf) s1L
+  have s2F := cpsTripleWithin_frameR
+    (((newSp + 64) ↦ₘ cursor) ** ((.x28 : Reg) ↦ᵣ cursor) **
+     ((.x10 : Reg) ↦ᵣ v10)) (by pcf) s2L
+  have s3F := cpsTripleWithin_frameR
+    (((.x2 : Reg) ↦ᵣ newSp) ** ((newSp + 64) ↦ₘ cursor) **
+     ((newSp + 72) ↦ₘ endW) ** ((.x11 : Reg) ↦ᵣ endW)) (by pcf) s3L
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s1F s2F
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 s3F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) c2
+
+#print axioms bansf_codeValueArgs170_spec
+
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
