@@ -359,6 +359,56 @@ theorem codeStationRej_to_abiReject
 
 #print axioms codeStationRej_to_abiReject
 
+/-- A nonce-station reject normalizes to the common ABI reject result whenever
+    the already-materialized balance footprint owns its output cells. -/
+theorem nonceStationRej_to_abiReject
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : ∀ h, G h → balOwnBlock oB h) :
+    ∀ h, nonceStationRej aB newSp oB aLen acctBytes G F h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfRejectResult aB newSp oB acctBytes F) h := by
+  intro h hp
+  unfold nonceStationRej at hp
+  have hAnchors : ∀ h',
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) h') →
+      (((regOwn .x8 ** regOwn .x9) ** regOwn .x18) h') :=
+    sepConj_mono (sepConj_mono (regIs_implies_regOwn .x8)
+      (regIs_implies_regOwn .x9)) (regIs_implies_regOwn .x18)
+  have hp' := sepConj_mono hG
+    (sepConj_mono (fun _ hx => hx)
+      (sepConj_mono (fun _ hx => hx)
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono_left memIs_implies_memOwn))))) h hp
+  let R : Assertion :=
+    memOwn (oB + 40) ** memOwn (oB + 48) **
+    memOwn (oB + 56) ** memOwn (oB + 64) ** memOwn (oB + 72) **
+    memOwn (newSp + 48) ** memOwn (newSp + 56) **
+    memOwn (newSp + 64) ** memOwn (newSp + 72) **
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+    regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20 **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+    bytesRegion aB acctBytes ** F
+  have hq :
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) ** (balOwnBlock oB ** R)) h := by
+    dsimp only [R]
+    xperm_hyp hp'
+  have hq' := sepConj_mono hAnchors (fun _ hx => hx) h hq
+  dsimp only [R] at hq'
+  unfold balOwnBlock at hq'
+  unfold bansfRejectResult
+  simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
+  xperm_hyp hq'
+
+#print axioms nonceStationRej_to_abiReject
+
 /-- The existential code reject reached after a successful nonce station also
     normalizes to the common ABI reject result. -/
 theorem nonceCodeRej_to_abiReject
