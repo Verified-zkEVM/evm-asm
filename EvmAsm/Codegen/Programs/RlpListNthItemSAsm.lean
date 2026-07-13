@@ -652,6 +652,22 @@ theorem frameSlotsSaved_listNthFrame (newSp : Word) (saved : Saved) :
   simp [listNthFrame, frameSlotsSaved, savedFrame, savedVals,
     sepConj_emp_right', signExtend12]
 
+theorem listNthFrameRegs_implies_owned
+    (s0 s1 s2 s3 s4 s5 : Word) : ∀ h,
+    (regOwn .x1 ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+      (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      (.x21 ↦ᵣ s5)) h → regsOwnAt listNthFrame h := by
+  intro h hp
+  unfold regsOwnAt listNthFrame
+  simp only [List.foldr_cons, List.foldr_nil, sepConj_emp_right']
+  exact sepConj_mono (fun _ hx => hx)
+    (sepConj_mono (regIs_implies_regOwn .x8)
+      (sepConj_mono (regIs_implies_regOwn .x9)
+        (sepConj_mono (regIs_implies_regOwn .x18)
+          (sepConj_mono (regIs_implies_regOwn .x19)
+            (sepConj_mono (regIs_implies_regOwn .x20)
+              (regIs_implies_regOwn .x21)))))) h hp
+
 /-- Wrapper slots 8--11 copy the four stable ABI arguments into saved
     registers after the frame has been stored. -/
 theorem setupMoves (listBase indexW offsetPtr lenPtr : Word)
