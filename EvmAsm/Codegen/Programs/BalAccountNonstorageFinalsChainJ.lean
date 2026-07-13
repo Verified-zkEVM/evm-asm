@@ -848,5 +848,64 @@ theorem bansf_codeStationCont660_spec (aB newSp oB : Word)
 
 #print axioms bansf_codeStationCont660_spec
 
+/-- Continuation at `B + 652`: spill the code tuple cursor/end, then decode
+    its index and value items. -/
+theorem bansf_codeStationCont652_spec (aB newSp oB : Word)
+    (aLen tEnd offI fOff fSpanN : Nat) (n5 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (htEnd : tEnd ≤ aLen) (hoffleI : offI ≤ tEnd)
+    (hFF3 : ∀ iNext iLen vNext vLen : Word,
+      rlpItemDecode acctBytes offI (aB + BitVec.ofNat 64 offI)
+        (aB + BitVec.ofNat 64 tEnd) iNext iLen →
+      rlpItemDecode acctBytes ((iNext - aB).toNat) iNext
+        (aB + BitVec.ofNat 64 tEnd) vNext vLen →
+      FieldFinal acctBytes aB fOff fSpanN (some (vNext, vLen))) :
+    cpsBranchWithin (7 * acctBytes.length + 205) (B + 652) bansfCR
+      ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 offI)) **
+         ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 tEnd)) **
+         ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) **
+         memOwn (newSp + 72)) **
+        (((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+         bytesRegion aB acctBytes ** G ** F))
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724)
+        (codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F) := by
+  have hsp := bansf_codeTupleSpill163_spec newSp
+    (aB + BitVec.ofNat 64 offI) (aB + BitVec.ofNat 64 tEnd)
+  let H : Assertion :=
+    ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+    ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+    ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+    ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+    bytesRegion aB acctBytes ** G ** F
+  have hH : H.pcFree := by dsimp only [H]; pcf; exact hG; exact hF
+  have hspF := cpsTripleWithin_frameR H hH hsp
+  have hc := bansf_codeStationCont660_spec aB newSp oB aLen tEnd offI
+    fOff fSpanN n5 acctBytes G F hG hF hsalign hslack hover hvalid htEnd
+    hoffleI hFF3
+  have hfull := cpsTripleWithin_seq_branch_same_cr hspF
+    (cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hq => hq) (fun _ hq => hq) hc)
+  exact cpsBranchWithin_mono_nSteps (by omega) hfull
+
+#print axioms bansf_codeStationCont652_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
