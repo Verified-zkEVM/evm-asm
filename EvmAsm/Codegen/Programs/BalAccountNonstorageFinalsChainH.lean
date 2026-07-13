@@ -818,10 +818,8 @@ theorem item4Reject_to_nonceStationRej (aB newSp oB : Word) (aLen : Nat)
   have hqOwn := sepConj_mono
     (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)
     (fun _ x => x) h hq'
-  have hqOwn' := sepConj_mono_right
-    (sepConj_mono_left (regIs_implies_regOwn .x10)) h hqOwn
   unfold nonceStationRej
-  xperm_hyp hqOwn'
+  xperm_hyp hqOwn
 
 #print axioms item4Reject_to_nonceStationRej
 
@@ -919,7 +917,7 @@ theorem nonceFieldInitReject_to_stationRej (aB newSp oB n4 v19 v20 : Word)
         (sepConj_mono (regIs_implies_regOwn .x20)
           (sepConj_mono memIs_implies_memOwn
             (sepConj_mono memIs_implies_memOwn
-              (sepConj_mono_left (regIs_implies_regOwn .x10))))))) h hq'
+              (sepConj_mono_left (fun _ hx => hx))))))) h hq'
   unfold nonceStationRej
   xperm_hyp hqOwn
 

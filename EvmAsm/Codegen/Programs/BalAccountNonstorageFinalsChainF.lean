@@ -75,7 +75,7 @@ def nonceStationRej (aB newSp oB : Word) (aLen : Nat)
   ((.x2 : Reg) ↦ᵣ newSp) **
   ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
   ((.x18 : Reg) ↦ᵣ oB) **
-  regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+  ((.x10 : Reg) ↦ᵣ (1 : Word)) ** regOwn .x11 ** regOwn .x12 **
   regOwn .x19 ** regOwn .x20 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -864,7 +864,7 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
       xperm_hyp hq
     have hq3 := sepConj_mono
-      (sepConj_mono (regIs_implies_regOwn .x10)
+      (sepConj_mono (fun _ hx => hx)
        (sepConj_mono (regIs_implies_regOwn .x11)
         (sepConj_mono (regIs_implies_regOwn .x12)
          (sepConj_mono (regIs_implies_regOwn .x1)
@@ -891,7 +891,7 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
       xperm_hyp hq
     have hq3 := sepConj_mono
-      (sepConj_mono (regIs_implies_regOwn .x10)
+      (sepConj_mono (fun _ hx => hx)
        (sepConj_mono (regIs_implies_regOwn .x11)
         (sepConj_mono (regIs_implies_regOwn .x12)
          (sepConj_mono (regIs_implies_regOwn .x1)
@@ -1155,7 +1155,7 @@ theorem nonceTupleReject_to_stationRej (aB newSp oB n4 : Word)
     (sepConj_mono memIs_implies_memOwn
       (sepConj_mono memIs_implies_memOwn
         (sepConj_mono memIs_implies_memOwn
-          (sepConj_mono memIs_implies_memOwn (regIs_implies_regOwn .x10)))))
+          (sepConj_mono memIs_implies_memOwn (fun _ hx => hx)))))
     (fun _ x => x) h hq2
   unfold nonceStationRej
   xperm_hyp hq3

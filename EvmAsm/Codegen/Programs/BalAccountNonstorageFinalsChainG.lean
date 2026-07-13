@@ -281,7 +281,7 @@ theorem nonceTupleInitReject_to_stationRej (aB newSp oB n4 v19 v20 s64 s72 : Wor
           (sepConj_mono memIs_implies_memOwn
             (sepConj_mono memIs_implies_memOwn
               (sepConj_mono memIs_implies_memOwn
-                (sepConj_mono (regIs_implies_regOwn .x10)
+                (sepConj_mono (fun _ hx => hx)
                   (sepConj_mono (regIs_implies_regOwn .x19)
                     (regIs_implies_regOwn .x20)))))))))
     (fun _ x => x) h hq2
@@ -559,7 +559,7 @@ theorem nonceLoopReject_to_stationRej (aB newSp oB n4 : Word)
         bytesRegion aB acctBytes ** F)) h := by
     xperm_hyp hq
   have hq3 := sepConj_mono
-    (sepConj_mono (regIs_implies_regOwn .x10)
+    (sepConj_mono (fun _ hx => hx)
       (sepConj_mono memIs_implies_memOwn
         (sepConj_mono memIs_implies_memOwn
           (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))))
