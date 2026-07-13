@@ -131,5 +131,75 @@ theorem codeStationPost_to_resultFrame
 
 #print axioms codeStationPost_to_resultFrame
 
+/-- The abstract result represented by three optional final value windows. -/
+def finalsOutOf (acctBytes : List (BitVec 8)) (aB : Word)
+    (bal nonce code : Option (Word × Word)) : FinalsOut :=
+  { hasBalance := bal.isSome
+    balanceBE := match bal with
+      | none => List.replicate 32 0
+      | some (vNext, vLen) => copyN (List.replicate 32 (0 : BitVec 8))
+          acctBytes (32 - vLen.toNat) (vNext - vLen - aB).toNat vLen.toNat
+    hasNonce := nonce.isSome
+    nonce := match nonce with
+      | none => 0
+      | some (vNext, vLen) => BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
+          ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat))
+    hasCode := code.isSome
+    codeOff := match code with
+      | none => 0
+      | some (vNext, vLen) => vNext - vLen - aB
+    codeLen := match code with
+      | none => 0
+      | some (_, vLen) => vLen }
+
+/-- Six outer decodes plus the three station-final facts entail the genuine
+    account-finals derivation for the result represented by those windows. -/
+theorem fieldFinals_to_finalsDerivation
+    (acctBytes : List (BitVec 8)) (aB : Word) (aLen : Nat) (b0 : BitVec 8)
+    (n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 : Word)
+    (bal nonce code : Option (Word × Word))
+    (h0 : acctBytes[0]? = some b0)
+    (hd0 : rlpItemDecode acctBytes (listHeaderSize b0)
+      (aB + BitVec.ofNat 64 (listHeaderSize b0))
+      (aB + BitVec.ofNat 64 aLen) n0 l0)
+    (hd1 : rlpItemDecode acctBytes (n0 - aB).toNat n0
+      (aB + BitVec.ofNat 64 aLen) n1 l1)
+    (hd2 : rlpItemDecode acctBytes (n1 - aB).toNat n1
+      (aB + BitVec.ofNat 64 aLen) n2 l2)
+    (hd3 : rlpItemDecode acctBytes (n2 - aB).toNat n2
+      (aB + BitVec.ofNat 64 aLen) n3 l3)
+    (hd4 : rlpItemDecode acctBytes (n3 - aB).toNat n3
+      (aB + BitVec.ofNat 64 aLen) n4 l4)
+    (hd5 : rlpItemDecode acctBytes (n4 - aB).toNat n4
+      (aB + BitVec.ofNat 64 aLen) n5 l5)
+    (hbal : FieldFinal acctBytes aB (n3 - l3 - aB).toNat l3.toNat bal)
+    (hnonce : FieldFinal acctBytes aB (n4 - l4 - aB).toNat l4.toNat nonce)
+    (hcode : FieldFinal acctBytes aB (n5 - l5 - aB).toNat l5.toNat code)
+    (hbalBound : ∀ vNext vLen, bal = some (vNext, vLen) → vLen.toNat ≤ 32)
+    (hnonceBound : ∀ vNext vLen, nonce = some (vNext, vLen) → vLen.toNat ≤ 8) :
+    FinalsDerivation acctBytes aB aLen (finalsOutOf acctBytes aB bal nonce code) := by
+  refine ⟨b0, h0, n0, l0, n1, l1, n2, l2, n3, l3, n4, l4, n5, l5,
+    hd0, hd1, hd2, hd3, hd4, hd5, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · cases bal with
+    | none => exact Or.inl ⟨rfl, hbal⟩
+    | some p =>
+        obtain ⟨vNext, vLen⟩ := p
+        exact Or.inr ⟨rfl, vNext, vLen, hbal, rfl, hbalBound _ _ rfl⟩
+  · cases bal <;> simp [finalsOutOf]
+  · cases nonce with
+    | none => exact Or.inl ⟨rfl, hnonce⟩
+    | some p =>
+        obtain ⟨vNext, vLen⟩ := p
+        exact Or.inr ⟨rfl, vNext, vLen, hnonce, rfl, hnonceBound _ _ rfl⟩
+  · cases nonce <;> simp [finalsOutOf]
+  · cases code with
+    | none => exact Or.inl ⟨rfl, hcode⟩
+    | some p =>
+        obtain ⟨vNext, vLen⟩ := p
+        exact Or.inr ⟨rfl, vNext, vLen, hcode, rfl, rfl⟩
+  · cases code <;> simp [finalsOutOf]
+
+#print axioms fieldFinals_to_finalsDerivation
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
