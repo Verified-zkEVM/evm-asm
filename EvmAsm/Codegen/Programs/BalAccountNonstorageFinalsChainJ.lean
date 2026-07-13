@@ -125,5 +125,46 @@ theorem codeTupleReject_to_stationRej (aB newSp oB n5 : Word)
 
 #print axioms codeTupleReject_to_stationRej
 
+/-- Slots 163–164 (`B + 652 → B + 660`): spill the code tuple cursor and
+    end before decoding its index item. -/
+theorem bansf_codeTupleSpill163_spec (newSp v10 v11 : Word) :
+    cpsTripleWithin 2 (B + 652) (B + 660) bansfCR
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72))
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+       ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ v10) ** ((newSp + 72) ↦ₘ v11)) := by
+  have hsd1 := sd_spec_gen_own_within .x2 .x10 newSp v10
+    (64 : BitVec 12) (B + 652)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide,
+      show (B + 652) + 4 = B + 656 from by bv_omega] at hsd1
+  have hsd1L := liftCode (cr' := bansfCR) hsd1
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 652) bansfProg 163
+        (.SD .x2 .x10 (64 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h))
+  have hsd2 := sd_spec_gen_own_within .x2 .x11 newSp v11
+    (72 : BitVec 12) (B + 656)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide,
+      show (B + 656) + 4 = B + 660 from by bv_omega] at hsd2
+  have hsd2L := liftCode (cr' := bansfCR) hsd2
+    (fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at B (B + 656) bansfProg 164
+        (.SD .x2 .x11 (72 : BitVec 12))
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h))
+  have hsd1F := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ v11) ** memOwn (newSp + 72)) (by pcf) hsd1L
+  have hsd2F := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ v10) ** ((newSp + 64) ↦ₘ v10)) (by pcf) hsd2L
+  have hchain := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hsd1F hsd2F
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hchain
+
+#print axioms bansf_codeTupleSpill163_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
