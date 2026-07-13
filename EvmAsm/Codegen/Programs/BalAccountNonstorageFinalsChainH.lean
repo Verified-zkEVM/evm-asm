@@ -841,7 +841,7 @@ theorem item4Ok_to_nonceSpanPre (aB newSp oB : Word) (aLen off : Nat)
         (((((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
            ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
            ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
-           memOwn (newSp + 48)) **
+           ((newSp + 48) ↦ₘ n4)) **
           (((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
            memOwn (newSp + 64) ** memOwn (newSp + 72) **
            regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -877,9 +877,8 @@ theorem item4Ok_to_nonceSpanPre (aB newSp oB : Word) (aLen off : Nat)
          (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h := by
     xperm_hyp hq4
   obtain ⟨hat, hdec⟩ := (sepConj_pure_right h).1 hq'
-  have hatOwn := sepConj_mono_left memIs_implies_memOwn h hat
   refine ⟨n4, l4, (sepConj_pure_right h).2 ⟨?_, hdec⟩⟩
-  xperm_hyp hatOwn
+  xperm_hyp hat
 
 #print axioms item4Ok_to_nonceSpanPre
 
