@@ -164,6 +164,40 @@ theorem bansf_codeItemFailure138_spec (aB newSp cur k : Word)
 
 #print axioms bansf_codeItemFailure138_spec
 
+/-- Reframe final-item success for `B + 556`, keeping cursor and spill distinct. -/
+theorem codeItemSuccess_to_cont556Pre
+    (aB newSp oB spill5 next len v19 v20 : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ len) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ spill5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+       bytesRegion aB acctBytes ** F ** G ** memOwn (newSp + 64) **
+       memOwn (newSp + 72) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word))) h →
+      (((.x10 : Reg) ↦ᵣ next) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x12 : Reg) ↦ᵣ len) ** ((.x19 : Reg) ↦ᵣ v19) **
+       ((.x20 : Reg) ↦ᵣ v20) ** ((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 48) ↦ₘ spill5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x8 : Reg) ↦ᵣ aB) **
+       ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) ** ((.x18 : Reg) ↦ᵣ oB) **
+       G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1) h := by
+  intro h hp
+  xperm_hyp hp
+
+#print axioms codeItemSuccess_to_cont556Pre
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
