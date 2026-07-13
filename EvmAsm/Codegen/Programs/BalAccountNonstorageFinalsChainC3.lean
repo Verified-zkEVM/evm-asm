@@ -1390,5 +1390,23 @@ theorem bansf_item4_code :
 
 #print axioms bansf_item4_code
 
+/-- Slots 93–96 (`B + 372 → B + 388`): capture the already-respilled outer
+    nonce item span and prepare the field `rlp_walk_init` arguments. -/
+theorem bansf_nonceSpanCapture93_spec (n4 l4 v19 v20 : Word) :
+    cpsTripleWithin 4 (B + 372) (B + 388) bansfCode
+      (((.x10 : Reg) ↦ᵣ n4) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+       ((.x11 : Reg) ↦ᵣ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ (n4 - l4)) ** ((.x12 : Reg) ↦ᵣ l4) **
+       ((.x19 : Reg) ↦ᵣ (n4 - l4)) ** ((.x20 : Reg) ↦ᵣ l4) **
+       ((.x11 : Reg) ↦ᵣ l4)) := by
+  have s1 := sub_spec_gen_within .x19 .x10 .x12 n4 l4 v19 (B + 372) (by decide)
+  have s2 := mv_spec_gen_within .x20 .x12 l4 v20 (B + 376) (by decide)
+  have s3 := mv_spec_gen_within .x10 .x19 (n4 - l4) n4 (B + 380) (by decide)
+  have s4 := mv_spec_gen_within .x11 .x20 l4 (0 : Word) (B + 384) (by decide)
+  runBlock s1 s2 s3 s4
+
+#print axioms bansf_nonceSpanCapture93_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
