@@ -117,6 +117,166 @@ theorem noStrictList_of_notlist (bytes : List (BitVec 8)) (base : Word)
   rintro ⟨cursorOff, endPtr, h⟩
   exact h.prefix_not_lt_c0 hoff hnotlist
 
+theorem noStrictList_of_short_mismatch (bytes : List (BitVec 8)) (base : Word)
+    (listLen : Nat) (hoff : 0 < bytes.length)
+    (h_len : listLen < 2 ^ 64)
+    (hshort : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hmismatch : base +
+      (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)) ≠ base + BitVec.ofNat 64 listLen) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  cases h with
+  | short b hbyte _ _ _ hnat =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      apply hmismatch
+      rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+      congr 1
+      have hsmall :
+          ((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)).toNat + 1 < 2 ^ 64 := by
+        have hb := (bytes[0]'hoff).isLt
+        bv_omega
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_add, show BitVec.toNat (1 : Word) = 1 by decide,
+        BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt hsmall, Nat.mod_eq_of_lt h_len]
+      exact hnat
+  | long b first hbyte hlong _ _ _ _ _ =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      exact hlong hshort
+
+theorem StrictListPayload.long_view {bytes : List (BitVec 8)}
+    {base endPtr : Word} {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr)
+    (hoff : 0 < bytes.length)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true) :
+    ∃ first : BitVec 8,
+      bytes[1]? = some first ∧ first ≠ 0 ∧
+      56 ≤ Nat.fromBytesBE ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ∧
+      cursorOff = 1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ∧
+      cursorOff + Nat.fromBytesBE ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) = listLen := by
+  cases h with
+  | short b hbyte _ hshort _ _ =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      exact False.elim (hlong hshort)
+  | long b first hbyte _ hfirst hnz hminimal hcursor hlen =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      exact ⟨first, hfirst, hnz, hminimal, hcursor, hlen⟩
+
+theorem noStrictList_of_long_leading_zero (bytes : List (BitVec 8))
+    (base : Word) (listLen : Nat) (hoff : 0 < bytes.length)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hzero : bytes[1]? = some (0 : BitVec 8)) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  obtain ⟨first, hfirst, hnz, _⟩ := h.long_view hoff hlong
+  have : first = 0 := Option.some.inj (hfirst.symm.trans hzero)
+  exact hnz this
+
+theorem noStrictList_of_long_nonminimal (bytes : List (BitVec 8))
+    (base : Word) (listLen : Nat) (hoff : 0 < bytes.length)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hnonminimal : BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE
+      ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+      (56 : Word) = true) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  obtain ⟨first, hfirst, hnz, hminimal, _⟩ := h.long_view hoff hlong
+  have hlt := BitVec.ult_iff_lt.mp hnonminimal
+  have hdec : Nat.fromBytesBE ((bytes.drop 1).take
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) < 2 ^ 64 := by
+    have hn : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+      have hb := (bytes[0]'hoff).isLt
+      have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+      bv_omega
+    have hp := Nat.fromBytesBE_lt ((bytes.drop 1).take
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)
+    have htake : ((bytes.drop 1).take
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat).length ≤ 8 := by
+      exact le_trans (List.length_take_le _ _) hn
+    calc
+      _ < 256 ^ ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat).length := hp
+      _ ≤ 256 ^ 8 := Nat.pow_le_pow_right (by omega) htake
+      _ = 2 ^ 64 := by norm_num
+  change (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+    ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))).toNat < 56 at hlt
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hdec] at hlt
+  omega
+
+theorem noStrictList_of_long_header_truncated (bytes : List (BitVec 8))
+    (base : Word) (listLen : Nat) (hoff : 0 < bytes.length)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (htrunc : BitVec.ult (base + BitVec.ofNat 64 listLen)
+      (base + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  obtain ⟨first, hfirst, hnz, hminimal, hcursor, hlen⟩ :=
+    h.long_view hoff hlong
+  have hn : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+    have hb := (bytes[0]'hoff).isLt
+    have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+    bv_omega
+  have hhead :
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 cursorOff := by
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+    subst cursorOff
+    bv_omega
+  rw [hhead] at htrunc
+  have hcursorLe : cursorOff ≤ listLen := by omega
+  have hbaseEnd : base.toNat + listLen < 2 ^ 64 := by omega
+  have hbaseCursor : base.toNat + cursorOff < 2 ^ 64 := by omega
+  have hlt := BitVec.ult_iff_lt.mp htrunc
+  change (base + BitVec.ofNat 64 listLen).toNat <
+    (base + BitVec.ofNat 64 cursorOff).toNat at hlt
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at hlt
+  have hlmod : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+  have hcmod : cursorOff % 2 ^ 64 = cursorOff := Nat.mod_eq_of_lt (by omega)
+  rw [hlmod, hcmod, Nat.mod_eq_of_lt hbaseCursor] at hlt
+  omega
+
+theorem noStrictList_of_long_mismatch (bytes : List (BitVec 8))
+    (base : Word) (listLen : Nat) (hoff : 0 < bytes.length)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hmismatch : base +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
+          ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) ≠
+      base + BitVec.ofNat 64 listLen) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  obtain ⟨first, hfirst, hnz, hminimal, hcursor, hlen⟩ :=
+    h.long_view hoff hlong
+  apply hmismatch
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+  have hhead :
+      ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + (1 : Word) =
+        BitVec.ofNat 64 cursorOff := by
+    rw [hcursor]
+    bv_omega
+  rw [hhead, BitVec.add_assoc, ← BitVec.ofNat_add, hlen]
+
 /-- Convert WalkInit's short-list success facts at offset zero into the
     wrapper's strict outer-list relation. -/
 theorem shortInit_to_strict (bytes : List (BitVec 8)) (base : Word)
