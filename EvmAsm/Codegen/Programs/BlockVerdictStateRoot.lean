@@ -749,7 +749,10 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
   "  # General transaction and withdrawal trie roots have already been computed above.\n" ++
   "  la t1, sv_params\n" ++
-  "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
+  -- System-call dispatch may overwrite the svf_* scratch globals.  Re-derive
+  -- the payload pointer from the stable SSZ input before handing the frame to
+  -- block_verdict; the NPR payload offset is the first u32 at NPR+0.
+  "  addi a0, s0, 16; jal ra, bgv_u32le; add t0, s0, a0; addi t0, t0, 16; la t2, svf_payload; sd t0, 0(t2); la t1, sv_params; sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
