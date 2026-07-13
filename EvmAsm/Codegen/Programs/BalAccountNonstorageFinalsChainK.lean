@@ -468,5 +468,176 @@ theorem codeEmpty_to_stationPost (aB newSp oB : Word)
 #print axioms codeEmpty_to_stationPost
 
 
+
+/-- Continuation at `B + 580`: split an initialized code field into the empty
+    result or the station-3 find-last loop. -/
+theorem bansf_codeStationCont580_spec (aB newSp oB : Word)
+    (aLen fOff fSpanN : Nat) (n5 : Word)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hfE : fOff + fSpanN ≤ aLen) :
+    cpsBranchWithin (98 * (aLen + 1) + (7 * acctBytes.length + 600))
+      (B + 580) bansfCR
+      (fun h => ∃ cOff : Nat,
+        ((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+          ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+          ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 572 + 4)) **
+          ((.x2 : Reg) ↦ᵣ newSp) **
+          memOwn (newSp + 64) ** memOwn (newSp + 72) **
+          ((newSp + 48) ↦ₘ n5) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+          (G **
+           ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+           ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)) **
+         ⌜FieldInitOk acctBytes fOff fSpanN cOff⌝) h)
+      (B + 736) (codeStationRej aB newSp oB aLen acctBytes G F)
+      (B + 724) (codeStationPost aB newSp oB aLen fOff fSpanN n5 acctBytes G F) := by
+  refine cpsBranchWithin_exists_pre (fun cOff => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hok => ?_)
+  obtain ⟨b, hb, hcontent, hclt, hcle⟩ := hok
+  by_cases hempty : cOff = fOff + fSpanN
+  · have hbeq := bansf_codeEmptyTaken145_spec aB cOff (fOff + fSpanN) hempty
+    have hbeqL := liftCode (cr' := bansfCR) hbeq
+      (fun a i h => CodeReq.union_mono_left a i h)
+    have hbeqF := cpsTripleWithin_frameR
+      (((.x12 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 572 + 4)) **
+       ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) ** memOwn (newSp + 72) **
+       ((newSp + 48) ↦ₘ n5) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+       (G **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F))
+      (by pcf; exact hG; pcf; exact hF) hbeqL
+    refine cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ x => x) (fun h hq => ?_)
+      (cpsBranchWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_as_cpsBranchWithin_right (B + 736)
+          (codeStationRej aB newSp oB aLen acctBytes G F) hbeqF))
+    exact codeEmpty_to_stationPost aB newSp oB aLen fOff fSpanN cOff n5 b
+      acctBytes G F hb hcontent.symm hempty h (by xperm_hyp hq)
+  · have hfall := bansf_codeEmptyFall145_spec aB aLen cOff (fOff + fSpanN)
+      hempty (by omega) hfE (by omega)
+    have hfallL := liftCode (cr' := bansfCR) hfall
+      (fun a i h => CodeReq.union_mono_left a i h)
+    let R : Assertion :=
+      ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 572 + 4)) **
+      ((.x2 : Reg) ↦ᵣ newSp) ** memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      ((newSp + 48) ↦ₘ n5) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+      (G **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)
+    have hfallF := cpsTripleWithin_frameR R
+      (by dsimp only [R]; pcf; exact hG; pcf; exact hF) hfallL
+    have hentry := bansf_codeLoopEntry146_spec aB newSp cOff (fOff + fSpanN)
+    let Rentry : Assertion :=
+      ((.x12 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 572 + 4)) **
+      ((newSp + 48) ↦ₘ n5) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20 **
+      (G **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** bytesRegion aB acctBytes ** F)
+    have hentryF := cpsTripleWithin_frameR Rentry
+      (by dsimp only [Rentry]; pcf; exact hG; pcf; exact hF) hentry
+    have hc408 := bansf_codeStationCont592_spec aB newSp oB aLen fOff fSpanN
+      (fOff + fSpanN - cOff) n5 b acctBytes G F hG hF hsalign hslack hover
+      hvalid hb (fun h => hempty (hcontent.trans h)) (hcontent ▸ hcle) hfE
+    have htoInv : ∀ h,
+        (((((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+           ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+           ((.x2 : Reg) ↦ᵣ newSp) **
+           ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+           ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN)))) **
+          Rentry) h) →
+        (flInv aB newSp acctBytes (fOff + listHeaderSize b)
+          (fOff + fSpanN) F (fOff + fSpanN - cOff) **
+         (G **
+          ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+          ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+          ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+          ((.x18 : Reg) ↦ᵣ oB))) h := by
+      intro h hp
+      let CoreRest : Assertion :=
+        ((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 cOff)) **
+        ((.x11 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+        ((.x2 : Reg) ↦ᵣ newSp) **
+        ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 cOff)) **
+        ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 (fOff + fSpanN))) **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F
+      let Core : Assertion := regOwn .x12 ** regOwn .x1 ** CoreRest
+      let Station : Assertion :=
+        G **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n5) **
+        ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB)
+      have hpExact :
+          (((.x12 : Reg) ↦ᵣ (0 : Word)) **
+           ((.x1 : Reg) ↦ᵣ (B + 572 + 4)) ** (CoreRest ** Station)) h := by
+        dsimp only [Rentry] at hp
+        dsimp only [CoreRest, Station]
+        xperm_hyp hp
+      have hpOwned := sepConj_mono (regIs_implies_regOwn .x12)
+        (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x)) h hpExact
+      have hpCore : (Core ** Station) h := by
+        dsimp only [Core]
+        xperm_hyp hpOwned
+      have hall :
+          (flInv aB newSp acctBytes cOff (fOff + fSpanN) F
+            (fOff + fSpanN - cOff) ** Station) h := by
+        refine sepConj_mono_left
+          (nonceLoopEntry_to_flInv aB newSp acctBytes cOff
+            (fOff + fSpanN) F hcle) h ?_
+        dsimp only [Core, CoreRest, Station] at hpCore ⊢
+        xperm_hyp hpCore
+      have hinvEq :
+          flInv aB newSp acctBytes cOff (fOff + fSpanN) F
+              (fOff + fSpanN - cOff) =
+            flInv aB newSp acctBytes (fOff + listHeaderSize b)
+              (fOff + fSpanN) F (fOff + fSpanN - cOff) := by
+        congr 1
+      rw [hinvEq] at hall
+      dsimp only [Station] at hall
+      xperm_hyp hall
+    have hc408' := cpsBranchWithin_weaken htoInv (fun _ x => x) (fun _ x => x) hc408
+    have hfirst := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by dsimp only [R, Rentry]; xperm_hyp hp) hfallF hentryF
+    have hfull := cpsTripleWithin_seq_branch_same_cr hfirst hc408'
+    exact cpsBranchWithin_weaken (fun h hp => by dsimp only [R]; xperm_hyp hp)
+      (fun _ x => x) (fun _ x => x)
+      (cpsBranchWithin_mono_nSteps (by omega) hfull)
+
+#print axioms bansf_codeStationCont580_spec
+
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
