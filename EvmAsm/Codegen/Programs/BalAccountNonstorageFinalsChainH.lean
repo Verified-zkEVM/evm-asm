@@ -785,6 +785,45 @@ theorem bansf_item4_spec (aB newSp : Word) (aLen off : Nat)
 
 #print axioms bansf_item4_spec
 
+/-- Reframe an outer item-4 parse failure as the nonce station reject post,
+    preserving the earlier balance footprint and all untouched out cells. -/
+theorem item4Reject_to_nonceStationRej (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      (itemRej aB newSp acctBytes F **
+       (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h →
+      nonceStationRej aB newSp oB aLen acctBytes G F h := by
+  intro h hq
+  unfold itemRej at hq
+  have hq' :
+      ((((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word))) **
+       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ newSp) **
+        memOwn (newSp + 48) ** memOwn (newSp + 56) **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+        bytesRegion aB acctBytes ** F ** G **
+        ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+        ((oB + 72) ↦ₘ (0 : Word)) **
+        memOwn (newSp + 64) ** memOwn (newSp + 72) **
+        ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+        ((.x18 : Reg) ↦ᵣ oB) ** regOwn .x19 ** regOwn .x20)) h := by
+    xperm_hyp hq
+  have hqOwn := sepConj_mono
+    (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)
+    (fun _ x => x) h hq'
+  have hqOwn' := sepConj_mono_right
+    (sepConj_mono_left (regIs_implies_regOwn .x10)) h hqOwn
+  unfold nonceStationRej
+  xperm_hyp hqOwn'
+
+#print axioms item4Reject_to_nonceStationRej
+
 
 
 end BalAccountNonstorageFinalsSpec
