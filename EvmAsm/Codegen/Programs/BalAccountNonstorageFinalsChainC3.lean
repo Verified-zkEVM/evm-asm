@@ -1426,5 +1426,18 @@ theorem bansf_codeSpanCapture139_spec (n5 l5 v19 v20 : Word) :
 
 #print axioms bansf_codeSpanCapture139_spec
 
+/-- Concrete code witness for the code-field status gate at slot 144. -/
+theorem bansf_codeFieldStatus144_code :
+    ∀ a i, CodeReq.singleton (B + 576) (.BNE .x12 .x0 (156 : BitVec 13)) a = some i →
+      bansfCR a = some i := by
+  intro a i h
+  exact CodeReq.union_mono_left a i
+    (CodeReq.ofProg_mem_at B (B + 576) bansfProg 144
+      (.BNE .x12 .x0 (156 : BitVec 13))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide) a i h)
+
+#print axioms bansf_codeFieldStatus144_code
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
