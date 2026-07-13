@@ -369,5 +369,21 @@ theorem nonceTupleInitOk_to_cont468Pre (aB newSp oB n4 v19 v20 s64 s72 : Word)
 
 #print axioms nonceTupleInitOk_to_cont468Pre
 
+/-- Ownership-facing wrapper for the nonce loop-exit moves. -/
+theorem bansf_nonceLoopExitMove113_own_spec (v19 v20 : Word) :
+    cpsTripleWithin 2 (B + 452) (B + 460) bansfCR
+      (((((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+        regOwn .x10 ** regOwn .x11))
+      ((((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+       ((.x10 : Reg) ↦ᵣ v19) ** ((.x11 : Reg) ↦ᵣ v20)) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (fun v10 v11 => ?_)
+  have hm := bansf_nonceLoopExitMove113_spec v19 v20 v10 v11
+  have hmL := liftCode (cr' := bansfCR) hm
+    (fun a i h => CodeReq.union_mono_left a i h)
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) hmL
+
+#print axioms bansf_nonceLoopExitMove113_own_spec
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
