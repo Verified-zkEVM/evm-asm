@@ -88,7 +88,24 @@ jobs:
           } > /tmp/augmented-instructions.md
           echo "Built /tmp/augmented-instructions.md ($(wc -l < /tmp/augmented-instructions.md) lines)"
 
+      - name: Detect unsupported directory diffs
+        id: summary_guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          skip=false
+          while IFS= read -r path; do
+            if [[ -d "$path" ]]; then
+              echo "PR summary skipped: $path is a directory or submodule path"
+              skip=true
+            fi
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
       - name: Generate PR Summary
+        if: steps.summary_guard.outputs.skip != 'true'
         uses: alexanderlhicks/lean-summary-workflow@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

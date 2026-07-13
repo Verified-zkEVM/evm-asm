@@ -1,183 +1,195 @@
 rlp_list_nth_item:
-  addi sp, sp, -64
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)
-  mv s0, a0                  # s0 = list_ptr
-  add s1, a0, a1             # s1 = list_end
-  mv s2, a2                  # s2 = N
-  mv s3, a3                  # s3 = out_offset_ptr
-  mv s4, a4                  # s4 = out_length_ptr
-  # Parse outer list prefix.
-  bgeu s0, s1, .Lrln_fail
-  lbu t0, 0(s0)
-  li t1, 0xc0
-  bltu t0, t1, .Lrln_fail    # not an RLP list
-  li t1, 0xf8
-  bltu t0, t1, .Lrln_short_outer
-  # Long outer: prefix bytes = 1 + (t0 - 0xf7)
-  li t1, 0xf7
-  sub t2, t0, t1             # lol
-  addi t2, t2, 1             # prefix bytes
-  add s5, s0, t2             # s5 = cursor at first item
-  j .Lrln_walk
-.Lrln_short_outer:
-  addi s5, s0, 1
-.Lrln_walk:
-  li s6, 0                   # i
-.Lrln_loop:
-  beq s6, s2, .Lrln_at_target
-  bgeu s5, s1, .Lrln_fail    # walked past end of list
-  # Compute size of item at s5; advance s5 by it.
-  lbu t0, 0(s5)
-  li t1, 0x80
-  bltu t0, t1, .Lrln_skip_single
-  li t1, 0xb8
-  bltu t0, t1, .Lrln_skip_short_string
-  li t1, 0xc0
-  bltu t0, t1, .Lrln_skip_long_string
-  li t1, 0xf8
-  bltu t0, t1, .Lrln_skip_short_list
-  # Long list: lol = t0 - 0xf7
-  li t1, 0xf7
-  sub t2, t0, t1             # lol
-  li t3, 0                   # decoded length accumulator
-  mv t4, t2                  # remaining length bytes
-  addi t5, s5, 1
-.Lrln_skll_be:
-  beqz t4, .Lrln_skll_done
-  slli t3, t3, 8
-  lbu t6, 0(t5)
-  or t3, t3, t6
-  addi t5, t5, 1
-  addi t4, t4, -1
-  j .Lrln_skll_be
-.Lrln_skll_done:
-  addi t6, t2, 1
-  add t6, t6, t3             # 1 + lol + decoded
-  add s5, s5, t6
-  j .Lrln_step
-.Lrln_skip_short_list:
-  li t1, 0xc0
-  sub t6, t0, t1
-  addi t6, t6, 1             # 1 + (t0 - 0xc0)
-  add s5, s5, t6
-  j .Lrln_step
-.Lrln_skip_long_string:
-  li t1, 0xb7
-  sub t2, t0, t1             # lol
-  li t3, 0
-  mv t4, t2
-  addi t5, s5, 1
-.Lrln_skls_be:
-  beqz t4, .Lrln_skls_done
-  slli t3, t3, 8
-  lbu t6, 0(t5)
-  or t3, t3, t6
-  addi t5, t5, 1
-  addi t4, t4, -1
-  j .Lrln_skls_be
-.Lrln_skls_done:
-  addi t6, t2, 1
-  add t6, t6, t3
-  add s5, s5, t6
-  j .Lrln_step
-.Lrln_skip_short_string:
-  li t1, 0x80
-  sub t6, t0, t1
-  addi t6, t6, 1
-  add s5, s5, t6
-  j .Lrln_step
-.Lrln_skip_single:
-  addi s5, s5, 1
-.Lrln_step:
-  addi s6, s6, 1
-  j .Lrln_loop
-.Lrln_at_target:
-  bgeu s5, s1, .Lrln_fail    # target index past last item
-  lbu t0, 0(s5)
-  li t1, 0x80
-  bltu t0, t1, .Lrln_t_single
-  li t1, 0xb8
-  bltu t0, t1, .Lrln_t_short_string
-  li t1, 0xc0
-  bltu t0, t1, .Lrln_t_long_string
-  li t1, 0xf8
-  bltu t0, t1, .Lrln_t_short_list
-  # Long list (full encoded form)
-  li t1, 0xf7
-  sub t2, t0, t1
-  li t3, 0
-  mv t4, t2
-  addi t5, s5, 1
-.Lrln_tll_be:
-  beqz t4, .Lrln_tll_done
-  slli t3, t3, 8
-  lbu t6, 0(t5)
-  or t3, t3, t6
-  addi t5, t5, 1
-  addi t4, t4, -1
-  j .Lrln_tll_be
-.Lrln_tll_done:
-  addi t6, t2, 1
-  add t6, t6, t3             # full encoded size
-  sub t1, s5, s0
-  sd t1, 0(s3)
-  sd t6, 0(s4)
-  j .Lrln_ok
-.Lrln_t_short_list:
-  li t1, 0xc0
-  sub t6, t0, t1
-  addi t6, t6, 1
-  sub t1, s5, s0
-  sd t1, 0(s3)
-  sd t6, 0(s4)
-  j .Lrln_ok
-.Lrln_t_long_string:
-  li t1, 0xb7
-  sub t2, t0, t1
-  li t3, 0
-  mv t4, t2
-  addi t5, s5, 1
-.Lrln_tls_be:
-  beqz t4, .Lrln_tls_done
-  slli t3, t3, 8
-  lbu t6, 0(t5)
-  or t3, t3, t6
-  addi t5, t5, 1
-  addi t4, t4, -1
-  j .Lrln_tls_be
-.Lrln_tls_done:
-  # content offset = s5 + 1 + lol - s0
-  addi t6, t2, 1
-  add t6, t6, s5
-  sub t6, t6, s0
-  sd t6, 0(s3)
-  sd t3, 0(s4)               # content length = decoded
-  j .Lrln_ok
-.Lrln_t_short_string:
-  # content offset = s5 + 1 - s0; length = t0 - 0x80
-  addi t6, s5, 1
-  sub t6, t6, s0
-  sd t6, 0(s3)
-  li t1, 0x80
-  sub t1, t0, t1
-  sd t1, 0(s4)
-  j .Lrln_ok
-.Lrln_t_single:
-  # content offset = s5 - s0; length = 1
-  sub t1, s5, s0
-  sd t1, 0(s3)
-  li t1, 1
-  sd t1, 0(s4)
-.Lrln_ok:
-  li a0, 0
-  j .Lrln_ret
-.Lrln_fail:
-  li a0, 1
-.Lrln_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)
-  addi sp, sp, 64
-  ret
+  addi x2, x2, -64
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  mv x8, x10
+  mv x9, x12
+  mv x18, x13
+  mv x19, x14
+  jal x1, .+104
+  bne x12, x0, .+60
+  mv x20, x11
+  li x21, 0
+  mv x11, x20
+  jal x1, .+296
+  bne x11, x0, .+40
+  beq x21, x9, .+12
+  addi x21, x21, 1
+  jal x0, .-20
+  sub x5, x10, x12
+  sub x5, x5, x8
+  sd x5, 0(x18)
+  sd x12, 0(x19)
+  li x10, 0
+  jal x0, .+8
+  li x10, 1
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  addi x2, x2, 64
+  jalr x0, 0(x1)
+  beq x11, x0, .+156
+  add x11, x10, x11
+  lbu x5, 0(x10)
+  li x6, 192
+  bltu x5, x6, .+148
+  li x6, 248
+  bltu x5, x6, .+100
+  li x6, 247
+  sub x7, x5, x6
+  addi x28, x7, 1
+  add x29, x10, x28
+  bltu x11, x29, .+136
+  addi x6, x10, 1
+  lbu x30, 0(x6)
+  beq x30, x0, .+132
+  li x31, 0
+  mv x30, x7
+  beq x30, x0, .+28
+  slli x31, x31, 8
+  lbu x28, 0(x6)
+  or x31, x31, x28
+  addi x6, x6, 1
+  addi x30, x30, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x31, x6, .+96
+  add x6, x29, x31
+  bne x6, x11, .+96
+  mv x10, x29
+  li x12, 0
+  jalr x0, 0(x1)
+  li x6, 192
+  sub x7, x5, x6
+  addi x28, x7, 1
+  add x29, x10, x28
+  bne x29, x11, .+32
+  addi x10, x10, 1
+  li x12, 0
+  jalr x0, 0(x1)
+  li x12, 2
+  jalr x0, 0(x1)
+  li x12, 1
+  jalr x0, 0(x1)
+  li x12, 3
+  jalr x0, 0(x1)
+  li x12, 4
+  jalr x0, 0(x1)
+  li x12, 5
+  jalr x0, 0(x1)
+  li x12, 6
+  jalr x0, 0(x1)
+  li x12, 7
+  jalr x0, 0(x1)
+  bgeu x10, x11, .+352
+  lbu x5, 0(x10)
+  li x6, 128
+  bltu x5, x6, .+288
+  li x6, 184
+  bltu x5, x6, .+228
+  li x6, 192
+  bltu x5, x6, .+120
+  li x6, 248
+  bltu x5, x6, .+280
+  li x6, 247
+  sub x7, x5, x6
+  addi x6, x7, 1
+  add x29, x10, x6
+  bltu x11, x29, .+308
+  addi x30, x10, 1
+  lbu x31, 0(x30)
+  beq x31, x0, .+320
+  li x28, 0
+  mv x6, x7
+  beq x6, x0, .+28
+  slli x28, x28, 8
+  lbu x31, 0(x30)
+  or x28, x28, x31
+  addi x30, x30, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x28, x6, .+264
+  add x31, x7, x28
+  addi x31, x31, 1
+  sub x6, x11, x29
+  bltu x6, x28, .+236
+  add x10, x31, x10
+  mv x12, x31
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 183
+  sub x7, x5, x6
+  addi x6, x7, 1
+  add x29, x10, x6
+  bltu x11, x29, .+200
+  addi x30, x10, 1
+  lbu x31, 0(x30)
+  beq x31, x0, .+212
+  li x28, 0
+  mv x6, x7
+  beq x6, x0, .+28
+  slli x28, x28, 8
+  lbu x31, 0(x30)
+  or x28, x28, x31
+  addi x30, x30, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  li x6, 56
+  bltu x28, x6, .+156
+  sub x6, x11, x29
+  bltu x6, x28, .+136
+  add x10, x29, x28
+  mv x12, x28
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 128
+  sub x12, x5, x6
+  addi x7, x10, 1
+  sub x28, x11, x10
+  bgeu x12, x28, .+100
+  li x6, 1
+  bne x12, x6, .+16
+  lbu x6, 0(x7)
+  li x29, 128
+  bltu x6, x29, .+116
+  add x10, x7, x12
+  li x11, 0
+  jalr x0, 0(x1)
+  addi x10, x10, 1
+  li x12, 1
+  li x11, 0
+  jalr x0, 0(x1)
+  li x6, 192
+  sub x31, x5, x6
+  addi x31, x31, 1
+  sub x6, x11, x10
+  bltu x6, x31, .+32
+  add x10, x31, x10
+  mv x12, x31
+  li x11, 0
+  jalr x0, 0(x1)
+  li x11, 2
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 3
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 4
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 5
+  li x12, 0
+  jalr x0, 0(x1)
+  li x11, 6
+  li x12, 0
+  jalr x0, 0(x1)

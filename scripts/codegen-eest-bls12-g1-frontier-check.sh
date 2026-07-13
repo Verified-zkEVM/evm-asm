@@ -8,7 +8,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.0}"
+TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
 JOBS="${EEST_BLS12_G1_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_BLS12_G1_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_BLS12_G1_RUN_DIR:-gen-out/eest-bls12-g1-frontier}"
