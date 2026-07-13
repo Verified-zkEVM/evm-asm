@@ -75,6 +75,48 @@ theorem StrictListPayload.cursor_le {bytes : List (BitVec 8)} {base endPtr : Wor
       omega
   | long _ _ _ _ _ _ _ hc hl => omega
 
+theorem StrictListPayload.listLen_pos {bytes : List (BitVec 8)} {base endPtr : Word}
+    {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr) :
+    0 < listLen := by
+  exact lt_of_lt_of_le h.cursor_pos h.cursor_le
+
+theorem StrictListPayload.prefix_not_lt_c0 {bytes : List (BitVec 8)}
+    {base endPtr : Word} {listLen cursorOff : Nat}
+    (h : StrictListPayload bytes base listLen cursorOff endPtr) (hoff : 0 < bytes.length) :
+    ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true := by
+  cases h with
+  | short b hbyte hnot _ _ _ =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      exact hnot
+  | long b first hbyte hlong _ _ _ _ _ =>
+      rw [List.getElem?_eq_getElem hoff] at hbyte
+      have hb : bytes[0]'hoff = b := Option.some.inj hbyte
+      subst b
+      intro hlt
+      have hlt' := BitVec.ult_iff_lt.mp hlt
+      have hlong' : ¬ ((bytes[0]'hoff).zeroExtend 64) < (0xf8 : Word) := by
+        intro hx
+        exact hlong (BitVec.ult_iff_lt.mpr hx)
+      change (bytes[0]'hoff).toNat < 192 at hlt'
+      change ¬ (bytes[0]'hoff).toNat < 248 at hlong'
+      omega
+
+theorem noStrictList_of_empty (bytes : List (BitVec 8)) (base : Word) :
+    ¬ ∃ cursorOff endPtr, StrictListPayload bytes base 0 cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  exact (Nat.not_lt_zero _ h.listLen_pos)
+
+theorem noStrictList_of_notlist (bytes : List (BitVec 8)) (base : Word)
+    (listLen : Nat) (hoff : 0 < bytes.length)
+    (hnotlist : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    ¬ ∃ cursorOff endPtr,
+      StrictListPayload bytes base listLen cursorOff endPtr := by
+  rintro ⟨cursorOff, endPtr, h⟩
+  exact h.prefix_not_lt_c0 hoff hnotlist
+
 /-- Convert WalkInit's short-list success facts at offset zero into the
     wrapper's strict outer-list relation. -/
 theorem shortInit_to_strict (bytes : List (BitVec 8)) (base : Word)
