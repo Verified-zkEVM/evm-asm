@@ -429,5 +429,65 @@ theorem nonceCodeRej_to_abiReject
 
 #print axioms nonceCodeRej_to_abiReject
 
+/-- Semantic success result after factoring out the stack pointer and the
+    callee-saved registers consumed by `abiFrame_spec_own`. -/
+def bansfSuccessResult (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  ∃ out : FinalsOut, ∃ spill : Word,
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** finalOutBlock acctBytes aB oB out **
+      ((newSp + 48) ↦ₘ spill) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      memOwn (newSp + 64) ** memOwn (newSp + 72) **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion aB acctBytes ** F **
+      ⌜FinalsDerivation acctBytes aB aLen out⌝) h
+
+/-- Factor a genuine semantic success verdict into the ABI body-post shape. -/
+theorem bansfSuccessVerdict_to_abiSuccess
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ h, bansfSuccessVerdictPost aB newSp oB aLen acctBytes F h →
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt bansfFrame **
+        bansfSuccessResult aB newSp oB aLen acctBytes F) h := by
+  intro h hp
+  unfold bansfSuccessVerdictPost bansfSuccessRest at hp
+  obtain ⟨out, hp⟩ := sepConj_exists_right h hp
+  obtain ⟨spill, hp⟩ := sepConj_exists_right h hp
+  unfold bansfSuccessResult
+  refine sepConj_mono_right
+    (sepConj_mono_right (fun _ hp' => ⟨out, spill, hp'⟩)) h ?_
+  let Q : Assertion :=
+    ((.x2 : Reg) ↦ᵣ newSp) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+    finalOutBlock acctBytes aB oB out ** ((newSp + 48) ↦ₘ spill) **
+    ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+    memOwn (newSp + 64) ** memOwn (newSp + 72) **
+    regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20 **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+    bytesRegion aB acctBytes ** F **
+    ⌜FinalsDerivation acctBytes aB aLen out⌝
+  have hq :
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) ** Q) h := by
+    dsimp only [Q]
+    xperm_hyp hp
+  have hAnchors : ∀ h',
+      (((((.x8 : Reg) ↦ᵣ aB) **
+          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen)) **
+          ((.x18 : Reg) ↦ᵣ oB)) h') →
+      (((regOwn .x8 ** regOwn .x9) ** regOwn .x18) h') :=
+    sepConj_mono (sepConj_mono (regIs_implies_regOwn .x8)
+      (regIs_implies_regOwn .x9)) (regIs_implies_regOwn .x18)
+  have hq' := sepConj_mono hAnchors (fun _ hx => hx) h hq
+  dsimp only [Q] at hq'
+  simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
+  xperm_hyp hq'
+
+#print axioms bansfSuccessVerdict_to_abiSuccess
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
