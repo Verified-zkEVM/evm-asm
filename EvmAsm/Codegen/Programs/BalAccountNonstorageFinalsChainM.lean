@@ -772,5 +772,36 @@ theorem finalsDerivation_nonAbsent_witness :
 
 #print axioms finalsDerivation_nonAbsent_witness
 
+/-- Balance output cells indexed by the optional final value window. -/
+def balOutCells (acctBytes : List (BitVec 8)) (aB oB : Word) :
+    Option (Word × Word) → Assertion
+  | none =>
+      (oB ↦ₘ (0 : Word)) ** ((oB + 8) ↦ₘ (0 : Word)) **
+      ((oB + 16) ↦ₘ (0 : Word)) ** ((oB + 24) ↦ₘ (0 : Word)) **
+      ((oB + 32) ↦ₘ (0 : Word))
+  | some (vNext, vLen) =>
+      (oB ↦ₘ (1 : Word)) **
+      bytesRegion (oB + 8) (copyN (List.replicate 32 (0 : BitVec 8))
+        acctBytes (32 - vLen.toNat) (vNext - vLen - aB).toNat vLen.toNat)
+
+/-- Re-express `balResult` with its optional window syntactically indexing the
+    exact owned output cells and semantic final fact. -/
+theorem balResult_to_indexed
+    (aB oB : Word) (fOff fSpanN : Nat) (acctBytes : List (BitVec 8)) :
+    ∀ h, balResult aB oB fOff fSpanN acctBytes h →
+      ∃ bal : Option (Word × Word),
+        (balOutCells acctBytes aB oB bal **
+          ⌜FieldFinal acctBytes aB fOff fSpanN bal ∧
+            ∀ vNext vLen, bal = some (vNext, vLen) → vLen.toNat ≤ 32⌝) h := by
+  intro h hp
+  unfold balResult at hp
+  rcases hp with hp | hp
+  · exact ⟨none, by simpa [balOutCells] using hp⟩
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    refine ⟨some (vNext, vLen), ?_⟩
+    simpa [balOutCells] using hp
+
+#print axioms balResult_to_indexed
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
