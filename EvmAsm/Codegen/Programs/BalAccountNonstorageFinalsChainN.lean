@@ -337,5 +337,58 @@ theorem bansf_chainAVerdict_spec
 
 #print axioms bansf_chainAVerdict_spec
 
+/-- ABI-friendly body entry: the incoming saved-register values of `x19` and
+    `x20` are concrete, while every other body resource is grouped ambiently. -/
+def chainAConcretePre (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (v8 v9 v18 v19 v20 : Word)
+    (F : Assertion) : Assertion :=
+  (((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20)) **
+  (((.x10 : Reg) ↦ᵣ aB) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+   ((.x12 : Reg) ↦ᵣ oB) **
+   ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+   ((.x18 : Reg) ↦ᵣ v18) ** ((.x2 : Reg) ↦ᵣ newSp) **
+   memOwn (newSp + 48) ** memOwn (newSp + 56) **
+   memOwn oB ** memOwn (oB + 40) ** memOwn (oB + 56) **
+   memOwn (oB + 64) ** memOwn (oB + 72) ** memOwn (oB + 8) **
+   memOwn (oB + 16) ** memOwn (oB + 24) ** memOwn (oB + 32) **
+   memOwn (oB + 48) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+   ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+   bytesRegion aB acctBytes ** memOwn (newSp + 64) **
+   memOwn (newSp + 72) ** F)
+
+/-- The complete body chain consumes only ownership of the incoming `x19` and
+    `x20`; their concrete ABI-saved values are otherwise irrelevant. -/
+theorem bansf_chainAVerdict_concrete1920
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (v8 v9 v18 v19 v20 : Word)
+    (F : Assertion)
+    (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hoalign : oB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hovout : oB.toNat + 80 ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 80 →
+      isValidByteAccess (oB + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (101 + (372 + (((98 * (aLen + 1) + 700) +
+        2 * (98 * (aLen + 1) + (7 * acctBytes.length + 800))) + 2)))
+      (B + 28) (B + 736) bansfCR
+      (chainAConcretePre aB newSp oB aLen acctBytes v8 v9 v18 v19 v20 F)
+      (chainAVerdictPost aB newSp oB aLen acctBytes F) := by
+  have ht := bansf_chainAVerdict_spec aB newSp oB aLen acctBytes v8 v9 v18 F
+    hF hsalign hoalign hslack hover hvalid hovout hovalid
+  exact cpsTripleWithin_weaken (by
+    intro h hp
+    unfold chainAConcretePre at hp
+    have hpOwn := sepConj_mono
+      (sepConj_mono (regIs_implies_regOwn .x19)
+        (regIs_implies_regOwn .x20)) (fun _ hx => hx) h hp
+    xperm_hyp hpOwn) (fun _ hp => hp) ht
+
+#print axioms bansf_chainAVerdict_concrete1920
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
