@@ -451,4 +451,72 @@ theorem cursorSetupExact
 
 #print axioms cursorSetupExact
 
+/-- Success status and jump to the common restore join (34--35). -/
+theorem successStatusTail (old10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (B + 136) (B + 156) code
+      ((.x10 ↦ᵣ old10) ** F) ((.x10 ↦ᵣ (0 : Word)) ** F) := by
+  have h0 := li_spec_gen_within .x10 old10 (0 : Word) (B + 136) (by decide)
+  have h0' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 136) rlpFieldToU256Be_prog 34
+      (.LI .x10 (0 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h0
+  have hj := jal_x0_spec_gen_within (16 : BitVec 21) (B + 140)
+  rw [show B + 140 + signExtend21 (16 : BitVec 21) = B + 156 by decide] at hj
+  have hj' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 140) rlpFieldToU256Be_prog 35
+      (.JAL .x0 (16 : BitVec 21)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hj
+  have h0F := cpsTripleWithin_frameR F hF h0'
+  have hjF := cpsTripleWithin_frameR ((.x10 ↦ᵣ (0 : Word)) ** F)
+    (pcFree_sepConj pcFree_regIs hF) hj'
+  have hjS : cpsTripleWithin 1 (B + 140) (B + 156) wrapperCode
+      ((.x10 ↦ᵣ (0 : Word)) ** F) ((.x10 ↦ᵣ (0 : Word)) ** F) :=
+    cpsTripleWithin_weaken
+      (fun h hp => by simpa only [sepConj_emp_left'] using hp)
+      (fun h hp => by simpa only [sepConj_emp_left'] using hp) hjF
+  exact cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi)
+    (cpsTripleWithin_seq_same_cr h0F hjS)
+
+/-- Too-long status and jump to the common restore join (36--37). -/
+theorem tooLongStatusTail (old10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (B + 144) (B + 156) code
+      ((.x10 ↦ᵣ old10) ** F) ((.x10 ↦ᵣ (2 : Word)) ** F) := by
+  have h0 := li_spec_gen_within .x10 old10 (2 : Word) (B + 144) (by decide)
+  have h0' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 144) rlpFieldToU256Be_prog 36
+      (.LI .x10 (2 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h0
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (B + 148)
+  rw [show B + 148 + signExtend21 (8 : BitVec 21) = B + 156 by decide] at hj
+  have hj' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 148) rlpFieldToU256Be_prog 37
+      (.JAL .x0 (8 : BitVec 21)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) hj
+  have h0F := cpsTripleWithin_frameR F hF h0'
+  have hjF := cpsTripleWithin_frameR ((.x10 ↦ᵣ (2 : Word)) ** F)
+    (pcFree_sepConj pcFree_regIs hF) hj'
+  have hjS : cpsTripleWithin 1 (B + 148) (B + 156) wrapperCode
+      ((.x10 ↦ᵣ (2 : Word)) ** F) ((.x10 ↦ᵣ (2 : Word)) ** F) :=
+    cpsTripleWithin_weaken
+      (fun h hp => by simpa only [sepConj_emp_left'] using hp)
+      (fun h hp => by simpa only [sepConj_emp_left'] using hp) hjF
+  exact cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi)
+    (cpsTripleWithin_seq_same_cr h0F hjS)
+
+/-- List-selection failure status at the common restore join (38). -/
+theorem failureStatusTail (old10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (B + 152) (B + 156) code
+      ((.x10 ↦ᵣ old10) ** F) ((.x10 ↦ᵣ (1 : Word)) ** F) := by
+  have h0 := li_spec_gen_within .x10 old10 (1 : Word) (B + 152) (by decide)
+  have h0' := cpsTripleWithin_extend_code (cr' := wrapperCode)
+    (CodeReq.ofProg_mem_at B (B + 152) rlpFieldToU256Be_prog 38
+      (.LI .x10 (1 : Word)) (by bv_omega) (by rw [program_length]; decide)
+      rfl (by rw [program_length]; decide)) h0
+  exact cpsTripleWithin_frameR F hF
+    (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) h0')
+
+#print axioms successStatusTail
+#print axioms tooLongStatusTail
+#print axioms failureStatusTail
+
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
