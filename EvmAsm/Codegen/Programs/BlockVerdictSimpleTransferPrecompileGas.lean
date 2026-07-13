@@ -169,7 +169,9 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t6, 6000\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecpairing:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; divu t5, t5, t4; li t6, 34000; mul t6, t6, t5; li t4, 45000; add t6, t6, t4\n" ++
+  -- `alt_bn128_pairing_check` charges by complete 192-byte tuples, then
+  -- raises an exceptional halt when a partial tuple remains.
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 34000; mul t6, t6, t5; li t4, 45000; add t6, t6, t4\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_blake2f:\n" ++
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++

@@ -276,6 +276,11 @@ scripts/gen-symbol-addresses.py --build      # regenerate the .9.3 TSV snapshot
 This keeps the Lean map matching the ELF (the `.6` contract) instead of quietly
 diverging.
 
+For the **full** regen procedure covering all four generated files
+(`symbol-addresses.tsv`, `GuestAddrs.lean`, `RegionMap.lean` sizes, and
+`GuestImageEntries.lean`) in order, see
+[`docs/regenerating-generated-files.md`](regenerating-generated-files.md).
+
 ---
 
 ## 6. The `.9.3` linker-facts table

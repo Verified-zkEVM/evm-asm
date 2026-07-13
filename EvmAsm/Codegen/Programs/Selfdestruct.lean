@@ -128,25 +128,12 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t2, 0(t0)\n  bnez t2, .L_selfdestruct_surcharge_done\n" ++
   "  addi t0, t0, 8\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_live_beneficiary_scan\n" ++
   ".L_selfdestruct_live_beneficiary_done:\n" ++
-    -- A prior SELFDESTRUCT of this origin moved its entire live balance to its beneficiary.
-  -- Consult the transaction journal so repeated execution observes balance zero.
-  "  mv t0, x20\n  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
-  runtimeAccessWordToBe20Asm "selfdestruct_seen_origin" "t0" "t1" "t2" "t3" ++
-  "  la t0, evm_selfdestruct_seen_overflow\n  ld t0, 0(t0)\n  bnez t0, .L_selfdestruct_seen_scan_done\n" ++
-  "  la t0, evm_selfdestruct_seen_count\n  ld t1, 0(t0)\n  beqz t1, .L_selfdestruct_seen_scan_done\n" ++
-  "  la t2, evm_selfdestruct_seen_table\n" ++
-  ".L_selfdestruct_seen_scan:\n" ++
-  "  mv t3, t2\n  la t4, " ++ runtimeAccessSeedScratchLabel ++ "\n  li t5, 20\n" ++
-  ".L_selfdestruct_seen_cmp_origin:\n" ++
-  "  beqz t5, .L_selfdestruct_seen_origin_match\n" ++
-  "  lbu t6, 0(t3)\n  lbu a0, 0(t4)\n  bne t6, a0, .L_selfdestruct_seen_next\n" ++
-  "  addi t3, t3, 1\n  addi t4, t4, 1\n  addi t5, t5, -1\n  j .L_selfdestruct_seen_cmp_origin\n" ++
-  ".L_selfdestruct_seen_origin_match:\n" ++
-  "  j .L_selfdestruct_surcharge_done\n" ++
-  ".L_selfdestruct_seen_next:\n" ++
-  "  addi t2, t2, 32\n  addi t1, t1, -1\n  bnez t1, .L_selfdestruct_seen_scan\n" ++
-  ".L_selfdestruct_seen_scan_done:\n" ++
-    -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
+  -- Do not use the transaction's seen-origin set to suppress this charge. The
+  -- live-balance check above already handles an origin whose earlier
+  -- SELFDESTRUCT drained it to zero. If a later CALL funds that same origin,
+  -- its next SELFDESTRUCT is a fresh nonzero transfer and an absent beneficiary
+  -- must pay NEW_ACCOUNT again (multi_selfdestruct d2).
+  -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
   -- NEW_ACCOUNT state-gas charge on `not is_account_alive(beneficiary)` (amsterdam
   -- vm/instructions/system.py selfdestruct: needs_state_gas). `is_account_alive` consults the LIVE
   -- state, which includes accounts CREATEd earlier in this same tx (tx_state.created_accounts) --
