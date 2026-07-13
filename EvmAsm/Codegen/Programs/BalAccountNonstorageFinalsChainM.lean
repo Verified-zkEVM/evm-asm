@@ -1066,5 +1066,28 @@ theorem bansf_successTail_own :
 
 #print axioms bansf_successTail_own
 
+/-- Semantic success post with the success verdict pinned in `a0`. -/
+def bansfSuccessVerdictPost (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+  bansfSuccessRest aB newSp oB aLen acctBytes F
+
+/-- Run the success verdict stub while framing the exact output and semantic
+    derivation unchanged. -/
+theorem bansf_successTail_semantic
+    (aB newSp oB : Word) (aLen : Nat)
+    (acctBytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (B + 724) (B + 736) bansfCR
+      (bansfSuccessPost aB newSp oB aLen acctBytes F)
+      (bansfSuccessVerdictPost aB newSp oB aLen acctBytes F) := by
+  have hRest := bansfSuccessRest_pcFree aB newSp oB aLen acctBytes F hF
+  have ht := cpsTripleWithin_frameR
+    (bansfSuccessRest aB newSp oB aLen acctBytes F) hRest bansf_successTail_own
+  exact cpsTripleWithin_weaken
+    (bansfSuccessPost_to_a0Rest aB newSp oB aLen acctBytes F)
+    (fun _ hp => hp) ht
+
+#print axioms bansf_successTail_semantic
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
