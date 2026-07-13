@@ -42,10 +42,10 @@ def initLoopPost (newSp listBase outPtr oldCount : Word) (saved : Saved)
     strict child decodes arrive here. -/
 def rejected (newSp listBase outPtr oldCount : Word) (saved : Saved)
     (bytes : List (BitVec 8)) (listLen : Nat) : Assertion :=
-  fun h => ∃ status cursor endPtr workEnd countW raW : Word,
+  fun h => ∃ status v10 v11 v12 workEnd countW raW : Word,
     (((stableRest newSp listBase outPtr oldCount saved **
        ((.x18 ↦ᵣ workEnd) ** (.x19 ↦ᵣ countW))) **
-      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ raW) **
        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes)) **
@@ -76,7 +76,7 @@ theorem initRejectBranch (newSp listBase outPtr oldCount status cursor endPtr : 
      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr))) (by pcf) ht
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hp => by
     unfold rejected
-    refine ⟨status, cursor, endPtr, saved.s2, saved.s3, B + 36, ?_⟩
+    refine ⟨status, cursor, endPtr, status, saved.s2, saved.s3, B + 36, ?_⟩
     refine (sepConj_pure_right h).2 ⟨?_, h_status, h_failure⟩
     drop_pure hp
     unfold initStable initCommon at hp
@@ -163,7 +163,7 @@ theorem initSuccessBranch (newSp listBase outPtr oldCount endPtr : Word)
     · unfold initCommon at hp
       unfold loopFrame stableRest
       xperm_hyp hp
-    · exact ⟨h_list, StrictPrefix.zero, rfl, h_list.cursor_le⟩) h012
+    · exact ⟨h_list, StrictPrefix.zero, rfl, h_list.cursor_le, by omega⟩) h012
 
 theorem initNormalizedDispatch (newSp listBase outPtr oldCount : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen : Nat) :

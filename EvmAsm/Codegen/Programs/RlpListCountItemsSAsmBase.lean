@@ -21,6 +21,7 @@ structure LoopInvariant (bytes : List (BitVec 8)) (base : Word)
   h_prefix : StrictPrefix bytes base endPtr cursorOff count off
   h_cursor : cursor = base + BitVec.ofNat 64 off
   h_off : off ≤ listLen
+  h_count : count ≤ off
 
 /-- A strict complete list traversal and its exact item count. -/
 def Success (bytes : List (BitVec 8)) (base : Word) (listLen count : Nat) : Prop :=
@@ -74,7 +75,8 @@ theorem LoopInvariant.step
     simpa [h_end] using h_inv.h_prefix
   obtain ⟨h_next, h_lt, h_le, h_prefix⟩ :=
     h_prefix0.step_bounds h_item' h_inv.h_off h_over
-  refine ⟨⟨h_inv.h_list, ?_, h_next, h_le⟩, ?_⟩
+  have h_count := h_inv.h_count
+  refine ⟨⟨h_inv.h_list, ?_, h_next, h_le, by omega⟩, ?_⟩
   · simpa [h_end] using h_prefix
   · unfold remaining
     omega
