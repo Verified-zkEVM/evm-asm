@@ -9,7 +9,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge

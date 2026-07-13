@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.ChildFrameHandlerTails
+import EvmAsm.Codegen.Programs.ChildFrameCreateTail
 
 namespace EvmAsm.Codegen
 
@@ -105,7 +106,8 @@ open EvmAsm.Rv64
       fall-through for the standalone dispatch probes only; the shipped
       guest descent is `callDescendFallThrough`. -/
 def childFrameHandlers
-    (callFallThrough callcodeFallThrough delegateFallThrough staticFallThrough : String) :
+    (callFallThrough callcodeFallThrough delegateFallThrough staticFallThrough : String)
+    (sparseWindows : Bool := false) :
     List OpcodeHandlerSpec :=
   [ { label := "h_CREATE"
     , opcodes := [0xf0]
@@ -116,17 +118,17 @@ def childFrameHandlers
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
     , body := []
-    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 (some 64) callFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 (some 64) callFallThrough sparseWindows) }
   , { label := "h_CALLCODE"
     , opcodes := [0xf2]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 (some 64) callcodeFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 (some 64) callcodeFallThrough sparseWindows) }
   , { label := "h_DELEGATECALL"
     , opcodes := [0xf4]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 none delegateFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 none delegateFallThrough sparseWindows) }
   , { label := "h_CREATE2"
     , opcodes := [0xf5]
     , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ staticContextWriteGuardAsm
@@ -136,7 +138,7 @@ def childFrameHandlers
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 none staticFallThrough) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 none staticFallThrough sparseWindows) } ]
 
 /-- M20 arithmetic no-op handlers.
 

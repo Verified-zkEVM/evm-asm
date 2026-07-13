@@ -90,10 +90,10 @@ with open(sys.argv[1], 'wb') as f:
 
 FAILED=0
 
-# Two-Bytes32 list (extension/leaf shape): outer 0xc0+(1+33+1+33)=0xc0+68 = oops
-# 1+33+1+33 = 68 bytes payload, > 55 so 0xf8 form: 0xf8 0x44 <body>
+# Two-Bytes32 list (extension/leaf shape): 33+33 = 66 bytes payload,
+# > 55 so long-list form: 0xf8 0x42 <body>.
 # inner item 0: 0xa0 + 32 bytes aa; inner item 1: 0xa0 + 32 bytes bb
-LIST_2BYTES32="f844a0$(printf 'aa%.0s' $(seq 1 32))a0$(printf 'bb%.0s' $(seq 1 32))"
+LIST_2BYTES32="f842a0$(printf 'aa%.0s' $(seq 1 32))a0$(printf 'bb%.0s' $(seq 1 32))"
 # Item 0 content starts at outer prefix (2) + 1 (0xa0) = 3, length 32
 run_case "two_bytes32_item0"  "$LIST_2BYTES32" 0 0 3  32                        || FAILED=1
 # Item 1 content starts at 2 + 33 + 1 = 36, length 32

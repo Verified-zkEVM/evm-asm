@@ -329,7 +329,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1N2V5StackSpecUnconditional
+import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0ModLimb
@@ -372,6 +372,13 @@ import EvmAsm.Evm64.DivMod.LoopIterN2V5.IterPostV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxAddbackV5NoNop
+-- Compatibility modules retained for the pre-split API surface.
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+import EvmAsm.Evm64.DivMod.LoopBodyN2
+import EvmAsm.Evm64.DivMod.LoopBodyN3
+import EvmAsm.Evm64.DivMod.LoopBodyN4
+import EvmAsm.Evm64.DivMod.LoopIterN1
+import EvmAsm.Evm64.DivMod.LoopIterN1.Max
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5NoNop
@@ -597,7 +604,6 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddbackMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNativeMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModAssembly
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
 import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
 import EvmAsm.Evm64.DivMod.Compose.FastDigitOwnV6Mod
@@ -608,7 +614,6 @@ import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnectMod
 import EvmAsm.Evm64.DivMod.Compose.BodyV6Mod
 import EvmAsm.Evm64.DivMod.Compose.V6FastArmTripleMod
 import EvmAsm.Evm64.DivMod.Compose.DispatchV6Mod
-import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkipMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkipMod
@@ -631,12 +636,12 @@ import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0Mod
 
 -- v5 MOD lanes (bead evm-asm-wbc4i.10.3.2)
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod

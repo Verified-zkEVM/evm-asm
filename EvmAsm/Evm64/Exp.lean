@@ -40,6 +40,7 @@ import EvmAsm.Evm64.Exp.Compose.TopCondMulMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.TopPairBlocks
 import EvmAsm.Evm64.Exp.Compose.TopCodeSpecs
 import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.SquaringWithMulShared
 import EvmAsm.Evm64.Exp.Compose.LoopControlBlocks
 import EvmAsm.Evm64.Exp.Compose.SquaringMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.CondMulMarshalBlocks
@@ -101,9 +102,9 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopDirect
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
+import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
-import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
+import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
@@ -142,5 +143,4 @@ import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
 import EvmAsm.Evm64.Exp.Layout
 import EvmAsm.Evm64.Exp.Spec
-import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge

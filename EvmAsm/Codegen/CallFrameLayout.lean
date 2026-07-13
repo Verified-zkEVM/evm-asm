@@ -23,13 +23,24 @@ namespace EvmAsm.Codegen
 
 /-! ## Per-frame sub-region sizes (bytes) -/
 
-/-- EVM memory arena per frame: 128 KiB. **Canonical source** for the per-frame
-    EVM memory capacity — `Dispatch.runtimeMemoryBytes` (the depth-0 global
-    `evm_memory`) derives from this, and the `call_frame_descend` zero-loop clears
-    exactly this many bytes of each slot on entry (`CallFrameDescend.lean:50-62`,
-    `li t0, 0x20000`). Grown from 64 KiB to cover large runtime LOG/COPY ranges;
-    the arena stride/size below follow. -/
-def frameMemBytes : Nat := 0x20000
+/-- EVM memory per frame is no longer carried IN the frame slot: nested-frame
+    memory is decoupled into the shared `evm_memory_pool` (evm-asm-274cr,
+    `docs/evm-memory-pool-plan.md`) so a frame can use its full affordable
+    ~2.90 MiB while the live total stays under the pool. The slot therefore
+    holds NO memory sub-region (`frameMemBytes = 0`); the pool is a LIFO stack
+    (`child_membase = parent_membase + ceil32(parent MSIZE)`). Kept as a named
+    `0` so the derived sub-offset chain / `frameSegs` shape below is unchanged
+    (the memory segment is empty). -/
+def frameMemBytes : Nat := 0
+
+/-- Shared EVM-memory pool for nested (depth ≥ 1) frames: 96 MiB. Replaces the
+    former 1025 × 128 KiB per-slot reservations. Sized above the joint
+    total-live bound (~70 MiB — all live frames share one tx's
+    `TX_MAX_GAS_LIMIT = 2^24` regular gas; see `docs/memory-arena-gas-bound.md`),
+    so a valid block never overflows and any overflow is a legitimately-invalid
+    (>2^24 regular gas) block. Net vs the old per-slot reservation: −33 MiB
+    (reclaim 128, add 96). -/
+def evmMemoryPoolBytes : Nat := 0x6000000
 
 /-- Operand-stack guard band (one on each side of the stack arena). -/
 def frameStackGuardBytes : Nat := 512
@@ -62,13 +73,14 @@ def frameUsedBytes : Nat :=
     + frameReturndataBytes + frameEnvBytes + framePcBytes + frameCodebaseBytes
     + frameMetaBytes
 
-/-- Per-frame stride: `frameUsedBytes` (`0x38800`) rounded up to the 32-aligned
-    (in fact 4 KiB-aligned) `0x39000` (228 KiB). Frame `d` lives at
+/-- Per-frame stride: `frameUsedBytes` (`0x18800`, memory decoupled to the pool)
+    rounded up to the 4 KiB-aligned `0x19000` (100 KiB). Frame `d` lives at
     `frameArrayBase + d * frameStride`. This is the **ground-truth** stride the
-    emitted runtime uses: `frame_base` steps by `0x39000` (`LUI x6, 57` in
-    `CallFrameBase.lean:36`) and the arena `.zero` pad is sized from
-    `frameArrayBytes` below, so the two can no longer diverge. -/
-def frameStride : Nat := 0x39000
+    emitted runtime uses: `frame_base` steps by `0x19000` (`LUI x6, 25` in
+    `CallFrameBase.lean`) and the arena `.zero` pad is sized from
+    `frameArrayBytes` below, so the two can no longer diverge. Shrunk from
+    `0x39000` when the 128 KiB memory sub-region left the slot (evm-asm-274cr). -/
+def frameStride : Nat := 0x19000
 
 /-! ## Sub-region offsets within a frame slot (bytes from the slot base) -/
 
@@ -93,17 +105,16 @@ def frameMetaOff : Nat := frameCodebaseOff + frameCodebaseBytes
     fails loudly instead of silently under-sizing the arena (the `.71`
     stride/arena divergence that this reconciliation closes). -/
 
--- `frame_base` steps by `0x39000` (`LUI x6, 57`, `CallFrameBase.lean:36`).
-#guard frameStride = 0x39000
--- `call_frame_descend`/`_return` set the child stack top at `+0x28200`
--- (`CallFrameDescend.lean:60`, `CallFrameReturn.lean:261`).
-#guard frameStackTopOff = 0x28200
--- `call_frame_descend`/`_return` set the child env base at `+0x38400`
--- (`CallFrameDescend.lean:62`, `CallFrameReturn.lean:256`).
-#guard frameEnvOff = 0x38400
--- The descend zero-loop clears `0x20000` per slot; `Dispatch.runtimeMemoryBytes`
--- is the same value (and derives from this def).
-#guard frameMemBytes = 0x20000
+-- `frame_base` steps by `0x19000` (`LUI x6, 25`, `CallFrameBase.lean`).
+#guard frameStride = 0x19000
+-- `call_frame_descend`/`_return` set the child stack top at `+0x8200`.
+#guard frameStackTopOff = 0x8200
+-- `call_frame_descend`/`_return` set the child env base at `+0x18400`.
+#guard frameEnvOff = 0x18400
+-- Memory is decoupled to `evm_memory_pool`; the slot holds no memory sub-region.
+#guard frameMemBytes = 0
+-- Pool covers the joint total-live bound (~70 MiB; see the pool plan) with margin.
+#guard evmMemoryPoolBytes ≥ 0x4800000
 
 /-! ## Depth bound (execution-specs `STACK_DEPTH_LIMIT`) -/
 

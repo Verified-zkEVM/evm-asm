@@ -13,7 +13,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
-import EvmAsm.Evm64.DivMod.Spec.N3V5ModRemainder
+import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 

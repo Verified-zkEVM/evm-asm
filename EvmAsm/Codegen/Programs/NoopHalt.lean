@@ -44,9 +44,16 @@ private def createFailedStateGasRefundAsm (site : String) : String :=
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
     `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
-    surface at `OUTPUT_ADDR+64/+72/+248`. -/
+    surface at `OUTPUT_ADDR+64/+72/+248`.
+
+    `sparseWindows` (guest only, evm-asm-0w05f.13): a depth-1+ CALL frame
+    whose returndata window extends past the dense arena materializes it via
+    `sparse_window_read` into `evm_precompile_frame+16` before `frame_return`
+    (pairs with the depth-1+ arena-bail relaxation in
+    `returnRevertMemoryGasAsm`). CREATE frames are unaffected (their windows
+    are still dense-bounded by the preBody guard). -/
 private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
-    (depthAware : Bool := false) : String :=
+    (depthAware : Bool := false) (sparseWindows : Bool := false) : String :=
   "  ld x14, 0(x12)\n" ++
   "  ld x15, 32(x12)\n" ++
   -- Depth-aware (guest only): a child frame's RETURN/REVERT returns to the parent
@@ -262,11 +269,99 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
-    "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
-    "  add a1, x13, x14\n" ++
-    "  mv a2, x15\n" ++
-    "  jal ra, frame_return\n" ++
-    dispatchContinueRet ++ "\n" ++
+    (if sparseWindows then
+      -- evm-asm-0w05f.13: materialize only a window that ends beyond this
+      -- frame's actual dense capacity. Under the shared pool that capacity is
+      -- frame-relative (`pool_end - x13`), not the retired 128 KiB slot size.
+      -- Using the old constant routed affordable pool windows through the
+      -- sparse store and returned zeros (ck36u). The staging-cap guard remains
+      -- defense-in-depth. x10/x12/ra are dead here (frame_return restores the
+      -- parent's); the retdata src/len are carried in x18/x19 across helpers.
+      "  mv x19, x15                    # retlen (survives the helper calls)\n" ++
+      -- A ZERO-SIZE window never touches memory (the preBody skipped all
+      -- guards/charges for it, matching the spec), so the offset may be any
+      -- huge in-u64 value (stMemoryStressTest return_bounds: RETURN with a
+      -- 2^35..2^255-shaped offset and size 0). Route it to the dense path —
+      -- frame_return copies and stages min(outsize, 0) = 0 bytes, never
+      -- dereferencing the pointer — instead of tripping the staging-cap
+      -- guard on offset+0.
+      "  beqz x15, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
+      "  add t0, x14, x15\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, x13                # frame-relative pool capacity\n" ++
+      "  bgeu t1, t0, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
+      "  li t1, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
+      "  bltu t1, t0, .exit_outofgas\n" ++
+      "  la a0, evm_precompile_frame\n" ++
+      "  addi a0, a0, 16\n" ++
+      "  mv a1, x14\n" ++
+      "  mv a2, x15\n" ++
+      -- a3 IS x13 (the dense memory base) already; no move needed.
+      "  jal ra, sparse_window_read\n" ++
+      "  mv x18, a0                     # retdata src = staging\n" ++
+      "  j .Lrr_call_havesrc_" ++ toString kind ++ "\n" ++
+      ".Lrr_call_dense_" ++ toString kind ++ ":\n" ++
+      "  add x18, x13, x14              # retdata src = dense child memory\n" ++
+      ".Lrr_call_havesrc_" ++ toString kind ++ ":\n" ++
+      -- 0w05f.13 surface 2: when the PARENT's saved out-window
+      -- (frame_call_ctx[d]: outoff_abs/outsize) ends past the PARENT's
+      -- frame-relative pool capacity, frame_return's raw copy would write
+      -- outside the pool. Perform the write-back here instead via
+      -- sparse_window_write (dense prefix raw + word entries keyed to the
+      -- parent depth d-1), then zero ctx.outsize so frame_return skips its
+      -- copy. A depth-1 child's parent is the root frame (4 MiB dense,
+      -- affordability-bounded) — skip. The spec copies
+      -- output[:memory_output_size] for RETURN and REVERT alike, so this
+      -- runs for both kinds.
+      "  la t0, evm_call_depth\n" ++
+      "  ld t0, 0(t0)\n" ++
+      "  li t1, 1\n" ++
+      "  bgeu t1, t0, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  la t3, frame_call_ctx\n" ++
+      "  slli t4, t0, 5\n" ++
+      "  add t3, t3, t4                 # ctx ptr (child depth d)\n" ++
+      "  ld t4, 16(t3)                  # outsize\n" ++
+      "  beqz t4, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  bgeu x19, t4, .Lrr_call_wb_n_" ++ toString kind ++ "\n" ++
+      "  mv t4, x19                     # n = min(outsize, retlen)\n" ++
+      ".Lrr_call_wb_n_" ++ toString kind ++ ":\n" ++
+      "  beqz t4, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  la t5, frame_parent_bases\n" ++
+      "  slli t6, t0, 4\n" ++
+      "  add t5, t5, t6\n" ++
+      "  ld t5, 0(t5)                   # parent memory base\n" ++
+      "  ld t6, 8(t3)                   # outoff_abs\n" ++
+      "  sub t6, t6, t5                 # raw parent out offset\n" ++
+      "  add t0, t6, t4\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, t5                 # parent-relative pool capacity\n" ++
+      "  bgeu t1, t0, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++   -- in-frame: frame_return's raw copy is exact
+      "  mv a0, x18                     # src = retdata bytes\n" ++
+      "  mv a1, t6                      # raw parent offset\n" ++
+      "  mv a2, t4                      # n\n" ++
+      "  mv a3, t5                      # parent memory base\n" ++
+      "  la a4, evm_call_depth\n" ++
+      "  ld a4, 0(a4)\n" ++
+      "  addi a4, a4, -1                # target = parent depth\n" ++
+      "  jal ra, sparse_window_write\n" ++
+      "  la t0, evm_call_depth\n" ++
+      "  ld t0, 0(t0)\n" ++
+      "  la t3, frame_call_ctx\n" ++
+      "  slli t4, t0, 5\n" ++
+      "  add t3, t3, t4\n" ++
+      "  sd x0, 16(t3)                  # ctx.outsize = 0: frame_return skips its raw copy\n" ++
+      ".Lrr_call_wb_done_" ++ toString kind ++ ":\n" ++
+      "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
+      "  mv a1, x18\n" ++
+      "  mv a2, x19\n" ++
+      "  jal ra, frame_return\n" ++
+      dispatchContinueRet ++ "\n"
+     else
+      "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
+      "  add a1, x13, x14\n" ++
+      "  mv a2, x15\n" ++
+      "  jal ra, frame_return\n" ++
+      dispatchContinueRet ++ "\n") ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
   -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
@@ -497,17 +592,17 @@ private def selfdestructTailAsm : String :=
     return to the parent frame (via `frame_return`) when `evm_call_depth > 0`
     instead of halting — used by the call-frame guest registry; the standalone
     dispatch probes pass `false` (byte-identical halt, no `frame_return` link). -/
-def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
+def haltHandlers (depthAware : Bool) (sparseWindows : Bool := false) : List OpcodeHandlerSpec :=
   [ { label   := "h_RETURN"
     , opcodes := [0xf3]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 returnRevertMemoryGasAsm "return"
+                 returnRevertMemoryGasAsm "return" sparseWindows
     , body    := []
-    , tail    := .custom (returnRevertTail 1 "" depthAware) }
+    , tail    := .custom (returnRevertTail 1 "" depthAware sparseWindows) }
   , { label   := "h_REVERT"
     , opcodes := [0xfd]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 returnRevertMemoryGasAsm "revert"
+                 returnRevertMemoryGasAsm "revert" sparseWindows
     , body    := []
     , tail    := .custom <|
         returnRevertTail 2
@@ -515,7 +610,7 @@ def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
            "  sd x17, 448(x20)\n" ++
            "  sd x0, 464(x20)\n" ++
            "  ld x17, 480(x20)\n" ++
-           "  sd x17, 472(x20)\n") depthAware }
+           "  sd x17, 472(x20)\n") depthAware sparseWindows }
   , { label := "h_INVALID", opcodes := [0xfe]
     , body := []
     , tail := .custom (dispatchHaltRet 3) }

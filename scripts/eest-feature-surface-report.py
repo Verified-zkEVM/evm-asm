@@ -511,7 +511,7 @@ def main() -> int:
         default=root
         / "gen-out"
         / "eest-fixtures"
-        / "tests-zkevm@v0.6.0"
+        / "tests-zkevm@v0.6.1"
         / "fixtures"
         / "fixtures",
     )

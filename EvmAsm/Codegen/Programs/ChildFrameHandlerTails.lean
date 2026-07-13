@@ -11,11 +11,8 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.Modexp
-import EvmAsm.Codegen.Programs.CreateRuntime
-import EvmAsm.Codegen.Programs.CreateSameTxCollision
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
-import EvmAsm.Codegen.Programs.ChildFrameCreateTail
 import EvmAsm.Rv64.Program
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
@@ -210,7 +207,8 @@ def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
       (valueOff? : Option Nat)
-      (fallThroughAsm : String) : String :=
+      (fallThroughAsm : String)
+      (sparseWindows : Bool := false) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
     -- address operands are masked to the low 160 bits: limb 1 and
@@ -236,7 +234,7 @@ def basicPrecompileCallTail
     "  mv x12, s11\n" ++
     callMemoryExpansionGasAsm
       ("precompile_" ++ tag)
-      inOffsetOff inSizeOff outOffsetOff outSizeOff ++
+      inOffsetOff inSizeOff outOffsetOff outSizeOff sparseWindows ++
     (if tag == "call_target" || tag == "staticcall_target" then (
     -- EIP-4788 beacon-roots system contract fast path for the current block's
     -- begin-of-block write. The ordinary bytecode descent resolves storage at a
@@ -386,6 +384,25 @@ def basicPrecompileCallTail
     "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     ".L" ++ tag ++ "_supported_precompile:\n" ++
+    (if sparseWindows then
+      -- 0w05f.13 surface 3: with the depth-1+ OUT-window arena bail relaxed
+      -- in callMemoryExpansionGasAsm above, re-impose the dense bound for
+      -- the PRECOMPILE branch only — precompile outputs are copied raw to
+      -- `x13 + outoff` with no sparse write-back, so a beyond-dense out
+      -- window keeps today's conservative OOG. The frame-descend
+      -- fallthrough (contract callee) is the path served sparsely (the
+      -- child RETURN tail write-back). Depth 0 was already root-guarded.
+      "  la t0, evm_call_depth\n" ++
+      "  ld t0, 0(t0)\n" ++
+      "  beqz t0, .L" ++ tag ++ "_preout_ok\n" ++
+      "  ld t1, " ++ toString outSizeOff ++ "(x12)\n" ++
+      "  beqz t1, .L" ++ tag ++ "_preout_ok\n" ++
+      "  ld t2, " ++ toString outOffsetOff ++ "(x12)\n" ++
+      "  add t1, t1, t2\n" ++
+      "  li t2, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+      "  bltu t2, t1, .exit_outofgas\n" ++
+      ".L" ++ tag ++ "_preout_ok:\n"
+     else "") ++
     (match valueOff? with
     | none => ".L" ++ tag ++ "_precompile_dispatch:\n"
     | some valueOff => precompileValueBalanceGateAsm tag netPopBytes valueOff) ++

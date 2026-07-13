@@ -9,8 +9,8 @@
   body (call source layer).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSource
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5CallIterShared
 
 namespace EvmAsm.Evm64
 

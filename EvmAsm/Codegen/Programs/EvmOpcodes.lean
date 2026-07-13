@@ -28,7 +28,6 @@ import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.State
-import EvmAsm.Codegen.Programs.EvmNonce
 
 namespace EvmAsm.Codegen
 

@@ -63,13 +63,13 @@ def bn254FieldDataFragment : String :=
   -- with the addend in the c slot (`bnf_le_b`).
   ".balign 8\n" ++
   "bnf_le_a:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "bnf_le_b:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "bnf_le_d:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "bnf_le_zero:\n" ++
-  "  .zero 32\n" ++
+  "  .fill 32, 1, 0\n" ++
   "bnf_le_one:\n" ++
   "  .quad 1, 0, 0, 0\n" ++
   "bnf_le_p:\n" ++

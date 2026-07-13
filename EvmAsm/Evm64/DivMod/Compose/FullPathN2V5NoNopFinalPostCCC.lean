@@ -8,7 +8,7 @@
   v4-trial-specific).  Keeps the call×call×call combo theorem statement small.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0Exit
+import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
 
 namespace EvmAsm.Evm64
 

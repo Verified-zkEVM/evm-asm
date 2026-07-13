@@ -46,6 +46,7 @@ STABLE_BASES = {
     "OUTPUT_ADDR":  0xa0010000,
     ".text":        0x80000000,
     ".data":        0xa3000000,
+    ".bss":         0xa4000000,
     ".sszscratch":  0xbf500000,
     "ssz_input_decoded":      0xa0020000,
     "execution_witness_area": 0xa0030000,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the current BAL replay frontier window around EIP-7002 withdrawal-request
-# cases in tests-zkevm@v0.6.0 fixture order.
+# cases in tests-zkevm@v0.6.1 fixture order.
 #
 # This gate filters to withdrawal-request fixtures, starts at local skip 83,
 # and covers the single-block request cluster. It stops after the two known

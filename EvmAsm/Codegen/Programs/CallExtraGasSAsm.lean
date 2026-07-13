@@ -7,7 +7,7 @@
   the result in `a0`.
 -/
 
-import EvmAsm.Codegen.Programs.EvmMessageCallGas
+import EvmAsm.Codegen.Programs.CallExtraGas
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
