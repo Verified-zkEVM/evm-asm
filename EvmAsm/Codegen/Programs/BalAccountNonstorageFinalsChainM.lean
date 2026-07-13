@@ -1053,5 +1053,18 @@ theorem bansfSuccessRest_pcFree
 
 #print axioms bansfSuccessRest_pcFree
 
+/-- Success verdict stub over existential ownership of the incoming `a0`. -/
+theorem bansf_successTail_own :
+    cpsTripleWithin 2 (B + 724) (B + 736) bansfCR
+      (regOwn .x10) ((.x10 : Reg) ↦ᵣ (0 : Word)) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn_single (fun vOld => ?_)
+  have ht := bansf_successTail_spec B vOld bansf_item4_code.2.2.2.2
+  exact liftCode (cr' := bansfCR) ht (by
+    intro a i hi
+    unfold bansfCR
+    exact CodeReq.union_mono_left a i hi)
+
+#print axioms bansf_successTail_own
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
