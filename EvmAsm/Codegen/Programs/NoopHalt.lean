@@ -16,10 +16,25 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- v0.6 (evm-asm-0w05f.17.2): `generic_create` credits NEW_ACCOUNT state gas on
+    child error ONLY when it charged it (`if new_account_charged:
+    credit_state_gas_refund`, system.py:157-159) — an alive target skipped the
+    conditional charge site, so its failed create must not credit anything.
+    Stash the by-depth alive flag (recorded by the CREATE tail after
+    `create_frame_descend`) into `create_failed_refund_skip` BEFORE
+    `frame_return` pops the depth; `createFailedStateGasRefundAsm` tests it. -/
+private def createFailedStateGasRefundStashAsm : String :=
+  "  la t0, evm_call_depth\n  ld t1, 0(t0)\n" ++
+  "  la t0, create_target_alive_flag\n  slli t1, t1, 3\n  add t0, t0, t1\n  ld t1, 0(t0)\n" ++
+  "  la t0, create_failed_refund_skip\n  sd t1, 0(t0)\n"
+
 private def createFailedStateGasRefundAsm (site : String) : String :=
   -- execution-specs `generic_create` credits NEW_ACCOUNT state gas on child error.
   -- `credit_state_gas_refund` is LIFO: refund gas_left spill first, then the
-  -- state-gas reservoir.
+  -- state-gas reservoir. Gated on the charge having actually been made (target
+  -- NOT alive): `create_failed_refund_skip` was stashed pre-`frame_return`.
+  "  la t0, create_failed_refund_skip\n  ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lcr_failed_refund_done_" ++ site ++ "\n" ++
   "  li t2, 183600\n" ++
   "  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n" ++
   "  beqz t1, .Lcr_failed_refund_no_spill_" ++ site ++ "\n" ++
@@ -86,6 +101,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
+      createFailedStateGasRefundStashAsm ++
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
       createFailedStateGasRefundAsm ("revert_" ++ toString kind) ++
@@ -263,6 +279,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
       "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)\n" ++
       "  sd x0, 568(x20)\n" ++
+      createFailedStateGasRefundStashAsm ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       createFailedStateGasRefundAsm ("invalid_" ++ toString kind) ++
