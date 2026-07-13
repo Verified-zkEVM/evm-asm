@@ -568,5 +568,99 @@ theorem nonceLoopReject_to_stationRej (aB newSp oB n4 : Word)
 
 #print axioms nonceLoopReject_to_stationRej
 
+/-- Reframe the clean find-last loop exit as the existential precondition of
+    the continuation at `B + 452`. -/
+theorem nonceLoopExit_to_cont452Pre (aB newSp oB n4 : Word)
+    (aLen off0 endOff : Nat) (acctBytes : List (BitVec 8)) (G F : Assertion) :
+    ∀ h,
+      ((flExit aB newSp acctBytes off0 endOff F **
+        (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+         ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+         ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+         ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+         ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+         ((.x18 : Reg) ↦ᵣ oB))) h →
+      (∃ n l : Word,
+        (((((((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l)) **
+            regOwn .x10 ** regOwn .x11) **
+           (((.x2 : Reg) ↦ᵣ newSp) **
+            ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+            ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+            ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+            ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+            ((newSp + 48) ↦ₘ n4) **
+            ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+            ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+            ((.x18 : Reg) ↦ᵣ oB) **
+            ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+            ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+            ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            bytesRegion aB acctBytes ** G ** F)) **
+          regOwn .x7 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** regOwn .x1) **
+         ⌜LastItemAt acctBytes aB (aB + BitVec.ofNat 64 endOff) off0 n l⌝) h)) := by
+  intro h hp
+  unfold flExit at hp
+  obtain ⟨g1, g2, gd, gu, hExit, hfr⟩ := hp
+  obtain ⟨n, l, hExit2⟩ := hExit
+  obtain ⟨hregs, hlast⟩ := (sepConj_pure_right g1).1 hExit2
+  refine ⟨n, l, (sepConj_pure_right h).2 ⟨?_, hlast⟩⟩
+  have hR := (⟨g1, g2, gd, gu, hregs, hfr⟩ :
+    (((((.x2 : Reg) ↦ᵣ newSp) **
+      ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+      ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+      ((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l) **
+      ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+      ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) ** regOwn .x7 **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F) **
+     (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB))) h))
+  let L : Assertion :=
+    (((((.x2 : Reg) ↦ᵣ newSp) **
+      ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+      ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+      ((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l) **
+      ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+      ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) ** regOwn .x7 **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x1 **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F) **
+     (G ** ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+      ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+      ((oB + 72) ↦ₘ (0 : Word)) ** ((newSp + 48) ↦ₘ n4) **
+      ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+      ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+      ((.x18 : Reg) ↦ᵣ oB))))
+  let R : Assertion :=
+    (((((.x19 : Reg) ↦ᵣ (n - l)) ** ((.x20 : Reg) ↦ᵣ l)) **
+       regOwn .x10 ** regOwn .x11) **
+      (((.x2 : Reg) ↦ᵣ newSp) **
+       ((newSp + 64) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+       ((newSp + 72) ↦ₘ (aB + BitVec.ofNat 64 endOff)) **
+       ((.x5 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+       ((.x6 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 endOff)) **
+       ((newSp + 48) ↦ₘ n4) **
+       ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen)) **
+       ((.x8 : Reg) ↦ᵣ aB) ** ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
+       ((.x18 : Reg) ↦ᵣ oB) **
+       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
+       ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
+       ((oB + 72) ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion aB acctBytes ** G ** F)) **
+     regOwn .x7 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** regOwn .x1
+  have hL : L h := by dsimp only [L]; exact hR
+  have heq : L = R := by dsimp only [L, R]; xperm
+  change R h
+  exact (congrFun heq h).mp hL
+
+#print axioms nonceLoopExit_to_cont452Pre
+
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
