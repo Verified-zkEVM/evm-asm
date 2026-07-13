@@ -8,7 +8,7 @@
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
 import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.BaseCode
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

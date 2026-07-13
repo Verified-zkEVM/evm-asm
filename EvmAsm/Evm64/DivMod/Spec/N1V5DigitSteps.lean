@@ -14,7 +14,7 @@
   Bead evm-asm-wbc4i.9.1.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
+import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
 
 namespace EvmAsm.Evm64
 

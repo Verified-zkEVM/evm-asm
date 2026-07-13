@@ -12,7 +12,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLane
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod

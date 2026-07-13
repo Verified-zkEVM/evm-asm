@@ -3,7 +3,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
+import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift

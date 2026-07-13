@@ -12,7 +12,7 @@
 -/
 
 import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
-import EvmAsm.Evm64.SDiv.Compose.DivCallReturnGeneric
+import EvmAsm.Evm64.SDiv.DivCallReturnChainShared
 import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
 
 namespace EvmAsm.Evm64.SDiv.Compose
