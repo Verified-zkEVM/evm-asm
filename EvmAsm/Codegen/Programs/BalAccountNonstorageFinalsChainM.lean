@@ -433,12 +433,13 @@ def nonceToCodePre (aB newSp oB : Word) (aLen off : Nat)
   ∃ n4 l4 : Word,
     ((codeStationOuterBase aB newSp oB aLen (n4 - aB).toNat acctBytes
         (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G)
-        (F ** ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
-          (aB + BitVec.ofNat 64 aLen) n4 l4⌝) **
+        F **
       regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
       regOwn .x19 ** regOwn .x20 ** regOwn .x5 ** regOwn .x6 **
       regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-      regOwn .x31 ** regOwn .x1) h)
+      regOwn .x31 ** regOwn .x1) **
+     ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+       (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h
 
 /-- A successful nonce-station outer post satisfies the existential entry
     assertion consumed by the code station. -/
@@ -501,6 +502,58 @@ theorem codeResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
 #print axioms codeResult_pcFree
+
+/-- Reject result after entering code from a successful nonce station. -/
+def nonceCodeRej (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion := fun h =>
+  ∃ n4 l4 : Word,
+    (codeStationRej aB newSp oB aLen acctBytes
+        (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G) F **
+      ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+        (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h
+
+/-- Successful code result after entering from a successful nonce station. -/
+def nonceCodePost (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion) : Assertion := fun h =>
+  ∃ n4 l4 : Word,
+    (codeStationOuterPost aB newSp oB aLen (n4 - aB).toNat acctBytes
+        (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G) F **
+      ⌜rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
+        (aB + BitVec.ofNat 64 aLen) n4 l4⌝) h
+
+/-- From the existential nonce-success boundary, run the complete code
+    station while retaining the item-4 decode on both exits. -/
+theorem bansf_codeStation_from_noncePost
+    (aB newSp oB : Word) (aLen off : Nat)
+    (acctBytes : List (BitVec 8)) (G F : Assertion)
+    (hG : G.pcFree) (hF : F.pcFree)
+    (hsalign : aB.toNat % 8 = 0)
+    (hslack : aLen + 9 ≤ acctBytes.length)
+    (hover : aB.toNat + acctBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < acctBytes.length →
+      isValidByteAccess (aB + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ aLen) :
+    cpsBranchWithin (98 * (aLen + 1) + (7 * acctBytes.length + 800))
+      (B + 540) bansfCR
+      (nonceToCodePre aB newSp oB aLen off acctBytes G F)
+      (B + 736) (nonceCodeRej aB newSp oB aLen off acctBytes G F)
+      (B + 724) (nonceCodePost aB newSp oB aLen off acctBytes G F) := by
+  unfold nonceToCodePre
+  refine cpsBranchWithin_exists_pre (fun n4 => ?_)
+  refine cpsBranchWithin_exists_pre (fun l4 => ?_)
+  refine cpsBranchWithin_pure_pre_right (fun hdec4 => ?_)
+  have hover9 : aB.toNat + aLen + 9 < 2 ^ 64 := by omega
+  obtain ⟨_, _, hoff5⟩ := rlpItemDecode_advance hdec4 hoff hover9
+  have hNoncePc := nonceResult_pcFree aB oB (n4 - l4 - aB).toNat
+    l4.toNat acctBytes G hG
+  have hs := bansf_codeStation_spec aB newSp oB aLen (n4 - aB).toNat
+    acctBytes (nonceResult aB oB (n4 - l4 - aB).toNat l4.toNat acctBytes G) F
+    hNoncePc hF hsalign hslack hover hvalid hoff5
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => ⟨n4, l4, (sepConj_pure_right h).2 ⟨hp, hdec4⟩⟩)
+    (fun h hp => ⟨n4, l4, (sepConj_pure_right h).2 ⟨hp, hdec4⟩⟩) hs
+
+#print axioms bansf_codeStation_from_noncePost
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
