@@ -290,6 +290,33 @@ theorem balResult_to_balOwnBlock
 
 #print axioms balResult_to_balOwnBlock
 
+/-- Either semantic nonce result extends an owned balance footprint with the
+    two owned nonce output cells. -/
+theorem nonceResult_to_balanceNonceOwnBlock
+    (aB oB : Word) (fOff fSpanN : Nat)
+    (acctBytes : List (BitVec 8)) (G : Assertion)
+    (hG : ∀ h, G h → balOwnBlock oB h) :
+    ∀ h, nonceResult aB oB fOff fSpanN acctBytes G h →
+      balanceNonceOwnBlock oB h := by
+  intro h hp
+  unfold nonceResult at hp
+  rcases hp with hp | hp
+  · obtain ⟨hCells, _⟩ := (sepConj_pure_right h).1 hp
+    have hOwned := sepConj_mono hG
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn) h hCells
+    unfold balOwnBlock at hOwned
+    unfold balanceNonceOwnBlock
+    xperm_hyp hOwned
+  · obtain ⟨vNext, vLen, hp⟩ := hp
+    obtain ⟨hCells, _⟩ := (sepConj_pure_right h).1 hp
+    have hOwned := sepConj_mono hG
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn) h hCells
+    unfold balOwnBlock at hOwned
+    unfold balanceNonceOwnBlock
+    xperm_hyp hOwned
+
+#print axioms nonceResult_to_balanceNonceOwnBlock
+
 /-- A code-station reject normalizes to the common ABI reject result whenever
     the already-materialized balance and nonce footprint owns its cells. -/
 theorem codeStationRej_to_abiReject
