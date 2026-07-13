@@ -1666,6 +1666,7 @@ theorem rlp_walk_init_spec_within
                 ((listBase + BitVec.ofNat 64 listOff) +
                   (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
                 = true ∧
+              listBytes[listOff + 1]? ≠ some (0 : BitVec 8) ∧
               BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
                 ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true⌝) h) ∨
          -- long mismatch (a2 = 7): decoded ≥ 56 but cursor + decoded ≠ end
@@ -1678,6 +1679,7 @@ theorem rlp_walk_init_spec_within
                 ((listBase + BitVec.ofNat 64 listOff) +
                   (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
                 = true ∧
+              listBytes[listOff + 1]? ≠ some (0 : BitVec 8) ∧
               ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
                 ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
               ((listBase + BitVec.ofNat 64 listOff) +
@@ -1696,6 +1698,7 @@ theorem rlp_walk_init_spec_within
                 ((listBase + BitVec.ofNat 64 listOff) +
                   (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
                 = true ∧
+              listBytes[listOff + 1]? ≠ some (0 : BitVec 8) ∧
               ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
                 ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
               ((listBase + BitVec.ofNat 64 listOff) +
@@ -1822,7 +1825,14 @@ theorem rlp_walk_init_spec_within
               (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
                 (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hb0⟩⟩)) h' hbody)))))) ) h ?_
             xperm_hyp hp1
-          · by_cases hmin : BitVec.ult dec (56 : Word) = true
+          · have hbNZ : listBytes[listOff + 1]? ≠ some (0 : BitVec 8) := by
+              rw [List.getElem?_eq_getElem hoff1]
+              intro heq
+              apply hlz
+              have hz := Option.some.inj heq
+              rw [hz]
+              rfl
+            by_cases hmin : BitVec.ult dec (56 : Word) = true
             · -- lmin
               have ht := rlp_walk_init_lmin_spec_within base listBase raVal listLen a2Old t0Old t1Old
                 t2Old t3Old t4Old t5Old t6Old listBytes listOff hsalign hoff hover hvalid hempty
@@ -1832,7 +1842,7 @@ theorem rlp_walk_init_spec_within
               refine sepConj_mono_right (fun h' hbody =>
                 Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
                   (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                    (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin⟩⟩))
+                    (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hbNZ, hmin⟩⟩))
                       h' hbody)))))))) h ?_
               xperm_hyp hp
             · by_cases hmatch : cur + dec = ptr + listLen
@@ -1845,7 +1855,7 @@ theorem rlp_walk_init_spec_within
                 refine sepConj_mono_right (fun h' hbody =>
                   Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
                     (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin, hmatch⟩⟩))
+                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hbNZ, hmin, hmatch⟩⟩))
                         h' hbody))))))))) h ?_
                 xperm_hyp hp
               · -- lmism
@@ -1857,7 +1867,7 @@ theorem rlp_walk_init_spec_within
                 refine sepConj_mono_right (fun h' hbody =>
                   Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
                     (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin, hmatch⟩⟩))
+                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hbNZ, hmin, hmatch⟩⟩))
                         h' hbody)))))))) ) h ?_
                 xperm_hyp hp
 

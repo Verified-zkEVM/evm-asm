@@ -836,6 +836,7 @@ def initOutcome (listBase : Word) (bytes : List (BitVec 8))
       ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
         (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
           signExtend12 (1 : BitVec 12))) = true ∧
+      bytes[1]? ≠ some (0 : BitVec 8) ∧
       BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
         ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true⌝) h) ∨
   (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLen)) **
@@ -846,6 +847,7 @@ def initOutcome (listBase : Word) (bytes : List (BitVec 8))
       ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
         (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
           signExtend12 (1 : BitVec 12))) = true ∧
+      bytes[1]? ≠ some (0 : BitVec 8) ∧
       ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
         ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
       listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
@@ -862,6 +864,7 @@ def initOutcome (listBase : Word) (bytes : List (BitVec 8))
       ¬ BitVec.ult (listBase + BitVec.ofNat 64 listLen)
         (listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
           signExtend12 (1 : BitVec 12))) = true ∧
+      bytes[1]? ≠ some (0 : BitVec 8) ∧
       ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop 1).take
         ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
       listBase + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
