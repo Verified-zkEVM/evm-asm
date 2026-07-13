@@ -6,7 +6,8 @@
   at the shared body exit `B + 736`.
 -/
 
-import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC2
 
 set_option maxRecDepth 8000
 
