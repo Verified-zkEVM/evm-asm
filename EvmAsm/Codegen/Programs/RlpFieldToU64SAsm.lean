@@ -1046,19 +1046,21 @@ def contentOutcome (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :
     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
     (((.x10 ↦ᵣ BitVec.ofNat 64
         (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
       (.x11 ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)
+      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)
 
 inductive ScalarOutcome (bytes : List (BitVec 8)) (offset len : Nat) :
     Word → Word → Prop
   | tooLong (h : 8 < len) : ScalarOutcome bytes offset len 0 2
   | empty (h : len = 0) : ScalarOutcome bytes offset len 0 0
-  | noncanonical (hpos : 0 < len) (hzero : getByteAt bytes offset = 0) :
+  | noncanonical (hpos : 0 < len) (hfit : len ≤ 8)
+      (hzero : getByteAt bytes offset = 0) :
       ScalarOutcome bytes offset len 0 3
-  | success (hpos : 0 < len) (hnz : getByteAt bytes offset ≠ 0) :
+  | success (hpos : 0 < len) (hfit : len ≤ 8)
+      (hnz : getByteAt bytes offset ≠ 0) :
       ScalarOutcome bytes offset len
         (BitVec.ofNat 64
           (Nat.fromBytesBE ((bytes.drop offset).take len))) 0
@@ -1082,11 +1084,11 @@ theorem contentOutcome_semantic (bytes : List (BitVec 8)) (offset len : Nat) : �
   · extract_pure_deep hp
     obtain ⟨h_sem, hstate⟩ := hp
     exact ⟨0, 3, (sepConj_pure_right h).2
-      ⟨(by xperm_hyp hstate), .noncanonical h_sem.1 h_sem.2⟩⟩
+      ⟨(by xperm_hyp hstate), .noncanonical h_sem.1 h_sem.2.1 h_sem.2.2⟩⟩
   · extract_pure_deep hp
     obtain ⟨h_sem, hstate⟩ := hp
     exact ⟨_, 0, (sepConj_pure_right h).2
-      ⟨(by xperm_hyp hstate), .success h_sem.1 h_sem.2⟩⟩
+      ⟨(by xperm_hyp hstate), .success h_sem.1 h_sem.2.1 h_sem.2.2⟩⟩
 
 #print axioms contentOutcome_semantic
 

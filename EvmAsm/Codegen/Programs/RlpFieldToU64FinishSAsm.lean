@@ -28,6 +28,28 @@ def scalarResult
         offset len⌝) **
       ⌜ScalarOutcome bytes offset.toNat len.toNat value status⌝) h
 
+def scalarTaken
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12 value status,
+    (((scalarCore sp0 listBase offset len v12 value status saved bytes **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+         offset len⌝) **
+      ⌜ScalarOutcome bytes offset.toNat len.toNat value status⌝) **
+     ⌜status ≠ 0⌝) h
+
+def scalarFall
+    (sp0 listBase : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
+  fun h => ∃ offset len v12 value status,
+    (((scalarCore sp0 listBase offset len v12 value status saved bytes **
+       ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
+         offset len⌝) **
+      ⌜ScalarOutcome bytes offset.toNat len.toNat value status⌝) **
+     ⌜status = 0⌝) h
+
 theorem contentDone_to_scalarResult
     (sp0 listBase : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
@@ -97,6 +119,40 @@ private theorem scalarCore_to_result
   apply (sepConj_pure_right h).2
   exact ⟨(sepConj_pure_right h).2 ⟨hp, h_ok⟩, h_out⟩
 
+private theorem scalarCore_to_taken
+    (sp0 listBase offset len v12 value status : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h_ok : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+      index offset len)
+    (h_out : ScalarOutcome bytes offset.toNat len.toNat value status)
+    (h_ne : status ≠ 0) : ∀ h,
+    scalarCore sp0 listBase offset len v12 value status saved bytes h →
+      scalarTaken sp0 listBase saved bytes listLen index h := by
+  intro h hp
+  unfold scalarTaken
+  refine ⟨offset, len, v12, value, status, ?_⟩
+  apply (sepConj_pure_right h).2
+  exact ⟨(sepConj_pure_right h).2
+    ⟨(sepConj_pure_right h).2 ⟨hp, h_ok⟩, h_out⟩, h_ne⟩
+
+private theorem scalarCore_to_fall
+    (sp0 listBase offset len v12 value status : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h_ok : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
+      index offset len)
+    (h_out : ScalarOutcome bytes offset.toNat len.toNat value status)
+    (h_eq : status = 0) : ∀ h,
+    scalarCore sp0 listBase offset len v12 value status saved bytes h →
+      scalarFall sp0 listBase saved bytes listLen index h := by
+  intro h hp
+  unfold scalarFall
+  refine ⟨offset, len, v12, value, status, ?_⟩
+  apply (sepConj_pure_right h).2
+  exact ⟨(sepConj_pure_right h).2
+    ⟨(sepConj_pure_right h).2 ⟨hp, h_ok⟩, h_out⟩, h_eq⟩
+
 private theorem scalarBranchCase
     (sp0 listBase offset len v12 value status : Word)
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
@@ -106,8 +162,8 @@ private theorem scalarBranchCase
     (h_out : ScalarOutcome bytes offset.toNat len.toNat value status) :
     cpsBranchWithin 1 (B + 84) code
       (scalarCore sp0 listBase offset len v12 value status saved bytes)
-      (B + 100) (scalarResult sp0 listBase saved bytes listLen index)
-      (B + 88) (scalarResult sp0 listBase saved bytes listLen index) := by
+      (B + 100) (scalarTaken sp0 listBase saved bytes listLen index)
+      (B + 88) (scalarFall sp0 listBase saved bytes listLen index) := by
   have hb0 := bne_spec_gen_within .x11 .x0 (16 : BitVec 13)
     status (0 : Word) (B + 84)
   rw [show B + 84 + signExtend13 (16 : BitVec 13) = B + 100 from by decide,
@@ -127,16 +183,16 @@ private theorem scalarBranchCase
       unfold R scalarFrame
       xperm_hyp hp) (fun h hp => ?_) (fun h hp => ?_) hbC
   · extract_pure_deep hp
-    obtain ⟨-, hp⟩ := hp
-    apply scalarCore_to_result sp0 listBase offset len v12 value status saved
-      bytes listLen index h_ok h_out h
+    obtain ⟨h_ne, hp⟩ := hp
+    apply scalarCore_to_taken sp0 listBase offset len v12 value status saved
+      bytes listLen index h_ok h_out h_ne h
     unfold R scalarFrame at hp
     unfold scalarCore
     xperm_hyp hp
   · extract_pure_deep hp
-    obtain ⟨-, hp⟩ := hp
-    apply scalarCore_to_result sp0 listBase offset len v12 value status saved
-      bytes listLen index h_ok h_out h
+    obtain ⟨h_eq, hp⟩ := hp
+    apply scalarCore_to_fall sp0 listBase offset len v12 value status saved
+      bytes listLen index h_ok h_out h_eq h
     unfold R scalarFrame at hp
     unfold scalarCore
     xperm_hyp hp
@@ -149,8 +205,8 @@ theorem scalarBranch
     (bytes : List (BitVec 8)) (listLen index : Nat) :
     cpsBranchWithin 1 (B + 84) code
       (scalarResult sp0 listBase saved bytes listLen index)
-      (B + 100) (scalarResult sp0 listBase saved bytes listLen index)
-      (B + 88) (scalarResult sp0 listBase saved bytes listLen index) := by
+      (B + 100) (scalarTaken sp0 listBase saved bytes listLen index)
+      (B + 88) (scalarFall sp0 listBase saved bytes listLen index) := by
   unfold scalarResult
   refine cpsBranchWithin_exists_pre (fun offset => ?_)
   refine cpsBranchWithin_exists_pre (fun len => ?_)

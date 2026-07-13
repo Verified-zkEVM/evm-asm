@@ -879,9 +879,10 @@ theorem rlp_content_to_u64_spec_within
          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-            ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+            ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
          (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
-            (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h))) := by
+            (.x11 ↦ᵣ (0 : Word)) **
+            ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h))) := by
   by_cases htl : 8 < len
   · -- too-long (status 2)
     have htl' : BitVec.ult (8 : Word) (BitVec.ofNat 64 len) = true := by
@@ -929,7 +930,8 @@ theorem rlp_content_to_u64_spec_within
         refine cpsTripleWithin_mono_nSteps (by omega)
           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hnc)
         refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl
-          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hlen0, hc⟩) h' hbody)))) h ?_
+          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2
+            ⟨hb, hlen0, (by omega), hc⟩) h' hbody)))) h ?_
         xperm_hyp hp
       · -- success (status 0)
         have hlen0 : 0 < len := Nat.pos_of_ne_zero h0
@@ -941,7 +943,8 @@ theorem rlp_content_to_u64_spec_within
         refine cpsTripleWithin_mono_nSteps (by omega)
           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hs)
         refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inr
-          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hlen0, hc⟩) h' hbody)))) h ?_
+          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2
+            ⟨hb, hlen0, (by omega), hc⟩) h' hbody)))) h ?_
         xperm_hyp hp
 
 -- Sanity: program length + key instruction lookups.
