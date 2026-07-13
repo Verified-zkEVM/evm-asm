@@ -66,8 +66,9 @@ def writeAsmFile (asmPath : System.FilePath) (text : String) : IO Unit := do
     Returns the produced `(objPath, elfPath)`.
 
     Memory layout: `.text` at `0x80000000` (Zisk's default entry point),
-    `.data` at `0xa3000000` (high RAM, clear of fixed stateless working-memory
-    anchors and `OUTPUT_ADDR = 0xa0010000`). -/
+    `.data` at `0xa3000000` and zero-initialized `.bss` at `0xa4000000`
+    (high RAM, clear of fixed stateless working-memory anchors and
+    `OUTPUT_ADDR = 0xa0010000`). -/
 def assembleAndLink (asmPath : System.FilePath) :
     IO (System.FilePath × System.FilePath) := do
   let asProgram ← resolveTool "RISCV_AS" asCandidates
@@ -81,6 +82,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     -- region. Keep it above `.data`; GNU ld only relocates the section when
     -- present, so the flag is harmless for programs that do not emit it.
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
+      "--section-start=.bss=0xa4000000",
       "--section-start=.sszscratch=0xbf500000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]

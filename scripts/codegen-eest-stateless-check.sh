@@ -654,6 +654,7 @@ patch_bsr_caps_and_relink() {
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
+    --section-start=.bss=0xa4000000 \
     --section-start=.sszscratch=0xbf500000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
@@ -1013,6 +1014,7 @@ ensure_verdict_debug_probe() {
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
+      --section-start=.bss=0xa4000000 \
       --section-start=.sszscratch=0xbf500000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
