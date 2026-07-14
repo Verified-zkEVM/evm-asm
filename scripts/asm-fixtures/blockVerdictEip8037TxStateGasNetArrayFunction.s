@@ -17,9 +17,9 @@ block_verdict_eip8037_tx_state_gas_net_array:
   ld x10, 0(x6)
   add x6, x9, x5
   ld x11, 0(x6)
-  add x6, x14, x5
-  ld x6, 0(x6)
-  and x11, x11, x6
+  addi x0, x0, 0
+  addi x0, x0, 0
+  addi x0, x0, 0
   add x15, x19, x5
   jal x1, eip8037_tx_state_gas
   addi x20, x20, 1

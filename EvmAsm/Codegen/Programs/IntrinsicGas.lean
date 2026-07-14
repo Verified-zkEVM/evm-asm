@@ -643,9 +643,9 @@ def blockVerdictEip8037TxStateGasNetArray_prog : Program :=
     .LD .x10 .x6 (0 : BitVec 12),
     .ADD .x6 .x9 .x5,
     .LD .x11 .x6 (0 : BitVec 12),
-    .ADD .x6 .x14 .x5,
-    .LD .x6 .x6 (0 : BitVec 12),
-    .AND .x11 .x11 .x6,
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .ADD .x15 .x19 .x5,
     .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 88)),
     .ADDI .x20 .x20 (1 : BitVec 12),
@@ -693,7 +693,7 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
 def ziskEip8037TxStateGasNetArrayPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la a0, e8037nga_intrinsic; la a1, e8037nga_exec\n" ++
-  "  li a2, 4; la a3, e8037nga_out; la a4, e8037nga_status\n" ++
+  "  li a2, 4; la a3, e8037nga_out\n" ++
   "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0); sd a1, 8(t0)\n" ++
@@ -714,8 +714,6 @@ def ziskEip8037TxStateGasNetArrayDataSection : String :=
   "  .quad 183600, 183600, 0, 0\n" ++
   "e8037nga_exec:\n" ++
   "  .quad 0, 97920, 97920, 0\n" ++
-  "e8037nga_status:\n" ++
-  "  .quad 1, 1, 1, 1\n" ++
   "e8037nga_out:\n  .zero 32\n"
 
 def ziskEip8037TxStateGasNetArrayProbeUnit : BuildUnit := {
