@@ -20,7 +20,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 LIMIT="${EEST_SIMPLE_TRANSFER_LIMIT:-1}"
 SKIP="${EEST_SIMPLE_TRANSFER_SKIP:-0}"
 JOBS="${EEST_SIMPLE_TRANSFER_JOBS:-${EEST_JOBS:-2}}"

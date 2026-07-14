@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_EIP2929_SINGLE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP2929_SINGLE_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP2929_SINGLE_RUN_DIR:-gen-out/eest-eip2929-single}"

@@ -8,7 +8,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_EIP4844_EXCESS_BLOB_GAS_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP4844_EXCESS_BLOB_GAS_STEPS:-${EEST_STEPS:-1000000000}}"
 LIMIT_OVERRIDE="${EEST_EIP4844_EXCESS_BLOB_GAS_LIMIT:-}"
