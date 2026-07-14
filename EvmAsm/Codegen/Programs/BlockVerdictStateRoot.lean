@@ -382,6 +382,15 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness_len; ld a1, 0(t0)\n" ++
   "  jal ra, witness_index_build\n" ++
   "  bnez a0, .Lv2_witness_index_fail\n" ++
+  "  # ExecutionWitness.state is SSZ List[ByteList[1024]]: validate the\n" ++
+  "  # per-element cap after the state-only index has checked its offset table.\n" ++
+  "  # Do not put this rule in the generic index: witness.headers/codes differ.\n" ++
+  "  la t0, widx_count; ld t0, 0(t0); la t1, widx_records; li t2, 1024\n" ++
+  ".Lv2_state_node_cap_loop:\n" ++
+  "  beqz t0, .Lv2_state_node_cap_ok\n" ++
+  "  ld t3, 40(t1); bgtu t3, t2, .Lv2_witness_index_fail\n" ++
+  "  addi t1, t1, 48; addi t0, t0, -1; j .Lv2_state_node_cap_loop\n" ++
+  ".Lv2_state_node_cap_ok:\n" ++
   "  # Mirror execution-specs validate_headers(witness.headers): the witness\n" ++
   "  # header list must be a contiguous parent-hash chain before validation can\n" ++
   "  # succeed. SSZ offsets are read bytewise because SSZ_BASE is unaligned.\n" ++
