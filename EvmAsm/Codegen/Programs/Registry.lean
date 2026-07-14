@@ -284,7 +284,8 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BlockVerdict
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash

@@ -440,6 +440,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
   under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `CalcExcessBlobGasFnSAsm.lean` additionally derives a single-exit `Fn`
+  (`calcExcessBlobGasFn_spec`) with the same genuine max/subtract semantics;
+  its shared-return branch layout is a guest-byte re-emission and is pending
+  maintainer EEST A/B before deployment.
   `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
   byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
@@ -2661,6 +2665,25 @@ calling convention so it is a literal drop-in.
   `rlp_walk_init`/`rlp_walk_next`; the sibling reads scan likewise walks field
   2 and entries. The linked guest is covered by the stacked regeneration and
   combined EEST gate (seed `10301`, 100/100 full and oracle matches).
+
+- 🔄 **Header post-merge validator migrated to one-pass walks** (bead
+  `evm-asm-22pwv.3`, PR pending): linked `header_validate_post_merge` now
+  performs one strict `rlp_walk_init` followed by sequential `rlp_walk_next`
+  steps through fields 1, 7, and 14, replacing three repeated
+  `rlp_list_nth_item` scans while preserving status codes 0–4 and the
+  empty-ommers/difficulty/nonce checks. Final linked ELF regeneration is
+  green (`.text = 0x58f0c`), and EEST A/B on the final ELF (seed `10302`,
+  100 cases) is 100/100 full+oracle with 0 false rejects and 0 false accepts.
+
+- 🔄 **MPT extension extractor migrated to one-pass walks** (bead
+  `evm-asm-22pwv.7.2`, PR #10306): linked `mpt_extension_extract` now
+  initializes one strict cursor and advances it for the compact path and
+  child-reference fields, replacing two repeated `rlp_list_nth_item` scans.
+  The saved ABI frame carries cursor/end state; status and output pointers
+  remain unchanged. Linked regeneration is green (`.text = 0x58f08`), with
+  final linked guest A/B passes on both pre- and post-#10305-main ELF runs
+  (seeds `10303`/`10304`, raw ziskemu, 100/100 full+oracle, 0 false
+  rejects/accepts).
 
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
