@@ -2632,6 +2632,15 @@ calling convention so it is a literal drop-in.
   accepts non-canonical zero-byte encodings (EIP-161 Uint comparison), which
   the strict cursor walk cannot preserve.
 
+- 🔄 **K177 block-body two-transaction extraction migrated to one cursor**
+  (bead `evm-asm-22pwv.6.3`): `block_body_extract_2tx` now initializes one
+  `rlp_walk_init` cursor and advances it twice with `rlp_walk_next`, deriving
+  each transaction's body-relative offset as `advanced - content_length -
+  body_base`. The old two `rlp_list_nth_item` scans were removed while the
+  status/output ABI remains unchanged. Dedicated codegen probe passed all six
+  existing success/failure cases; randomized Spike/EEST A/B and maintainer
+  review remain before this guest-byte-changing migration is complete.
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
