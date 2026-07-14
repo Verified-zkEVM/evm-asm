@@ -103,6 +103,8 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lstrv_malformed\n" ++
   "  mv s8, a0; sub s10, a0, a2; mv s11, a2       # current row ptr/len\n" ++
+  "  la t0, strv_row_off; sd s10, 0(t0)           # preserve row for post-field call\n" ++
+  "  la t0, strv_row_len; sd s11, 0(t0)\n" ++
   -- The address is row field 0; walk the row once instead of restarting K20.
   "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lstrv_malformed\n" ++
@@ -146,7 +148,9 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  addi a0, s5, 144; la a1, strv_wd_credit; addi a2, s5, 144\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lstrv_overflow\n" ++
-  "  mv a0, s8; mv a1, s9; la a2, strv_post_raw; la a3, strv_post_len\n" ++
+  "  la t0, strv_row_off; ld a0, 0(t0)\n" ++
+  "  la t0, strv_row_len; ld a1, 0(t0)\n" ++
+  "  la a2, strv_post_raw; la a3, strv_post_len\n" ++
   "  la a4, strv_nonce_raw; la a5, strv_nonce_len\n" ++
   "  jal ra, bal_account_post_fields\n" ++
   "  bnez a0, .Lstrv_post_fail\n" ++
