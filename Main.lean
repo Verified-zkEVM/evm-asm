@@ -1,4 +1,33 @@
-import EvmAsm.Codegen
+import EvmAsm.Codegen.CallFramePhase
+import EvmAsm.Codegen.CallFrameWindows
+import EvmAsm.Codegen.Cli
+import EvmAsm.Codegen.Driver
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.FileSizeGuard
+import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
+import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
+import EvmAsm.Codegen.Proofs.CallReturn
+import EvmAsm.Codegen.Proofs.CalldataLoadGuardedHandlerSpec
+import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
+import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
+import EvmAsm.Codegen.Proofs.DoWhileDemo
+import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
+import EvmAsm.Codegen.Proofs.GuestImage
+import EvmAsm.Codegen.Proofs.GuestImageEntries
+import EvmAsm.Codegen.Proofs.HandleFocusReal
+import EvmAsm.Codegen.Proofs.HandlerHandles
+import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
+import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
+import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
+import EvmAsm.Codegen.Proofs.HandlerSpecs
+import EvmAsm.Codegen.Proofs.JumpdestBitmap
+import EvmAsm.Codegen.Proofs.OpcodeTables
+import EvmAsm.Codegen.Proofs.RegistryInvariants
+import EvmAsm.Codegen.Proofs.U256IsZeroSpec
+import EvmAsm.Codegen.RegionMap
+import EvmAsm.Codegen.RoundTripTests
 
 def main (args : List String) : IO UInt32 :=
   EvmAsm.Codegen.Cli.main args
