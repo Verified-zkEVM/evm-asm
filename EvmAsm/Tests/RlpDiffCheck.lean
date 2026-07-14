@@ -26,7 +26,20 @@
   Run via `lake exe rlp-diff-check` (see `scripts/rlp-check-all.sh`).
 -/
 
-import EvmAsm.EL.RLP
+import EvmAsm.EL.RLP.ByteStringDecodeBridge
+import EvmAsm.EL.RLP.FullDecode
+import EvmAsm.EL.RLP.ListDecode
+import EvmAsm.EL.RLP.ListDecodeBridge
+import EvmAsm.EL.RLP.LongForm
+import EvmAsm.EL.RLP.LongFormDecodeBridge
+import EvmAsm.EL.RLP.Prefix
+import EvmAsm.EL.RLP.PrefixDecode
+import EvmAsm.EL.RLP.Program
+import EvmAsm.EL.RLP.ProgramSpec
+import EvmAsm.EL.RLP.Properties
+import EvmAsm.EL.RLP.ReadLength
+import EvmAsm.EL.RLP.ReadLengthBridge
+import EvmAsm.EL.RLP.Scalar
 
 namespace EvmAsm.Tests.RlpDiffCheck
 
