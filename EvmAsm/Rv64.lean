@@ -11,7 +11,12 @@ import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow
 -- WP: backward, soundness-first calculators over bounded CPS triples.
-import EvmAsm.Rv64.WP
+import EvmAsm.Rv64.WP.CFG
+import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.WP.Core
+import EvmAsm.Rv64.WP.Examples
+import EvmAsm.Rv64.WP.GeneratedCFG
+import EvmAsm.Rv64.WP.Loop
 import EvmAsm.Rv64.CPSCall
 -- RunBlock → SeqFrame → {XCancel → XPerm, PerfTrace, InstructionSpecs} + SpecDb.
 -- LiftSpec → XSimp → XPerm.
