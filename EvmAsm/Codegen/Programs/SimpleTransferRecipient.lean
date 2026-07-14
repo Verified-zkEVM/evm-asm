@@ -93,18 +93,29 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  bnez a0, .Lstrv_malformed\n" ++
   "  la t0, strv_count; ld s6, 0(t0) # BAL row count\n" ++
   "  li s7, 0                    # row index\n" ++
+  -- Walk the BAL rows once.  `s8`/`s9` hold the cursor/end while `s10`/`s11`
+  -- retain the current row for the downstream account/post-field checks.
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstrv_malformed\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
   ".Lstrv_row_loop:\n" ++
   "  bgeu s7, s6, .Lstrv_missing\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s7; la a3, strv_row_off; la a4, strv_row_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstrv_malformed\n" ++
-  "  la t0, strv_row_off; ld t1, 0(t0); add s8, s2, t1\n" ++
-  "  la t0, strv_row_len; ld s9, 0(t0)\n" ++
-  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, strv_addr_off; la a4, strv_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstrv_malformed\n" ++
-  "  la t0, strv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lstrv_next_row\n" ++
-  "  la t0, strv_addr_off; ld t0, 0(t0); add t0, s8, t0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstrv_malformed\n" ++
+  "  mv s8, a0; sub s10, a0, a2; mv s11, a2       # current row ptr/len\n" ++
+  "  la t0, strv_row_off; sd s10, 0(t0)           # preserve row for post-field call\n" ++
+  "  la t0, strv_row_len; sd s11, 0(t0)\n" ++
+  -- The address is row field 0; walk the row once instead of restarting K20.
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstrv_malformed\n" ++
+  "  la t0, strv_addr_off; sd a0, 0(t0)           # row-field cursor\n" ++
+  "  la t0, strv_addr_len; sd a1, 0(t0)           # row-field end\n" ++
+  "  la t0, strv_addr_off; ld a0, 0(t0)\n" ++
+  "  la t0, strv_addr_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstrv_malformed\n" ++
+  "  sub t0, a0, a2; mv t1, a2                   # address bytes ptr/len\n" ++
+  "  li t2, 20; bne t1, t2, .Lstrv_next_row\n" ++
   "  mv t1, s0; li t2, 20\n" ++
   ".Lstrv_cmp_addr:\n" ++
   "  beqz t2, .Lstrv_found\n" ++
@@ -137,7 +148,9 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  addi a0, s5, 144; la a1, strv_wd_credit; addi a2, s5, 144\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lstrv_overflow\n" ++
-  "  mv a0, s8; mv a1, s9; la a2, strv_post_raw; la a3, strv_post_len\n" ++
+  "  la t0, strv_row_off; ld a0, 0(t0)\n" ++
+  "  la t0, strv_row_len; ld a1, 0(t0)\n" ++
+  "  la a2, strv_post_raw; la a3, strv_post_len\n" ++
   "  la a4, strv_nonce_raw; la a5, strv_nonce_len\n" ++
   "  jal ra, bal_account_post_fields\n" ++
   "  bnez a0, .Lstrv_post_fail\n" ++
@@ -215,9 +228,7 @@ def ziskSimpleTransferRecipientBalVerifyPrologue : String :=
   "  li a5, 0xa0010000\n" ++
   "  jal ra, simple_transfer_recipient_bal_verify\n" ++
   "  j .Lstrvp_done\n" ++
-  rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
   -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
   rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
