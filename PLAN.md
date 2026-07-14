@@ -2662,6 +2662,15 @@ calling convention so it is a literal drop-in.
   2 and entries. The linked guest is covered by the stacked regeneration and
   combined EEST gate (seed `10301`, 100/100 full and oracle matches).
 
+- 🔄 **Header post-merge validator migrated to one-pass walks** (bead
+  `evm-asm-22pwv.3`, PR pending): linked `header_validate_post_merge` now
+  performs one strict `rlp_walk_init` followed by sequential `rlp_walk_next`
+  steps through fields 1, 7, and 14, replacing three repeated
+  `rlp_list_nth_item` scans while preserving status codes 0–4 and the
+  empty-ommers/difficulty/nonce checks. Final linked ELF regeneration is
+  green (`.text = 0x58f0c`), and EEST A/B on the final ELF (seed `10302`,
+  100 cases) is 100/100 full+oracle with 0 false rejects and 0 false accepts.
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
