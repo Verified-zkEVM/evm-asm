@@ -440,6 +440,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   byte-identical return-terminating `retIf` body (`calcExcessBlobGas_spec`,
   post `a0 = if (a0 + a1) < a2 then 0 else (a0 + a1) - a2`
   under the emitted unsigned BitVec branch semantics) pinned to `calcExcessBlobGas_prog`.
+  `CalcExcessBlobGasFnSAsm.lean` additionally derives a single-exit `Fn`
+  (`calcExcessBlobGasFn_spec`) with the same genuine max/subtract semantics;
+  its shared-return branch layout is a guest-byte re-emission and is pending
+  maintainer EEST A/B before deployment.
   `MemoryExpansionGasSAsm.lean` verifies `memory_expansion_gas` as a
   byte-identical return-terminating `retIf` body (`memoryExpansionGas_spec`,
   post `a0 = 0` when old size is unsigned-`>=` new size, otherwise the
