@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-tests-zkevm@v0.6.1}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_WARM_COLD_BAL_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_WARM_COLD_BAL_STEPS:-${EEST_STEPS:-1000000000}}"
 LIMIT="${EEST_WARM_COLD_BAL_LIMIT:-1}"
@@ -39,7 +39,7 @@ Options:
   --max-failures N             per-filter FAIL/ERROR stop cap (default: 1)
   --min-full N                 require at least N full matches per filter
   --run-dir DIR                output directory
-  --tag TAG                    EEST fixture tag (default: tests-zkevm@v0.6.1)
+  --tag TAG                    EEST fixture tag (default: $(cat scripts/eest-fixture-tag.txt))
   --no-build                   pass --no-build after the first inner run
   -h, --help                   show this help
 

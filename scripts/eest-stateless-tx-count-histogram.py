@@ -52,8 +52,8 @@ def default_fixture_tag() -> str:
     try:
         tag = tag_file.read_text().strip()
     except OSError:
-        tag = "tests-zkevm@v0.6.1"
-    return tag or "tests-zkevm@v0.6.1"
+        tag = "tests-zkevm@v0.6.2"
+    return tag or "tests-zkevm@v0.6.2"
 
 def default_fixtures_dir(tag: str) -> Path:
     env = os.environ.get("EEST_FIXTURES_DIR")
