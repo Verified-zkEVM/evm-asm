@@ -77,6 +77,12 @@ namespace SAsm
 def wsDword (ws : List (BitVec 8)) (k : Nat) : Word :=
   packBytes ((ws.drop k).take 8)
 
+/-- Decode one raw SHA-256 message dword.  The accelerator's state words are
+    LE-u32 packed, but its message block is the FIPS wire image: each 4-byte
+    word is big-endian. -/
+def wsDwordBE (ws : List (BitVec 8)) (k : Nat) : Word :=
+  Accel.dwordBE (wsDword ws k)
+
 /-- The 256-bit little-endian natural at byte offset `k` of a window
     (4 LE u64 limbs — exactly what `Accel.arith256Mod` consumes through
     `Accel.leLimbsToNat ∘ MachineState.readWords`). -/
@@ -1906,9 +1912,28 @@ def cxHandle (f : Fp2Id) (o : CxOp) (entry : Word) (rs1 : Reg)
 def wsDwords (n : Nat) (ws : List (BitVec 8)) (k : Nat) : List Word :=
   (List.range n).map fun i => wsDword ws (k + 8 * i)
 
+def wsDwordsBE (n : Nat) (ws : List (BitVec 8)) (k : Nat) : List Word :=
+  (List.range n).map fun i => wsDwordBE ws (k + 8 * i)
+
 @[simp] theorem length_wsDwords (n : Nat) (ws : List (BitVec 8)) (k : Nat) :
     (wsDwords n ws k).length = n := by
   simp [wsDwords]
+
+@[simp] theorem length_wsDwordsBE (n : Nat) (ws : List (BitVec 8)) (k : Nat) :
+    (wsDwordsBE n ws k).length = n := by
+  simp [wsDwordsBE]
+
+theorem readWordsBE_eq_wsDwordsBE {b : Word} {bs : List (BitVec 8)}
+    {R : Assertion} {s : MachineState}
+    (hPR : ((bytesRegion b bs) ** R).holdsFor s)
+    (n k : Nat) (h8 : 8 ∣ k) (hfit : k + 8 * n ≤ bs.length) :
+    Accel.dwordsToU32sBE (s.readWords (b + BitVec.ofNat 64 k) n) =
+      Accel.dwordsToU32s (wsDwordsBE n bs k) := by
+  unfold Accel.dwordsToU32sBE
+  rw [holdsFor_bytesRegion_readWords hPR n k h8 hfit]
+  rw [List.map_map]
+  unfold wsDwordsBE wsDwordBE
+  rfl
 
 /-- Reading a dword slice strictly below a splice is unchanged. -/
 theorem wsDwords_setBytes_low {n : Nat} {bs ns : List (BitVec 8)} {j k : Nat}
@@ -1961,7 +1986,7 @@ theorem wsDwords_setBytes_flatMap {bs : List (BitVec 8)} {j : Nat}
 def sha256Dwords (ws : List (BitVec 8)) (stOff inOff : Nat) : List Word :=
   Accel.u32sToDwords (Accel.sha256Compress
     (Accel.dwordsToU32s (wsDwords 4 ws stOff))
-    (Accel.dwordsToU32s (wsDwords 8 ws inOff)))
+    (Accel.dwordsToU32s (wsDwordsBE 8 ws inOff)))
 
 @[simp] theorem length_sha256Dwords (ws : List (BitVec 8)) (stOff inOff : Nat) :
     (sha256Dwords ws stOff inOff).length = 4 := by
@@ -1990,7 +2015,7 @@ private theorem csrsWrite_sha256 (s : MachineState) (rs1 : Reg) :
     s.csrsWrite 0x805 rs1
       = (s.getMem (s.getReg rs1), Accel.u32sToDwords (Accel.sha256Compress
           (Accel.dwordsToU32s (s.readWords (s.getMem (s.getReg rs1)) 4))
-          (Accel.dwordsToU32s
+          (Accel.dwordsToU32sBE
             (s.readWords (s.getMem (s.getReg rs1 + 8)) 8)))) := rfl
 
 /-- The Sha256f compression step: `csrs 0x805, rs1` with `rs1` pointing
@@ -2043,10 +2068,10 @@ theorem csrs_sha256Compress_spec_within
       = wsDwords 4 ws stOff := by
     rw [hgSt, holdsFor_bytesRegion_readWords hMem 4 stOff h8st (by omega)]
     rfl
-  have hrdIn : s.readWords (s.getMem (s.getReg rs1 + 8)) 8
-      = wsDwords 8 ws inOff := by
-    rw [hgIn, holdsFor_bytesRegion_readWords hMem 8 inOff h8in (by omega)]
-    rfl
+  have hrdIn : Accel.dwordsToU32sBE
+      (s.readWords (s.getMem (s.getReg rs1 + 8)) 8)
+      = Accel.dwordsToU32s (wsDwordsBE 8 ws inOff) := by
+    rw [hgIn, readWordsBE_eq_wsDwordsBE hMem 8 inOff h8in (by omega)]
   have hvrange : ∀ (k n : Nat), 8 ∣ k → k + 8 * n ≤ len →
       MachineState.validDwordRange (B + BitVec.ofNat 64 k) n = true :=
     fun k n h8k hkfit => validDwordRange_of_window hb8 hvalid h8k hkfit

@@ -2661,6 +2661,13 @@ calling convention so it is a literal drop-in.
   classical axioms. Guest-link regeneration and EEST A/B are the byte-changing
   deployment gates.
 
+- ✅ **`ssz_pack_bytes` SAsm port** (bead `evm-asm-4ch8f.19.1`): structured
+  copy/pad loops, exact one-step operational lemmas, packed-byte/chunk-count
+  algebra, a genuine unified top-level postcondition, and a byte-identical
+  `body.flatten ++ JALR` drift guard are proved in
+  `Codegen/Programs/SszPackBytesSAsm.lean`. Build, port-check, axiom/tactic
+  audits, and import reachability are green; PR pending.
+
 - ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
   first caller-level verification step composing the cursor-walk leaves
   (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper
