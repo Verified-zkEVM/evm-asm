@@ -38,8 +38,7 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
-import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
-import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.Bloom
@@ -76,6 +75,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.DispatcherTxGasSettle
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 namespace EvmAsm.Codegen
 
@@ -430,7 +430,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
-  multiTxSequentialSenderStateStepFunction ++ "\n" ++
+  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
