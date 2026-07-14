@@ -475,3 +475,4 @@ import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.SszPackBytesSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeFlatSAsm
