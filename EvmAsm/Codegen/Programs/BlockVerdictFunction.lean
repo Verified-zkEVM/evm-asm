@@ -1421,6 +1421,7 @@ def blockVerdictFunction : String :=
   "  la a1, bvgr_tx_exec_state_gas\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_total_state_gas\n" ++
+  "  la a4, bv_tx_status_arr\n" ++
   "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
   "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++

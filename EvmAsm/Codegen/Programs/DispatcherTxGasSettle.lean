@@ -3,12 +3,10 @@
 
   Focused probe for `dispatcher_tx_gas_settle`, the EIP-8037 post-dispatch fold
   consumed by block-verdict gas-result code. The helper turns the dispatcher's
-  live gas cells into the effective `gas_left` and refund counter used by the
-  Amsterdam transaction settlement formula:
-
-    tx_gas_used_before_refund = tx.gas - gas_left - state_gas_left
-
-  by returning `gas_left + state_gas_left` on success, restoring
+  live gas cells into the effective regular `gas_left` and refund counter used
+  by the Amsterdam transaction settlement formula. State gas remains in its
+  dedicated live cell and is accounted for separately. It returns regular
+  `gas_left` on success, restoring
   `state_gas_used` into `state_gas_left` only on REVERT, discarding refunds on
   errors, and burning remaining regular gas without restoring state gas on
   exceptional halts.
@@ -58,7 +56,8 @@ def ziskDispatcherTxGasSettleDataSection : String :=
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_state_gas_spilled:\n  .zero 8\n" ++
-  "evm_refund_acc:\n  .zero 8\n"
+  "evm_refund_acc:\n  .zero 8\n" ++
+  "runtime_tx_top_frame_regular_gas:\n  .zero 8\n"
 
 def ziskDispatcherTxGasSettleProbeUnit : BuildUnit := {
   body        := NOP

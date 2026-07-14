@@ -1,35 +1,36 @@
 block_verdict_eip8037_tx_state_gas_net_array:
-  addi sp, sp, -48
-  sd ra, 0(sp)
-  sd s0, 8(sp)
-  sd s1, 16(sp)
-  sd s2, 24(sp)
-  sd s3, 32(sp)
-  sd s4, 40(sp)
-  mv s0, a0
-  mv s1, a1
-  mv s2, a2
-  mv s3, a3
-  li s4, 0
-.Le8037nga_loop:
-  beq s4, s2, .Le8037nga_ok
-  slli t0, s4, 3
-  add t1, s0, t0
-  ld a0, 0(t1)
-  add t1, s1, t0
-  ld a1, 0(t1)
-  add a5, s3, t0
-  jal ra, eip8037_tx_state_gas
-  addi s4, s4, 1
-  j .Le8037nga_loop
-.Le8037nga_ok:
-  li a0, 0
-  li a1, 0
-  ld ra, 0(sp)
-  ld s0, 8(sp)
-  ld s1, 16(sp)
-  ld s2, 24(sp)
-  ld s3, 32(sp)
-  ld s4, 40(sp)
-  addi sp, sp, 48
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  li x20, 0
+  beq x20, x18, .+52
+  slli x5, x20, 3
+  add x6, x8, x5
+  ld x10, 0(x6)
+  add x6, x9, x5
+  ld x11, 0(x6)
+  add x6, x14, x5
+  ld x6, 0(x6)
+  and x11, x11, x6
+  add x15, x19, x5
+  jal x1, eip8037_tx_state_gas
+  addi x20, x20, 1
+  jal x0, .-48
+  li x10, 0
+  li x11, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)

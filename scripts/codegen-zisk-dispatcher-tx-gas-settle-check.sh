@@ -29,6 +29,20 @@ echo "==> emit zisk_dispatcher_tx_gas_settle ELF"
 lake exe codegen --program zisk_dispatcher_tx_gas_settle --halt linux93 \
   -o gen-out/zisk_dispatcher_tx_gas_settle
 
+# Keep the probe ELF byte-tied to the just-written assembly.  Some hosts retain
+# an older linked image when the codegen executable is rebuilt in place.
+AS_TOOL="${RISCV_AS:-riscv64-unknown-elf-as}"
+LD_TOOL="${RISCV_LD:-riscv64-unknown-elf-ld}"
+"$AS_TOOL" -march=rv64imac -mno-relax \
+  -o gen-out/zisk_dispatcher_tx_gas_settle.o \
+  gen-out/zisk_dispatcher_tx_gas_settle.s
+"$LD_TOOL" -Ttext=0x80000000 -Tdata=0xa3000000 \
+  --section-start=.bss=0xa4000000 \
+  --section-start=.sszscratch=0xbf500000 \
+  -nostdlib --no-relax \
+  -o gen-out/zisk_dispatcher_tx_gas_settle.elf \
+  gen-out/zisk_dispatcher_tx_gas_settle.o
+
 REPO_ROOT="$(pwd)"
 
 # run_case <name> <halt_kind> <gas_left> <state_left> <refund> <state_used> <state_spilled>
@@ -45,6 +59,7 @@ with open(sys.argv[1], 'wb') as f:
         f.write(struct.pack('<Q', v))
 " "$in_file"
 
+  rm -f "$out_file"
   "$ZISKEMU" -e gen-out/zisk_dispatcher_tx_gas_settle.elf \
     -i "$in_file" -o "$out_file" -n 500000 \
     >"$REPO_ROOT/gen-out/zisk_dispatcher_tx_gas_settle_${name}.emu.log" 2>&1 || true
@@ -61,13 +76,13 @@ halt, gas, state_left, refund, state_used, state_spilled = map(int, sys.argv[3:]
 data = open(out_file, "rb").read()
 actual = struct.unpack("<QQQ", data[:24])
 if halt in (0, 1, 5):
-    expected = (gas + state_left, refund, 1)
+    expected = (gas, refund, 1)
 else:
     non_spilled_used = max(0, state_used - state_spilled)
     if halt == 2:
-        expected = (gas + state_spilled + state_left + non_spilled_used, 0, 0)
+        expected = (gas + state_spilled, 0, 0)
     else:
-        expected = (state_left, 0, 0)
+        expected = (0, 0, 0)
 ok = actual == expected
 print(
     f"  {name:24s} {'OK  ' if ok else 'FAIL'} "

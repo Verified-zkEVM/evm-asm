@@ -920,12 +920,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  -- dispatcher_tx_gas_settle needs the original transaction gas limit after
+  -- the callable dispatcher has consumed env.gasRemaining. Keep the already
+  -- computed calldata floor in s3 and reuse this per-dispatch scratch cell
+  -- as the settlement handoff.
+  "  la t4, runtime_tx_top_frame_regular_gas; ld t5, 40(s2); sd t5, 0(t4)\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
-  -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
+  -- returns a0 = regular gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
   -- discards refunds) and a1 = the effective refund counter — so the bvgr
-  -- consumers' `tx.gas - gas_left` formula matches
-  -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
+  -- consumers' `tx.gas - gas_left` formula; state gas is handled by the
+  -- separate per-transaction state-gas array.
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv s0, a0                    # effective gas_left\n" ++
   "  mv s1, a1                    # effective refund_counter (v0.6.0: no auth regular-refund credit)\n" ++

@@ -619,6 +619,7 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
       a1 = executed_state_gas array ptr (raw `evm_state_gas_used` per tx)
       a2 = count
       a3 = output tx_state_gas array ptr
+      a4 = per-tx receipt-status array (0 on error, 1 on success)
 
     Returns:
       a0 = 0 (the v0.6 identity cannot underflow)
@@ -636,16 +637,19 @@ def blockVerdictEip8037TxStateGasNetArray_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .LI .x20 (0 : Word),
-    .BEQ .x20 .x18 (40 : BitVec 13),
+    .BEQ .x20 .x18 (52 : BitVec 13),
     .SLLI .x5 .x20 (3 : BitVec 6),
     .ADD .x6 .x8 .x5,
     .LD .x10 .x6 (0 : BitVec 12),
     .ADD .x6 .x9 .x5,
     .LD .x11 .x6 (0 : BitVec 12),
+    .ADD .x6 .x14 .x5,
+    .LD .x6 .x6 (0 : BitVec 12),
+    .AND .x11 .x11 .x6,
     .ADD .x15 .x19 .x5,
-    .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 76)),
+    .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 88)),
     .ADDI .x20 .x20 (1 : BitVec 12),
-    .JAL .x0 (-36 : BitVec 21),
+    .JAL .x0 (-48 : BitVec 21),
     .LI .x10 (0 : Word),
     .LI .x11 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -661,7 +665,7 @@ def blockVerdictEip8037TxStateGasNetArray_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def blockVerdictEip8037TxStateGasNetArray_relocs : RelocTable :=
-  [ (19, .jal .x1 "eip8037_tx_state_gas") ]
+  [ (22, .jal .x1 "eip8037_tx_state_gas") ]
 
 def blockVerdictEip8037TxStateGasNetArrayFunction : String :=
   "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs
@@ -675,7 +679,7 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
     blockVerdictEip8037TxStateGasNetArrayFunction = "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs := rfl
 
 #guard blockVerdictEip8037TxStateGasNetArrayFunction.startsWith "block_verdict_eip8037_tx_state_gas_net_array:\n"
-#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 32
+#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 35
 /-- `zisk_eip8037_tx_state_gas_net_array`: focused array probe for the
     block-verdict tx-state-gas materializer (v0.6 identity).
 
@@ -689,7 +693,7 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
 def ziskEip8037TxStateGasNetArrayPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la a0, e8037nga_intrinsic; la a1, e8037nga_exec\n" ++
-  "  li a2, 4; la a3, e8037nga_out\n" ++
+  "  li a2, 4; la a3, e8037nga_out; la a4, e8037nga_status\n" ++
   "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0); sd a1, 8(t0)\n" ++
@@ -710,6 +714,8 @@ def ziskEip8037TxStateGasNetArrayDataSection : String :=
   "  .quad 183600, 183600, 0, 0\n" ++
   "e8037nga_exec:\n" ++
   "  .quad 0, 97920, 97920, 0\n" ++
+  "e8037nga_status:\n" ++
+  "  .quad 1, 1, 1, 1\n" ++
   "e8037nga_out:\n  .zero 32\n"
 
 def ziskEip8037TxStateGasNetArrayProbeUnit : BuildUnit := {

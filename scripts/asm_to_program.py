@@ -868,6 +868,7 @@ def _collect_guest_addr_syms():
     # manifest, but their Program views still use GuestAddrs constants.
     need.update({
         'evm_state_gas_spilled',
+        'runtime_tx_top_frame_regular_gas',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

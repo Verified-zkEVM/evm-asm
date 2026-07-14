@@ -280,6 +280,10 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  jal ra, runtime_dispatcher_call\n" ++
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- Preserve the original transaction gas limit for the exceptional-halt
+  -- settlement fold; env.gasRemaining is execution gas and may be zeroed.
+  "  la t4, bv_creation_ctx_ptr; ld t5, 0(t4); ld t5, 544(t5)\n" ++
+  "  la t4, runtime_tx_top_frame_regular_gas; sd t5, 0(t4)\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
   "  ld s2, 48(s0)               # reload is_creation (the pre-dispatch save in s2 was clobbered too)\n" ++

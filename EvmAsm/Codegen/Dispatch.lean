@@ -1768,9 +1768,10 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
 
     This helper folds all three rules into the values the gas-result consumers
     (`tx_gas_result_increments`, the bvgr arena) expect:
-      a0 (output) = effective gas_left  = gas_left' + state_gas_left'
-                    where gas_left' = 0 for exceptional halts, env+568 otherwise,
-                    and state_gas_left' includes the REVERT-only restore;
+      a0 (output) = effective regular gas_left = gas_left'
+                    where gas_left' = 0 for exceptional halts and env+568
+                    otherwise. The state-gas component remains in
+                    `evm_state_gas_left` and is accounted for separately;
       a1 (output) = effective refund_counter = evm_refund_acc, or 0 on error;
       a2 (output) = tx success bit (1 when halt_kind is 0 STOP / 1 RETURN /
                     5 SELFDESTRUCT; 0 on REVERT or an exceptional halt) — the
@@ -1779,12 +1780,12 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
     drops refunds; 3/4/6/7/8 are exceptional and burn regular gas without
     refilling the state-gas reservoir. Clobbers t0-t3. The REVERT path clears
-    the settled frame cells; exceptional halts preserve the executed charge
-    for `dispatcher_capture_exec_state_gas`. -/
+    the settled frame cells; exceptional halts publish only the
+    reservoir-funded state-gas component (`used - spilled`) for the 2D block
+    accounting. -/
 /- Preserve executed state gas for successful halts (including the deposit STOP
-   lane), clear reverted frame charges after the REVERT-only refill, and keep
-   exceptional-halt charges in `tx_output.state_gas_used`: the exceptional path
-   burns the charge instead of refunding it. -/
+   lane), clear reverted frame charges after the REVERT-only refill, and expose
+   only the reservoir-funded component for exceptional-halt tx accounting. -/
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1793,38 +1794,57 @@ def dispatcherTxGasSettle_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
     .LD .x5 .x5 (568 : BitVec 12),
-    .AUIPC .x7 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 28)),
-    .ADDI .x7 .x7 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 28)),
+    .AUIPC .x27 (laHi GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.dispatcher_tx_gas_settle + 28)),
+    .ADDI .x27 .x27 (laLo GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.dispatcher_tx_gas_settle + 28)),
+    .LD .x27 .x27 (0 : BitVec 12),
+    .BEQ .x27 .x0 (8 : BitVec 13),
+    .ADD .x5 .x27 .x0,
+    .AUIPC .x7 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 48)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 48)),
     .LD .x7 .x7 (0 : BitVec 12),
-    .AUIPC .x28 (laHi GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
-    .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
+    .AUIPC .x28 (laHi GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 60)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 60)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (96 : BitVec 13),
+    .BEQ .x6 .x0 (152 : BitVec 13),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (88 : BitVec 13),
+    .BEQ .x6 .x28 (144 : BitVec 13),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (80 : BitVec 13),
+    .BEQ .x6 .x28 (136 : BitVec 13),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
-    .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
-    .ADDI .x30 .x30 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
+    .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 104)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 104)),
     .LD .x28 .x30 (0 : BitVec 12),
-    .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
-    .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
+    .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 116)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 116)),
     .LI .x29 (2 : Word),
-    .BNE .x6 .x29 (40 : BitVec 13),
+    .BNE .x6 .x29 (48 : BitVec 13),
     .LD .x29 .x31 (0 : BitVec 12),
-    .SD .x30 .x0 (0 : BitVec 12),
-    .SD .x31 .x0 (0 : BitVec 12),
     .BGEU .x29 .x28 (12 : BitVec 13),
     .SUB .x28 .x28 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x28 (0 : Word),
+    .SD .x30 .x28 (0 : BitVec 12),
+    .SD .x31 .x0 (0 : BitVec 12),
     .ADD .x7 .x7 .x28,
     .ADD .x5 .x5 .x29,
-    .JAL .x0 (12 : BitVec 21),
+    .JAL .x0 (60 : BitVec 21),
     .ADDI .x0 .x0 (0 : BitVec 12),
+    .LD .x29 .x31 (0 : BitVec 12),
+    .BGEU .x28 .x29 (16 : BitVec 13),
+    .LI .x28 (0 : Word),
+    .SD .x30 .x28 (0 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .SUB .x28 .x28 .x29,
+    .SD .x30 .x28 (0 : BitVec 12),
+    .LUI .x27 (4096 : BitVec 20),
+    .BGEU .x5 .x27 (12 : BitVec 13),
     .LI .x5 (0 : Word),
-    .ADD .x10 .x5 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x5 .x5 .x27,
+    .ADD .x10 .x5 .x0,
     .JALR .x0 .x1 (0 : BitVec 12),
     .ADDI .x0 .x0 (0 : BitVec 12) ]
 
@@ -1833,10 +1853,11 @@ def dispatcherTxGasSettle_prog : Program :=
     above carries the concrete guest-linked immediates for verification. -/
 def dispatcherTxGasSettle_relocs : RelocTable :=
   [ (4, .la .x5 "evm_env"),
-    (7, .la .x7 "evm_state_gas_left"),
-    (10, .la .x28 "evm_refund_acc"),
-    (21, .la .x30 "evm_state_gas_used"),
-    (24, .la .x31 "evm_state_gas_spilled") ]
+    (7, .la .x27 "runtime_tx_top_frame_regular_gas"),
+    (12, .la .x7 "evm_state_gas_left"),
+    (15, .la .x28 "evm_refund_acc"),
+    (26, .la .x30 "evm_state_gas_used"),
+    (29, .la .x31 "evm_state_gas_spilled") ]
 
 def dispatcherTxGasSettleFunction : String :=
   "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs
@@ -1850,7 +1871,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 41
+#guard dispatcherTxGasSettle_prog.length = 60
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
