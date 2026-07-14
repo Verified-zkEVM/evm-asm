@@ -62,6 +62,7 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomCallSAsm
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
