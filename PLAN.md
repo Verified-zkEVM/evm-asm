@@ -2670,6 +2670,15 @@ calling convention so it is a literal drop-in.
   classical axioms. Guest-link regeneration and EEST A/B are the byte-changing
   deployment gates.
 
+- ✅ **Cursor-walk flat caller contracts** (beads `evm-asm-4ch8f.14.15` and
+  `.14.16`, PRs #10298/#10299): Codegen adapters frame the verified strict
+  `rlp_walk_init_spec_within` (all nine outcomes) and
+  `rlp_walk_next_spec_within` (all six outcomes) with arbitrary caller-owned
+  `pcFree` ambient assertions. Program length guards pin 53/103 instructions;
+  the adapters are spec-only, preserve the complete raw posts, and audit to
+  the three permitted classical axioms. These contracts unblock cursor-walk
+  account/header decoder composition; emitted bytes are unchanged.
+
 - ✅ **`ssz_pack_bytes` SAsm port** (bead `evm-asm-4ch8f.19.1`): structured
   copy/pad loops, exact one-step operational lemmas, packed-byte/chunk-count
   algebra, a genuine unified top-level postcondition, and a byte-identical
