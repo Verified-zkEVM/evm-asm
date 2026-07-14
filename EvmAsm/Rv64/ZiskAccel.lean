@@ -475,6 +475,24 @@ theorem bn254_complexMul_kat :
 def dwordsToU32s (ws : List Word) : List (BitVec 32) :=
   ws.flatMap (fun (w : Word) => [w.setWidth 32, (w >>> 32).setWidth 32])
 
+/-- Convert a dword whose two 4-byte lanes are raw SHA-256 wire words into
+    the accelerator's LE-u32-within-u64 representation. -/
+def byteSwap32 (x : BitVec 32) : BitVec 32 :=
+  ((x &&& (0x000000ff : BitVec 32)) <<< 24) |||
+  ((x &&& (0x0000ff00 : BitVec 32)) <<< 8) |||
+  ((x &&& (0x00ff0000 : BitVec 32)) >>> 8) |||
+  ((x &&& (0xff000000 : BitVec 32)) >>> 24)
+
+def dwordBE (w : Word) : Word :=
+  (byteSwap32 (w.truncate 32)).zeroExtend 64 |||
+    ((byteSwap32 ((w >>> 32).truncate 32)).zeroExtend 64 <<< 32)
+
+def dwordsToU32sBE (ws : List Word) : List (BitVec 32) :=
+  dwordsToU32s (ws.map dwordBE)
+
+theorem dwordsToU32sBE_empty_padding :
+    dwordsToU32sBE [0x80] = [0x80000000, 0] := by decide
+
 /-- Pack u32 pairs back into dwords, low half first. -/
 def u32sToDwords : List (BitVec 32) → List Word
   | lo :: hi :: rest =>
@@ -575,7 +593,7 @@ def csrsWrite (s : MachineState) (csr : BitVec 12) (rs1 : Reg) :
     -- Sha256f: parameter block [state*, input*] at p
     (s.getMem p, Accel.u32sToDwords (Accel.sha256Compress
       (Accel.dwordsToU32s (s.readWords (s.getMem p) 4))
-      (Accel.dwordsToU32s (s.readWords (s.getMem (p + 8)) 8))))
+      (Accel.dwordsToU32sBE (s.readWords (s.getMem (p + 8)) 8))))
   else if csr = 0x803 then
     -- Secp256k1Add: parameter block [p1*, p2*] at p; p1 += p2 (chord)
     (s.getMem p, Accel.curveAddL Accel.secpP 4
