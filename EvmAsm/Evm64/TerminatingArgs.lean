@@ -14,7 +14,7 @@
   the assembly-level handlers land.
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 
 namespace EvmAsm.Evm64
 

@@ -4,8 +4,9 @@
   Root import file for the 64-bit EVM opcode implementations (RV64IM).
 -/
 
--- Foundations (Basic and Stack are transitively imported by every
--- opcode Program file via Stack → Basic).
+-- Foundations (EvmWord is the pure 256-bit word type; Basic adds the RV64
+-- machine model on top; Stack adds separation-logic assertions).
+import EvmAsm.Evm64.EvmWord
 import EvmAsm.Evm64.CodeRegion
 import EvmAsm.Evm64.Stack
 
