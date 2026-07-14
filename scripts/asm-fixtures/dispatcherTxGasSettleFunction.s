@@ -10,28 +10,28 @@ dispatcher_tx_gas_settle:
   la x28, evm_refund_acc
   ld x11, 0(x28)
   li x12, 1
-  beq x6, x0, .+100
+  beq x6, x0, .+96
   li x28, 1
-  beq x6, x28, .+92
+  beq x6, x28, .+88
   li x28, 5
-  beq x6, x28, .+84
+  beq x6, x28, .+80
   li x11, 0
   li x12, 0
   la x30, evm_state_gas_used
   ld x28, 0(x30)
   la x31, evm_state_gas_spilled
+  li x29, 2
+  bne x6, x29, .+40
   ld x29, 0(x31)
-  bne x12, x0, .+8
   sd x0, 0(x30)
   sd x0, 0(x31)
-  bgeu x29, x28, .+16
+  bgeu x29, x28, .+12
   sub x28, x28, x29
   add x7, x7, x28
-  jal x0, .+4
-  li x28, 2
-  bne x6, x28, .+12
   add x5, x5, x29
-  jal x0, .+8
+  jal x0, .+12
+  addi x0, x0, 0
   li x5, 0
   add x10, x5, x7
   jalr x0, 0(x1)
+  addi x0, x0, 0

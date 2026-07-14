@@ -1757,32 +1757,34 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     The spec's transaction settlement is
     `tx_gas_used_before_refund = tx.gas - gas_left - state_gas_left`
     (fork.py process_transaction), with two tx-level error rules:
-    on ANY error (REVERT or exceptional halt) `state_gas_left += state_gas_used`
+    on REVERT `state_gas_left += state_gas_used`
     (no state was grown, so the full state-gas charge — including any portion
     spilled into gas_left — is restored), and the refund counter is discarded
-    (interpreter.py only incorporates `evm.refund_counter` when `error is None`);
-    an exceptional halt additionally burns all remaining regular gas
-    (interpreter.py: `evm.gas_left = Uint(0)`), which the dispatcher's
-    `.exit_*` paths do NOT apply to env+568.
+    (interpreter.py only incorporates `evm.refund_counter` when `error is None`).
+    An exceptional halt instead burns all remaining regular gas
+    (interpreter.py: `evm.gas_left = Uint(0)`) without restoring the executed
+    state-gas charge; the dispatcher's `.exit_*` paths do NOT apply that burn to
+    env+568, so this helper supplies the zero regular-gas contribution.
 
     This helper folds all three rules into the values the gas-result consumers
     (`tx_gas_result_increments`, the bvgr arena) expect:
       a0 (output) = effective gas_left  = gas_left' + state_gas_left'
                     where gas_left' = 0 for exceptional halts, env+568 otherwise,
-                    and state_gas_left' includes the on-error restore;
+                    and state_gas_left' includes the REVERT-only restore;
       a1 (output) = effective refund_counter = evm_refund_acc, or 0 on error;
       a2 (output) = tx success bit (1 when halt_kind is 0 STOP / 1 RETURN /
                     5 SELFDESTRUCT; 0 on REVERT or an exceptional halt) — the
                     receipt `succeeded` field (.63.1.6.2.1).
     halt_kind is read from OUTPUT+32 (set by every halt path): 0 STOP / 1 RETURN /
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
-    drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
-    (callable repeatedly; mutates no dispatcher state). -/
+    drops refunds; 3/4/6/7/8 are exceptional and burn regular gas without
+    refilling the state-gas reservoir. Clobbers t0-t3. The REVERT path clears
+    the settled frame cells; exceptional halts preserve the executed charge
+    for `dispatcher_capture_exec_state_gas`. -/
 /- Preserve executed state gas for successful halts (including the deposit STOP
-   lane), but do not publish reverted/exceptional frame charges as
-   `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
-   accounts for authorization charges; on an error the frame portion is
-   refilled by the settlement fold and must be captured as 0. -/
+   lane), clear reverted frame charges after the REVERT-only refill, and keep
+   exceptional-halt charges in `tx_output.state_gas_used`: the exceptional path
+   burns the charge instead of refunding it. -/
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1798,11 +1800,11 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (100 : BitVec 13),
+    .BEQ .x6 .x0 (96 : BitVec 13),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (92 : BitVec 13),
+    .BEQ .x6 .x28 (88 : BitVec 13),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (84 : BitVec 13),
+    .BEQ .x6 .x28 (80 : BitVec 13),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
@@ -1810,21 +1812,21 @@ def dispatcherTxGasSettle_prog : Program :=
     .LD .x28 .x30 (0 : BitVec 12),
     .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
+    .LI .x29 (2 : Word),
+    .BNE .x6 .x29 (40 : BitVec 13),
     .LD .x29 .x31 (0 : BitVec 12),
-    .BNE .x12 .x0 (8 : BitVec 13),
     .SD .x30 .x0 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
-    .BGEU .x29 .x28 (16 : BitVec 13),
+    .BGEU .x29 .x28 (12 : BitVec 13),
     .SUB .x28 .x28 .x29,
     .ADD .x7 .x7 .x28,
-    .JAL .x0 (4 : BitVec 21),
-    .LI .x28 (2 : Word),
-    .BNE .x6 .x28 (12 : BitVec 13),
     .ADD .x5 .x5 .x29,
-    .JAL .x0 (8 : BitVec 21),
+    .JAL .x0 (12 : BitVec 21),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .LI .x5 (0 : Word),
     .ADD .x10 .x5 .x7,
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `dispatcherTxGasSettle_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program

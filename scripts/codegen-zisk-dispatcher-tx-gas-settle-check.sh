@@ -67,7 +67,7 @@ else:
     if halt == 2:
         expected = (gas + state_spilled + state_left + non_spilled_used, 0, 0)
     else:
-        expected = (state_left + non_spilled_used, 0, 0)
+        expected = (state_left, 0, 0)
 ok = actual == expected
 print(
     f"  {name:24s} {'OK  ' if ok else 'FAIL'} "

@@ -9,8 +9,9 @@
     tx_gas_used_before_refund = tx.gas - gas_left - state_gas_left
 
   by returning `gas_left + state_gas_left` on success, restoring
-  `state_gas_used` into `state_gas_left` on errors, discarding refunds on errors,
-  and burning remaining regular gas on exceptional halts.
+  `state_gas_used` into `state_gas_left` only on REVERT, discarding refunds on
+  errors, and burning remaining regular gas without restoring state gas on
+  exceptional halts.
 -/
 
 import EvmAsm.Codegen.Dispatch
