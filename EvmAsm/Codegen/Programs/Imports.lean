@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
@@ -90,6 +91,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
+import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
 import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
