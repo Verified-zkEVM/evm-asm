@@ -25,9 +25,9 @@
   at the start of each tx; the SSTORE/state-growth charges accumulate into it
   during the tx (Storage.lean). So immediately AFTER a tx's
   `dispatch_tx_runtime_code` / `dispatcher_tx_gas_settle`, the global holds THIS
-  tx's `tx_output.state_gas_used` (raw, pre the spec's on-error `= 0` rule —
-  `dispatcher_tx_gas_settle` folds `state_gas_left += state_gas_used` on error but
-  does not zero the global). This helper persists that RAW value; the spec's
+  tx's `tx_output.state_gas_used`; settlement now zeros the reverted/exceptional
+  frame portion before capture while preserving successful STOP/RETURN/
+  SELFDESTRUCT values. This helper persists that settled value; the spec's
   error rule (fork.py:1122-1124), the `+ intrinsic.state` term, and the
   `- state_refund` term are composed by the verdict gate's accumulator (c1's
   lane), which already holds the per-tx success status (`bv_tx_status_arr`) and
