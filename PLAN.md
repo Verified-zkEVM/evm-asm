@@ -2632,6 +2632,15 @@ calling convention so it is a literal drop-in.
   accepts non-canonical zero-byte encodings (EIP-161 Uint comparison), which
   the strict cursor walk cannot preserve.
 
+- 🔄 **BAL recipient storage-key scans migrated to one-pass walks** (bead
+  `evm-asm-22pwv.5.1`, PR pending): `bal_recipient_storage_keys` now walks
+  AccountChanges field 1, each storage-change entry, and each slot key with
+  `rlp_walk_init`/`rlp_walk_next`; its sibling `bal_recipient_storage_reads_keys`
+  likewise walks field 2 and storage-read entries. `rlp_list_count_items` is
+  retained only for the real count/cap contract. Focused build and randomized
+  Spike-100 (seed `0x5e1`) pass; guest-byte migration still needs maintainer
+  EEST A/B.
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
