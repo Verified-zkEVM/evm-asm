@@ -472,4 +472,5 @@ import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmRound
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmTail
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
