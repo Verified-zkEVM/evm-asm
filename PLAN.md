@@ -2632,6 +2632,13 @@ calling convention so it is a literal drop-in.
   accepts non-canonical zero-byte encodings (EIP-161 Uint comparison), which
   the strict cursor walk cannot preserve.
 
+- 🔄 **Simple-transfer recipient BAL scan migrated to one-pass walks** (bead
+  `evm-asm-4ch8f.60.1`, PR pending): `simple_transfer_recipient_bal_verify`
+  now walks BAL rows once and walks each row's address field once, preserving
+  the status/output ABI and missing-recipient behavior. Randomized ziskemu
+  Spike-100 (seed `0x601`, nonmatching rows) passes; maintainer EEST A/B is
+  required for this guest-byte migration.
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
