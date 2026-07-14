@@ -60,6 +60,9 @@ import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
+import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomCallSAsm
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
@@ -90,6 +93,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
+import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
 import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
@@ -416,9 +420,11 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.ReceiptList
-import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.StatelessGuestData
+import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
