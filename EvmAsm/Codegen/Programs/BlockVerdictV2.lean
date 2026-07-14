@@ -496,7 +496,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
-  multiTxSequentialGasSettleStepFunction ++ "\n" ++
+  multiTxSequentialSupportedShapeFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++

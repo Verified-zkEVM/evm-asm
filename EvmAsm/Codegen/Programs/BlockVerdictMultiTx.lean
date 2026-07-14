@@ -151,6 +151,34 @@ def multiTxNthContextFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
+/-! ## multi_tx_sequential_supported_shape
+
+    Pure, side-effect-free shape predicate for the later sequential gate.
+    `a0` points at the 192-byte `multi_tx_nth_context` record and `a1` is a
+    caller-supplied recipient shape: 0 = EOA, 1 = self-contained contract,
+    2 = unsupported recipient. The result is 0 for a shape the sequential
+    path can eventually verify and 1 for conservative rejection.
+
+    This increment only defines and probes the predicate. It is deliberately
+    not called by the live `.Lbv_mtx_loop`; the gate is wired only after the
+    log/deposit and five-field request-tail increments complete the full
+    verdict comparison.
+-/
+def multiTxSequentialSupportedShapeFunction : String :=
+  "multi_tx_sequential_supported_shape:\n" ++
+  "  ld t0, 0(a0); bnez t0, .Lmtxss_reject       # context status\n" ++
+  "  ld t0, 48(a0); bnez t0, .Lmtxss_reject      # creation flag\n" ++
+  "  ld t0, 160(a0); li t1, 0; beq t0, t1, .Lmtxss_type_ok\n" ++
+  "  li t1, 1; beq t0, t1, .Lmtxss_type_ok\n" ++
+  "  li t1, 2; bne t0, t1, .Lmtxss_reject        # blob/set-code are deferred\n" ++
+  ".Lmtxss_type_ok:\n" ++
+  "  li t1, 0; beq a1, t1, .Lmtxss_accept\n" ++
+  "  li t1, 1; bne a1, t1, .Lmtxss_reject        # unsupported recipient\n" ++
+  ".Lmtxss_accept:\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lmtxss_reject:\n" ++
+  "  li a0, 1; ret"
+
 /-- `zisk_multi_tx_nth_context`: focused probe for the per-index extractor.
     Input at INPUT_ADDR (0x40000000):
       +8   tx_list_len
@@ -193,6 +221,32 @@ def ziskMultiTxNthContextProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskMultiTxNthContextPrologue
   dataAsm     := ziskMultiTxNthContextDataSection
+}
+
+/- Probe input after zisk length: +8 case_count, then 200-byte records.
+   Each record is a zero-filled context-shaped record with status at +0,
+   creation flag at +48, tx type at +160, and recipient shape at +192.
+   Output at OUTPUT_ADDR is one predicate result byte per case. -/
+def ziskMultiTxSequentialSupportedShapePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)\n" ++
+  "  li s2, 0\n" ++
+  ".Lmtxss_probe_loop:\n" ++
+  "  bgeu s2, s1, .Lmtxss_probe_done\n" ++
+  "  li t0, 200; mul t0, s2, t0; addi t0, t0, 16; add s3, s0, t0\n" ++
+  "  mv a0, s3; ld a1, 192(s3); jal ra, multi_tx_sequential_supported_shape\n" ++
+  "  li t0, 0xa0010000; add t0, t0, s2; sb a0, 0(t0)\n" ++
+  "  addi s2, s2, 1; j .Lmtxss_probe_loop\n" ++
+  ".Lmtxss_probe_done:\n" ++
+  "  j .Lmtxss_probe_exit\n" ++
+  multiTxSequentialSupportedShapeFunction ++ "\n" ++
+  ".Lmtxss_probe_exit:"
+
+def ziskMultiTxSequentialSupportedShapeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMultiTxSequentialSupportedShapePrologue
+  dataAsm     := ".section .data\n"
 }
 
 end EvmAsm.Codegen
