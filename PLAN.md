@@ -2640,6 +2640,19 @@ calling convention so it is a literal drop-in.
   malformed-transaction gate cases. Maintainer EEST A/B remains required for
   this guest-byte migration.
 
+- 🔄 **Simple-transfer recipient BAL scan migrated to one-pass walks** (bead
+  `evm-asm-4ch8f.60.1`, PR pending): `simple_transfer_recipient_bal_verify`
+  now walks BAL rows once and each row's address field once. Randomized
+  Spike-100 (seed `0x601`) passes; the linked guest is covered by the stacked
+  regeneration and combined EEST gate.
+
+- 🔄 **BAL recipient storage-key scans migrated to one-pass walks** (bead
+  `evm-asm-22pwv.5.1`, PR pending): `bal_recipient_storage_keys` now walks
+  AccountChanges field 1, storage-change entries, and slot keys with
+  `rlp_walk_init`/`rlp_walk_next`; the sibling reads scan likewise walks field
+  2 and entries. The linked guest is covered by the stacked regeneration and
+  combined EEST gate (seed `10301`, 100/100 full and oracle matches).
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
