@@ -419,9 +419,11 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.ReceiptList
-import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.StatelessGuestData
+import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths

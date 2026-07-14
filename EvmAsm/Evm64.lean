@@ -19,7 +19,12 @@ import EvmAsm.Evm64.Accelerators.Coverage
 -- Stack operations
 import EvmAsm.Evm64.Pop.Spec
 import EvmAsm.Evm64.Push0.Spec
-import EvmAsm.Evm64.Push
+import EvmAsm.Evm64.Push.ExecEffect
+import EvmAsm.Evm64.Push.Immediate
+import EvmAsm.Evm64.Push.ImmediateCompose
+import EvmAsm.Evm64.Push.Program
+import EvmAsm.Evm64.Push.Spec
+import EvmAsm.Evm64.Push.Width
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 
@@ -576,7 +581,25 @@ import EvmAsm.Evm64.SDiv.SpecResultBranches
 import EvmAsm.Evm64.SMod
 
 -- ADDMOD / MULMOD skeletons (GH #91)
-import EvmAsm.Evm64.AddMod
+import EvmAsm.Evm64.AddMod.AddrNorm
+import EvmAsm.Evm64.AddMod.AddrNormAttr
+import EvmAsm.Evm64.AddMod.Args
+import EvmAsm.Evm64.AddMod.ArgsStackDecode
+import EvmAsm.Evm64.AddMod.CarryLdShared
+import EvmAsm.Evm64.AddMod.CarryLowShared
+import EvmAsm.Evm64.AddMod.Compose.Base
+import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
+import EvmAsm.Evm64.AddMod.Compose.CarryLdChain
+import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
+import EvmAsm.Evm64.AddMod.Compose.TotalBase
+import EvmAsm.Evm64.AddMod.LimbSpec
+import EvmAsm.Evm64.AddMod.Pow256CodeBridge
+import EvmAsm.Evm64.AddMod.Pow256Spec
+import EvmAsm.Evm64.AddMod.Program
+import EvmAsm.Evm64.AddMod.ProgramTest
+import EvmAsm.Evm64.AddMod.StackExecutionBridge
+import EvmAsm.Evm64.EvmWordArith.AddModCondSub
 import EvmAsm.Evm64.AddMod.ResultTotalShared
 import EvmAsm.Evm64.MulMod
 
