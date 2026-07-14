@@ -1039,7 +1039,10 @@ verdict_debug_for_case() {
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
-[[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
+# A randomized run must materialize the complete post-filter manifest before
+# shuffling.  Applying --limit here would make --random sample only the first
+# LIMIT fixtures and merely permute that prefix.
+[[ "$ALL" -eq 0 && "$RANDOM_ORDER" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
 [[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
 [[ "$VERIFY_INPUT_PARITY" -eq 1 ]] && conv_args+=(--verify-input-parity)
 [[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]] && conv_args+=(--verify-execution-spec-input)
@@ -1081,6 +1084,10 @@ random.Random(int(sys.argv[1])).shuffle(lines)
 print('\n'.join(lines))
 " "$RANDOM_SEED"
   )
+  if [[ "$ALL" -eq 0 ]]; then
+    manifestLines=("${manifestLines[@]:0:LIMIT}")
+    selectedCount="${#manifestLines[@]}"
+  fi
   selection="$selection, random(seed=$RANDOM_SEED)"
 fi
 
