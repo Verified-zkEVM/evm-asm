@@ -2671,6 +2671,14 @@ calling convention so it is a literal drop-in.
   green (`.text = 0x58f0c`), and EEST A/B on the final ELF (seed `10302`,
   100 cases) is 100/100 full+oracle with 0 false rejects and 0 false accepts.
 
+- 🔄 **MPT extension extractor migrated to one-pass walks** (bead
+  `evm-asm-22pwv.7.2`, PR pending): linked `mpt_extension_extract` now
+  initializes one strict cursor and advances it for the compact path and
+  child-reference fields, replacing two repeated `rlp_list_nth_item` scans.
+  The saved ABI frame carries cursor/end state; status and output pointers
+  remain unchanged. Linked regeneration is green (`.text = 0x58f08`), with
+  the final 100-case guest A/B gate in progress.
+
 - ✅ **`rlp_list_nth_item` strict SAsm replacement** (bead
   `evm-asm-4ch8f.14.7.1`): `RlpListNthItemSAsm.lean` proves the framed K20
   caller from static inputs through verified `rlp_walk_init` and repeated
