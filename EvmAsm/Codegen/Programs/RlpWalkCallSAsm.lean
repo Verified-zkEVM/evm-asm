@@ -92,8 +92,140 @@ theorem walk_call_seq
     cpsTripleWithin (n₁ + n₂) entry exit_ cr P Q := by
   exact cpsTripleWithin_seq_same_cr h₁ h₂
 
+/-! ### Fixed-width caller corollary
+
+    The migrated header callers use one initializer followed by a statically
+    known number of `rlp_walk_next` calls.  Keeping the intermediate assertions
+    explicit is intentional: each `Mᵢ` carries the walker's exact cursor/end,
+    status, content-length, and scratch-register relation, so a caller proof
+    cannot accidentally hide or weaken the state threaded from one call to the
+    next.  The hypotheses are normally obtained from
+    `rlp_walk_init_call_within` and `rlp_walk_next_call_within`; this theorem
+    performs only the CPS sequencing needed after those call-site VCs have
+    discharged. -/
+
+theorem walk_init_next_4
+    {cr : CodeReq} {n₀ n₁ n₂ n₃ n₄ : Nat}
+    {entry m₀ m₁ m₂ m₃ exit_ : Word}
+    {P M₀ M₁ M₂ M₃ Q : Assertion}
+    (h_init : cpsTripleWithin n₀ entry m₀ cr P M₀)
+    (h_next₁ : cpsTripleWithin n₁ m₀ m₁ cr M₀ M₁)
+    (h_next₂ : cpsTripleWithin n₂ m₁ m₂ cr M₁ M₂)
+    (h_next₃ : cpsTripleWithin n₃ m₂ m₃ cr M₂ M₃)
+    (h_next₄ : cpsTripleWithin n₄ m₃ exit_ cr M₃ Q) :
+    cpsTripleWithin (n₀ + n₁ + n₂ + n₃ + n₄) entry exit_ cr P Q := by
+  have h₁ := cpsTripleWithin_seq_same_cr h_init h_next₁
+  have h₂ := cpsTripleWithin_seq_same_cr h₁ h_next₂
+  have h₃ := cpsTripleWithin_seq_same_cr h₂ h_next₃
+  exact cpsTripleWithin_seq_same_cr h₃ h_next₄
+
+theorem walk_init_next_6
+    {cr : CodeReq} {n₀ n₁ n₂ n₃ n₄ n₅ n₆ : Nat}
+    {entry m₀ m₁ m₂ m₃ m₄ m₅ exit_ : Word}
+    {P M₀ M₁ M₂ M₃ M₄ M₅ Q : Assertion}
+    (h_init : cpsTripleWithin n₀ entry m₀ cr P M₀)
+    (h_next₁ : cpsTripleWithin n₁ m₀ m₁ cr M₀ M₁)
+    (h_next₂ : cpsTripleWithin n₂ m₁ m₂ cr M₁ M₂)
+    (h_next₃ : cpsTripleWithin n₃ m₂ m₃ cr M₂ M₃)
+    (h_next₄ : cpsTripleWithin n₄ m₃ m₄ cr M₃ M₄)
+    (h_next₅ : cpsTripleWithin n₅ m₄ m₅ cr M₄ M₅)
+    (h_next₆ : cpsTripleWithin n₆ m₅ exit_ cr M₅ Q) :
+    cpsTripleWithin (n₀ + n₁ + n₂ + n₃ + n₄ + n₅ + n₆) entry exit_ cr P Q := by
+  have h₁ := cpsTripleWithin_seq_same_cr h_init h_next₁
+  have h₂ := cpsTripleWithin_seq_same_cr h₁ h_next₂
+  have h₃ := cpsTripleWithin_seq_same_cr h₂ h_next₃
+  have h₄ := cpsTripleWithin_seq_same_cr h₃ h_next₄
+  have h₅ := cpsTripleWithin_seq_same_cr h₄ h_next₅
+  exact cpsTripleWithin_seq_same_cr h₅ h_next₆
+
+theorem walk_init_next_17
+    {cr : CodeReq}
+    {n₀ n₁ n₂ n₃ n₄ n₅ n₆ n₇ n₈ n₉ n₁₀ n₁₁ n₁₂ n₁₃ n₁₄ n₁₅ n₁₆ n₁₇ : Nat}
+    {entry m₀ m₁ m₂ m₃ m₄ m₅ m₆ m₇ m₈ m₉ m₁₀ m₁₁ m₁₂ m₁₃ m₁₄ m₁₅ m₁₆ exit_ : Word}
+    {P M₀ M₁ M₂ M₃ M₄ M₅ M₆ M₇ M₈ M₉ M₁₀ M₁₁ M₁₂ M₁₃ M₁₄ M₁₅ M₁₆ Q : Assertion}
+    (h_init : cpsTripleWithin n₀ entry m₀ cr P M₀)
+    (h_next₁ : cpsTripleWithin n₁ m₀ m₁ cr M₀ M₁)
+    (h_next₂ : cpsTripleWithin n₂ m₁ m₂ cr M₁ M₂)
+    (h_next₃ : cpsTripleWithin n₃ m₂ m₃ cr M₂ M₃)
+    (h_next₄ : cpsTripleWithin n₄ m₃ m₄ cr M₃ M₄)
+    (h_next₅ : cpsTripleWithin n₅ m₄ m₅ cr M₄ M₅)
+    (h_next₆ : cpsTripleWithin n₆ m₅ m₆ cr M₅ M₆)
+    (h_next₇ : cpsTripleWithin n₇ m₆ m₇ cr M₆ M₇)
+    (h_next₈ : cpsTripleWithin n₈ m₇ m₈ cr M₇ M₈)
+    (h_next₉ : cpsTripleWithin n₉ m₈ m₉ cr M₈ M₉)
+    (h_next₁₀ : cpsTripleWithin n₁₀ m₉ m₁₀ cr M₉ M₁₀)
+    (h_next₁₁ : cpsTripleWithin n₁₁ m₁₀ m₁₁ cr M₁₀ M₁₁)
+    (h_next₁₂ : cpsTripleWithin n₁₂ m₁₁ m₁₂ cr M₁₁ M₁₂)
+    (h_next₁₃ : cpsTripleWithin n₁₃ m₁₂ m₁₃ cr M₁₂ M₁₃)
+    (h_next₁₄ : cpsTripleWithin n₁₄ m₁₃ m₁₄ cr M₁₃ M₁₄)
+    (h_next₁₅ : cpsTripleWithin n₁₅ m₁₄ m₁₅ cr M₁₄ M₁₅)
+    (h_next₁₆ : cpsTripleWithin n₁₆ m₁₅ m₁₆ cr M₁₅ M₁₆)
+    (h_next₁₇ : cpsTripleWithin n₁₇ m₁₆ exit_ cr M₁₆ Q) :
+    cpsTripleWithin
+      (n₀ + n₁ + n₂ + n₃ + n₄ + n₅ + n₆ + n₇ + n₈ + n₉ +
+        n₁₀ + n₁₁ + n₁₂ + n₁₃ + n₁₄ + n₁₅ + n₁₆ + n₁₇)
+      entry exit_ cr P Q := by
+  have h₁ := cpsTripleWithin_seq_same_cr h_init h_next₁
+  have h₂ := cpsTripleWithin_seq_same_cr h₁ h_next₂
+  have h₃ := cpsTripleWithin_seq_same_cr h₂ h_next₃
+  have h₄ := cpsTripleWithin_seq_same_cr h₃ h_next₄
+  have h₅ := cpsTripleWithin_seq_same_cr h₄ h_next₅
+  have h₆ := cpsTripleWithin_seq_same_cr h₅ h_next₆
+  have h₇ := cpsTripleWithin_seq_same_cr h₆ h_next₇
+  have h₈ := cpsTripleWithin_seq_same_cr h₇ h_next₈
+  have h₉ := cpsTripleWithin_seq_same_cr h₈ h_next₉
+  have h₁₀ := cpsTripleWithin_seq_same_cr h₉ h_next₁₀
+  have h₁₁ := cpsTripleWithin_seq_same_cr h₁₀ h_next₁₁
+  have h₁₂ := cpsTripleWithin_seq_same_cr h₁₁ h_next₁₂
+  have h₁₃ := cpsTripleWithin_seq_same_cr h₁₂ h_next₁₃
+  have h₁₄ := cpsTripleWithin_seq_same_cr h₁₃ h_next₁₄
+  have h₁₅ := cpsTripleWithin_seq_same_cr h₁₄ h_next₁₅
+  have h₁₆ := cpsTripleWithin_seq_same_cr h₁₅ h_next₁₆
+  exact cpsTripleWithin_seq_same_cr h₁₆ h_next₁₇
+
+theorem walk_init_next_13
+    {cr : CodeReq}
+    {n₀ n₁ n₂ n₃ n₄ n₅ n₆ n₇ n₈ n₉ n₁₀ n₁₁ n₁₂ n₁₃ : Nat}
+    {entry m₀ m₁ m₂ m₃ m₄ m₅ m₆ m₇ m₈ m₉ m₁₀ m₁₁ m₁₂ exit_ : Word}
+    {P M₀ M₁ M₂ M₃ M₄ M₅ M₆ M₇ M₈ M₉ M₁₀ M₁₁ M₁₂ Q : Assertion}
+    (h_init : cpsTripleWithin n₀ entry m₀ cr P M₀)
+    (h_next₁ : cpsTripleWithin n₁ m₀ m₁ cr M₀ M₁)
+    (h_next₂ : cpsTripleWithin n₂ m₁ m₂ cr M₁ M₂)
+    (h_next₃ : cpsTripleWithin n₃ m₂ m₃ cr M₂ M₃)
+    (h_next₄ : cpsTripleWithin n₄ m₃ m₄ cr M₃ M₄)
+    (h_next₅ : cpsTripleWithin n₅ m₄ m₅ cr M₄ M₅)
+    (h_next₆ : cpsTripleWithin n₆ m₅ m₆ cr M₅ M₆)
+    (h_next₇ : cpsTripleWithin n₇ m₆ m₇ cr M₆ M₇)
+    (h_next₈ : cpsTripleWithin n₈ m₇ m₈ cr M₇ M₈)
+    (h_next₉ : cpsTripleWithin n₉ m₈ m₉ cr M₈ M₉)
+    (h_next₁₀ : cpsTripleWithin n₁₀ m₉ m₁₀ cr M₉ M₁₀)
+    (h_next₁₁ : cpsTripleWithin n₁₁ m₁₀ m₁₁ cr M₁₀ M₁₁)
+    (h_next₁₂ : cpsTripleWithin n₁₂ m₁₁ m₁₂ cr M₁₁ M₁₂)
+    (h_next₁₃ : cpsTripleWithin n₁₃ m₁₂ exit_ cr M₁₂ Q)
+    : cpsTripleWithin
+        (n₀ + n₁ + n₂ + n₃ + n₄ + n₅ + n₆ + n₇ + n₈ + n₉ +
+          n₁₀ + n₁₁ + n₁₂ + n₁₃)
+        entry exit_ cr P Q := by
+  have h₁ := cpsTripleWithin_seq_same_cr h_init h_next₁
+  have h₂ := cpsTripleWithin_seq_same_cr h₁ h_next₂
+  have h₃ := cpsTripleWithin_seq_same_cr h₂ h_next₃
+  have h₄ := cpsTripleWithin_seq_same_cr h₃ h_next₄
+  have h₅ := cpsTripleWithin_seq_same_cr h₄ h_next₅
+  have h₆ := cpsTripleWithin_seq_same_cr h₅ h_next₆
+  have h₇ := cpsTripleWithin_seq_same_cr h₆ h_next₇
+  have h₈ := cpsTripleWithin_seq_same_cr h₇ h_next₈
+  have h₉ := cpsTripleWithin_seq_same_cr h₈ h_next₉
+  have h₁₀ := cpsTripleWithin_seq_same_cr h₉ h_next₁₀
+  have h₁₁ := cpsTripleWithin_seq_same_cr h₁₀ h_next₁₁
+  have h₁₂ := cpsTripleWithin_seq_same_cr h₁₁ h_next₁₂
+  exact cpsTripleWithin_seq_same_cr h₁₂ h_next₁₃
+
 #print axioms rlp_walk_init_call_within
 #print axioms rlp_walk_next_call_within
 #print axioms walk_call_seq
+#print axioms walk_init_next_4
+#print axioms walk_init_next_6
+#print axioms walk_init_next_17
+#print axioms walk_init_next_13
 
 end EvmAsm.Codegen.RlpWalkCallSAsm
