@@ -1778,6 +1778,11 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
     drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
     (callable repeatedly; mutates no dispatcher state). -/
+/- Preserve executed state gas for successful halts (including the deposit STOP
+   lane), but do not publish reverted/exceptional frame charges as
+   `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
+   accounts for authorization charges; on an error the frame portion is
+   refilled by the settlement fold and must be captured as 0. -/
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1793,11 +1798,11 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (96 : BitVec 13),
+    .BEQ .x6 .x0 (100 : BitVec 13),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (88 : BitVec 13),
+    .BEQ .x6 .x28 (92 : BitVec 13),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (80 : BitVec 13),
+    .BEQ .x6 .x28 (84 : BitVec 13),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
@@ -1806,7 +1811,8 @@ def dispatcherTxGasSettle_prog : Program :=
     .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .LD .x29 .x31 (0 : BitVec 12),
-    .SD .x30 .x28 (0 : BitVec 12),
+    .BNE .x12 .x0 (8 : BitVec 13),
+    .SD .x30 .x0 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
     .BGEU .x29 .x28 (16 : BitVec 13),
     .SUB .x28 .x28 .x29,
@@ -1842,7 +1848,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 40
+#guard dispatcherTxGasSettle_prog.length = 41
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
