@@ -1069,6 +1069,46 @@ private theorem hesrOffsetStore
   have s6 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s5 f41
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s6
 
+/-! ## Success-tail: reload offset + form content pointer ([47]-[50])
+
+    `la x5,hesr_offset ; ld x28,0(x5)` reloads the stored field offset into `x28`,
+    then `add x28,x8,x28` forms the absolute content pointer `listBase + fo`. -/
+private theorem hesrOffsetLoadAdd (fo listBase v5old v28old : Word) :
+    cpsTripleWithin 4 (hesrBase + 188) (hesrBase + 204) hesrCode
+      ((.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) ** (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo))
+      ((.x5 ↦ᵣ hesrOffAddr) ** (.x28 ↦ᵣ (listBase + fo)) ** (.x8 ↦ᵣ listBase) **
+       (hesrOffAddr ↦ₘ fo)) := by
+  -- [47-48] la x5, hesr_offset
+  have f47 := cpsTripleWithin_frameR
+    ((.x28 ↦ᵣ v28old) ** (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo))
+    (by pcFreeR) (hesrLaOff188 v5old)
+  -- [49] ld x28, 0(x5)  → x28 = fo
+  have h49 := ld_spec_gen_within .x28 .x5 hesrOffAddr v28old fo (0 : BitVec 12)
+    (hesrBase + 196) (by decide)
+  rw [signExtend12_0, show (hesrOffAddr + 0 : Word) = hesrOffAddr from by bv_omega,
+      show (hesrBase + 196 : Word) + 4 = hesrBase + 200 from by bv_omega] at h49
+  have e49 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 196) Codegen.headerExtractStateRoot_prog 49
+      (.LD .x28 .x5 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h49
+  have f49 := cpsTripleWithin_frameR ((.x8 ↦ᵣ listBase))
+    (by pcFreeR) e49
+  -- [50] add x28, x8, x28  → x28 = listBase + fo
+  have h50 := add_spec_gen_rd_eq_rs2_within .x28 .x8 listBase fo (hesrBase + 200) (by decide)
+  rw [show (hesrBase + 200 : Word) + 4 = hesrBase + 204 from by bv_omega] at h50
+  have e50 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 200) Codegen.headerExtractStateRoot_prog 50
+      (.ADD .x28 .x8 .x28) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h50
+  have f50 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ hesrOffAddr) ** (hesrOffAddr ↦ₘ fo))
+    (by pcFreeR) e50
+  -- compose
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f47 f49
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f50
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
+
+#print axioms hesrOffsetLoadAdd
 #print axioms hesrOffsetStore
 #print axioms hesrCopyLoop
 #print axioms hesrInitStep
