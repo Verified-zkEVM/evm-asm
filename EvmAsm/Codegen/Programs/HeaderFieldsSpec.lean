@@ -301,6 +301,86 @@ theorem pcFree_hesrAmbient (newSp outPtr listBase listLen : Word) (saved : Saved
     address (`hesrBase+44`). -/
 def hesrInitCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 44)) ** bytesRegion listBase bytes
+  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 40 + 4)) ** bytesRegion listBase bytes
+
+/-- The init call step: `rlp_walk_init` at [10], producing the genuine 9-way
+    `initOutcome` framed against the caller ambient.  Mirrors
+    `RlpListNthItemSAsm.initCallExact`, but for the cross-function call site and
+    with the header-caller ambient carried across. -/
+theorem hesrInitStep {cr : CodeReq}
+    (listBase outPtr newSp oldRa v5 v6 v7 v28 v29 v30 v31 : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLenN : Nat)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_slack : listLenN + 9 ≤ headerBytes.length)
+    (h_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hcode : ∀ a i,
+      (CodeReq.singleton (hesrBase + 40) (.JAL .x1 hesrInitOffset)).union
+        (rlp_walk_init_code wiBase) a = some i → cr a = some i) :
+    cpsTripleWithin (1 + 81) (hesrBase + 40) (hesrBase + 40 + 4) cr
+      ((.x1 ↦ᵣ oldRa) **
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) **
+         (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+         hesrAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes))
+      (((hesrInitCommon listBase headerBytes ** (.x0 ↦ᵣ (0 : Word))) **
+         RlpListNthItemSAsm.initOutcome listBase headerBytes listLenN (by omega)) **
+        hesrAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) := by
+  have hoff : 0 < headerBytes.length := by omega
+  have hwi := rlp_walk_init_spec_within wiBase listBase (hesrBase + 40 + 4)
+    (BitVec.ofNat 64 listLenN) outPtr v5 v6 v7 v28 v29 v30 v31 headerBytes 0
+    h_align hoff (by omega) (h_valid 0 hoff)
+    (fun h_f8 => by
+      have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8
+        have h3 := (headerBytes[0]'hoff).isLt
+        bv_omega
+      omega)
+    (fun h_f8 => by
+      have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8
+        have h3 := (headerBytes[0]'hoff).isLt
+        bv_omega
+      omega)
+    (fun h_f8 => by
+      intro k hk
+      have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8
+        have h3 := (headerBytes[0]'hoff).isLt
+        bv_omega
+      exact h_valid _ (by omega))
+  rw [show listBase + BitVec.ofNat 64 0 = listBase from by bv_omega] at hwi
+  have hwiA := cpsTripleWithin_frameR
+    (hesrAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes)
+    (pcFree_hesrAmbient _ _ _ _ _ _) hwi
+  set Prest : Assertion :=
+    ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) **
+     (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+     (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+     hesrAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) with hPrest
+  set Q : Assertion :=
+    ((hesrInitCommon listBase headerBytes ** (.x0 ↦ᵣ (0 : Word))) **
+      RlpListNthItemSAsm.initOutcome listBase headerBytes listLenN hoff) **
+      hesrAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes with hQ
+  have hwi' : cpsTripleWithin 81 wiBase ((hesrBase + 40 + 4) &&& ~~~(1 : Word))
+      (rlp_walk_init_code wiBase) ((.x1 ↦ᵣ (hesrBase + 40 + 4)) ** Prest) Q :=
+    cpsTripleWithin_weaken
+      (fun h hp => by rw [hPrest] at hp; xperm_hyp hp)
+      (fun h hp => by
+        rw [hQ]
+        unfold hesrInitCommon RlpListNthItemSAsm.initOutcome
+        simp only [Nat.zero_add] at hp ⊢
+        xperm_hyp hp) hwiA
+  have hc := hesrInitCall oldRa (by
+    rw [hPrest]
+    repeat' first
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_hesrAmbient _ _ _ _ _ _
+      | apply pcFree_sepConj
+      | exact pcFree_regIs) hcode hwi'
+  simpa [hPrest, hQ] using hc
 
 end EvmAsm.Codegen.HeaderFieldsSpec
