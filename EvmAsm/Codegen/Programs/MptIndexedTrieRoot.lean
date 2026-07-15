@@ -845,9 +845,11 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
-  "itr_value_descs:\n  .zero 32768\n" ++
-  "itr_paths:\n  .zero 16384\n" ++
-  "itr_changes:\n  .zero 81920"
+  "itr_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16) ++ "\n" ++
+  "itr_paths:\n  .zero " ++ toString (itrIndexedEntryCapacity * 8) ++ "\n" ++
+  "itr_changes:\n  .zero " ++ toString (itrIndexedEntryCapacity * 40) ++ "\n" ++
+  "itr_sort_ranges:\n  .zero " ++ toString (itrIndexedSortRangeStackCapacity * 32) ++ "\n" ++
+  "itr_sort_scratch:\n  .zero 40"
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
@@ -906,6 +908,27 @@ def ziskMptIndexedStreamLeafHashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskMptIndexedStreamLeafHashPrologue
   dataAsm     := ziskMptStateRootInsDataSection
+}
+
+/-! Probe for the indexed RLP-key sorter.  The input holds `{path_len,u64;
+    path[8]}` records in deliberately numeric order; the output is the sorted
+    original record index for each descriptor. -/
+def ziskMptIndexedSortChangesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; la s3, itr_changes; li s4, 0\n" ++
+  ".Lmisprobe_load:\n" ++
+  "  beq s4, s1, .Lmisprobe_sort; slli t0, s4, 4; add t0, s2, t0; ld t1, 0(t0); addi t2, t0, 8; slli t3, s4, 5; slli t4, s4, 3; add t3, t3, t4; add t3, s3, t3; sd t2, 0(t3); sd t1, 8(t3); sd zero, 16(t3); sd zero, 24(t3); sd s4, 32(t3); addi s4, s4, 1; j .Lmisprobe_load\n" ++
+  ".Lmisprobe_sort:\n" ++
+  "  mv a0, s3; mv a1, s1; jal ra, mpt_indexed_sort_changes; li t0, 0xa0010000; sd a0, 0(t0); bnez a0, .Lmisprobe_halt; li s4, 0\n" ++
+  ".Lmisprobe_out:\n" ++
+  "  beq s4, s1, .Lmisprobe_halt; slli t1, s4, 5; slli t2, s4, 3; add t1, t1, t2; add t1, s3, t1; ld t2, 32(t1); slli t3, s4, 3; addi t3, t3, 8; add t3, t0, t3; sd t2, 0(t3); addi s4, s4, 1; j .Lmisprobe_out\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  ".Lmisprobe_halt:"
+
+def ziskMptIndexedSortChangesProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptIndexedSortChangesPrologue
+  dataAsm := ziskMptIndexedTrieRootSmallDataSection
 }
 
 end EvmAsm.Codegen
