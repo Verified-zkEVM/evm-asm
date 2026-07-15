@@ -220,7 +220,7 @@ def mptBoundedEncodeBranchFunction : String :=
   "  .globl mpt_bounded_encode_branch\n" ++
   "mpt_bounded_encode_branch:\n" ++
   "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; sd zero, 0(s2); li s3, 0; li s4, 1\n" ++
   ".Lmbeb_measure:\n" ++
   "  li t0, 16; beq s3, t0, .Lmbeb_prefix; slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s0, t0; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lmbeb_fail; beqz t0, .Lmbeb_empty_measure; beq t0, t1, .Lmbeb_hash_measure; add t1, s4, t0; bltu t1, s4, .Lmbeb_fail; mv s4, t1; j .Lmbeb_measure_next\n" ++
@@ -521,6 +521,28 @@ def mptBoundedSplitExtensionFunction : String :=
   ".Lmbse_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 128; ret\n"
 
+/-- Collapse a one-child state branch when its survivor is a leaf.  The
+    branch nibble is prepended to the leaf's decoded compact suffix before
+    re-encoding; this is the canonical MPT branch-elision rule.
+
+    ABI: `a0=branch frame`, `a1=survivor nibble`, `a2=branch depth`,
+    `a3,a4=witness`; returns 0 with the raw result or 1 when the survivor is
+    not a leaf (extension/branch collapse is handled separately). -/
+def mptBoundedCollapseBranchLeafFunction : String :=
+  "  .globl mpt_bounded_collapse_branch_leaf\n" ++
+  "mpt_bounded_collapse_branch_leaf:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgeu s2, t0, .Lmbcbl_fail; li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu s1, t0, .Lmbcbl_fail; slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); beqz t1, .Lmbcbl_fail; addi a0, t0, 8; mv a1, t1; mv a2, s3; mv a3, s4; addi t0, s2, 1; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t0, t0, t1; la t1, bsr_builder_frames; add s5, t1, t0; mv a4, s5; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbcbl_fail; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s5); li t1, 2; bne t0, t1, .Lmbcbl_fail\n" ++
+  "  li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; addi a1, t0, -1; mv a0, s5; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbcbl_fail; ld s6, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; addi t0, t0, -1; bgtu s6, t0, .Lmbcbl_fail; addi t0, s5, " ++ toString bsrMptFrameExtensionPathOffset ++ "; add t1, t0, s6\n" ++
+  ".Lmbcbl_shift:\n" ++
+  "  beqz s6, .Lmbcbl_prefix; addi t1, t1, -1; lbu t2, 0(t1); addi t3, t1, 1; sb t2, 0(t3); addi s6, s6, -1; j .Lmbcbl_shift\n" ++
+  ".Lmbcbl_prefix:\n" ++
+  "  sb s1, 0(t0); ld t1, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); addi t1, t1, 1; sd t1, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); addi a0, s5, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv a1, t1; ld a2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s5); ld a3, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s5); la a4, bsr_builder_node; addi a5, sp, 80; la a6, bsr_builder_result_ref; la a7, bsr_builder_result_len; jal ra, mpt_bounded_encode_leaf_ref; bnez a0, .Lmbcbl_fail; li a0, 0; j .Lmbcbl_ret\n" ++
+  ".Lmbcbl_fail:\n  li a0, 1\n" ++
+  ".Lmbcbl_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 96; ret\n"
+
 /-- Rebuild one isolated leaf of the bounded frontier.  Exact replacement
     re-encodes the final value; an insertion with a divergent path is split
     into two suffix leaves and an optional shared-prefix extension.  A delete
@@ -575,9 +597,10 @@ def mptBoundedRebuildSubtreeFunction : String :=
   ".Lmbrs_copy_ref:\n  beqz t2, .Lmbrs_next; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbrs_copy_ref\n" ++
   ".Lmbrs_next:\n  addi s7, s7, 1; j .Lmbrs_child\n" ++
   ".Lmbrs_encode:\n  li t0, 0; li t1, 0\n" ++
-  ".Lmbrs_count:\n  li t2, 16; beq t1, t2, .Lmbrs_count_done; slli t2, t1, 5; slli t3, t1, 3; add t2, t2, t3; add t2, s0, t2; ld t2, 0(t2); beqz t2, .Lmbrs_count_next; addi t0, t0, 1\n" ++
+  ".Lmbrs_count:\n  li t2, 16; beq t1, t2, .Lmbrs_count_done; slli t2, t1, 5; slli t3, t1, 3; add t2, t2, t3; add t2, s0, t2; ld t2, 0(t2); beqz t2, .Lmbrs_count_next; sd t1, 80(sp); addi t0, t0, 1\n" ++
   ".Lmbrs_count_next:\n  addi t1, t1, 1; j .Lmbrs_count\n" ++
-  ".Lmbrs_count_done:\n  li t1, 2; bltu t0, t1, .Lmbrs_deleted; la a1, bsr_builder_node; addi a2, sp, 72; mv a0, s0; jal ra, mpt_bounded_encode_branch; bnez a0, .Lmbrs_fail; la a0, bsr_builder_node; ld a1, 72(sp); la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_node_ref; j .Lmbrs_ret\n" ++
+  ".Lmbrs_count_done:\n  li t1, 2; bgeu t0, t1, .Lmbrs_keep_branch; beqz t0, .Lmbrs_deleted; ld a1, 80(sp); mv a0, s0; mv a2, s4; mv a3, s5; mv a4, s6; jal ra, mpt_bounded_collapse_branch_leaf; j .Lmbrs_ret\n" ++
+  ".Lmbrs_keep_branch:\n  la a1, bsr_builder_node; addi a2, sp, 72; mv a0, s0; jal ra, mpt_bounded_encode_branch; bnez a0, .Lmbrs_fail; la a0, bsr_builder_node; ld a1, 72(sp); la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_node_ref; j .Lmbrs_ret\n" ++
   ".Lmbrs_deleted:\n  li a0, 2; j .Lmbrs_ret\n" ++
   ".Lmbrs_fail:\n  li a0, 1\n" ++
   ".Lmbrs_ret:\n" ++
@@ -653,6 +676,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
     mptBoundedFramePathMatchFunction ++ "\n" ++ mptBoundedSplitLeafFunction ++ "\n" ++
     mptBoundedSplitExtensionFunction ++ "\n" ++
+    mptBoundedCollapseBranchLeafFunction ++ "\n" ++
     mptBoundedRebuildExactLeafFunction ++ "\n" ++
     mptBoundedRebuildSubtreeFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction ++ "\n" ++ mptBoundedStateRootFunction ++ "\n" ++
