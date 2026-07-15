@@ -118,8 +118,29 @@ verdict-routing claim.
 
 ### NodeDb route audit
 
-The routed state-root call is `mpt_bounded_state_root`; there is no remaining
-`mpt_state_root_ins` call in `BlockVerdictStateRoot.lean`.  Its resolver uses
-only the immutable witness and its rebuilding helpers retain raw child
-references without appending to the mutable NodeDb.  The legacy symbols may
-remain emitted for other, un-routed programs, but are not on this verdict path.
+The routed outer account-root call is `mpt_bounded_state_root`; there is no
+remaining `mpt_state_root_ins` call in `BlockVerdictStateRoot.lean`. Its
+resolver uses only the immutable witness and its rebuilding helpers retain raw
+child references without appending to the mutable NodeDb.
+
+This does **not** retire the legacy NodeDb from the full verdict path. Two live
+callers remain and make the P0 arena-overflow issue `qgecl` open:
+
+* `BalAccountApplyPostFields` replays one account's storage descriptors with
+  `mpt_state_root_ins`, then its deletes with `mpt_delete_acc`. One account
+  plus 14,564 distinct storage slots fits in 29.13M of the 200M BAL gas limit.
+  A valid 532-byte all-hashed root branch is re-appended for each update at a
+  576-byte NodeDb stride, so those updates alone require 8,388,864 bytes,
+  exceeding the 8 MiB arena.
+* `mpt_indexed_trie_root_small` falls back to `mpt_state_root_ins` for a
+  transaction root with at least 129 values. The fallback accepts large
+  transaction values; 1,024 approximately-8,150-byte values fit below the
+  8 MiB RLP block-size limit, while their encoded leaf NodeDb records alone
+  exceed 8 MiB. Its `mset_node` caller buffer is only 2,048 bytes although the
+  leaf encoder accepts values up to 16,000 bytes, an earlier overflow risk.
+
+Withdrawals are SSZ-bounded to 16 entries and beacon changes to at most two
+descriptors, so those two callers remain below the arena bound. The sd13v
+account-root builder is therefore a validated partial improvement, not a
+complete qgecl closure. A maintainer scope decision is required before adding
+a bounded storage/indexed-root replacement or merging verdict routing.
