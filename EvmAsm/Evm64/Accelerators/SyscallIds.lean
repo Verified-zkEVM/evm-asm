@@ -30,7 +30,7 @@
   Refs: parent beads task `evm-asm-nr2sk`, slice `evm-asm-yv3qz`.
 -/
 
-import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.Word
 
 namespace EvmAsm
 namespace Accelerators

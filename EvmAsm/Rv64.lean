@@ -7,6 +7,7 @@
 -- SyscallSpecs transitively imports Basic, Instructions, Program, SepLogic,
 -- Execution, CPSSpec, GenericSpecs, InstructionSpecs, ByteOps, HalfwordOps,
 -- WordOps, and Tactics.SpecDb. ControlFlow also covers Program directly.
+import EvmAsm.Rv64.Word
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow

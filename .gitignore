@@ -18,3 +18,4 @@ cycles-history.jsonl
 docs/agents/phase*-bootstrap.md
 docs/agents/rollout-complete.md
 build.log
+log.txt
