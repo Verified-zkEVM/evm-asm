@@ -971,6 +971,31 @@ def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   dataAsm     := ziskMptIndexedTrieRootSmallDataSection
 }
 
+/-! Same host value-array ABI as the legacy indexed-root probe, routed through
+    the bounded adapter. -/
+def ziskMptIndexedTrieRootBoundedValuesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; slli s2, s0, 3; add s2, s1, s2; la s3, itr_value_descs; li s4, 0\n" ++
+  ".Lmitrbvp_desc:\n" ++
+  "  beq s4, s0, .Lmitrbvp_call; slli t1, s4, 3; add t2, s1, t1; ld t3, 0(t2); slli t4, s4, 4; add t5, s3, t4; sd s2, 0(t5); sd t3, 8(t5); add s2, s2, t3; addi s2, s2, 7; andi s2, s2, -8; addi s4, s4, 1; j .Lmitrbvp_desc\n" ++
+  ".Lmitrbvp_call:\n" ++
+  "  la a0, itr_value_descs; mv a1, s0; li a2, 0xa0010000; jal ra, mpt_indexed_trie_root_bounded_from_values; li t0, 0xa0010020; sd a0, 0(t0); j .Lmitrbvp_done\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++ rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++ mptExtensionNodeEncodeFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n" ++
+  mptBoundedEncodeBranchFunction ++ "\n" ++ mptBoundedEncodeExtensionFunction ++ "\n" ++
+  mptIndexedTrieRootOneLeafFunction ++ "\n" ++ mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++ mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++ mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n.Lmitrbvp_done:"
+
+def ziskMptIndexedTrieRootBoundedValuesProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptIndexedTrieRootBoundedValuesPrologue
+  dataAsm := ziskMptIndexedTrieRootSmallDataSection
+}
+
 
 /-! Probe for `mpt_indexed_large_leaf_hash`.
 

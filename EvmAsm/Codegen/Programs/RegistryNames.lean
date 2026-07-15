@@ -82,6 +82,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_indexed_stream_leaf_hash",
    "zisk_mpt_indexed_sort_changes",
    "zisk_mpt_indexed_trie_root_bounded",
+   "zisk_mpt_indexed_trie_root_bounded_values",
    "zisk_block_validate_receipts_root_indexed",
    "zisk_block_validate_receipts_consensus_list",
    "zisk_mpt_delete_walk_db",
