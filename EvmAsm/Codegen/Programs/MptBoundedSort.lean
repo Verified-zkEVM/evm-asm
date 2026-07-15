@@ -23,6 +23,7 @@ the routine checks both the change and stack bounds before every write.
 ABI: `a0 = descriptors`, `a1 = count`; returns `a0 = 0` on success, `1` on a
 malformed nibble or capacity violation. -/
 def mptBoundedSortChangesFunction : String :=
+  "  .globl mpt_bounded_sort_changes\n" ++
   "mpt_bounded_sort_changes:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++

@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.MptBoundedSort
 -- .63.1.6.2.3 (slice B): full-receipt encoder + combined root+bloom validator
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptList
@@ -343,6 +344,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  mptBoundedSortChangesFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++

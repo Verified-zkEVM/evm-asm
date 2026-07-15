@@ -385,6 +385,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   committedStorageLatestValueFunction ++ "\n" ++
   committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
   committedStorageChunkedLatestValueFunction ++ "\n" ++
+  mptBoundedSortChangesFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
