@@ -216,7 +216,7 @@ def schemeAAnchors : List GuestRegion :=
     `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
     (evm-asm-ck36u), and by `0x4` for the settle-reverted-dispatcher-state-gas
     fix (`fix/dispatcher-revert-state-gas`). -/
-def textSizeBytes : Nat := 0x59240
+def textSizeBytes : Nat := 0x5ae60
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -232,7 +232,7 @@ def textSizeBytes : Nat := 0x59240
 def dataSizeBytes : Nat := 0x5350
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. -/
-def bssSizeBytes : Nat := 0x1a320e60
+def bssSizeBytes : Nat := 0x1a339680
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
