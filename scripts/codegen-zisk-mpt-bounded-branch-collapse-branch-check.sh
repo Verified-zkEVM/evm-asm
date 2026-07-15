@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Deleting one root child must wrap a surviving branch in a one-nibble extension.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ZISKEMU="${ZISKEMU:-$(command -v ziskemu || true)}"; [[ -n "$ZISKEMU" ]] || exit 1
+workdir="$(mktemp -d)"; trap 'rm -rf "$workdir"' EXIT
+lake build codegen >/dev/null
+lake exe codegen --program zisk_mpt_bounded_state_root --halt linux93 -o "$workdir/root" >/dev/null
+uv run --directory execution-specs --quiet python3 - "$workdir" <<'PY'
+from ethereum.crypto.hash import keccak256
+import pathlib,struct,sys
+r=pathlib.Path(sys.argv[1])
+def leaf(n): return b'\xe2\xa0'+bytes([0x30|n])+b'\0'*31+b'\x80'
+def branch(xs):
+ p=b''.join(b'\xa0'+x if x else b'\x80' for x in xs)+b'\x80';return b'\xf8'+bytes([len(p)])+p
+deleted=leaf(0); a,b=leaf(2),leaf(3); child=branch([None,None,keccak256(a),keccak256(b)]+[None]*12)
+old=branch([keccak256(deleted),keccak256(child)]+[None]*14)
+expected=b'\xe2\x11\xa0'+keccak256(child)
+nodes=[old,deleted,child,a,b]; offs=[];p=4*len(nodes)
+for n in nodes:offs.append(p);p+=len(n)
+sec=b''.join(struct.pack('<I',x) for x in offs)+b''.join(nodes)
+blob=struct.pack('<Q',len(sec))+keccak256(old)+b'\0'*64+struct.pack('<Q',0)+b'\0'*8+struct.pack('<Q',2)+sec
+(r/'input').write_bytes(blob+b'\0'*(-len(blob)%8));(r/'expected').write_bytes(keccak256(expected))
+PY
+"$ZISKEMU" -e "$workdir/root.elf" -i "$workdir/input" -o "$workdir/output" -n 5000000 >/dev/null </dev/null
+python3 - "$workdir" <<'PY'
+import pathlib,struct,sys
+r=pathlib.Path(sys.argv[1]);o=(r/'output').read_bytes();assert struct.unpack_from('<Q',o)[0]==0;assert o[8:40]==(r/'expected').read_bytes(),o[8:40].hex();print('PASS: bounded builder collapses a branch to its branch survivor')
+PY
