@@ -398,6 +398,25 @@ def mptBoundedDecodeLeafFunction : String :=
   ".Lmbdl_fail:\n  li a0, 1\n" ++
   ".Lmbdl_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
+/-- Populate a non-branch frontier frame's bounded compact-path payload.
+    Extensions use the payload's second item as a raw child reference; leaves
+    use it as the account value slice. Both forms fit the shared tail layout,
+    and the caller dispatches on the retained node kind before interpreting
+    those two words. -/
+def mptBoundedDecodeFramePayloadFunction : String :=
+  "  .globl mpt_bounded_decode_frame_payload\n" ++
+  "mpt_bounded_decode_frame_payload:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; ld s2, " ++ toString bsrMptFrameNodeKindOffset ++ "(s0); li t0, 1; beq s2, t0, .Lmbdfp_extension; li t0, 2; beq s2, t0, .Lmbdfp_leaf; j .Lmbdfp_fail\n" ++
+  ".Lmbdfp_extension:\n" ++
+  "  ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s0); ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(s0); mv a2, s1; addi a3, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; addi a4, s0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "; addi a5, s0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "; addi a6, s0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "; jal ra, mpt_bounded_decode_extension; bnez a0, .Lmbdfp_fail; li a0, 0; j .Lmbdfp_ret\n" ++
+  ".Lmbdfp_leaf:\n" ++
+  "  ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s0); ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(s0); mv a2, s1; addi a3, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; addi a4, s0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "; addi a5, s0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "; addi a6, s0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "; jal ra, mpt_bounded_decode_leaf; bnez a0, .Lmbdfp_fail; li a0, 0; j .Lmbdfp_ret\n" ++
+  ".Lmbdfp_fail:\n  li a0, 1\n" ++
+  ".Lmbdfp_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
+
 /-- Re-encode one bounded extension frame. The frame stores a *raw* child
     reference, whereas `mpt_extension_node_encode` expects an RLP item: a
     32-byte hash therefore receives its canonical `0xa0` string prefix in a
@@ -439,7 +458,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedOpenChildFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
-    mptBoundedDecodeLeafFunction ++ "\n" ++
+    mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
