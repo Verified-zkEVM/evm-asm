@@ -404,6 +404,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_bounded_open_root_frame" => some ziskMptBoundedOpenRootFrameProbeUnit
   | "zisk_mpt_bounded_partition_frame" => some ziskMptBoundedPartitionFrameProbeUnit
   | "zisk_mpt_bounded_node_ref" => some ziskMptBoundedNodeRefProbeUnit
+  | "zisk_mpt_bounded_encode_branch" => some ziskMptBoundedEncodeBranchProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit

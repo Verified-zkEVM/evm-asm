@@ -204,6 +204,39 @@ def mptBoundedNodeRefFunction : String :=
   ".Lmbnr_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
 
+/-! ## `mpt_bounded_encode_branch`
+
+Re-encode a branch from the sixteen canonical raw references retained in one
+fixed frame.  State-trie keys are all 64 nibbles, so a state-trie branch never
+has a value at its own prefix; its seventeenth slot is therefore canonically
+empty.  This is a deliberate state-root-only primitive, not a general MPT
+branch encoder.  It uses no mutable node database and writes at most the
+structural maximum `16 * 33 + 1 + 3 < 1024` bytes.
+
+ABI: `a0 = frame`, `a1 = output[1024]`, `a2 = u64 output length`; returns 0
+on success and 1 for malformed retained references. -/
+def mptBoundedEncodeBranchFunction : String :=
+  "  .globl mpt_bounded_encode_branch\n" ++
+  "mpt_bounded_encode_branch:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; sd zero, 0(s2); li s3, 0; li s4, 1\n" ++
+  ".Lmbeb_measure:\n" ++
+  "  li t0, 16; beq s3, t0, .Lmbeb_prefix; slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s0, t0; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lmbeb_fail; beqz t0, .Lmbeb_empty_measure; beq t0, t1, .Lmbeb_hash_measure; add t1, s4, t0; bltu t1, s4, .Lmbeb_fail; mv s4, t1; j .Lmbeb_measure_next\n" ++
+  ".Lmbeb_empty_measure:\n  addi s4, s4, 1; j .Lmbeb_measure_next\n" ++
+  ".Lmbeb_hash_measure:\n  addi s4, s4, 33\n" ++
+  ".Lmbeb_measure_next:\n  addi s3, s3, 1; j .Lmbeb_measure\n" ++
+  ".Lmbeb_prefix:\n  mv a0, s4; mv a1, s1; addi a2, sp, 56; jal ra, rlp_encode_list_prefix; bnez a0, .Lmbeb_fail; ld t0, 56(sp); add t1, s4, t0; li t2, " ++ toString bsrMptNodeMaxBytes ++ "; bgtu t1, t2, .Lmbeb_fail; add s5, s1, t0; li s3, 0\n" ++
+  ".Lmbeb_slot:\n" ++
+  "  li t0, 16; beq s3, t0, .Lmbeb_value; slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); addi t0, t0, 8; beqz t1, .Lmbeb_empty; li t2, 32; beq t1, t2, .Lmbeb_hash; mv t3, t0\n" ++
+  ".Lmbeb_inline_copy:\n  beqz t1, .Lmbeb_slot_next; lbu t4, 0(t3); sb t4, 0(s5); addi t3, t3, 1; addi s5, s5, 1; addi t1, t1, -1; j .Lmbeb_inline_copy\n" ++
+  ".Lmbeb_empty:\n  li t0, 128; sb t0, 0(s5); addi s5, s5, 1; j .Lmbeb_slot_next\n" ++
+  ".Lmbeb_hash:\n  li t2, 160; sb t2, 0(s5); addi s5, s5, 1; li t1, 32; mv t3, t0; j .Lmbeb_inline_copy\n" ++
+  ".Lmbeb_slot_next:\n  addi s3, s3, 1; j .Lmbeb_slot\n" ++
+  ".Lmbeb_value:\n  li t0, 128; sb t0, 0(s5); addi s5, s5, 1; sub t0, s5, s1; sd t0, 0(s2); li a0, 0; j .Lmbeb_ret\n" ++
+  ".Lmbeb_fail:\n  li a0, 1\n" ++
+  ".Lmbeb_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret\n"
+
 /-! ## `mpt_bounded_classify_node`
 
 Classify a node fetched from the immutable witness without involving any
@@ -287,7 +320,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
-    mptBoundedNodeRefFunction
+    mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
@@ -463,6 +496,25 @@ def ziskMptBoundedNodeRefProbeUnit : BuildUnit := {
   prologueAsm := ziskMptBoundedNodeRefPrologue ++ "\n" ++
     zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n.Lmbnrp_done:"
   dataAsm := ziskMptBoundedNodeRefDataSection
+}
+
+/-- Canonical branch reconstruction probe: its fixed frame contains empty,
+    inline-empty-list, and hashed `00..1f` references, followed by empty
+    children. -/
+def ziskMptBoundedEncodeBranchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, mbeb_frame; li t1, 1; sd t1, 40(t0); li t1, 192; sb t1, 48(t0); li t1, 32; sd t1, 80(t0); addi t2, t0, 88; li t3, 0\n" ++
+  ".Lmbebp_hash:\n  li t4, 32; beq t3, t4, .Lmbebp_call; sb t3, 0(t2); addi t2, t2, 1; addi t3, t3, 1; j .Lmbebp_hash\n" ++
+  ".Lmbebp_call:\n  la a0, mbeb_frame; li a1, 0xa0010010; li a2, 0xa0010008; jal ra, mpt_bounded_encode_branch; li t0, 0xa0010000; sd a0, 0(t0); j .Lmbebp_done"
+
+def ziskMptBoundedEncodeBranchDataSection : String :=
+  ".section .bss\n.balign 8\nmbeb_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
+
+def ziskMptBoundedEncodeBranchProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedEncodeBranchPrologue ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n.Lmbebp_done:"
+  dataAsm := ziskMptBoundedEncodeBranchDataSection
 }
 
 end EvmAsm.Codegen

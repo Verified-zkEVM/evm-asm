@@ -68,6 +68,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_bounded_open_root_frame",
    "zisk_mpt_bounded_partition_frame",
    "zisk_mpt_bounded_node_ref",
+   "zisk_mpt_bounded_encode_branch",
    "zisk_mpt_indexed_trie_root_small",
    "zisk_mpt_indexed_large_leaf_hash",
    "zisk_block_validate_receipts_root_indexed",
