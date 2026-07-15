@@ -11,6 +11,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.MptWitnessLookup
 
 namespace EvmAsm.Codegen
 
@@ -155,12 +156,34 @@ def mptBoundedCaptureBranchRefsFunction : String :=
   ".Lmbcr_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 64; ret\n"
 
+/-! ## `mpt_bounded_resolve_witness`
+
+The bounded builder's descent may resolve a 32-byte child hash only against
+the immutable pre-state witness.  This intentionally does *not* reuse
+`mpt_node_resolve`: that legacy helper probes the append-only NodeDb first,
+which is exactly the unbounded state the sd13v route must retire.
+
+ABI mirrors `mpt_node_resolve`: `a0 = witness`, `a1 = witness_len`, `a2 =
+hash`, `a3 = out absolute ptr`, `a4 = out len`; returns `0` on found and `1`
+on a missing/malformed witness entry. -/
+def mptBoundedResolveWitnessFunction : String :=
+  "  .globl mpt_bounded_resolve_witness\n" ++
+  "mpt_bounded_resolve_witness:\n" ++
+  "  addi sp, sp, -72\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; sd zero, 0(s3); sd zero, 0(s4)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, sp, 48; addi a4, sp, 56; jal ra, witness_lookup_by_hash; bnez a0, .Lmbw_fail\n" ++
+  "  ld t0, 48(sp); add t0, s0, t0; sd t0, 0(s3); ld t0, 56(sp); sd t0, 0(s4); li a0, 0; j .Lmbw_ret\n" ++
+  ".Lmbw_fail:\n  li a0, 1\n" ++
+  ".Lmbw_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
 def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
-    mptBoundedCaptureBranchRefsFunction
+    mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -195,11 +218,13 @@ def ziskMptBoundedSortDataSection : String :=
   ".balign 8\n" ++
   "mbs_changes:\n  .zero 640\n" ++
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
-  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes)
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  ziskWitnessLookupByHashDataSection
 
 def ziskMptBoundedSortProbeUnit : BuildUnit := {
   body := NOP
   prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsp_done:"
   dataAsm := ziskMptBoundedSortDataSection
@@ -231,6 +256,24 @@ def ziskMptBoundedCaptureBranchRefsProbeUnit : BuildUnit := {
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction
   dataAsm := ziskMptBoundedCaptureBranchRefsDataSection
+}
+
+/-- Probe the witness-only resolver with the same compact SSZ-list input shape
+    as `zisk_witness_lookup_by_hash`; the output pointer is converted back to
+    a section-relative offset for a stable regression oracle. -/
+def ziskMptBoundedResolveWitnessPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; addi s3, s0, 48\n" ++
+  "  mv a0, s3; mv a1, s1; mv a2, s2; li a3, 0xa0010008; li a4, 0xa0010010; jal ra, mpt_bounded_resolve_witness; mv s4, a0\n" ++
+  "  li t0, 0xa0010000; sd s4, 0(t0); bnez s4, .Lmbwr_done; li t0, 0xa0010008; ld t1, 0(t0); sub t1, t1, s3; sd t1, 0(t0)\n" ++
+  ".Lmbwr_done:"
+
+def ziskMptBoundedResolveWitnessProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedResolveWitnessPrologue ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
+    mptBoundedResolveWitnessFunction
+  dataAsm := ziskWitnessLookupByHashDataSection
 }
 
 end EvmAsm.Codegen

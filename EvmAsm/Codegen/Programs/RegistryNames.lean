@@ -63,6 +63,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_state_root_ins",
    "zisk_mpt_bounded_sort",
    "zisk_mpt_bounded_capture_branch_refs",
+   "zisk_mpt_bounded_resolve_witness",
    "zisk_mpt_indexed_trie_root_small",
    "zisk_mpt_indexed_large_leaf_hash",
    "zisk_block_validate_receipts_root_indexed",
