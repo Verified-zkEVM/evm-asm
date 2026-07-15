@@ -27,7 +27,7 @@ set_option maxRecDepth 8000
 
 /-- Discharge one `CodeReq.singleton A ins → cr` membership fact for the withdrawals
     program via `ofProg_mem_at` composed with the caller `hcr_prog`. -/
-private theorem hewrMem {cr : CodeReq} (prog : List Instr)
+theorem hewrMem {cr : CodeReq} (prog : List Instr)
     (hprog : prog = Codegen.headerExtractWithdrawalsRoot_prog)
     (hcr_prog : ∀ a i, hewrCode a = some i → cr a = some i)
     (A : Word) (k : Nat) (ins : Instr)
