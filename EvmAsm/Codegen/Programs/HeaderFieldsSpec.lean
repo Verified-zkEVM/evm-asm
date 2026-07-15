@@ -1212,6 +1212,60 @@ private theorem hesrCopyThenFinish
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) s
 
+/-! ## Success-tail: the a0=0 continuation ([47]-[58])
+
+    The length-check not-taken (`len = 32`) arm: reload the offset and form the
+    content pointer (`hesrOffsetLoadAdd`), then copy the 32 content bytes and
+    return with `a0 = 0` (`hesrCopyThenFinish`).  Entry `x6 = 32` comes from the
+    reloaded length on the success path. -/
+private theorem hesrSuccessContinue
+    (fo listBase outPtr newSp v5old v28old x29old v1 v9 a0old : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : fo.toNat + 32 ≤ headerBytes.length)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (4 + (6 * 32 + (2 + 6))) (hesrBase + 188) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      ((.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) ** (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo) **
+       (.x6 ↦ᵣ BitVec.ofNat 64 32) ** (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+       (.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved **
+       Fr)
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+        (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+       ((.x6 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (fo.toNat + 32))) **
+        regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+        bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 fo.toNat 32) **
+        ((.x5 ↦ᵣ hesrOffAddr) ** (hesrOffAddr ↦ₘ fo) ** Fr))) := by
+  -- [47]-[50] reload offset + form content pointer.
+  have hola := hesrOffsetLoadAdd fo listBase v5old v28old
+  have holaF := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ BitVec.ofNat 64 32) ** (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+     (.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+    (by unfold savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hola
+  -- [51]-[58] copy + finish, framed by the offset residual + Fr.
+  have hctf := hesrCopyThenFinish fo listBase outPtr newSp x29old v1 v9 a0old saved
+    headerBytes outBytes ((.x5 ↦ᵣ hesrOffAddr) ** (hesrOffAddr ↦ₘ fo) ** Fr)
+    (by repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+  rw [hesr_ofNat_toNat fo] at hctf
+  -- compose
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) holaF hctf
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s
+
+#print axioms hesrSuccessContinue
 #print axioms hesrCopyThenFinish
 #print axioms hesrLenLoad
 #print axioms hesrOffsetLoadAdd
