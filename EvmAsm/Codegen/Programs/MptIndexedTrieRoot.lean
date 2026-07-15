@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
@@ -207,6 +208,53 @@ def mptIndexedStreamLeafHashFunction : String :=
   "  beqz a1, .Lmislh_absorb_ret; lbu t0, 0(a0); add t1, s0, s6; lbu t2, 0(t1); xor t2, t2, t0; sb t2, 0(t1); addi a0, a0, 1; addi a1, a1, -1; addi s6, s6, 1; li t3, 136; bne s6, t3, .Lmislh_absorb; sd a0, 160(sp); sd a1, 168(sp); mv a0, s0; .4byte 0x80052073; ld a0, 160(sp); ld a1, 168(sp); li s6, 0; j .Lmislh_absorb\n" ++
   ".Lmislh_absorb_ret:\n" ++
   "  ret"
+
+/-! ## `mpt_indexed_sort_changes` -- lexicographic MSD sort for RLP indices
+
+    Indexed trie keys are RLP encodings, not numeric byte strings: in
+    particular `rlp(0)=0x80` sorts after 127 and before 128.  The bounded
+    indexed builder therefore sorts the generated nibble paths before its
+    depth-first construction.  Descriptors have the same 40-byte layout as
+    the state-root builder (`path, path_len, value, value_len, mode`), but
+    paths are 2, 4, or 6 nibbles long.  A key that ends at a partition depth
+    is necessarily a singleton for canonical RLP integer keys, so no
+    terminator bucket is needed.
+
+    Both the descriptor count and the pending range stack are bounded by the
+    explicit gas-derived entry capacity / maximum key depth. -/
+def mptIndexedSortChangesFunction : String :=
+  "mpt_indexed_sort_changes:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  li t0, " ++ toString itrIndexedEntryCapacity ++ "; bgtu a1, t0, .Lmis_fail; mv s0, a0; mv s1, a1; li s4, 0\n" ++
+  ".Lmis_validate_rec:\n" ++
+  "  beq s4, s1, .Lmis_validated; slli t0, s4, 5; slli t1, s4, 3; add t0, t0, t1; add t0, s0, t0; ld t2, 0(t0); ld t3, 8(t0); li t4, 2; bltu t3, t4, .Lmis_fail; li t4, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu t3, t4, .Lmis_fail; andi t4, t3, 1; bnez t4, .Lmis_fail; li s5, 0\n" ++
+  ".Lmis_validate_nibble:\n" ++
+  "  beq s5, t3, .Lmis_validate_next; add t4, t2, s5; lbu t5, 0(t4); li t4, 16; bgeu t5, t4, .Lmis_fail; addi s5, s5, 1; j .Lmis_validate_nibble\n" ++
+  ".Lmis_validate_next:\n" ++
+  "  addi s4, s4, 1; j .Lmis_validate_rec\n" ++
+  ".Lmis_validated:\n" ++
+  "  la s2, itr_sort_ranges; li s3, 0; beqz s1, .Lmis_ok; sd zero, 0(s2); sd s1, 8(s2); sd zero, 16(s2); sd zero, 24(s2); li s3, 1\n" ++
+  ".Lmis_pop:\n" ++
+  "  beqz s3, .Lmis_ok; addi s3, s3, -1; slli t0, s3, 5; add t0, s2, t0; ld s4, 0(t0); ld s5, 8(t0); ld s6, 16(t0); addi t1, s4, 1; bgeu t1, s5, .Lmis_pop; li t1, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgeu s6, t1, .Lmis_pop; mv s7, s4; li t6, 0\n" ++
+  ".Lmis_digit:\n" ++
+  "  li t0, 16; beq t6, t0, .Lmis_pop; mv t1, s7\n" ++
+  ".Lmis_scan:\n" ++
+  "  beq t1, s5, .Lmis_group; slli t0, t1, 5; slli t2, t1, 3; add t0, t0, t2; add t0, s0, t0; ld t2, 0(t0); ld t3, 8(t0); bgeu s6, t3, .Lmis_fail; add t2, t2, s6; lbu t3, 0(t2); li t4, 16; bgeu t3, t4, .Lmis_fail; bne t3, t6, .Lmis_scan_next; beq t1, s7, .Lmis_scan_match; slli t2, s7, 5; slli t3, s7, 3; add t2, t2, t3; add t2, s0, t2; la t3, itr_sort_scratch; li t4, 5\n" ++
+  ".Lmis_swap:\n" ++
+  "  ld t5, 0(t0); sd t5, 0(t3); ld t5, 0(t2); sd t5, 0(t0); ld t5, 0(t3); sd t5, 0(t2); addi t0, t0, 8; addi t2, t2, 8; addi t3, t3, 8; addi t4, t4, -1; bnez t4, .Lmis_swap\n" ++
+  ".Lmis_scan_match:\n" ++
+  "  addi s7, s7, 1\n" ++
+  ".Lmis_scan_next:\n" ++
+  "  addi t1, t1, 1; j .Lmis_scan\n" ++
+  ".Lmis_group:\n" ++
+  "  addi t0, s4, 1; bgeu t0, s7, .Lmis_digit_next; li t0, " ++ toString itrIndexedSortRangeStackCapacity ++ "; bgeu s3, t0, .Lmis_fail; slli t0, s3, 5; add t0, s2, t0; sd s4, 0(t0); sd s7, 8(t0); addi t1, s6, 1; sd t1, 16(t0); sd zero, 24(t0); addi s3, s3, 1\n" ++
+  ".Lmis_digit_next:\n" ++
+  "  mv s4, s7; addi t6, t6, 1; j .Lmis_digit\n" ++
+  ".Lmis_fail:\n  li a0, 1; j .Lmis_ret\n" ++
+  ".Lmis_ok:\n  li a0, 0\n" ++
+  ".Lmis_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret"
 
 /-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
 
