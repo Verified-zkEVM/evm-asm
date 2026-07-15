@@ -50,10 +50,13 @@ def bsrMptSortRangeFrameBytes : Nat := 32
 /-- A Patricia trie has at most one active construction frame per consumed key
     nibble plus its root frame.  This is depth-derived, not input-count-derived. -/
 def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
-/-- A builder frame records one Patricia depth, its input range, and its
-    encoded-child bookkeeping.  It is deliberately fixed-size and its array is
-    depth-bounded; it is never indexed by the number of untrusted changes. -/
-def bsrMptBuilderFrameBytes : Nat := 64
+/-- A builder frame records one Patricia depth, its input range, and all 17
+    canonical child references (16 branch children plus the value slot).  Each
+    reference may be an inline RLP item or a 33-byte hash reference, so this
+    deliberately reserves a full 1 KiB frame rather than pretending that a
+    handful of scalar words is enough.  The 65-frame array remains bounded by
+    key depth only; it is never indexed by the number of untrusted changes. -/
+def bsrMptBuilderFrameBytes : Nat := 1024
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
