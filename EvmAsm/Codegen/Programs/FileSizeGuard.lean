@@ -21,9 +21,6 @@ partial def collectLeanFiles (root : System.FilePath) : IO (Array System.FilePat
     else
       pure acc
 
-def registryHub : System.FilePath :=
-  System.FilePath.mk "EvmAsm/Codegen/Programs.lean"
-
 def programsDir : System.FilePath :=
   System.FilePath.mk "EvmAsm/Codegen/Programs"
 
@@ -31,23 +28,21 @@ def hardCap : Nat := 1500
 
 /-! ## File-size guard
 
-    Hard cap of 1500 lines on `Programs.lean` and every sibling under
-    `EvmAsm/Codegen/Programs/`, to keep the registry hub and the extracted
-    submodules from spiralling. When this guard trips, split a cluster of
-    `*Function` / `zisk*` defs into a new or existing submodule and import it
-    from `Programs.lean`.
+    Hard cap of 1500 lines on every module under `EvmAsm/Codegen/Programs/`,
+    to keep the extracted submodules from spiralling. When this guard trips,
+    split a cluster of `*Function` / `zisk*` defs into a new or existing
+    submodule under `EvmAsm/Codegen/Programs/`.
 
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 #eval show IO Unit from do
   let programFiles ← collectLeanFiles programsDir
-  let paths := #[registryHub] ++ programFiles
-  for path in paths do
+  for path in programFiles do
     let contents ← IO.FS.readFile path
     let lineCount := (contents.splitOn "\n").length
     if lineCount > hardCap then
       throw <| IO.userError <|
         s!"{path} has {lineCount} lines; hard cap is {hardCap}. " ++
         "Extract a helper cluster into a new submodule under " ++
-        "EvmAsm/Codegen/Programs/ and import it from Programs.lean."
+        "EvmAsm/Codegen/Programs/ and import it from the relevant umbrella."
 
 end EvmAsm.Codegen.Programs.FileSizeGuard
