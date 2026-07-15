@@ -84,6 +84,12 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
+import EvmAsm.Codegen.Programs.HeaderFieldsSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
