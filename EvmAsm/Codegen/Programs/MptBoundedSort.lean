@@ -417,6 +417,20 @@ def mptBoundedDecodeFramePayloadFunction : String :=
   ".Lmbdfp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
 
+/-- Compare one final descriptor key with a decoded compact-path frame at a
+    specific state-key depth. `0` means the entire frame path matches, `1`
+    means a legitimate divergence (the caller must split rather than reject),
+    and `2` means malformed descriptor/frame bounds. -/
+def mptBoundedFramePathMatchFunction : String :=
+  "  .globl mpt_bounded_frame_path_match\n" ++
+  "mpt_bounded_frame_path_match:\n" ++
+  "  ld t0, 8(a0); li t1, " ++ toString bsrMptKeyNibbles ++ "; bne t0, t1, .Lmbfpm_bad; ld t0, 0(a0); ld t1, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(a2); beqz t1, .Lmbfpm_bad; li t2, " ++ toString bsrMptKeyNibbles ++ "; bgtu t1, t2, .Lmbfpm_bad; add t2, a1, t1; li t3, " ++ toString bsrMptKeyNibbles ++ "; bgtu t2, t3, .Lmbfpm_bad; add t0, t0, a1; addi t2, a2, " ++ toString bsrMptFrameExtensionPathOffset ++ "\n" ++
+  ".Lmbfpm_loop:\n" ++
+  "  beqz t1, .Lmbfpm_match; lbu t3, 0(t0); lbu t4, 0(t2); bne t3, t4, .Lmbfpm_mismatch; addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lmbfpm_loop\n" ++
+  ".Lmbfpm_match:\n  li a0, 0; ret\n" ++
+  ".Lmbfpm_mismatch:\n  li a0, 1; ret\n" ++
+  ".Lmbfpm_bad:\n  li a0, 2; ret\n"
+
 /-- Re-encode one bounded extension frame. The frame stores a *raw* child
     reference, whereas `mpt_extension_node_encode` expects an RLP item: a
     32-byte hash therefore receives its canonical `0xa0` string prefix in a
@@ -459,6 +473,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
+    mptBoundedFramePathMatchFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 

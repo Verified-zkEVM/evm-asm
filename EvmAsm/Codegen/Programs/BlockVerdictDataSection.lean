@@ -141,6 +141,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- reduced to raw references in their parent frame, so construction never
   -- needs one node-sized allocation per descriptor or per depth.
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  -- One transient raw result is sufficient for depth-first unwinding. Parents
+  -- immediately copy it into their fixed frame slot before visiting a sibling.
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\n" ++
+  "bsr_builder_result_len:\n  .zero 8\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   "bsr_storage_access_path_count:\n  .zero 8\n" ++
