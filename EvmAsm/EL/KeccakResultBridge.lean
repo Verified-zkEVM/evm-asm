@@ -7,7 +7,7 @@
 
 import EvmAsm.EL.RLP.Basic
 import EvmAsm.EL.WorldState
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 
 namespace EvmAsm.EL
 

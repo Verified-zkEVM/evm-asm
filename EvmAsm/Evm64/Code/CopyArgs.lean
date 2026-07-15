@@ -5,7 +5,7 @@
   (GH #107 / GH #118).
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 import EvmAsm.Evm64.MemoryGas
 
 namespace EvmAsm.Evm64
