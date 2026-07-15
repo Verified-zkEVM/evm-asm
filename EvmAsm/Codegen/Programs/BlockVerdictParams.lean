@@ -12,21 +12,89 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 
 namespace EvmAsm.Codegen
 
+/-- Amsterdam's EIP-7928 `GasCosts.BLOCK_ACCESS_LIST_ITEM`.  This is the
+    proven lower-bound divisor for an input-originated *distinct final state
+    change*: `validate_block_access_list_gas_limit` charges one 2,000-gas BAL
+    item per account and one per distinct storage slot (storage changes and
+    reads are de-duplicated by slot).  It is deliberately not inferred from an
+    EVM `SSTORE` price: BAL is the consensus-level accounting rule that bounds
+    the final state-change input set. -/
 def bsrBalGasCost : Nat := 2000
-/-- Static BAL/state replay arena capacity, sized for the Amsterdam 200M
-    block-gas target: `bal_items <= block_gas_limit / 2000` = 100,000 items at
-    200,000,000 gas. (The former 500,000 value was the 1G worst case, which is
-    out of scope — it cost ~349 MB of the fixed 512 MiB ziskemu RAM window.)
-    High declared block gas is not itself a layout error: the guest first
-    applies Amsterdam's gas-derived BAL rule, then checks actual decoded item
-    counts against these arenas; blocks whose actual counts exceed the
-    capacities take the conservative bsr_fail path. -/
-def bsrMaxBalItems : Nat := 100000
+
+/-- Current Amsterdam resource target.  Keep capacities as functions of this
+    value: changing the supported block gas limit must resize every fixed
+    state-root builder arena rather than silently preserving a stale literal. -/
+def bsrStateRootBlockGasLimit : Nat := 200000000
+
+/-- Static BAL/state replay arena capacity.  EIP-7928 enforces
+    `bal_items <= block_gas_limit / BLOCK_ACCESS_LIST_ITEM`, so a 200M block
+    has at most 100,000 BAL items.  The later bounded builder accepts only the
+    normalized distinct final changes plus the explicitly bounded auxiliary
+    system/withdrawal changes below. -/
+def bsrMaxBalItems : Nat := bsrStateRootBlockGasLimit / bsrBalGasCost
 def bsrModeledSystemChanges : Nat := 2
 def bsrMaxWithdrawalChanges : Nat := 16
 def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
 def bsrMaxStateChanges : Nat :=
   bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+
+/-- State-trie keys are 32-byte hashes represented as 64 nibbles.  The sorted
+    builder uses an in-place MSD partitioner: its only sort workspace is a
+    bounded pending-range stack (one range per nibble fanout at each depth),
+    never attacker-sized bucket arrays. -/
+def bsrMptKeyNibbles : Nat := 64
+def bsrMptRadixFanout : Nat := 16
+def bsrMptSortRangeStackCapacity : Nat := bsrMptKeyNibbles * bsrMptRadixFanout
+def bsrMptSortRangeFrameBytes : Nat := 32
+
+/-- A Patricia trie has at most one active construction frame per consumed key
+    nibble plus its root frame.  This is depth-derived, not input-count-derived. -/
+def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
+/-- A builder frame records one Patricia depth, its input range, and all 17
+    canonical child references (16 branch children plus the value slot).  Each
+    reference may be an inline RLP item or a 33-byte hash reference, so this
+    deliberately reserves a full 1 KiB frame rather than pretending that a
+    handful of scalar words is enough.  The 65-frame array remains bounded by
+    key depth only; it is never indexed by the number of untrusted changes. -/
+def bsrMptBuilderFrameBytes : Nat := 1024
+/-- The SSZ `ByteList[1024]` envelope caps every pre-state witness node.  The
+    bounded builder also uses this as its maximum one-node re-encoding buffer;
+    larger reconstructed nodes are rejected before they can reach a frame. -/
+def bsrMptNodeMaxBytes : Nat := bsrMptBuilderFrameBytes
+/-- Canonical pre-state branch-child references are at most 32 raw bytes:
+    either an inline RLP encoding (<32) or a 32-byte hash.  A frontier frame
+    stores the raw reference length followed by the bytes, rounded to 40 B;
+    all sixteen branch children therefore consume 640 B of its 1 KiB budget.
+    The remaining 384 B is reserved for the range/depth bookkeeping and the
+    branch value/reference produced while unwinding. -/
+def bsrMptFrameChildRefBytes : Nat := 32
+def bsrMptFrameChildRefStride : Nat := 40
+def bsrMptFrameBranchChildrenBytes : Nat := bsrMptRadixFanout * bsrMptFrameChildRefStride
+/-- Frame metadata immediately follows the sixteen retained child references. -/
+def bsrMptFrameNodePtrOffset : Nat := bsrMptFrameBranchChildrenBytes
+def bsrMptFrameNodeLenOffset : Nat := bsrMptFrameNodePtrOffset + 8
+def bsrMptFrameNodeKindOffset : Nat := bsrMptFrameNodeLenOffset + 8
+/-- Sixteen `{start,end}` ranges for the current nibble partition live after
+    root metadata.  They are frame-local, so their capacity is depth-derived
+    rather than proportional to untrusted change count. -/
+def bsrMptFrameRangeTableOffset : Nat := bsrMptFrameNodeKindOffset + 8
+def bsrMptFrameRangeStride : Nat := 16
+def bsrMptFrameRangeTableBytes : Nat := bsrMptRadixFanout * bsrMptFrameRangeStride
+/-- Extension metadata occupies the frame tail after the branch-range table.
+    The decoded path is at most the remaining 64 state-key nibbles; it is
+    deliberately not the SSZ node's potentially 2047-nibble compact path. -/
+def bsrMptFrameExtensionPathLenOffset : Nat := bsrMptFrameRangeTableOffset + bsrMptFrameRangeTableBytes
+def bsrMptFrameExtensionChildPtrOffset : Nat := bsrMptFrameExtensionPathLenOffset + 8
+def bsrMptFrameExtensionChildLenOffset : Nat := bsrMptFrameExtensionChildPtrOffset + 8
+def bsrMptFrameExtensionPathOffset : Nat := bsrMptFrameExtensionChildLenOffset + 8
+def bsrMptFrameExtensionPathBytes : Nat := bsrMptKeyNibbles
+def bsrMptFrameUsedBytes : Nat := bsrMptFrameExtensionPathOffset + bsrMptFrameExtensionPathBytes
+/-- One shared node buffer is enough for depth-first construction: every
+    completed child is reduced to its raw reference before its next sibling is
+    built. This is independent of the gas-derived descriptor count. -/
+def bsrMptBuilderNodeScratchBytes : Nat := bsrMptNodeMaxBytes
+
+#guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
@@ -374,6 +442,13 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvResourceBlockGasLimit = 200000000
+#guard bsrStateRootBlockGasLimit = 200000000
+#guard bsrBalGasCost = 2000
+#guard bsrMaxBalItems = bsrStateRootBlockGasLimit / bsrBalGasCost
+#guard bsrMaxBalItems = 100000
+#guard bsrMaxStateChanges = 100018
+#guard bsrMptSortRangeStackCapacity = 1024
+#guard bsrMptBuilderFrameCapacity = 65
 #guard bvBlockLogMinGas = 375
 #guard bvBlockLogDataByteGas = 8
 #guard bvBlockLogFullDescTarget = 533333

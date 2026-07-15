@@ -213,44 +213,13 @@ def blockStateRootFunction : String :=
   ".Lbsr_bal_copy_system2935:\n  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_2935; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_system4788:\n  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_4788; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
-  "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_access_descriptors\n" ++
   ".Lbsr_bal_done:\n" ++
-  ".Lbsr_access_descriptors:\n" ++
-  "  la t0, " ++ runtimeAccessAccountOutcomeCountLabel ++ "; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lbsr_storage_access\n" ++
-  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a4, t3, t2\n" ++
-  "  la a5, bsr_access_paths\n" ++
-  "  la a0, " ++ runtimeAccessAccountOutcomeTableLabel ++ "; mv a1, t1\n" ++
-  "  la a2, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a3, 0(t0)\n" ++
-  "  la a6, bsr_access_count\n" ++
-  "  jal ra, bal_account_access_outcome_descriptors; bnez a0, .Lbsr_cons_account_access\n" ++
-  "  la t0, bsr_access_count; ld t0, 0(t0); add s1, s1, t0\n" ++
-  ".Lbsr_storage_access:\n" ++
-  "  la t0, evm_storage_access_outcome_count; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lbsr_withdrawals\n" ++
-  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  la t0, bsr_storage_access_window; li t2, 1; sd t2, 0(t0); sd zero, 8(t0); sd t1, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t0, bsr_storage_access_path_count; sd zero, 0(t0)\n" ++
-  "  li s0, 0\n" ++
-  ".Lbsr_storage_access_loop:\n" ++
-  "  la t0, bsr_changed_account_count; ld t6, 0(t0)\n" ++
-  "  beq s0, t6, .Lbsr_withdrawals\n" ++
-  "  slli t2, s0, 5; la t3, bsr_changed_accounts; add t4, t3, t2; la t3, bsr_storage_account_token; add t3, t3, t2\n" ++
-  "  sd zero, 0(t3); sw zero, 8(t3); li t5, 0\n" ++
-  ".Lbsr_storage_token_copy:\n" ++
-  "  li a0, 20; beq t5, a0, .Lbsr_storage_token_done\n" ++
-  "  add a0, t4, t5; lbu a1, 0(a0); addi a0, t5, 12; add a0, t3, a0; sb a1, 0(a0)\n" ++
-  "  addi t5, t5, 1; j .Lbsr_storage_token_copy\n" ++
-  ".Lbsr_storage_token_done:\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
-  "  la t0, bsr_storage_access_path_count; ld t2, 0(t0); slli t2, t2, 6; la t3, bsr_storage_access_paths; add a6, t3, t2\n" ++
-  "  la a0, evm_storage_access_outcomes; la t0, evm_storage_access_outcome_count; ld a1, 0(t0); la a2, bsr_storage_access_window; li a3, 1\n" ++
-  "  slli t2, s0, 5; la t3, bsr_storage_account_token; add a4, t3, t2; la a7, bsr_access_count\n" ++
-  "  jal ra, bal_storage_access_outcome_descriptors; bnez a0, .Lbsr_cons_storage_access\n" ++
-  "  la t0, bsr_access_count; ld t0, 0(t0); add t2, s1, t0; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  la t4, bsr_storage_access_path_count; ld t5, 0(t4); add t5, t5, t0; li t6, " ++ toString bsrMaxStorageAccessOutcomes ++ "; bgtu t5, t6, .Lbsr_cons_change_cap; sd t5, 0(t4)\n" ++
-  "  mv s1, t2; addi s0, s0, 1; j .Lbsr_storage_access_loop\n" ++
+  "  # NORMALIZATION BOUNDARY: bsr_changes contains committed, value-bearing\n" ++
+  "  # mutations only (BAL final post-fields plus modeled system/withdrawals).\n" ++
+  "  # Runtime account/storage access outcomes are mode=3 no-ops: they provide\n" ++
+  "  # access evidence but never a state-root value, so do not materialize them\n" ++
+  "  # in this C-sized builder input. In particular, reverted storage windows\n" ++
+  "  # have zero committed entries and cannot become a last-write-wins value.\n" ++
   ".Lbsr_withdrawals:\n" ++
   "  # BAL rows already include withdrawal-induced balance changes, so avoid\n" ++
   "  # applying the SSZ withdrawals a second time when BAL replay was present.\n" ++
@@ -322,7 +291,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_change_count; sd s1, 0(t0)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
-  "  jal ra, mpt_state_root_ins\n" ++
+  "  jal ra, mpt_bounded_state_root\n" ++
   "  beqz a0, .Lbsr_ret\n" ++
   "  li t0, 130; la t1, bsr_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lbsr_ret\n" ++

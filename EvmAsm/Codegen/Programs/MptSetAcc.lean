@@ -54,7 +54,14 @@ open EvmAsm.Rv64
     `mset_db_top` (next-free ptr), with records
       keccak[32] | len:u64 | bytes[len] (padded to 8)
     laid out from `mset_db_data`. Append keccaks the node and writes the
-    record. a0 = node ptr, a1 = node length. -/
+    record. a0 = node ptr, a1 = node length.
+
+    **sd13v safety boundary.** This legacy sequential helper has no end-of-
+    arena check. It is safe only for its small probe callers: it must not be
+    used for the gas-bounded block-state replay, where up to 100,000 distinct
+    final keys can re-hash multiple ancestors and exceed the 8 MiB arena. The
+    bounded sorted state-root builder replaces this appendable NodeDb path
+    rather than adding a sort in front of it. -/
 def nodeDbAppend_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
