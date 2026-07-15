@@ -546,6 +546,38 @@ theorem hesrStatus1Return (newSp a0old v1 v8 v9 v18 : Word) (saved : Saved)
   refine cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
 
+/-! ## Status-2 (wrong-length) return tail
+
+    Instruction [61] (`hesrBase+244`) then the epilogue: set `a0 = 2` and fall
+    straight into the shared epilogue.  `[61]` is the target of the length-check
+    `BNE` at [46] (`hesrBase+184`, offset `+60`). -/
+theorem hesrStatus2Return (newSp a0old v1 v8 v9 v18 : Word) (saved : Saved)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    cpsTripleWithin (1 + 6) (hesrBase + 244) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      (((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** savedFrame newSp saved) ** Fr)
+      (((.x10 ↦ᵣ (2 : Word)) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+        (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) **
+        savedFrame newSp saved) ** Fr) := by
+  -- [61] li a0, 2
+  have hli := li_spec_gen_within .x10 a0old (2 : Word) (hesrBase + 244) (by decide)
+  rw [show (hesrBase + 244 : Word) + 4 = hesrBase + 248 from by bv_omega] at hli
+  have hliE := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 244) Codegen.headerExtractStateRoot_prog 61
+      (.LI .x10 (2 : Word)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hli
+  have hliF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+      (.x18 ↦ᵣ v18) ** savedFrame newSp saved) ** Fr) (by
+      repeat' first
+        | exact hFr | unfold savedFrame | exact pcFree_regIs | exact pcFree_memIs
+        | apply pcFree_sepConj) hliE
+  -- epilogue with a0 = 2
+  have hep := hesrEpilogue newSp (2 : Word) v1 v8 v9 v18 saved Fr hFr
+  -- compose li ; epilogue
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hep
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s1
+
 /-! ## The success-tail LBU/SB byte-copy loop ([51]-[56])
 
     The alignment-free re-emit: `x28` = source pointer (`listBase + fieldOffset`,
@@ -813,5 +845,6 @@ private theorem hesrCopyLoop (srcBase dstBase x29old : Word)
 #print axioms hesrInitStep
 #print axioms hesrEpilogue
 #print axioms hesrStatus1Return
+#print axioms hesrStatus2Return
 
 end EvmAsm.Codegen.HeaderFieldsSpec
