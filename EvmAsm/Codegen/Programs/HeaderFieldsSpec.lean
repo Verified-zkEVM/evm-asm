@@ -1394,6 +1394,76 @@ private theorem hesrLenDispatch
                   (sepConj_mono (regIs_implies_regOwn .x29)
                     (sepConj_mono_left memIs_implies_memOwn)))))) h hq2) s
 
+/-! ## Full success tail ([33]→ret)
+
+    All five RLP walks succeeded: `x10 = next` (final cursor), `x12 = len` (field
+    length), `x8 = listBase`.  Compute the field offset `fo = next − len − listBase`,
+    round-trip `fo`/`len` through the two global scratch cells (`hesrOffsetStore`),
+    reload the length and set the copy counter (`hesrLenLoad`), then dispatch on the
+    length check (`hesrLenDispatch`).  The post pins the genuine result:
+    `a0 = 0` with the output region holding the extracted 32 field-content bytes when
+    `len = 32`, else `a0 = 2` with the output unchanged. -/
+private theorem hesrSuccessTail
+    (next len listBase outPtr newSp v5old v6old v7old v28old x29old offOld lenOld v1 v9 : Word)
+    (saved : Saved) (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : (next - len - listBase).toNat + 32 ≤ headerBytes.length)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (9 + 4 + (1 + 204)) (hesrBase + 132) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) ** (.x6 ↦ᵣ v6old) **
+       (.x5 ↦ᵣ v5old) ** (.x7 ↦ᵣ v7old) ** (.x18 ↦ᵣ outPtr) ** (.x28 ↦ᵣ v28old) **
+       (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) ** (hesrOffAddr ↦ₘ offOld) **
+       (hesrLenAddr ↦ₘ lenOld) ** bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+       (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+      (fun h => ∃ (a0v : Word) (finalOut : List (BitVec 8)),
+        ((((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+           (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+          (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+           memOwn hesrLenAddr ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+           bytesRegion outPtr finalOut ** (hesrOffAddr ↦ₘ (next - len - listBase)) **
+           ((.x12 ↦ᵣ len) ** Fr))) **
+         ⌜(a0v = (0 : Word) ∧ len = (32 : Word) ∧
+              finalOut = copyIntoRegion outBytes headerBytes 0 (next - len - listBase).toNat 32) ∨
+           (a0v = (2 : Word) ∧ len ≠ (32 : Word) ∧ finalOut = outBytes)⌝) h) := by
+  -- [33]-[41] offset/length compute + global-cell store, framed by the ambient state.
+  have hoffF := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ v7old) ** (.x18 ↦ᵣ outPtr) ** (.x28 ↦ᵣ v28old) ** (.x29 ↦ᵣ x29old) **
+     (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+     (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+    (by unfold savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+    (hesrOffsetStore next len listBase v5old v6old offOld lenOld)
+  -- [42]-[45] reload length + set copy counter, framed by the rest.
+  have hllF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+     (.x28 ↦ᵣ v28old) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (hesrOffAddr ↦ₘ (next - len - listBase)) ** bytesRegion listBase headerBytes **
+     bytesRegion outPtr outBytes ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) **
+     savedFrame newSp saved ** Fr)
+    (by unfold savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+    (hesrLenLoad len hesrLenAddr (next - len - listBase) v7old)
+  -- [46]→ret length-check dispatch.
+  have hdisp := hesrLenDispatch (next - len - listBase) listBase outPtr newSp len hesrLenAddr
+    v28old x29old v1 v9 next saved headerBytes outBytes ((.x12 ↦ᵣ len) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | apply pcFree_sepConj)
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+  -- compose offsetStore ;; lenLoad ;; lenDispatch.
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hoffF hllF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hdisp
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2
+
+#print axioms hesrSuccessTail
 #print axioms hesrLenDispatch
 #print axioms hesrSuccessContinue
 #print axioms hesrCopyThenFinish
