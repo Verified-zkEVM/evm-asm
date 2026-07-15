@@ -431,6 +431,24 @@ def mptBoundedFramePathMatchFunction : String :=
   ".Lmbfpm_mismatch:\n  li a0, 1; ret\n" ++
   ".Lmbfpm_bad:\n  li a0, 2; ret\n"
 
+/-- Return the common prefix of a decoded old compact path and a non-empty
+    sorted descriptor interval.  Comparing the interval extrema is sufficient:
+    lexicographic ordering makes every interior key share that prefix too.
+    The helper bounds every key/path read by the fixed 64-nibble state-key
+    domain, so the grouped leaf/extension splitters never need an
+    attacker-sized comparison buffer.
+
+    ABI: `a0=descriptors`, `a1=start`, `a2=end`, `a3=depth`,
+    `a4=old_path`, `a5=old_path_len`, `a6=out_common_len`.
+    Returns 0/1. -/
+def mptBoundedIntervalOldPrefixFunction : String :=
+  "  .globl mpt_bounded_interval_old_prefix\n" ++
+  "mpt_bounded_interval_old_prefix:\n" ++
+  "  sd zero, 0(a6); bgeu a1, a2, .Lmbiop_fail; li t0, " ++ toString bsrMaxStateChanges ++ "; bgtu a2, t0, .Lmbiop_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu a3, t0, .Lmbiop_fail; sub t1, t0, a3; bgtu a5, t1, .Lmbiop_fail; slli t2, a1, 5; slli t3, a1, 3; add t2, t2, t3; add t2, a0, t2; ld t2, 0(t2); addi t3, a2, -1; slli t4, t3, 5; slli t5, t3, 3; add t4, t4, t5; add t4, a0, t4; ld t4, 0(t4); li t5, 0\n" ++
+  ".Lmbiop_loop:\n  beq t5, a5, .Lmbiop_ok; add t0, t2, a3; add t0, t0, t5; lbu t1, 0(t0); add t0, t4, a3; add t0, t0, t5; lbu t3, 0(t0); bne t1, t3, .Lmbiop_ok; add t0, a4, t5; lbu t0, 0(t0); bne t1, t0, .Lmbiop_ok; addi t5, t5, 1; j .Lmbiop_loop\n" ++
+  ".Lmbiop_ok:\n  sd t5, 0(a6); li a0, 0; ret\n" ++
+  ".Lmbiop_fail:\n  li a0, 1; ret\n"
+
 /-- Split an existing state-account leaf for one insertion whose key diverges
     below the already-consumed prefix.  The old and new suffix leaves are
     reduced to raw references immediately and retained in the current frame's
@@ -707,7 +725,8 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
-    mptBoundedFramePathMatchFunction ++ "\n" ++ mptBoundedSplitLeafFunction ++ "\n" ++
+    mptBoundedFramePathMatchFunction ++ "\n" ++ mptBoundedIntervalOldPrefixFunction ++ "\n" ++
+    mptBoundedSplitLeafFunction ++ "\n" ++
     mptBoundedSplitExtensionFunction ++ "\n" ++
     mptBoundedCollapseBranchLeafFunction ++ "\n" ++
     mptBoundedRebuildExactLeafFunction ++ "\n" ++
