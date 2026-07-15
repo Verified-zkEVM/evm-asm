@@ -210,7 +210,67 @@ theorem hesrPrologue (sp0 newSp listBase listLen outPtr : Word) (saved : Saved)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) h012
 
+/-! ## Cross-function walker call lifts
+
+    `header_extract_state_root` calls the separately-linked `rlp_walk_init` /
+    `rlp_walk_next` functions (not embedded).  These thin wrappers add the direct
+    `JAL` at the call site into an ambient `cr` that must contain the callee's
+    code, via the generic `RlpWalkCallSAsm` adapters. -/
+
+/-- Guest entry of `rlp_walk_init`. -/
+def wiBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init
+/-- Guest entry of `rlp_walk_next`. -/
+def wnBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_next
+
+/-- The `jal ra, rlp_walk_init` immediate at instruction [10] (`hesrBase+40`). -/
+def hesrInitOffset : BitVec 21 :=
+  jalOff Codegen.GuestAddrs.rlp_walk_init (Codegen.GuestAddrs.header_extract_state_root + 40)
+
+/-- Lift the `rlp_walk_init` call at [10] (`hesrBase+40 → hesrBase+44`) into an
+    ambient `cr` containing both the JAL and `rlp_walk_init_code`. -/
+theorem hesrInitCall {cr : CodeReq} {Prest Q : Assertion} {n : Nat} (oldRa : Word)
+    (hpre : Prest.pcFree)
+    (hcode : ∀ a i,
+      (CodeReq.singleton (hesrBase + 40) (.JAL .x1 hesrInitOffset)).union
+        (rlp_walk_init_code wiBase) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n wiBase ((hesrBase + 40 + 4) &&& ~~~(1 : Word))
+      (rlp_walk_init_code wiBase)
+      ((.x1 ↦ᵣ (hesrBase + 40 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (hesrBase + 40) (hesrBase + 40 + 4) cr
+      ((.x1 ↦ᵣ oldRa) ** Prest) Q :=
+  EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_init_call_within
+    (hesrBase + 40) wiBase oldRa hesrInitOffset hpre
+    (by simp only [wiBase, hesrInitOffset, hesrBase]; decide)
+    (by simp only [hesrBase]; decide)
+    (by simp only [wiBase, hesrInitOffset, hesrBase]
+        exact CodeReq.Disjoint.singleton_ofProg (by decide))
+    hcode hcallee
+
+/-- Lift one `rlp_walk_next` call at call site `callPC` into an ambient `cr`
+    containing both the JAL and `rlp_walk_next_code`.  Parametrized by the call
+    site so all four state-root next calls (and the receipts/withdrawals sites)
+    reuse it; the per-site `hoffset`/`halign`/`hdisj` discharge by `decide`. -/
+theorem hesrNextCall {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
+    (callPC oldRa : Word) (offset : BitVec 21)
+    (hpre : Prest.pcFree)
+    (hoffset : callPC + signExtend21 offset = wnBase)
+    (halign : (callPC + 4) &&& ~~~(1 : Word) = callPC + 4)
+    (hdisj : (CodeReq.singleton callPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_next_code wnBase))
+    (hcode : ∀ a i,
+      (CodeReq.singleton callPC (.JAL .x1 offset)).union
+        (rlp_walk_next_code wnBase) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n wnBase ((callPC + 4) &&& ~~~(1 : Word))
+      (rlp_walk_next_code wnBase)
+      ((.x1 ↦ᵣ (callPC + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) callPC (callPC + 4) cr
+      ((.x1 ↦ᵣ oldRa) ** Prest) Q :=
+  EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_next_call_within
+    callPC wnBase oldRa offset hpre hoffset halign hdisj hcode hcallee
+
 #print axioms setupMoves5
 #print axioms hesrPrologue
+#print axioms hesrInitCall
+#print axioms hesrNextCall
 
 end EvmAsm.Codegen.HeaderFieldsSpec
