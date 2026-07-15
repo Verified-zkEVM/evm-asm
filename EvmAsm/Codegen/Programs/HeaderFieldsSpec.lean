@@ -480,6 +480,96 @@ theorem hesrInitStep {cr : CodeReq}
       | exact pcFree_regIs) hcode hwi'
   simpa [hPrest, hQ] using hc
 
+/-! ## The next call step (raw `rlp_walk_next` outcome)
+
+    One `rlp_walk_next` call at a parametric call site (`callPC → callPC+4`):
+    consume the cursor (`x10`) and end pointer (`x11`) — set up by the preceding
+    marshalling loads — and produce the genuine 6-way `hesrNextOutcome` on the
+    cursor/status/len registers, framed against an ambient `F` the walker does not
+    touch.  Mirrors `RlpListNthItemSAsm.nextCallBlock` but with the stack-marshalled
+    calling convention (no `x20`) and the cross-function `JAL` lift. -/
+
+/-- Local copy of the 6-way `rlp_walk_next` outcome (the header caller does not
+    import `RlpListNthItemSAsmScan`). -/
+def hesrNextOutcome (listBase endPtr : Word) (bytes : List (BitVec 8)) (off : Nat) : Assertion :=
+  fun h =>
+    rlpWalkNextOk (listBase + BitVec.ofNat 64 off) endPtr bytes off h ∨
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+      (.x12 ↦ᵣ (0 : Word)) **
+      ⌜¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true⌝) h) ∨
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (3 : Word)) **
+      (.x12 ↦ᵣ (0 : Word)) **
+      ⌜¬ ∃ next len, rlpItemDecode bytes off
+        (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (4 : Word)) **
+      (.x12 ↦ᵣ (0 : Word)) **
+      ⌜¬ ∃ next len, rlpItemDecode bytes off
+        (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (5 : Word)) **
+      (.x12 ↦ᵣ (0 : Word)) **
+      ⌜¬ ∃ next len, rlpItemDecode bytes off
+        (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+    (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (6 : Word)) **
+      (.x12 ↦ᵣ (0 : Word)) **
+      ⌜¬ ∃ next len, rlpItemDecode bytes off
+        (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h)
+
+/-- The next call step: `rlp_walk_next` at `callPC`, producing the genuine 6-way
+    `hesrNextOutcome` framed against an ambient `F`.  `cursor = listBase + off`. -/
+theorem hesrNextStep {cr : CodeReq}
+    (callPC : Word) (offset : BitVec 21)
+    (listBase endPtr : Word) (off listLen : Nat)
+    (oldRa v12 v5 v6 v7 v28 v29 v30 v31 : Word)
+    (bytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length → isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hoff : off ≤ listLen)
+    (hoffset : callPC + signExtend21 offset = wnBase)
+    (halign : (callPC + 4) &&& ~~~(1 : Word) = callPC + 4)
+    (hdisj : (CodeReq.singleton callPC (.JAL .x1 offset)).Disjoint (rlp_walk_next_code wnBase))
+    (hcode : ∀ a i,
+      (CodeReq.singleton callPC (.JAL .x1 offset)).union
+        (rlp_walk_next_code wnBase) a = some i → cr a = some i) :
+    cpsTripleWithin (1 + 87) callPC (callPC + 4) cr
+      ((.x1 ↦ᵣ oldRa) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ v12) **
+         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+         (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes ** F))
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (callPC + 4)) ** bytesRegion listBase bytes) **
+        hesrNextOutcome listBase endPtr bytes off) ** F) := by
+  have hoffb : off < bytes.length := by omega
+  have hwn := rlp_walk_next_spec_within wnBase listBase endPtr (callPC + 4) v12
+    v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoffb (by omega) (hvalid off hoffb)
+    (fun _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
+    (fun hb8 hc0 => by
+      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
+        simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
+        bv_omega
+      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+    (fun hf8 => by
+      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        simp only [BitVec.ult, decide_eq_true_eq] at hf8
+        have h3 := (bytes[off]'hoffb).isLt
+        bv_omega
+      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+  have hwnF := cpsTripleWithin_frameR F hF hwn
+  have hwn' := cpsTripleWithin_weaken
+    (P' := (.x1 ↦ᵣ (callPC + 4)) **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ v12) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+       (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes ** F))
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwnF
+  have hc := hesrNextCall callPC oldRa offset
+    (by repeat' first
+      | exact hF | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | exact pcFree_regOwn
+      | exact pcFree_memIs | exact pcFree_memOwn | apply pcFree_sepConj)
+    hoffset halign hdisj hcode hwn'
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by unfold hesrNextOutcome; xperm_hyp hq) hc
+
 /-! ## Epilogue
 
     Instructions [64]-[69] (`hesrBase+256 → raVal &&& ~~~1`): restore
@@ -1463,6 +1553,7 @@ private theorem hesrSuccessTail
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hdisp
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2
 
+#print axioms hesrNextStep
 #print axioms hesrSuccessTail
 #print axioms hesrLenDispatch
 #print axioms hesrSuccessContinue
