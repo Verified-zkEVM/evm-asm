@@ -1042,4 +1042,36 @@ def ziskMptBoundedStateRootProbeUnit : BuildUnit := {
   dataAsm := ziskMptBoundedStateRootDataSection
 }
 
+/-- Two-descriptor variant of the state-root probe, used only to exercise
+    canonical construction below an empty branch child.  Its fixed layout
+    avoids changing the established one-descriptor KAT ABI: witness length,
+    old root, key/value byte 0, key/value byte 1, then witness section. -/
+def ziskMptBoundedMissingGroupPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; addi s3, t0, 112; addi s4, t0, 120; addi s5, t0, 184; addi s6, t0, 192\n" ++
+  "  la t1, mbsmg_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s3, 16(t1); li t2, 1; sd t2, 24(t1); sd t2, 32(t1); addi t1, t1, 40; sd s4, 0(t1); li t2, 64; sd t2, 8(t1); sd s5, 16(t1); li t2, 1; sd t2, 24(t1); sd t2, 32(t1)\n" ++
+  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsmg_desc; li a4, 2; la a5, mbsmg_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
+  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsmg_done; la t1, mbsmg_out; addi t0, t0, 8; li t2, 32\n" ++
+  ".Lmbsmg_copy:\n  beqz t2, .Lmbsmg_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbsmg_copy\n"
+
+def ziskMptBoundedMissingGroupDataSection : String :=
+  ".section .bss\n.balign 8\nmbsmg_desc:\n  .zero 80\nmbsmg_out:\n  .zero 32\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\n" ++
+  ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
+  ziskMptExtensionNodeEncodeDataSection
+
+def ziskMptBoundedMissingGroupProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedMissingGroupPrologue ++ "\n" ++
+    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++ rlpItemSizeFunction ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
+    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsmg_done:"
+  dataAsm := ziskMptBoundedMissingGroupDataSection
+}
+
 end EvmAsm.Codegen
