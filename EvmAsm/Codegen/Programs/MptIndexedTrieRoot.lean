@@ -341,6 +341,31 @@ def mptIndexedTrieRootBoundedFunction : String :=
   ".Lmitrb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48; ret"
 
+/-! Production-facing adapter for the existing indexed-root ABI:
+    `a0={ptr,len}[]`, `a1=count`, `a2=out_root`.  It constructs the canonical
+    RLP-index nibble descriptors in the gas-sized fixed arenas, then delegates
+    only to `mpt_indexed_trie_root_bounded`. -/
+def mptIndexedTrieRootBoundedFromValuesFunction : String :=
+  "mpt_indexed_trie_root_bounded_from_values:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; li t0, " ++ toString itrIndexedEntryCapacity ++ "; bgtu s1, t0, .Lmitrbv_fail; la s3, itr_paths; la s4, itr_changes; li t0, 0\n" ++
+  ".Lmitrbv_loop:\n" ++
+  "  beq t0, s1, .Lmitrbv_call; slli t1, t0, 4; add t1, s0, t1; ld t2, 0(t1); ld t3, 8(t1); slli t4, t0, 3; add t5, s3, t4; bnez t0, .Lmitrbv_nonzero; li t1, 8; sb t1, 0(t5); sb zero, 1(t5); li t1, 2; j .Lmitrbv_path_done\n" ++
+  ".Lmitrbv_nonzero:\n" ++
+  "  li t6, 128; bgeu t0, t6, .Lmitrbv_ge128; srli t1, t0, 4; andi t6, t0, 15; sb t1, 0(t5); sb t6, 1(t5); li t1, 2; j .Lmitrbv_path_done\n" ++
+  ".Lmitrbv_ge128:\n" ++
+  "  li t6, 256; bgeu t0, t6, .Lmitrbv_ge256; li t1, 8; sb t1, 0(t5); li t1, 1; sb t1, 1(t5); srli t1, t0, 4; andi t6, t0, 15; sb t1, 2(t5); sb t6, 3(t5); li t1, 4; j .Lmitrbv_path_done\n" ++
+  ".Lmitrbv_ge256:\n" ++
+  "  li t1, 8; sb t1, 0(t5); li t1, 2; sb t1, 1(t5); srli t1, t0, 12; andi t1, t1, 15; sb t1, 2(t5); srli t1, t0, 8; andi t1, t1, 15; sb t1, 3(t5); srli t1, t0, 4; andi t1, t1, 15; sb t1, 4(t5); andi t1, t0, 15; sb t1, 5(t5); li t1, 6\n" ++
+  ".Lmitrbv_path_done:\n" ++
+  "  slli t4, t0, 5; slli t6, t0, 3; add t4, t4, t6; add t4, s4, t4; sd t5, 0(t4); sd t1, 8(t4); sd t2, 16(t4); sd t3, 24(t4); sd zero, 32(t4); addi t0, t0, 1; j .Lmitrbv_loop\n" ++
+  ".Lmitrbv_call:\n" ++
+  "  mv a0, s4; mv a1, s1; mv a2, s2; jal ra, mpt_indexed_trie_root_bounded; j .Lmitrbv_ret\n" ++
+  ".Lmitrbv_fail:\n  li a0, 1\n" ++
+  ".Lmitrbv_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 64; ret"
+
 /-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
 
     Compute `keccak(rlp([hp_path, value]))` for large indexed-trie leaves
