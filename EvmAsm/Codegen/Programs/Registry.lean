@@ -410,6 +410,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_bounded_decode_extension" => some ziskMptBoundedDecodeExtensionProbeUnit
   | "zisk_mpt_bounded_decode_leaf" => some ziskMptBoundedDecodeLeafProbeUnit
   | "zisk_mpt_bounded_encode_extension" => some ziskMptBoundedEncodeExtensionProbeUnit
+  | "zisk_mpt_bounded_state_root" => some ziskMptBoundedStateRootProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit

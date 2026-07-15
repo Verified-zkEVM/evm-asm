@@ -84,7 +84,7 @@ def mptBoundedSortChangesFunction : String :=
   ".Lmbs_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lmbs_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret\n"
 
 /-! ## `mpt_bounded_prepare_changes`
 
@@ -515,6 +515,31 @@ def mptBoundedEncodeExtensionFunction : String :=
   ".Lmbee_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 112; ret\n"
 
+/-- Bounded state-root driver for the supported exact-replacement subset.
+    The input descriptors have already been normalized to final, distinct
+    committed values.  It intentionally remains disconnected from the live
+    verdict until insert/delete/canonical-collapse cases have comparable KATs.
+
+    ABI: `a0 = old_root[32]`; `a1 = witness section`; `a2 = witness length`;
+    `a3 = descriptors`; `a4 = descriptor count`; `a5 = out_root[32]`.
+    Returns `0`/`1`. -/
+def mptBoundedStateRootFunction : String :=
+  "  .globl mpt_bounded_state_root\n" ++
+  "mpt_bounded_state_root:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; bnez a0, .Lmbsr_fail\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; la a3, bsr_builder_frames; jal ra, mpt_bounded_open_root_frame; bnez a0, .Lmbsr_fail\n" ++
+  "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbsr_fail\n" ++
+  "  la t0, bsr_builder_result_len; ld t1, 0(t0); beqz t1, .Lmbsr_fail; li t2, 32; bne t1, t2, .Lmbsr_hash_root; la t0, bsr_builder_result_ref; mv t1, s5; li t2, 32; j .Lmbsr_copy\n" ++
+  ".Lmbsr_hash_root:\n  la a0, bsr_builder_result_ref; la t0, bsr_builder_result_len; ld a1, 0(t0); mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
+  ".Lmbsr_copy_old:\n  mv t0, s0; mv t1, s5; li t2, 32\n" ++
+  ".Lmbsr_copy:\n  beqz t2, .Lmbsr_copy_ok; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lmbsr_copy\n" ++
+  ".Lmbsr_copy_ok:\n  li a0, 0; j .Lmbsr_ret\n" ++
+  ".Lmbsr_fail:\n  li a0, 1\n" ++
+  ".Lmbsr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 80; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
@@ -528,8 +553,8 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
     mptBoundedFramePathMatchFunction ++ "\n" ++ mptBoundedRebuildExactLeafFunction ++ "\n" ++
     mptBoundedRebuildSubtreeFunction ++ "\n" ++
-    mptBoundedEncodeExtensionFunction
-    ++ "\n" ++ mptBoundedPartitionFrameFunction
+    mptBoundedEncodeExtensionFunction ++ "\n" ++ mptBoundedStateRootFunction ++ "\n" ++
+    mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -824,6 +849,37 @@ def ziskMptBoundedEncodeExtensionProbeUnit : BuildUnit := {
     zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction ++ "\n.Lmbeep_done:"
   dataAsm := ziskMptBoundedEncodeExtensionDataSection
+}
+
+/-- End-to-end probe for the currently supported exact-leaf replacement path.
+    Input is `witness_len:u64`, old root, 64-nibble key, value length/value,
+    then one SSZ witness-state section. -/
+def ziskMptBoundedStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; addi s5, t0, 128\n" ++
+  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd zero, 32(t1)\n" ++
+  "  mv a0, s1; mv a1, s5; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
+  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32\n" ++
+  ".Lmbsrp_copy:\n  beqz t2, .Lmbsrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbsrp_copy\n"
+
+def ziskMptBoundedStateRootDataSection : String :=
+  ".section .bss\n.balign 8\nmbsr_desc:\n  .zero 40\nmbsr_out:\n  .zero 32\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\n" ++
+  ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
+  ziskMptExtensionNodeEncodeDataSection
+
+def ziskMptBoundedStateRootProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedStateRootPrologue ++ "\n" ++
+    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
+    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsrp_done:"
+  dataAsm := ziskMptBoundedStateRootDataSection
 }
 
 end EvmAsm.Codegen
