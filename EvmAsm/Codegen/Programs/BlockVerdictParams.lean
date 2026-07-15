@@ -80,6 +80,21 @@ def bsrMptFrameNodeKindOffset : Nat := bsrMptFrameNodeLenOffset + 8
 def bsrMptFrameRangeTableOffset : Nat := bsrMptFrameNodeKindOffset + 8
 def bsrMptFrameRangeStride : Nat := 16
 def bsrMptFrameRangeTableBytes : Nat := bsrMptRadixFanout * bsrMptFrameRangeStride
+/-- Extension metadata occupies the frame tail after the branch-range table.
+    The decoded path is at most the remaining 64 state-key nibbles; it is
+    deliberately not the SSZ node's potentially 2047-nibble compact path. -/
+def bsrMptFrameExtensionPathLenOffset : Nat := bsrMptFrameRangeTableOffset + bsrMptFrameRangeTableBytes
+def bsrMptFrameExtensionChildPtrOffset : Nat := bsrMptFrameExtensionPathLenOffset + 8
+def bsrMptFrameExtensionChildLenOffset : Nat := bsrMptFrameExtensionChildPtrOffset + 8
+def bsrMptFrameExtensionPathOffset : Nat := bsrMptFrameExtensionChildLenOffset + 8
+def bsrMptFrameExtensionPathBytes : Nat := bsrMptKeyNibbles
+def bsrMptFrameUsedBytes : Nat := bsrMptFrameExtensionPathOffset + bsrMptFrameExtensionPathBytes
+/-- One shared node buffer is enough for depth-first construction: every
+    completed child is reduced to its raw reference before its next sibling is
+    built. This is independent of the gas-derived descriptor count. -/
+def bsrMptBuilderNodeScratchBytes : Nat := bsrMptNodeMaxBytes
+
+#guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
