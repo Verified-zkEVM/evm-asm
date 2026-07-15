@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 ZISKEMU="${ZISKEMU:-$(command -v ziskemu || true)}"
 [[ -n "$ZISKEMU" ]] || { echo "ziskemu not found" >&2; exit 1; }
 workdir="$(mktemp -d)"; trap 'rm -rf "$workdir"' EXIT
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_encode_extension --halt linux93 -o "$workdir/ext" >/dev/null
 dd if=/dev/zero of="$workdir/input" bs=8 count=1 status=none
 "$ZISKEMU" -e "$workdir/ext.elf" -i "$workdir/input" -o "$workdir/output" -n 1000000 >/dev/null </dev/null

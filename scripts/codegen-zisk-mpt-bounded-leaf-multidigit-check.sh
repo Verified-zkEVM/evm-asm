@@ -5,10 +5,7 @@ cd "$(dirname "$0")/.."
 ZISKEMU="${ZISKEMU:-$(command -v ziskemu || true)}"
 [[ -n "$ZISKEMU" ]] || { echo "ziskemu not found" >&2; exit 1; }
 workdir="$(mktemp -d)"; trap 'rm -rf "$workdir"' EXIT
-# Force the code generator itself to relink.  The probe ELF below is always
-# new, but a cached `codegen` binary can otherwise retain an old linked guest.
-rm -f .lake/build/bin/codegen .lake/build/bin/codegen.hash .lake/build/bin/codegen.trace
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_missing_group --halt linux93 -o "$workdir/root" >/dev/null
 uv run --directory execution-specs --quiet python3 - "$workdir" <<'PY'
 from ethereum.crypto.hash import keccak256

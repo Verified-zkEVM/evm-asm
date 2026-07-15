@@ -12,7 +12,7 @@ fi
 
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_classify_node --halt linux93 -o "$workdir/classify" >/dev/null
 
 python3 - "$workdir" <<'PY'

@@ -6,7 +6,7 @@ ZISKEMU="${ZISKEMU:-$(command -v ziskemu || true)}"
 [[ -n "$ZISKEMU" ]] || { echo "ziskemu not found" >&2; exit 1; }
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_encode_leaf_ref --halt linux93 -o "$workdir/leaf" >/dev/null
 python3 - "$workdir" <<'PY'
 import pathlib, struct, sys

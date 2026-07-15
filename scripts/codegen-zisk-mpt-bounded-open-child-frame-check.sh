@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 ZISKEMU="${ZISKEMU:-$(command -v ziskemu || true)}"
 [[ -n "$ZISKEMU" ]] || { echo "ziskemu not found" >&2; exit 1; }
 workdir="$(mktemp -d)"; trap 'rm -rf "$workdir"' EXIT
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_open_child_frame --halt linux93 -o "$workdir/open" >/dev/null
 uv run --directory execution-specs --quiet python3 - "$workdir/input" <<'PY'
 from ethereum.crypto.hash import keccak256

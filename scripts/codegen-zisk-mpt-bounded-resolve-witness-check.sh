@@ -13,7 +13,7 @@ fi
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_resolve_witness --halt linux93 -o "$workdir/resolve" >/dev/null
 
 python3 - "$workdir/input" <<'PY'

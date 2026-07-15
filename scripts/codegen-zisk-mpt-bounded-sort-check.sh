@@ -17,7 +17,7 @@ workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
 echo "==> lake build codegen"
-lake build codegen >/dev/null
+bash scripts/codegen-force-relink.sh >/dev/null
 echo "==> emit zisk_mpt_bounded_sort"
 lake exe codegen --program zisk_mpt_bounded_sort --halt linux93 -o "$workdir/sort" >/dev/null
 
