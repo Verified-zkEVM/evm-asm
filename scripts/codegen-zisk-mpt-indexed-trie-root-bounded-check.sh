@@ -23,12 +23,17 @@ repo_root, name, indices = sys.argv[1], sys.argv[2], eval(sys.argv[3])
 def path(i):
     key = bytes(rlp.encode(Uint(i)))
     return bytes(x for b in key for x in (b >> 4, b & 15))
-values = [bytes([i & 255]) for i in indices]
+if name == 'long_one':
+    values = [b'\xab' * 20000]
+elif name == 'long_extension':
+    values = [b'\xcd' * 20000, b'\x80']
+else:
+    values = [bytes([i & 255]) for i in indices]
 with open(f'{repo_root}/gen-out/zisk_mpt_indexed_trie_root_bounded_{name}.input', 'wb') as f:
     f.write(struct.pack('<Q', len(indices)))
     for p, v in zip(map(path, indices), values):
         f.write(struct.pack('<Q', len(p)) + p + b'\0' * (8 - len(p)))
-        f.write(struct.pack('<Q', len(v)) + v + b'\0' * (64 - len(v)))
+        f.write(struct.pack('<Q', len(v)) + v + b'\0' * (-len(v) % 8))
 t = Trie(secured=False, default=None)
 for i, value in zip(indices, values):
     trie_set(t, Bytes(rlp.encode(Uint(i))), Bytes(value))
@@ -51,4 +56,6 @@ run_case empty '[]'
 run_case one '[0]'
 run_case two '[0, 1]'
 run_case rlp_order_boundary '[0, 127, 128, 256]'
+run_case long_one '[0]'
+run_case long_extension '[0, 128]'
 echo 'PASS: bounded indexed trie root matches execution-specs'
