@@ -9,6 +9,8 @@ lake build codegen >/dev/null
 lake exe codegen --program zisk_mpt_bounded_state_root --halt linux93 -o "$workdir/root" >/dev/null
 uv run --directory execution-specs --quiet python3 - "$workdir" <<'PY'
 from ethereum.crypto.hash import keccak256
+from ethereum.merkle_patricia_trie import BranchNode, LeafNode, encode_internal_node
+from ethereum_types.bytes import Bytes
 import pathlib, struct, sys
 
 root = pathlib.Path(sys.argv[1])
@@ -25,6 +27,20 @@ h0, h1 = keccak256(old0), keccak256(old1)
 old_root = branch([h0, h1] + [None] * 14)
 new2 = leaf(b'\x01')
 new_root = branch([h0, h1, keccak256(new2)] + [None] * 13)
+empty = Bytes(b'')
+old_leaf_spec = LeafNode(Bytes([0] * 63), empty)
+new_leaf_spec = LeafNode(Bytes([0] * 63), Bytes(b'\x01'))
+old_spec = BranchNode(
+    (encode_internal_node(old_leaf_spec), encode_internal_node(old_leaf_spec)) + (b'',) * 14,
+    empty,
+)
+new_spec = BranchNode(
+    (encode_internal_node(old_leaf_spec), encode_internal_node(old_leaf_spec),
+     encode_internal_node(new_leaf_spec)) + (b'',) * 13,
+    empty,
+)
+assert keccak256(old_root) == bytes(encode_internal_node(old_spec))
+assert keccak256(new_root) == bytes(encode_internal_node(new_spec))
 nodes = [old_root, old0, old1]
 offsets, cursor = [], 4 * len(nodes)
 for node in nodes:
@@ -34,7 +50,7 @@ key = bytes([2]) + b'\0' * 63
 blob = (struct.pack('<Q', len(section)) + keccak256(old_root) + key +
         struct.pack('<Q', 1) + b'\x01' + b'\0' * 7 + struct.pack('<Q', 1) + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
-(root / 'expected').write_bytes(keccak256(new_root))
+(root / 'expected').write_bytes(bytes(encode_internal_node(new_spec)))
 PY
 "$ZISKEMU" -e "$workdir/root.elf" -i "$workdir/input" -o "$workdir/output" -n 3000000 >/dev/null </dev/null
 python3 - "$workdir" <<'PY'
