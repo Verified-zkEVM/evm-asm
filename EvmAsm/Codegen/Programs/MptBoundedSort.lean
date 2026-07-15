@@ -349,7 +349,7 @@ def mptBoundedEncodeLeafRefFunction : String :=
   "mpt_bounded_encode_leaf_ref:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); beqz s1, .Lmbelr_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s1, t0, .Lmbelr_fail; li t0, " ++ toString bsrEncodedAccountBytes ++ "; bgtu s3, t0, .Lmbelr_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s1, t0, .Lmbelr_fail; li t0, " ++ toString bsrEncodedAccountBytes ++ "; bgtu s3, t0, .Lmbelr_fail\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, mpt_leaf_node_encode_from_nibbles; bnez a0, .Lmbelr_fail\n" ++
   "  mv a0, s4; ld a1, 0(s5); mv a2, s6; mv a3, s7; jal ra, mpt_bounded_node_ref; bnez a0, .Lmbelr_fail; li a0, 0; j .Lmbelr_ret\n" ++
   ".Lmbelr_fail:\n  li a0, 1\n" ++
@@ -775,14 +775,14 @@ def ziskMptBoundedEncodeBranchProbeUnit : BuildUnit := {
 
 def ziskMptBoundedEncodeLeafRefPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000; ld a1, 8(t0); la a0, mbelr_path; la a2, mbelr_path; li a3, 0; la a4, mbelr_node; la a5, mbelr_node_len; la a6, mbelr_ref; la a7, mbelr_ref_len; jal ra, mpt_bounded_encode_leaf_ref; mv s0, a0; li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbelrp_done; la t1, mbelr_node_len; ld t2, 0(t1); sd t2, 8(t0); la t1, mbelr_ref_len; ld t2, 0(t1); sd t2, 16(t0); la t1, mbelr_node; addi t0, t0, 24; la t1, mbelr_node_len; ld t2, 0(t1)\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); la a0, mbelr_path; la a2, mbelr_path; li a3, 0; la a4, mbelr_node; la a5, mbelr_node_len; la a6, mbelr_ref; la a7, mbelr_ref_len; jal ra, mpt_bounded_encode_leaf_ref; mv s0, a0; li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbelrp_done; la t1, mbelr_node_len; ld t2, 0(t1); sd t2, 8(t0); la t1, mbelr_ref_len; ld t2, 0(t1); sd t2, 16(t0); la t1, mbelr_node_len; ld t2, 0(t1); la t1, mbelr_node; addi t0, t0, 24\n" ++
   ".Lmbelrp_node:\n  beqz t2, .Lmbelrp_ref_start; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbelrp_node\n" ++
   ".Lmbelrp_ref_start:\n  la t1, mbelr_ref; li t2, 32\n" ++
   ".Lmbelrp_ref:\n  beqz t2, .Lmbelrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbelrp_ref"
 
 def ziskMptBoundedEncodeLeafRefDataSection : String :=
   ".section .bss\n.balign 8\nmbelr_path:\n  .zero 64\nmbelr_node:\n  .zero 1024\nmbelr_node_len:\n  .zero 8\nmbelr_ref:\n  .zero 32\nmbelr_ref_len:\n  .zero 8\n" ++
-    ziskMptLeafNodeEncodeFromNibblesDataSection
+    ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n.section .data\n.balign 8\nzk3_state:\n  .zero 200"
 
 def ziskMptBoundedEncodeLeafRefProbeUnit : BuildUnit := {
   body := NOP
