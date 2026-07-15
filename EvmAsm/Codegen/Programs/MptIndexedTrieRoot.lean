@@ -256,6 +256,28 @@ def mptIndexedSortChangesFunction : String :=
   ".Lmis_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret"
 
+/-! Construct one canonical raw child reference for an indexed-trie leaf.
+    Small values use the regular encoder into a fixed 1 KiB structural scratch;
+    every value at least 27 bytes uses the streaming helper, so no transaction
+    or receipt payload is copied into an MPT buffer. -/
+def mptIndexedLeafRefFunction : String :=
+  "mpt_indexed_leaf_ref:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd zero, 0(s5); li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu s1, t0, .Lmilr_fail; li t0, 27; bgeu s3, t0, .Lmilr_stream\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; la a4, itr_builder_node; la a5, itr_builder_node_len; jal ra, mpt_leaf_node_encode_from_nibbles; bnez a0, .Lmilr_fail; la t0, itr_builder_node_len; ld t1, 0(t0); li t2, 32; bgeu t1, t2, .Lmilr_small_hash; la t0, itr_builder_node; mv t2, s4\n" ++
+  ".Lmilr_copy:\n" ++
+  "  beqz t1, .Lmilr_inline_ok; lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lmilr_copy\n" ++
+  ".Lmilr_inline_ok:\n" ++
+  "  la t0, itr_builder_node_len; ld t1, 0(t0); sd t1, 0(s5); li a0, 0; j .Lmilr_ret\n" ++
+  ".Lmilr_small_hash:\n" ++
+  "  la a0, itr_builder_node; mv a1, t1; mv a2, s4; jal ra, zkvm_keccak256; li t0, 32; sd t0, 0(s5); li a0, 0; j .Lmilr_ret\n" ++
+  ".Lmilr_stream:\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, mpt_indexed_stream_leaf_hash; bnez a0, .Lmilr_fail; li t0, 32; sd t0, 0(s5); li a0, 0; j .Lmilr_ret\n" ++
+  ".Lmilr_fail:\n  li a0, 1\n" ++
+  ".Lmilr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret"
+
 /-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
 
     Compute `keccak(rlp([hp_path, value]))` for large indexed-trie leaves
@@ -849,7 +871,9 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   "itr_paths:\n  .zero " ++ toString (itrIndexedEntryCapacity * 8) ++ "\n" ++
   "itr_changes:\n  .zero " ++ toString (itrIndexedEntryCapacity * 40) ++ "\n" ++
   "itr_sort_ranges:\n  .zero " ++ toString (itrIndexedSortRangeStackCapacity * 32) ++ "\n" ++
-  "itr_sort_scratch:\n  .zero 40"
+  "itr_sort_scratch:\n  .zero 40\n" ++
+  "itr_builder_node_len:\n  .zero 8\n" ++
+  "itr_builder_node:\n  .zero 1024"
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
