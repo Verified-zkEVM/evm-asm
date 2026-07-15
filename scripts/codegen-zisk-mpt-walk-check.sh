@@ -265,7 +265,24 @@ run_case "ext_branch_leaf" "01020304050607" "$ROOT5_HEX" "$WITNESS5_HEX" 0 "6465
 # Wrong path → not found
 run_case "ext_no_match"    "01020305050607" "$ROOT5_HEX" "$WITNESS5_HEX" 1 ""             || FAILED=1
 
-# Fixture 6: empty witness → not found.
+# Fixture 6: maximum state-witness node size.  The 1017-byte compact leaf
+# path is encoded in a 1024-byte RLP node and expands to 2033 nibbles.
+F6=$(uv run --directory execution-specs --quiet python3 -c "
+$PY_HELPERS
+path = [0] * 2033
+leaf = leaf_node(path, b'')
+assert len(leaf) == 1024
+root_hash = k256(leaf)
+print('LEAF', leaf.hex())
+print('ROOT', root_hash.hex())
+")
+LEAF6_HEX=$(echo "$F6" | grep '^LEAF ' | awk '{print $2}')
+ROOT6_HEX=$(echo "$F6" | grep '^ROOT ' | awk '{print $2}')
+WITNESS6_HEX=$(build_ssz_section "$LEAF6_HEX")
+PATH6_HEX=$(python3 -c "print('00' * 2033)")
+run_case "max_state_node_leaf" "$PATH6_HEX" "$ROOT6_HEX" "$WITNESS6_HEX" 0 "" || FAILED=1
+
+# Fixture 7: empty witness → not found.
 ZERO_HASH="0000000000000000000000000000000000000000000000000000000000000000"
 run_case "empty_witness"   "01020304" "$ZERO_HASH" "" 1 ""                                || FAILED=1
 

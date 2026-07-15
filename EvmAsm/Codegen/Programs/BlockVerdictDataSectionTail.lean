@@ -22,8 +22,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- in BalAccountApplyPostFields / BlockVerdictSysChange / BlockVerdictStateRoot --
   -- BAL post-field apply + system-change application within the state-root
   -- recompute) and dead during Phase-D dispatch when call_frame_arena is live.
-  "mdacc_leaf_path:\n  .zero 128\n" ++
-  "mdacc_collapsed_path:\n  .zero 128\n" ++
+  -- A state-node HP path decodes to <= 2047 nibbles; deletion can join two.
+  "mdacc_leaf_path:\n  .zero 2048\n" ++
+  "mdacc_collapsed_path:\n  .zero 4096\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -145,7 +146,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "ins_stack:\n  .zero 2048\n" ++
   ".balign 8\n" ++
-  "ins_k:\n  .zero 64\n" ++
+  "ins_k:\n  .zero 2048\n" ++
   ".balign 8\n" ++
   "ins_ref:\n  .zero 64\n" ++
   ".balign 8\n" ++
