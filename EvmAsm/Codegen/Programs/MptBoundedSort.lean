@@ -327,6 +327,26 @@ def mptBoundedEncodeLeafRefFunction : String :=
   ".Lmbelr_fail:\n  li a0, 1\n" ++
   ".Lmbelr_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
+/-- Decode an extension compact path only after proving it fits the caller's
+    remaining state-key depth.  Unlike `mpt_extension_extract`, this routine
+    cannot write an attacker-derived number of nibbles to a fixed frame.
+    ABI: `a0,a1=node`; `a2=remaining`; `a3,a4=path_out,path_len_out`;
+    `a5,a6=child_ptr_out,child_len_out`. -/
+def mptBoundedDecodeExtensionFunction : String :=
+  "  .globl mpt_bounded_decode_extension\n" ++
+  "mpt_bounded_decode_extension:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbde_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbde_fail\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 64(sp); beqz t0, .Lmbde_fail; ld t1, 56(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bgeu t3, t4, .Lmbde_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbde_even; addi t0, t0, 1; j .Lmbde_len\n" ++
+  ".Lmbde_even:\n  andi t5, t2, 15; bnez t5, .Lmbde_fail\n" ++
+  ".Lmbde_len:\n  beqz t0, .Lmbde_fail; bgtu t0, s2, .Lmbde_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbde_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
+  ".Lmbde_pairs:\n  ld t2, 64(sp); addi t2, t2, -1\n" ++
+  ".Lmbde_pair_loop:\n  beqz t2, .Lmbde_child; lbu t3, 0(t1); srli t4, t3, 4; andi t3, t3, 15; sb t4, 0(t5); sb t3, 1(t5); addi t1, t1, 1; addi t5, t5, 2; addi t2, t2, -1; j .Lmbde_pair_loop\n" ++
+  ".Lmbde_child:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 64(sp); li t1, 32; bgtu t0, t1, .Lmbde_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbde_ret\n" ++
+  ".Lmbde_fail:\n  li a0, 1\n" ++
+  ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
@@ -335,7 +355,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
-    mptBoundedEncodeLeafRefFunction
+    mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
@@ -550,6 +570,18 @@ def ziskMptBoundedEncodeLeafRefProbeUnit : BuildUnit := {
     mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeLeafRefFunction ++ "\n.Lmbelrp_done:"
   dataAsm := ziskMptBoundedEncodeLeafRefDataSection
+}
+
+def ziskMptBoundedDecodeExtensionPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 64; li a3, 0xa0010020; li a4, 0xa0010008; li a5, 0xa0010010; li a6, 0xa0010018; jal ra, mpt_bounded_decode_extension; li t0, 0xa0010000; sd a0, 0(t0); bnez a0, .Lmbdep_done; li t0, 0xa0010010; ld t1, 0(t0); li t2, 0x40000010; sub t1, t1, t2; sd t1, 0(t0); j .Lmbdep_done"
+
+def ziskMptBoundedDecodeExtensionProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedDecodeExtensionPrologue ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedDecodeExtensionFunction ++ "\n.Lmbdep_done:"
+  dataAsm := ""
 }
 
 end EvmAsm.Codegen
