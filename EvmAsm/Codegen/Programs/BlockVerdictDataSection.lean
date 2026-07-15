@@ -132,6 +132,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_paths:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrPathBytes) ++
   "\nbsr_newaccts:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrSystemAccountBytes) ++
   "\nbsr_changes:\n  .zero " ++ toString (bsrMaxStateChanges * bsrStateChangeBytes) ++ "\n" ++
+  -- sd13v: the bounded builder sorts the already-normalized final descriptors
+  -- in place.  Its only sort workspace and construction state are derived
+  -- from the 64-nibble key depth, never from an attacker-provided count.
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   "bsr_storage_access_path_count:\n  .zero 8\n" ++
