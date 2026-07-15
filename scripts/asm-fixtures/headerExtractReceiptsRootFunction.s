@@ -10,38 +10,38 @@ header_extract_receipts_root:
   mv x10, x8
   mv x11, x9
   jal x1, rlp_walk_init
-  bne x12, x0, .+240
+  bne x12, x0, .+232
   sd x10, 32(x2)
   sd x11, 40(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+216
+  bne x11, x0, .+208
   sd x10, 32(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+196
+  bne x11, x0, .+188
   sd x10, 32(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+176
+  bne x11, x0, .+168
   sd x10, 32(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+156
+  bne x11, x0, .+148
   sd x10, 32(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+136
+  bne x11, x0, .+128
   sd x10, 32(x2)
   ld x10, 32(x2)
   ld x11, 40(x2)
   jal x1, rlp_walk_next
-  bne x11, x0, .+116
+  bne x11, x0, .+108
   sub x6, x10, x12
   sub x6, x6, x8
   la x5, herr_offset
@@ -52,18 +52,16 @@ header_extract_receipts_root:
   la x5, herr_length
   ld x6, 0(x5)
   li x7, 32
-  bne x6, x7, .+68
+  bne x6, x7, .+60
   la x5, herr_offset
   ld x28, 0(x5)
   add x28, x8, x28
-  ld x29, 0(x28)
-  sd x29, 0(x18)
-  ld x29, 8(x28)
-  sd x29, 8(x18)
-  ld x29, 16(x28)
-  sd x29, 16(x18)
-  ld x29, 24(x28)
-  sd x29, 24(x18)
+  lbu x29, 0(x28)
+  sb x29, 0(x18)
+  addi x28, x28, 1
+  addi x18, x18, 1
+  addi x6, x6, -1
+  bne x6, x0, .-20
   li x10, 0
   jal x0, .+16
   li x10, 1
