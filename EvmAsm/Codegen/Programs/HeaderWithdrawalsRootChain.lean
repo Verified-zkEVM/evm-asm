@@ -12,7 +12,7 @@
   the `hcont`/`hstage1` continuation type expected by its parent, so it plugs in
   directly.
 
-  Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`/`maxHeartbeats`.
+  Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`.
 -/
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootTail
 

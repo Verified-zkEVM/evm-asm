@@ -12,7 +12,7 @@
   `header_extract_receipts_root_fnspec` (field 5) with index 16 and the withdrawals
   base/prog/scratch addresses.
 
-  Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`/`maxHeartbeats`.
+  Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`.
 -/
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootChain
 
