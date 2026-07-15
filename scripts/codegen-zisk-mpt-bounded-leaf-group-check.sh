@@ -9,11 +9,13 @@ lake build codegen >/dev/null
 lake exe codegen --program zisk_mpt_bounded_missing_group --halt linux93 -o "$workdir/root" >/dev/null
 uv run --directory execution-specs --quiet python3 - "$workdir" <<'PY'
 from ethereum.crypto.hash import keccak256
+from ethereum.merkle_patricia_trie import BranchNode, LeafNode, encode_internal_node
+from ethereum_types.bytes import Bytes
 import pathlib, struct, sys
 
 root = pathlib.Path(sys.argv[1])
 def leaf_64(value):
-    return b'\xe3\xb8\x21\x20' + b'\0' * 32 + value
+    return b'\xe3\xa1\x20' + b'\0' * 32 + value
 def leaf_63(value):
     return b'\xe2\xa0\x30' + b'\0' * 31 + value
 def leaf_62(value):
@@ -28,13 +30,28 @@ old_child = leaf_63(b'\x80')
 new20, new21 = leaf_62(b'\x01'), leaf_62(b'\x02')
 new2 = branch([keccak256(new20), keccak256(new21)] + [None] * 14)
 new_root = branch([keccak256(old_child), None, keccak256(new2)] + [None] * 13)
+empty = Bytes(b'')
+old_spec = LeafNode(Bytes([0] * 64), empty)
+old_child_spec = LeafNode(Bytes([0] * 63), empty)
+new20_spec = LeafNode(Bytes([0] * 62), Bytes(b'\x01'))
+new21_spec = LeafNode(Bytes([0] * 62), Bytes(b'\x02'))
+new2_spec = BranchNode(
+    (encode_internal_node(new20_spec), encode_internal_node(new21_spec)) + (b'',) * 14,
+    empty,
+)
+new_root_spec = BranchNode(
+    (encode_internal_node(old_child_spec), b'', encode_internal_node(new2_spec)) + (b'',) * 13,
+    empty,
+)
+assert keccak256(old) == bytes(encode_internal_node(old_spec))
+assert keccak256(new_root) == bytes(encode_internal_node(new_root_spec))
 section = struct.pack('<I', 4) + old
 key0 = bytes([2, 0]) + b'\0' * 62
 key1 = bytes([2, 1]) + b'\0' * 62
 blob = (struct.pack('<Q', len(section)) + keccak256(old) + key0 + b'\x01' + b'\0' * 7 +
         key1 + b'\x02' + b'\0' * 7 + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
-(root / 'expected').write_bytes(keccak256(new_root))
+(root / 'expected').write_bytes(bytes(encode_internal_node(new_root_spec)))
 PY
 "$ZISKEMU" -e "$workdir/root.elf" -i "$workdir/input" -o "$workdir/output" -n 3000000 >/dev/null </dev/null
 python3 - "$workdir" <<'PY'
