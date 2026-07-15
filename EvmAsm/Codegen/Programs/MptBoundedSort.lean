@@ -10,6 +10,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.RlpRead
 
 namespace EvmAsm.Codegen
 
@@ -121,11 +122,45 @@ def mptBoundedPrepareChangesFunction : String :=
   ".Lmbp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
 
+/-! ## `mpt_bounded_capture_branch_refs`
+
+Capture exactly the canonical pre-state child references of a branch before a
+frontier frame rebuilds the changed subset.  The helper reads each RLP field
+directly, preserving the reference's true length: empty, inline (<32 bytes),
+or a 32-byte hash.  It never consults the mutable NodeDb.  Each output record
+is `{ u64 raw_ref_len, raw_ref[32] }` at `frame + 40*i`; the caller uses the
+length when it later turns the reference back into an RLP branch slot.
+
+ABI: `a0 = branch RLP`, `a1 = branch length`, `a2 = frame`; returns `0` on a
+valid 17-item branch with canonical child references, `1` otherwise. -/
+def mptBoundedCaptureBranchRefsFunction : String :=
+  "  .globl mpt_bounded_capture_branch_refs\n" ++
+  "mpt_bounded_capture_branch_refs:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; addi a2, sp, 40; jal ra, rlp_list_count_items; bnez a0, .Lmbcr_fail\n" ++
+  "  ld t0, 40(sp); li t1, 17; bne t0, t1, .Lmbcr_fail; li s3, 0\n" ++
+  ".Lmbcr_child:\n" ++
+  "  li t0, " ++ toString bsrMptRadixFanout ++ "; beq s3, t0, .Lmbcr_ok\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s3; addi a3, sp, 48; addi a4, sp, 56; jal ra, rlp_list_nth_item; bnez a0, .Lmbcr_fail\n" ++
+  "  ld t0, 56(sp); li t1, " ++ toString bsrMptFrameChildRefBytes ++ "; bgtu t0, t1, .Lmbcr_fail\n" ++
+  "  slli t1, s3, 5; slli t2, s3, 3; add t1, t1, t2; add t1, s2, t1; sd t0, 0(t1); addi t1, t1, 8\n" ++
+  "  ld t2, 48(sp); add t2, s0, t2\n" ++
+  ".Lmbcr_copy:\n" ++
+  "  beqz t0, .Lmbcr_next; lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t0, t0, -1; j .Lmbcr_copy\n" ++
+  ".Lmbcr_next:\n" ++
+  "  addi s3, s3, 1; j .Lmbcr_child\n" ++
+  ".Lmbcr_fail:\n  li a0, 1; j .Lmbcr_ret\n" ++
+  ".Lmbcr_ok:\n  li a0, 0\n" ++
+  ".Lmbcr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 64; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
 def mptBoundedBuilderFrontEndFunction : String :=
-  mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction
+  mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
+    mptBoundedCaptureBranchRefsFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -164,8 +199,38 @@ def ziskMptBoundedSortDataSection : String :=
 
 def ziskMptBoundedSortProbeUnit : BuildUnit := {
   body := NOP
-  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsp_done:"
+  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsp_done:"
   dataAsm := ziskMptBoundedSortDataSection
+}
+
+/-- Probe for the frontier frame's canonical branch-reference capture.  It
+    reports the first three `{length, raw[32]}` records; that covers an empty,
+    an inline, and a hashed reference in one compact regression vector. -/
+def ziskMptBoundedCaptureBranchRefsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; la a2, mbc_probe_frame; jal ra, mpt_bounded_capture_branch_refs; mv s0, a0\n" ++
+  "  li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbcp_done; la t1, mbc_probe_frame; addi t0, t0, 8; li t2, 3\n" ++
+  ".Lmbcp_slot:\n" ++
+  "  beqz t2, .Lmbcp_done; ld t3, 0(t1); sd t3, 0(t0); addi t0, t0, 8; addi t1, t1, 8; li t4, 32\n" ++
+  ".Lmbcp_copy:\n" ++
+  "  beqz t4, .Lmbcp_next; lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lmbcp_copy\n" ++
+  ".Lmbcp_next:\n" ++
+  "  addi t1, t1, " ++ toString (bsrMptFrameChildRefStride - (8 + bsrMptFrameChildRefBytes)) ++ "; addi t2, t2, -1; j .Lmbcp_slot\n" ++
+  ".Lmbcp_done:"
+
+def ziskMptBoundedCaptureBranchRefsDataSection : String :=
+  ".section .bss\n" ++
+  ".balign 8\n" ++
+  "mbc_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
+
+def ziskMptBoundedCaptureBranchRefsProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedCaptureBranchRefsPrologue ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedCaptureBranchRefsFunction
+  dataAsm := ziskMptBoundedCaptureBranchRefsDataSection
 }
 
 end EvmAsm.Codegen

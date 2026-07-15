@@ -57,6 +57,15 @@ def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
     handful of scalar words is enough.  The 65-frame array remains bounded by
     key depth only; it is never indexed by the number of untrusted changes. -/
 def bsrMptBuilderFrameBytes : Nat := 1024
+/-- Canonical pre-state branch-child references are at most 32 raw bytes:
+    either an inline RLP encoding (<32) or a 32-byte hash.  A frontier frame
+    stores the raw reference length followed by the bytes, rounded to 40 B;
+    all sixteen branch children therefore consume 640 B of its 1 KiB budget.
+    The remaining 384 B is reserved for the range/depth bookkeeping and the
+    branch value/reference produced while unwinding. -/
+def bsrMptFrameChildRefBytes : Nat := 32
+def bsrMptFrameChildRefStride : Nat := 40
+def bsrMptFrameBranchChildrenBytes : Nat := bsrMptRadixFanout * bsrMptFrameChildRefStride
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
