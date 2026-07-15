@@ -297,6 +297,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
+  mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++

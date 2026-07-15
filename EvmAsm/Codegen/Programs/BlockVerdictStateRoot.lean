@@ -401,7 +401,8 @@ def statelessVerdictV2Function : String :=
   -- (stateless_ssz.py:46,108); a payload with >16 withdrawals fails to deserialize and is
   -- rejected. The .Lv2_wl loop below writes svf_descriptors (256B=16) + svf_rlp_arena
   -- (1152B=16), so an uncapped count would overflow into adjacent .data. Cap at 16 and
-  -- reject beyond (mirrors the transactions cap `bgeu s4, 2049, .Lv2_tx_root_fail`).
+  -- reject beyond the gas-derived transaction cap (mirrors the transactions
+  -- cap below).
   "  li t0, 17; bgeu s1, t0, .Lv2_withdrawals_root_fail\n" ++
   "  la t0, svf_wds_ptr;   ld s2, 0(t0)\n" ++
   "  la s3, svf_descriptors\n" ++
@@ -428,7 +429,7 @@ def statelessVerdictV2Function : String :=
   "  beqz a0, .Lv2_tx_root_fail\n" ++
   "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
   "  srli s4, a0, 2\n" ++
-  "  li t0, 2049; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
+  "  li t0, " ++ toString (bvMtxFullTxCap + 1) ++ "; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
   "  la t0, svf_tx_count; sd s4, 0(t0)\n" ++
   "  li s5, 0\n" ++
   "  la s3, svf_tx_descriptors\n" ++
@@ -452,11 +453,11 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_tx_desc_loop\n" ++
   ".Lv2_tx_desc_done:\n" ++
   "  la a0, svf_tx_descriptors; la t0, svf_tx_count; ld a1, 0(t0); la a2, svf_tx_root\n" ++
-  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  jal ra, mpt_indexed_trie_root_bounded_from_values\n" ++
   "  la t0, bv_tx_root_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lv2_tx_root_fail\n" ++
   "  la a0, svf_descriptors; la t0, svf_wds_count; ld a1, 0(t0); la a2, svf_withdrawals_root\n" ++
-  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  jal ra, mpt_indexed_trie_root_bounded_from_values\n" ++
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++

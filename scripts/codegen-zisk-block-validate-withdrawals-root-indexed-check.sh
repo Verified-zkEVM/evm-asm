@@ -119,7 +119,7 @@ run_case "mismatch" 3 mismatch 0 0 || FAILED=1
 run_case "short_root" 2 short 2 0 || FAILED=1
 run_case "missing_field" 2 missing 1 0 || FAILED=1
 run_case "garbage_header" 2 garbage 1 0 || FAILED=1
-run_case "too_many" 129 match 3 0 || FAILED=1
+run_case "many_129_match" 129 match 0 1 || FAILED=1
 
 [[ "$FAILED" -eq 0 ]] && echo "==> PASS: indexed withdrawals_root validator matches execution-specs" \
   || { echo "==> FAIL"; exit 1; }

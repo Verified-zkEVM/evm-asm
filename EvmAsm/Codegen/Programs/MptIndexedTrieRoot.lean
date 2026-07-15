@@ -346,6 +346,7 @@ def mptIndexedTrieRootBoundedFunction : String :=
     RLP-index nibble descriptors in the gas-sized fixed arenas, then delegates
     only to `mpt_indexed_trie_root_bounded`. -/
 def mptIndexedTrieRootBoundedFromValuesFunction : String :=
+  "  .globl mpt_indexed_trie_root_bounded_from_values\n" ++
   "mpt_indexed_trie_root_bounded_from_values:\n" ++
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
