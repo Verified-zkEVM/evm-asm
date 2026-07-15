@@ -268,9 +268,39 @@ theorem hesrNextCall {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
   EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_next_call_within
     callPC wnBase oldRa offset hpre hoffset halign hdisj hcode hcallee
 
-#print axioms setupMoves5
-#print axioms hesrPrologue
-#print axioms hesrInitCall
-#print axioms hesrNextCall
+/-! ## The init call step (raw `rlp_walk_init` outcome)
+
+    Instruction [10] (`hesrBase+40 → hesrBase+44`): call `rlp_walk_init`,
+    producing the genuine 9-way `RlpListNthItemSAsm.initOutcome` on the
+    cursor/end/status registers, framed against the caller-owned ambient
+    (`s0/s1/s2`, saved frame, the two scratch spill slots, the output buffer)
+    which the initializer does not touch. -/
+
+/-- The caller-owned ambient carried across the walker calls: the frame pointer
+    and saved registers, the saved-register frame, the two scratch spill slots
+    (`newSp+32`, `newSp+40`), and the 32-byte output buffer. -/
+def hesrAmbient (newSp outPtr listBase listLen : Word) (saved : Saved)
+    (outBytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ listLen) ** (.x18 ↦ᵣ outPtr) **
+  savedFrame newSp saved ** memOwn (newSp + 32) ** memOwn (newSp + 40) **
+  bytesRegion outPtr outBytes
+
+theorem pcFree_hesrAmbient (newSp outPtr listBase listLen : Word) (saved : Saved)
+    (outBytes : List (BitVec 8)) :
+    (hesrAmbient newSp outPtr listBase listLen saved outBytes).pcFree := by
+  unfold hesrAmbient savedFrame
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+
+/-- The scratch-register + `ra` + input-region block the initializer leaves,
+    mirroring `RlpListNthItemSAsm.initCommon` but with the caller's own return
+    address (`hesrBase+44`). -/
+def hesrInitCommon (listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 44)) ** bytesRegion listBase bytes
 
 end EvmAsm.Codegen.HeaderFieldsSpec
