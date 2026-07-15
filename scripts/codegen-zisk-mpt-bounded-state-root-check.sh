@@ -9,16 +9,22 @@ bash scripts/codegen-force-relink.sh >/dev/null
 lake exe codegen --program zisk_mpt_bounded_state_root --halt linux93 -o "$workdir/root" >/dev/null
 uv run --directory execution-specs --quiet python3 - "$workdir" <<'PY'
 from ethereum.crypto.hash import keccak256
+from ethereum.merkle_patricia_trie import LeafNode, encode_internal_node
+from ethereum_types.bytes import Bytes
 import pathlib, struct, sys
 
 root = pathlib.Path(sys.argv[1])
 old_node = b'\xe3\xa1\x20' + b'\0' * 32 + b'\x80'
+old_spec = LeafNode(Bytes([0] * 64), Bytes(b''))
 section = struct.pack('<I', 4) + old_node
 blob = (struct.pack('<Q', len(section)) + keccak256(old_node) + b'\0' * 64 +
         struct.pack('<Q', 1) + b'\x01' + b'\0' * 7 + struct.pack('<Q', 0) + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 expected_node = b'\xe3\xa1\x20' + b'\0' * 32 + b'\x01'
-(root / 'expected').write_bytes(keccak256(expected_node))
+expected_spec = LeafNode(Bytes([0] * 64), Bytes(b'\x01'))
+assert keccak256(old_node) == bytes(encode_internal_node(old_spec))
+assert keccak256(expected_node) == bytes(encode_internal_node(expected_spec))
+(root / 'expected').write_bytes(bytes(encode_internal_node(expected_spec)))
 PY
 "$ZISKEMU" -e "$workdir/root.elf" -i "$workdir/input" -o "$workdir/output" -n 2000000 >/dev/null </dev/null
 python3 - "$workdir" <<'PY'
