@@ -339,17 +339,17 @@ def mptBoundedPartitionFrameFunction : String :=
   ".Lmbpf_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
 
-/-- Build one final state-account leaf from the current remaining state-key
+/-- Build one final bounded-trie leaf from the current remaining state-key
     suffix into a caller-owned 1KiB node buffer, then derive its raw parent
     reference without appending to NodeDb. A descendant leaf must encode only
-    the suffix below its ancestor branch/extension, never the original 64-byte
-    key. -/
+    the suffix below its ancestor branch/extension, never the original
+    64-nibble key. The selected root wrapper supplies the leaf-value bound. -/
 def mptBoundedEncodeLeafRefFunction : String :=
   "  .globl mpt_bounded_encode_leaf_ref\n" ++
   "mpt_bounded_encode_leaf_ref:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s1, t0, .Lmbelr_fail; li t0, " ++ toString bsrEncodedAccountBytes ++ "; bgtu s3, t0, .Lmbelr_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s1, t0, .Lmbelr_fail; la t0, bsr_builder_value_max; ld t0, 0(t0); bgtu s3, t0, .Lmbelr_fail\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, mpt_leaf_node_encode_from_nibbles; bnez a0, .Lmbelr_fail\n" ++
   "  mv a0, s4; ld a1, 0(s5); mv a2, s6; mv a3, s7; jal ra, mpt_bounded_node_ref; bnez a0, .Lmbelr_fail; li a0, 0; j .Lmbelr_ret\n" ++
   ".Lmbelr_fail:\n  li a0, 1\n" ++
@@ -375,11 +375,13 @@ def mptBoundedDecodeExtensionFunction : String :=
   ".Lmbde_fail:\n  li a0, 1\n" ++
   ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
-/-- Decode a state-trie leaf without using the legacy unbounded compact-path
+/-- Decode a bounded-trie leaf without using the legacy unbounded compact-path
     extractor. The leaf path is first proved to fit the remaining key depth;
-    only then are nibbles written to the caller frame. Its account value is
-    returned as an in-node slice and bounded by the concrete account encoding
-    slot used by the state-root builder.
+    only then are nibbles written to the caller frame. Its value is returned
+    as an in-node slice and bounded by the root wrapper's witness-leaf limit.
+    That is deliberately independent of the constructed-value bound: storage
+    writes are uint256, whereas an unchanged hash-authenticated witness leaf
+    is retained verbatim.
 
     ABI: `a0,a1=node`; `a2=remaining`; `a3,a4=path_out,path_len_out`;
     `a5,a6=value_ptr_out,value_len_out`. Returns 0/1. -/
@@ -394,7 +396,7 @@ def mptBoundedDecodeLeafFunction : String :=
   ".Lmbdl_len:\n  bgtu t0, s2, .Lmbdl_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbdl_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
   ".Lmbdl_pairs:\n  ld t2, 64(sp); addi t2, t2, -1\n" ++
   ".Lmbdl_pair_loop:\n  beqz t2, .Lmbdl_value; lbu t3, 0(t1); srli t4, t3, 4; andi t3, t3, 15; sb t4, 0(t5); sb t3, 1(t5); addi t1, t1, 1; addi t5, t5, 2; addi t2, t2, -1; j .Lmbdl_pair_loop\n" ++
-  ".Lmbdl_value:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); li t1, " ++ toString bsrEncodedAccountBytes ++ "; bgtu t0, t1, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbdl_ret\n" ++
+  ".Lmbdl_value:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); la t1, bsr_builder_witness_value_max; ld t1, 0(t1); bgtu t0, t1, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbdl_ret\n" ++
   ".Lmbdl_fail:\n  li a0, 1\n" ++
   ".Lmbdl_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
@@ -647,7 +649,9 @@ def mptBoundedBuildMissingSubtreeFunction : String :=
   "mpt_bounded_build_missing_subtree:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; li t0, " ++ toString bsrMaxStateChanges ++ "; bgtu s2, t0, .Lmbms_fail; bgeu s1, s2, .Lmbms_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s3, t0, .Lmbms_fail; li t0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t1, s3, t0; la t0, bsr_builder_frames; add s4, t0, t1; addi t0, s1, 1; bne t0, s2, .Lmbms_many\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; li t0, " ++ toString bsrMaxStateChanges ++ "; bgtu s2, t0, .Lmbms_fail; bgeu s1, s2, .Lmbms_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s3, t0, .Lmbms_fail; li t0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t1, s3, t0; la t0, bsr_builder_frames; add s4, t0, t1; li t2, 0\n" ++
+  ".Lmbms_clear_frame:\n  li t3, 16; beq t2, t3, .Lmbms_clear_done; slli t3, t2, 5; slli t4, t2, 3; add t3, t3, t4; add t3, s4, t3; sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3); sd zero, 32(t3); addi t2, t2, 1; j .Lmbms_clear_frame\n" ++
+  ".Lmbms_clear_done:\n  addi t0, s1, 1; bne t0, s2, .Lmbms_many\n" ++
   ".Lmbms_one:\n  slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lmbms_fail; ld a0, 0(t0); add a0, a0, s3; li t1, " ++ toString bsrMptKeyNibbles ++ "; sub a1, t1, s3; ld a2, 16(t0); ld a3, 24(t0); la a4, bsr_builder_node; addi a5, sp, 72; la a6, bsr_builder_result_ref; la a7, bsr_builder_result_len; jal ra, mpt_bounded_encode_leaf_ref; bnez a0, .Lmbms_fail; li a0, 0; j .Lmbms_ret\n" ++
   ".Lmbms_many:\n  li t0, " ++ toString bsrMptKeyNibbles ++ "; bgeu s3, t0, .Lmbms_fail; mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbms_fail; li s5, 0; li s6, 0; li s7, 0\n" ++
   ".Lmbms_child:\n  li t0, 16; beq s5, t0, .Lmbms_finish; slli t0, s5, 4; addi t1, s4, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; ld t2, 0(t1); ld t3, 8(t1); beq t2, t3, .Lmbms_next; sd t2, 72(sp); sd t3, 80(sp); addi a0, s0, 0; mv a1, t2; mv a2, t3; addi a3, s3, 1; jal ra, mpt_bounded_build_missing_subtree; bnez a0, .Lmbms_ret; slli t0, s5, 5; slli t1, s5, 3; add t0, t0, t1; add t0, s4, t0; la t1, bsr_builder_result_len; ld t2, 0(t1); sd t2, 0(t0); addi t0, t0, 8; la t1, bsr_builder_result_ref\n" ++
@@ -739,7 +743,7 @@ def mptBoundedEncodeExtensionFunction : String :=
   ".Lmbee_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 112; ret\n"
 
-/-- Bounded state-root driver for the supported exact-replacement subset.
+/-- Bounded shared-root body for the supported exact-replacement subset.
     The input descriptors have already been normalized to final, distinct
     committed values.  It intentionally remains disconnected from the live
     verdict until insert/delete/canonical-collapse cases have comparable KATs.
@@ -750,10 +754,24 @@ def mptBoundedEncodeExtensionFunction : String :=
 def mptBoundedStateRootFunction : String :=
   "  .globl mpt_bounded_state_root\n" ++
   "mpt_bounded_state_root:\n" ++
+  "  la t0, bsr_builder_value_max; li t1, " ++ toString bsrEncodedAccountBytes ++ "; sd t1, 0(t0); la t0, bsr_builder_witness_value_max; sd t1, 0(t0); j .Lmbsr_body\n" ++
+  "  .globl mpt_bounded_storage_root\n" ++
+  "mpt_bounded_storage_root:\n" ++
+  "  la t0, bsr_builder_value_max; li t1, " ++ toString bsrEncodedStorageValueBytes ++ "; sd t1, 0(t0); la t0, bsr_builder_witness_value_max; li t1, " ++ toString bsrMptNodeMaxBytes ++ "; sd t1, 0(t0)\n" ++
+  ".Lmbsr_body:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; bnez a0, .Lmbsr_fail\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; la a3, bsr_builder_frames; jal ra, mpt_bounded_open_root_frame; bnez a0, .Lmbsr_fail\n" ++
+  "  # EMPTY_TRIE_ROOT = keccak256(rlp(b'')) has no witness node to open.  Hash its one-byte RLP directly, then build the normalized insertion interval as a missing subtree.\n" ++
+  "  addi t0, sp, 72; li t1, 128; sb t1, 0(t0); mv a0, t0; li a1, 1; la a2, bsr_builder_node; jal ra, zkvm_keccak256; li t0, 0; la t1, bsr_builder_node\n" ++
+  ".Lmbsr_empty_cmp:\n  li t2, 32; beq t0, t2, .Lmbsr_empty_match; add t3, s0, t0; lbu t4, 0(t3); add t3, t1, t0; lbu t5, 0(t3); bne t4, t5, .Lmbsr_open; addi t0, t0, 1; j .Lmbsr_empty_cmp\n" ++
+  "  # On an empty trie, final deletes are no-ops. Compact them in place and\n" ++
+  "  # turn final mode-0/1 values into inserts before constructing the missing tree.\n" ++
+  ".Lmbsr_empty_match:\n  li t0, 0; li t1, 0\n" ++
+  ".Lmbsr_empty_filter:\n  beq t0, s4, .Lmbsr_empty_filtered; slli t2, t0, 5; slli t3, t0, 3; add t2, t2, t3; add t2, s3, t2; ld t3, 32(t2); li t4, 2; beq t3, t4, .Lmbsr_empty_skip; li t4, 1; bgtu t3, t4, .Lmbsr_fail; slli t4, t1, 5; slli t5, t1, 3; add t4, t4, t5; add t4, s3, t4; ld t5, 0(t2); sd t5, 0(t4); ld t5, 8(t2); sd t5, 8(t4); ld t5, 16(t2); sd t5, 16(t4); ld t5, 24(t2); sd t5, 24(t4); li t5, 1; sd t5, 32(t4); addi t1, t1, 1\n" ++
+  ".Lmbsr_empty_skip:\n  addi t0, t0, 1; j .Lmbsr_empty_filter\n" ++
+  ".Lmbsr_empty_filtered:\n  mv s4, t1; beqz s4, .Lmbsr_copy_old; mv a0, s3; li a1, 0; mv a2, s4; li a3, 0; jal ra, mpt_bounded_build_missing_subtree; bnez a0, .Lmbsr_fail; j .Lmbsr_result\n" ++
+  ".Lmbsr_open:\n  mv a0, s0; mv a1, s1; mv a2, s2; la a3, bsr_builder_frames; jal ra, mpt_bounded_open_root_frame; bnez a0, .Lmbsr_fail\n" ++
   "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; beqz a0, .Lmbsr_result; li t0, 2; bne a0, t0, .Lmbsr_fail; la t0, bsr_builder_frames; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t0); li t1, 2; bne t0, t1, .Lmbsr_fail; li t0, 128; sb t0, 72(sp); addi a0, sp, 72; li a1, 1; mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
   ".Lmbsr_result:\n" ++
   "  la t0, bsr_builder_result_len; ld t1, 0(t0); beqz t1, .Lmbsr_fail; li t2, 32; bne t1, t2, .Lmbsr_hash_root; la t0, bsr_builder_result_ref; mv t1, s5; li t2, 32; j .Lmbsr_copy\n" ++
@@ -820,6 +838,8 @@ def ziskMptBoundedSortDataSection : String :=
   "mbs_changes:\n  .zero 640\n" ++
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "bsr_builder_value_max:\n  .zero 8\n" ++
+  "bsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection
 
 def ziskMptBoundedSortProbeUnit : BuildUnit := {
@@ -1012,7 +1032,7 @@ def ziskMptBoundedEncodeLeafRefPrologue : String :=
 
 def ziskMptBoundedEncodeLeafRefDataSection : String :=
   ".section .bss\n.balign 8\nmbelr_path:\n  .zero 64\nmbelr_node:\n  .zero 1024\nmbelr_node_len:\n  .zero 8\nmbelr_ref:\n  .zero 32\nmbelr_ref_len:\n  .zero 8\n" ++
-    ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n.section .data\n.balign 8\nzk3_state:\n  .zero 200"
+    ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n.section .data\n.balign 8\nbsr_builder_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\nbsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\nzk3_state:\n  .zero 200"
 
 def ziskMptBoundedEncodeLeafRefProbeUnit : BuildUnit := {
   body := NOP
@@ -1044,7 +1064,7 @@ def ziskMptBoundedDecodeLeafProbeUnit : BuildUnit := {
   prologueAsm := ziskMptBoundedDecodeLeafPrologue ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedDecodeLeafFunction ++ "\n.Lmbdlp_done:"
-  dataAsm := ""
+  dataAsm := ".section .data\n.balign 8\nbsr_builder_witness_value_max:\n  .dword " ++ toString bsrMptNodeMaxBytes
 }
 
 /-- Exercise extension rebuilding with a raw 32-byte child hash. This is the
@@ -1097,7 +1117,7 @@ def ziskMptBoundedStateRootDataSection : String :=
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
-  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
 
@@ -1109,6 +1129,29 @@ def ziskMptBoundedStateRootProbeUnit : BuildUnit := {
     mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
     witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsrp_done:"
+  dataAsm := ziskMptBoundedStateRootDataSection
+}
+
+/-- Storage-root variant of the bounded-root probe. It reserves a fixed
+    40-byte input value field so its KAT can exercise the 33-byte full-uint256
+    RLP encoding; it otherwise selects the storage wrapper, whose decoded
+    witness leaves retain the node-sized bound. -/
+def ziskMptBoundedStorageRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 160(t0); addi s6, t0, 168\n" ++
+  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)\n" ++
+  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_storage_root; mv s6, a0\n" ++
+  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbstrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32\n" ++
+  ".Lmbstrp_copy:\n  beqz t2, .Lmbstrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbstrp_copy\n"
+
+def ziskMptBoundedStorageRootProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedStorageRootPrologue ++ "\n" ++
+    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++ rlpItemSizeFunction ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
+    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbstrp_done:"
   dataAsm := ziskMptBoundedStateRootDataSection
 }
 
@@ -1129,7 +1172,7 @@ def ziskMptBoundedMissingGroupDataSection : String :=
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
-  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
 

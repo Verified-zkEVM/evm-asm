@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptDeleteAcc
+import EvmAsm.Codegen.Programs.MptBoundedSort
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -179,6 +180,7 @@ def ziskBalAccountStateRootPrologue : String :=
   mptSetAccFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   balAccountStateRootFunction ++ "\n" ++
   balAccountStateRootAutoFunction ++ "\n" ++
   ".Lbasr_pdone:"
@@ -187,6 +189,11 @@ def ziskBalAccountStateRootPrologue : String :=
     BAL/account-rewrite labels that are not already provided by MPT scratch. -/
 def ziskBalAccountStateRootDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\n" ++
+  "bsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
   ".balign 8\n" ++
   ziskBalAccountHasStateChangeDataSection ++
   "aab_enc_len:\n  .zero 8\n" ++
@@ -243,9 +250,6 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_force_storage_clear:\n  .zero 8\n" ++
-  "baap_storage_delete_flag:\n  .zero 8\n" ++
-  "baap_storage_delete_count:\n  .zero 8\n" ++
-  "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
@@ -278,7 +282,6 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_walk_val:\n  .zero 128\n" ++
   "baap_storage_desc:\n  .zero 20480\n" ++
   "baap_storage_paths:\n  .zero 32768\n" ++
-  "baap_storage_delete_paths:\n  .zero 32768\n" ++
   "baap_storage_values:\n  .zero 32768\n" ++
   "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++

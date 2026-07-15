@@ -382,6 +382,10 @@ def c1StagingBytes : Nat := bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384
 def bsrAccountRecordBytes : Nat := 24
 def bsrPathBytes : Nat := 64
 def bsrEncodedAccountBytes : Nat := 256
+/-- A storage leaf contains the RLP encoding of a minimal unsigned 256-bit
+    integer: at most 32 payload bytes plus its one-byte string prefix.  Zero
+    is represented by a deletion descriptor and is never stored as a leaf. -/
+def bsrEncodedStorageValueBytes : Nat := 33
 def bsrSystemAccountBytes : Nat := 128
 def bsrStateChangeBytes : Nat := 40
 def baapStorageDescBytes : Nat := 40

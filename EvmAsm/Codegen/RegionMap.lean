@@ -215,8 +215,9 @@ def schemeAAnchors : List GuestRegion :=
     for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu), and by
     `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
     (evm-asm-ck36u), and by `0x4` for the settle-reverted-dispatcher-state-gas
-    fix (`fix/dispatcher-revert-state-gas`). -/
-def textSizeBytes : Nat := 0x5b8c4
+    fix (`fix/dispatcher-revert-state-gas`). Regenerated after the bounded
+    storage-root builder replaced the legacy one-slot mutation path. -/
+def textSizeBytes : Nat := 0x5b5bc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -229,10 +230,10 @@ def textSizeBytes : Nat := 0x5b8c4
     return (evm-asm-pwqhw). Grew by `0x40` (64 B) when the `.data`→`.bss`
     splitter was fixed to keep mixed zero/nonzero groups (`blsg_b_be`,
     `p256_one_be`) whole in `.data` (evm-asm-rowr9). -/
-def dataSizeBytes : Nat := 0x5350
+def dataSizeBytes : Nat := 0x5370
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. -/
-def bssSizeBytes : Nat := 0x1a339680
+def bssSizeBytes : Nat := 0x1a339660
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
