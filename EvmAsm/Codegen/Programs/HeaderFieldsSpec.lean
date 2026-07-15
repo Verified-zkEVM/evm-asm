@@ -383,4 +383,111 @@ theorem hesrInitStep {cr : CodeReq}
       | exact pcFree_regIs) hcode hwi'
   simpa [hPrest, hQ] using hc
 
+/-! ## Epilogue
+
+    Instructions [64]-[69] (`hesrBase+256 → raVal &&& ~~~1`): restore
+    `ra/s0/s1/s2` from the frame, deallocate the 48-byte frame, and `ret`.
+    The status word `a0` (and any framed rest `Fr`) is carried untouched.  This
+    is the shared tail all three exit paths (status 0/1/2) reach. -/
+theorem hesrEpilogue (newSp a0v v1 v8 v9 v18 : Word) (saved : Saved)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    cpsTripleWithin 6 (hesrBase + 248) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      (((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** savedFrame newSp saved) ** Fr)
+      (((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+        (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) **
+        savedFrame newSp saved) ** Fr) := by
+  -- [62]-[65] restore ra/s0/s1/s2 via individual LDs (per-instruction ofProg_mem_at;
+  -- loadSeq_spec's drop/take reduction is too heavy at this index).
+  unfold savedFrame
+  -- [62] ld ra, 0(sp)
+  have hl0 := ld_spec_gen_within .x1 .x2 newSp v1 saved.ra (0 : BitVec 12) (hesrBase + 248) (by decide)
+  rw [signExtend12_0, show (newSp + 0 : Word) = newSp from by bv_omega,
+      show (hesrBase + 248 : Word) + 4 = hesrBase + 252 from by bv_omega] at hl0
+  have el0 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 248) Codegen.headerExtractStateRoot_prog 62
+      (.LD .x1 .x2 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hl0
+  have el0F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0v) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+     ((newSp + 8) ↦ₘ saved.s0) ** ((newSp + 16) ↦ₘ saved.s1) **
+     ((newSp + 24) ↦ₘ saved.s2) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) el0
+  -- [63] ld s0, 8(sp)
+  have hl1 := ld_spec_gen_within .x8 .x2 newSp v8 saved.s0 (8 : BitVec 12) (hesrBase + 252) (by decide)
+  rw [show newSp + signExtend12 (8 : BitVec 12) = newSp + 8 from by
+        rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide],
+      show (hesrBase + 252 : Word) + 4 = hesrBase + 256 from by bv_omega] at hl1
+  have el1 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 252) Codegen.headerExtractStateRoot_prog 63
+      (.LD .x8 .x2 (8 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hl1
+  have el1F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0v) ** (.x1 ↦ᵣ saved.ra) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+     (newSp ↦ₘ saved.ra) ** ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) el1
+  -- [64] ld s1, 16(sp)
+  have hl2 := ld_spec_gen_within .x9 .x2 newSp v9 saved.s1 (16 : BitVec 12) (hesrBase + 256) (by decide)
+  rw [show newSp + signExtend12 (16 : BitVec 12) = newSp + 16 from by
+        rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide],
+      show (hesrBase + 256 : Word) + 4 = hesrBase + 260 from by bv_omega] at hl2
+  have el2 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 256) Codegen.headerExtractStateRoot_prog 64
+      (.LD .x9 .x2 (16 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hl2
+  have el2F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0v) ** (.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x18 ↦ᵣ v18) **
+     (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) ** ((newSp + 24) ↦ₘ saved.s2) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) el2
+  -- [65] ld s2, 24(sp)
+  have hl3 := ld_spec_gen_within .x18 .x2 newSp v18 saved.s2 (24 : BitVec 12) (hesrBase + 260) (by decide)
+  rw [show newSp + signExtend12 (24 : BitVec 12) = newSp + 24 from by
+        rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide],
+      show (hesrBase + 260 : Word) + 4 = hesrBase + 264 from by bv_omega] at hl3
+  have el3 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 260) Codegen.headerExtractStateRoot_prog 65
+      (.LD .x18 .x2 (24 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hl3
+  have el3F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0v) ** (.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+     (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) ** ((newSp + 16) ↦ₘ saved.s1) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) el3
+  -- compose the 4 restores
+  have hr01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) el0F el1F
+  have hr012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hr01 el2F
+  have hldF := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hr012 el3F
+  -- [66] addi sp, sp, 48
+  have haddi := addi_spec_gen_same_within .x2 newSp (48 : BitVec 12) (hesrBase + 264) (by decide)
+  rw [show newSp + signExtend12 (48 : BitVec 12) = newSp + 48 from by
+      rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide],
+    show (hesrBase + 264 : Word) + 4 = hesrBase + 268 from by bv_omega] at haddi
+  have haddiE := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 264) Codegen.headerExtractStateRoot_prog 66
+      (.ADDI .x2 .x2 (48 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) haddi
+  have haddiF := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ a0v) ** (.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) **
+      (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) ** ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2)) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) haddiE
+  -- [69] jalr x0, 0(x1)  → return to saved.ra &&& ~~~1
+  have hjalr := jalr_x0_spec_gen_within .x1 saved.ra (0 : BitVec 12) (hesrBase + 268)
+  simp only [signExtend12_0] at hjalr
+  rw [show (saved.ra + 0 : Word) = saved.ra from by bv_omega] at hjalr
+  have hjalrE := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 268) Codegen.headerExtractStateRoot_prog 67
+      (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) hjalr
+  have hjalrF := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x8 ↦ᵣ saved.s0) **
+      (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** (newSp ↦ₘ saved.ra) ** ((newSp + 8) ↦ₘ saved.s0) ** ((newSp + 16) ↦ₘ saved.s1) ** ((newSp + 24) ↦ₘ saved.s2)) ** Fr)
+    (by repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hjalrE
+  -- compose loads ; addi ; jalr
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hldF haddiF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hjalrF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) s2
+
+#print axioms hesrInitStep
+#print axioms hesrEpilogue
+
 end EvmAsm.Codegen.HeaderFieldsSpec
