@@ -226,6 +226,34 @@ def mptBoundedOpenRootFrameFunction : String :=
   ".Lmbor_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 72; ret\n"
 
+/-! ## `mpt_bounded_partition_frame`
+
+Given a sorted, final-distinct descriptor interval, materialize the sixteen
+contiguous child intervals for one Patricia depth directly in a frame.  No
+bucket array is indexed by an attacker-controlled count: this is exactly 16
+`{start,end}` pairs inside the already depth-bounded frame.
+
+ABI: `a0 = descriptors`, `a1 = start`, `a2 = end`, `a3 = depth`, `a4 = frame`;
+returns `0` on success and `1` for invalid bounds/digits. -/
+def mptBoundedPartitionFrameFunction : String :=
+  "  .globl mpt_bounded_partition_frame\n" ++
+  "mpt_bounded_partition_frame:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; li t0, " ++ toString bsrMaxStateChanges ++ "; bgtu s2, t0, .Lmbpf_fail; bltu s2, s1, .Lmbpf_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgeu s3, t0, .Lmbpf_fail\n" ++
+  "  mv s5, s1; li t6, 0\n" ++
+  ".Lmbpf_digit:\n" ++
+  "  li t0, " ++ toString bsrMptRadixFanout ++ "; beq t6, t0, .Lmbpf_ok\n" ++
+  "  slli t0, t6, 4; addi t1, s4, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; sd s5, 0(t1)\n" ++
+  ".Lmbpf_scan:\n" ++
+  "  beq s5, s2, .Lmbpf_store; slli t0, s5, 5; slli t1, s5, 3; add t0, t0, t1; add t0, s0, t0; ld t0, 0(t0); add t0, t0, s3; lbu t1, 0(t0); li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu t1, t0, .Lmbpf_fail; bltu t1, t6, .Lmbpf_fail; bne t1, t6, .Lmbpf_store; addi s5, s5, 1; j .Lmbpf_scan\n" ++
+  ".Lmbpf_store:\n" ++
+  "  slli t0, t6, 4; addi t1, s4, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; sd s5, 8(t1); addi t6, t6, 1; j .Lmbpf_digit\n" ++
+  ".Lmbpf_fail:\n  li a0, 1; j .Lmbpf_ret\n" ++
+  ".Lmbpf_ok:\n  li a0, 0\n" ++
+  ".Lmbpf_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
@@ -233,6 +261,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction
+    ++ "\n" ++ mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -292,7 +321,7 @@ def ziskMptBoundedCaptureBranchRefsPrologue : String :=
   "  beqz t4, .Lmbcp_next; lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lmbcp_copy\n" ++
   ".Lmbcp_next:\n" ++
   "  addi t1, t1, " ++ toString (bsrMptFrameChildRefStride - (8 + bsrMptFrameChildRefBytes)) ++ "; addi t2, t2, -1; j .Lmbcp_slot\n" ++
-  ".Lmbcp_done:"
+  ""
 
 def ziskMptBoundedCaptureBranchRefsDataSection : String :=
   ".section .bss\n" ++
@@ -303,7 +332,7 @@ def ziskMptBoundedCaptureBranchRefsProbeUnit : BuildUnit := {
   body := NOP
   prologueAsm := ziskMptBoundedCaptureBranchRefsPrologue ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedCaptureBranchRefsFunction
+    mptBoundedCaptureBranchRefsFunction ++ "\n.Lmbcp_done:"
   dataAsm := ziskMptBoundedCaptureBranchRefsDataSection
 }
 
@@ -315,27 +344,26 @@ def ziskMptBoundedResolveWitnessPrologue : String :=
   "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; addi s3, s0, 48\n" ++
   "  mv a0, s3; mv a1, s1; mv a2, s2; li a3, 0xa0010008; li a4, 0xa0010010; jal ra, mpt_bounded_resolve_witness; mv s4, a0\n" ++
   "  li t0, 0xa0010000; sd s4, 0(t0); bnez s4, .Lmbwr_done; li t0, 0xa0010008; ld t1, 0(t0); sub t1, t1, s3; sd t1, 0(t0)\n" ++
-  ".Lmbwr_done:"
+  ""
 
 def ziskMptBoundedResolveWitnessProbeUnit : BuildUnit := {
   body := NOP
   prologueAsm := ziskMptBoundedResolveWitnessPrologue ++ "\n" ++
     zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
-    mptBoundedResolveWitnessFunction
+    mptBoundedResolveWitnessFunction ++ "\n.Lmbwr_done:"
   dataAsm := ziskWitnessLookupByHashDataSection
 }
 
 def ziskMptBoundedClassifyNodePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 0xa0010008; jal ra, mpt_bounded_classify_node\n" ++
-  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lmbcnp_done\n" ++
-  ".Lmbcnp_done:"
+  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lmbcnp_done"
 
 def ziskMptBoundedClassifyNodeProbeUnit : BuildUnit := {
   body := NOP
   prologueAsm := ziskMptBoundedClassifyNodePrologue ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction
+    mptBoundedClassifyNodeFunction ++ "\n.Lmbcnp_done:"
   dataAsm := ""
 }
 
@@ -349,7 +377,7 @@ def ziskMptBoundedOpenRootFramePrologue : String :=
   "  beqz t4, .Lmborp_next; lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lmborp_copy\n" ++
   ".Lmborp_next:\n" ++
   "  addi t2, t2, -1; j .Lmborp_slot\n" ++
-  ".Lmborp_done:"
+  ""
 
 def ziskMptBoundedOpenRootFrameDataSection : String :=
   ".section .bss\n.balign 8\nmbor_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++ "\n" ++
@@ -361,8 +389,36 @@ def ziskMptBoundedOpenRootFrameProbeUnit : BuildUnit := {
     zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction
+    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n.Lmborp_done:"
   dataAsm := ziskMptBoundedOpenRootFrameDataSection
+}
+
+def ziskMptBoundedPartitionFramePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); li t1, 17; bgeu s0, t1, .Lmbpp_fail; addi s1, t0, 16; la s2, mbp_changes; li s3, 0\n" ++
+  ".Lmbpp_desc:\n" ++
+  "  beq s3, s0, .Lmbpp_prepare; slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s2, t0; sd s1, 0(t0); li t1, 64; sd t1, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0); addi s1, s1, 64; addi s3, s3, 1; j .Lmbpp_desc\n" ++
+  ".Lmbpp_prepare:\n" ++
+  "  mv a0, s2; mv a1, s0; jal ra, mpt_bounded_prepare_changes; bnez a0, .Lmbpp_fail; mv a0, s2; li a1, 0; mv a2, s0; li a3, 0; la a4, mbp_frame; jal ra, mpt_bounded_partition_frame; mv s4, a0; j .Lmbpp_out\n" ++
+  ".Lmbpp_fail:\n  li s4, 1\n" ++
+  ".Lmbpp_out:\n" ++
+  "  li t0, 0xa0010000; sd s4, 0(t0); bnez s4, .Lmbpp_done; la t1, mbp_frame; addi t1, t1, " ++ toString bsrMptFrameRangeTableOffset ++ "; addi t0, t0, 8; li t2, 10\n" ++
+  ".Lmbpp_copy:\n" ++
+  "  beqz t2, .Lmbpp_done; ld t3, 0(t1); sd t3, 0(t0); ld t3, 8(t1); sd t3, 8(t0); addi t1, t1, 16; addi t0, t0, 16; addi t2, t2, -1; j .Lmbpp_copy\n" ++
+  ""
+
+def ziskMptBoundedPartitionFrameDataSection : String :=
+  ".section .bss\n.balign 8\nmbp_changes:\n  .zero 640\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "mbp_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
+
+def ziskMptBoundedPartitionFrameProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedPartitionFramePrologue ++ "\n" ++
+    mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
+    mptBoundedPartitionFrameFunction ++ "\n.Lmbpp_done:"
+  dataAsm := ziskMptBoundedPartitionFrameDataSection
 }
 
 end EvmAsm.Codegen

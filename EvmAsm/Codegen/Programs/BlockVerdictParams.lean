@@ -70,6 +70,12 @@ def bsrMptFrameBranchChildrenBytes : Nat := bsrMptRadixFanout * bsrMptFrameChild
 def bsrMptFrameNodePtrOffset : Nat := bsrMptFrameBranchChildrenBytes
 def bsrMptFrameNodeLenOffset : Nat := bsrMptFrameNodePtrOffset + 8
 def bsrMptFrameNodeKindOffset : Nat := bsrMptFrameNodeLenOffset + 8
+/-- Sixteen `{start,end}` ranges for the current nibble partition live after
+    root metadata.  They are frame-local, so their capacity is depth-derived
+    rather than proportional to untrusted change count. -/
+def bsrMptFrameRangeTableOffset : Nat := bsrMptFrameNodeKindOffset + 8
+def bsrMptFrameRangeStride : Nat := 16
+def bsrMptFrameRangeTableBytes : Nat := bsrMptRadixFanout * bsrMptFrameRangeStride
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords

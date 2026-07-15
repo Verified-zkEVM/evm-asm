@@ -16,8 +16,8 @@ trap 'rm -rf "$workdir"' EXIT
 lake build codegen >/dev/null
 lake exe codegen --program zisk_mpt_bounded_open_root_frame --halt linux93 -o "$workdir/open" >/dev/null
 
-python3 - "$workdir/input" <<'PY'
-from Crypto.Hash import keccak
+uv run --directory execution-specs --quiet python3 - "$workdir/input" <<'PY'
+from ethereum.crypto.hash import keccak256
 import pathlib
 import struct
 import sys
@@ -25,9 +25,9 @@ import sys
 # branch children 0..2: empty, inline empty-list, hash(00..1f); the rest and
 # branch value are empty.  This exercises each retained reference encoding.
 node = b'\xf1' + b'\x80\xc0\xa0' + bytes(range(32)) + b'\x80' * 14
-h = keccak.new(digest_bits=256); h.update(node)
 section = struct.pack('<I', 4) + node
-pathlib.Path(sys.argv[1]).write_bytes(struct.pack('<Q', len(section)) + h.digest() + section)
+blob = struct.pack('<Q', len(section)) + keccak256(node) + section
+pathlib.Path(sys.argv[1]).write_bytes(blob + b'\0' * (-len(blob) % 8))
 PY
 
 "$ZISKEMU" -e "$workdir/open.elf" -i "$workdir/input" -o "$workdir/output" -n 1000000 >/dev/null </dev/null

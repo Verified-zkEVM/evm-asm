@@ -27,7 +27,8 @@ nodes = {
     'leaf': b'\xc2\x20\x80',
 }
 for name, node in nodes.items():
-    (root / f'{name}.input').write_bytes(struct.pack('<Q', len(node)) + node)
+    blob = struct.pack('<Q', len(node)) + node
+    (root / f'{name}.input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 PY
 
 for kind in branch extension leaf; do

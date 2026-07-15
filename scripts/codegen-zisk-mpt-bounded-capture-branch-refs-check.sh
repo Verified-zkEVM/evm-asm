@@ -26,7 +26,8 @@ import sys
 # branch = [empty, inline-empty-list, hash(00..1f), empty * 13, empty value]
 payload = b'\x80\xc0\xa0' + bytes(range(32)) + b'\x80' * 14
 node = bytes([0xc0 + len(payload)]) + payload
-pathlib.Path(sys.argv[1]).write_bytes(struct.pack('<Q', len(node)) + node)
+blob = struct.pack('<Q', len(node)) + node
+pathlib.Path(sys.argv[1]).write_bytes(blob + b'\0' * (-len(blob) % 8))
 PY
 
 "$ZISKEMU" -e "$workdir/capture.elf" -i "$workdir/input" -o "$workdir/output" -n 1000000 >/dev/null </dev/null
