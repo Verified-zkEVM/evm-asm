@@ -1265,6 +1265,136 @@ private theorem hesrSuccessContinue
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) s
 
+/-! ## Length-check dispatch ([46]→ret)
+
+    `BNE x6, x7, +60` (`hesrBase+184`): if the decoded field length `len` differs
+    from 32, jump to the `status2` return (`a0 = 2`); otherwise fall through to the
+    success continuation (`a0 = 0`, copy the 32 content bytes).  Both arms embed the
+    epilogue and merge at `ret`.  The post is the two-way disjunction pinning the
+    genuine result: on `a0 = 0` (`len = 32`) the output region holds the extracted
+    32 field-content bytes (`copyIntoRegion`), on `a0 = 2` (`len ≠ 32`) it is
+    unchanged. -/
+private theorem hesrLenDispatch
+    (fo listBase outPtr newSp len v5old v28old x29old v1 v9 a0old : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : fo.toNat + 32 ≤ headerBytes.length)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + 204) (hesrBase + 184) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      ((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) **
+       (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo) ** (hesrLenAddr ↦ₘ len) ** (.x18 ↦ᵣ outPtr) **
+       (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+       bytesRegion outPtr outBytes ** (.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) **
+       (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+      (fun h => ∃ (a0v : Word) (finalOut : List (BitVec 8)),
+        ((((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+           (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+          (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+           memOwn hesrLenAddr ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+           bytesRegion outPtr finalOut ** (hesrOffAddr ↦ₘ fo) ** Fr)) **
+         ⌜(a0v = (0 : Word) ∧ len = (32 : Word) ∧
+              finalOut = copyIntoRegion outBytes headerBytes 0 fo.toNat 32) ∨
+           (a0v = (2 : Word) ∧ len ≠ (32 : Word) ∧ finalOut = outBytes)⌝) h) := by
+  -- [46] BNE x6, x7, +60 : taken (len ≠ 32) → status2 (+244), fall-through (len = 32) → +188.
+  have ha_t : (hesrBase + 184 : Word) + signExtend13 (60 : BitVec 13) = hesrBase + 244 := by
+    rw [show signExtend13 (60 : BitVec 13) = (60 : Word) from by decide]; bv_omega
+  have ha_f : (hesrBase + 184 : Word) + 4 = hesrBase + 188 := by bv_omega
+  have hmono : ∀ a i', CodeReq.singleton (hesrBase + 184) (.BNE .x6 .x7 (60 : BitVec 13)) a = some i'
+      → hesrCode a = some i' :=
+    CodeReq.ofProg_mem_at hesrBase (hesrBase + 184) Codegen.headerExtractStateRoot_prog 46
+      (.BNE .x6 .x7 (60 : BitVec 13)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)
+  have hbne := bne_spec_gen_within .x6 .x7 (60 : BitVec 13) len (32 : Word) (hesrBase + 184)
+  rw [ha_t, ha_f] at hbne
+  have hbnee := cpsBranchWithin_extend_code hmono hbne
+  by_cases hlen : len = (32 : Word)
+  · -- Fall-through arm: len = 32, run the success continuation; taken arm is vacuous.
+    have hnt := cpsBranchWithin_ntakenStripPure2 hbnee (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact ((sepConj_pure_right _).1 hQ).2 hlen)
+    have hntF := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) ** (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo) **
+       (hesrLenAddr ↦ₘ len) ** (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes ** (.x10 ↦ᵣ a0old) **
+       (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+      (by unfold savedFrame; repeat' first
+        | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+        | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hnt
+    have hlen2 : len = BitVec.ofNat 64 32 := by rw [hlen]; decide
+    have hsucc := hesrSuccessContinue fo listBase outPtr newSp v5old v28old x29old v1 v9 a0old saved
+      headerBytes outBytes ((.x7 ↦ᵣ (32 : Word)) ** (hesrLenAddr ↦ₘ len) ** Fr)
+      (by repeat' first
+        | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+      h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+    have s := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by rw [← hlen2]; xperm_chunked hp) hntF hsucc
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun h hq => by
+        refine ⟨(0 : Word), copyIntoRegion outBytes headerBytes 0 fo.toNat 32, ?_⟩
+        refine (sepConj_pure_right h).2 ⟨?_, Or.inl ⟨rfl, hlen, rfl⟩⟩
+        have hq2 : (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+            (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+           ((.x5 ↦ᵣ hesrOffAddr) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (32 : Word)) **
+            (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (fo.toNat + 32))) ** regOwn .x29 **
+            (hesrLenAddr ↦ₘ len) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+            bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 fo.toNat 32) **
+            (hesrOffAddr ↦ₘ fo) ** Fr)) h := by xperm_chunked hq
+        exact sepConj_mono_right
+          (sepConj_mono (regIs_implies_regOwn .x5)
+            (sepConj_mono (regIs_implies_regOwn .x6)
+              (sepConj_mono (regIs_implies_regOwn .x7)
+                (sepConj_mono (regIs_implies_regOwn .x28)
+                  (sepConj_mono (fun _ hh => hh)
+                    (sepConj_mono_left memIs_implies_memOwn)))))) h hq2) s
+  · -- Taken arm: len ≠ 32, run status2 return; fall-through arm is vacuous.
+    have htk := cpsBranchWithin_takenStripPure2 hbnee (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact hlen ((sepConj_pure_right _).1 hQ).2)
+    have htkF := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) ** (.x8 ↦ᵣ listBase) ** (hesrOffAddr ↦ₘ fo) **
+       (hesrLenAddr ↦ₘ len) ** (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes ** (.x10 ↦ᵣ a0old) **
+       (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr)
+      (by unfold savedFrame; repeat' first
+        | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+        | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) htk
+    have hs2 := hesrStatus2Return newSp a0old v1 listBase v9 outPtr saved
+      ((.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (.x5 ↦ᵣ v5old) ** (.x28 ↦ᵣ v28old) **
+       (hesrOffAddr ↦ₘ fo) ** (hesrLenAddr ↦ₘ len) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes ** Fr)
+      (by repeat' first
+        | exact hFr | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj)
+    have hs2' := cpsTripleWithin_mono_nSteps (show (1 + 6) ≤ 204 by omega) hs2
+    have s := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_chunked hp) htkF hs2'
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun h hq => by
+        refine ⟨(2 : Word), outBytes, ?_⟩
+        refine (sepConj_pure_right h).2 ⟨?_, Or.inr ⟨rfl, hlen, rfl⟩⟩
+        have hq2 : (((.x10 ↦ᵣ (2 : Word)) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+            (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+           ((.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (.x28 ↦ᵣ v28old) **
+            (.x29 ↦ᵣ x29old) ** (hesrLenAddr ↦ₘ len) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+            (hesrOffAddr ↦ₘ fo) ** Fr)) h := by xperm_chunked hq
+        exact sepConj_mono_right
+          (sepConj_mono (regIs_implies_regOwn .x5)
+            (sepConj_mono (regIs_implies_regOwn .x6)
+              (sepConj_mono (regIs_implies_regOwn .x7)
+                (sepConj_mono (regIs_implies_regOwn .x28)
+                  (sepConj_mono (regIs_implies_regOwn .x29)
+                    (sepConj_mono_left memIs_implies_memOwn)))))) h hq2) s
+
+#print axioms hesrLenDispatch
 #print axioms hesrSuccessContinue
 #print axioms hesrCopyThenFinish
 #print axioms hesrLenLoad
