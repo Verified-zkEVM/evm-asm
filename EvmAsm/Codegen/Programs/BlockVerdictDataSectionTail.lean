@@ -16,7 +16,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 namespace EvmAsm.Codegen
 
 def ziskStatelessVerdictV2DataSectionTail : String :=
-  -- a1vvy step 3: baap_storage_desc/paths/delete_paths/values (~22 MiB) are
+  -- a1vvy step 3: baap_storage_desc/paths/values (~18 MiB) are
   -- UNIONED into call_frame_arena (emitted below) to free the last .data headroom
   -- for the vv4hr.3.4.2 full log-arena lift. They are Phase-H-only (referenced only
   -- in BalAccountApplyPostFields / BlockVerdictSysChange / BlockVerdictStateRoot --
@@ -67,13 +67,12 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   -- 4ch8f.73: bv_system_storage_log is NO LONGER unioned here (it is read
-  -- post-dispatch, so a frame slot would clobber it). The four baap_storage_*
+  -- post-dispatch, so a frame slot would clobber it). The three baap_storage_*
   -- arenas remain unioned (Phase-H, block_state_root-only, 32-aligned).
   "\nbaap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++
   "\nbaap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
-  "\nbaap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
   "\nbaap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
-  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - (bsrMaxBalItems * baapStorageDescBytes) - 3 * (bsrMaxBalItems * bsrPathBytes)) ++
+  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - (bsrMaxBalItems * baapStorageDescBytes) - 2 * (bsrMaxBalItems * bsrPathBytes)) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   ".balign 8\n" ++
   "evm_memory_pool:\n  .zero " ++ toString evmMemoryPoolBytes ++ "\n" ++

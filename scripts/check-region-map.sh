@@ -102,10 +102,10 @@ echo "== call_frame_arena union =="
 symaddr() { "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n {print $2; exit}'; }
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
   "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
-  "$(symaddr baap_storage_delete_paths)" "$(symaddr baap_storage_values)" \
+  "$(symaddr baap_storage_values)" \
   "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" <<'PY' || fail=1
 import sys
-(cfa, bval, bacc, syslog, desc, paths, dpaths, vals, bbase, bsize, pool, pend) = [int(x,16) for x in sys.argv[1:]]
+(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
 syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
@@ -113,14 +113,13 @@ descB = 100000*40       # bsrMaxBalItems*baapStorageDescBytes
 pathB = 100000*64       # bsrMaxBalItems*bsrPathBytes
 frameArrayBytes = 1025*0x19000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
 # 4ch8f.73: bv_system_storage_log is NO LONGER unioned into call_frame_arena; the
-# six remaining children are basr pair + four baap_storage_* (baap at offset 2S).
+# five remaining children are basr pair + three baap_storage_* (baap at offset 2S).
 exp = {
  "call_frame_arena == basr_values": (cfa, bval),
  "basr_accounts off": (bacc-cfa, S),
  "baap_storage_desc off": (desc-cfa, 2*S),
  "baap_storage_paths off": (paths-cfa, 2*S+descB),
- "baap_storage_delete_paths off": (dpaths-cfa, 2*S+descB+pathB),
- "baap_storage_values off": (vals-cfa, 2*S+descB+2*pathB),
+ "baap_storage_values off": (vals-cfa, 2*S+descB+pathB),
  "arena extent == frameArrayBytes": (frameArrayBytes, frameArrayBytes),
 }
 bad = 0
