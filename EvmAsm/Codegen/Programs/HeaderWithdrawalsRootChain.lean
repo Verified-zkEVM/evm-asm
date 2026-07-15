@@ -204,7 +204,7 @@ theorem hewrStage15Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 364) 91 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 364))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 368) 92 (.BNE .x11 .x0 (128 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -270,7 +270,7 @@ theorem hewrStage14Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (148 : BitVec 13) = (148 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 344) 86 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 344))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 348) 87 (.BNE .x11 .x0 (148 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -336,7 +336,7 @@ theorem hewrStage13Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (168 : BitVec 13) = (168 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 324) 81 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 324))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 328) 82 (.BNE .x11 .x0 (168 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -402,7 +402,7 @@ theorem hewrStage12Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (188 : BitVec 13) = (188 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 304) 76 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 304))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 308) 77 (.BNE .x11 .x0 (188 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -468,7 +468,7 @@ theorem hewrStage11Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (208 : BitVec 13) = (208 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 284) 71 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 284))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 288) 72 (.BNE .x11 .x0 (208 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -534,7 +534,7 @@ theorem hewrStage10Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (228 : BitVec 13) = (228 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 264) 66 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 264))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 268) 67 (.BNE .x11 .x0 (228 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -600,7 +600,7 @@ theorem hewrStage9Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (248 : BitVec 13) = (248 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 244) 61 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 244))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 248) 62 (.BNE .x11 .x0 (248 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -666,7 +666,7 @@ theorem hewrStage8Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (268 : BitVec 13) = (268 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 224) 56 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 224))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 228) 57 (.BNE .x11 .x0 (268 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -732,7 +732,7 @@ theorem hewrStage7Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (288 : BitVec 13) = (288 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 204) 51 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 204))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 208) 52 (.BNE .x11 .x0 (288 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -798,7 +798,7 @@ theorem hewrStage6Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (308 : BitVec 13) = (308 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 184) 46 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 184))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 188) 47 (.BNE .x11 .x0 (308 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -864,7 +864,7 @@ theorem hewrStage5Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (328 : BitVec 13) = (328 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 164) 41 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 164))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 168) 42 (.BNE .x11 .x0 (328 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -930,7 +930,7 @@ theorem hewrStage4Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (348 : BitVec 13) = (348 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 144) 36 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 144))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 148) 37 (.BNE .x11 .x0 (348 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -996,7 +996,7 @@ theorem hewrStage3Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (368 : BitVec 13) = (368 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 124) 31 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 124))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 128) 32 (.BNE .x11 .x0 (368 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -1062,7 +1062,7 @@ theorem hewrStage2Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (388 : BitVec 13) = (388 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 104) 26 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 104))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 108) 27 (.BNE .x11 .x0 (388 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -1128,7 +1128,7 @@ theorem hewrStage1Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (408 : BitVec 13) = (408 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload hp hle
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 84) 21 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 84))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 88) 22 (.BNE .x11 .x0 (408 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
@@ -1191,7 +1191,7 @@ theorem hewrStage0Chain
     (by simp only [hewrBase]; decide)
     (by simp only [wnBase, hewrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
     (by rw [show signExtend13 (428 : BitVec 13) = (428 : Word) from by decide]; bv_omega)
-    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+    h_src_align h_slack h_src_over h_src_valid
     (by omega) hpayload RlpListNthItemSAsm.StrictPrefix.zero hpayload.cursor_le
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 64) 16 (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_withdrawals_root + 64))) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)
     (hewrMem Codegen.headerExtractWithdrawalsRoot_prog rfl hcr_prog (hewrBase + 68) 17 (.BNE .x11 .x0 (428 : BitVec 13)) (by rw [hewr_prog_length]; norm_num) (by bv_omega) rfl)

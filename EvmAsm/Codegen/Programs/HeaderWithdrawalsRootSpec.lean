@@ -126,8 +126,7 @@ theorem header_extract_withdrawals_root_fnspec
   -- init dispatch with the 17-stage chain as hstage1
   have hdisp := hfInitDispatch (code := cr) hewrBase hewrOffAddr hewrLenAddr listBase outPtr newSp
     saved.ra v5 v6 v7 v28 v29 v30 v31 saved headerBytes outBytes listLenN 16 (by omega)
-    (hewrBase + 496) (452 : BitVec 13) hewrInitOffset h_src_align h_dst_align h_slack h_src_over
-    h_dst_over h_dst_bound h_src_valid h_dst_valid hbound
+    (hewrBase + 496) (452 : BitVec 13) hewrInitOffset h_src_align h_slack h_src_over h_src_valid
     (by simp only [hewrInitOffset, wiBase, hewrBase]; decide)
     (by simp only [hewrBase]; decide)
     (by simp only [hewrInitOffset, wiBase, hewrBase]
