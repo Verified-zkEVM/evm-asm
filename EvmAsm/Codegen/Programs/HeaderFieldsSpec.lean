@@ -2208,4 +2208,405 @@ private theorem hesrStage4
 #print axioms hesrSuccessTailBundled
 #print axioms hesrStage4
 
+/-! ## Stages 1-3 — walk-and-recurse dispatch around a non-selected item
+
+    Each of the first three `rlp_walk_next` calls decodes the zero-based child
+    `K-1`, and on a zero status *continues* the walk (marshal the fresh cursor,
+    recurse into the next stage) rather than selecting.  The FAIL arm is
+    identical to stage 4's (route a nonzero status to the shared status-1
+    return with `Failure.walk`); the OK arm replaces the success tail with
+    `hesrMarshalNext ;; hesrStage(K+1)`, advancing the walked prefix by one via
+    `StrictPrefix.step_bounds`. -/
+
+/-- The two spill cells around a walker call, folded to one atom so the
+    dispatch permutations count them as one (the atom-wall discipline). -/
+def hesrSpill (newSp cursor endPtr : Word) : Assertion :=
+  ((newSp + 32) ↦ₘ cursor) ** ((newSp + 40) ↦ₘ endPtr)
+
+theorem pcFree_hesrSpill (newSp cursor endPtr : Word) :
+    (hesrSpill newSp cursor endPtr).pcFree := by
+  unfold hesrSpill
+  exact pcFree_sepConj pcFree_memIs pcFree_memIs
+
+/-- Bundled-entry wrapper for the inter-call marshalling: the ambient registers
+    and the two spill cells stay folded (`hesrWalkAmbient`/`hesrSpill`) so the
+    stage feeds it over few atoms.  Internally it unfolds them, frames the
+    concrete `hesrMarshalNext`, and re-folds. -/
+private theorem hesrMarshalNextBundled
+    (entryPC next endPtr newSp listBase v9 outPtr g1 : Word)
+    (saved : Saved) (outBytes : List (BitVec 8)) (Fr : Assertion) (hFr : Fr.pcFree)
+    (hc0 : ∀ a i, CodeReq.singleton entryPC (.SD .x2 .x10 (32 : BitVec 12)) a = some i
+      → hesrCode a = some i)
+    (hc1 : ∀ a i, CodeReq.singleton (entryPC + 4) (.LD .x10 .x2 (32 : BitVec 12)) a = some i
+      → hesrCode a = some i)
+    (hc2 : ∀ a i, CodeReq.singleton (entryPC + 8) (.LD .x11 .x2 (40 : BitVec 12)) a = some i
+      → hesrCode a = some i) :
+    cpsTripleWithin 3 entryPC (entryPC + 12) hesrCode
+      (((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word))) **
+        (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+         hesrSpill newSp g1 endPtr ** Fr))
+      (((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr)) **
+        (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+         hesrSpill newSp next endPtr ** Fr)) := by
+  have hm := hesrMarshalNext entryPC next endPtr newSp (0 : Word) g1 hc0 hc1 hc2
+  have hmF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ outPtr) ** savedFrame newSp saved **
+     hesrAmbConst outPtr outBytes ** Fr)
+    (by
+      repeat' first
+        | exact hFr | exact pcFree_hesrAmbConst _ _ | unfold savedFrame
+        | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hm
+  refine cpsTripleWithin_weaken
+    (fun h hp => by unfold hesrWalkAmbient hesrAmbRegs hesrSpill at hp; xperm_chunked hp)
+    (fun h hq => by unfold hesrWalkAmbient hesrAmbRegs hesrSpill; xperm_chunked hq) hmF
+
+#print axioms hesrSpill
+#print axioms hesrMarshalNextBundled
+
+/-- Peel seven owned scratch registers at once (local mirror of the committed
+    `cpsTripleWithin_of_forall_regIs_to_regOwn7`). -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn7
+    {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {r1 r2 r3 r4 r5 r6 r7 : Reg} {P Q : Assertion}
+    (hspec : ∀ v1 v2 v3 v4 v5 v6 v7, cpsTripleWithin n entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) **
+       (r4 ↦ᵣ v4) ** (r5 ↦ᵣ v5) ** (r6 ↦ᵣ v6) ** (r7 ↦ᵣ v7)) Q) :
+    cpsTripleWithin n entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 **
+       regOwn r5 ** regOwn r6 ** regOwn r7) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPOwn, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP, hO1⟩ := hPOwn
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v5, hv5⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v6, hv6⟩, ⟨v7, hv7⟩⟩ := hO6
+  exact hspec v1 v2 v3 v4 v5 v6 v7 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP, g2, g3, d2, u2, hv1,
+       g4, g5, d3, u3, hv2, g6, g7, d4, u4, hv3,
+       g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
+       g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
+
+set_option maxRecDepth 8000 in
+private theorem hesrStage3
+    (listBase endPtr outPtr newSp : Word) (offPrev listLen cursorOff : Nat)
+    (oldRa v12 v5 v6 v7 v28 v29 v30 v31 v9 : Word)
+    (saved : Saved) (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    {cr : CodeReq}
+    (hcr_prog : ∀ a i, hesrCode a = some i → cr a = some i)
+    (hcr_wn : ∀ a i, rlp_walk_next_code wnBase a = some i → cr a = some i)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_slack : listLen + 9 ≤ headerBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hpayload : RlpListNthItemSAsm.StrictListPayload headerBytes listBase listLen cursorOff endPtr)
+    (hprefixPrev : RlpListNthItemSAsm.StrictPrefix headerBytes listBase endPtr cursorOff 2 offPrev)
+    (hoffPrev : offPrev ≤ listLen)
+    (hbound : ∀ o next len, o ≤ listLen →
+      rlpItemDecode headerBytes o (listBase + BitVec.ofNat 64 o) endPtr next len →
+      (next - len - listBase).toNat + 32 ≤ headerBytes.length) :
+    cpsTripleWithin (1 + 87 + (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))))
+      (hesrBase + 104) (saved.ra &&& ~~~(1 : Word)) cr
+      ((.x1 ↦ᵣ oldRa) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offPrev)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ v12) **
+         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+         (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+         (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+          hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr)))
+      (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLen 3
+        (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+         memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)) := by
+  have hFpc : (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+      hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr).pcFree :=
+    pcFree_sepConj (pcFree_hesrWalkAmbient _ _ _ _ _ _)
+      (pcFree_sepConj (pcFree_hesrSpill _ _ _) hFr)
+  -- the walk call [+104 → +108]
+  have hwalk := hesrNextStep (hesrBase + 104)
+    (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_state_root + 104))
+    listBase endPtr offPrev listLen
+    oldRa v12 v5 v6 v7 v28 v29 v30 v31 headerBytes
+    (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+     hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr) hFpc
+    h_src_align h_slack h_src_over h_src_valid hoffPrev
+    (by simp only [wnBase, hesrBase]; decide)
+    (by simp only [hesrBase]; decide)
+    (by simp only [wnBase, hesrBase]
+        exact CodeReq.Disjoint.singleton_ofProg (by decide))
+    (by
+      refine CodeReq.union_sub (CodeReq.singleton_mono (hcr_prog _ _ ?_)) hcr_wn
+      exact CodeReq.ofProg_mem_at hesrBase (hesrBase + 104) Codegen.headerExtractStateRoot_prog 26
+        (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next
+          (Codegen.GuestAddrs.header_extract_state_root + 104))) (by bv_omega)
+        (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num) _ _
+        (by simp [CodeReq.singleton]))
+  -- weaken the raw 6-way outcome to the 2-way normalized form
+  have hwalk' := cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      exact sepConj_mono_left
+        (sepConj_mono_right (hesrNextOutcome_to_norm listBase endPtr headerBytes offPrev)) h hq) hwalk
+  -- the BNE dispatch [+108 → ret]
+  have hdisp : cpsTripleWithin (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))) (hesrBase + 108)
+      (saved.ra &&& ~~~(1 : Word)) cr
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+         bytesRegion listBase headerBytes) ** hesrNextNorm listBase endPtr headerBytes offPrev) **
+        (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+         hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))
+      (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLen 3
+        (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+         memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)) := by
+    have ha_t : (hesrBase + 108 : Word) + signExtend13 (128 : BitVec 13) = hesrBase + 236 := by
+      rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega
+    have ha_f : (hesrBase + 108 : Word) + 4 = hesrBase + 112 := by bv_omega
+    have hbnemono : ∀ a i, CodeReq.singleton (hesrBase + 108) (.BNE .x11 .x0 (128 : BitVec 13)) a = some i
+        → cr a = some i := by
+      intro a i hs
+      exact hcr_prog _ _ (CodeReq.ofProg_mem_at hesrBase (hesrBase + 108)
+        Codegen.headerExtractStateRoot_prog 27 (.BNE .x11 .x0 (128 : BitVec 13)) (by bv_omega)
+        (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num) _ _ hs)
+    -- FAIL arm: x11 = status ≠ 0 → taken → status1 (a0 = 1, Failure.walk).
+    have hFAIL : cpsTripleWithin (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))) (hesrBase + 108)
+        (saved.ra &&& ~~~(1 : Word)) cr
+        (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+           bytesRegion listBase headerBytes) **
+          (fun h => ∃ status : Word,
+            ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offPrev)) ** (.x11 ↦ᵣ status) **
+              (.x12 ↦ᵣ (0 : Word)) **
+              ⌜status ≠ (0 : Word) ∧
+                RlpListNthItemSAsm.WalkFailure headerBytes offPrev
+                  (listBase + BitVec.ofNat 64 offPrev) endPtr⌝) h)) **
+          (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+           hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))
+        (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLen 3
+          (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+           memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)) := by
+      refine cpsTripleWithin_weaken
+        (P := fun h => ∃ status : Word,
+          (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+             regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+             bytesRegion listBase headerBytes) **
+            ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offPrev)) ** (.x11 ↦ᵣ status) **
+             (.x12 ↦ᵣ (0 : Word)) **
+             ⌜status ≠ (0 : Word) ∧
+               RlpListNthItemSAsm.WalkFailure headerBytes offPrev
+                 (listBase + BitVec.ofNat 64 offPrev) endPtr⌝)) **
+            (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+             hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr)) h)
+        (fun h hp => by
+          obtain ⟨h1, h2, hd, hu, hrf, hab⟩ := hp
+          obtain ⟨ha, hb, hd', hu', hreg, hst⟩ := hrf
+          obtain ⟨status, hstatus⟩ := hst
+          exact ⟨status, ⟨h1, h2, hd, hu, ⟨ha, hb, hd', hu', hreg, hstatus⟩, hab⟩⟩)
+        (fun _ h => h) ?_
+      refine cpsTripleWithin_exists_pre_gen (fun status => ?_)
+      refine cpsTripleWithin_weaken
+        (P := ⌜status ≠ (0 : Word) ∧
+              RlpListNthItemSAsm.WalkFailure headerBytes offPrev
+                (listBase + BitVec.ofNat 64 offPrev) endPtr⌝ **
+          (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+            (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+             regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) ** bytesRegion listBase headerBytes **
+             (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offPrev)) ** (.x12 ↦ᵣ (0 : Word)) **
+             (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+              hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))))
+        (fun h hp => by xperm_chunked hp)
+        (fun _ h => h) ?_
+      refine cpsTripleWithin_pure_pre (fun hP => ?_)
+      have hbne := bne_spec_gen_within .x11 .x0 (128 : BitVec 13) status (0 : Word) (hesrBase + 108)
+      rw [ha_t, ha_f] at hbne
+      have hbnee := cpsBranchWithin_extend_code hbnemono hbne
+      have htk := cpsBranchWithin_takenStripPure2 hbnee (fun hp hQf => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+        exact hP.1 ((sepConj_pure_right _).1 hQ).2)
+      have htkF := cpsTripleWithin_frameR
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) ** bytesRegion listBase headerBytes **
+         (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offPrev)) ** (.x12 ↦ᵣ (0 : Word)) **
+         (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+          hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))
+        (by repeat' first
+          | exact pcFree_hesrWalkAmbient _ _ _ _ _ _ | exact pcFree_hesrSpill _ _ _
+          | exact hFr | exact bytesRegion_pcFree _ _ | exact pcFree_regIs
+          | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_memOwn
+          | apply pcFree_sepConj) htk
+      have hs1 := cpsTripleWithin_extend_code hcr_prog
+        (hesrStatus1Bundled newSp listBase v9 outPtr (listBase + BitVec.ofNat 64 offPrev)
+          (hesrBase + 104 + 4) saved
+          ((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) ** regOwn .x5 **
+           regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+           bytesRegion listBase headerBytes ** hesrAmbConst outPtr outBytes **
+           hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr)
+          (by repeat' first
+            | exact pcFree_hesrAmbConst _ _ | exact pcFree_hesrSpill _ _ _ | exact hFr
+            | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | exact pcFree_regOwn
+            | exact pcFree_memIs | exact pcFree_memOwn | apply pcFree_sepConj))
+      have s := cpsTripleWithin_seq_perm_same_cr
+        (fun _ hp => by unfold hesrWalkAmbient at hp; xperm_chunked hp) htkF hs1
+      refine cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken (fun _ hp => hp)
+          (fun h hq => by
+            refine ⟨(1 : Word), outBytes, (0 : Word), (0 : Word), ?_⟩
+            refine (sepConj_pure_right h).2 ⟨?_, Or.inr (Or.inr ⟨rfl,
+              RlpListNthItemSAsm.Failure.walk cursorOff 2 offPrev endPtr hpayload (by omega)
+                hprefixPrev hP.2⟩)⟩
+            unfold hesrAmbConst hesrSpill at hq
+            have hq2 : ((((.x10 ↦ᵣ (1 : Word)) ** (.x1 ↦ᵣ saved.ra) ** hesrAmbRegsRestored newSp saved) **
+               (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x12 ↦ᵣ (0 : Word)) ** regOwn .x28 **
+                regOwn .x29 ** hesrScratchConst ** (.x0 ↦ᵣ (0 : Word)) **
+                bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+                ((.x11 ↦ᵣ status) ** regOwn .x30 ** regOwn .x31 **
+                 ((newSp + 32) ↦ₘ (listBase + BitVec.ofNat 64 offPrev)) **
+                 ((newSp + 40) ↦ₘ endPtr) ** Fr)))) h := by
+              xperm_chunked hq
+            exact sepConj_mono_right
+              (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+                (sepConj_mono (regIs_implies_regOwn .x12)
+                  (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+                    (sepConj_mono_right (sepConj_mono_right
+                      (sepConj_mono (regIs_implies_regOwn .x11)
+                        (sepConj_mono_right (sepConj_mono_right
+                          (sepConj_mono memIs_implies_memOwn (fun _ hh => hh)))))))))))))))
+              h hq2) s)
+    -- OK arm: x11 = 0 → ntaken → marshal + recurse into hesrStage4.
+    have hOK : cpsTripleWithin (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))) (hesrBase + 108)
+        (saved.ra &&& ~~~(1 : Word)) cr
+        (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+           bytesRegion listBase headerBytes) **
+          rlpWalkNextOk (listBase + BitVec.ofNat 64 offPrev) endPtr headerBytes offPrev) **
+          (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+           hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))
+        (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLen 3
+          (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+           memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)) := by
+      refine cpsTripleWithin_weaken
+        (P := fun h => ∃ next len : Word,
+          (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+             regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+             bytesRegion listBase headerBytes) **
+            ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+             ⌜rlpItemDecode headerBytes offPrev (listBase + BitVec.ofNat 64 offPrev) endPtr next len⌝)) **
+            (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+             hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr)) h)
+        (fun h hp => by
+          obtain ⟨h1, h2, hd, hu, hrf, hab⟩ := hp
+          obtain ⟨ha, hb, hd', hu', hreg, hwlk⟩ := hrf
+          obtain ⟨next, len, hw⟩ := hwlk
+          exact ⟨next, len, ⟨h1, h2, hd, hu, ⟨ha, hb, hd', hu', hreg, hw⟩, hab⟩⟩)
+        (fun _ h => h) ?_
+      refine cpsTripleWithin_exists_pre_gen (fun next => ?_)
+      refine cpsTripleWithin_exists_pre_gen (fun len => ?_)
+      refine cpsTripleWithin_weaken
+        (P := ⌜rlpItemDecode headerBytes offPrev (listBase + BitVec.ofNat 64 offPrev) endPtr next len⌝ **
+          (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+            (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+             regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) ** bytesRegion listBase headerBytes **
+             (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+             (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+              hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))))
+        (fun h hp => by xperm_chunked hp)
+        (fun _ h => h) ?_
+      refine cpsTripleWithin_pure_pre (fun hdecode => ?_)
+      -- advance the walked prefix from 2 to 3 items.
+      have hend : endPtr = listBase + BitVec.ofNat 64 listLen := hpayload.end_eq
+      have hover' : listBase.toNat + listLen + 9 < 2 ^ 64 := by omega
+      obtain ⟨hnexteq, hlt, hle, hprefixK⟩ :=
+        RlpListNthItemSAsm.StrictPrefix.step_bounds (endOff := listLen)
+          (hend ▸ hprefixPrev) (hend ▸ hdecode) hoffPrev hover'
+      set offK : Nat := (next - listBase).toNat with hoffKdef
+      -- BNE: not taken since x11 = 0.
+      have hbne := bne_spec_gen_within .x11 .x0 (128 : BitVec 13) (0 : Word) (0 : Word) (hesrBase + 108)
+      rw [ha_t, ha_f] at hbne
+      have hbnee := cpsBranchWithin_extend_code hbnemono hbne
+      have hntk := cpsBranchWithin_ntakenStripPure2 hbnee (fun hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact ((sepConj_pure_right _).1 hQ).2 rfl)
+      have hntkF := cpsTripleWithin_frameR
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+         regOwn .x31 ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) ** bytesRegion listBase headerBytes **
+         (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+         (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+          hesrSpill newSp (listBase + BitVec.ofNat 64 offPrev) endPtr ** Fr))
+        (by repeat' first
+          | exact pcFree_hesrWalkAmbient _ _ _ _ _ _ | exact pcFree_hesrSpill _ _ _
+          | exact hFr | exact bytesRegion_pcFree _ _ | exact pcFree_regIs
+          | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_memOwn
+          | apply pcFree_sepConj) hntk
+      -- marshalNext [+112 → +124], ambient/spill folded.
+      have hmb := cpsTripleWithin_extend_code hcr_prog
+        (hesrMarshalNextBundled (hesrBase + 112) (listBase + BitVec.ofNat 64 offK) endPtr newSp
+          listBase v9 outPtr (listBase + BitVec.ofNat 64 offPrev) saved outBytes
+          ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** (.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+           regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+           regOwn .x31 ** bytesRegion listBase headerBytes ** Fr)
+          (by repeat' first
+            | exact hFr | exact bytesRegion_pcFree _ _ | exact pcFree_regIs
+            | exact pcFree_regOwn | apply pcFree_sepConj)
+          (fun a i hs => CodeReq.ofProg_mem_at hesrBase (hesrBase + 112)
+            Codegen.headerExtractStateRoot_prog 28 (.SD .x2 .x10 (32 : BitVec 12)) (by bv_omega)
+            (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num) a i hs)
+          (fun a i hs => CodeReq.ofProg_mem_at hesrBase (hesrBase + 116)
+            Codegen.headerExtractStateRoot_prog 29 (.LD .x10 .x2 (32 : BitVec 12)) (by bv_omega)
+            (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num) a i hs)
+          (fun a i hs => CodeReq.ofProg_mem_at hesrBase (hesrBase + 120)
+            Codegen.headerExtractStateRoot_prog 30 (.LD .x11 .x2 (40 : BitVec 12)) (by bv_omega)
+            (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num) a i hs))
+      -- recurse into hesrStage4 at +124 with the freshly-marshalled spill in Fr.
+      have hstage4 : ∀ w5 w6 w7 w28 w29 w30 w31,
+          cpsTripleWithin (1 + 87 + (1 + (9 + 4 + (1 + 204)))) (hesrBase + 124)
+            (saved.ra &&& ~~~(1 : Word)) cr
+            (((.x1 ↦ᵣ (hesrBase + 104 + 4)) **
+              ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 offK)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+               (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+               (hesrWalkAmbient newSp outPtr listBase v9 saved outBytes **
+                (memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)))) **
+             (.x5 ↦ᵣ w5) ** (.x6 ↦ᵣ w6) ** (.x7 ↦ᵣ w7) ** (.x28 ↦ᵣ w28) ** (.x29 ↦ᵣ w29) **
+             (.x30 ↦ᵣ w30) ** (.x31 ↦ᵣ w31))
+            (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLen 3
+              (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+               memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)) :=
+        fun w5 w6 w7 w28 w29 w30 w31 =>
+          cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ h => h)
+            (hesrStage4 listBase endPtr outPtr newSp offK listLen cursorOff
+              (hesrBase + 104 + 4) len w5 w6 w7 w28 w29 w30 w31 v9 saved headerBytes outBytes
+              (memOwn (newSp + 32) ** ((newSp + 40) ↦ₘ endPtr) ** Fr)
+              (by repeat' first
+                | exact hFr | exact pcFree_memIs | exact pcFree_memOwn | apply pcFree_sepConj)
+              hcr_prog hcr_wn h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound
+              h_src_valid h_dst_valid hpayload (hend ▸ hprefixK) hle
+              (fun n l hd => hbound offK n l hle hd))
+      have hstage4' := cpsTripleWithin_of_forall_regIs_to_regOwn7 hstage4
+      have hrec := cpsTripleWithin_seq_perm_same_cr
+        (fun h hq => by
+          have hq' := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left
+            (fun h' hs => by unfold hesrSpill at hs
+                             exact sepConj_mono_left memIs_implies_memOwn h' hs))) h hq
+          xperm_chunked hq') hmb hstage4'
+      exact cpsTripleWithin_seq_perm_same_cr
+        (fun h hq => by rw [hnexteq] at hq; xperm_chunked hq) hntkF hrec
+    refine cpsTripleWithin_weaken
+      (fun h hp => by
+        obtain ⟨h1, h2, hd, hu, hrf, hab⟩ := hp
+        obtain ⟨ha, hb, hd', hu', hreg, hnorm⟩ := hrf
+        unfold hesrNextNorm at hnorm
+        rcases hnorm with hok | hfail
+        · exact Or.inl ⟨h1, h2, hd, hu, ⟨ha, hb, hd', hu', hreg, hok⟩, hab⟩
+        · exact Or.inr ⟨h1, h2, hd, hu, ⟨ha, hb, hd', hu', hreg, hfail⟩, hab⟩)
+      (fun _ h => h) (cpsTripleWithin_or_pre hOK hFAIL)
+  rw [show (hesrBase + 104 : Word) + 4 = hesrBase + 108 from by bv_omega] at hwalk'
+  exact cpsTripleWithin_seq_same_cr hwalk' hdisp
+
+#print axioms hesrStage3
+
 end EvmAsm.Codegen.HeaderFieldsSpec
