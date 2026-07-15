@@ -14,6 +14,7 @@ import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptBoundedSort
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -288,7 +289,7 @@ def mptIndexedBuildSubtreeFunction : String :=
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; bgeu s1, s2, .Lmibs_fail; li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu s3, t0, .Lmibs_fail; addi t0, s1, 1; bne t0, s2, .Lmibs_multi\n" ++
-  "  slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld a0, 0(t0); ld a1, 8(t0); bgeu s3, a1, .Lmibs_fail; add a0, a0, s3; sub a1, a1, s3; ld a2, 16(t0); ld a3, 24(t0); mv a4, s4; mv a5, s5; jal ra, mpt_indexed_leaf_ref; bnez a0, .Lmibs_fail; li a0, 0; j .Lmibs_ret\n" ++
+  "  slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld a0, 0(t0); ld a1, 8(t0); bltu a1, s3, .Lmibs_fail; add a0, a0, s3; sub a1, a1, s3; ld a2, 16(t0); ld a3, 24(t0); mv a4, s4; mv a5, s5; jal ra, mpt_indexed_leaf_ref; bnez a0, .Lmibs_fail; li a0, 0; j .Lmibs_ret\n" ++
   ".Lmibs_multi:\n" ++
   "  li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgeu s3, t0, .Lmibs_fail; la s6, itr_builder_frames; slli t0, s3, 10; add s6, s6, t0; li t0, 16; mv t1, s6\n" ++
   ".Lmibs_clear:\n" ++
@@ -298,7 +299,7 @@ def mptIndexedBuildSubtreeFunction : String :=
   ".Lmibs_common_loop:\n" ++
   "  add t0, s3, t2; bgeu t0, s8, .Lmibs_common_done; bgeu t0, t6, .Lmibs_common_done; add t1, s7, t0; lbu t1, 0(t1); add t3, s9, t0; lbu t3, 0(t3); bne t1, t3, .Lmibs_common_done; addi t2, t2, 1; j .Lmibs_common_loop\n" ++
   ".Lmibs_common_done:\n" ++
-  "  beqz t2, .Lmibs_branch; mv a0, s0; mv a1, s1; mv a2, s2; add a3, s3, t2; addi a4, s6, 8; mv a5, s6; jal ra, mpt_indexed_build_subtree; bnez a0, .Lmibs_fail; add t0, s7, s3; addi t1, s6, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv t3, t2\n" ++
+  "  beqz t2, .Lmibs_branch; sd t2, 88(sp); mv a0, s0; mv a1, s1; mv a2, s2; add a3, s3, t2; addi a4, s6, 8; mv a5, s6; jal ra, mpt_indexed_build_subtree; bnez a0, .Lmibs_fail; ld t2, 88(sp); add t0, s7, s3; addi t1, s6, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv t3, t2\n" ++
   ".Lmibs_prefix_copy:\n" ++
   "  beqz t3, .Lmibs_prefix_done; lbu t4, 0(t0); sb t4, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lmibs_prefix_copy\n" ++
   ".Lmibs_prefix_done:\n" ++
@@ -1016,6 +1017,32 @@ def ziskMptIndexedSortChangesPrologue : String :=
 def ziskMptIndexedSortChangesProbeUnit : BuildUnit := {
   body := NOP
   prologueAsm := ziskMptIndexedSortChangesPrologue
+  dataAsm := ziskMptIndexedTrieRootSmallDataSection
+}
+
+/-! Bounded indexed-root probe.  Each input record is `{path_len:u64,
+    path[8], value_len:u64, value[64]}`; it is deliberately a descriptor-level
+    probe so the root KAT can cover the exact 0/127/128/256 RLP paths. -/
+def ziskMptIndexedTrieRootBoundedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; la s3, itr_changes; li s4, 0\n" ++
+  ".Lmitrbp_load:\n" ++
+  "  beq s4, s1, .Lmitrbp_root; li t0, 88; mul t0, s4, t0; add t0, s2, t0; ld t1, 0(t0); addi t2, t0, 8; ld t3, 16(t0); addi t4, t0, 24; slli t5, s4, 5; slli t6, s4, 3; add t5, t5, t6; add t5, s3, t5; sd t2, 0(t5); sd t1, 8(t5); sd t4, 16(t5); sd t3, 24(t5); sd zero, 32(t5); addi s4, s4, 1; j .Lmitrbp_load\n" ++
+  ".Lmitrbp_root:\n" ++
+  "  mv a0, s3; mv a1, s1; li a2, 0xa0010000; jal ra, mpt_indexed_trie_root_bounded; li t0, 0xa0010020; sd a0, 0(t0); j .Lmitrbp_done\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++ rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++ mptExtensionNodeEncodeFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n" ++
+  mptBoundedEncodeBranchFunction ++ "\n" ++ mptBoundedEncodeExtensionFunction ++ "\n" ++
+  mptIndexedTrieRootOneLeafFunction ++ "\n" ++ mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++ mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++ mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  ".Lmitrbp_done:"
+
+def ziskMptIndexedTrieRootBoundedProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptIndexedTrieRootBoundedPrologue
   dataAsm := ziskMptIndexedTrieRootSmallDataSection
 }
 
