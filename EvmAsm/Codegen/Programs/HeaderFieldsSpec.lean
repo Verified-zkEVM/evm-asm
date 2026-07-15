@@ -42,6 +42,9 @@ open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
 local macro "pcFreeR" : tactic =>
   `(tactic| repeat' first
     | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
     | apply pcFree_sepConj
     | pcFree)
 
@@ -61,9 +64,9 @@ theorem hesr_prog_length : Codegen.headerExtractStateRoot_prog.length = 68 := rf
 abbrev hesrOffAddr : Word := (Codegen.GuestAddrs.hesr_offset : Word)
 abbrev hesrLenAddr : Word := (Codegen.GuestAddrs.hesr_length : Word)
 
-/-- Probe: the `la x5, hesr_offset` pair at [35]-[36] materializes `hesrOffAddr`
-    in `x5` (confirms the codegen-`laHi` ↔ `Rv64.laHi` defeq at these addresses). -/
-private theorem hesrLaOffProbe (v : Word) :
+/-- `la x5, hesr_offset` at [35]-[36] (`+140 → +148`): materialize `hesrOffAddr`.
+    (Also confirms the codegen-`laHi` ↔ `Rv64.laHi` defeq at these addresses.) -/
+private theorem hesrLaOff140 (v : Word) :
     cpsTripleWithin 2 (hesrBase + 140) (hesrBase + 148) hesrCode
       (.x5 ↦ᵣ v) (.x5 ↦ᵣ hesrOffAddr) := by
   have hau := CodeReq.ofProg_mem_at hesrBase (hesrBase + 140)
@@ -79,6 +82,63 @@ private theorem hesrLaOffProbe (v : Word) :
   have h := la_materialize_within .x5 v (hesrBase + 140) hesrOffAddr
     (by decide) (by unfold hesrBase hesrOffAddr; decide) hau had
   rw [show (hesrBase + 140 : Word) + 8 = hesrBase + 148 from by bv_omega] at h
+  exact h
+
+/-- `la x5, hesr_length` at [38]-[39] (`+152 → +160`): materialize `hesrLenAddr`. -/
+private theorem hesrLaLen152 (v : Word) :
+    cpsTripleWithin 2 (hesrBase + 152) (hesrBase + 160) hesrCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ hesrLenAddr) := by
+  have hau := CodeReq.ofProg_mem_at hesrBase (hesrBase + 152)
+    Codegen.headerExtractStateRoot_prog 38
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.hesr_length
+      (Codegen.GuestAddrs.header_extract_state_root + 152))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have had := CodeReq.ofProg_mem_at hesrBase (hesrBase + 156)
+    Codegen.headerExtractStateRoot_prog 39
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.hesr_length
+      (Codegen.GuestAddrs.header_extract_state_root + 152))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have h := la_materialize_within .x5 v (hesrBase + 152) hesrLenAddr
+    (by decide) (by unfold hesrBase hesrLenAddr; decide) hau had
+  rw [show (hesrBase + 152 : Word) + 8 = hesrBase + 160 from by bv_omega] at h
+  exact h
+
+/-- `la x5, hesr_length` at [42]-[43] (`+168 → +176`): materialize `hesrLenAddr`. -/
+private theorem hesrLaLen168 (v : Word) :
+    cpsTripleWithin 2 (hesrBase + 168) (hesrBase + 176) hesrCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ hesrLenAddr) := by
+  have hau := CodeReq.ofProg_mem_at hesrBase (hesrBase + 168)
+    Codegen.headerExtractStateRoot_prog 42
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.hesr_length
+      (Codegen.GuestAddrs.header_extract_state_root + 168))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have had := CodeReq.ofProg_mem_at hesrBase (hesrBase + 172)
+    Codegen.headerExtractStateRoot_prog 43
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.hesr_length
+      (Codegen.GuestAddrs.header_extract_state_root + 168))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have h := la_materialize_within .x5 v (hesrBase + 168) hesrLenAddr
+    (by decide) (by unfold hesrBase hesrLenAddr; decide) hau had
+  rw [show (hesrBase + 168 : Word) + 8 = hesrBase + 176 from by bv_omega] at h
+  exact h
+
+/-- `la x5, hesr_offset` at [47]-[48] (`+188 → +196`): materialize `hesrOffAddr`. -/
+private theorem hesrLaOff188 (v : Word) :
+    cpsTripleWithin 2 (hesrBase + 188) (hesrBase + 196) hesrCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ hesrOffAddr) := by
+  have hau := CodeReq.ofProg_mem_at hesrBase (hesrBase + 188)
+    Codegen.headerExtractStateRoot_prog 47
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.hesr_offset
+      (Codegen.GuestAddrs.header_extract_state_root + 188))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have had := CodeReq.ofProg_mem_at hesrBase (hesrBase + 192)
+    Codegen.headerExtractStateRoot_prog 48
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.hesr_offset
+      (Codegen.GuestAddrs.header_extract_state_root + 188))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have h := la_materialize_within .x5 v (hesrBase + 188) hesrOffAddr
+    (by decide) (by unfold hesrBase hesrOffAddr; decide) hau had
+  rw [show (hesrBase + 188 : Word) + 8 = hesrBase + 196 from by bv_omega] at h
   exact h
 
 /-! ## ABI frame: save ra/s0/s1/s2 into a 48-byte frame
@@ -916,6 +976,100 @@ private theorem hesrCopyLoop (srcBase dstBase x29old : Word)
                      show i + 1 + (k + 1) = i + (k + 1 + 1) from by omega] at hq
           xperm_chunked hq) sfull)
 
+/-! ## Success-tail: offset/length compute + global-cell store ([33]-[41])
+
+    `SUB x6,x10,x12` (`next-len`), `SUB x6,x6,x8` (`next-len-listBase` =
+    fieldOffset), then `la x5,hesr_offset ; sd x6,0(x5)` and
+    `la x5,hesr_length ; sd x12,0(x5)` round-trip the decoded offset and length
+    through the two global scratch cells; `jal x0,+4` falls through to [42]. -/
+private theorem hesrOffsetStore
+    (next len listBase v5old v6old offOld lenOld : Word) :
+    cpsTripleWithin 9 (hesrBase + 132) (hesrBase + 168) hesrCode
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+       (.x6 ↦ᵣ v6old) ** (.x5 ↦ᵣ v5old) **
+       (hesrOffAddr ↦ₘ offOld) ** (hesrLenAddr ↦ₘ lenOld))
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+       (.x6 ↦ᵣ (next - len - listBase)) ** (.x5 ↦ᵣ hesrLenAddr) **
+       (hesrOffAddr ↦ₘ (next - len - listBase)) ** (hesrLenAddr ↦ₘ len)) := by
+  -- [33] sub x6, x10, x12  → x6 = next - len
+  have h33 := sub_spec_gen_within .x6 .x10 .x12 next len v6old (hesrBase + 132) (by decide)
+  rw [show (hesrBase + 132 : Word) + 4 = hesrBase + 136 from by bv_omega] at h33
+  have e33 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 132) Codegen.headerExtractStateRoot_prog 33
+      (.SUB .x6 .x10 .x12) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h33
+  have f33 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x5 ↦ᵣ v5old) ** (hesrOffAddr ↦ₘ offOld) ** (hesrLenAddr ↦ₘ lenOld))
+    (by pcFreeR) e33
+  -- [34] sub x6, x6, x8  → x6 = (next-len) - listBase
+  have h34 := sub_spec_gen_rd_eq_rs1_within .x6 .x8 (next - len) listBase (hesrBase + 136) (by decide)
+  rw [show (hesrBase + 136 : Word) + 4 = hesrBase + 140 from by bv_omega] at h34
+  have e34 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 136) Codegen.headerExtractStateRoot_prog 34
+      (.SUB .x6 .x6 .x8) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h34
+  have f34 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x5 ↦ᵣ v5old) **
+     (hesrOffAddr ↦ₘ offOld) ** (hesrLenAddr ↦ₘ lenOld))
+    (by pcFreeR) e34
+  -- [35-36] la x5, hesr_offset
+  have f35 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+     (.x6 ↦ᵣ (next - len - listBase)) ** (hesrOffAddr ↦ₘ offOld) ** (hesrLenAddr ↦ₘ lenOld))
+    (by pcFreeR) (hesrLaOff140 v5old)
+  -- [37] sd x6, 0(x5)  → *hesr_offset := next-len-listBase
+  have h37 := sd_spec_gen_within .x5 .x6 hesrOffAddr (next - len - listBase) offOld
+    (0 : BitVec 12) (hesrBase + 148)
+  rw [signExtend12_0, show (hesrOffAddr + 0 : Word) = hesrOffAddr from by bv_omega,
+      show (hesrBase + 148 : Word) + 4 = hesrBase + 152 from by bv_omega] at h37
+  have e37 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 148) Codegen.headerExtractStateRoot_prog 37
+      (.SD .x5 .x6 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h37
+  have f37 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) ** (hesrLenAddr ↦ₘ lenOld))
+    (by pcFreeR) e37
+  -- [38-39] la x5, hesr_length
+  have f38 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) **
+     (.x6 ↦ᵣ (next - len - listBase)) ** (hesrOffAddr ↦ₘ (next - len - listBase)) **
+     (hesrLenAddr ↦ₘ lenOld))
+    (by pcFreeR) (hesrLaLen152 hesrOffAddr)
+  -- [40] sd x12, 0(x5)  → *hesr_length := len
+  have h40 := sd_spec_gen_within .x5 .x12 hesrLenAddr len lenOld (0 : BitVec 12) (hesrBase + 160)
+  rw [signExtend12_0, show (hesrLenAddr + 0 : Word) = hesrLenAddr from by bv_omega,
+      show (hesrBase + 160 : Word) + 4 = hesrBase + 164 from by bv_omega] at h40
+  have e40 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 160) Codegen.headerExtractStateRoot_prog 40
+      (.SD .x5 .x12 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h40
+  have f40 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x8 ↦ᵣ listBase) ** (.x6 ↦ᵣ (next - len - listBase)) **
+     (hesrOffAddr ↦ₘ (next - len - listBase)))
+    (by pcFreeR) e40
+  -- [41] jal x0, +4  → hesrBase+168
+  have h41 := jal_x0_spec_gen_within (4 : BitVec 21) (hesrBase + 164)
+  rw [show hesrBase + 164 + signExtend21 (4 : BitVec 21) = hesrBase + 168 from by
+      rw [show signExtend21 (4 : BitVec 21) = (4 : Word) from by decide]; bv_omega] at h41
+  have e41 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 164) Codegen.headerExtractStateRoot_prog 41
+      (.JAL .x0 (4 : BitVec 21)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h41
+  have f41 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) ** (.x8 ↦ᵣ listBase) ** (.x6 ↦ᵣ (next - len - listBase)) **
+     (.x5 ↦ᵣ hesrLenAddr) ** (hesrOffAddr ↦ₘ (next - len - listBase)) ** (hesrLenAddr ↦ₘ len))
+    (by pcFreeR) e41
+  rw [sepConj_emp_left'] at f41
+  -- compose the seven steps
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f33 f34
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f35
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f37
+  have s4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s3 f38
+  have s5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s4 f40
+  have s6 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s5 f41
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s6
+
+#print axioms hesrOffsetStore
 #print axioms hesrCopyLoop
 #print axioms hesrInitStep
 #print axioms hesrEpilogue
