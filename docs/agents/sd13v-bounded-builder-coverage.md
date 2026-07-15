@@ -29,7 +29,7 @@ The following state-root KATs record the current coverage and blockers:
 
 | Shape | Current result |
 |---|---|
-| Extension merge | standalone probe returns status `1`; needs in-situ full-guest coverage |
+| Extension merge | EEST-unreachable (0 of 48,111 fixtures); correctness is a tracked proof obligation |
 | Leaf group | clean-green after reloading the clobbered post-call path length |
 | Extension split | clean-green |
 | Leaf split | clean-green after fixing the branch-prefix scratch stack alias |
@@ -102,10 +102,24 @@ claim; it is not an early-bail allowance.
 | Delete and collapse a branch to a leaf | `branch-collapse-leaf` | green |
 | Delete and collapse a branch to an extension | `branch-collapse-extension` | green |
 | Delete and collapse a branch around a surviving branch | `branch-collapse-branch` | green |
-| Merge/collapse adjacent extensions | canonical standalone KAT rejects; requires a full-guest fixture that executes `.Lmbrs_ext_merge` | blocker |
+| Merge/collapse adjacent extensions | EEST-unreachable (0 of 48,111 fixtures); handler is implemented and correctness is a proof obligation | proof obligation |
 | Resolve a hashed pre-state child during any shape | named `sd13v-routed-hashed-child-update` full-guest fixture | deferred to routed A/B |
 
-Therefore condition 1 is **not complete**: extension merge and the dedicated
-replace-child KAT remain outstanding, and the final routed A/B evidence is not
-yet available.  No merge or verdict-routing claim is permitted until those
-gates close.
+The extension-merge handler is present and non-conservative: after decoding a
+rebuilt extension child, `.Lmbrs_ext_merge` checks the combined bounded path
+length, appends the child path, transfers its raw child reference, and invokes
+`mpt_bounded_encode_extension`.  Its failure exits are only malformed/bounds
+checks, not a shape-specific early bail.  Its correctness is therefore a
+tracked proof obligation rather than an EEST test blocker.
+
+Condition 1 still requires the dedicated replace-child KAT, final routed A/B
+evidence, and retirement of the legacy NodeDb route before any merge or
+verdict-routing claim.
+
+### NodeDb route audit
+
+The routed state-root call is `mpt_bounded_state_root`; there is no remaining
+`mpt_state_root_ins` call in `BlockVerdictStateRoot.lean`.  Its resolver uses
+only the immutable witness and its rebuilding helpers retain raw child
+references without appending to the mutable NodeDb.  The legacy symbols may
+remain emitted for other, un-routed programs, but are not on this verdict path.
