@@ -178,6 +178,32 @@ def mptBoundedResolveWitnessFunction : String :=
   ".Lmbw_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
 
+/-! ## `mpt_bounded_node_ref`
+
+Turn one freshly encoded node into the canonical *raw* child reference used
+inside a bounded frame.  This deliberately does not append the node anywhere:
+the parent only needs inline RLP for nodes shorter than 32 bytes, or their
+32-byte Keccak hash otherwise.  The caller retains the encoded bytes in its
+depth-bounded frame until its parent has consumed this reference.
+
+ABI: `a0 = node RLP`, `a1 = node length`, `a2 = raw-ref out[32]`, `a3 = u64
+raw-ref-length out`; returns `0` or `1` when the node exceeds the SSZ/frame
+node bound. -/
+def mptBoundedNodeRefFunction : String :=
+  "  .globl mpt_bounded_node_ref\n" ++
+  "mpt_bounded_node_ref:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; sd zero, 0(s3); li t0, " ++ toString bsrMptNodeMaxBytes ++ "; bgtu s1, t0, .Lmbnr_fail; li t0, 32; bgeu s1, t0, .Lmbnr_hash\n" ++
+  "  mv t0, s0; mv t1, s2; mv t2, s1\n" ++
+  ".Lmbnr_copy:\n" ++
+  "  beqz t2, .Lmbnr_inline_ok; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lmbnr_copy\n" ++
+  ".Lmbnr_inline_ok:\n  sd s1, 0(s3); li a0, 0; j .Lmbnr_ret\n" ++
+  ".Lmbnr_hash:\n  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, zkvm_keccak256; li t0, 32; sd t0, 0(s3); li a0, 0; j .Lmbnr_ret\n" ++
+  ".Lmbnr_fail:\n  li a0, 1\n" ++
+  ".Lmbnr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
+
 /-! ## `mpt_bounded_classify_node`
 
 Classify a node fetched from the immutable witness without involving any
@@ -260,7 +286,8 @@ def mptBoundedPartitionFrameFunction : String :=
 def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction
+    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
+    mptBoundedNodeRefFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
@@ -419,6 +446,23 @@ def ziskMptBoundedPartitionFrameProbeUnit : BuildUnit := {
     mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedPartitionFrameFunction ++ "\n.Lmbpp_done:"
   dataAsm := ziskMptBoundedPartitionFrameDataSection
+}
+
+/-- Probe the bounded raw-reference producer on both sides of the MPT inline
+    threshold. Input is `u64 node_len` followed by node bytes; output is
+    `{status, raw_ref_len, raw_ref[32]}`. -/
+def ziskMptBoundedNodeRefPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 0xa0010010; li a3, 0xa0010008; jal ra, mpt_bounded_node_ref; li t0, 0xa0010000; sd a0, 0(t0); j .Lmbnrp_done"
+
+def ziskMptBoundedNodeRefDataSection : String :=
+  ".section .data\n.balign 8\nzk3_state:\n  .zero 200"
+
+def ziskMptBoundedNodeRefProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedNodeRefPrologue ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n.Lmbnrp_done:"
+  dataAsm := ziskMptBoundedNodeRefDataSection
 }
 
 end EvmAsm.Codegen

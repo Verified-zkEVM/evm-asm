@@ -57,6 +57,10 @@ def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
     handful of scalar words is enough.  The 65-frame array remains bounded by
     key depth only; it is never indexed by the number of untrusted changes. -/
 def bsrMptBuilderFrameBytes : Nat := 1024
+/-- The SSZ `ByteList[1024]` envelope caps every pre-state witness node.  The
+    bounded builder also uses this as its maximum one-node re-encoding buffer;
+    larger reconstructed nodes are rejected before they can reach a frame. -/
+def bsrMptNodeMaxBytes : Nat := bsrMptBuilderFrameBytes
 /-- Canonical pre-state branch-child references are at most 32 raw bytes:
     either an inline RLP encoding (<32) or a 32-byte hash.  A frontier frame
     stores the raw reference length followed by the bytes, rounded to 40 B;
