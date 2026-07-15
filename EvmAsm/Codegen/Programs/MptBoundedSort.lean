@@ -856,12 +856,12 @@ def ziskMptBoundedEncodeExtensionProbeUnit : BuildUnit := {
 
 /-- End-to-end probe for the currently supported exact-leaf replacement path.
     Input is `witness_len:u64`, old root, 64-nibble key, value length/value,
-    then one SSZ witness-state section. -/
+    descriptor mode, then one SSZ witness-state section. -/
 def ziskMptBoundedStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; addi s5, t0, 128\n" ++
-  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd zero, 32(t1)\n" ++
-  "  mv a0, s1; mv a1, s5; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 128(t0); addi s6, t0, 136\n" ++
+  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)\n" ++
+  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
   "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32\n" ++
   ".Lmbsrp_copy:\n  beqz t2, .Lmbsrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbsrp_copy\n"
 

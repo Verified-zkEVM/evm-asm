@@ -15,7 +15,7 @@ root = pathlib.Path(sys.argv[1])
 old_node = b'\xe3\xa1\x20' + b'\0' * 32 + b'\x80'
 section = struct.pack('<I', 4) + old_node
 blob = (struct.pack('<Q', len(section)) + keccak256(old_node) + b'\0' * 64 +
-        struct.pack('<Q', 1) + b'\x01' + b'\0' * 7 + section)
+        struct.pack('<Q', 1) + b'\x01' + b'\0' * 7 + struct.pack('<Q', 0) + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 expected_node = b'\xe3\xa1\x20' + b'\0' * 32 + b'\x01'
 (root / 'expected').write_bytes(keccak256(expected_node))
