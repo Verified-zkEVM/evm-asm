@@ -216,7 +216,7 @@ def schemeAAnchors : List GuestRegion :=
     `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
     (evm-asm-ck36u), and by `0x4` for the settle-reverted-dispatcher-state-gas
     fix (`fix/dispatcher-revert-state-gas`). -/
-def textSizeBytes : Nat := 0x592e4
+def textSizeBytes : Nat := 0x59258
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -232,7 +232,7 @@ def textSizeBytes : Nat := 0x592e4
 def dataSizeBytes : Nat := 0x5350
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. -/
-def bssSizeBytes : Nat := 0x1a31e820
+def bssSizeBytes : Nat := 0x1a320e60
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -258,7 +258,7 @@ def dataRegion : GuestRegion :=
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1a31e820-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa4000000; 0x1a320e60-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf500000`). -/

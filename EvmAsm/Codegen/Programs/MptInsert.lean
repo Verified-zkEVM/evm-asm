@@ -397,7 +397,8 @@ def ziskMptInsertDataSection : String :=
   "ins_node2_len:\n  .zero 8\n" ++
   "ins_ref2_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "ins_k:\n  .zero 64\n" ++
+  -- `mpt_leaf_extract` decodes a state-witness HP path: <= 2047 nibbles.
+  "ins_k:\n  .zero 2048\n" ++
   ".balign 8\n" ++
   "ins_ref2:\n  .zero 64\n" ++
   ".balign 8\n" ++
