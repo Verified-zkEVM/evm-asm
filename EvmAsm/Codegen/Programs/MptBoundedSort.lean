@@ -83,6 +83,50 @@ def mptBoundedSortChangesFunction : String :=
   ".Lmbs_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
+/-! ## `mpt_bounded_prepare_changes`
+
+The frontier builder consumes a **normalized final-distinct** change set, not
+the raw execution-access staging area.  This front end makes that contract
+executable before any builder frame is touched: it sorts, rejects a duplicate
+64-nibble key, and admits only the three value-bearing mutation modes used by
+the MPT mutators (`set`, `insert`, `delete`).  In particular mode 3 is the
+legacy access-only no-op and must never reach the builder.
+
+ABI: `a0 = descriptors`, `a1 = count`; returns `0` on success, `1` for the
+sort/capacity failure, `2` for a non-distinct final key, and `3` for a non
+value-bearing/unknown mode.  It does not build or route a root yet. -/
+def mptBoundedPrepareChangesFunction : String :=
+  "  .globl mpt_bounded_prepare_changes\n" ++
+  "mpt_bounded_prepare_changes:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; jal ra, mpt_bounded_sort_changes; bnez a0, .Lmbp_sort_fail\n" ++
+  "  li s2, 0\n" ++
+  ".Lmbp_desc:\n" ++
+  "  beq s2, s1, .Lmbp_ok\n" ++
+  "  slli t0, s2, 5; slli t1, s2, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 32(t0); li t2, 3; bgeu t1, t2, .Lmbp_bad_mode\n" ++
+  "  beqz s2, .Lmbp_next\n" ++
+  "  addi t0, s2, -1; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t1, s0, t1; ld t1, 0(t1)\n" ++
+  "  slli t2, s2, 5; slli t3, s2, 3; add t2, t2, t3; add t2, s0, t2; ld t2, 0(t2); li s3, 0\n" ++
+  ".Lmbp_cmp:\n" ++
+  "  li t3, " ++ toString bsrMptKeyNibbles ++ "; beq s3, t3, .Lmbp_dup\n" ++
+  "  add t3, t1, s3; lbu t4, 0(t3); add t3, t2, s3; lbu t5, 0(t3); bne t4, t5, .Lmbp_next\n" ++
+  "  addi s3, s3, 1; j .Lmbp_cmp\n" ++
+  ".Lmbp_next:\n" ++
+  "  addi s2, s2, 1; j .Lmbp_desc\n" ++
+  ".Lmbp_sort_fail:\n  li a0, 1; j .Lmbp_ret\n" ++
+  ".Lmbp_dup:\n  li a0, 2; j .Lmbp_ret\n" ++
+  ".Lmbp_bad_mode:\n  li a0, 3; j .Lmbp_ret\n" ++
+  ".Lmbp_ok:\n  li a0, 0\n" ++
+  ".Lmbp_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
+
+/-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
+    future caller from accidentally using the sorter without the final-distinct
+    boundary. -/
+def mptBoundedBuilderFrontEndFunction : String :=
+  mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction
+
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
     exercises the production sorter without allocating an attacker-sized test
@@ -97,7 +141,7 @@ def ziskMptBoundedSortPrologue : String :=
   "  sd s1, 0(t0); li t1, 64; sd t1, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
   "  addi s1, s1, 64; addi s3, s3, 1; j .Lmbsp_desc\n" ++
   ".Lmbsp_sort:\n" ++
-  "  mv a0, s2; mv a1, s0; jal ra, mpt_bounded_sort_changes; mv s4, a0; j .Lmbsp_out\n" ++
+  "  mv a0, s2; mv a1, s0; jal ra, mpt_bounded_prepare_changes; mv s4, a0; j .Lmbsp_out\n" ++
   ".Lmbsp_fail:\n" ++
   "  li s4, 1\n" ++
   ".Lmbsp_out:\n" ++
@@ -120,7 +164,7 @@ def ziskMptBoundedSortDataSection : String :=
 
 def ziskMptBoundedSortProbeUnit : BuildUnit := {
   body := NOP
-  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++ mptBoundedSortChangesFunction ++ "\n.Lmbsp_done:"
+  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsp_done:"
   dataAsm := ziskMptBoundedSortDataSection
 }
 

@@ -361,7 +361,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
-  mptBoundedSortChangesFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -385,7 +385,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   committedStorageLatestValueFunction ++ "\n" ++
   committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
   committedStorageChunkedLatestValueFunction ++ "\n" ++
-  mptBoundedSortChangesFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
