@@ -431,6 +431,29 @@ def mptBoundedFramePathMatchFunction : String :=
   ".Lmbfpm_mismatch:\n  li a0, 1; ret\n" ++
   ".Lmbfpm_bad:\n  li a0, 2; ret\n"
 
+/-- Rebuild the exact-match leaf case of the bounded frontier. This is the
+    leaf base case used after a branch/extension has isolated one normalized
+    final descriptor. It deliberately returns `2` for a delete: the caller
+    must perform canonical parent collapse rather than manufacture an empty
+    leaf. Insert-on-an-existing-leaf and path divergence are conservative
+    failures here; they are handled by the explicit split cases.
+
+    ABI: `a0 = leaf frame`; `a1 = descriptor`; `a2 = consumed depth`.
+    Returns 0 after placing the raw result in `bsr_builder_result_{ref,len}`;
+    2 for exact delete; 1 otherwise. -/
+def mptBoundedRebuildExactLeafFunction : String :=
+  "  .globl mpt_bounded_rebuild_exact_leaf\n" ++
+  "mpt_bounded_rebuild_exact_leaf:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s2, t0, .Lmbrl_fail; sub s3, t0, s2; beqz s3, .Lmbrl_fail; mv a0, s0; mv a1, s3; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbrl_fail; mv a0, s1; mv a1, s2; mv a2, s0; jal ra, mpt_bounded_frame_path_match; bnez a0, .Lmbrl_fail\n" ++
+  "  ld t0, 32(s1); li t1, 2; beq t0, t1, .Lmbrl_delete; bnez t0, .Lmbrl_fail\n" ++
+  "  ld s4, 0(s1); add s4, s4, s2; ld s5, 16(s1); ld t0, 24(s1); la t1, bsr_builder_node; la t2, bsr_builder_result_ref; la t3, bsr_builder_result_len; mv a0, s4; mv a1, s3; mv a2, s5; mv a3, t0; mv a4, t1; addi a5, sp, 56; mv a6, t2; mv a7, t3; jal ra, mpt_bounded_encode_leaf_ref; bnez a0, .Lmbrl_fail; li a0, 0; j .Lmbrl_ret\n" ++
+  ".Lmbrl_delete:\n  li a0, 2; j .Lmbrl_ret\n" ++
+  ".Lmbrl_fail:\n  li a0, 1\n" ++
+  ".Lmbrl_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret\n"
+
 /-- Re-encode one bounded extension frame. The frame stores a *raw* child
     reference, whereas `mpt_extension_node_encode` expects an RLP item: a
     32-byte hash therefore receives its canonical `0xa0` string prefix in a
@@ -473,7 +496,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
-    mptBoundedFramePathMatchFunction ++ "\n" ++
+    mptBoundedFramePathMatchFunction ++ "\n" ++ mptBoundedRebuildExactLeafFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
