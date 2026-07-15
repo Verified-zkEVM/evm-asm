@@ -29,6 +29,7 @@ import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.Tactics.XPerm
+import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.HeaderFieldsSpec
 
@@ -54,6 +55,31 @@ abbrev hesrCode : CodeReq :=
   CodeReq.ofProg hesrBase Codegen.headerExtractStateRoot_prog
 
 theorem hesr_prog_length : Codegen.headerExtractStateRoot_prog.length = 68 := rfl
+
+/-- The two global scratch cells the success tail round-trips the decoded field
+    offset and length through (`la ; sd ; … ; la ; ld`). -/
+abbrev hesrOffAddr : Word := (Codegen.GuestAddrs.hesr_offset : Word)
+abbrev hesrLenAddr : Word := (Codegen.GuestAddrs.hesr_length : Word)
+
+/-- Probe: the `la x5, hesr_offset` pair at [35]-[36] materializes `hesrOffAddr`
+    in `x5` (confirms the codegen-`laHi` ↔ `Rv64.laHi` defeq at these addresses). -/
+private theorem hesrLaOffProbe (v : Word) :
+    cpsTripleWithin 2 (hesrBase + 140) (hesrBase + 148) hesrCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ hesrOffAddr) := by
+  have hau := CodeReq.ofProg_mem_at hesrBase (hesrBase + 140)
+    Codegen.headerExtractStateRoot_prog 35
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.hesr_offset
+      (Codegen.GuestAddrs.header_extract_state_root + 140))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have had := CodeReq.ofProg_mem_at hesrBase (hesrBase + 144)
+    Codegen.headerExtractStateRoot_prog 36
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.hesr_offset
+      (Codegen.GuestAddrs.header_extract_state_root + 140))) (by bv_omega)
+    (by rw [hesr_prog_length]; decide) rfl (by rw [hesr_prog_length]; decide)
+  have h := la_materialize_within .x5 v (hesrBase + 140) hesrOffAddr
+    (by decide) (by unfold hesrBase hesrOffAddr; decide) hau had
+  rw [show (hesrBase + 140 : Word) + 8 = hesrBase + 148 from by bv_omega] at h
+  exact h
 
 /-! ## ABI frame: save ra/s0/s1/s2 into a 48-byte frame
 
