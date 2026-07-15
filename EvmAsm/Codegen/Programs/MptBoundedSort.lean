@@ -339,14 +339,17 @@ def mptBoundedPartitionFrameFunction : String :=
   ".Lmbpf_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
 
-/-- Build one final state-account leaf into a caller-owned 1KiB node buffer,
-    then derive its raw parent reference without appending to NodeDb. -/
+/-- Build one final state-account leaf from the current remaining state-key
+    suffix into a caller-owned 1KiB node buffer, then derive its raw parent
+    reference without appending to NodeDb. A descendant leaf must encode only
+    the suffix below its ancestor branch/extension, never the original 64-byte
+    key. -/
 def mptBoundedEncodeLeafRefFunction : String :=
   "  .globl mpt_bounded_encode_leaf_ref\n" ++
   "mpt_bounded_encode_leaf_ref:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); li t0, " ++ toString bsrMptKeyNibbles ++ "; bne s1, t0, .Lmbelr_fail; li t0, " ++ toString bsrEncodedAccountBytes ++ "; bgtu s3, t0, .Lmbelr_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; sd zero, 0(s5); sd zero, 0(s7); beqz s1, .Lmbelr_fail; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s1, t0, .Lmbelr_fail; li t0, " ++ toString bsrEncodedAccountBytes ++ "; bgtu s3, t0, .Lmbelr_fail\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, mpt_leaf_node_encode_from_nibbles; bnez a0, .Lmbelr_fail\n" ++
   "  mv a0, s4; ld a1, 0(s5); mv a2, s6; mv a3, s7; jal ra, mpt_bounded_node_ref; bnez a0, .Lmbelr_fail; li a0, 0; j .Lmbelr_ret\n" ++
   ".Lmbelr_fail:\n  li a0, 1\n" ++
@@ -659,7 +662,7 @@ def ziskMptBoundedEncodeBranchProbeUnit : BuildUnit := {
 
 def ziskMptBoundedEncodeLeafRefPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  la a0, mbelr_path; li a1, 64; la a2, mbelr_path; li a3, 0; la a4, mbelr_node; la a5, mbelr_node_len; la a6, mbelr_ref; la a7, mbelr_ref_len; jal ra, mpt_bounded_encode_leaf_ref; mv s0, a0; li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbelrp_done; la t1, mbelr_node_len; ld t2, 0(t1); sd t2, 8(t0); la t1, mbelr_ref_len; ld t2, 0(t1); sd t2, 16(t0); la t1, mbelr_node; addi t0, t0, 24; li t2, 37\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); la a0, mbelr_path; la a2, mbelr_path; li a3, 0; la a4, mbelr_node; la a5, mbelr_node_len; la a6, mbelr_ref; la a7, mbelr_ref_len; jal ra, mpt_bounded_encode_leaf_ref; mv s0, a0; li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbelrp_done; la t1, mbelr_node_len; ld t2, 0(t1); sd t2, 8(t0); la t1, mbelr_ref_len; ld t2, 0(t1); sd t2, 16(t0); la t1, mbelr_node; addi t0, t0, 24; la t1, mbelr_node_len; ld t2, 0(t1)\n" ++
   ".Lmbelrp_node:\n  beqz t2, .Lmbelrp_ref_start; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbelrp_node\n" ++
   ".Lmbelrp_ref_start:\n  la t1, mbelr_ref; li t2, 32\n" ++
   ".Lmbelrp_ref:\n  beqz t2, .Lmbelrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbelrp_ref"
