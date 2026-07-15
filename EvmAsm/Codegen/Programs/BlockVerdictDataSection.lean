@@ -137,6 +137,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- from the 64-nibble key depth, never from an attacker-provided count.
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  -- A single depth-first node buffer. Completed children are immediately
+  -- reduced to raw references in their parent frame, so construction never
+  -- needs one node-sized allocation per descriptor or per depth.
+  "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   "bsr_storage_access_path_count:\n  .zero 8\n" ++

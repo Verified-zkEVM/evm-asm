@@ -347,6 +347,37 @@ def mptBoundedDecodeExtensionFunction : String :=
   ".Lmbde_fail:\n  li a0, 1\n" ++
   ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
+/-- Re-encode one bounded extension frame. The frame stores a *raw* child
+    reference, whereas `mpt_extension_node_encode` expects an RLP item: a
+    32-byte hash therefore receives its canonical `0xa0` string prefix in a
+    fixed stack slot, while an inline child is embedded verbatim. The decoded
+    path was already bounded by `mpt_bounded_decode_extension`, so this helper
+    can neither re-materialize an attacker-sized compact path nor allocate a
+    node per depth.
+
+    ABI: `a0 = frame`; `a1 = node_out[1024]`; `a2 = raw_ref_out[32]`;
+    `a3 = raw_ref_len_out`; returns 0/1. -/
+def mptBoundedEncodeExtensionFunction : String :=
+  "  .globl mpt_bounded_encode_extension\n" ++
+  "mpt_bounded_encode_extension:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; sd zero, 0(s3); ld s4, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); beqz s4, .Lmbee_fail; li t0, " ++ toString bsrMptFrameExtensionPathBytes ++ "; bgtu s4, t0, .Lmbee_fail; ld s5, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld s6, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); li t0, 32; bgtu s6, t0, .Lmbee_fail; beqz s6, .Lmbee_fail\n" ++
+  "  li t0, 32; bne s6, t0, .Lmbee_inline\n" ++
+  "  li t0, 160; sb t0, 72(sp); addi t0, sp, 73; mv t1, s5; li t2, 32\n" ++
+  ".Lmbee_hash_copy:\n" ++
+  "  beqz t2, .Lmbee_hash_ready; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbee_hash_copy\n" ++
+  ".Lmbee_hash_ready:\n" ++
+  "  addi t0, sp, 72; li t1, 33; j .Lmbee_encode\n" ++
+  ".Lmbee_inline:\n" ++
+  "  mv t0, s5; mv t1, s6\n" ++
+  ".Lmbee_encode:\n" ++
+  "  addi a0, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv a1, s4; mv a2, t0; mv a3, t1; mv a4, s1; addi a5, sp, 64; jal ra, mpt_extension_node_encode; bnez a0, .Lmbee_fail\n" ++
+  "  mv a0, s1; ld a1, 64(sp); mv a2, s2; mv a3, s3; jal ra, mpt_bounded_node_ref; bnez a0, .Lmbee_fail; li a0, 0; j .Lmbee_ret\n" ++
+  ".Lmbee_fail:\n  li a0, 1\n" ++
+  ".Lmbee_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 112; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
@@ -355,7 +386,8 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
-    mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction
+    mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
+    mptBoundedEncodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
@@ -582,6 +614,40 @@ def ziskMptBoundedDecodeExtensionProbeUnit : BuildUnit := {
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedDecodeExtensionFunction ++ "\n.Lmbdep_done:"
   dataAsm := ""
+}
+
+/-- Exercise extension rebuilding with a raw 32-byte child hash. This is the
+    non-inline case that must add the RLP string prefix before the generic
+    extension encoder sees the child reference. -/
+def ziskMptBoundedEncodeExtensionPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, mbee_frame; li t1, 3; sd t1, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(t0); li t1, 1; sb t1, " ++ toString bsrMptFrameExtensionPathOffset ++ "(t0); li t1, 2; sb t1, " ++ toString (bsrMptFrameExtensionPathOffset + 1) ++ "(t0); li t1, 3; sb t1, " ++ toString (bsrMptFrameExtensionPathOffset + 2) ++ "(t0); la t1, mbee_child; sd t1, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(t0); li t1, 32; sd t1, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(t0)\n" ++
+  "  la t1, mbee_child; li t2, 0\n" ++
+  ".Lmbeep_fill:\n" ++
+  "  li t3, 32; beq t2, t3, .Lmbeep_call; sb t2, 0(t1); addi t1, t1, 1; addi t2, t2, 1; j .Lmbeep_fill\n" ++
+  ".Lmbeep_call:\n" ++
+  "  la a0, mbee_frame; la a1, mbee_node; la a2, mbee_ref; la a3, mbee_ref_len; jal ra, mpt_bounded_encode_extension; mv s0, a0; li t0, 0xa0010000; sd s0, 0(t0); bnez s0, .Lmbeep_done; # node length is fixed by this KAT's known encoding\n" ++
+  "  li t2, 36; sd t2, 8(t0); la t1, mbee_ref_len; ld t2, 0(t1); sd t2, 16(t0); la t1, mbee_node; addi t0, t0, 24; li t2, 36\n" ++
+  ".Lmbeep_copy_node:\n" ++
+  "  beqz t2, .Lmbeep_copy_ref_start; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbeep_copy_node\n" ++
+  ".Lmbeep_copy_ref_start:\n" ++
+  "  la t1, mbee_ref; li t2, 32\n" ++
+  ".Lmbeep_copy_ref:\n" ++
+  "  beqz t2, .Lmbeep_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbeep_copy_ref\n"
+
+def ziskMptBoundedEncodeExtensionDataSection : String :=
+  ".section .bss\n.balign 8\nmbee_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++
+  "\nmbee_child:\n  .zero 32\nmbee_node:\n  .zero 1024\nmbee_ref:\n  .zero 32\nmbee_ref_len:\n  .zero 8\n" ++
+  ziskMptExtensionNodeEncodeDataSection ++ "\n" ++ ziskMptBoundedNodeRefDataSection
+
+def ziskMptBoundedEncodeExtensionProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedEncodeExtensionPrologue ++ "\n" ++
+    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++ mptExtensionNodeEncodeFunction ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n" ++
+    mptBoundedEncodeExtensionFunction ++ "\n.Lmbeep_done:"
+  dataAsm := ziskMptBoundedEncodeExtensionDataSection
 }
 
 end EvmAsm.Codegen
