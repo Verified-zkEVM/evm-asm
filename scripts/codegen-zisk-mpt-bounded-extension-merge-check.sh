@@ -62,7 +62,7 @@ for node in nodes:
 section = b''.join(struct.pack('<I', x) for x in offsets) + b''.join(nodes)
 key = bytes([0, 1]) + b'\0' * 62
 blob = (struct.pack('<Q', len(section)) + keccak256(old_root) + key +
-        struct.pack('<Q', 0) + struct.pack('<Q', 2) + section)
+        struct.pack('<Q', 0) + b'\0' * 8 + struct.pack('<Q', 2) + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 (root / 'expected').write_bytes(bytes(encode_internal_node(merged_spec)))
 PY

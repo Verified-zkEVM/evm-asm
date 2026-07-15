@@ -291,7 +291,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_change_count; sd s1, 0(t0)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
-  "  jal ra, mpt_state_root_ins\n" ++
+  "  jal ra, mpt_bounded_state_root\n" ++
   "  beqz a0, .Lbsr_ret\n" ++
   "  li t0, 130; la t1, bsr_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lbsr_ret\n" ++
