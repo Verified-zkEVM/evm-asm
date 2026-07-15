@@ -1108,6 +1108,46 @@ private theorem hesrOffsetLoadAdd (fo listBase v5old v28old : Word) :
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f50
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
 
+/-! ## Success-tail: reload length + load compare constant ([42]-[45])
+
+    `la x5,hesr_length ; ld x6,0(x5)` reloads the stored length into `x6`, then
+    `li x7,32` loads the expected 32-byte root length; the `bne x6,x7` at [46]
+    dispatches on whether the decoded length is exactly 32. -/
+private theorem hesrLenLoad (len v5old v6old v7old : Word) :
+    cpsTripleWithin 4 (hesrBase + 168) (hesrBase + 184) hesrCode
+      ((.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) ** (.x7 ↦ᵣ v7old) ** (hesrLenAddr ↦ₘ len))
+      ((.x5 ↦ᵣ hesrLenAddr) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (hesrLenAddr ↦ₘ len)) := by
+  -- [42-43] la x5, hesr_length
+  have f42 := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6old) ** (.x7 ↦ᵣ v7old) ** (hesrLenAddr ↦ₘ len))
+    (by pcFreeR) (hesrLaLen168 v5old)
+  -- [44] ld x6, 0(x5)  → x6 = len
+  have h44 := ld_spec_gen_within .x6 .x5 hesrLenAddr v6old len (0 : BitVec 12)
+    (hesrBase + 176) (by decide)
+  rw [signExtend12_0, show (hesrLenAddr + 0 : Word) = hesrLenAddr from by bv_omega,
+      show (hesrBase + 176 : Word) + 4 = hesrBase + 180 from by bv_omega] at h44
+  have e44 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 176) Codegen.headerExtractStateRoot_prog 44
+      (.LD .x6 .x5 (0 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h44
+  have f44 := cpsTripleWithin_frameR ((.x7 ↦ᵣ v7old))
+    (by pcFreeR) e44
+  -- [45] li x7, 32
+  have h45 := li_spec_gen_within .x7 v7old (32 : Word) (hesrBase + 180) (by decide)
+  rw [show (hesrBase + 180 : Word) + 4 = hesrBase + 184 from by bv_omega] at h45
+  have e45 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 180) Codegen.headerExtractStateRoot_prog 45
+      (.LI .x7 (32 : Word)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h45
+  have f45 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ hesrLenAddr) ** (.x6 ↦ᵣ len) ** (hesrLenAddr ↦ₘ len))
+    (by pcFreeR) e45
+  -- compose
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f42 f44
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f45
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
+
+#print axioms hesrLenLoad
 #print axioms hesrOffsetLoadAdd
 #print axioms hesrOffsetStore
 #print axioms hesrCopyLoop
