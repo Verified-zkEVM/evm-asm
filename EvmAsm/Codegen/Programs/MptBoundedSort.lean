@@ -201,13 +201,38 @@ def mptBoundedClassifyNodeFunction : String :=
   ".Lmbcn_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48; ret\n"
 
+/-! ## `mpt_bounded_open_root_frame`
+
+Open the pre-state root into depth-zero of the bounded frontier: resolve it
+from the witness only, classify its MPT shape, and retain every branch child
+reference before any changed range is rebuilt.  Extension and leaf frames
+record their resolved node/kind and are expanded by the next frontier slice.
+
+ABI: `a0 = root hash`, `a1 = witness`, `a2 = witness length`, `a3 = frame`;
+returns `0` on success and `1` on any witness/node-shape failure. -/
+def mptBoundedOpenRootFrameFunction : String :=
+  "  .globl mpt_bounded_open_root_frame\n" ++
+  "mpt_bounded_open_root_frame:\n" ++
+  "  addi sp, sp, -72\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  mv a0, s1; mv a1, s2; mv a2, s0; addi a3, sp, 40; addi a4, sp, 48; jal ra, mpt_bounded_resolve_witness; bnez a0, .Lmbor_fail\n" ++
+  "  ld t0, 40(sp); sd t0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s3); ld t0, 48(sp); sd t0, " ++ toString bsrMptFrameNodeLenOffset ++ "(s3)\n" ++
+  "  ld a0, 40(sp); ld a1, 48(sp); addi a2, sp, 56; jal ra, mpt_bounded_classify_node; bnez a0, .Lmbor_fail\n" ++
+  "  ld t0, 56(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s3); bnez t0, .Lmbor_ok\n" ++
+  "  ld a0, 40(sp); ld a1, 48(sp); mv a2, s3; jal ra, mpt_bounded_capture_branch_refs; bnez a0, .Lmbor_fail\n" ++
+  ".Lmbor_ok:\n  li a0, 0; j .Lmbor_ret\n" ++
+  ".Lmbor_fail:\n  li a0, 1\n" ++
+  ".Lmbor_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 72; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
 def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction
+    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -312,6 +337,32 @@ def ziskMptBoundedClassifyNodeProbeUnit : BuildUnit := {
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction
   dataAsm := ""
+}
+
+def ziskMptBoundedOpenRootFramePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi a0, s0, 16; addi a1, s0, 48; mv a2, s1; la a3, mbor_probe_frame; jal ra, mpt_bounded_open_root_frame; mv s2, a0\n" ++
+  "  li t0, 0xa0010000; sd s2, 0(t0); bnez s2, .Lmborp_done; la t1, mbor_probe_frame; ld t2, " ++ toString bsrMptFrameNodePtrOffset ++ "(t1); addi t3, s0, 48; sub t2, t2, t3; sd t2, 8(t0); ld t2, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); sd t2, 16(t0); ld t2, " ++ toString bsrMptFrameNodeKindOffset ++ "(t1); sd t2, 24(t0); addi t0, t0, 32; li t2, 3\n" ++
+  ".Lmborp_slot:\n" ++
+  "  beqz t2, .Lmborp_done; ld t3, 0(t1); sd t3, 0(t0); addi t0, t0, 8; addi t1, t1, 8; li t4, 32\n" ++
+  ".Lmborp_copy:\n" ++
+  "  beqz t4, .Lmborp_next; lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lmborp_copy\n" ++
+  ".Lmborp_next:\n" ++
+  "  addi t2, t2, -1; j .Lmborp_slot\n" ++
+  ".Lmborp_done:"
+
+def ziskMptBoundedOpenRootFrameDataSection : String :=
+  ".section .bss\n.balign 8\nmbor_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++ "\n" ++
+    ziskWitnessLookupByHashDataSection
+
+def ziskMptBoundedOpenRootFrameProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedOpenRootFramePrologue ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
+    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction
+  dataAsm := ziskMptBoundedOpenRootFrameDataSection
 }
 
 end EvmAsm.Codegen

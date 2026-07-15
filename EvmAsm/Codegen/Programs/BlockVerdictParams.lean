@@ -66,6 +66,10 @@ def bsrMptBuilderFrameBytes : Nat := 1024
 def bsrMptFrameChildRefBytes : Nat := 32
 def bsrMptFrameChildRefStride : Nat := 40
 def bsrMptFrameBranchChildrenBytes : Nat := bsrMptRadixFanout * bsrMptFrameChildRefStride
+/-- Frame metadata immediately follows the sixteen retained child references. -/
+def bsrMptFrameNodePtrOffset : Nat := bsrMptFrameBranchChildrenBytes
+def bsrMptFrameNodeLenOffset : Nat := bsrMptFrameNodePtrOffset + 8
+def bsrMptFrameNodeKindOffset : Nat := bsrMptFrameNodeLenOffset + 8
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
