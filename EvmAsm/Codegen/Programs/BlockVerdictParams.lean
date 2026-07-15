@@ -12,16 +12,26 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 
 namespace EvmAsm.Codegen
 
+/-- Amsterdam's EIP-7928 `GasCosts.BLOCK_ACCESS_LIST_ITEM`.  This is the
+    proven lower-bound divisor for an input-originated *distinct final state
+    change*: `validate_block_access_list_gas_limit` charges one 2,000-gas BAL
+    item per account and one per distinct storage slot (storage changes and
+    reads are de-duplicated by slot).  It is deliberately not inferred from an
+    EVM `SSTORE` price: BAL is the consensus-level accounting rule that bounds
+    the final state-change input set. -/
 def bsrBalGasCost : Nat := 2000
-/-- Static BAL/state replay arena capacity, sized for the Amsterdam 200M
-    block-gas target: `bal_items <= block_gas_limit / 2000` = 100,000 items at
-    200,000,000 gas. (The former 500,000 value was the 1G worst case, which is
-    out of scope — it cost ~349 MB of the fixed 512 MiB ziskemu RAM window.)
-    High declared block gas is not itself a layout error: the guest first
-    applies Amsterdam's gas-derived BAL rule, then checks actual decoded item
-    counts against these arenas; blocks whose actual counts exceed the
-    capacities take the conservative bsr_fail path. -/
-def bsrMaxBalItems : Nat := 100000
+
+/-- Current Amsterdam resource target.  Keep capacities as functions of this
+    value: changing the supported block gas limit must resize every fixed
+    state-root builder arena rather than silently preserving a stale literal. -/
+def bsrStateRootBlockGasLimit : Nat := 200000000
+
+/-- Static BAL/state replay arena capacity.  EIP-7928 enforces
+    `bal_items <= block_gas_limit / BLOCK_ACCESS_LIST_ITEM`, so a 200M block
+    has at most 100,000 BAL items.  The later bounded builder accepts only the
+    normalized distinct final changes plus the explicitly bounded auxiliary
+    system/withdrawal changes below. -/
+def bsrMaxBalItems : Nat := bsrStateRootBlockGasLimit / bsrBalGasCost
 def bsrModeledSystemChanges : Nat := 2
 def bsrMaxWithdrawalChanges : Nat := 16
 def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
@@ -374,6 +384,11 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvResourceBlockGasLimit = 200000000
+#guard bsrStateRootBlockGasLimit = 200000000
+#guard bsrBalGasCost = 2000
+#guard bsrMaxBalItems = bsrStateRootBlockGasLimit / bsrBalGasCost
+#guard bsrMaxBalItems = 100000
+#guard bsrMaxStateChanges = 100018
 #guard bvBlockLogMinGas = 375
 #guard bvBlockLogDataByteGas = 8
 #guard bvBlockLogFullDescTarget = 533333
