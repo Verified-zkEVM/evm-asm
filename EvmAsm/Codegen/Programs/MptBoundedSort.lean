@@ -372,6 +372,29 @@ def mptBoundedDecodeExtensionFunction : String :=
   ".Lmbde_fail:\n  li a0, 1\n" ++
   ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
+/-- Decode a state-trie leaf without using the legacy unbounded compact-path
+    extractor. The leaf path is first proved to fit the remaining key depth;
+    only then are nibbles written to the caller frame. Its account value is
+    returned as an in-node slice and bounded by the concrete account encoding
+    slot used by the state-root builder.
+
+    ABI: `a0,a1=node`; `a2=remaining`; `a3,a4=path_out,path_len_out`;
+    `a5,a6=value_ptr_out,value_len_out`. Returns 0/1. -/
+def mptBoundedDecodeLeafFunction : String :=
+  "  .globl mpt_bounded_decode_leaf\n" ++
+  "mpt_bounded_decode_leaf:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbdl_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbdl_fail\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); beqz t0, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bltu t3, t4, .Lmbdl_fail; li t4, 4; bgeu t3, t4, .Lmbdl_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbdl_even; addi t0, t0, 1; j .Lmbdl_len\n" ++
+  ".Lmbdl_even:\n  andi t5, t2, 15; bnez t5, .Lmbdl_fail\n" ++
+  ".Lmbdl_len:\n  beqz t0, .Lmbdl_fail; bgtu t0, s2, .Lmbdl_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbdl_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
+  ".Lmbdl_pairs:\n  ld t2, 64(sp); addi t2, t2, -1\n" ++
+  ".Lmbdl_pair_loop:\n  beqz t2, .Lmbdl_value; lbu t3, 0(t1); srli t4, t3, 4; andi t3, t3, 15; sb t4, 0(t5); sb t3, 1(t5); addi t1, t1, 1; addi t5, t5, 2; addi t2, t2, -1; j .Lmbdl_pair_loop\n" ++
+  ".Lmbdl_value:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); li t1, " ++ toString bsrEncodedAccountBytes ++ "; bgtu t0, t1, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbdl_ret\n" ++
+  ".Lmbdl_fail:\n  li a0, 1\n" ++
+  ".Lmbdl_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+
 /-- Re-encode one bounded extension frame. The frame stores a *raw* child
     reference, whereas `mpt_extension_node_encode` expects an RLP item: a
     32-byte hash therefore receives its canonical `0xa0` string prefix in a
@@ -413,6 +436,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedOpenChildFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
+    mptBoundedDecodeLeafFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction
     ++ "\n" ++ mptBoundedPartitionFrameFunction
 
@@ -662,6 +686,18 @@ def ziskMptBoundedDecodeExtensionProbeUnit : BuildUnit := {
   prologueAsm := ziskMptBoundedDecodeExtensionPrologue ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
     mptBoundedDecodeExtensionFunction ++ "\n.Lmbdep_done:"
+  dataAsm := ""
+}
+
+def ziskMptBoundedDecodeLeafPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 64; li a3, 0xa0010020; li a4, 0xa0010008; li a5, 0xa0010010; li a6, 0xa0010018; jal ra, mpt_bounded_decode_leaf; li t0, 0xa0010000; sd a0, 0(t0); bnez a0, .Lmbdlp_done; li t0, 0xa0010010; ld t1, 0(t0); li t2, 0x40000010; sub t1, t1, t2; sd t1, 0(t0); j .Lmbdlp_done"
+
+def ziskMptBoundedDecodeLeafProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedDecodeLeafPrologue ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedDecodeLeafFunction ++ "\n.Lmbdlp_done:"
   dataAsm := ""
 }
 

@@ -72,6 +72,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_bounded_encode_branch",
    "zisk_mpt_bounded_encode_leaf_ref",
    "zisk_mpt_bounded_decode_extension",
+   "zisk_mpt_bounded_decode_leaf",
    "zisk_mpt_bounded_encode_extension",
    "zisk_mpt_indexed_trie_root_small",
    "zisk_mpt_indexed_large_leaf_hash",

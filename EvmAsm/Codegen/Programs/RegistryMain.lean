@@ -425,6 +425,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_mpt_bounded_encode_branch" => some ziskMptBoundedEncodeBranchProbeUnit
   | "zisk_mpt_bounded_encode_leaf_ref" => some ziskMptBoundedEncodeLeafRefProbeUnit
   | "zisk_mpt_bounded_decode_extension" => some ziskMptBoundedDecodeExtensionProbeUnit
+  | "zisk_mpt_bounded_decode_leaf" => some ziskMptBoundedDecodeLeafProbeUnit
   | "zisk_mpt_bounded_encode_extension" => some ziskMptBoundedEncodeExtensionProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
