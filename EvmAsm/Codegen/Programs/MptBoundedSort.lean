@@ -625,7 +625,8 @@ def mptBoundedStateRootFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; bnez a0, .Lmbsr_fail\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; la a3, bsr_builder_frames; jal ra, mpt_bounded_open_root_frame; bnez a0, .Lmbsr_fail\n" ++
-  "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbsr_fail\n" ++
+  "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; beqz a0, .Lmbsr_result; li t0, 2; bne a0, t0, .Lmbsr_fail; la t0, bsr_builder_frames; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t0); li t1, 2; bne t0, t1, .Lmbsr_fail; li t0, 128; sb t0, 72(sp); addi a0, sp, 72; li a1, 1; mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
+  ".Lmbsr_result:\n" ++
   "  la t0, bsr_builder_result_len; ld t1, 0(t0); beqz t1, .Lmbsr_fail; li t2, 32; bne t1, t2, .Lmbsr_hash_root; la t0, bsr_builder_result_ref; mv t1, s5; li t2, 32; j .Lmbsr_copy\n" ++
   ".Lmbsr_hash_root:\n  la a0, bsr_builder_result_ref; la t0, bsr_builder_result_len; ld a1, 0(t0); mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
   ".Lmbsr_copy_old:\n  mv t0, s0; mv t1, s5; li t2, 32\n" ++
