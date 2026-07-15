@@ -91,6 +91,7 @@ import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericBlocks
+import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
