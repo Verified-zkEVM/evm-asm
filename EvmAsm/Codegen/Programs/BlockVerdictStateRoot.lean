@@ -269,7 +269,7 @@ def blockStateRootFunction : String :=
   "  beqz t1, .Lbsr_wl_next\n" ++
   "  li t0, " ++ toString bsrMaxWithdrawalChanges ++ "; bgeu s0, t0, .Lbsr_cons_change_cap\n" ++
   "  # Repeated withdrawals to the same recipient accumulate into one state change.\n" ++
-  "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
+  "  li t6, 0                     # compose with every earlier committed mutation [0, s1)\n" ++
   ".Lbsr_dup_scan:\n" ++
   "  beq t6, s1, .Lbsr_no_dup\n" ++
   "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
