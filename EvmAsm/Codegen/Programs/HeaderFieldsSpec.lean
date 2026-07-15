@@ -43,6 +43,7 @@ local macro "pcFreeR" : tactic =>
   `(tactic| repeat' first
     | exact bytesRegion_pcFree _ _
     | exact pcFree_regIs
+    | exact pcFree_regOwn
     | exact pcFree_memIs
     | exact pcFree_memOwn
     | apply pcFree_sepConj
@@ -1147,6 +1148,71 @@ private theorem hesrLenLoad (len v5old v6old v7old : Word) :
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f45
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
 
+/-- Round-trip identity: `ofNat 64 fo.toNat = fo` for a 64-bit word. -/
+private theorem hesr_ofNat_toNat (fo : Word) : (BitVec.ofNat 64 fo.toNat : Word) = fo := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt fo.isLt
+
+/-! ## Success-tail: copy 32 content bytes then finish ([51]-[58])
+
+    The `hesrCopyLoop` 32-byte LBU/SB copy (`bytesRegion outPtr` becomes the field
+    content `copyIntoRegion outBytes headerBytes 0 fo.toNat 32`) composed with the
+    `hesrSuccessFinish` `li a0,0`/`jal`/epilogue tail.  This is the a0=0 arm's
+    load-bearing "output = the 32 field-content bytes" claim. -/
+private theorem hesrCopyThenFinish
+    (fo listBase outPtr newSp x29old v1 v9 a0old : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : fo.toNat + 32 ≤ headerBytes.length)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (6 * 32 + (2 + 6)) (hesrBase + 204) (saved.ra &&& ~~~(1 : Word)) hesrCode
+      (((.x6 ↦ᵣ BitVec.ofNat 64 32) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 fo.toNat)) **
+        (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ x29old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes) **
+       ((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ listBase) **
+        (.x9 ↦ᵣ v9) ** savedFrame newSp saved ** Fr))
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+        (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) **
+        savedFrame newSp saved) **
+       ((.x6 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (fo.toNat + 32))) **
+        regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+        bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 fo.toNat 32) ** Fr)) := by
+  -- The copy loop over 32 bytes (n = 31), starting at src offset fo.toNat, dst offset 0.
+  have hcopy := hesrCopyLoop listBase outPtr x29old headerBytes outBytes fo.toNat 0 31 0
+    h_src_align h_dst_align (by omega) (by omega) h_src_over h_dst_over h_src_valid h_dst_valid
+  -- Normalize the copy loop's `ofNat` indices to the entry form.
+  simp only [Nat.add_zero, Nat.zero_add, Nat.reduceAdd] at hcopy
+  rw [show (outPtr + BitVec.ofNat 64 0 : Word) = outPtr from by bv_omega,
+      show copyIntoRegion outBytes headerBytes 0 fo.toNat 0 = outBytes from rfl] at hcopy
+  -- Frame the copy loop with the finish-tail registers/frame.
+  have hcopyF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ v9) **
+     savedFrame newSp saved ** Fr)
+    (by unfold savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hcopy
+  -- The finish tail with a0 := 0, framed by the copy residual + Fr.
+  have hfin := hesrSuccessFinish newSp a0old v1 listBase v9 (outPtr + BitVec.ofNat 64 32) saved
+    ((.x6 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (fo.toNat + 32))) **
+     regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+     bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 fo.toNat 32) ** Fr)
+    (by repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+  -- compose copy ;; finish
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hcopyF hfin
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s
+
+#print axioms hesrCopyThenFinish
 #print axioms hesrLenLoad
 #print axioms hesrOffsetLoadAdd
 #print axioms hesrOffsetStore
