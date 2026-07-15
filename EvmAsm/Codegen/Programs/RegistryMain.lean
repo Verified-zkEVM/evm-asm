@@ -417,6 +417,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_mpt_bounded_sort"      => some ziskMptBoundedSortProbeUnit
   | "zisk_mpt_bounded_capture_branch_refs" => some ziskMptBoundedCaptureBranchRefsProbeUnit
   | "zisk_mpt_bounded_resolve_witness" => some ziskMptBoundedResolveWitnessProbeUnit
+  | "zisk_mpt_bounded_classify_node" => some ziskMptBoundedClassifyNodeProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit

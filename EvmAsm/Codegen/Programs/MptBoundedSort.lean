@@ -178,12 +178,36 @@ def mptBoundedResolveWitnessFunction : String :=
   ".Lmbw_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
 
+/-! ## `mpt_bounded_classify_node`
+
+Classify a node fetched from the immutable witness without involving any
+stateful replay helper.  The kind encoding is the frontier dispatch encoding:
+`0 = branch`, `1 = extension`, `2 = leaf`.  It validates the 17-item/2-item
+shape and the compact-path flag before a frame is populated.
+
+ABI: `a0 = node RLP`, `a1 = node length`, `a2 = u64 kind out`; returns `0`
+on success and `1` on malformed/non-MPT input. -/
+def mptBoundedClassifyNodeFunction : String :=
+  "  .globl mpt_bounded_classify_node\n" ++
+  "mpt_bounded_classify_node:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; sd zero, 0(s2); mv a0, s0; mv a1, s1; addi a2, sp, 32; jal ra, rlp_list_count_items; bnez a0, .Lmbcn_fail\n" ++
+  "  ld t0, 32(sp); li t1, 17; beq t0, t1, .Lmbcn_branch; li t1, 2; bne t0, t1, .Lmbcn_fail\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 32; addi a4, sp, 40; jal ra, rlp_list_nth_item; bnez a0, .Lmbcn_fail\n" ++
+  "  ld t0, 40(sp); beqz t0, .Lmbcn_fail; ld t0, 32(sp); add t0, s0, t0; lbu t0, 0(t0); srli t0, t0, 5; andi t0, t0, 1; addi t0, t0, 1; sd t0, 0(s2); li a0, 0; j .Lmbcn_ret\n" ++
+  ".Lmbcn_branch:\n  sd zero, 0(s2); li a0, 0; j .Lmbcn_ret\n" ++
+  ".Lmbcn_fail:\n  li a0, 1\n" ++
+  ".Lmbcn_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48; ret\n"
+
 /-- The linked sd13v front end.  Keeping this aggregation explicit prevents a
     future caller from accidentally using the sorter without the final-distinct
     boundary. -/
 def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
-    mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction
+    mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
+    mptBoundedClassifyNodeFunction
 
 /-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
     paths at INPUT+16. The probe deliberately limits itself to 16 records; it
@@ -274,6 +298,20 @@ def ziskMptBoundedResolveWitnessProbeUnit : BuildUnit := {
     zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
     mptBoundedResolveWitnessFunction
   dataAsm := ziskWitnessLookupByHashDataSection
+}
+
+def ziskMptBoundedClassifyNodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 0xa0010008; jal ra, mpt_bounded_classify_node\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lmbcnp_done\n" ++
+  ".Lmbcnp_done:"
+
+def ziskMptBoundedClassifyNodeProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedClassifyNodePrologue ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedClassifyNodeFunction
+  dataAsm := ""
 }
 
 end EvmAsm.Codegen
