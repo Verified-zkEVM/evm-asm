@@ -145,6 +145,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- immediately copy it into their fixed frame slot before visiting a sibling.
   "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\n" ++
   "bsr_builder_result_len:\n  .zero 8\n" ++
+  -- The bounded builder is shared by account and storage tries. Thin root
+  -- wrappers select the constructed-value and independently the witness-leaf
+  -- limits. Storage writes are uint256 (33-byte encoded maximum), but a
+  -- hash-authenticated unchanged witness leaf is copied verbatim and is not
+  -- rejected merely for exceeding that constructed-value bound.
+  "bsr_builder_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
+  "bsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   "bsr_storage_access_path_count:\n  .zero 8\n" ++
@@ -869,9 +876,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_force_storage_clear:\n  .zero 8\n" ++
-  "baap_storage_delete_flag:\n  .zero 8\n" ++
-  "baap_storage_delete_count:\n  .zero 8\n" ++
-  "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "mdacc_witness_len:\n  .zero 8\n" ++

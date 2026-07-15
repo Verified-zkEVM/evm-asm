@@ -157,12 +157,12 @@ def build_input(root_hash, witness, bal_list, n):
     return bytes(body)
 
 
-def storage_trie_one_slot(slot_idx: bytes, value: int):
+def storage_trie_one_slot(slot_idx: bytes, value):
     path = []
     for b in keccak256(slot_idx):
         path.append(b >> 4)
         path.append(b & 0x0f)
-    value_rlp = rlp_bytes(minimal_be(value))
+    value_rlp = rlp_bytes(value if isinstance(value, bytes) else minimal_be(value))
     leaf = leaf_node(path, value_rlp)
     return keccak256(leaf), leaf
 
@@ -290,6 +290,103 @@ with open(f"{outdir}/basra_full_fields_raw.input", "wb") as f:
 with open(f"{outdir}/basra_full_fields_raw.expected", "w") as f:
     f.write(raw_expected.hex())
 print(f"basra_full_fields_raw expected={raw_expected.hex()[:16]}..")
+
+# Storage values arrive as arbitrary-width BAL byte strings. The producer must
+# remove high zero bytes before RLP encoding the uint256 value; this vector
+# supplies the same value 1 in a 32-byte representation and derives the root
+# from its canonical one-byte form.
+zero_addr = bytes.fromhex("cd" * 20)
+zero_path = account_path(zero_addr)
+zero_slot = 17
+zero_old_account = account_rlp(2, 3)
+zero_new_storage_root = storage_root_single(zero_slot, b"\x01")
+zero_new_account = account_rlp(2, 3, zero_new_storage_root)
+zero_old_leaf = leaf_node(zero_path, zero_old_account)
+zero_new_leaf = leaf_node(zero_path, zero_new_account)
+zero_raw_value = b"\x00" * 31 + b"\x01"
+zero_bal_list = rlp_list([
+    account_change(zero_addr, storage_changes=[(zero_slot, [(1, zero_raw_value)])]),
+])
+with open(f"{outdir}/basra_storage_high_zero.input", "wb") as f:
+    f.write(build_input(
+        keccak256(zero_old_leaf),
+        ssz_section([zero_old_leaf]),
+        zero_bal_list,
+        1,
+    ))
+with open(f"{outdir}/basra_storage_high_zero.expected", "w") as f:
+    f.write(keccak256(zero_new_leaf).hex())
+print(f"basra_storage_high_zero expected={keccak256(zero_new_leaf).hex()[:16]}..")
+
+# Two distinct slots exercise the routed bounded-storage builder's branch
+# construction.  Their paths are chosen to diverge at the root, so the
+# independently constructed post-state trie is one branch over two leaves.
+multi_addr = bytes.fromhex("de" * 20)
+multi_path = account_path(multi_addr)
+multi_slots = []
+for candidate in range(256):
+    candidate_key = candidate.to_bytes(32, "big")
+    candidate_path = account_path(candidate_key)
+    if not multi_slots or candidate_path[0] != multi_slots[0][1][0]:
+        multi_slots.append((candidate_key, candidate_path, candidate + 1))
+    if len(multi_slots) == 2:
+        break
+assert len(multi_slots) == 2
+multi_children = [b"\x80"] * 16
+for candidate_key, candidate_path, candidate_value in multi_slots:
+    multi_children[candidate_path[0]] = node_ref(
+        leaf_node(candidate_path[1:], rlp_bytes(minimal_be(candidate_value)))
+    )
+multi_new_storage_root = keccak256(branch_node(multi_children))
+multi_old_account = account_rlp(5, 6)
+multi_new_account = account_rlp(5, 6, multi_new_storage_root)
+multi_old_leaf = leaf_node(multi_path, multi_old_account)
+multi_new_leaf = leaf_node(multi_path, multi_new_account)
+multi_bal_list = rlp_list([
+    account_change(
+        multi_addr,
+        storage_changes=[
+            (int.from_bytes(candidate_key, "big"), [(1, minimal_be(candidate_value))])
+            for candidate_key, _candidate_path, candidate_value in multi_slots
+        ],
+    ),
+])
+with open(f"{outdir}/basra_storage_multi.input", "wb") as f:
+    f.write(build_input(
+        keccak256(multi_old_leaf),
+        ssz_section([multi_old_leaf]),
+        multi_bal_list,
+        1,
+    ))
+with open(f"{outdir}/basra_storage_multi.expected", "w") as f:
+    f.write(keccak256(multi_new_leaf).hex())
+print(f"basra_storage_multi slots={multi_slots[0][1][0]},{multi_slots[1][1][0]} expected={keccak256(multi_new_leaf).hex()[:16]}..")
+
+# Conversely, an all-zero final value deletes the only storage leaf. The
+# account's post-state storage_root must be the canonical EMPTY_TRIE_ROOT.
+delete_addr = bytes.fromhex("ef" * 20)
+delete_path = account_path(delete_addr)
+delete_slot = 19
+delete_old_storage_root, delete_old_storage_leaf = storage_trie_one_slot(
+    delete_slot.to_bytes(32, "big"), b"\x01"
+)
+delete_old_account = account_rlp(3, 4, delete_old_storage_root)
+delete_new_account = account_rlp(3, 4, EMPTY_TRIE)
+delete_old_leaf = leaf_node(delete_path, delete_old_account)
+delete_new_leaf = leaf_node(delete_path, delete_new_account)
+delete_bal_list = rlp_list([
+    account_change(delete_addr, storage_changes=[(delete_slot, [(2, b"\x00" * 32)])]),
+])
+with open(f"{outdir}/basra_storage_full_delete.input", "wb") as f:
+    f.write(build_input(
+        keccak256(delete_old_leaf),
+        ssz_section([delete_old_leaf, delete_old_storage_leaf]),
+        delete_bal_list,
+        1,
+    ))
+with open(f"{outdir}/basra_storage_full_delete.expected", "w") as f:
+    f.write(keccak256(delete_new_leaf).hex())
+print(f"basra_storage_full_delete expected={keccak256(delete_new_leaf).hex()[:16]}..")
 PYGEN
 
 echo "==> lake build codegen"
@@ -300,7 +397,7 @@ lake exe codegen --program zisk_bal_account_state_root_auto --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto"
 
 fail=0
-for name in basra_modify_insert basra_full_post_fields basra_full_fields_raw; do
+for name in basra_modify_insert basra_full_post_fields basra_full_fields_raw basra_storage_high_zero basra_storage_multi basra_storage_full_delete; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 30000000 >/dev/null 2>&1 </dev/null \
