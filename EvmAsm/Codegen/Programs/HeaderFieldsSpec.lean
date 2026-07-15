@@ -153,6 +153,64 @@ theorem setupMoves5 (listBase listLen outPtr v8 v9 v18 : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) s56789
 
+/-- The full prologue [0]-[9] (`hesrBase → hesrBase+40`): allocate the 48-byte
+    frame, save `ra/s0/s1/s2`, and set up `s0/s1/s2 = listBase/listLen/outPtr`
+    with `a0/a1 = listBase/listLen` ready for the `rlp_walk_init` call.  The two
+    scratch spill slots (`newSp+32`, `newSp+40`) are carried untouched. -/
+theorem hesrPrologue (sp0 newSp listBase listLen outPtr : Word) (saved : Saved)
+    (h_newSp : newSp = sp0 + signExtend12 (-48 : BitVec 12)) :
+    cpsTripleWithin 10 hesrBase (hesrBase + 40) hesrCode
+      ((.x2 ↦ᵣ sp0) ** regsAt hxFrame (savedVals saved) **
+       frameSlotsOwn hxFrame newSp **
+       (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ outPtr))
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ saved.ra) ** savedFrame newSp saved **
+       (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ listLen) ** (.x18 ↦ᵣ outPtr) **
+       (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ outPtr)) := by
+  -- [0] addi sp, sp, -48
+  have ha0 := addi_spec_gen_same_within .x2 sp0 (-48 : BitVec 12) hesrBase (by decide)
+  rw [← h_newSp] at ha0
+  have ha := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase hesrBase Codegen.headerExtractStateRoot_prog 0
+      (.ADDI .x2 .x2 (-48 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) ha0
+  have haF := cpsTripleWithin_frameR
+    (regsAt hxFrame (savedVals saved) ** frameSlotsOwn hxFrame newSp **
+      (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ outPtr)) (by
+      repeat' first
+        | exact pcFree_regsAt _ _
+        | exact pcFree_frameSlotsOwn _ _
+        | apply pcFree_sepConj
+        | exact pcFree_regIs) ha
+  -- [1]-[4] store sequence
+  have hs0 := storeSeq_spec hxFrame newSp (savedVals saved) (hesrBase + 4) (by decide)
+  have h_storeMono : ∀ a i,
+      CodeReq.ofProg (hesrBase + 4) (storeProg hxFrame) a = some i → hesrCode a = some i := by
+    intro a i h_mem
+    exact CodeReq.ofProg_mono_sub hesrBase (hesrBase + 4)
+      Codegen.headerExtractStateRoot_prog (storeProg hxFrame) 1 (by bv_omega) rfl
+      (by rw [hesr_prog_length]; simp [hxFrame])
+      (by rw [hesr_prog_length]; norm_num) a i h_mem
+  have hs := cpsTripleWithin_extend_code h_storeMono hs0
+  rw [show hesrBase + 4 + BitVec.ofNat 64 (4 * hxFrame.length) = hesrBase + 20 from by
+    simp [hxFrame]; bv_omega] at hs
+  have hsF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ outPtr)) (by
+      repeat' first | apply pcFree_sepConj | exact pcFree_regIs) hs
+  -- [5]-[9] the moves
+  have hm := setupMoves5 listBase listLen outPtr saved.s0 saved.s1 saved.s2
+  have hmF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ saved.ra) ** savedFrame newSp saved) (by
+      unfold savedFrame
+      repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs) hm
+  -- compose ADDI ; store ; moves
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) haF hsF
+  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    rw [regsAt_hxFrame, frameSlotsSaved_hxFrame] at hp
+    xperm_hyp hp) h01 hmF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) h012
+
 #print axioms setupMoves5
+#print axioms hesrPrologue
 
 end EvmAsm.Codegen.HeaderFieldsSpec
