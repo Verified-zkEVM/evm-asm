@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptBoundedSort
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.Header
@@ -360,6 +361,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++

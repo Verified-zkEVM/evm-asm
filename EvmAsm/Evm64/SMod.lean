@@ -11,7 +11,6 @@
 -/
 
 import EvmAsm.Evm64.SMod.AddrNormAttr
-import EvmAsm.Evm64.SMod.Layout
 import EvmAsm.Evm64.SMod.Args
 import EvmAsm.Evm64.SMod.ArgsStackDecode
 import EvmAsm.Evm64.SMod.StackExecutionBridge

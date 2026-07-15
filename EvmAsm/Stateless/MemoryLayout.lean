@@ -116,7 +116,7 @@
     frame size is documented at the top of that module's `Program.lean`.
 -/
 
-import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.Word
 
 namespace EvmAsm.Stateless
 

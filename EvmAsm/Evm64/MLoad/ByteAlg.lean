@@ -20,7 +20,7 @@
 
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
-import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.Word
 
 namespace EvmAsm.Evm64.MLoad
 
