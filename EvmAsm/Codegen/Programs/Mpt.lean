@@ -1079,7 +1079,9 @@ def ziskMptWalkDataSection : String :=
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "mw_nibble_buf:\n" ++
-  "  .zero 128"
+  -- A state-witness node is SSZ ByteList[1024] (checked by the entry decoder).
+  -- HP decoding emits at most 2 * 1024 - 1 = 2047 one-byte nibbles.
+  "  .zero 2048"
 
 def ziskMptWalkProbeUnit : BuildUnit := {
   body        := NOP
@@ -1352,7 +1354,7 @@ def ziskMptLookupByKeyDataSection : String :=
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "mw_nibble_buf:\n" ++
-  "  .zero 128\n" ++
+  "  .zero 2048\n" ++
   ".balign 32\n" ++
   "mlk_keccak_buf:\n" ++
   "  .zero 32\n" ++
