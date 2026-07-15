@@ -570,6 +570,107 @@ theorem hesrNextStep {cr : CodeReq}
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq => by unfold hesrNextOutcome; xperm_hyp hq) hc
 
+/-! ## Register marshalling between walker calls
+
+    The header extractor spills the cursor to `sp+32` and the end pointer to
+    `sp+40` and reloads them around each `rlp_walk_next` call.  `hesrMarshalInit`
+    ([12]-[15], `+48 → +64`) seeds both slots after the init call; `hesrMarshalNext`
+    ([18]-[20] etc., 3 instructions) re-spills the fresh cursor and reloads the
+    preserved end pointer from `sp+40` before each subsequent call. -/
+
+/-- Init marshalling [12]-[15]: `SD x10; SD x11; LD x10; LD x11` — seed `sp+32 :=
+    cursor`, `sp+40 := endPtr` (the spill slots start owned/`memOwn`). -/
+private theorem hesrMarshalInit (cursor endPtr newSp : Word) :
+    cpsTripleWithin 4 (hesrBase + 48) (hesrBase + 64) hesrCode
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x2 ↦ᵣ newSp) **
+       memOwn (newSp + 32) ** memOwn (newSp + 40))
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x2 ↦ᵣ newSp) **
+       ((newSp + 32) ↦ₘ cursor) ** ((newSp + 40) ↦ₘ endPtr)) := by
+  -- [12] SD x2 x10 32 : (newSp+32) := cursor  (into owned slot)
+  have h12 := sd_spec_gen_own_within .x2 .x10 newSp cursor (32 : BitVec 12) (hesrBase + 48)
+  rw [show newSp + signExtend12 (32 : BitVec 12) = newSp + 32 from by
+        rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide],
+      show (hesrBase + 48 : Word) + 4 = hesrBase + 52 from by bv_omega] at h12
+  have e12 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 48) Codegen.headerExtractStateRoot_prog 12
+      (.SD .x2 .x10 (32 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h12
+  have f12 := cpsTripleWithin_frameR ((.x11 ↦ᵣ endPtr) ** memOwn (newSp + 40)) (by pcFreeR) e12
+  -- [13] SD x2 x11 40 : (newSp+40) := endPtr  (into owned slot)
+  have h13 := sd_spec_gen_own_within .x2 .x11 newSp endPtr (40 : BitVec 12) (hesrBase + 52)
+  rw [show newSp + signExtend12 (40 : BitVec 12) = newSp + 40 from by
+        rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide],
+      show (hesrBase + 52 : Word) + 4 = hesrBase + 56 from by bv_omega] at h13
+  have e13 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 52) Codegen.headerExtractStateRoot_prog 13
+      (.SD .x2 .x11 (40 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h13
+  have f13 := cpsTripleWithin_frameR ((.x10 ↦ᵣ cursor) ** ((newSp + 32) ↦ₘ cursor)) (by pcFreeR) e13
+  -- [14] LD x10 x2 32 : x10 := cursor
+  have h14 := ld_spec_gen_within .x10 .x2 newSp cursor cursor (32 : BitVec 12) (hesrBase + 56) (by decide)
+  rw [show newSp + signExtend12 (32 : BitVec 12) = newSp + 32 from by
+        rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide],
+      show (hesrBase + 56 : Word) + 4 = hesrBase + 60 from by bv_omega] at h14
+  have e14 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 56) Codegen.headerExtractStateRoot_prog 14
+      (.LD .x10 .x2 (32 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h14
+  have f14 := cpsTripleWithin_frameR ((.x11 ↦ᵣ endPtr) ** ((newSp + 40) ↦ₘ endPtr)) (by pcFreeR) e14
+  -- [15] LD x11 x2 40 : x11 := endPtr
+  have h15 := ld_spec_gen_within .x11 .x2 newSp endPtr endPtr (40 : BitVec 12) (hesrBase + 60) (by decide)
+  rw [show newSp + signExtend12 (40 : BitVec 12) = newSp + 40 from by
+        rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide],
+      show (hesrBase + 60 : Word) + 4 = hesrBase + 64 from by bv_omega] at h15
+  have e15 := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at hesrBase (hesrBase + 60) Codegen.headerExtractStateRoot_prog 15
+      (.LD .x11 .x2 (40 : BitVec 12)) (by bv_omega)
+      (by rw [hesr_prog_length]; norm_num) rfl (by rw [hesr_prog_length]; norm_num)) h15
+  have f15 := cpsTripleWithin_frameR ((.x10 ↦ᵣ cursor) ** ((newSp + 32) ↦ₘ cursor)) (by pcFreeR) e15
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f12 f13
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f14
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f15
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s3
+
+/-- Next marshalling [18]-[20] (and [23]-[25], [28]-[30]): `SD x10; LD x10; LD x11`
+    — re-spill the fresh cursor to `sp+32` and reload the preserved `endPtr` from
+    `sp+40` into `x11` (which the status return clobbered).  Parametric in the entry
+    PC; the caller supplies the three per-instruction code-membership facts. -/
+private theorem hesrMarshalNext (entryPC newcursor endPtr newSp v11 g1 : Word)
+    (hc0 : ∀ a i, CodeReq.singleton entryPC (.SD .x2 .x10 (32 : BitVec 12)) a = some i
+      → hesrCode a = some i)
+    (hc1 : ∀ a i, CodeReq.singleton (entryPC + 4) (.LD .x10 .x2 (32 : BitVec 12)) a = some i
+      → hesrCode a = some i)
+    (hc2 : ∀ a i, CodeReq.singleton (entryPC + 8) (.LD .x11 .x2 (40 : BitVec 12)) a = some i
+      → hesrCode a = some i) :
+    cpsTripleWithin 3 entryPC (entryPC + 12) hesrCode
+      ((.x10 ↦ᵣ newcursor) ** (.x11 ↦ᵣ v11) ** (.x2 ↦ᵣ newSp) **
+       ((newSp + 32) ↦ₘ g1) ** ((newSp + 40) ↦ₘ endPtr))
+      ((.x10 ↦ᵣ newcursor) ** (.x11 ↦ᵣ endPtr) ** (.x2 ↦ᵣ newSp) **
+       ((newSp + 32) ↦ₘ newcursor) ** ((newSp + 40) ↦ₘ endPtr)) := by
+  -- [SD x2 x10 32] : (newSp+32) := newcursor
+  have h0 := sd_spec_gen_within .x2 .x10 newSp newcursor g1 (32 : BitVec 12) entryPC
+  rw [show newSp + signExtend12 (32 : BitVec 12) = newSp + 32 from by
+        rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]] at h0
+  have e0 := cpsTripleWithin_extend_code hc0 h0
+  have f0 := cpsTripleWithin_frameR ((.x11 ↦ᵣ v11) ** ((newSp + 40) ↦ₘ endPtr)) (by pcFreeR) e0
+  -- [LD x10 x2 32] : x10 := newcursor
+  have h1 := ld_spec_gen_within .x10 .x2 newSp newcursor newcursor (32 : BitVec 12) (entryPC + 4) (by decide)
+  rw [show newSp + signExtend12 (32 : BitVec 12) = newSp + 32 from by
+        rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide],
+      show (entryPC + 4 : Word) + 4 = entryPC + 8 from by bv_omega] at h1
+  have e1 := cpsTripleWithin_extend_code hc1 h1
+  have f1 := cpsTripleWithin_frameR ((.x11 ↦ᵣ v11) ** ((newSp + 40) ↦ₘ endPtr)) (by pcFreeR) e1
+  -- [LD x11 x2 40] : x11 := endPtr
+  have h2 := ld_spec_gen_within .x11 .x2 newSp v11 endPtr (40 : BitVec 12) (entryPC + 8) (by decide)
+  rw [show newSp + signExtend12 (40 : BitVec 12) = newSp + 40 from by
+        rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide],
+      show (entryPC + 8 : Word) + 4 = entryPC + 12 from by bv_omega] at h2
+  have e2 := cpsTripleWithin_extend_code hc2 h2
+  have f2 := cpsTripleWithin_frameR ((.x10 ↦ᵣ newcursor) ** ((newSp + 32) ↦ₘ newcursor)) (by pcFreeR) e2
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 f1
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f2
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
+
 /-! ## Epilogue
 
     Instructions [64]-[69] (`hesrBase+256 → raVal &&& ~~~1`): restore
@@ -1553,6 +1654,8 @@ private theorem hesrSuccessTail
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hdisp
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2
 
+#print axioms hesrMarshalInit
+#print axioms hesrMarshalNext
 #print axioms hesrNextStep
 #print axioms hesrSuccessTail
 #print axioms hesrLenDispatch
