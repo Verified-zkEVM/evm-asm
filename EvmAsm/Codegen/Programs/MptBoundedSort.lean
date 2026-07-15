@@ -459,8 +459,10 @@ def mptBoundedRebuildExactLeafFunction : String :=
     shim: branch children are opened only from their frame raw refs/witness,
     and every completed child is copied to its parent before the shared result
     slot is reused. Existing extension prefixes are preserved through the same
-    continuation; extension splits, insertions, and deletion collapse remain
-    explicit conservative exits until their canonical cases land. -/
+    continuation; a one-descriptor insertion into an existing branch's empty
+    child is materialized as its bounded suffix leaf. Extension/leaf splits
+    and deletion collapse remain explicit conservative exits until their
+    canonical cases land. -/
 def mptBoundedRebuildSubtreeFunction : String :=
   "  .globl mpt_bounded_rebuild_subtree\n" ++
   "mpt_bounded_rebuild_subtree:\n" ++
@@ -474,9 +476,10 @@ def mptBoundedRebuildSubtreeFunction : String :=
   "  ld a0, 72(sp); mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s7; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbrs_ret; la t0, bsr_builder_result_ref; sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); la t0, bsr_builder_result_len; ld t0, 0(t0); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); mv a0, s0; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; j .Lmbrs_ret\n" ++
   ".Lmbrs_branch:\n  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4; mv a4, s0; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbrs_fail; li s7, 0\n" ++
   ".Lmbrs_child:\n  li t0, 16; beq s7, t0, .Lmbrs_encode; slli t0, s7, 4; addi t1, s0, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; ld t2, 0(t1); ld t3, 8(t1); beq t2, t3, .Lmbrs_next\n" ++
-  "  sd t2, 80(sp); sd t3, 88(sp); slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; ld t4, 0(t0); beqz t4, .Lmbrs_fail; addi t5, t0, 8; addi t6, s4, 1; li a0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t6, t6, a0; la a0, bsr_builder_frames; add a4, a0, t6; sd a4, 72(sp); mv a0, t5; mv a1, t4; mv a2, s5; mv a3, s6; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
+  "  sd t2, 80(sp); sd t3, 88(sp); slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; ld t4, 0(t0); beqz t4, .Lmbrs_missing; addi t5, t0, 8; addi t6, s4, 1; li a0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t6, t6, a0; la a0, bsr_builder_frames; add a4, a0, t6; sd a4, 72(sp); mv a0, t5; mv a1, t4; mv a2, s5; mv a3, s6; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
   "  ld a0, 72(sp); mv a1, s1; ld a2, 80(sp); ld a3, 88(sp); addi a4, s4, 1; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbrs_ret\n" ++
-  "  slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; la t1, bsr_builder_result_len; ld t2, 0(t1); sd t2, 0(t0); addi t0, t0, 8; la t1, bsr_builder_result_ref\n" ++
+  ".Lmbrs_child_done:\n  slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; la t1, bsr_builder_result_len; ld t2, 0(t1); sd t2, 0(t0); addi t0, t0, 8; la t1, bsr_builder_result_ref\n" ++
+  ".Lmbrs_missing:\n  addi t0, t2, 1; bne t0, t3, .Lmbrs_fail; slli t0, t2, 5; slli t1, t2, 3; add t0, t0, t1; add t0, s1, t0; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lmbrs_fail; addi t1, s4, 1; li t2, " ++ toString bsrMptKeyNibbles ++ "; bgtu t1, t2, .Lmbrs_fail; ld a0, 0(t0); add a0, a0, t1; sub a1, t2, t1; ld a2, 16(t0); ld a3, 24(t0); la a4, bsr_builder_node; addi a5, sp, 72; la a6, bsr_builder_result_ref; la a7, bsr_builder_result_len; jal ra, mpt_bounded_encode_leaf_ref; bnez a0, .Lmbrs_fail; j .Lmbrs_child_done\n" ++
   ".Lmbrs_copy_ref:\n  beqz t2, .Lmbrs_next; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbrs_copy_ref\n" ++
   ".Lmbrs_next:\n  addi s7, s7, 1; j .Lmbrs_child\n" ++
   ".Lmbrs_encode:\n  la a1, bsr_builder_node; addi a2, sp, 72; mv a0, s0; jal ra, mpt_bounded_encode_branch; bnez a0, .Lmbrs_fail; la a0, bsr_builder_node; ld a1, 72(sp); la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_node_ref; j .Lmbrs_ret\n" ++
