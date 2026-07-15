@@ -458,15 +458,20 @@ def mptBoundedRebuildExactLeafFunction : String :=
     subset. It is deliberately a real recursive frontier walk, not a NodeDb
     shim: branch children are opened only from their frame raw refs/witness,
     and every completed child is copied to its parent before the shared result
-    slot is reused. Extension splits, insertions, and deletion collapse remain
+    slot is reused. Existing extension prefixes are preserved through the same
+    continuation; extension splits, insertions, and deletion collapse remain
     explicit conservative exits until their canonical cases land. -/
 def mptBoundedRebuildSubtreeFunction : String :=
   "  .globl mpt_bounded_rebuild_subtree\n" ++
   "mpt_bounded_rebuild_subtree:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s0); beqz t0, .Lmbrs_branch; li t1, 2; beq t0, t1, .Lmbrs_leaf; j .Lmbrs_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s0); beqz t0, .Lmbrs_branch; li t1, 1; beq t0, t1, .Lmbrs_extension; li t1, 2; beq t0, t1, .Lmbrs_leaf; j .Lmbrs_fail\n" ++
   ".Lmbrs_leaf:\n  addi t0, s2, 1; bne t0, s3, .Lmbrs_fail; mv a0, s0; slli t0, s2, 5; slli t1, s2, 3; add t0, t0, t1; add a1, s1, t0; mv a2, s4; jal ra, mpt_bounded_rebuild_exact_leaf; j .Lmbrs_ret\n" ++
+  ".Lmbrs_extension:\n  li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu s4, t0, .Lmbrs_fail; sub a1, t0, s4; mv a0, s0; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbrs_fail; sd s2, 80(sp)\n" ++
+  ".Lmbrs_ext_match:\n  ld t0, 80(sp); beq t0, s3, .Lmbrs_ext_descend; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add a0, s1, t1; mv a1, s4; mv a2, s0; jal ra, mpt_bounded_frame_path_match; bnez a0, .Lmbrs_fail; ld t0, 80(sp); addi t0, t0, 1; sd t0, 80(sp); j .Lmbrs_ext_match\n" ++
+  ".Lmbrs_ext_descend:\n  ld t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); add s7, s4, t0; li t1, " ++ toString bsrMptKeyNibbles ++ "; bgeu s7, t1, .Lmbrs_fail; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t2, s7, t1; la t1, bsr_builder_frames; add t2, t1, t2; sd t2, 72(sp); ld a0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld a1, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); mv a2, s5; mv a3, s6; mv a4, t2; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
+  "  ld a0, 72(sp); mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s7; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbrs_ret; la t0, bsr_builder_result_ref; sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); la t0, bsr_builder_result_len; ld t0, 0(t0); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); mv a0, s0; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; j .Lmbrs_ret\n" ++
   ".Lmbrs_branch:\n  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4; mv a4, s0; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbrs_fail; li s7, 0\n" ++
   ".Lmbrs_child:\n  li t0, 16; beq s7, t0, .Lmbrs_encode; slli t0, s7, 4; addi t1, s0, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; ld t2, 0(t1); ld t3, 8(t1); beq t2, t3, .Lmbrs_next\n" ++
   "  sd t2, 80(sp); sd t3, 88(sp); slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; ld t4, 0(t0); beqz t4, .Lmbrs_fail; addi t5, t0, 8; addi t6, s4, 1; li a0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t6, t6, a0; la a0, bsr_builder_frames; add a4, a0, t6; sd a4, 72(sp); mv a0, t5; mv a1, t4; mv a2, s5; mv a3, s6; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
