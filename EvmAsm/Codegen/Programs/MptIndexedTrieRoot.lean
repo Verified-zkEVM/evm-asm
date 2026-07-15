@@ -278,6 +278,47 @@ def mptIndexedLeafRefFunction : String :=
   ".Lmilr_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret"
 
+/-! Build a canonical indexed-trie subtree from an already lexicographically
+    sorted descriptor interval.  There are at most seven live frames (root
+    plus six RLP-index nibbles); each is 1 KiB so it can directly use the
+    audited raw-reference branch/extension encoders.  No frame is indexed by
+    an untrusted count and no result is inserted into NodeDb. -/
+def mptIndexedBuildSubtreeFunction : String :=
+  "mpt_indexed_build_subtree:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; bgeu s1, s2, .Lmibs_fail; li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu s3, t0, .Lmibs_fail; addi t0, s1, 1; bne t0, s2, .Lmibs_multi\n" ++
+  "  slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld a0, 0(t0); ld a1, 8(t0); bgeu s3, a1, .Lmibs_fail; add a0, a0, s3; sub a1, a1, s3; ld a2, 16(t0); ld a3, 24(t0); mv a4, s4; mv a5, s5; jal ra, mpt_indexed_leaf_ref; bnez a0, .Lmibs_fail; li a0, 0; j .Lmibs_ret\n" ++
+  ".Lmibs_multi:\n" ++
+  "  li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgeu s3, t0, .Lmibs_fail; la s6, itr_builder_frames; slli t0, s3, 10; add s6, s6, t0; li t0, 16; mv t1, s6\n" ++
+  ".Lmibs_clear:\n" ++
+  "  beqz t0, .Lmibs_common; sd zero, 0(t1); addi t1, t1, 40; addi t0, t0, -1; j .Lmibs_clear\n" ++
+  ".Lmibs_common:\n" ++
+  "  slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld s7, 0(t0); ld s8, 8(t0); addi t0, s2, -1; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t1, s0, t1; ld s9, 0(t1); ld t6, 8(t1); li t2, 0\n" ++
+  ".Lmibs_common_loop:\n" ++
+  "  add t0, s3, t2; bgeu t0, s8, .Lmibs_common_done; bgeu t0, t6, .Lmibs_common_done; add t1, s7, t0; lbu t1, 0(t1); add t3, s9, t0; lbu t3, 0(t3); bne t1, t3, .Lmibs_common_done; addi t2, t2, 1; j .Lmibs_common_loop\n" ++
+  ".Lmibs_common_done:\n" ++
+  "  beqz t2, .Lmibs_branch; mv a0, s0; mv a1, s1; mv a2, s2; add a3, s3, t2; addi a4, s6, 8; mv a5, s6; jal ra, mpt_indexed_build_subtree; bnez a0, .Lmibs_fail; add t0, s7, s3; addi t1, s6, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv t3, t2\n" ++
+  ".Lmibs_prefix_copy:\n" ++
+  "  beqz t3, .Lmibs_prefix_done; lbu t4, 0(t0); sb t4, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lmibs_prefix_copy\n" ++
+  ".Lmibs_prefix_done:\n" ++
+  "  sd t2, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s6); addi t0, s6, 8; sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s6); ld t0, 0(s6); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s6); mv a0, s6; la a1, itr_builder_node; mv a2, s4; mv a3, s5; jal ra, mpt_bounded_encode_extension; bnez a0, .Lmibs_fail; li a0, 0; j .Lmibs_ret\n" ++
+  ".Lmibs_branch:\n" ++
+  "  mv s7, s1; li s8, 0\n" ++
+  ".Lmibs_digit:\n" ++
+  "  li t0, 16; beq s8, t0, .Lmibs_encode_branch; mv s9, s7\n" ++
+  ".Lmibs_scan:\n" ++
+  "  beq s9, s2, .Lmibs_group; slli t0, s9, 5; slli t1, s9, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); ld t2, 8(t0); bgeu s3, t2, .Lmibs_fail; add t1, t1, s3; lbu t1, 0(t1); bne t1, s8, .Lmibs_group; addi s9, s9, 1; j .Lmibs_scan\n" ++
+  ".Lmibs_group:\n" ++
+  "  beq s7, s9, .Lmibs_next_digit; mv a0, s0; mv a1, s7; mv a2, s9; addi a3, s3, 1; slli t0, s8, 5; slli t1, s8, 3; add t0, t0, t1; add t0, s6, t0; addi a4, t0, 8; mv a5, t0; jal ra, mpt_indexed_build_subtree; bnez a0, .Lmibs_fail\n" ++
+  ".Lmibs_next_digit:\n" ++
+  "  mv s7, s9; addi s8, s8, 1; j .Lmibs_digit\n" ++
+  ".Lmibs_encode_branch:\n" ++
+  "  mv a0, s6; la a1, itr_builder_node; addi a2, sp, 96; jal ra, mpt_bounded_encode_branch; bnez a0, .Lmibs_fail; la a0, itr_builder_node; ld a1, 96(sp); mv a2, s4; mv a3, s5; jal ra, mpt_bounded_node_ref; bnez a0, .Lmibs_fail; li a0, 0; j .Lmibs_ret\n" ++
+  ".Lmibs_fail:\n  li a0, 1\n" ++
+  ".Lmibs_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); addi sp, sp, 112; ret"
+
 /-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
 
     Compute `keccak(rlp([hp_path, value]))` for large indexed-trie leaves
@@ -874,6 +915,7 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   "itr_sort_scratch:\n  .zero 40\n" ++
   "itr_builder_node_len:\n  .zero 8\n" ++
   "itr_builder_node:\n  .zero 1024"
+  ++ "\nitr_builder_frames:\n  .zero " ++ toString (itrIndexedBuilderFrameCapacity * 1024)
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
