@@ -319,6 +319,27 @@ def mptIndexedBuildSubtreeFunction : String :=
   ".Lmibs_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); addi sp, sp, 112; ret"
 
+/-! Bounded replacement for the indexed transaction/receipt trie root.
+    `a0=descriptors`, `a1=count`, `a2=out_root[32]`; the input contains the
+    already-decoded transaction or receipt RLP values.  It is intentionally
+    empty-trie-only: indexed transaction and receipt tries are constructed
+    from their ordered value arrays, never mutated through NodeDb. -/
+def mptIndexedTrieRootBoundedFunction : String :=
+  "mpt_indexed_trie_root_bounded:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; li t0, " ++ toString itrIndexedEntryCapacity ++ "; bgtu s1, t0, .Lmitrb_fail; beqz s1, .Lmitrb_empty; mv a0, s0; mv a1, s1; jal ra, mpt_indexed_sort_changes; bnez a0, .Lmitrb_fail; mv a0, s0; li a1, 0; mv a2, s1; li a3, 0; la a4, itr_root_ref; la a5, itr_root_ref_len; jal ra, mpt_indexed_build_subtree; bnez a0, .Lmitrb_fail; la t0, itr_root_ref_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lmitrb_inline_root; la t0, itr_root_ref; li t1, 32\n" ++
+  ".Lmitrb_copy:\n" ++
+  "  beqz t1, .Lmitrb_ok; lbu t2, 0(t0); sb t2, 0(s2); addi t0, t0, 1; addi s2, s2, 1; addi t1, t1, -1; j .Lmitrb_copy\n" ++
+  ".Lmitrb_inline_root:\n" ++
+  "  la a0, itr_root_ref; mv a1, t1; mv a2, s2; jal ra, zkvm_keccak256; j .Lmitrb_ok\n" ++
+  ".Lmitrb_empty:\n" ++
+  "  la t0, iw_empty_trie_root; li t1, 32; j .Lmitrb_copy\n" ++
+  ".Lmitrb_fail:\n  li a0, 1; j .Lmitrb_ret\n" ++
+  ".Lmitrb_ok:\n  li a0, 0\n" ++
+  ".Lmitrb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48; ret"
+
 /-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
 
     Compute `keccak(rlp([hp_path, value]))` for large indexed-trie leaves
@@ -915,7 +936,8 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   "itr_sort_scratch:\n  .zero 40\n" ++
   "itr_builder_node_len:\n  .zero 8\n" ++
   "itr_builder_node:\n  .zero 1024"
-  ++ "\nitr_builder_frames:\n  .zero " ++ toString (itrIndexedBuilderFrameCapacity * 1024)
+  ++ "\nitr_builder_frames:\n  .zero " ++ toString (itrIndexedBuilderFrameCapacity * 1024) ++
+  "\nitr_root_ref_len:\n  .zero 8\nitr_root_ref:\n  .zero 32"
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
