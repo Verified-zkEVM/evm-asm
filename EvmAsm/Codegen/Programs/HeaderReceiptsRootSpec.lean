@@ -161,8 +161,7 @@ theorem header_extract_receipts_root_fnspec
   -- init dispatch with the nested 6-stage chain as hstage1
   have hdisp := hfInitDispatch (code := cr) herrBase herrOffAddr herrLenAddr listBase outPtr newSp
     saved.ra v5 v6 v7 v28 v29 v30 v31 saved headerBytes outBytes listLenN 5 (by omega)
-    (herrBase + 276) (232 : BitVec 13) herrInitOffset h_src_align h_dst_align h_slack h_src_over
-    h_dst_over h_dst_bound h_src_valid h_dst_valid hbound
+    (herrBase + 276) (232 : BitVec 13) herrInitOffset h_src_align h_slack h_src_over h_src_valid
     (by simp only [herrInitOffset, wiBase, herrBase]; decide)
     (by simp only [herrBase]; decide)
     (by simp only [herrInitOffset, wiBase, herrBase]
@@ -195,7 +194,7 @@ theorem header_extract_receipts_root_fnspec
           (by simp only [herrBase]; decide)
           (by simp only [wnBase, herrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
           (by rw [show signExtend13 (208 : BitVec 13) = (208 : Word) from by decide]; bv_omega)
-          h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+          h_src_align h_slack h_src_over h_src_valid
           (by omega) hpayload RlpListNthItemSAsm.StrictPrefix.zero hpayload.cursor_le
           (herrMem Codegen.headerExtractReceiptsRoot_prog rfl hcr_prog (herrBase + 64) 16
             (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_receipts_root + 64)))
@@ -223,7 +222,7 @@ theorem header_extract_receipts_root_fnspec
                 (by simp only [herrBase]; decide)
                 (by simp only [wnBase, herrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
                 (by rw [show signExtend13 (188 : BitVec 13) = (188 : Word) from by decide]; bv_omega)
-                h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+                h_src_align h_slack h_src_over h_src_valid
                 (by omega) hpayload hp1 hle1
                 (herrMem Codegen.headerExtractReceiptsRoot_prog rfl hcr_prog (herrBase + 84) 21
                   (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_receipts_root + 84)))
@@ -251,7 +250,7 @@ theorem header_extract_receipts_root_fnspec
                       (by simp only [herrBase]; decide)
                       (by simp only [wnBase, herrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
                       (by rw [show signExtend13 (168 : BitVec 13) = (168 : Word) from by decide]; bv_omega)
-                      h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+                      h_src_align h_slack h_src_over h_src_valid
                       (by omega) hpayload hp2 hle2
                       (herrMem Codegen.headerExtractReceiptsRoot_prog rfl hcr_prog (herrBase + 104) 26
                         (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_receipts_root + 104)))
@@ -279,7 +278,7 @@ theorem header_extract_receipts_root_fnspec
                             (by simp only [herrBase]; decide)
                             (by simp only [wnBase, herrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
                             (by rw [show signExtend13 (148 : BitVec 13) = (148 : Word) from by decide]; bv_omega)
-                            h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+                            h_src_align h_slack h_src_over h_src_valid
                             (by omega) hpayload hp3 hle3
                             (herrMem Codegen.headerExtractReceiptsRoot_prog rfl hcr_prog (herrBase + 124) 31
                               (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_receipts_root + 124)))
@@ -307,7 +306,7 @@ theorem header_extract_receipts_root_fnspec
                                   (by simp only [herrBase]; decide)
                                   (by simp only [wnBase, herrBase]; exact CodeReq.Disjoint.singleton_ofProg (by decide))
                                   (by rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega)
-                                  h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid
+                                  h_src_align h_slack h_src_over h_src_valid
                                   (by omega) hpayload hp4 hle4
                                   (herrMem Codegen.headerExtractReceiptsRoot_prog rfl hcr_prog (herrBase + 144) 36
                                     (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_walk_next (Codegen.GuestAddrs.header_extract_receipts_root + 144)))

@@ -45,15 +45,10 @@ theorem hfStageRec {code : CodeReq} {nCont : Nat}
     (hdisj : (CodeReq.singleton entryPC (.JAL .x1 walkOffset)).Disjoint (rlp_walk_next_code wnBase))
     (hbne_t : entryPC + 4 + signExtend13 bneOff = status1PC)
     (h_src_align : listBase.toNat % 8 = 0)
-    (h_dst_align : outPtr.toNat % 8 = 0)
     (h_slack : listLen + 9 ≤ headerBytes.length)
     (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
-    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
-    (h_dst_bound : 32 ≤ outBytes.length)
     (h_src_valid : ∀ k, k < headerBytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
-    (h_dst_valid : ∀ k, k < outBytes.length →
-      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
     (hcount : count ≤ index)
     (hpayload : RlpListNthItemSAsm.StrictListPayload headerBytes listBase listLen cursorOff endPtr)
     (hprefixPrev : RlpListNthItemSAsm.StrictPrefix headerBytes listBase endPtr cursorOff count offPrev)

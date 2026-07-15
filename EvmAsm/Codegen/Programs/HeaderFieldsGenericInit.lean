@@ -19,15 +19,15 @@ open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
 /-- The caller-owned ambient carried across the walker calls (generic over the
     two scratch addresses): frame pointer + saved regs, saved frame, the two spill
     slots, and the output buffer. -/
-def hfAmbient (offAddr lenAddr newSp outPtr listBase listLen : Word) (saved : Saved)
+def hfAmbient (newSp outPtr listBase listLen : Word) (saved : Saved)
     (outBytes : List (BitVec 8)) : Assertion :=
   (.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ listLen) ** (.x18 ↦ᵣ outPtr) **
   savedFrame newSp saved ** memOwn (newSp + 32) ** memOwn (newSp + 40) **
   bytesRegion outPtr outBytes
 
-theorem pcFree_hfAmbient (offAddr lenAddr newSp outPtr listBase listLen : Word) (saved : Saved)
+theorem pcFree_hfAmbient (newSp outPtr listBase listLen : Word) (saved : Saved)
     (outBytes : List (BitVec 8)) :
-    (hfAmbient offAddr lenAddr newSp outPtr listBase listLen saved outBytes).pcFree := by
+    (hfAmbient newSp outPtr listBase listLen saved outBytes).pcFree := by
   unfold hfAmbient savedFrame
   repeat' first
     | exact bytesRegion_pcFree _ _
@@ -149,7 +149,6 @@ set_option maxRecDepth 8000 in
 theorem hfInitStep {code : CodeReq}
     (base : Word) (initOffset : BitVec 21)
     (listBase outPtr newSp oldRa v5 v6 v7 v28 v29 v30 v31 : Word) (saved : Saved)
-    (offAddr lenAddr : Word)
     (headerBytes outBytes : List (BitVec 8)) (listLenN : Nat)
     (h_align : listBase.toNat % 8 = 0)
     (h_slack : listLenN + 9 ≤ headerBytes.length)
@@ -168,10 +167,10 @@ theorem hfInitStep {code : CodeReq}
          (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
-         hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes))
+         hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes))
       (((hfInitCommon (base + 40 + 4) listBase headerBytes ** (.x0 ↦ᵣ (0 : Word))) **
          RlpListNthItemSAsm.initOutcome listBase headerBytes listLenN (by omega)) **
-        hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) := by
+        hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) := by
   have hoff : 0 < headerBytes.length := by omega
   have hwi := rlp_walk_init_spec_within wiBase listBase (base + 40 + 4)
     (BitVec.ofNat 64 listLenN) outPtr v5 v6 v7 v28 v29 v30 v31 headerBytes 0
@@ -197,18 +196,18 @@ theorem hfInitStep {code : CodeReq}
       exact h_valid _ (by omega))
   rw [show listBase + BitVec.ofNat 64 0 = listBase from by bv_omega] at hwi
   have hwiA := cpsTripleWithin_frameR
-    (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes)
-    (pcFree_hfAmbient _ _ _ _ _ _ _ _) hwi
+    (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes)
+    (pcFree_hfAmbient _ _ _ _ _ _) hwi
   set Prest : Assertion :=
     ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) **
      (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
-     hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) with hPrest
+     hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes) with hPrest
   set Q : Assertion :=
     ((hfInitCommon (base + 40 + 4) listBase headerBytes ** (.x0 ↦ᵣ (0 : Word))) **
       RlpListNthItemSAsm.initOutcome listBase headerBytes listLenN hoff) **
-      hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes with hQ
+      hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes with hQ
   have hwi' : cpsTripleWithin 81 wiBase ((base + 40 + 4) &&& ~~~(1 : Word))
       (rlp_walk_init_code wiBase) ((.x1 ↦ᵣ (base + 40 + 4)) ** Prest) Q :=
     cpsTripleWithin_weaken
@@ -223,7 +222,7 @@ theorem hfInitStep {code : CodeReq}
       rw [hPrest]
       repeat' first
         | exact bytesRegion_pcFree _ _
-        | exact pcFree_hfAmbient _ _ _ _ _ _ _ _
+        | exact pcFree_hfAmbient _ _ _ _ _ _
         | apply pcFree_sepConj
         | exact pcFree_regIs) hioff halign hdisj hcode hwi'
   simpa [hPrest, hQ] using hc
@@ -285,7 +284,7 @@ theorem hfMarshalInitBundled {code : CodeReq}
     (hc3 : ∀ a i, CodeReq.singleton (base + 60) (.LD .x11 .x2 (40 : BitVec 12)) a = some i → code a = some i) :
     cpsTripleWithin 4 (base + 48) (base + 64) code
       (((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr)) **
-        (hfAmbient offAddr lenAddr newSp outPtr listBase v9 saved outBytes **
+        (hfAmbient newSp outPtr listBase v9 saved outBytes **
          hfScratchConst offAddr lenAddr ** Fr))
       (((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr)) **
         (hfWalkAmbient offAddr lenAddr newSp outPtr listBase v9 saved outBytes **
@@ -312,19 +311,10 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
     (hnStage1 : 8 ≤ nStage1)
     (status1PC : Word) (initBneOff : BitVec 13) (initOffset : BitVec 21)
     (h_src_align : listBase.toNat % 8 = 0)
-    (h_dst_align : outPtr.toNat % 8 = 0)
     (h_slack : listLenN + 9 ≤ headerBytes.length)
     (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
-    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
-    (h_dst_bound : 32 ≤ outBytes.length)
     (h_src_valid : ∀ k, k < headerBytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
-    (h_dst_valid : ∀ k, k < outBytes.length →
-      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
-    (hbound : ∀ o next len, o ≤ listLenN →
-      rlpItemDecode headerBytes o (listBase + BitVec.ofNat 64 o)
-        (listBase + BitVec.ofNat 64 listLenN) next len →
-      (next - len - listBase).toNat + 32 ≤ headerBytes.length)
     (hioff : (base + 40) + signExtend21 initOffset = wiBase)
     (halign_i : (base + 40 + 4) &&& ~~~(1 : Word) = base + 40 + 4)
     (hdisj_i : (CodeReq.singleton (base + 40) (.JAL .x1 initOffset)).Disjoint (rlp_walk_init_code wiBase))
@@ -369,13 +359,13 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
          (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
-         hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes)) **
+         hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes)) **
         (memOwn offAddr ** memOwn lenAddr))
       (hfRetPost offAddr lenAddr newSp listBase outPtr saved headerBytes outBytes listLenN index
         (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
          memOwn (newSp + 32) ** memOwn (newSp + 40))) := by
   have hinit := hfInitStep base initOffset listBase outPtr newSp oldRa v5 v6 v7 v28 v29 v30 v31
-    saved offAddr lenAddr headerBytes outBytes listLenN h_src_align h_slack h_src_over h_src_valid
+    saved headerBytes outBytes listLenN h_src_align h_slack h_src_over h_src_valid
     hioff halign_i hdisj_i hcode_i
   have hinitF := cpsTripleWithin_frameR (memOwn offAddr ** memOwn lenAddr)
     (pcFree_sepConj pcFree_memOwn pcFree_memOwn) hinit
@@ -391,7 +381,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
   have hdisp : cpsTripleWithin (1 + (4 + nStage1)) (base + 44) (saved.ra &&& ~~~(1 : Word)) code
       (((hfInitCommon (base + 44) listBase headerBytes ** (.x0 ↦ᵣ (0 : Word))) **
         RlpListNthItemSAsm.initNormalized listBase headerBytes listLenN index) **
-        (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+        (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
          hfScratchConst offAddr lenAddr))
       (hfRetPost offAddr lenAddr newSp listBase outPtr saved headerBytes outBytes listLenN index
         (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
@@ -403,7 +393,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
             ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
              ⌜status ≠ (0 : Word) ∧
                RlpListNthItemSAsm.Failure headerBytes listBase listLenN index⌝) h)) **
-          (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+          (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
            hfScratchConst offAddr lenAddr))
         (hfRetPost offAddr lenAddr newSp listBase outPtr saved headerBytes outBytes listLenN index
           (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
@@ -414,7 +404,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
             ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ status) **
              ⌜status ≠ (0 : Word) ∧
                RlpListNthItemSAsm.Failure headerBytes listBase listLenN index⌝)) **
-            (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+            (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
              hfScratchConst offAddr lenAddr)) h)
         (fun h hp => by
           obtain ⟨h1, h2, hd, hu, hrf, hab⟩ := hp
@@ -430,7 +420,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
               RlpListNthItemSAsm.Failure headerBytes listBase listLenN index⌝ **
           (((.x12 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
             (hfInitCommon (base + 44) listBase headerBytes ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
-             (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+             (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
               hfScratchConst offAddr lenAddr))))
         (fun h hp => by xperm_chunked hp)
         (fun _ h => h) ?_
@@ -443,11 +433,11 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
         exact hP.1 ((sepConj_pure_right _).1 hQ).2)
       have htkF := cpsTripleWithin_frameR
         (hfInitCommon (base + 44) listBase headerBytes ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
-         (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+         (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
           hfScratchConst offAddr lenAddr))
         (by unfold hfInitCommon
             repeat' first
-              | exact pcFree_hfScratchConst _ _ | exact pcFree_hfAmbient _ _ _ _ _ _ _ _
+              | exact pcFree_hfScratchConst _ _ | exact pcFree_hfAmbient _ _ _ _ _ _
               | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | exact pcFree_regOwn
               | exact pcFree_memIs | exact pcFree_memOwn | apply pcFree_sepConj) htk
       have hs1' := hfStatus1Bundled (code := code) status1PC newSp listBase (BitVec.ofNat 64 listLenN)
@@ -493,7 +483,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
              (.x12 ↦ᵣ (0 : Word)) **
              ⌜RlpListNthItemSAsm.StrictListPayload headerBytes listBase listLenN cursorOff
                endPtr⌝) h)) **
-          (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+          (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
            hfScratchConst offAddr lenAddr))
         (hfRetPost offAddr lenAddr newSp listBase outPtr saved headerBytes outBytes listLenN index
           (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
@@ -505,7 +495,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
              (.x12 ↦ᵣ (0 : Word)) **
              ⌜RlpListNthItemSAsm.StrictListPayload headerBytes listBase listLenN cursorOff
                endPtr⌝)) **
-            (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+            (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
              hfScratchConst offAddr lenAddr)) h)
         (fun h hp => by
           obtain ⟨h1, h2, hd, hu, hrf, hab⟩ := hp
@@ -521,7 +511,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
           (((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
             (hfInitCommon (base + 44) listBase headerBytes **
              (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) ** (.x11 ↦ᵣ endPtr) **
-             (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+             (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
               hfScratchConst offAddr lenAddr))))
         (fun h hp => by xperm_chunked hp)
         (fun _ h => h) ?_
@@ -538,11 +528,11 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
         (hfInitCommon (base + 44) listBase headerBytes **
          (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
          (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listLenN)) **
-         (hfAmbient offAddr lenAddr newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
+         (hfAmbient newSp outPtr listBase (BitVec.ofNat 64 listLenN) saved outBytes **
           hfScratchConst offAddr lenAddr))
         (by unfold hfInitCommon
             repeat' first
-              | exact pcFree_hfScratchConst _ _ | exact pcFree_hfAmbient _ _ _ _ _ _ _ _
+              | exact pcFree_hfScratchConst _ _ | exact pcFree_hfAmbient _ _ _ _ _ _
               | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | exact pcFree_regOwn
               | exact pcFree_memIs | exact pcFree_memOwn | apply pcFree_sepConj) hntk
       have hmi := hfMarshalInitBundled (code := code) base offAddr lenAddr
