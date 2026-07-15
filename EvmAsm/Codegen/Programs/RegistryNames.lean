@@ -66,6 +66,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_bounded_resolve_witness",
    "zisk_mpt_bounded_classify_node",
    "zisk_mpt_bounded_open_root_frame",
+   "zisk_mpt_bounded_open_child_frame",
    "zisk_mpt_bounded_partition_frame",
    "zisk_mpt_bounded_node_ref",
    "zisk_mpt_bounded_encode_branch",

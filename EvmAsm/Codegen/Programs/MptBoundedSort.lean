@@ -286,6 +286,31 @@ def mptBoundedOpenRootFrameFunction : String :=
   ".Lmbor_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 72; ret\n"
 
+/-- Open one non-empty raw child reference into a descendant frontier frame.
+    Inline children are already RLP items in the parent frame and hashes are
+    resolved only in the immutable witness. This is intentionally separate
+    from the root opener: a zero-length reference denotes a missing child and
+    must be handled by the insertion case rather than accidentally treated as
+    an RLP node.
+
+    ABI: `a0 = raw child bytes`; `a1 = raw child length`; `a2 = witness`;
+    `a3 = witness length`; `a4 = frame`; returns 0/1. -/
+def mptBoundedOpenChildFrameFunction : String :=
+  "  .globl mpt_bounded_open_child_frame\n" ++
+  "mpt_bounded_open_child_frame:\n" ++
+  "  addi sp, sp, -72\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; sd zero, " ++ toString bsrMptFrameNodePtrOffset ++ "(s4); sd zero, " ++ toString bsrMptFrameNodeLenOffset ++ "(s4); sd zero, " ++ toString bsrMptFrameNodeKindOffset ++ "(s4); beqz s1, .Lmboc_fail; li t0, 32; bgtu s1, t0, .Lmboc_fail; bne s1, t0, .Lmboc_inline\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, s0; addi a3, sp, 48; addi a4, sp, 56; jal ra, mpt_bounded_resolve_witness; bnez a0, .Lmboc_fail; ld t0, 48(sp); sd t0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s4); ld t0, 56(sp); sd t0, " ++ toString bsrMptFrameNodeLenOffset ++ "(s4); j .Lmboc_classify\n" ++
+  ".Lmboc_inline:\n" ++
+  "  sd s0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s4); sd s1, " ++ toString bsrMptFrameNodeLenOffset ++ "(s4)\n" ++
+  ".Lmboc_classify:\n" ++
+  "  ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s4); ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(s4); addi a2, sp, 64; jal ra, mpt_bounded_classify_node; bnez a0, .Lmboc_fail; ld t0, 64(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s4); bnez t0, .Lmboc_ok; ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s4); ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(s4); mv a2, s4; jal ra, mpt_bounded_capture_branch_refs; bnez a0, .Lmboc_fail\n" ++
+  ".Lmboc_ok:\n  li a0, 0; j .Lmboc_ret\n" ++
+  ".Lmboc_fail:\n  li a0, 1\n" ++
+  ".Lmboc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
+
 /-! ## `mpt_bounded_partition_frame`
 
 Given a sorted, final-distinct descriptor interval, materialize the sixteen
@@ -385,6 +410,7 @@ def mptBoundedBuilderFrontEndFunction : String :=
   mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
+    mptBoundedOpenChildFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
     mptBoundedEncodeExtensionFunction
@@ -518,6 +544,29 @@ def ziskMptBoundedOpenRootFrameProbeUnit : BuildUnit := {
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n.Lmborp_done:"
   dataAsm := ziskMptBoundedOpenRootFrameDataSection
+}
+
+/-- Probe the descendant opener through the hashed-child path. The leaf RLP is
+    held only in the witness, so a successful result demonstrates that this
+    helper did not consult NodeDb and did not confuse a raw 32-byte hash with
+    an inline RLP item. -/
+def ziskMptBoundedOpenChildFramePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi a0, s0, 16; li a1, 32; addi a2, s0, 48; mv a3, s1; la a4, mboc_probe_frame; jal ra, mpt_bounded_open_child_frame; mv s2, a0\n" ++
+  "  li t0, 0xa0010000; sd s2, 0(t0); bnez s2, .Lmbocp_done; la t1, mboc_probe_frame; ld t2, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); sd t2, 8(t0); ld t2, " ++ toString bsrMptFrameNodeKindOffset ++ "(t1); sd t2, 16(t0); ld t2, " ++ toString bsrMptFrameNodePtrOffset ++ "(t1); addi t3, s0, 48; sub t2, t2, t3; sd t2, 24(t0)\n"
+
+def ziskMptBoundedOpenChildFrameDataSection : String :=
+  ".section .bss\n.balign 8\nmboc_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++ "\n" ++
+  ziskWitnessLookupByHashDataSection
+
+def ziskMptBoundedOpenChildFrameProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedOpenChildFramePrologue ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
+    mptBoundedResolveWitnessFunction ++ "\n" ++ mptBoundedCaptureBranchRefsFunction ++ "\n" ++
+    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenChildFrameFunction ++ "\n.Lmbocp_done:"
+  dataAsm := ziskMptBoundedOpenChildFrameDataSection
 }
 
 def ziskMptBoundedPartitionFramePrologue : String :=

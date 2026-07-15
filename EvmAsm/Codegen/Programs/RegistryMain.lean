@@ -419,6 +419,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_mpt_bounded_resolve_witness" => some ziskMptBoundedResolveWitnessProbeUnit
   | "zisk_mpt_bounded_classify_node" => some ziskMptBoundedClassifyNodeProbeUnit
   | "zisk_mpt_bounded_open_root_frame" => some ziskMptBoundedOpenRootFrameProbeUnit
+  | "zisk_mpt_bounded_open_child_frame" => some ziskMptBoundedOpenChildFrameProbeUnit
   | "zisk_mpt_bounded_partition_frame" => some ziskMptBoundedPartitionFrameProbeUnit
   | "zisk_mpt_bounded_node_ref" => some ziskMptBoundedNodeRefProbeUnit
   | "zisk_mpt_bounded_encode_branch" => some ziskMptBoundedEncodeBranchProbeUnit
