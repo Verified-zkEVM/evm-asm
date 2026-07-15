@@ -7,9 +7,13 @@
   committed-final-value proof obligation is closed.
 -/
 
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## `mpt_bounded_sort_changes`
 
@@ -28,7 +32,18 @@ def mptBoundedSortChangesFunction : String :=
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  li t0, " ++ toString bsrMaxStateChanges ++ "; bgtu a1, t0, .Lmbs_fail\n" ++
-  "  mv s0, a0; mv s1, a1; la s2, bsr_sort_ranges; li s3, 0\n" ++
+  "  mv s0, a0; mv s1, a1; li s4, 0\n" ++
+  ".Lmbs_validate_rec:\n" ++
+  "  beq s4, s1, .Lmbs_validated\n" ++
+  "  slli t0, s4, 5; slli t1, s4, 3; add t0, t0, t1; add t0, s0, t0; ld t2, 0(t0); li s5, 0\n" ++
+  ".Lmbs_validate_nibble:\n" ++
+  "  li t0, " ++ toString bsrMptKeyNibbles ++ "; beq s5, t0, .Lmbs_validate_next\n" ++
+  "  add t0, t2, s5; lbu t1, 0(t0); li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu t1, t0, .Lmbs_fail\n" ++
+  "  addi s5, s5, 1; j .Lmbs_validate_nibble\n" ++
+  ".Lmbs_validate_next:\n" ++
+  "  addi s4, s4, 1; j .Lmbs_validate_rec\n" ++
+  ".Lmbs_validated:\n" ++
+  "  la s2, bsr_sort_ranges; li s3, 0\n" ++
   "  beqz s1, .Lmbs_ok\n" ++
   "  sd zero, 0(s2); sd s1, 8(s2); sd zero, 16(s2); sd zero, 24(s2); li s3, 1\n" ++
   ".Lmbs_pop:\n" ++
@@ -67,5 +82,46 @@ def mptBoundedSortChangesFunction : String :=
   "  li a0, 0\n" ++
   ".Lmbs_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+
+/-- Probe input: `u64 count` at INPUT+8 followed by `count` 64-byte nibble
+    paths at INPUT+16. The probe deliberately limits itself to 16 records; it
+    exercises the production sorter without allocating an attacker-sized test
+    arena. Output is `status:u64`, `count:u64`, then the sorted paths. -/
+def ziskMptBoundedSortPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000; ld s0, 8(t0); li t1, 17; bgeu s0, t1, .Lmbsp_fail\n" ++
+  "  addi s1, t0, 16; la s2, mbs_changes; li s3, 0\n" ++
+  ".Lmbsp_desc:\n" ++
+  "  beq s3, s0, .Lmbsp_sort\n" ++
+  "  slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s2, t0\n" ++
+  "  sd s1, 0(t0); li t1, 64; sd t1, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
+  "  addi s1, s1, 64; addi s3, s3, 1; j .Lmbsp_desc\n" ++
+  ".Lmbsp_sort:\n" ++
+  "  mv a0, s2; mv a1, s0; jal ra, mpt_bounded_sort_changes; mv s4, a0; j .Lmbsp_out\n" ++
+  ".Lmbsp_fail:\n" ++
+  "  li s4, 1\n" ++
+  ".Lmbsp_out:\n" ++
+  "  li t0, 0xa0010000; sd s4, 0(t0); sd s0, 8(t0); bnez s4, .Lmbsp_done\n" ++
+  "  addi s5, t0, 16; li s3, 0\n" ++
+  ".Lmbsp_copy_desc:\n" ++
+  "  beq s3, s0, .Lmbsp_done\n" ++
+  "  slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s2, t0; ld s6, 0(t0); li s7, 64\n" ++
+  ".Lmbsp_copy_path:\n" ++
+  "  beqz s7, .Lmbsp_copy_next; lbu t1, 0(s6); sb t1, 0(s5); addi s6, s6, 1; addi s5, s5, 1; addi s7, s7, -1; j .Lmbsp_copy_path\n" ++
+  ".Lmbsp_copy_next:\n" ++
+  "  addi s3, s3, 1; j .Lmbsp_copy_desc"
+
+def ziskMptBoundedSortDataSection : String :=
+  ".section .bss\n" ++
+  ".balign 8\n" ++
+  "mbs_changes:\n  .zero 640\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes)
+
+def ziskMptBoundedSortProbeUnit : BuildUnit := {
+  body := NOP
+  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++ mptBoundedSortChangesFunction ++ "\n.Lmbsp_done:"
+  dataAsm := ziskMptBoundedSortDataSection
+}
 
 end EvmAsm.Codegen

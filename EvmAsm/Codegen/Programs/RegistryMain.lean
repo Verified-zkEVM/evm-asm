@@ -414,6 +414,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_mpt_insert_walk_db"    => some ziskMptInsertWalkDbProbeUnit
   | "zisk_mpt_insert_acc"        => some ziskMptInsertAccProbeUnit
   | "zisk_mpt_state_root_ins"    => some ziskMptStateRootInsProbeUnit
+  | "zisk_mpt_bounded_sort"      => some ziskMptBoundedSortProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit
