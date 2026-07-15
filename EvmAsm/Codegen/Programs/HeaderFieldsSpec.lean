@@ -1654,6 +1654,91 @@ private theorem hesrSuccessTail
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hdisp
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2
 
+/-! ## Outer dispatch foundations
+
+    The five status-dispatch `BNE`s (init `[11]` + four nexts `[17]/[22]/[27]/[32]`)
+    all route a nonzero status to the shared status-1 return (`+236`), and a zero
+    status to the next straight-line block.  We handle each `BNE` by
+    `cpsBranchWithin_merge_same_cr` to a *single* exit — the function return —
+    with a *single* 3-way postcondition `hesrRetPost`.  The taken (fail) arm
+    reaches it via `hesrStatus1Return` (a0 = 1, `Failure`); the not-taken (ok)
+    arm continues the walk spine and reaches it via `hesrSuccessTail`
+    (a0 ∈ {0,2}, `Success`).  These foundations set up the pieces shared by all
+    five stages. -/
+
+/-- Disjunction in the precondition: prove a triple for each disjunct. -/
+theorem cpsTripleWithin_or_pre {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P1 P2 R : Assertion}
+    (h1 : cpsTripleWithin n entry exit_ cr P1 R)
+    (h2 : cpsTripleWithin n entry exit_ cr P2 R) :
+    cpsTripleWithin n entry exit_ cr (fun h => P1 h ∨ P2 h) R := by
+  intro F hF s hcr hPF hpc
+  obtain ⟨hp, hcompat, s1, s2, hd, hu, hOr, hFs⟩ := hPF
+  rcases hOr with hP | hP
+  · exact h1 F hF s hcr ⟨hp, hcompat, s1, s2, hd, hu, hP, hFs⟩ hpc
+  · exact h2 F hF s hcr ⟨hp, hcompat, s1, s2, hd, hu, hP, hFs⟩ hpc
+
+/-- The 2-way normalized `rlp_walk_next` outcome: status-0 success
+    (`rlpWalkNextOk`, so `x11 = 0`) or a nonzero-status failure carrying the
+    generic `WalkFailure`.  Collapsing the raw 6-way `hesrNextOutcome` to this
+    form is what the following `BNE x11, x0` dispatch reads. -/
+def hesrNextNorm (listBase endPtr : Word) (bytes : List (BitVec 8)) (off : Nat) : Assertion :=
+  fun h =>
+    rlpWalkNextOk (listBase + BitVec.ofNat 64 off) endPtr bytes off h ∨
+    (∃ status : Word,
+      (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ status) **
+        (.x12 ↦ᵣ (0 : Word)) **
+        ⌜status ≠ (0 : Word) ∧
+          RlpListNthItemSAsm.WalkFailure bytes off (listBase + BitVec.ofNat 64 off) endPtr⌝) h))
+
+/-- Every raw outcome disjunct implies the 2-way normalized form. -/
+theorem hesrNextOutcome_to_norm (listBase endPtr : Word) (bytes : List (BitVec 8)) (off : Nat) :
+    ∀ h, hesrNextOutcome listBase endPtr bytes off h → hesrNextNorm listBase endPtr bytes off h := by
+  intro h hout
+  unfold hesrNextOutcome at hout
+  rcases hout with hOk | hb2 | hb3 | hb4 | hb5 | hb6
+  · exact Or.inl hOk
+  · refine Or.inr ⟨2, ?_⟩
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb2
+    exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inl hP⟩
+  · refine Or.inr ⟨3, ?_⟩
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb3
+    exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inr hP⟩
+  · refine Or.inr ⟨4, ?_⟩
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb4
+    exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inr hP⟩
+  · refine Or.inr ⟨5, ?_⟩
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb5
+    exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inr hP⟩
+  · refine Or.inr ⟨6, ?_⟩
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb6
+    exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inr hP⟩
+
+/-- The single shared function-return postcondition of the whole dispatch: a
+    3-way disjunction pinning the genuine `Success`/`Failure` semantics.
+    `a0 = 0` = the selected field's 32 content bytes copied to the output;
+    `a0 = 2` = same field found but `len ≠ 32` so the output is untouched;
+    `a0 = 1` = a strict parse/walk `Failure`.  The `fo`/`len` witnesses and the
+    output list are existential; the two written scratch cells are weakened back
+    to `memOwn` and `x12` to `regOwn` so both arms land on the same assertion. -/
+def hesrRetPost (newSp listBase outPtr : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLen index : Nat)
+    (Fr : Assertion) : Assertion :=
+  fun h => ∃ (a0v : Word) (finalOut : List (BitVec 8)) (fo len : Word),
+    ((((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 48)) ** (.x1 ↦ᵣ saved.ra) **
+       (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) ** savedFrame newSp saved) **
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+       memOwn hesrLenAddr ** memOwn hesrOffAddr ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr finalOut ** Fr)) **
+     ⌜(a0v = (0 : Word) ∧ RlpListNthItemSAsm.Success headerBytes listBase listLen index fo len ∧
+          len = (32 : Word) ∧ finalOut = copyIntoRegion outBytes headerBytes 0 fo.toNat 32) ∨
+       (a0v = (2 : Word) ∧ RlpListNthItemSAsm.Success headerBytes listBase listLen index fo len ∧
+          len ≠ (32 : Word) ∧ finalOut = outBytes) ∨
+       (a0v = (1 : Word) ∧ RlpListNthItemSAsm.Failure headerBytes listBase listLen index)⌝) h
+
+#print axioms cpsTripleWithin_or_pre
+#print axioms hesrNextOutcome_to_norm
+
 #print axioms hesrMarshalInit
 #print axioms hesrMarshalNext
 #print axioms hesrNextStep
