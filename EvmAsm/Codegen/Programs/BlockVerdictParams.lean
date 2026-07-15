@@ -37,6 +37,19 @@ def bsrMaxWithdrawalChanges : Nat := 16
 def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
 def bsrMaxStateChanges : Nat :=
   bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+
+/-- State-trie keys are 32-byte hashes represented as 64 nibbles.  The sorted
+    builder uses an in-place MSD partitioner: its only sort workspace is a
+    bounded pending-range stack (one range per nibble fanout at each depth),
+    never attacker-sized bucket arrays. -/
+def bsrMptKeyNibbles : Nat := 64
+def bsrMptRadixFanout : Nat := 16
+def bsrMptSortRangeStackCapacity : Nat := bsrMptKeyNibbles * bsrMptRadixFanout
+def bsrMptSortRangeFrameBytes : Nat := 32
+
+/-- A Patricia trie has at most one active construction frame per consumed key
+    nibble plus its root frame.  This is depth-derived, not input-count-derived. -/
+def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
@@ -389,6 +402,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bsrMaxBalItems = bsrStateRootBlockGasLimit / bsrBalGasCost
 #guard bsrMaxBalItems = 100000
 #guard bsrMaxStateChanges = 100018
+#guard bsrMptSortRangeStackCapacity = 1024
+#guard bsrMptBuilderFrameCapacity = 65
 #guard bvBlockLogMinGas = 375
 #guard bvBlockLogDataByteGas = 8
 #guard bvBlockLogFullDescTarget = 533333
