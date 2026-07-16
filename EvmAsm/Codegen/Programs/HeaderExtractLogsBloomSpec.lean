@@ -1359,4 +1359,67 @@ private theorem helbPostCallOutcome
       regOwn .x31 ** (helbOffAddr ↦ₘ oldOffset) ** (helbLenAddr ↦ₘ oldLen), ?_⟩
     exact (sepConj_pure_right _).2 ⟨by xperm_chunked hq, Or.inr (Or.inr ⟨rfl, hFail⟩)⟩
 
+/-! ## Whole-program caller contract
+
+    `helbPrologue [0]-[14] ;; the K20 nth-item call [15] ;; the post-call outcome
+    [16]→ret`, composed into one raw-pinned `cpsTripleWithin` from `helbBase` to
+    the function return (`fsaved.ra &&& ~~~1`).  On the a0=0 success path the
+    output region holds the genuine 256-byte field-6 content
+    (`copyIntoRegion outBytes headerBytes 0 offset.toNat 256`), tied to the K20
+    `Success … 6 offset 256` fact; a0=2 means the field length was ≠256; a0=1
+    means the RLP parse failed. -/
+set_option maxRecDepth 8000 in
+theorem headerExtractLogsBloom_spec_within
+    (sp0 newSp listBase outPtr : Word) (fsaved : HeaderFieldsSpec.Saved)
+    (s3 s4 s5 v13 v14 oldOffset oldLen : Word)
+    (headerBytes outBytes : List (BitVec 8)) (listLen : Nat)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_slack : listLen + 9 ≤ headerBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_dst_bound : 256 ≤ outBytes.length)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hbound : ∀ fo ln, Success headerBytes listBase listLen 6 fo ln →
+      fo.toNat + 256 ≤ headerBytes.length)
+    (h_newSp : newSp = sp0 + signExtend12 (-32 : BitVec 12)) :
+    cpsTripleWithin
+      ((15 + (1 + ((12 + ((85 + 93 * (6 + 2)) + 6)) + 9))) +
+        (1 + (4 + (1 + (6 + ((7 * 256 + 1) + (2 + 6)))))))
+      helbBase (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      ((.x2 ↦ᵣ sp0) ** regsAt HeaderFieldsSpec.hxFrame
+          (HeaderFieldsSpec.savedVals fsaved) **
+        frameSlotsOwn HeaderFieldsSpec.hxFrame newSp **
+        (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ outPtr) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+        stackFree newSp 8 ** (helbOffAddr ↦ₘ oldOffset) ** (helbLenAddr ↦ₘ oldLen))
+      (helbRetPost newSp listBase outPtr fsaved headerBytes outBytes listLen) := by
+  have hpro := helbPrologue sp0 listBase (BitVec.ofNat 64 listLen) outPtr fsaved s3 s4 s5 v13 v14
+    oldOffset oldLen headerBytes outBytes newSp h_newSp
+  have hcall := headerExtractLogsBloom_call_spec_within newSp listBase (BitVec.ofNat 64 listLen)
+    (6 : Word) oldOffset oldLen fsaved.ra
+    { ra := fsaved.ra, s0 := listBase, s1 := BitVec.ofNat 64 listLen, s2 := outPtr,
+      s3 := s3, s4 := s4, s5 := s5 } headerBytes listLen 6
+    (HeaderFieldsSpec.savedFrame newSp fsaved ** bytesRegion outPtr outBytes)
+    (by repeat' first
+      | exact pcFree_memIs | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+    rfl (by decide) (by decide) h_src_align h_slack h_src_over h_src_valid
+  have hpost := helbPostCallOutcome listBase outPtr newSp (6 : Word) oldOffset oldLen
+    { ra := helbBase + 64, s0 := listBase, s1 := BitVec.ofNat 64 listLen, s2 := outPtr,
+      s3 := s3, s4 := s4, s5 := s5 } fsaved headerBytes outBytes listLen
+    rfl rfl h_src_align h_dst_align h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+    hbound
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    unfold callEntryRest savedRegTail at hp ⊢; xperm_chunked hp) hpro hcall
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c1 hpost
+  exact c2
+
+#print axioms headerExtractLogsBloom_spec_within
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
