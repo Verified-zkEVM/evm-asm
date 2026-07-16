@@ -1305,4 +1305,95 @@ theorem cvitIterDispatch
 
 #print axioms cvitIterDispatch
 
+/-! ## One full loop iteration: guard → call → dispatch (`D+124 → raIn`, `1 ≤ i < N`)
+
+    Strips `LoopInv i`'s `∃ prevVal` and its `⌜hdrTsOk (i-1) prevVal ∧ …⌝`
+    binding, peels the K34 scratch cells, splits the arrays, then runs the entry
+    half to K34's `flatPost` and the dispatch (threading the genuine `prevVal`
+    into the cross-header compare). -/
+
+set_option maxRecDepth 8000 in
+theorem cvitIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (i nTail : Nat)
+    (hi1 : 1 ≤ i)
+    (hi : i < lengths.length)
+    (hN : lengths.length < 2 ^ 64)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (halign : hdrOff lengths i % 8 = 0)
+    (hlen : hdrOff lengths i ≤ bigBytes.length)
+    (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
+    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hover : (hdrBaseAt hdrBase lengths i).toNat +
+      (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (htail : (∀ j, 1 ≤ j → j < i + 1 → tsIncreasing hdrBase bigBytes lengths j) →
+      cpsTripleWithin nTail (D + 124) raIn fullCode
+        (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths (i + 1))
+        (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths)) :
+    cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+      (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths i)
+      (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) := by
+  have hLi : lengths[i]! = lengths[i] := getElem!_pos lengths i hi
+  have hHB : hdrBaseAt hdrBase lengths i = hdrBase + BitVec.ofNat 64 (hdrOff lengths i) := rfl
+  unfold LoopInv
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion (fun prevVal => ?_)
+  refine cpsTripleWithin_pure_pre (fun hP => ?_)
+  obtain ⟨hprevOk, hprefix⟩ := hP
+  set EBody : Assertion :=
+    ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+      (.x6 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
+      (.x20 ↦ᵣ firstBadPtr) ** (.x7 ↦ᵣ BitVec.ofNat 64 i) ** (.x21 ↦ᵣ prevVal) **
+      savedFrame spC csaved ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+      wordArrayFrom lenBase 0 (lengths.take i) **
+      ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+      memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
+      regOwn .x1 ** regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) with hEBody
+  refine cpsTripleWithin_weaken (fun h hp => by
+    unfold payload scratchRegs at hp
+    rw [wordArray_split lenBase lengths i hi,
+      EvmAsm.Evm64.bytesRegion_split hdrBase bigBytes (hdrOff lengths i) halign hlen,
+      ← hHB, ← hLi] at hp
+    rw [hEBody]; xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+      (((EBody ** memOwn Ts) ** memOwn RfuOff) ** memOwn RfuLen)
+      (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldLen => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+      (((EBody ** (RfuLen ↦ₘ oldLen)) ** memOwn Ts) ** memOwn RfuOff)
+      (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+      (((EBody ** (RfuLen ↦ₘ oldLen)) ** (RfuOff ↦ₘ oldOff)) ** memOwn Ts)
+      (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOut => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by rw [hEBody] at hp; xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_seq_same_cr
+      (cvitIterEntry spC hdrBase lenBase validPtr firstBadPtr prevVal csaved bigBytes lengths i
+        oldOut oldOff oldLen hi hN hsalign hslack hover hvalid)
+      (cvitIterDispatch sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr raIn prevVal csaved bigBytes lengths i oldOff oldLen nTail hi1 hi hN hspC rfl
+        hraSaved hret halign hlen hprevOk hprefix htail))
+
+#print axioms cvitIter
+
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
