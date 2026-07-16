@@ -1178,4 +1178,77 @@ private theorem helbLenDispatch
       (helbOffAddr ↦ₘ offset) ** (helbLenAddr ↦ₘ len) ** Fr, ?_⟩
     exact (sepConj_pure_right _).2 ⟨by xperm_chunked hq, Or.inr (Or.inl ⟨rfl, hSucc, hlen, rfl⟩)⟩
 
+/-! ## Post-call: the success (status=0) arm ([16]→ret, `helbBase+64`)
+
+    `bne x10, x0, +84` falls through (status is 0), then the length load
+    ([17]-[20]) and the length-check dispatch. -/
+set_option maxRecDepth 8000 in
+private theorem helbOkArm
+    (offset len listBase outPtr newSp v5 v6 v7 v28 v29 v30 v31 v1 v9 : Word)
+    (fsaved : HeaderFieldsSpec.Saved) (headerBytes outBytes : List (BitVec 8)) (listLen : Nat)
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : offset.toNat + 256 ≤ headerBytes.length)
+    (h_dst_bound : 256 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hSucc : Success headerBytes listBase listLen 6 offset len) :
+    cpsTripleWithin (1 + (4 + (1 + (6 + ((7 * 256 + 1) + (2 + 6)))))) (helbBase + 64)
+      (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x7 ↦ᵣ v7) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) ** (.x28 ↦ᵣ v28) **
+       (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (helbOffAddr ↦ₘ offset) **
+       (helbLenAddr ↦ₘ len) ** bytesRegion listBase headerBytes ** (.x2 ↦ᵣ newSp) **
+       (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** HeaderFieldsSpec.savedFrame newSp fsaved **
+       bytesRegion outPtr outBytes ** Fr)
+      (helbRetPost newSp listBase outPtr fsaved headerBytes outBytes listLen) := by
+  -- [16] bne x10, x0, +84 : not taken (x10 = 0)
+  have ha_t : (helbBase + 64 : Word) + signExtend13 (84 : BitVec 13) = helbBase + 148 := by
+    rw [show signExtend13 (84 : BitVec 13) = (84 : Word) from by decide]; bv_omega
+  have ha_f : (helbBase + 64 : Word) + 4 = helbBase + 68 := by bv_omega
+  have hmono : ∀ a i', CodeReq.singleton (helbBase + 64) (.BNE .x10 .x0 (84 : BitVec 13)) a = some i'
+      → fullCode a = some i' :=
+    helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 64) 16
+      (.BNE .x10 .x0 (84 : BitVec 13)) (by rw [program_length]; norm_num) (by bv_omega) rfl
+  have hbne := bne_spec_gen_within .x10 .x0 (84 : BitVec 13) (0 : Word) (0 : Word) (helbBase + 64)
+  rw [ha_t, ha_f] at hbne
+  have hbnee := cpsBranchWithin_extend_code hmono hbne
+  have hnt := cpsBranchWithin_ntakenStripPure2 hbnee (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+    exact ((sepConj_pure_right _).1 hQ).2 rfl)
+  have hntF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+     (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+     (helbOffAddr ↦ₘ offset) ** (helbLenAddr ↦ₘ len) ** bytesRegion listBase headerBytes **
+     (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** HeaderFieldsSpec.savedFrame newSp fsaved **
+     bytesRegion outPtr outBytes ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hnt
+  -- [17]-[20] length load
+  have hlb := helbLenBlock len v5 v6 v7
+  have hlbF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+     (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+     (helbOffAddr ↦ₘ offset) ** bytesRegion listBase headerBytes **
+     (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) ** HeaderFieldsSpec.savedFrame newSp fsaved **
+     bytesRegion outPtr outBytes ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hlb
+  -- [21]→ret length-check dispatch
+  have hdisp := helbLenDispatch offset len listBase outPtr newSp helbLenAddr v28 v29 v30 v31
+    (0 : Word) v1 v9 fsaved headerBytes outBytes listLen Fr hFr
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+    hSucc
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hntF hlbF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hdisp
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2)
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
