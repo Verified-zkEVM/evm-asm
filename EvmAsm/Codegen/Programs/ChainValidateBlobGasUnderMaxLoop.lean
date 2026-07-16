@@ -1131,4 +1131,89 @@ theorem cvbgumIterDispatch
 
 #print axioms cvbgumIterDispatch
 
+/-! ## One full iteration: guard → call → dispatch (`D+68 → raIn`, `i < N`)
+
+    Shapes `LoopInv i` into `cvbgumIterEntry`'s split precondition (peeling the
+    three K34 scratch cells to arbitrary incumbents and splitting the arrays),
+    runs the entry half to K34's `flatPost`, then the dispatch. -/
+
+set_option maxRecDepth 8000 in
+theorem cvbgumIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (i nTail : Nat)
+    (hi : i < lengths.length)
+    (hN : lengths.length < 2 ^ 64)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (halign : hdrOff lengths i % 8 = 0)
+    (hlen : hdrOff lengths i ≤ bigBytes.length)
+    (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
+    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hover : (hdrBaseAt hdrBase lengths i).toNat +
+      (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hprefix : ∀ j, j < i → hdrUnderMax hdrBase bigBytes lengths j)
+    (htail : (∀ j, j < i + 1 → hdrUnderMax hdrBase bigBytes lengths j) →
+      cpsTripleWithin nTail (D + 68) raIn fullCode
+        (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths (i + 1))
+        (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths)) :
+    cpsTripleWithin ((1 + (13 + 1 + nCall)) + (25 + nTail)) (D + 68) raIn fullCode
+      (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths i)
+      (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) := by
+  have hLi : lengths[i]! = lengths[i] := getElem!_pos lengths i hi
+  have hHB : hdrBaseAt hdrBase lengths i = hdrBase + BitVec.ofNat 64 (hdrOff lengths i) := rfl
+  -- The entry-half footprint minus the three K34 scratch cells.
+  set EBody : Assertion :=
+    ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+      (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
+      (.x21 ↦ᵣ BitVec.ofNat 64 i) ** savedFrame spC csaved ** (validPtr ↦ₘ (1 : Word)) **
+      (firstBadPtr ↦ₘ (0 : Word)) ** wordArrayFrom lenBase 0 (lengths.take i) **
+      ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+      memOwn IterPtr ** memOwn IterI ** regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) with hEBody
+  refine cpsTripleWithin_weaken (fun h hp => by
+    unfold LoopInv payload scratchRegs at hp
+    rw [wordArray_split lenBase lengths i hi,
+      EvmAsm.Evm64.bytesRegion_split hdrBase bigBytes (hdrOff lengths i) halign hlen,
+      ← hHB, ← hLi] at hp
+    rw [hEBody]; xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (25 + nTail)) (D + 68) raIn fullCode
+      (((EBody ** memOwn Field) ** memOwn RfuOff) ** memOwn RfuLen)
+      (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldLen => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (25 + nTail)) (D + 68) raIn fullCode
+      (((EBody ** (RfuLen ↦ₘ oldLen)) ** memOwn Field) ** memOwn RfuOff)
+      (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (25 + nTail)) (D + 68) raIn fullCode
+      (((EBody ** (RfuLen ↦ₘ oldLen)) ** (RfuOff ↦ₘ oldOff)) ** memOwn Field)
+      (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) from ?_)
+  refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOut => ?_)
+  refine cpsTripleWithin_weaken (fun h hp => by rw [hEBody] at hp; xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_seq_same_cr
+      (cvbgumIterEntry spC hdrBase lenBase validPtr firstBadPtr csaved bigBytes lengths i
+        oldOut oldOff oldLen hi hN hsalign hslack hover hvalid)
+      (cvbgumIterDispatch sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr raIn csaved bigBytes lengths i oldOff oldLen nTail hi hN hspC rfl hraSaved
+        hret halign hlen hprefix htail))
+
+#print axioms cvbgumIter
+
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
