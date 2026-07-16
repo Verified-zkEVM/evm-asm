@@ -48,7 +48,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- a1vvy (2026-06-18): REINSTATED #8513 union to reclaim ~49 MiB of .data
   -- headroom for the 200M log/receipt capacity lifts (vv4hr.3.4.*). basr_values +
   -- basr_accounts are block_state_root replay scratch, referenced ONLY in
-  -- BalAccountStateRoot/BlockVerdictStateRoot (Phase H: pre-dispatch state-root
+  -- BlockVerdictStateRoot (Phase H: pre-dispatch state-root
   -- recompute) and dead from the first tx dispatch onward (#8513 gate-verified:
   -- no post-replay reader; re-confirmed 2026-06-18 — no Phase D/T reference).
   -- call_frame_arena is referenced ONLY by CallFrameBase/Descend/Return (Phase D

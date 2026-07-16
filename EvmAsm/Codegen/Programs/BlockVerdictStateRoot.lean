@@ -18,7 +18,6 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
