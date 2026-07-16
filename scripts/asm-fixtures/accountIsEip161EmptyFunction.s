@@ -53,10 +53,11 @@ account_is_eip161_empty:
   bne t1, t2, .Laie_sizefail
   la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3
   la t6, aie_empty_code_hash
-  ld t5,  0(t3); ld t4,  0(t6); bne t5, t4, .Laie_not_empty
-  ld t5,  8(t3); ld t4,  8(t6); bne t5, t4, .Laie_not_empty
-  ld t5, 16(t3); ld t4, 16(t6); bne t5, t4, .Laie_not_empty
-  ld t5, 24(t3); ld t4, 24(t6); bne t5, t4, .Laie_not_empty
+.Laie_hloop:
+  lbu t5, 0(t3); lbu t4, 0(t6); bne t5, t4, .Laie_not_empty
+  addi t3, t3, 1; addi t6, t6, 1; addi t1, t1, -1
+  bnez t1, .Laie_hloop
+  nop; nop; nop; nop; nop
   li t0, 1
   sd t0, 0(s2)
   li a0, 0
