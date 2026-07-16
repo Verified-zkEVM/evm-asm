@@ -29,6 +29,7 @@ set_option maxRecDepth 8000
     cells. -/
 local macro "pcfR" : tactic =>
   `(tactic| repeat' first
+    | assumption
     | exact bytesRegion_pcFree _ _
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -252,5 +253,113 @@ theorem aieVerdictEmpty (outPtr v5 v10 oldout : Word) :
       (fun _ hq => by xperm_chunked hq) s8)
 
 #print axioms aieVerdictEmpty
+
+/-! ## Verdict → return bridges (verdict tail ;; epilogue, all landing on `raIn`)
+
+    Each composes a verdict-store tail with the epilogue `aieEpi`, generic over
+    the untouched residual payload `G`.  These are the common continuations the
+    field-processing branch merges route to. -/
+
+set_option maxRecDepth 8000 in
+/-- Not-empty return bridge (`AB+384 → raIn`): out := 0, a0 := 0. -/
+theorem aieRetNotEmpty (sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr v10 oldout : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 9 (AB + 384) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ v10) ** (outPtr ↦ₘ oldout) ** G)
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word)) ** G) := by
+  have hv := aieVerdictNotEmpty outPtr v10 oldout
+  have hvF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+     (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** G) (by unfold aieSlots; pcfR) hv
+  have hepi := aieEpi sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word)) ** G)
+    (by pcfR) hspA hret
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hvF hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s)
+
+#print axioms aieRetNotEmpty
+
+set_option maxRecDepth 8000 in
+/-- Parse-fail return bridge (`AB+396 → raIn`): a0 := 1, output cell untouched. -/
+theorem aieRetFail (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 v10 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 8 (AB + 396) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) ** (.x10 ↦ᵣ v10) ** G)
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ (1 : Word)) ** G) := by
+  have hv := aieVerdictFail v10
+  have hvF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+     (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) ** G) (by unfold aieSlots; pcfR) hv
+  have hepi := aieEpi sp0 spA raIn c8 c9 c18 w1 w8 w9 w18
+    ((.x10 ↦ᵣ (1 : Word)) ** G) (by pcfR) hspA hret
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hvF hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s)
+
+#print axioms aieRetFail
+
+set_option maxRecDepth 8000 in
+/-- Size-fail return bridge (`AB+404 → raIn`): a0 := 2, output cell untouched. -/
+theorem aieRetSizeFail (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 v10 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 7 (AB + 404) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) ** (.x10 ↦ᵣ v10) ** G)
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ (2 : Word)) ** G) := by
+  have hv := aieVerdictSizeFail v10
+  have hvF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+     (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) ** G) (by unfold aieSlots; pcfR) hv
+  have hepi := aieEpi sp0 spA raIn c8 c9 c18 w1 w8 w9 w18
+    ((.x10 ↦ᵣ (2 : Word)) ** G) (by pcfR) hspA hret
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hvF hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s)
+
+#print axioms aieRetSizeFail
+
+set_option maxRecDepth 8000 in
+/-- Empty return bridge (`AB+348 → raIn`): out := 1, a0 := 0. -/
+theorem aieRetEmpty (sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr v5 v10 oldout : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 15 (AB + 348) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ outPtr) ** (.x5 ↦ᵣ v5) **
+        (.x10 ↦ᵣ v10) ** (outPtr ↦ₘ oldout) ** G)
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** (.x5 ↦ᵣ (1 : Word)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (1 : Word)) ** G) := by
+  have hv := aieVerdictEmpty outPtr v5 v10 oldout
+  have hvF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+     (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** G) (by unfold aieSlots; pcfR) hv
+  have hepi := aieEpi sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr
+    ((.x5 ↦ᵣ (1 : Word)) ** (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (1 : Word)) ** G)
+    (by pcfR) hspA hret
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hvF hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s)
+
+#print axioms aieRetEmpty
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
