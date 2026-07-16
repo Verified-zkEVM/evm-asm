@@ -103,6 +103,13 @@ def wordArrayFrom (base : Word) (start : Nat) : List Nat → Assertion
 /-- The array region rooted at `base`, cell `k` at `base + 8*k`. -/
 def wordArray (base : Word) (xs : List Nat) : Assertion := wordArrayFrom base 0 xs
 
+/-- `SLLI rd, rs, 3` on `ofNat i` computes the byte offset `8*i` (mod 2^64). -/
+theorem shiftLeft3_ofNat (i : Nat) :
+    (BitVec.ofNat 64 i) <<< (3 : Nat) = BitVec.ofNat 64 (8 * i) := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat]
+  omega
+
 /-- Concatenation splits a `wordArrayFrom` region additively in the index. -/
 theorem wordArrayFrom_append (base : Word) (start : Nat) (as bs : List Nat) :
     wordArrayFrom base start (as ++ bs) =
