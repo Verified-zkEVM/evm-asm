@@ -127,4 +127,139 @@ theorem wordArray_split (base : Word) (xs : List Nat) (i : Nat) (hi : i < xs.len
   rw [hdrop, wordArrayFrom, List.length_take, Nat.min_eq_left (Nat.le_of_lt hi),
     Nat.zero_add]
 
+/-! ## Model of the header array
+
+    The chain iterates over `lengths : List Nat` header byte-lengths (the values
+    of the aligned `header_lengths[]` array at `lenBase`) and a concatenated
+    `bigBytes` blob at `hdrBase`.  Header `i` occupies `bigBytes` from byte
+    offset `hdrOff lengths i` (= sum of the earlier lengths), so its RLP list
+    base is `hdrBaseAt hdrBase lengths i` and its declared list length is
+    `lengths[i]`. -/
+
+/-- Scratch-cell addresses (module globals written/read across the K20 call). -/
+abbrev IterPtr : Word := (GuestAddrs.cvedl_iter_ptr : Word)
+abbrev IterI : Word := (GuestAddrs.cvedl_iter_i : Word)
+abbrev COff : Word := (GuestAddrs.cvedl_offset : Word)
+abbrev CLen : Word := (GuestAddrs.cvedl_length : Word)
+
+/-- The link address written into `ra` by the loop-body `jal` (the K20 return
+    site), = `C + 136`.  Every iteration calls K20 with this `saved.ra`. -/
+abbrev LinkRA : Word := C + 136
+
+/-- Byte offset of header `i` within the concatenated blob. -/
+def hdrOff (lengths : List Nat) (i : Nat) : Nat := (lengths.take i).sum
+
+/-- RLP list base pointer of header `i`. -/
+def hdrBaseAt (hdrBase : Word) (lengths : List Nat) (i : Nat) : Word :=
+  hdrBase + BitVec.ofNat 64 (hdrOff lengths i)
+
+/-- Header `i` parses field 12 successfully with content length ≤ 32. -/
+def hdrValidShort (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
+    (i : Nat) : Prop :=
+  ∃ offset len,
+    Success (bigBytes.drop (hdrOff lengths i)) (hdrBaseAt hdrBase lengths i)
+      (lengths[i]!) 12 offset len ∧ ¬ BitVec.ult (32 : Word) len
+
+/-- Header `i` parses field 12 successfully but with content length > 32. -/
+def hdrLong (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
+    (i : Nat) : Prop :=
+  ∃ offset len,
+    Success (bigBytes.drop (hdrOff lengths i)) (hdrBaseAt hdrBase lengths i)
+      (lengths[i]!) 12 offset len ∧ BitVec.ult (32 : Word) len
+
+/-- Header `i` fails RLP parse of field 12. -/
+def hdrFail (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
+    (i : Nat) : Prop :=
+  Failure (bigBytes.drop (hdrOff lengths i)) (hdrBaseAt hdrBase lengths i)
+    (lengths[i]!) 12
+
+/-! ## Frames -/
+
+/-- Static memory/register footprint carried unchanged through the whole loop:
+    the header-length array, the concatenated header blob, and the four scratch
+    cells (owned).  `chainFrame` (the accessor's saved-register slots) sits
+    separately. -/
+def payload (hdrBase lenBase : Word) (bigBytes : List (BitVec 8))
+    (lengths : List Nat) : Assertion :=
+  wordArray lenBase lengths ** bytesRegion hdrBase bigBytes **
+  memOwn COff ** memOwn CLen ** memOwn IterPtr ** memOwn IterI
+
+/-- Callee-preserved registers owned + the K20 frame slots owned + the four
+    non-preserved scratch registers owned.  (`x8/x9/x18/x19/x20/x21`, the
+    accessor's live loop state, are tracked explicitly in `LoopInv`.) -/
+def scratchRegs (calleeNewSp : Word) : Assertion :=
+  regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn listNthFrame calleeNewSp
+
+/-- Loop invariant at the guard (`C + 68`) entering iteration `i` (`i ≤ N`).
+    The accessor's live state: `x8 = N`, `x9 = lenBase`, `x18 = current header
+    base`, `x19 = validPtr`, `x20 = firstBadPtr`, `x21 = i`; the caller's saved
+    registers spilled in `chainFrame`; the output cells still `1`/`0` (valid so
+    far); the static `payload`; and the K20 scratch owned. -/
+def LoopInv (_sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat)
+    (i : Nat) : Assertion :=
+  (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+  (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
+  (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 i) **
+  savedFrame spC csaved ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+  payload hdrBase lenBase bigBytes lengths ** scratchRegs calleeNewSp
+
+/-- Return footprint shared by all three post arms: `ra`/`sp` restored to the
+    caller's, all callee-saved registers restored, the accessor's scratch owned,
+    and the static `payload` intact. -/
+def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
+    (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  (.x1 ↦ᵣ csaved.ra) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) **
+  (.x18 ↦ᵣ csaved.s2) ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+  (.x21 ↦ᵣ csaved.s5) ** savedFrame spC csaved **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+  regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  frameSlotsOwn listNthFrame calleeNewSp ** payload hdrBase lenBase bigBytes lengths
+
+/-- All headers valid: `a0 = 0`, `*validPtr = 1`, `*firstBadPtr = 0`, and every
+    header `< N` parses field 12 with length ≤ 32. -/
+def postAllValid (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  ⌜∀ j, j < lengths.length → hdrValidShort hdrBase bigBytes lengths j⌝ **
+  (.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+  commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths
+
+/-- First violation at `k`: `a0 = 0`, `*validPtr = 0`, `*firstBadPtr = k`,
+    header `k` parses long, and all earlier headers are valid-short. -/
+def postViolation (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h => ∃ k,
+    (⌜k < lengths.length ∧ (∀ j, j < k → hdrValidShort hdrBase bigBytes lengths j) ∧
+        hdrLong hdrBase bigBytes lengths k⌝ **
+      (.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) **
+      (firstBadPtr ↦ₘ BitVec.ofNat 64 k) **
+      commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths) h
+
+/-- First parse failure at `k`: `a0 = 1`, `*firstBadPtr = k`, `*validPtr = 1`,
+    header `k` fails RLP parse, and all earlier headers are valid-short. -/
+def postParseFail (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h => ∃ k,
+    (⌜k < lengths.length ∧ (∀ j, j < k → hdrValidShort hdrBase bigBytes lengths j) ∧
+        hdrFail hdrBase bigBytes lengths k⌝ **
+      (.x10 ↦ᵣ (1 : Word)) ** (validPtr ↦ₘ (1 : Word)) **
+      (firstBadPtr ↦ₘ BitVec.ofNat 64 k) **
+      commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths) h
+
+/-- Three-way whole-program post: all-valid, first-violation, or first
+    parse-failure, each genuinely tied to the actual per-header `Result`s. -/
+def cvedlPost (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h =>
+    postAllValid sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h ∨
+    postViolation sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h ∨
+    postParseFail sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
