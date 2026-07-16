@@ -212,4 +212,26 @@ theorem wdStack12_to_k20 (spW : Word) : ∀ h,
 
 #print axioms wdStack12_to_k20
 
+/-! ## Failure-tail arm -/
+
+set_option maxRecDepth 8000 in
+/-- The common failure tail `WB+212 → wra`, generic over the (owned) `x10` value
+    on entry, the pre-restore register values, and the preserved footprint `G0`. -/
+theorem wdFailEpiRO (sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old : Word)
+    (G0 : Assertion) (hG0 : G0.pcFree)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : wra &&& ~~~(1 : Word) = wra) :
+    cpsTripleWithin 7 (WB + 212) wra fullCode
+      (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ wra) ** ((spW + 8) ↦ₘ cs0) **
+        ((spW + 16) ↦ₘ cs1) ** ((spW + 24) ↦ₘ cs2) ** G0) ** regOwn .x10)
+      (((.x10 ↦ᵣ (1 : Word)) ** wdCommon sp0 spW wra cs0 cs1 cs2) ** G0) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v10 => ?_)
+  have h := wdFailEpi sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old v10 G0 hG0 hspW hret
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => ?_) h
+  unfold wdCommon
+  xperm_hyp hq
+
+#print axioms wdFailEpiRO
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
