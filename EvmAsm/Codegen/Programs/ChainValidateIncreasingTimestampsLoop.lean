@@ -71,4 +71,115 @@ theorem cvitSpill (hbi iW prevVal old5 : Word) :
 
 #print axioms cvitSpill
 
+/-! ## Reload block (instructions 50--55): load `cur` and `prev` for the compare
+
+    Runs on the K34-success (`bne` not-taken) path from `D+200` to `D+224`
+    (just before the `BGEU`): `x28 := *cvit_ts` (the freshly-decoded `ts[i]`,
+    `cur`) and `x29 := *cvit_iter_prev` (the saved `ts[i-1]`, `prev`). -/
+
+set_option maxRecDepth 8000 in
+theorem cvitReload (curVal prevVal old5 o28 o29 : Word) :
+    cpsTripleWithin 6 (D + 200) (D + 224) cvitCode
+      ((.x5 ↦ᵣ old5) ** (.x28 ↦ᵣ o28) ** (.x29 ↦ᵣ o29) **
+        (Ts ↦ₘ curVal) ** (IterPrev ↦ₘ prevVal))
+      ((.x5 ↦ᵣ IterPrev) ** (.x28 ↦ᵣ curVal) ** (.x29 ↦ᵣ prevVal) **
+        (Ts ↦ₘ curVal) ** (IterPrev ↦ₘ prevVal)) := by
+  have hla50 := la_materialize_within .x5 old5 (D + 200) Ts (by decide) (by decide)
+    (CodeReq.ofProg_mem_at D (D + 200) cvitProg 50 (.AUIPC .x5 (EvmAsm.Rv64.laHi (D + 200) Ts)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+    (CodeReq.ofProg_mem_at D (D + 204) cvitProg 51 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (D + 200) Ts)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+  have s52 := ld_spec_gen_within .x28 .x5 Ts o28 curVal (0 : BitVec 12) (D + 208) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show Ts + (0 : Word) = Ts from by bv_omega] at s52
+  have s52' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 208) cvitProg 52 (.LD .x28 .x5 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s52
+  have hla53 := la_materialize_within .x5 Ts (D + 212) IterPrev (by decide) (by decide)
+    (CodeReq.ofProg_mem_at D (D + 212) cvitProg 53 (.AUIPC .x5 (EvmAsm.Rv64.laHi (D + 212) IterPrev)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+    (CodeReq.ofProg_mem_at D (D + 216) cvitProg 54 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (D + 212) IterPrev)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+  have s55 := ld_spec_gen_within .x29 .x5 IterPrev o29 prevVal (0 : BitVec 12) (D + 220) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show IterPrev + (0 : Word) = IterPrev from by bv_omega] at s55
+  have s55' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 220) cvitProg 55 (.LD .x29 .x5 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s55
+  runBlock hla50 s52' hla53 s55'
+
+#print axioms cvitReload
+
+/-! ## Advance block (instructions 57--69): update `prev`, step iterator, loop
+
+    On the increasing (`BGEU` not-taken, `prev <ᵤ cur`) path from `D+228`:
+    reload `x6 := base_i` and `x7 := i`, set `x21 := cur` (the new `prev` for the
+    next iteration — the just-decoded `ts[i]`), advance `x6 += lengths[i]`,
+    `x7 += 1`, then `jal x0, -152` back to the loop guard at `D+124`. -/
+
+set_option maxRecDepth 8000 in
+theorem cvitAdvance (hbi lenBase iW curVal old5 o6 o7 o21 o30 o31 : Word) (Li : Nat) :
+    cpsTripleWithin 13 (D + 228) (D + 124) cvitCode
+      ((.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ o6) ** (.x7 ↦ᵣ o7) ** (.x9 ↦ᵣ lenBase) **
+        (.x21 ↦ᵣ o21) ** (.x28 ↦ᵣ curVal) ** (.x30 ↦ᵣ o30) ** (.x31 ↦ᵣ o31) **
+        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li))
+      ((.x5 ↦ᵣ IterI) ** (.x6 ↦ᵣ (hbi + BitVec.ofNat 64 Li)) **
+        (.x7 ↦ᵣ (iW + signExtend12 (1 : BitVec 12))) ** (.x9 ↦ᵣ lenBase) **
+        (.x21 ↦ᵣ curVal) ** (.x28 ↦ᵣ curVal) ** (.x30 ↦ᵣ (lenBase + (iW <<< 3))) **
+        (.x31 ↦ᵣ BitVec.ofNat 64 Li) **
+        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li)) := by
+  have hla57 := la_materialize_within .x5 old5 (D + 228) IterChild (by decide) (by decide)
+    (CodeReq.ofProg_mem_at D (D + 228) cvitProg 57 (.AUIPC .x5 (EvmAsm.Rv64.laHi (D + 228) IterChild)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+    (CodeReq.ofProg_mem_at D (D + 232) cvitProg 58 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (D + 228) IterChild)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+  have s59 := ld_spec_gen_within .x6 .x5 IterChild o6 hbi (0 : BitVec 12) (D + 236) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show IterChild + (0 : Word) = IterChild from by bv_omega] at s59
+  have s59' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 236) cvitProg 59 (.LD .x6 .x5 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s59
+  have hla60 := la_materialize_within .x5 IterChild (D + 240) IterI (by decide) (by decide)
+    (CodeReq.ofProg_mem_at D (D + 240) cvitProg 60 (.AUIPC .x5 (EvmAsm.Rv64.laHi (D + 240) IterI)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+    (CodeReq.ofProg_mem_at D (D + 244) cvitProg 61 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (D + 240) IterI)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
+  have s62 := ld_spec_gen_within .x7 .x5 IterI o7 iW (0 : BitVec 12) (D + 248) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show IterI + (0 : Word) = IterI from by bv_omega] at s62
+  have s62' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 248) cvitProg 62 (.LD .x7 .x5 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s62
+  have s63 := mv_spec_gen_within .x21 .x28 curVal o21 (D + 252) (by decide)
+  have s63' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 252) cvitProg 63 (.MV .x21 .x28)
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s63
+  have s64 := slli_spec_gen_within .x30 .x7 o30 iW (3 : BitVec 6) (D + 256) (by decide)
+  rw [show (3 : BitVec 6).toNat = 3 from by decide] at s64
+  have s64' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 256) cvitProg 64 (.SLLI .x30 .x7 (3 : BitVec 6))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s64
+  have s65 := add_spec_gen_rd_eq_rs2_within .x30 .x9 lenBase (iW <<< 3) (D + 260) (by decide)
+  have s65' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 260) cvitProg 65 (.ADD .x30 .x9 .x30)
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s65
+  have s66 := ld_spec_gen_within .x31 .x30 (lenBase + (iW <<< 3)) o31 (BitVec.ofNat 64 Li)
+    (0 : BitVec 12) (D + 264) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (lenBase + (iW <<< 3)) + (0 : Word) = lenBase + (iW <<< 3) from by bv_omega] at s66
+  have s66' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 264) cvitProg 66 (.LD .x31 .x30 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s66
+  have s67 := add_spec_gen_rd_eq_rs1_within .x6 .x31 hbi (BitVec.ofNat 64 Li) (D + 268) (by decide)
+  have s67' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 268) cvitProg 67 (.ADD .x6 .x6 .x31)
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s67
+  have s68 := addi_spec_gen_same_within .x7 iW (1 : BitVec 12) (D + 272) (by decide)
+  have s68' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 272) cvitProg 68 (.ADDI .x7 .x7 (1 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s68
+  have s69 := jal_x0_spec_gen_within (-152 : BitVec 21) (D + 276)
+  rw [show (D + 276) + signExtend21 (-152 : BitVec 21) = D + 124 from by
+    rw [show signExtend21 (-152 : BitVec 21) = (-152 : Word) from by decide]; bv_omega] at s69
+  have s69' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 276) cvitProg 69 (.JAL .x0 (-152 : BitVec 21))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s69
+  runBlock hla57 s59' hla60 s62' s63' s64' s65' s66' s67' s68' s69'
+
+#print axioms cvitAdvance
+
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
