@@ -219,7 +219,7 @@ def schemeAAnchors : List GuestRegion :=
     storage-root builder replaced the legacy one-slot mutation path. Grew by
     `0xa58` for the gas-sized bounded indexed transaction/receipt root
     builder. -/
-def textSizeBytes : Nat := 0x5c014
+def textSizeBytes : Nat := 0x5c10c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
