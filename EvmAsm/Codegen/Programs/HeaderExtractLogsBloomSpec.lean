@@ -850,4 +850,37 @@ private theorem helbTail2 (v10old newSp v1 v8 v9 v18 : Word) (fsaved : HeaderFie
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
 
+/-! ## Post-call: peel the K20 `callReturnResult` into the explicit outcome -/
+
+/-- Peel the `∃ status offset len v11 v12` and the `⌜Result⌝` pure fact from a
+    `callReturnResult` precondition, reducing to a per-outcome obligation. -/
+private theorem cpsTripleWithin_callReturn_pre
+    {N : Nat} {ret X : Word} {F Q : Assertion}
+    (sp0 listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (csaved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h : ∀ status offset len v11 v12,
+        Result bytes listBase listLen index oldOffset oldLen status offset len →
+        cpsTripleWithin N (helbBase + 64) ret fullCode
+          (((.x1 ↦ᵣ X) **
+            (((.x2 ↦ᵣ sp0) ** stackFree sp0 8 ** savedRegTail csaved) **
+             ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+              (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+              (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+              (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len)))) ** F) Q) :
+    cpsTripleWithin N (helbBase + 64) ret fullCode
+      (((.x1 ↦ᵣ X) **
+        callReturnResult sp0 listBase indexW offsetPtr lenPtr oldOffset oldLen csaved
+          bytes listLen index) ** F) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, s1, s2, hd12, hu12, hP, hRs⟩ := hPR
+  obtain ⟨t1, t2, hdt, hut, hXcRR, hFt⟩ := hP
+  obtain ⟨u1, u2, hdu, huu, hX, hcRR⟩ := hXcRR
+  unfold callReturnResult at hcRR
+  obtain ⟨status, offset, len, v11, v12, hBig⟩ := hcRR
+  have hspl := (sepConj_pure_right u2).1 hBig
+  exact h status offset len v11 v12 hspl.2 R hR s hcr
+    ⟨hp, hcompat, s1, s2, hd12, hu12,
+      ⟨t1, t2, hdt, hut, ⟨u1, u2, hdu, huu, hX, hspl.1⟩, hFt⟩, hRs⟩ hpc
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
