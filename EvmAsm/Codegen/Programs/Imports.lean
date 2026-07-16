@@ -84,6 +84,7 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
