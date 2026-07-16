@@ -71,4 +71,56 @@ def wdWholePost (sp0 spW wra cs0 cs1 cs2 outBase listBase : Word)
       ((.x10 ↦ᵣ (1 : Word)) ** wdCommon sp0 spW wra cs0 cs1 cs2 **
        wdFailLeftover spW outBase listBase bytes)) h)
 
+/-! ## Scratch-stack reconcile (K34 boundary)
+
+    The whole-program pre owns `stackFree spW 12` (cells `spW-8 … spW-96`).  A
+    K34 field call allocates its own frame at `newSp = spW - 32`, using the top
+    cell `spW-8` framed off plus `frameSlotsOwn frame newSp` (3 cells
+    `spW-16, spW-24, spW-32`) and `stackFree newSp 8` (cells `spW-40 … spW-96`).  These
+    two shapes hold the same 12 owned cells. -/
+
+/-- Assemble a K34 field call's reclaimed scratch back into `stackFree spW 12`. -/
+theorem wdStack12_of_k34 (sp0 spW newSp : Word)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12)) : ∀ h,
+    (memOwn (spW - BitVec.ofNat 64 8) **
+     frameSlotsOwn frame newSp ** stackFree newSp 8) h →
+    stackFree spW 12 h := by
+  intro h hp
+  have hse : signExtend12 (-32 : BitVec 12) = (0xFFFFFFFFFFFFFFE0 : Word) := by decide
+  subst hnewSp
+  rw [hse] at hp
+  simp only [frameSlotsOwn, frame, List.foldr, sepConj_emp_right',
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+    show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at hp
+  simp only [stackFree] at hp ⊢
+  simp only [sepConj_emp_right', Nat.reduceMul, Nat.reduceAdd] at hp ⊢
+  -- normalise every K34-frame cell address to the canonical `spW - N#64` form
+  rw [show spW + (18446744073709551584 : Word) + (0 : Word)
+        = spW - BitVec.ofNat 64 32 from by bv_omega,
+      show spW + (18446744073709551584 : Word) + (8 : Word)
+        = spW - BitVec.ofNat 64 24 from by bv_omega,
+      show spW + (18446744073709551584 : Word) + (16 : Word)
+        = spW - BitVec.ofNat 64 16 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 64
+        = spW - BitVec.ofNat 64 96 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 56
+        = spW - BitVec.ofNat 64 88 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 48
+        = spW - BitVec.ofNat 64 80 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 40
+        = spW - BitVec.ofNat 64 72 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 32
+        = spW - BitVec.ofNat 64 64 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 24
+        = spW - BitVec.ofNat 64 56 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 16
+        = spW - BitVec.ofNat 64 48 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 8
+        = spW - BitVec.ofNat 64 40 from by bv_omega] at hp
+  xperm_hyp hp
+
+#print axioms wdStack12_of_k34
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
