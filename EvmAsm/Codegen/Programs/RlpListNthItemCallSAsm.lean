@@ -148,6 +148,5 @@ theorem rlpListNthItem_call_spec_within
       calleeSaved bytes) hk''
   exact cpsTripleWithin_frameR F hF hcall
 
-#print axioms rlpListNthItem_call_spec_within
 
 end EvmAsm.Codegen.RlpListNthItemSAsm

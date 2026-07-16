@@ -66,7 +66,6 @@ theorem rlpContentToU64_call_spec_within
   · unfold flatPost
     xperm_hyp hp
 
-#print axioms rlpContentToU64_call_spec_within
 
 end RlpContentToU64CallSAsm
 end EvmAsm.Codegen

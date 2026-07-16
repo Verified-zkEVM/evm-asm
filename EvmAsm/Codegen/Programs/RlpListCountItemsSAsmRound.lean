@@ -471,16 +471,5 @@ theorem scanFromInit (newSp listBase outPtr oldCount : Word)
     unfold remaining
     omega) hloop
 
-#print axioms failureRegs_mono
-#print axioms nextOutcome_to_normalized
-#print axioms nextCallNormalized
-#print axioms dispatchDone
-#print axioms dispatchFailure
-#print axioms dispatchSuccess
-#print axioms cpsNBranchWithin_pre_or
-#print axioms afterCall
-#print axioms loopRound
-#print axioms strictCountLoop
-#print axioms scanFromInit
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

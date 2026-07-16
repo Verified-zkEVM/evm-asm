@@ -220,12 +220,5 @@ theorem walk_init_next_13
   have h₁₂ := cpsTripleWithin_seq_same_cr h₁₁ h_next₁₂
   exact cpsTripleWithin_seq_same_cr h₁₂ h_next₁₃
 
-#print axioms rlp_walk_init_call_within
-#print axioms rlp_walk_next_call_within
-#print axioms walk_call_seq
-#print axioms walk_init_next_4
-#print axioms walk_init_next_6
-#print axioms walk_init_next_17
-#print axioms walk_init_next_13
 
 end EvmAsm.Codegen.RlpWalkCallSAsm

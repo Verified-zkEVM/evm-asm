@@ -154,9 +154,5 @@ theorem rlp_list_count_items_spec_within
     unfold initStable
     xperm_hyp hp0) hp hb
 
-#print axioms initializedToJoin
-#print axioms bodyToFinal
-#print axioms bodyToFinalOwned
-#print axioms rlp_list_count_items_spec_within
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

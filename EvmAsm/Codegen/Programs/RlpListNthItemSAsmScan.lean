@@ -122,7 +122,6 @@ theorem initNormalizedDispatch (newSp listBase indexW offsetPtr lenPtr oldOffset
       xperm_hyp hall'
     ) harms
 
-#print axioms initNormalizedDispatch
 
 /-- The embedded strict initializer followed by its local status dispatch. -/
 theorem initCallDispatchExact
@@ -170,7 +169,6 @@ theorem initCallDispatchExact
     (cpsTripleWithin_seq_cpsNBranchWithin_perm_same_cr (fun h hp => by
       xperm_hyp hp) hcallN hdispatch)
 
-#print axioms initCallDispatchExact
 
 /-- Loop success station (`B+88`), before the two output stores. -/
 def loopSelected (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
@@ -327,7 +325,6 @@ theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => by unfold nextCommon; exact hq) hc
 
-#print axioms nextCallBlock
 
 /-! ## Wrapper dispatch instructions -/
 
@@ -441,11 +438,6 @@ theorem incrementBack (count : Nat) (F : Assertion) (hF : F.pcFree)
   rw [sepConj_emp_left'] at hjF
   exact cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) haF hjF
 
-#print axioms statusReject
-#print axioms statusOk
-#print axioms indexSelected
-#print axioms indexContinue
-#print axioms incrementBack
 
 /-! ## Semantic dispatch adapters -/
 
@@ -486,7 +478,6 @@ theorem dispatchFailure
     unfold nextScratchOwned at hq'
     xperm_hyp hq'
 
-#print axioms dispatchFailure
 
 theorem dispatchSuccess
     (newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen : Word)
@@ -583,7 +574,6 @@ theorem dispatchSuccess
     unfold nextScratchOwned at hq'
     xperm_hyp hq'
 
-#print axioms dispatchSuccess
 
 theorem cpsNBranchWithin_pre_or {n : Nat} {entry : Word} {cr : CodeReq}
     {P1 P2 : Assertion} {exits : List (Word × Assertion)}
@@ -596,7 +586,6 @@ theorem cpsNBranchWithin_pre_or {n : Nat} {entry : Word} {cr : CodeReq}
   · exact h1 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
   · exact h2 R hR s hcr ⟨hp, hcompat, ha, hb, hd, hu, hP, hRb⟩ hpc
 
-#print axioms cpsNBranchWithin_pre_or
 
 /-! ## One complete loop round and the measure fold -/
 
@@ -674,8 +663,6 @@ theorem callFail_shape
   unfold nextScratch stableFrame
   xperm_hyp hp'
 
-#print axioms callOk_shape
-#print axioms callFail_shape
 
 theorem failureRegs_mono (listBase endPtr : Word) (bytes : List (BitVec 8))
     (off : Nat) (status : Word) (P : Prop)
@@ -864,7 +851,6 @@ theorem loopRound
       unfold stableRest savedFrame at hp ⊢
       xperm_hyp hp) hseq)
 
-#print axioms loopRound
 
 /-- The strict list scan folded over the remaining-index measure. -/
 theorem listNthLoop
@@ -895,7 +881,6 @@ theorem listNthLoop
         oldLen saved bytes listLen index cursorOff hindexW hindex hlist hsalign
         hslack hover hvalid j') j)
 
-#print axioms listNthLoop
 
 def scanSelected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
@@ -970,6 +955,5 @@ theorem scanFromInit
     unfold F
     xperm_hyp hp) hn'
 
-#print axioms scanFromInit
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
