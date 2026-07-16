@@ -48,7 +48,7 @@ def ziskCommittedStorageBlockVerdictThreadingPrologue : String :=
   "  la t0, csg_live; li t2, 0\n" ++
   ".Lcsg_unique_loop:\n" ++
   "  li t3, 129; beq t2, t3, .Lcsg_unique_done\n" ++
-  "  addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
+  "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 19(t0); addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
   "  addi t0, t0, 128; addi t2, t2, 1; j .Lcsg_unique_loop\n" ++
   ".Lcsg_unique_done:\n" ++
   "  la a0, csg_recipient; la a1, csg_live; li a2, 129; la a3, bv_mtx_committed_chunked\n" ++
@@ -60,7 +60,7 @@ def ziskCommittedStorageBlockVerdictThreadingPrologue : String :=
   "  la t0, csg_live; li t2, 0\n" ++
   ".Lcsg_dup_loop:\n" ++
   "  li t3, 130; beq t2, t3, .Lcsg_dup_done\n" ++
-  "  li t1, 7; sd t1, 32(t0); sd t1, 64(t0); addi t1, t2, 1; sd t1, 96(t0)\n" ++
+  "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 19(t0); li t1, 7; sd t1, 32(t0); sd t1, 64(t0); addi t1, t2, 1; sd t1, 96(t0)\n" ++
   "  addi t0, t0, 128; addi t2, t2, 1; j .Lcsg_dup_loop\n" ++
   ".Lcsg_dup_done:\n" ++
   "  la a0, csg_recipient; la a1, csg_live; li a2, 130; la a3, bv_mtx_committed_chunked\n" ++
@@ -69,7 +69,7 @@ def ziskCommittedStorageBlockVerdictThreadingPrologue : String :=
   "  la t0, bv_mtx_committed_chunk_count; sd a0, 0(t0); sd a1, 8(s0)\n" ++
   "  la t0, csg_key_be; li t1, 7; sb t1, 31(t0); j .Lcsg_query\n" ++
   ".Lcsg_overflow:\n" ++
-  "  la t0, csg_live; li t1, 1; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x55; sd t1, 96(t0)\n" ++
+  "  la t0, csg_live; li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 19(t0); li t1, 1; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x55; sd t1, 96(t0)\n" ++
   "  la t0, bv_mtx_committed_chunk_count; li t1, 512; sd t1, 0(t0)\n" ++
   "  la a0, csg_recipient; la a1, csg_live; li a2, 1; la a3, bv_mtx_committed_chunked\n" ++
   "  li a4, 512; li a5, 512; la a6, bv_mtx_committed_chunk_overflow\n" ++

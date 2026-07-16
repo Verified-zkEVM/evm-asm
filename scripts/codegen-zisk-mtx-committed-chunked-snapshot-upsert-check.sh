@@ -58,10 +58,12 @@ run_case "unique129"  1 "129:0:0:1:1:129:129:0:238" || FAILED=1
 run_case "cross_dup"  2 "130:0:0:1:1:129:119:0:238" || FAILED=1
 run_case "full_fill"  3 "512:0:0:0:0:0:0:102:238"   || FAILED=1
 run_case "overflow"   4 "512:1:1:0:0:0:0:0:238"     || FAILED=1
+run_case "foreign"    5 "0:0:0:0:0:0:0:0:238"       || FAILED=1
+run_case "mixed"      6 "1:0:0:1:1:0:0:0:238"       || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: chunked committed-storage snapshot upsert spans pages and preserves overflow sentinel"
+  echo "==> PASS: chunked committed-storage snapshot upsert spans pages, preserves overflow sentinel, and threads recipient-owned entries only"
   exit 0
 else
   echo "==> FAIL"; exit 1
