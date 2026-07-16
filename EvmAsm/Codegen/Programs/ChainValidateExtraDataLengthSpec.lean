@@ -477,4 +477,74 @@ theorem retAllValid
 
 #print axioms retAllValid
 
+/-! ## Violation exit (instructions 52--55 → epilogue)
+
+    Reached when a header's field-12 length exceeds 32: `*validPtr := 0`,
+    `*firstBadPtr := i`, `a0 := 0`, then return. -/
+
+set_option maxRecDepth 8000 in
+theorem retViolation
+    (sp0 spC raIn iWord validPtr firstBadPtr : Word) (csaved : Saved)
+    (G : Assertion) (hG : G.pcFree) (o10 o1 o8 o9 o18 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 13 (C + 208) raIn cvedlCode
+      ((.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        memOwn validPtr ** memOwn firstBadPtr **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+      ((.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) ** (firstBadPtr ↦ₘ iWord) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) ** (.x18 ↦ᵣ csaved.s2) **
+        (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) ** (.x21 ↦ᵣ csaved.s5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G) := by
+  subst hraSaved
+  -- [52] SD x19 x0 0 : *validPtr := 0
+  have s52 := sd_spec_gen_own_within .x19 .x0 validPtr (0 : Word) (0 : BitVec 12) (C + 208)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show validPtr + (0 : Word) = validPtr from by bv_omega] at s52
+  -- [53] SD x20 x21 0 : *firstBadPtr := i
+  have s53 := sd_spec_gen_own_within .x20 .x21 firstBadPtr iWord (0 : BitVec 12) (C + 212)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show firstBadPtr + (0 : Word) = firstBadPtr from by bv_omega] at s53
+  -- [54] LI x10 0
+  have s54 := li_spec_gen_within .x10 o10 (0 : Word) (C + 216) (by decide)
+  -- [55] JAL x0 20 : jump to epilogue
+  have s55 := jal_x0_spec_gen_within (20 : BitVec 21) (C + 220)
+  rw [show (C + 220) + signExtend21 (20 : BitVec 21) = C + 240 from by
+    rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide]; bv_omega] at s55
+  have hblock : cpsTripleWithin 4 (C + 208) (C + 240) cvedlCode
+      ((.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn validPtr **
+        (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) ** memOwn firstBadPtr ** (.x10 ↦ᵣ o10))
+      ((.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) **
+        (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) ** (firstBadPtr ↦ₘ iWord) **
+        (.x10 ↦ᵣ (0 : Word))) := by
+    runBlock s52 s53 s54 s55
+  have hblockF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+      (spC ↦ₘ csaved.ra) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+      ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+      ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hblock
+  have hepi := cvedlEpilogue sp0 spC csaved.ra csaved.s0 csaved.s1 csaved.s2 csaved.s3
+    csaved.s4 csaved.s5 o1 o8 o9 o18 validPtr firstBadPtr iWord hspC hret
+  have hepiF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) ** (firstBadPtr ↦ₘ iWord) **
+      (.x0 ↦ᵣ (0 : Word)) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hepi
+  -- Compose block ;; epilogue.
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
+#print axioms retViolation
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
