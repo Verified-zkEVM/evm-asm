@@ -1,0 +1,173 @@
+/-
+  The 20-byte address copy loop of `withdrawalDecode_prog` ([39]-[44]).
+
+  The address field is materialised by a byte-safe `LBU`/`SB` do-while copy
+  (the pkljc #10343 byte-fix): with `x28` the source cursor, `x29` the output
+  cursor, `x6` the remaining count and `x30` the byte scratch, each iteration
+
+    [39] LBU x30, 0(x28)   [40] SB  x30, 0(x29)
+    [41] ADDI x28, x28, 1  [42] ADDI x29, x29, 1
+    [43] ADDI x6,  x6, -1  [44] BNE x6, x0, -20
+
+  copies one byte and decrements the counter.  This module hosts the reusable
+  per-byte step (`wdCopyBody5`, instructions [39]-[43]), whose content tie is
+  the same `copyIntoRegion` accumulator used by the header-root extractors.
+
+  No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
+-/
+
+import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
+
+namespace EvmAsm.Codegen.WithdrawalDecodeSpec
+
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+
+private theorem wd_succ_dec (n : Nat) :
+    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
+  apply BitVec.eq_of_toNat_eq
+  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
+  rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+private theorem wd_advance (b : Word) (m : Nat) :
+    (b + BitVec.ofNat 64 m) + signExtend12 (1 : BitVec 12) = b + BitVec.ofNat 64 (m + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+
+set_option maxRecDepth 8000 in
+/-- One copy-loop body ([39]-[43], `WB+156 → WB+176`): copy one byte from
+    `srcBase[srcOff+i]` to `dstBase[dstOff+i]` (advancing both cursors) and
+    decrement the counter from `m+1` to `m`.  The destination content grows by
+    one byte in the `copyIntoRegion` accumulator. -/
+theorem wdCopyBody5 (srcBase dstBase x30old : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff dstOff i m : Nat)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_dst_align : dstBase.toNat % 8 = 0)
+    (h_src_lt : srcOff + i < srcBytes.length)
+    (h_dst_lt : dstOff + i < dstBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (dstBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 5 (WB + 156) (WB + 176) fullCode
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x30 : Reg) ↦ᵣ x30old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 m) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + 1)))) **
+       ((.x30 : Reg) ↦ᵣ ((srcBytes.getD (srcOff + i) 0).zeroExtend 64)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1))) := by
+  set bval := srcBytes[srcOff + i]'h_src_lt with hbval
+  have htrunc : (bval.zeroExtend 64).truncate 8 = bval := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+    have := bval.isLt
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+  have hgetd : srcBytes.getD (srcOff + i) 0 = bval := by
+    rw [hbval, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h_src_lt]; rfl
+  have hstep : copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)
+      = (copyIntoRegion dstBytes srcBytes dstOff srcOff i).set (dstOff + i) bval := by
+    simp only [copyIntoRegion, hgetd]
+  -- [39] lbu x30, 0(x28)
+  have hlbu := bytesRegion_lbu_within .x30 .x28 srcBase x30old (WB + 156)
+    srcBytes (srcOff + i) (by decide) h_src_align h_src_lt (by omega)
+    (h_src_valid (srcOff + i) h_src_lt)
+  rw [show (WB + 156 : Word) + 4 = WB + 160 from by bv_omega, ← hbval] at hlbu
+  have hlbue := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 156) withdrawalDecode_prog 39
+        (.LBU .x30 .x28 (0 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) hlbu)
+  have hlbuf := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hlbue
+  -- [40] sb x30, 0(x29)
+  have hsb := bytesRegion_sb_within .x29 .x30 dstBase (bval.zeroExtend 64) (WB + 160)
+    (copyIntoRegion dstBytes srcBytes dstOff srcOff i) (dstOff + i) h_dst_align
+    (by rw [copyIntoRegion_length]; omega) (by omega)
+    (h_dst_valid (dstOff + i) h_dst_lt)
+  rw [htrunc, ← hstep, show (WB + 160 : Word) + 4 = WB + 164 from by bv_omega] at hsb
+  have hsbe := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 160) withdrawalDecode_prog 40
+        (.SB .x29 .x30 (0 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) hsb)
+  have hsbf := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes)
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hsbe
+  -- [41] addi x28, x28, 1
+  have h3 := addi_spec_gen_same_within .x28
+    (srcBase + BitVec.ofNat 64 (srcOff + i)) (1 : BitVec 12) (WB + 164) (by decide)
+  rw [wd_advance srcBase (srcOff + i),
+      show srcOff + i + 1 = srcOff + (i + 1) from by omega,
+      show (WB + 164 : Word) + 4 = WB + 168 from by bv_omega] at h3
+  have h3e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 164) withdrawalDecode_prog 41
+        (.ADDI .x28 .x28 (1 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h3)
+  have h3f := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+     ((.x30 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h3e
+  -- [42] addi x29, x29, 1
+  have h4 := addi_spec_gen_same_within .x29
+    (dstBase + BitVec.ofNat 64 (dstOff + i)) (1 : BitVec 12) (WB + 168) (by decide)
+  rw [wd_advance dstBase (dstOff + i),
+      show dstOff + i + 1 = dstOff + (i + 1) from by omega,
+      show (WB + 168 : Word) + 4 = WB + 172 from by bv_omega] at h4
+  have h4e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 168) withdrawalDecode_prog 42
+        (.ADDI .x29 .x29 (1 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h4)
+  have h4f := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+     ((.x30 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h4e
+  -- [43] addi x6, x6, -1
+  have h5 := addi_spec_gen_same_within .x6 (BitVec.ofNat 64 (m + 1)) (-1 : BitVec 12)
+    (WB + 172) (by decide)
+  rw [wd_succ_dec m, show (WB + 172 : Word) + 4 = WB + 176 from by bv_omega] at h5
+  have h5e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 172) withdrawalDecode_prog 43
+        (.ADDI .x6 .x6 (-1 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h5)
+  have h5f := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + 1)))) **
+     ((.x30 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h5e
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hlbuf hsbf
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s12 h3f
+  have s1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s123 h4f
+  have s12345 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1234 h5f
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by rw [hgetd]; xperm_chunked hq) s12345
+
+#print axioms wdCopyBody5
+
+end EvmAsm.Codegen.WithdrawalDecodeSpec
