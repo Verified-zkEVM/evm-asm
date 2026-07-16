@@ -355,6 +355,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
+  -- evm-asm-uzb6b: a4 = the codes base this top-level path re-adds at
+  -- `.Ldtrc_have_code` (*svf_codes_ptr); the resolver re-bases cahsr_code_offset
+  -- against it (top-level x20 is evm_env scratch, NOT a runtime env).
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
