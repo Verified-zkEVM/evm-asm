@@ -575,7 +575,6 @@ import EvmAsm.Evm64.AddMod.Compose.CarryLdChain
 import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
 import EvmAsm.Evm64.AddMod.Compose.TotalBase
 import EvmAsm.Evm64.AddMod.LimbSpec
-import EvmAsm.Evm64.AddMod.Pow256CodeBridge
 import EvmAsm.Evm64.AddMod.Pow256Spec
 import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.AddMod.StackExecutionBridge
