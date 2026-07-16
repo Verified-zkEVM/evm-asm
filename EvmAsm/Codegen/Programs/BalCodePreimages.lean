@@ -1029,7 +1029,7 @@ def balCodePreimagesValidFunction : String :=
   "# a0 = 20-byte target address ptr, a1/a2 = witness.state ptr/len, a3 = charge delegation access.\n" ++
   "# On success, cahsr_code_offset/cahsr_code_length name the delegated pre-state code.\n" ++
   "bal_same_block_delegation_code_resolve:\n" ++
-  "  addi sp, sp, -112\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
@@ -1038,6 +1038,16 @@ def balCodePreimagesValidFunction : String :=
   "  mv s1, a1                  # witness.state ptr\n" ++
   "  mv s2, a2                  # witness.state len\n" ++
   "  mv s10, a3                 # charge delegated access when nonzero\n" ++
+  -- evm-asm-uzb6b: the codes base that cahsr_code_offset is re-based against is
+  -- an explicit argument (a4), NOT the caller's x20. Top-level callers
+  -- (dispatch_tx_runtime_code / block_verdict contract + mtx paths) have no
+  -- runtime env in x20 (x20 is evm_env scratch there, slot 608 unread zero-page
+  -- .bss), so reading *(x20+608) subtracted a garbage base and the top-level
+  -- `.Ldtrc_have_code` re-add of *svf_codes_ptr produced a wild code pointer
+  -- (load-access fault in bytecode_is_self_contained on the EIP-7702
+  -- chain/self-delegation + pointer_to_pointer cluster). Callers pass
+  -- a4 = *svf_codes_ptr (top level) or a4 = 608(x20) (nested CALL frames).
+  "  sd a4, 112(sp)             # codes base for the cahsr_code_offset re-base\n" ++
   "  la t0, bsbd_code_from_bal; sd zero, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
@@ -1157,8 +1167,7 @@ def balCodePreimagesValidFunction : String :=
   -- in the BAL and point cahsr_code_* at it so the descend runs the marker bytes (-> invalid
   -- opcode -> 0). Soundness: descending runs the EXACT single-hop code the spec runs;
   -- the BAL comparator independently checks each declared final, so this can only fix a
-  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers;
-  -- x20 (env) is preserved here (the buggy 40(sp) reload above is on the pre-state-hit path).
+  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers.
   ".Lbsbd_target_sameblock:\n" ++
   -- The BAL contains the block-final code, but an address currently being
   -- CREATEd has empty code until its constructor returns successfully and the
@@ -1191,12 +1200,13 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
-  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus the CALLER env's codes
-  -- base. The callable dispatcher stages witness.codes into its runtime payload,
-  -- so `svf_codes_ptr` is not necessarily the base that `.Lcd_descend_` adds.
+  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus the codes base passed by the
+  -- caller in a4 (saved at 112(sp)): *svf_codes_ptr at top level (whose
+  -- `.Ldtrc_have_code` re-adds *svf_codes_ptr), 608(x20) in nested CALL frames
+  -- (whose `.Lcd_descend_` re-adds 608(x20)).
   "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
   "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
-  "  ld t5, 104(sp); ld t5, 608(t5); sub t3, t3, t5\n" ++
+  "  ld t5, 112(sp); sub t3, t3, t5\n" ++
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)
@@ -1222,7 +1232,7 @@ def balCodePreimagesValidFunction : String :=
   -- which makes the caller fall back to and charge the stale pre-state marker.
   "  beqz a0, .Lbsbd_active_create_empty\n" ++
   "  ld t1, 40(a0); la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
-  "  addi t1, a0, 48; ld t2, 104(sp); ld t2, 608(t2); sub t1, t1, t2\n" ++
+  "  addi t1, a0, 48; ld t2, 112(sp); sub t1, t1, t2\n" ++
   "  la t2, cahsr_code_offset; sd t1, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   "  li a0, 0\n" ++
@@ -1242,7 +1252,7 @@ def balCodePreimagesValidFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
