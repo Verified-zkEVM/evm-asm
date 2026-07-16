@@ -548,4 +548,27 @@ theorem wdField2Stage
 
 #print axioms wdField2Stage
 
+/-! ## Frame reshape helpers -/
+
+/-- Generic: saved frame slots weaken to merely-owned slots. -/
+private theorem frameSlotsSaved_own (fr : FrameDesc) (newSp : Word) (vals : Reg → Word) :
+    ∀ h, frameSlotsSaved fr newSp vals h → frameSlotsOwn fr newSp h := by
+  induction fr with
+  | nil => intro h hp; simpa only [frameSlotsSaved_nil, frameSlotsOwn_nil] using hp
+  | cons p rest ih =>
+    intro h hp
+    rw [frameSlotsSaved_cons] at hp
+    rw [frameSlotsOwn_cons]
+    exact sepConj_mono memIs_implies_memOwn ih h hp
+
+/-- K34's saved frame weakens to the merely-owned frame slots (`frameSlotsOwn`),
+    the shape each subsequent K34 field call requires. -/
+theorem savedFrameK34_own (newSp : Word) (saved : Saved) :
+    ∀ h, savedFrame newSp saved h → frameSlotsOwn frame newSp h := by
+  intro h hp
+  rw [← frameSlotsSaved_frame] at hp
+  exact frameSlotsSaved_own frame newSp (savedVals saved) h hp
+
+#print axioms savedFrameK34_own
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
