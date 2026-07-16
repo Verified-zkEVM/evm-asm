@@ -677,4 +677,191 @@ theorem aieField0PtrSetup (v5 accBase v28 v7 offset : Word) :
 
 #print axioms aieField0PtrSetup
 
+/-! ## Field-0 (nonce) content continuation (`AB+92 → raIn`) -/
+
+set_option maxRecDepth 8000 in
+/-- Field-0 nonce content continuation: materialise the content cursor, run the
+    big-endian nonce scan, and test `x7 == 0` ([35]).  A zero nonce continues into
+    the field-1 subtree (`aieField1Cont`); a nonzero nonce returns not-empty.
+    Uses the lenient nonce bridge (`beAccFrom_eq_zero_iff`). -/
+theorem aieField0ContentCont
+    (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) (offset len v11 v12 : Word)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnewSp : newSp = spA + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : lenW = BitVec.ofNat 64 listLen)
+    (halign : accBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : accBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ j, j < bytes.length →
+      isValidByteAccess (accBase + BitVec.ofNat 64 j) = true)
+    (hoverL : accBase.toNat + listLen + 9 < 2 ^ 64)
+    (hbound : ∀ o next len', o ≤ listLen →
+      EvmAsm.Rv64.RLP.rlpItemDecode bytes o (accBase + BitVec.ofNat 64 o)
+        (accBase + BitVec.ofNat 64 listLen) next len' →
+      (next - len' - accBase).toNat + len'.toNat ≤ bytes.length)
+    (hS0 : Success bytes accBase listLen 0 offset len) :
+    cpsTripleWithin 1600 (AB + 92) raIn fullCode
+      (((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) ** (LenA ↦ₘ len) **
+          ⌜¬ BitVec.ult (8 : Word) len⌝) **
+        aieFldFrame (AB + 68) spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5
+          bytes offset v11 v12)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_pure hp) (fun _ hq => hq)
+    (cpsTripleWithin_pure_pre (P := ¬ BitVec.ult (8 : Word) len)
+      (H := ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) ** (LenA ↦ₘ len)) **
+        aieFldFrame (AB + 68) spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5
+          bytes offset v11 v12)
+      (fun hnu => ?_))
+  have hle : len.toNat ≤ 8 := by
+    have h8 : ((8 : Word)).toNat = 8 := by decide
+    by_contra hc
+    exact hnu (by simp only [BitVec.ult, decide_eq_true_eq]; omega)
+  have hspan : offset.toNat + len.toNat ≤ bytes.length :=
+    aieSpanBound bytes accBase listLen 0 offset len hoverL hbound hS0
+  by_cases hnz : beAccFrom bytes offset.toNat len.toNat = 0
+  · -- ZERO nonce → continue into field 1
+    have hz0' : ∀ k, k < len.toNat → bytes.getD (offset.toNat + k) 0 = 0 :=
+      (beAccFrom_eq_zero_iff bytes offset.toNat len.toNat hle).mp hnz
+    refine cpsTripleWithin_weaken (fun h hp => by unfold aieFldFrame at hp; xperm_chunked hp)
+      (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn4
+        (P := (.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) ** (LenA ↦ₘ len) **
+          (.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes ** (OffA ↦ₘ offset) **
+          savedFrame newSp (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) **
+          aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+          bytesRegion ECB aieEmptyCodeHashBytes)
+        (r1 := .x13) (r2 := .x14) (r3 := .x28) (r4 := .x29) (fun v13 v14 v28 v29 => ?_))
+    have hptr := aieField0PtrSetup LenA accBase v28 (8 : Word) offset
+    have hptrF := cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ len) ** (.x29 ↦ᵣ v29) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
+      (by pcfR) hptr
+    have hloop := aieNonceLoop accBase bytes offset.toNat len.toNat 0 v29
+      halign (by omega) hover hvalid
+    rw [beAccFrom_zero, Nat.zero_add,
+        show (BitVec.ofNat 64 len.toNat : Word) = len from (word_eq_ofNat_toNat len).symm,
+        show accBase + BitVec.ofNat 64 (offset.toNat + 0) = accBase + offset from by
+          rw [Nat.add_zero]; rw [← word_eq_ofNat_toNat offset]] at hloop
+    have hloopC := cpsTripleWithin_extend_code aie_mono hloop
+    have hloopF := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (OffA ↦ₘ offset)) (by pcfR) hloopC
+    have hT0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hptrF hloopF
+    -- [35] BNE x7 x0 (not taken, x7 = 0) → AB+144
+    have hbne := bne_spec_gen_within .x7 .x0 (244 : BitVec 13)
+      (beAccFrom bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
+    rw [show (AB + 140 : Word) + 4 = AB + 144 from by bv_omega] at hbne
+    have hbnee := cpsBranchWithin_extend_code
+      (aieFC 35, (AB + 140), (.BNE .x7 .x0 (244 : BitVec 13))) hbne
+    have hbnt := cpsBranchWithin_ntakenStripPure2 hbnee (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact ((sepConj_pure_right _).1 hQ).2 hnz)
+    have hbntF := cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ (0 : Word)) ** regOwn .x28 ** regOwn .x29 ** bytesRegion accBase bytes **
+        (.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (OffA ↦ₘ offset)) (by pcfR) hbnt
+    have hT1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hT0 hbntF
+    have hT := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x10 ↦ᵣ (0 : Word)) **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **
+        regOwn .x30 ** regOwn .x31 ** (LenA ↦ₘ len) **
+        savedFrame newSp (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) **
+        aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+        bytesRegion ECB aieEmptyCodeHashBytes) (by pcfR) hT1
+    have hcont := aieField1Cont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18
+      (AB + 68) (0 : Word) v11 v12 v13 v14 s3 s4 s5 bytes listLen offset len offset len
+      hspA hret hnewSp hlistLenW halign hslack hover hvalid hoverL hbound hS0 hle hz0'
+    have hfull := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+        have hp2 : (aieMidResidual spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68)
+            (0 : Word) v11 v12 v13 v14 OffA (0 : Word)
+            (beAccFrom bytes offset.toNat len.toNat) (0 : Word) offset len
+            (AB + 68) s3 s4 s5 bytes ** bytesRegion ECB aieEmptyCodeHashBytes) h := by
+          unfold aieMidResidual; xperm_chunked hp
+        exact sepConj_mono_left (aieMidResidual_to_aieMidPre _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+          _ _ _ _ _ _ _ _ _ _ _) h hp2)
+      hT hcont
+    refine cpsTripleWithin_mono_nSteps ?_
+      (cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ hq => hq) hfull)
+    omega
+  · -- NONZERO nonce → not-empty
+    refine cpsTripleWithin_weaken (fun h hp => by unfold aieFldFrame at hp; xperm_chunked hp)
+      (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn2
+        (P := (.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) ** (LenA ↦ₘ len) **
+          (.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes ** (OffA ↦ₘ offset) **
+          savedFrame newSp (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) **
+          aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+          bytesRegion ECB aieEmptyCodeHashBytes)
+        (r1 := .x28) (r2 := .x29) (fun v28 v29 => ?_))
+    have hptr := aieField0PtrSetup LenA accBase v28 (8 : Word) offset
+    have hptrF := cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ len) ** (.x29 ↦ᵣ v29) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
+      (by pcfR) hptr
+    have hloop := aieNonceLoop accBase bytes offset.toNat len.toNat 0 v29
+      halign (by omega) hover hvalid
+    rw [beAccFrom_zero, Nat.zero_add,
+        show (BitVec.ofNat 64 len.toNat : Word) = len from (word_eq_ofNat_toNat len).symm,
+        show accBase + BitVec.ofNat 64 (offset.toNat + 0) = accBase + offset from by
+          rw [Nat.add_zero]; rw [← word_eq_ofNat_toNat offset]] at hloop
+    have hloopC := cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun _ hq => sepConj_mono_left (regIs_implies_regOwn .x6) _ hq)
+      (cpsTripleWithin_extend_code aie_mono hloop)
+    have hloopF := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (OffA ↦ₘ offset)) (by pcfR) hloopC
+    have hT0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hptrF hloopF
+    -- [35] BNE x7 x0 (taken, x7 ≠ 0) → AB+384
+    have hbne := bne_spec_gen_within .x7 .x0 (244 : BitVec 13)
+      (beAccFrom bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
+    rw [show (AB + 140 : Word) + signExtend13 (244 : BitVec 13) = AB + 384 from by
+      rw [show signExtend13 (244 : BitVec 13) = (244 : Word) from by decide]; bv_omega] at hbne
+    have hbnee := cpsBranchWithin_extend_code
+      (aieFC 35, (AB + 140), (.BNE .x7 .x0 (244 : BitVec 13))) hbne
+    have hbtk := cpsBranchWithin_takenStripPure2 hbnee (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact hnz ((sepConj_pure_right _).1 hQ).2)
+    have hbtkF := cpsTripleWithin_frameR
+      (regOwn .x6 ** regOwn .x28 ** regOwn .x29 ** bytesRegion accBase bytes **
+        (.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (OffA ↦ₘ offset)) (by pcfR) hbtk
+    have hT1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hT0 hbtkF
+    have hT := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x10 ↦ᵣ (0 : Word)) **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x30 ** regOwn .x31 ** (LenA ↦ₘ len) **
+        savedFrame newSp (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) **
+        aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+        bytesRegion ECB aieEmptyCodeHashBytes) (by pcfR) hT1
+    have hepi := aieRetNotEmpty sp0 spA raIn c8 c9 c18 (AB + 68) accBase lenW outPtr
+      (0 : Word) (0 : Word) (aieJunkNoX0 newSp accBase bytes)
+      (pcFree_aieJunkNoX0 _ _ _) hspA hret
+    have hfull := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+        have hp2 : ((.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+            (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word)) **
+            aieResMixedNoX0 newSp accBase bytes OffA
+              (beAccFrom bytes offset.toNat len.toNat) v11 v12 s3 s4 s5 offset len
+              (AB + 68) accBase lenW outPtr s3 s4 s5) h := by
+          unfold savedFrame at hp
+          simp only [mkSaved] at hp
+          unfold aieResMixedNoX0; xperm_chunked hp
+        exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono_right
+              (aieResMixedNoX0_to_aieJunkNoX0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _))))))))) h hp2)
+      hT hepi
+    refine cpsTripleWithin_mono_nSteps ?_
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+        (fun h hq => aieNotEmptyPost_to_aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr
+          bytes listLen h hq) hfull)
+    omega
+
+#print axioms aieField0ContentCont
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
