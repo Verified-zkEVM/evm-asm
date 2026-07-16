@@ -446,4 +446,67 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
 
 #print axioms cvitCall
 
+/-! ## Call block with the consumed scratch registers owned
+
+    `cvitCall` with `x1/x5/x10/x11/x12/x13/x14/x28` presented as `regOwn`,
+    matching how they sit in `LoopInv`/`scratchRegs`. -/
+
+set_option maxRecDepth 8000 in
+theorem cvitCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word) (Li : Nat)
+    (nN oldOut oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
+    (hsalign : hbi.toNat % 8 = 0)
+    (hslack : Li + 9 ≤ bytes.length)
+    (hover : hbi.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (16 + 1 + nCall) (D + 128) (D + 196) fullCode
+      ((((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **
+          (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
+          (.x21 ↦ᵣ prevVal) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
+          ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+          (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+          bytesRegion hbi bytes ** savedFrame spC csaved) **
+        regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x28) ** regOwn .x1)
+      ((.x1 ↦ᵣ LinkRA) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+          bytes Li 11 **
+        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v1 => ?_)
+  refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
+    (show cpsTripleWithin (16 + 1 + nCall) (D + 128) (D + 196) fullCode
+      ((((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **
+          (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
+          (.x21 ↦ᵣ prevVal) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
+          ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+          (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+          bytesRegion hbi bytes ** savedFrame spC csaved) ** (.x1 ↦ᵣ v1)) **
+        regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x28)
+      ((.x1 ↦ᵣ LinkRA) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+          bytes Li 11 **
+        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_of_forall_regIs_to_regOwn7
+    (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
+  exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
+    (cvitCall spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal Li nN oldOut oldOff oldLen
+      v14 v1 v5 v10 v11 v12 v13 v28 bytes csaved hsalign hslack hover hvalid)
+
+#print axioms cvitCallOwned
+
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
