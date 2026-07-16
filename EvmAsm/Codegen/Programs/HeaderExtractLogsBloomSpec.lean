@@ -1251,4 +1251,112 @@ private theorem helbOkArm
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) s2)
 
+/-! ## Post-call outcome ([16]→ret, `helbBase+64`)
+
+    Peel the K20 `callReturnResult` (`∃ status offset len` + the `Result`
+    relation), then split on the parse `Result`:
+      * `ok` (status 0): the `bne x10, x0` falls through into the success arm;
+      * `fail` (status 1): the `bne` is taken, jumping to the parse-fail tail
+        (a0=1). -/
+set_option maxRecDepth 8000 in
+private theorem helbPostCallOutcome
+    (listBase outPtr newSp indexW oldOffset oldLen : Word)
+    (csaved : Saved) (fsaved : HeaderFieldsSpec.Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLen : Nat)
+    (hcs0 : csaved.s0 = listBase) (hcs2 : csaved.s2 = outPtr)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_dst_bound : 256 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hbound : ∀ fo ln, Success headerBytes listBase listLen 6 fo ln →
+      fo.toNat + 256 ≤ headerBytes.length) :
+    cpsTripleWithin (1 + (4 + (1 + (6 + ((7 * 256 + 1) + (2 + 6)))))) (helbBase + 64)
+      (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      (((.x1 ↦ᵣ (helbBase + 64)) **
+        callReturnResult newSp listBase indexW helbOffAddr helbLenAddr oldOffset oldLen csaved
+          headerBytes listLen 6) **
+       (HeaderFieldsSpec.savedFrame newSp fsaved ** bytesRegion outPtr outBytes))
+      (helbRetPost newSp listBase outPtr fsaved headerBytes outBytes listLen) := by
+  apply cpsTripleWithin_callReturn_pre newSp listBase indexW helbOffAddr helbLenAddr
+    oldOffset oldLen csaved headerBytes listLen 6
+  intro status offset len v11 v12 hResult
+  cases hResult with
+  | ok _ _ hSucc =>
+    have hbnd := hbound offset len hSucc
+    refine cpsTripleWithin_weaken (fun h hp => by
+        simp only [savedRegTail, hcs0, hcs2] at hp; xperm_chunked hp) (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn7
+        (P := (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ listBase) **
+          (.x18 ↦ᵣ outPtr) ** (helbOffAddr ↦ₘ offset) ** (helbLenAddr ↦ₘ len) **
+          bytesRegion listBase headerBytes ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (helbBase + 64)) **
+          (.x9 ↦ᵣ csaved.s1) ** HeaderFieldsSpec.savedFrame newSp fsaved **
+          bytesRegion outPtr outBytes **
+          ((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+           (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) ** (.x21 ↦ᵣ csaved.s5) **
+           stackFree newSp 8))
+        (r1 := .x5) (r2 := .x6) (r3 := .x7) (r4 := .x28) (r5 := .x29) (r6 := .x30) (r7 := .x31)
+        (fun v5 v6 v7 v28 v29 v30 v31 =>
+          cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ hq => hq)
+            (helbOkArm offset len listBase outPtr newSp v5 v6 v7 v28 v29 v30 v31 (helbBase + 64)
+              csaved.s1 fsaved headerBytes outBytes listLen
+              ((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+               (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) ** (.x21 ↦ᵣ csaved.s5) **
+               stackFree newSp 8)
+              (by repeat' first
+                | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_stackFree _ _
+                | apply pcFree_sepConj)
+              h_src_align h_dst_align hbnd h_dst_bound h_src_over h_dst_over h_src_valid
+              h_dst_valid hSucc)))
+  | fail hFail =>
+    -- [16] bne x10, x0, +84 : taken (status = 1)
+    have ha_t : (helbBase + 64 : Word) + signExtend13 (84 : BitVec 13) = helbBase + 148 := by
+      rw [show signExtend13 (84 : BitVec 13) = (84 : Word) from by decide]; bv_omega
+    have ha_f : (helbBase + 64 : Word) + 4 = helbBase + 68 := by bv_omega
+    have hmono : ∀ a i',
+        CodeReq.singleton (helbBase + 64) (.BNE .x10 .x0 (84 : BitVec 13)) a = some i'
+        → fullCode a = some i' :=
+      helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 64) 16
+        (.BNE .x10 .x0 (84 : BitVec 13)) (by rw [program_length]; norm_num) (by bv_omega) rfl
+    have hbne := bne_spec_gen_within .x10 .x0 (84 : BitVec 13) (1 : Word) (0 : Word) (helbBase + 64)
+    rw [ha_t, ha_f] at hbne
+    have hbnee := cpsBranchWithin_extend_code hmono hbne
+    have htk := cpsBranchWithin_takenStripPure2 hbnee (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact absurd ((sepConj_pure_right _).1 hQ).2 (by decide))
+    have htkF := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (helbBase + 64)) ** (.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** (.x8 ↦ᵣ listBase) **
+       (.x9 ↦ᵣ csaved.s1) ** (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+       (.x21 ↦ᵣ csaved.s5) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+       (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31 ** bytesRegion listBase headerBytes ** (helbOffAddr ↦ₘ oldOffset) **
+       (helbLenAddr ↦ₘ oldLen) ** HeaderFieldsSpec.savedFrame newSp fsaved **
+       bytesRegion outPtr outBytes)
+      (by unfold HeaderFieldsSpec.savedFrame; repeat' first
+        | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _
+        | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) htk
+    have htail := helbTail1 (1 : Word) newSp (helbBase + 64) listBase csaved.s1 outPtr fsaved
+      ((.x0 ↦ᵣ (0 : Word)) ** stackFree newSp 8 ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+       (.x21 ↦ᵣ csaved.s5) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+       (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31 ** bytesRegion listBase headerBytes ** (helbOffAddr ↦ₘ oldOffset) **
+       (helbLenAddr ↦ₘ oldLen) ** bytesRegion outPtr outBytes)
+      (by repeat' first
+        | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _
+        | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+    have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) htkF htail
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by
+        simp only [savedRegTail, hcs0, hcs2] at hp; xperm_chunked hp) (fun h hq => ?_) s)
+    refine ⟨(1 : Word), outBytes, oldOffset, oldLen,
+      (.x0 ↦ᵣ (0 : Word)) ** stackFree newSp 8 ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+      (.x21 ↦ᵣ csaved.s5) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+      (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** (helbOffAddr ↦ₘ oldOffset) ** (helbLenAddr ↦ₘ oldLen), ?_⟩
+    exact (sepConj_pure_right _).2 ⟨by xperm_chunked hq, Or.inr (Or.inr ⟨rfl, hFail⟩)⟩
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
