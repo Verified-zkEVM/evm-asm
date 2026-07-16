@@ -415,6 +415,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_bounded_missing_group" => some ziskMptBoundedMissingGroupProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
+  | "zisk_mpt_indexed_stream_leaf_hash" => some ziskMptIndexedStreamLeafHashProbeUnit
+  | "zisk_mpt_indexed_sort_changes" => some ziskMptIndexedSortChangesProbeUnit
+  | "zisk_mpt_indexed_trie_root_bounded" => some ziskMptIndexedTrieRootBoundedProbeUnit
+  | "zisk_mpt_indexed_trie_root_bounded_values" => some ziskMptIndexedTrieRootBoundedValuesProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit
   | "zisk_mpt_delete_acc"        => some ziskMptDeleteAccProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit

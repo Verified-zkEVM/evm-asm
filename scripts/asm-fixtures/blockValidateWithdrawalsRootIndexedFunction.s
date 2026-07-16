@@ -13,7 +13,7 @@ block_validate_withdrawals_root_indexed:
   bnez a0, .Lbvwri_header_fail
   # ---- Compute indexed withdrawals trie root ----
   mv a0, s2; mv a1, s3; la a2, bvwri_computed_root
-  jal ra, mpt_indexed_trie_root_small
+  jal ra, mpt_indexed_trie_root_bounded_from_values
   bnez a0, .Lbvwri_trie_fail
   la t0, bvwri_expected_root
   la t1, bvwri_computed_root
