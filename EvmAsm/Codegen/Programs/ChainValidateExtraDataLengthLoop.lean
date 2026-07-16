@@ -93,4 +93,125 @@ theorem cvedlSetup (hbi lenBase spC iW : Word) (Li : Nat)
 
 #print axioms cvedlSetup
 
+/-- K20's whole-routine step count for field index 12 (same as the template). -/
+abbrev nCall : Nat := (12 + ((85 + 93 * (12 + 2)) + 6)) + 9
+
+/-! ## Call block (instructions 18--33 + K20): setup ;; jal ;; selector
+
+    From the loop-guard fall-through (`C+72`) to the return site (`C+136`),
+    producing K20's `returnResult` for header `hbi` (field 12), with the spill
+    cells, the array cell, and the chain frame carried through unchanged. -/
+
+set_option maxRecDepth 8000 in
+theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
+    (s0 s3 s4 oldOff oldLen oldX1 old5 o10 o11 o12 o13 o14 o28 : Word)
+    (bytes : List (BitVec 8)) (csaved : Saved)
+    (hsalign : hbi.toNat % 8 = 0)
+    (hslack : Li + 9 ≤ bytes.length)
+    (hover : hbi.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (15 + 1 + nCall) (C + 72) (C + 136) fullCode
+      ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+        (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
+        (.x13 ↦ᵣ o13) ** (.x14 ↦ᵣ o14) ** (.x28 ↦ᵣ o28) **
+        memOwn IterPtr ** memOwn IterI **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+        (.x1 ↦ᵣ oldX1) ** (.x8 ↦ᵣ s0) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn listNthFrame (spC + signExtend12 (-64 : BitVec 12)) **
+        (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** bytesRegion hbi bytes **
+        savedFrame spC csaved)
+      (returnResult spC (spC + signExtend12 (-64 : BitVec 12)) hbi (12 : Word) COff CLen
+          oldOff oldLen ⟨LinkRA, s0, lenBase, hbi, s3, s4, iW⟩ bytes Li 12 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
+  set saved : Saved := ⟨LinkRA, s0, lenBase, hbi, s3, s4, iW⟩ with hsaved
+  set calleeNewSp : Word := spC + signExtend12 (-64 : BitVec 12) with hcalleeNewSp
+  -- Setup block, lifted to fullCode, framed with the callee footprint.
+  have hsetup := cpsTripleWithin_extend_code cvedl_mono
+    (cvedlSetup hbi lenBase spC iW Li old5 o10 o11 o12 o13 o14 o28)
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ oldX1) ** (.x8 ↦ᵣ s0) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn listNthFrame calleeNewSp **
+      (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** bytesRegion hbi bytes **
+      savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _) hsetup
+  -- [33] jal x1, rlp_list_nth_item
+  have hjal := jal_link_spec_within
+    (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.chain_validate_extra_data_length + 132)) (C + 132) oldX1
+  rw [show (C + 132) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.chain_validate_extra_data_length + 132)) = B from by decide,
+    show (C + 132 + 4 : Word) = LinkRA from by unfold LinkRA; bv_omega] at hjal
+  have hjalC := cpsTripleWithin_extend_code cvedl_mono
+    (cpsTripleWithin_extend_code (cr' := cvedlCode)
+      (CodeReq.ofProg_mem_at C (C + 132) cvedlProg 33
+        (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+          (GuestAddrs.chain_validate_extra_data_length + 132))) (by bv_omega)
+        (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) hjal)
+  have hjalF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+      (.x5 ↦ᵣ IterI) ** (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) **
+      (.x12 ↦ᵣ (12 : Word)) ** (.x13 ↦ᵣ COff) ** (.x14 ↦ᵣ CLen) **
+      (.x28 ↦ᵣ (lenBase + (iW <<< 3))) ** (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+      ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+      (.x8 ↦ᵣ s0) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn listNthFrame calleeNewSp **
+      (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** bytesRegion hbi bytes **
+      savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _) hjalC
+  -- K20 selector, lifted to fullCode, framed with the spill/array/chain payload.
+  have hcallee0 := rlpListNthItem_spec_within spC calleeNewSp hbi (BitVec.ofNat 64 Li)
+    (12 : Word) COff CLen oldOff oldLen saved bytes Li 12 rfl rfl (by decide) (by decide)
+    hsalign hslack hover hvalid (by simp only [hsaved]; decide)
+  have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
+  -- Present K20's entry footprint as explicit atoms (regsAt/entryRest unfolded,
+  -- `saved` fields reduced), with `x5`/`x28` shown owned.
+  have hcallee : cpsTripleWithin nCall B (C + 136) fullCode
+      (regOwn .x5 ** regOwn .x28 **
+        ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ LinkRA) ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ lenBase) **
+          (.x18 ↦ᵣ hbi) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ iW) **
+          frameSlotsOwn listNthFrame calleeNewSp ** (.x10 ↦ᵣ hbi) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 Li) ** (.x12 ↦ᵣ (12 : Word)) ** (.x13 ↦ᵣ COff) **
+          (.x14 ↦ᵣ CLen) ** regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion hbi bytes **
+          (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen)))
+      (returnResult spC calleeNewSp hbi (12 : Word) COff CLen oldOff oldLen saved
+        bytes Li 12) :=
+    cpsTripleWithin_weaken (fun h hp => by
+      rw [regsAt_listNthFrame]
+      simp only [hsaved]
+      unfold entryRest
+      xperm_hyp hp) (fun _ hq => hq) hcalleeC
+  have hcalleeF := cpsTripleWithin_frameR
+    ((IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+      ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_memIs) hcallee
+  -- Compose setup ;; jal ;; callee (weakening `x5`/`x28` to owned at the midpoint).
+  have hsj := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetupF hjalF
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => ?_) hsj hcalleeF)
+  have hp' : ((.x5 ↦ᵣ IterI) ** (.x28 ↦ᵣ (lenBase + (iW <<< 3))) **
+      ((.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) **
+        (.x21 ↦ᵣ iW) ** (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) **
+        (.x12 ↦ᵣ (12 : Word)) ** (.x13 ↦ᵣ COff) ** (.x14 ↦ᵣ CLen) **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** (.x8 ↦ᵣ s0) **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** regOwn .x6 ** regOwn .x7 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn listNthFrame calleeNewSp ** (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) **
+        bytesRegion hbi bytes ** savedFrame spC csaved)) h := by xperm_hyp hp
+  have hp'' := sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
+  xperm_hyp hp''
+
+#print axioms cvedlCall
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
