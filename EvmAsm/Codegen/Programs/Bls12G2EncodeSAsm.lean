@@ -815,8 +815,6 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     xperm_hyp hq2
   abi_frame (40 : BitVec 12) halign hbody
 
-#print axioms blsg2Encode_spec
-#print axioms blsgLeToBeFlat_spec
 
 end Bls12G2EncodeSAsm
 

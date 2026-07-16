@@ -1232,7 +1232,6 @@ theorem secfSubModP_spec
   exact cpsTripleWithin_weaken (fun _ hp => by rw [hnewSp]; xperm_hyp hp)
     (fun _ hq => by rw [hnewSp]; xperm_hyp hq) h1234
 
-#print axioms secfSubModP_spec
 
 end Secp256k1FieldSubModPSAsm
 

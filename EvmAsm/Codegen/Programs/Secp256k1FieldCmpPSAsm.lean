@@ -935,7 +935,6 @@ theorem secfCmpP_spec (inPtr outPtr ret : Word) (xs : List (BitVec 8))
     (fun h hq => by unfold cmpPost at hq; exact hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc3)
 
-#print axioms secfCmpP_spec
 
 end Secp256k1FieldCmpPSAsm
 

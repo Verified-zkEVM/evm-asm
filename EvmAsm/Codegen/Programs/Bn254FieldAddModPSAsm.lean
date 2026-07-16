@@ -734,10 +734,6 @@ theorem bnfAddModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
     (hsub := by code_mem)
     (hbody := hbody)
 
-#print axioms bnfBeToLeFlat_spec
-#print axioms bnfLeToBeFlat_spec
-#print axioms csrsStep_spec
-#print axioms bnfAddModP_spec
 
 end Bn254FieldAddModPSAsm
 

@@ -261,7 +261,6 @@ theorem p256IsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       refine ⟨?_, hlen, hptr⟩
       rw [hx10rf, isZeroNResult, if_pos heq]
 
-#print axioms p256IsZeroNFn_spec
 
 end P256IsZeroNSAsm
 end EvmAsm.Codegen
