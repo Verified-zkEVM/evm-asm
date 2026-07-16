@@ -155,9 +155,5 @@ theorem _root_.EvmAsm.Rv64.CodeReq.Disjoint.ofProg_ranges (base1 base2 : Word)
     intro k hk heq
     exact h1 ⟨k, hk, heq⟩
 
-#print axioms twoExitRetLoop_spec
-#print axioms twoExitRetLoopBottom_spec
-#print axioms bytesRegion_ld_cursor_imm_within
-#print axioms EvmAsm.Rv64.CodeReq.Disjoint.ofProg_ranges
 
 end EvmAsm.Rv64.SAsm

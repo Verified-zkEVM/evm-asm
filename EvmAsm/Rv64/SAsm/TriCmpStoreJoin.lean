@@ -142,7 +142,5 @@ theorem triCmpStoreJoin_spec {nA nB m : Nat}
     (fun hnLt => breakStation_spec (hbrB hnLt) hentBT hentBF
       (htailGt hnLt) (hcont hnLt))
 
-#print axioms liStoreRetTail_spec
-#print axioms triCmpStoreJoin_spec
 
 end EvmAsm.Rv64.SAsm
