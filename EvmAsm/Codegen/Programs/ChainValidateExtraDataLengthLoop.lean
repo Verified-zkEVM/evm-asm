@@ -412,4 +412,99 @@ theorem cvedlCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
 
 #print axioms cvedlCallOwned
 
+/-! ## Entry half of one iteration: guard → call → K20 returnResult
+
+    From the loop guard (`C+68`, `i < N`) through the `jal` to K20's return
+    (`C+136`), with the header slice handed to K20 and the untouched
+    `wordArray`/`bytesRegion` prefixes framed. -/
+
+set_option maxRecDepth 8000 in
+theorem cvedlIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (i : Nat)
+    (oldOff oldLen : Word)
+    (hi : i < lengths.length)
+    (hN : lengths.length < 2 ^ 64)
+    (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
+    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hover : (hdrBaseAt hdrBase lengths i).toNat +
+      (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (15 + 1 + nCall)) (C + 68) (C + 136) fullCode
+      ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
+        (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 i) ** savedFrame spC csaved **
+        (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+        wordArrayFrom lenBase 0 (lengths.take i) **
+        ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+        wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+        bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+        bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+        (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** memOwn IterPtr ** memOwn IterI **
+        regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn listNthFrame (spC + signExtend12 (-64 : BitVec 12)))
+      (returnResult spC (spC + signExtend12 (-64 : BitVec 12)) (hdrBaseAt hdrBase lengths i)
+          (12 : Word) COff CLen oldOff oldLen
+          ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase, hdrBaseAt hdrBase lengths i,
+            validPtr, firstBadPtr, BitVec.ofNat 64 i⟩
+          (bigBytes.drop (hdrOff lengths i)) lengths[i]! 12 **
+        (IterPtr ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
+        ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+        wordArrayFrom lenBase 0 (lengths.take i) **
+        wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+        bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+        (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+        savedFrame spC csaved) := by
+  -- [17] BEQ x21 x8 : i ≠ N ⇒ not taken → C+72.
+  have hbeq := beq_spec_gen_within .x21 .x8 (168 : BitVec 13) (BitVec.ofNat 64 i)
+    (BitVec.ofNat 64 lengths.length) (C + 68)
+  have hbeqC := cpsBranchWithin_extend_code cvedl_mono
+    (cpsBranchWithin_extend_code (cr' := cvedlCode)
+      (CodeReq.ofProg_mem_at C (C + 68) cvedlProg 17 (.BEQ .x21 .x8 (168 : BitVec 13))
+        (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) hbeq)
+  have hguard0 := cpsBranchWithin_ntakenStripPure2 hbeqC (fun hp hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact ofNat_ne_of_lt i lengths.length hi hN ((sepConj_pure_right _).1 hrest).2)
+  rw [show (C + 68 + 4 : Word) = C + 72 from by bv_omega] at hguard0
+  -- Frame the guard with the untouched loop-invariant state (everything but x21/x8).
+  have hguardF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) **
+      (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** savedFrame spC csaved **
+      (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+      wordArrayFrom lenBase 0 (lengths.take i) **
+      ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+      (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** memOwn IterPtr ** memOwn IterI **
+      regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn listNthFrame (spC + signExtend12 (-64 : BitVec 12)))
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _
+                      | exact pcFree_wordArrayFrom _ _ _) hguard0
+  -- The call, framed with the untouched wordArray/bytesRegion prefixes.
+  have hcall := cvedlCallOwned (hdrBaseAt hdrBase lengths i) lenBase spC (BitVec.ofNat 64 i)
+    lengths[i]! (BitVec.ofNat 64 lengths.length) validPtr firstBadPtr oldOff oldLen
+    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack hover hvalid
+  have hcallF := cpsTripleWithin_frameR
+    (wordArrayFrom lenBase 0 (lengths.take i) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)))
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_wordArrayFrom _ _ _
+                      | exact bytesRegion_pcFree _ _ | exact pcFree_memIs) hcall
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => by
+      rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i] at hq
+      xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
+      xperm_hyp hp) hguardF hcallF)
+
+#print axioms cvedlIterEntry
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
