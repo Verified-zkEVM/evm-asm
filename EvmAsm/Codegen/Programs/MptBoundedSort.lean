@@ -544,7 +544,7 @@ def mptBoundedSplitExtensionFunction : String :=
   ".Lmbse_suffix_ready:\n" ++
   "  sd s7, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); ld t0, 72(sp); sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld t0, 80(sp); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); mv a0, s0; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; bnez a0, .Lmbse_fail; j .Lmbse_old_store\n" ++
   ".Lmbse_old_direct:\n" ++
-  "  la t0, bsr_builder_result_ref; ld t1, 72(sp); ld t2, 80(sp); sd t2, 0(t0); addi t0, t0, 8\n" ++
+  "  la t0, bsr_builder_result_len; ld t1, 72(sp); ld t2, 80(sp); sd t2, 0(t0); la t0, bsr_builder_result_ref\n" ++
   ".Lmbse_old_direct_copy:\n" ++
   "  beqz t2, .Lmbse_old_store; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbse_old_direct_copy\n" ++
   ".Lmbse_old_store:\n" ++
