@@ -84,6 +84,7 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
@@ -530,3 +531,9 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoop
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsSpec
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoop
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersSpec
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
