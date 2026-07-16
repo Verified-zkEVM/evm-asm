@@ -179,4 +179,145 @@ theorem cvbgumAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
 theorem lengths_getElem_bang {lengths : List Nat} {i : Nat} (hi : i < lengths.length) :
     lengths[i]! = lengths[i] := getElem!_pos lengths i hi
 
+/-! ## Call block (instructions 18--31 + K34): setup ;; jal ;; rlp_field_to_u64
+
+    From the loop-guard fall-through (`D+72`) to the return site (`D+128`),
+    producing K34's `flatPost` for header `hbi` (field 17), with the spill
+    cells, the array cell, and the chain frame carried through unchanged. -/
+
+/-- K34's whole-routine step count for field index 17 (matching the flat
+    spec's `((7 + 4 + callSteps) + ((1 + tailSteps) + 5))` with `index = 17`). -/
+abbrev nCall : Nat :=
+  (7 + 4 + (1 + ((12 + ((85 + 93 * (17 + 2)) + 6)) + 9)))
+    + ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5)
+
+set_option maxRecDepth 8000 in
+theorem cvbgumCall (hbi lenBase spC iW : Word) (Li : Nat)
+    (nN s3 s4 oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o28 : Word)
+    (bytes : List (BitVec 8)) (csaved : Saved)
+    (hsalign : hbi.toNat % 8 = 0)
+    (hslack : Li + 9 ≤ bytes.length)
+    (hover : hbi.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (13 + 1 + nCall) (D + 72) (D + 128) fullCode
+      ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+        (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
+        (.x13 ↦ᵣ o13) ** (.x28 ↦ᵣ o28) **
+        memOwn IterPtr ** memOwn IterI **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+        (.x1 ↦ᵣ oldX1) ** (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x14 ↦ᵣ old14) ** regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+        (Field ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+        bytesRegion hbi bytes ** savedFrame spC csaved)
+      ((.x1 ↦ᵣ LinkRA) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Field, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 17 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
+  set calleeNewSp : Word := spC + signExtend12 (-32 : BitVec 12) with hcalleeNewSp
+  -- Setup block, lifted to fullCode, framed with the callee footprint.
+  have hsetup := cpsTripleWithin_extend_code cvbgum_mono
+    (cvbgumSetup hbi lenBase spC iW Li old5 o10 o11 o12 o13 o28)
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ oldX1) ** (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      (.x14 ↦ᵣ old14) ** regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+      stackFree calleeNewSp 8 **
+      (Field ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+      bytesRegion hbi bytes ** savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact pcFree_stackFree _ _
+                      | exact bytesRegion_pcFree _ _) hsetup
+  -- [31] jal x1, rlp_field_to_u64
+  have hjal := jal_link_spec_within
+    (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+      (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)) (D + 124) oldX1
+  rw [show (D + 124) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+      (GuestAddrs.chain_validate_blob_gas_used_under_max + 124))
+      = EvmAsm.Codegen.RlpFieldToU64SAsm.B from by decide,
+    show (D + 124 + 4 : Word) = LinkRA from by
+      change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
+  have hjalC := cpsTripleWithin_extend_code cvbgum_mono
+    (cpsTripleWithin_extend_code (cr' := cvbgumCode)
+      (CodeReq.ofProg_mem_at D (D + 124) cvbgumProg 31
+        (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+          (GuestAddrs.chain_validate_blob_gas_used_under_max + 124))) (by bv_omega)
+        (by rw [cvbgum_length]; decide) rfl (by rw [cvbgum_length]; decide)) hjal)
+  have hjalF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+      (.x5 ↦ᵣ IterI) ** (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) **
+      (.x12 ↦ᵣ (17 : Word)) ** (.x13 ↦ᵣ Field) **
+      (.x28 ↦ᵣ (lenBase + (iW <<< 3))) ** (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+      ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+      (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x14 ↦ᵣ old14) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+      stackFree calleeNewSp 8 **
+      (Field ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+      bytesRegion hbi bytes ** savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact pcFree_stackFree _ _
+                      | exact bytesRegion_pcFree _ _) hjalC
+  -- K34 flat callee, lifted to fullCode, framed with the spill/array/chain payload.
+  have hcallee0 := EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_flat_spec_within
+    spC calleeNewSp hbi (BitVec.ofNat 64 Li) (17 : Word) Field oldOut oldOff oldLen old14
+    (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) hbi s3 s4 iW bytes Li 17
+    hcalleeNewSp rfl (by decide) (by decide)
+    hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+  have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
+  -- Present K34's entry footprint as explicit atoms, with `x5`/`x28` shown owned.
+  have hcallee : cpsTripleWithin nCall EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA fullCode
+      (regOwn .x5 ** regOwn .x28 **
+        ((.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
+          (.x18 ↦ᵣ hbi) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ iW) **
+          (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) ** (.x12 ↦ᵣ (17 : Word)) **
+          (.x13 ↦ᵣ Field) ** (.x14 ↦ᵣ old14) ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+          stackFree calleeNewSp 8 ** bytesRegion hbi bytes **
+          (Field ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen)))
+      ((.x1 ↦ᵣ LinkRA) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC calleeNewSp hbi oldOff oldLen
+          (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Field, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 17) :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatPre EvmAsm.Codegen.RlpFieldToU64SAsm.wholeRest
+      xperm_hyp hp) (fun _ hq => hq) hcalleeC
+  have hcalleeF := cpsTripleWithin_frameR
+    ((IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+      ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_memIs) hcallee
+  -- Compose setup ;; jal ;; callee (weakening `x5`/`x28` to owned at the midpoint).
+  have hsj := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetupF hjalF
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => ?_) hsj hcalleeF)
+  have hp' : ((.x5 ↦ᵣ IterI) ** (.x28 ↦ᵣ (lenBase + (iW <<< 3))) **
+      ((.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hbi) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ iW) **
+        (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) ** (.x12 ↦ᵣ (17 : Word)) **
+        (.x13 ↦ᵣ Field) ** (.x14 ↦ᵣ old14) ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+        stackFree calleeNewSp 8 ** bytesRegion hbi bytes **
+        (Field ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved)) h := by
+    xperm_hyp hp
+  have hp'' := sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
+  xperm_hyp hp''
+
+#print axioms cvbgumCall
+
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
