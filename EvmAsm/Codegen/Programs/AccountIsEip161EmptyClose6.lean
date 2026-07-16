@@ -581,4 +581,100 @@ theorem aieField1Cont
 
 #print axioms aieField1Cont
 
+/-! ## Field-0 (nonce) size-check head ([18]-[22], `AB+72 → {AB+396, AB+92}`) -/
+
+set_option maxRecDepth 8000 in
+theorem aieField0SizeHead (v5 v6 v7 len : Word) :
+    cpsBranchWithin 5 (AB + 72) fullCode
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (LenA ↦ₘ len))
+      (AB + 396)
+        ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) **
+          (LenA ↦ₘ len) ** ⌜BitVec.ult (8 : Word) len⌝)
+      (AB + 92)
+        ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (8 : Word)) **
+          (LenA ↦ₘ len) ** ⌜¬ BitVec.ult (8 : Word) len⌝) := by
+  have hau18 := CodeReq.ofProg_mem_at AB (AB + 72) accountIsEip161Empty_prog 18
+    (.AUIPC .x5 (EvmAsm.Codegen.laHi GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 72))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had19 := CodeReq.ofProg_mem_at AB (AB + 76) accountIsEip161Empty_prog 19
+    (.ADDI .x5 .x5 (EvmAsm.Codegen.laLo GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 72))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h19 := EvmAsm.Rv64.la_materialize_within .x5 v5 (AB + 72) LenA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau18 a i hi))
+    (fun a i hi => aie_mono a i (had19 a i hi))
+  have f19 := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (LenA ↦ₘ len)) (by pcfR) h19
+  have h20 := ld_spec_gen_within .x6 .x5 LenA v6 len (0 : BitVec 12) (AB + 80) (by decide)
+  rw [show LenA + signExtend12 (0 : BitVec 12) = LenA from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h20
+  have e20 := cpsTripleWithin_extend_code (aieFC 20, (AB + 80), (.LD .x6 .x5 (0 : BitVec 12))) h20
+  have f20 := cpsTripleWithin_frameR ((.x7 ↦ᵣ v7)) (by pcfR) e20
+  have h21 := li_spec_gen_within .x7 v7 (8 : Word) (AB + 84) (by decide)
+  have e21 := cpsTripleWithin_extend_code (aieFC 21, (AB + 84), (.LI .x7 (8 : Word))) h21
+  have f21 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (LenA ↦ₘ len)) (by pcfR) e21
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f19 f20
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f21
+  have hbltu := bltu_spec_gen_within .x7 .x6 (308 : BitVec 13) (8 : Word) len (AB + 88)
+  rw [show (AB + 88 : Word) + signExtend13 (308 : BitVec 13) = AB + 396 from by
+      rw [show signExtend13 (308 : BitVec 13) = (308 : Word) from by decide]; bv_omega,
+    show (AB + 88 : Word) + 4 = AB + 92 from by bv_omega] at hbltu
+  have ebltu := cpsBranchWithin_extend_code
+    (aieFC 22, (AB + 88), (.BLTU .x7 .x6 (308 : BitVec 13))) hbltu
+  have fbltu := cpsBranchWithin_frameR
+    ((.x5 ↦ᵣ LenA) ** (LenA ↦ₘ len)) (by pcfR) ebltu
+  have hbr := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) s2 fbltu
+  refine cpsBranchWithin_mono_nSteps (by omega)
+    (cpsBranchWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) hbr)
+
+#print axioms aieField0SizeHead
+
+/-! ## Field-0 (nonce) content-pointer setup ([23]-[27], `AB+92 → AB+112`) -/
+
+set_option maxRecDepth 8000 in
+theorem aieField0PtrSetup (v5 accBase v28 v7 offset : Word) :
+    cpsTripleWithin 5 (AB + 92) (AB + 112) fullCode
+      ((.x5 ↦ᵣ v5) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ v28) ** (.x7 ↦ᵣ v7) ** (OffA ↦ₘ offset))
+      ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ (accBase + offset)) **
+        (.x7 ↦ᵣ (0 : Word)) ** (OffA ↦ₘ offset)) := by
+  have hau23 := CodeReq.ofProg_mem_at AB (AB + 92) accountIsEip161Empty_prog 23
+    (.AUIPC .x5 (EvmAsm.Codegen.laHi GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 92))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had24 := CodeReq.ofProg_mem_at AB (AB + 96) accountIsEip161Empty_prog 24
+    (.ADDI .x5 .x5 (EvmAsm.Codegen.laLo GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 92))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h24 := EvmAsm.Rv64.la_materialize_within .x5 v5 (AB + 92) OffA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau23 a i hi))
+    (fun a i hi => aie_mono a i (had24 a i hi))
+  have f24 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ v28) ** (.x7 ↦ᵣ v7) ** (OffA ↦ₘ offset)) (by pcfR) h24
+  have h25 := ld_spec_gen_within .x28 .x5 OffA v28 offset (0 : BitVec 12) (AB + 100) (by decide)
+  rw [show OffA + signExtend12 (0 : BitVec 12) = OffA from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h25
+  have e25 := cpsTripleWithin_extend_code (aieFC 25, (AB + 100), (.LD .x28 .x5 (0 : BitVec 12))) h25
+  have f25 := cpsTripleWithin_frameR ((.x8 ↦ᵣ accBase) ** (.x7 ↦ᵣ v7)) (by pcfR) e25
+  have h26 := add_spec_gen_rd_eq_rs2_within .x28 .x8 accBase offset (AB + 104) (by decide)
+  have e26 := cpsTripleWithin_extend_code (aieFC 26, (AB + 104), (.ADD .x28 .x8 .x28)) h26
+  have f26 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ OffA) ** (.x7 ↦ᵣ v7) ** (OffA ↦ₘ offset)) (by pcfR) e26
+  have h27 := li_spec_gen_within .x7 v7 (0 : Word) (AB + 108) (by decide)
+  have e27 := cpsTripleWithin_extend_code (aieFC 27, (AB + 108), (.LI .x7 (0 : Word))) h27
+  have f27 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ (accBase + offset)) ** (OffA ↦ₘ offset))
+    (by pcfR) e27
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f24 f25
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f26
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s2 f27
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s3)
+
+#print axioms aieField0PtrSetup
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
