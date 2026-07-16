@@ -23,6 +23,18 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
 
 set_option maxRecDepth 8000
 
+/-- Discharge a `.pcFree` side goal over frames of `bytesRegion`/`regIs`/`memIs`
+    cells. -/
+local macro "pcfR" : tactic =>
+  `(tactic| repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+    | pcFree)
+
 /-! ## Empty-code-hash constant region facts
 
     `ECB = aie_empty_code_hash = 0xa3000ce0` sits in the RAM window and is
@@ -111,5 +123,73 @@ def aiePost (sp0 spA raIn c8 c9 c18 newSp accBase outPtr : Word)
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
       aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ a0) ** (outPtr ↦ₘ outVal) **
       aieJunk newSp accBase bytes ** ⌜aieOutcome bytes accBase listLen a0 outVal⌝) h
+
+/-! ## Field-3 (code_hash) size-check head ([69]-[73], `AB+276 → {AB+404, AB+296}`)
+
+    `la x5 = aie_length ;; LD x6 = len ;; LI x7 = 32 ;; BNE x6, x7`.  A code-hash
+    length `≠ 32` branches to the size-fail verdict `AB+404`; length `= 32`
+    falls to the content-pointer setup at `AB+296`. -/
+
+/-- `k`-th instruction membership into the full closure `fullCode`. -/
+local macro "aieFC" k:term ", " A:term ", " ins:term : term =>
+  `((fun a i hi => aie_mono a i
+      (CodeReq.ofProg_mem_at AB $A accountIsEip161Empty_prog $k $ins (by bv_omega)
+        (by rw [aie_prog_length]; omega) rfl (by rw [aie_prog_length]; norm_num) a i hi)))
+
+set_option maxRecDepth 8000 in
+theorem aieField3SizeHead (v5 v6 v7 len3 : Word) :
+    cpsBranchWithin 5 (AB + 276) fullCode
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (LenA ↦ₘ len3))
+      (AB + 404)
+        ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len3) ** (.x7 ↦ᵣ (32 : Word)) **
+          (LenA ↦ₘ len3) ** ⌜len3 ≠ (32 : Word)⌝)
+      (AB + 296)
+        ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len3) ** (.x7 ↦ᵣ (32 : Word)) **
+          (LenA ↦ₘ len3) ** ⌜len3 = (32 : Word)⌝) := by
+  -- [69-70] la x5 = aie_length
+  have hau69 := CodeReq.ofProg_mem_at AB (AB + 276) accountIsEip161Empty_prog 69
+    (.AUIPC .x5 (EvmAsm.Codegen.laHi GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 276))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had70 := CodeReq.ofProg_mem_at AB (AB + 280) accountIsEip161Empty_prog 70
+    (.ADDI .x5 .x5 (EvmAsm.Codegen.laLo GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 276))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h70 := EvmAsm.Rv64.la_materialize_within .x5 v5 (AB + 276) LenA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau69 a i hi))
+    (fun a i hi => aie_mono a i (had70 a i hi))
+  have f70 := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (LenA ↦ₘ len3)) (by pcfR) h70
+  -- [71] LD x6 x5 0 : x6 := len3
+  have h71 := ld_spec_gen_within .x6 .x5 LenA v6 len3 (0 : BitVec 12) (AB + 284) (by decide)
+  rw [show LenA + signExtend12 (0 : BitVec 12) = LenA from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h71
+  have e71 := cpsTripleWithin_extend_code (aieFC 71, (AB + 284), (.LD .x6 .x5 (0 : BitVec 12))) h71
+  have f71 := cpsTripleWithin_frameR ((.x7 ↦ᵣ v7)) (by pcfR) e71
+  -- [72] LI x7 32
+  have h72 := li_spec_gen_within .x7 v7 (32 : Word) (AB + 288) (by decide)
+  have e72 := cpsTripleWithin_extend_code (aieFC 72, (AB + 288), (.LI .x7 (32 : Word))) h72
+  have f72 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len3) ** (LenA ↦ₘ len3)) (by pcfR) e72
+  -- compose the four straight steps AB+276 → AB+292
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f70 f71
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f72
+  -- [73] BNE x6, x7 : len3 ≠ 32 → AB+404 ; len3 = 32 → AB+296
+  have hbne := bne_spec_gen_within .x6 .x7 (112 : BitVec 13) len3 (32 : Word) (AB + 292)
+  rw [show (AB + 292 : Word) + signExtend13 (112 : BitVec 13) = AB + 404 from by
+      rw [show signExtend13 (112 : BitVec 13) = (112 : Word) from by decide]; bv_omega,
+    show (AB + 292 : Word) + 4 = AB + 296 from by bv_omega] at hbne
+  have ebne := cpsBranchWithin_extend_code
+    (aieFC 73, (AB + 292), (.BNE .x6 .x7 (112 : BitVec 13))) hbne
+  have fbne := cpsBranchWithin_frameR
+    ((.x5 ↦ᵣ LenA) ** (LenA ↦ₘ len3)) (by pcfR) ebne
+  -- glue: straight ;; branch
+  have hbr := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) s2 fbne
+  refine cpsBranchWithin_mono_nSteps (by omega)
+    (cpsBranchWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) hbr)
+
+#print axioms aieField3SizeHead
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
