@@ -98,8 +98,7 @@ def wdWholePost (sp0 spW wra cs0 cs1 cs2 outBase listBase s3 s4 s5 : Word)
     two shapes hold the same 12 owned cells. -/
 
 /-- Assemble a K34 field call's reclaimed scratch back into `stackFree spW 12`. -/
-theorem wdStack12_of_k34 (sp0 spW newSp : Word)
-    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+theorem wdStack12_of_k34 (spW newSp : Word)
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12)) : ∀ h,
     (memOwn (spW - BitVec.ofNat 64 8) **
      frameSlotsOwn frame newSp ** stackFree newSp 8) h →
@@ -140,6 +139,20 @@ theorem wdStack12_of_k34 (sp0 spW newSp : Word)
   xperm_hyp hp
 
 #print axioms wdStack12_of_k34
+
+/-- The K34 boundary reconcile absorbing the saved frame: a K34 field call's
+    `savedFrame` (3 saved slots) plus its `stackFree newSp 8` and the framed-off
+    top cell reassemble into `stackFree spW 12`. -/
+theorem wdStack12_of_k34_saved (spW newSp : Word) (outer : Saved)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12)) : ∀ h,
+    (memOwn (spW - BitVec.ofNat 64 8) **
+     savedFrame newSp outer ** stackFree newSp 8) h →
+    stackFree spW 12 h := by
+  intro h hp
+  refine wdStack12_of_k34 spW newSp hnewSp h ?_
+  exact sepConj_mono_right (sepConj_mono_left (savedFrameK34_own newSp outer)) h hp
+
+#print axioms wdStack12_of_k34_saved
 
 /-- Carve a K34 field call's scratch shape out of `stackFree spW 12` (the reverse
     of `wdStack12_of_k34`, used on the continue/forward path). -/
