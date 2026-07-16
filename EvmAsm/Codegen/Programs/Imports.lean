@@ -525,3 +525,4 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoop
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsSpec
