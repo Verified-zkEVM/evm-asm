@@ -3048,6 +3048,68 @@ theorem seps_permute (l : List Assertion) (σ : List Nat)
       = seps ((List.range l.length).map (fun i => l.getD i empAssertion)) := by rw [hrec]
     _ = seps (σ.map (fun i => l.getD i empAssertion)) := seps_perm hp
 
+/-- XOR-clearing bitmask permutation checker: `mask` holds the still-unused
+    indices as set bits; each visited index must have its bit set (else a
+    duplicate or out-of-range index) and is cleared; success means the run
+    ends with every bit consumed.
+
+    This is the kernel-cheap replacement for deciding
+    `σ.Perm (List.range n)` directly: reducing the `List.Perm` `Decidable`
+    instance costs ~500ms at 83 atoms and overflows the recursion depth near
+    200, while this checker is n GMP bit-operations (~7ms at n = 83). -/
+def permCheckGo (mask : Nat) : List Nat → Bool
+  | [] => mask == 0
+  | i :: rest => mask.testBit i && permCheckGo (mask ^^^ (1 <<< i)) rest
+
+/-- `permCheck σ n = true` iff `σ` is a permutation of `[0, …, n)`
+    (see `perm_range_of_permCheck`). Kernel-reduces in O(n) GMP bit ops. -/
+def permCheck (σ : List Nat) (n : Nat) : Bool :=
+  permCheckGo ((1 <<< n) - 1) σ
+
+/-- Count invariant for `permCheckGo`: a successful run means each index `j`
+    occurs in `σ` exactly once if `j`'s bit is set in `mask`, never otherwise. -/
+theorem count_of_permCheckGo (σ : List Nat) (mask : Nat)
+    (h : permCheckGo mask σ = true) (j : Nat) :
+    σ.count j = if mask.testBit j then 1 else 0 := by
+  induction σ generalizing mask with
+  | nil =>
+    simp only [permCheckGo, Nat.beq_eq_true_eq] at h
+    subst h
+    simp [Nat.zero_testBit]
+  | cons i rest ih =>
+    simp only [permCheckGo, Bool.and_eq_true] at h
+    obtain ⟨hbit, hrest⟩ := h
+    have hcnt := ih (mask ^^^ (1 <<< i)) hrest
+    rw [List.count_cons, hcnt]
+    by_cases hji : j = i
+    · subst hji
+      simp [Nat.testBit_xor, Nat.shiftLeft_eq, Nat.testBit_two_pow_self, hbit]
+    · have : (1 <<< i).testBit j = false := by
+        rw [Nat.shiftLeft_eq, Nat.one_mul]
+        exact Nat.testBit_two_pow_of_ne (fun hh => hji hh.symm)
+      simp [Nat.testBit_xor, this, Ne.symm hji]
+
+/-- Soundness of `permCheck`: the certificate's side condition really is
+    `σ.Perm (List.range n)`. Proved once here so per-proof certificates only
+    pay the O(n) `decide` on the `Bool` checker. -/
+theorem perm_range_of_permCheck (σ : List Nat) (n : Nat)
+    (h : permCheck σ n = true) : σ.Perm (List.range n) := by
+  rw [List.perm_iff_count]
+  intro j
+  rw [count_of_permCheckGo σ _ h j, List.count_range]
+  have : ((1 <<< n) - 1).testBit j = decide (j < n) := by
+    rw [Nat.shiftLeft_eq, Nat.one_mul]
+    exact Nat.testBit_two_pow_sub_one n j
+  rw [this]
+  by_cases hj : j < n <;> simp [hj]
+
+/-- `seps_permute` with the kernel-cheap `permCheck` side condition. This is
+    the certificate lemma `buildPermProofCert` actually applies. -/
+theorem seps_permute_check (l : List Assertion) (σ : List Nat)
+    (h : permCheck σ l.length = true) :
+    seps l = seps (σ.map (fun i => l.getD i empAssertion)) :=
+  seps_permute l σ (perm_range_of_permCheck σ l.length h)
+
 /-- `sep_perm h` closes a goal of the form `(A₁ ** ... ** Aₙ) s` given a hypothesis `h`
     that is a permutation of the same assertions applied to the same state.
     Works by proving assertion equality via `ac_rfl` and transporting with `congrFun`.
