@@ -571,4 +571,80 @@ theorem savedFrameK34_own (newSp : Word) (saved : Saved) :
 
 #print axioms savedFrameK34_own
 
+/-! ## Return-edge tails: dispatch exit ;; status store ;; epilogue
+
+    Both the common failure tail ([53], `WB+212`) and the success tail
+    ([51]-[52], `WB+204`) fall into the shared epilogue core ([54]-[59]).  These
+    two lemmas stitch each status-store tail to `wdEpiCore`, generic over the
+    caller's remaining footprint `G0`. -/
+
+set_option maxRecDepth 8000 in
+/-- Failure edge `WB+212 → raIn`: store `a0 := 1` and run the epilogue. -/
+theorem wdFailEpi
+    (sp0 spW raIn s0Old s1Old s2Old x1old x8old x9old x18old v10old : Word)
+    (G0 : Assertion) (hG0 : G0.pcFree)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 7 (WB + 212) raIn fullCode
+      (((.x10 : Reg) ↦ᵣ v10old) **
+       ((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0)
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) **
+       ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0) := by
+  have hft := wdFailTail v10old
+    (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+      (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0)
+    (by
+      repeat' first
+        | exact hG0
+        | exact pcFree_regIs
+        | exact pcFree_memIs
+        | apply pcFree_sepConj)
+  have hepi := wdEpiCore sp0 spW raIn s0Old s1Old s2Old x1old x8old x9old x18old
+    (((.x10 : Reg) ↦ᵣ (1 : Word)) ** G0)
+    (by exact pcFree_sepConj pcFree_regIs hG0) hspW hret
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hft hepi)
+
+#print axioms wdFailEpi
+
+set_option maxRecDepth 8000 in
+/-- Success edge `WB+204 → raIn`: store `a0 := 0`, jump to the epilogue, and
+    run it. -/
+theorem wdSuccessEpi
+    (sp0 spW raIn s0Old s1Old s2Old x1old x8old x9old x18old v10old : Word)
+    (G0 : Assertion) (hG0 : G0.pcFree)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 8 (WB + 204) raIn fullCode
+      (((.x10 : Reg) ↦ᵣ v10old) **
+       ((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0) := by
+  have hst := wdSuccessTail v10old
+    (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+      (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G0)
+    (by
+      repeat' first
+        | exact hG0
+        | exact pcFree_regIs
+        | exact pcFree_memIs
+        | apply pcFree_sepConj)
+  have hepi := wdEpiCore sp0 spW raIn s0Old s1Old s2Old x1old x8old x9old x18old
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** G0)
+    (by exact pcFree_sepConj pcFree_regIs hG0) hspW hret
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hst hepi)
+
+#print axioms wdSuccessEpi
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
