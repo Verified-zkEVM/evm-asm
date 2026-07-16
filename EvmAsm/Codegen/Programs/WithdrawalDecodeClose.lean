@@ -288,4 +288,52 @@ theorem wdEpiCore
 
 #print axioms wdEpiCore
 
+/-! ## Status-return tails ([51]-[52] success, [53] failure) -/
+
+set_option maxRecDepth 8000 in
+/-- Success tail [51]-[52]: set `a0 := 0` and jump over the failure store to the
+    epilogue entry (`WB+216`).  Generic over the untouched frame `G`. -/
+theorem wdSuccessTail (v10old : Word) (G : Assertion) (hG : G.pcFree) :
+    cpsTripleWithin 2 (WB + 204) (WB + 216) fullCode
+      (((.x10 : Reg) ↦ᵣ v10old) ** G)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** G) := by
+  -- [51] LI x10 0
+  have h0 := li_spec_gen_within .x10 v10old (0 : Word) (WB + 204) (by decide)
+  have h0' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 204) withdrawalDecode_prog 51
+        (.LI .x10 (0 : Word)) (by bv_omega) (by rw [wd_length]; decide) rfl
+        (by rw [wd_length]; decide)) h0)
+  -- [52] JAL x0 8 : jump to WB+216 (preserves the whole footprint)
+  have h1 := jal0_spec_pcFree (P := ((.x10 : Reg) ↦ᵣ (0 : Word)) ** G) (8 : BitVec 21)
+    (WB + 208) (pcFree_sepConj pcFree_regIs hG)
+  rw [show WB + 208 + signExtend21 (8 : BitVec 21) = WB + 216 from by decide] at h1
+  have h1' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 208) withdrawalDecode_prog 52
+        (.JAL .x0 (8 : BitVec 21)) (by bv_omega) (by rw [wd_length]; decide) rfl
+        (by rw [wd_length]; decide)) h1)
+  have f0 := cpsTripleWithin_frameR G hG h0'
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 h1'
+
+#print axioms wdSuccessTail
+
+set_option maxRecDepth 8000 in
+/-- Failure tail [53]: set `a0 := 1` and fall through to the epilogue entry
+    (`WB+216`).  Generic over the untouched frame `G`. -/
+theorem wdFailTail (v10old : Word) (G : Assertion) (hG : G.pcFree) :
+    cpsTripleWithin 1 (WB + 212) (WB + 216) fullCode
+      (((.x10 : Reg) ↦ᵣ v10old) ** G)
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** G) := by
+  have h0 := li_spec_gen_within .x10 v10old (1 : Word) (WB + 212) (by decide)
+  rw [show (WB + 212 : Word) + 4 = WB + 216 from by bv_omega] at h0
+  have h0' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 212) withdrawalDecode_prog 53
+        (.LI .x10 (1 : Word)) (by bv_omega) (by rw [wd_length]; decide) rfl
+        (by rw [wd_length]; decide)) h0)
+  exact cpsTripleWithin_frameR G hG h0'
+
+#print axioms wdFailTail
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
