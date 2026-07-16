@@ -319,7 +319,6 @@ theorem hfStageRec {code : CodeReq} {nCont : Nat}
       (fun _ h => h) (cpsTripleWithin_or_pre hOK hFAIL)
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hfStageRec
 
 set_option maxRecDepth 8000 in
 /-- Generic selecting walk stage (the final field walk).  Walk-call at `entryPC`,
@@ -562,6 +561,5 @@ theorem hfStageSel {code : CodeReq} {nTail : Nat}
       (fun _ h => h) (cpsTripleWithin_or_pre hOK hFAIL)
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hfStageSel
 
 end EvmAsm.Codegen.HeaderFieldsSpec

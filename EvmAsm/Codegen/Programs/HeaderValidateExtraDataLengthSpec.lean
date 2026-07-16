@@ -59,7 +59,6 @@ theorem hved_disjoint :
   · right
     rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
 
-#print axioms hved_disjoint
 
 /-- K20's linked code is subsumed by the wrapper's full closure. -/
 theorem k20_mono :
@@ -299,7 +298,6 @@ theorem hvedHead
       unfold hvedPre at hp; xperm_hyp hp) (fun h hq => by
       unfold calleePre entryRest; xperm_hyp hq) hframed
 
-#print axioms hvedHead
 
 /-! ## Call (instruction 7): jal + K20 selector -/
 
@@ -368,7 +366,6 @@ theorem hvedCall
     hhead hjalF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhj hcallee
 
-#print axioms hvedCall
 
 /-! ## Epilogue (instructions 19--21) -/
 
@@ -422,7 +419,6 @@ theorem hvedEpi (sp0 spH raIn : Word) (G : Assertion) (hG : G.pcFree)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hframed
 
-#print axioms hvedEpi
 
 /-! ## Length load + compare dispatch (instructions 9--15/16--17, then epilogue) -/
 
@@ -628,7 +624,6 @@ theorem hvedDispatch
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsBranchWithin_merge_same_cr hbranch hrej hsucc)
 
-#print axioms hvedDispatch
 
 set_option maxRecDepth 8000 in
 /-- `hvedDispatch` with `x5/x6` presented as owned (their pre-values are
@@ -662,7 +657,6 @@ theorem hvedDispatchOwned
     (hvedDispatch sp0 spH newSp raIn listBase oldOffset oldLen offset len v5 v6 saved
       bytes listLen hspH hret hResult)
 
-#print axioms hvedDispatchOwned
 
 /-! ## Status dispatch + full rest (instruction 8 onward) -/
 
@@ -828,7 +822,6 @@ theorem hvedRest
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsBranchWithin_merge_same_cr hbneF h_t h_f)
 
-#print axioms hvedRest
 
 /-! ## Whole-program caller contract -/
 
@@ -864,6 +857,5 @@ theorem header_validate_extra_data_length_spec_within
     listLen hspH hret hraSaved
   exact cpsTripleWithin_seq_same_cr hcall hrest
 
-#print axioms header_validate_extra_data_length_spec_within
 
 end EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec
