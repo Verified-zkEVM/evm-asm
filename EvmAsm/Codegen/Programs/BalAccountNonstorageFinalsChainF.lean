@@ -110,7 +110,6 @@ theorem bansf_nonceCapture_callee_bounds (aB : Word) (aLen tEnd off : Nat)
   intro k hk
   exact hvalid ((vNext - vLen - aB).toNat + k) (by omega)
 
-#print axioms bansf_nonceCapture_callee_bounds
 
 /-- Status-zero tail of the nonce capture (slots 131--134): fall through the
     status check, store the scalar, and set `has_nonce`. -/
@@ -192,7 +191,6 @@ theorem bansf_nonceCapture_successTail_spec (oB image : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) h3
 
-#print axioms bansf_nonceCapture_successTail_spec
 
 /-- Nonzero-status route from the nonce parser check (slot 131) through the
     shared reject stub (slot 183). -/
@@ -236,7 +234,6 @@ theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_nonceCapture_rejectRoute_spec
 
 /-- Exact four-way post exported by the nonce parser at slot 130. -/
 @[irreducible] def nonceParserPost (aB : Word) (srcOff len : Nat)
@@ -345,7 +342,6 @@ theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
   rw [show 7 * vLen.toNat + 14 = 1 + 1 + (1 + (7 * vLen.toNat + 11)) from by omega]
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hfull
 
-#print axioms bansf_nonceCapture_call_spec
 
 /-- The `8 < len` arm of the unified nonce parser is routed to rejection. -/
 theorem bansf_nonceCapture_tooLong_spec (aB oB vLen : Word) (len : Nat)
@@ -385,7 +381,6 @@ theorem bansf_nonceCapture_tooLong_spec (aB oB vLen : Word) (len : Nat)
       exact ((sepConj_pure_right h).1 hp2).1)
     (fun h hq => by xperm_hyp hq) hr
 
-#print axioms bansf_nonceCapture_tooLong_spec
 
 /-- The empty-content success arm stores scalar zero and sets the nonce flag. -/
 theorem bansf_nonceCapture_empty_spec (aB oB vLen : Word) (len : Nat)
@@ -413,7 +408,6 @@ theorem bansf_nonceCapture_empty_spec (aB oB vLen : Word) (len : Nat)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) htF
 
-#print axioms bansf_nonceCapture_empty_spec
 
 /-- The leading-zero noncanonical arm is routed to rejection. -/
 theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
@@ -454,7 +448,6 @@ theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
       exact ((sepConj_pure_right h).1 hp2).1)
     (fun h hq => by xperm_hyp hq) hr
 
-#print axioms bansf_nonceCapture_noncanonical_spec
 
 /-- The canonical status-zero arm stores the decoded scalar and sets the flag.
     The caller supplies the static length bound from its pre-call case split. -/
@@ -495,7 +488,6 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
     xperm_hyp hq
   exact (sepConj_pure_right h).2 ⟨((sepConj_pure_right h).1 hq2).1, hlen8⟩
 
-#print axioms bansf_nonceCapture_canonical_spec
 
 def nonceCaptureRejectPost (aB oB vLen : Word)
     (acctBytes : List (BitVec 8)) (P : Assertion) : Assertion :=
@@ -622,7 +614,6 @@ theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
   exact cpsBranchWithin_pre_or htl
     (cpsBranchWithin_pre_or he (cpsBranchWithin_pre_or hnc hc))
 
-#print axioms bansf_nonceCapture_dispatch_spec
 
 /-- Distribute the station frame into the parser's four-way post for the
     nonce-capture dispatch theorem. -/
@@ -663,7 +654,6 @@ theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
     rw [himage]
     exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, hc⟩, hF⟩
 
-#print axioms nonceParserPost_to_dispatchPre
 
 /-- Slots 128--130 on the statically too-long path, using the precise public
     per-case u64 callee contract. -/
@@ -763,7 +753,6 @@ theorem bansf_nonceCapture_tooLongCall_spec (aB oB : Word)
       dsimp only [R] at hRp
       xperm_hyp hRp) hfull
 
-#print axioms bansf_nonceCapture_tooLongCall_spec
 
 /-- Complete nonce-value capture (slots 128--134), with reject/found exits. -/
 theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
@@ -828,7 +817,6 @@ theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
     exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun _ hq => hq) (fun _ hq => hq) hfull
 
-#print axioms bansf_nonceCapture_spec
 
 /-- Reframe either nonce-parser rejection status as the station reject post. -/
 theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
@@ -903,7 +891,6 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
     unfold nonceStationRej
     xperm_hyp hq3
 
-#print axioms nonceCaptureReject_to_stationRej
 
 /-- Reframe either successful nonce-parser arm as the station found post. -/
 theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)
@@ -1030,7 +1017,6 @@ theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)
     dsimp only [image] at hR' ⊢
     xperm_hyp hR'
 
-#print axioms nonceCaptureFound_to_stationPost
 
 theorem cpsBranchWithin_of_forall_regIs_to_regOwn5
     {n : Nat} {entry : Word} {r1 r2 r3 r4 r5 : Reg}
@@ -1054,7 +1040,6 @@ theorem cpsBranchWithin_of_forall_regIs_to_regOwn5
       ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3,
        hv2, g6, g7, d4, u4, hv3, g8, g9, d5, u5, hv4, hv5⟩, hRb⟩ hpc
 
-#print axioms cpsBranchWithin_of_forall_regIs_to_regOwn5
 
 /-- Continuation at `B + 512` (the nonce value item decoded): run the scalar
     capture and route both exits to the nonce-station boundary assertions. -/
@@ -1120,7 +1105,6 @@ theorem bansf_nonceStationCont512_spec (aB newSp oB : Word)
       (hFF vNext vLen hdecV) h hq)
     (cpsBranchWithin_mono_nSteps (by omega) hc)
 
-#print axioms bansf_nonceStationCont512_spec
 
 /-- A rejected nonce value-item unit carries enough untouched station frame to
     establish the shared nonce-station reject assertion. -/
@@ -1161,7 +1145,6 @@ theorem nonceTupleReject_to_stationRej (aB newSp oB n4 : Word)
   unfold nonceStationRej
   xperm_hyp hq3
 
-#print axioms nonceTupleReject_to_stationRej
 
 @[irreducible]
 def nonceCont512Pre (aB newSp oB n4 : Word) (aLen tEnd off : Nat)
@@ -1250,7 +1233,6 @@ theorem nonceTupleValOk_to_cont512Pre (aB newSp oB n4 : Word)
   change R h
   exact (congrFun heq h).mp hL
 
-#print axioms nonceTupleValOk_to_cont512Pre
 
 /-- Continuation at `B + 496`: decode the tuple value item, then run the
     nonce scalar capture at `B + 512`. -/
@@ -1333,7 +1315,6 @@ theorem bansf_nonceStationCont496_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hchain)
 
-#print axioms bansf_nonceStationCont496_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

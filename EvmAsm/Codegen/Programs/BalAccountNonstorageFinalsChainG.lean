@@ -104,7 +104,6 @@ theorem nonceTupleOk_to_cont496Pre (aB newSp oB n4 : Word)
   change R h
   exact (congrFun heq h).mp hL
 
-#print axioms nonceTupleOk_to_cont496Pre
 
 /-- Continuation at `B + 476`: decode the nonce tuple's index item, then run
     the value/capture continuation. -/
@@ -178,7 +177,6 @@ theorem bansf_nonceStationCont476_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hchain)
 
-#print axioms bansf_nonceStationCont476_spec
 
 /-- Continuation at `B + 468`: spill the tuple cursor/end, then decode its
     index and value and capture the nonce. -/
@@ -240,7 +238,6 @@ theorem bansf_nonceStationCont468_spec (aB newSp oB : Word)
       (fun _ hq => hq) (fun _ hq => hq) hc)
   exact cpsBranchWithin_mono_nSteps (by omega) hfull
 
-#print axioms bansf_nonceStationCont468_spec
 
 /-- A rejected tuple `walk_init` carries enough untouched frame to establish
     the shared nonce-station rejection assertion. -/
@@ -289,7 +286,6 @@ theorem nonceTupleInitReject_to_stationRej (aB newSp oB n4 v19 v20 s64 s72 : Wor
   unfold nonceStationRej
   xperm_hyp hq3
 
-#print axioms nonceTupleInitReject_to_stationRej
 
 /-- Reframe a successful tuple `walk_init` as the existential precondition
     consumed by the continuation at `B + 468`. -/
@@ -369,7 +365,6 @@ theorem nonceTupleInitOk_to_cont468Pre (aB newSp oB n4 v19 v20 s64 s72 : Word)
   refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
   xperm_hyp hconv2
 
-#print axioms nonceTupleInitOk_to_cont468Pre
 
 /-- Ownership-facing wrapper for the nonce loop-exit moves. -/
 theorem bansf_nonceLoopExitMove113_own_spec (v19 v20 : Word) :
@@ -385,7 +380,6 @@ theorem bansf_nonceLoopExitMove113_own_spec (v19 v20 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hmL
 
-#print axioms bansf_nonceLoopExitMove113_own_spec
 
 /-- Continuation at `B + 452`: initialize the last nonce tuple and run its
     index/value/capture chain. -/
@@ -527,7 +521,6 @@ theorem bansf_nonceStationCont452_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_nonceStationCont452_spec
 
 /-- Reframe the nonce find-last loop's reject exit as the shared station
     rejection assertion. -/
@@ -568,7 +561,6 @@ theorem nonceLoopReject_to_stationRej (aB newSp oB n4 : Word)
   unfold nonceStationRej
   xperm_hyp hq3
 
-#print axioms nonceLoopReject_to_stationRej
 
 /-- Reframe the clean find-last loop exit as the existential precondition of
     the continuation at `B + 452`. -/
@@ -662,7 +654,6 @@ theorem nonceLoopExit_to_cont452Pre (aB newSp oB n4 : Word)
   change R h
   exact (congrFun heq h).mp hL
 
-#print axioms nonceLoopExit_to_cont452Pre
 
 /-- Continuation at the nonce find-last loop header `B + 408`. -/
 theorem bansf_nonceStationCont408_spec (aB newSp oB : Word)
@@ -718,7 +709,6 @@ theorem bansf_nonceStationCont408_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq) hc452
   exact cpsBranchWithin_chain_snd hloopW hc452'
 
-#print axioms bansf_nonceStationCont408_spec
 
 /-- Reframe the taken empty-list arm at `B + 540` as the genuine empty
     disjunct of the nonce station postcondition. -/
@@ -773,7 +763,6 @@ theorem nonceEmpty_to_stationPost (aB newSp oB : Word)
     xperm_hyp hq3
   · exact FieldFinal.empty b hb (hcontent.trans hempty)
 
-#print axioms nonceEmpty_to_stationPost
 
 /-- Turn the two slot-100/101 spills into the station-2 find-last invariant. -/
 theorem nonceLoopEntry_to_flInv (aB newSp : Word) (acctBytes : List (BitVec 8))
@@ -838,7 +827,6 @@ theorem nonceLoopEntry_to_flInv (aB newSp : Word) (acctBytes : List (BitVec 8))
     (sepConj_pure_right h).2 ⟨?_, rfl, Nat.le_refl _, hcle, Or.inl rfl⟩⟩
   xperm_hyp hpOwn
 
-#print axioms nonceLoopEntry_to_flInv
 
 /-- Continuation at `B + 396`: split an initialized nonce field into the empty
     result or the station-2 find-last loop. -/
@@ -1007,7 +995,6 @@ theorem bansf_nonceStationCont396_spec (aB newSp oB : Word)
       (fun _ x => x) (fun _ x => x)
       (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_nonceStationCont396_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

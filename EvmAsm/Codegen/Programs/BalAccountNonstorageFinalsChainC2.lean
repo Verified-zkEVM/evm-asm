@@ -481,7 +481,6 @@ theorem bansf_tupleItem0_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_tupleItem0_spec
 
 /-- The value-unit success shape at `B + 324`: the value item's advanced
     cursor and length pinned in `a0`/`a2` with the decode fact; the spill
@@ -908,7 +907,6 @@ theorem bansf_tupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_tupleItem1_spec
 
 theorem bansf_nonceTupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
     (acctBytes : List (BitVec 8))
@@ -1315,7 +1313,6 @@ theorem bansf_nonceTupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_nonceTupleItem1_spec
 
 
 end BalAccountNonstorageFinalsSpec

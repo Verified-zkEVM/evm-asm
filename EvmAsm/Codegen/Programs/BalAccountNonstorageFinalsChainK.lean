@@ -84,7 +84,6 @@ theorem codeTupleInitOk_to_cont652Pre
   refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
   xperm_hyp hconv2
 
-#print axioms codeTupleInitOk_to_cont652Pre
 
 /-- Slots 159–160 (`B + 636 → B + 644`): move the last code tuple span into
     the tuple `rlp_walk_init` arguments, accepting owned destination regs. -/
@@ -119,7 +118,6 @@ theorem bansf_codeLoopExitMove159_own_spec (v19 v20 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hc
 
-#print axioms bansf_codeLoopExitMove159_own_spec
 
 
 theorem bansf_codeStationCont636_spec (aB newSp oB : Word)
@@ -260,7 +258,6 @@ theorem bansf_codeStationCont636_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_codeStationCont636_spec
 
 
 
@@ -354,7 +351,6 @@ theorem codeLoopExit_to_cont636Pre (aB newSp oB n5 : Word)
   change R h
   exact (congrFun heq h).mp hL
 
-#print axioms codeLoopExit_to_cont636Pre
 
 
 
@@ -411,7 +407,6 @@ theorem bansf_codeStationCont592_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq) hc452
   exact cpsBranchWithin_chain_snd hloopW hc452'
 
-#print axioms bansf_codeStationCont592_spec
 
 
 
@@ -466,7 +461,6 @@ theorem codeEmpty_to_stationPost (aB newSp oB : Word)
     xperm_hyp hq3
   · exact FieldFinal.empty b hb (hcontent.trans hempty)
 
-#print axioms codeEmpty_to_stationPost
 
 
 
@@ -637,7 +631,6 @@ theorem bansf_codeStationCont580_spec (aB newSp oB : Word)
       (fun _ x => x) (fun _ x => x)
       (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_codeStationCont580_spec
 
 
 
@@ -681,7 +674,6 @@ theorem codeFieldInitReject_to_stationRej (aB newSp oB n5 v19 v20 : Word)
   unfold codeStationRej
   xperm_hyp hqOwn
 
-#print axioms codeFieldInitReject_to_stationRej
 
 
 
@@ -755,7 +747,6 @@ theorem codeFieldInitOk_to_cont580Pre (aB newSp oB n5 v19 v20 : Word)
   refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
   xperm_hyp hatOwn
 
-#print axioms codeFieldInitOk_to_cont580Pre
 /-- Successful outer code-item continuation: capture its field span,
     initialize the field window, and run the complete code selector. -/
 theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
@@ -844,7 +835,6 @@ theorem bansf_codeStationCont556_spec (aB newSp oB : Word)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_codeStationCont556_spec
 
 
 end BalAccountNonstorageFinalsSpec

@@ -106,7 +106,6 @@ theorem bansf_prologue_spec (aB aLenW oB v8 v9 v18 : Word) :
   have s15 := mv_spec_gen_within .x11 .x9 aLenW aLenW (B + 84) (by decide)
   runBlock s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15
 
-#print axioms bansf_prologue_spec
 
 /-! ## §3  The outer `rlp_walk_init` call and status dispatch (slots 22–23)
 
@@ -182,7 +181,6 @@ private theorem outerFail (aB cur endW k : Word)
     h hq
   xperm_hyp hq2
 
-#print axioms outerFail
 
 /-- The pure residue of a successful outer `rlp_walk_init`: the content
     cursor offset is `listHeaderSize` of the window's first byte. -/
@@ -580,7 +578,6 @@ theorem bansf_outerInit_spec (aB : Word) (aLen : Nat)
       rw [hLn, hRn] at hfit'
       omega
 
-#print axioms bansf_outerInit_spec
 
 /-! ## §4  The four outer item units (slots 24–45)
 
@@ -1049,7 +1046,6 @@ theorem bansf_item0_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_item0_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

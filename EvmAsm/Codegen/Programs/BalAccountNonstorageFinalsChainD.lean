@@ -34,7 +34,6 @@ theorem bansf_loopExitMove66_spec (v19 v20 v10 v11 : Word) :
   have s2 := mv_spec_gen_within .x11 .x20 v20 v11 (B + 268) (by decide)
   runBlock s1 s2
 
-#print axioms bansf_loopExitMove66_spec
 
 /-- Slots 70–71 (`B + 280 → B + 288`): spill the tuple-walk cursor and
     window end for the item units. -/
@@ -71,7 +70,6 @@ theorem bansf_tupleSpill70_spec (newSp v10 v11 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_tupleSpill70_spec
 
 /-- The station-level reject shape at the epilogue entry (`B + 736`):
     every failure path of the balance station (field init, find-last loop,
@@ -102,7 +100,6 @@ theorem cpsBranchWithin_swap {n : Nat} {entry : Word} {cr : CodeReq}
   obtain ⟨k, hk, s', hstep, hcase⟩ := h R hR s hcr hPR hpc
   exact ⟨k, hk, s', hstep, hcase.symm⟩
 
-#print axioms cpsBranchWithin_swap
 
 theorem bansf_nonceTupleInit115_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
     (acctBytes : List (BitVec 8))
@@ -550,7 +547,6 @@ theorem bansf_nonceTupleInit115_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Wor
       bv_omega
 
 
-#print axioms bansf_nonceTupleInit115_spec
 
 
 /-!

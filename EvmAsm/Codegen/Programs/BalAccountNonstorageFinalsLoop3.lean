@@ -105,7 +105,6 @@ theorem fl3_failArm (aB newSp cursor v19 v20 raOld k : Word)
     h hq
   xperm_hyp hq2
 
-#print axioms fl3_failArm
 
 /-! ## §3  The accept arm: spill the advanced cursor, capture the span -/
 
@@ -241,7 +240,6 @@ theorem fl3_okArm (aB newSp cursorOld v19 v20 next len raVal : Word)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) c4
 
-#print axioms fl3_okArm
 
 /-! ## §4  The loop head: reload the spills, test for the window end -/
 
@@ -350,8 +348,6 @@ theorem fl3_headFall (newSp cursor endW : Word) (hne : cursor ≠ endW) :
     (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
   xperm_hyp hq2
 
-#print axioms fl3_headExit
-#print axioms fl3_headFall
 
 /-! ## §5  The call block: `mv a0/a1`, `jal rlp_walk_next` -/
 
@@ -495,7 +491,6 @@ theorem fl3_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 hcallF
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) c2
 
-#print axioms fl3_callBlock
 
 /-! ## §6  The dispatch: consume the six-outcome post -/
 
@@ -641,8 +636,6 @@ private theorem fl3_dispatchOk (aB newSp : Word) (acctBytes : List (BitVec 8))
         BitVec.toNat_ofNat] at this
       omega
 
-#print axioms fl3_dispatchFail
-#print axioms fl3_dispatchOk
 
 /-! ## §7  The round: one full pass from the header -/
 
@@ -790,7 +783,6 @@ theorem fl3_round (aB newSp : Word) (acctBytes : List (BitVec 8))
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
         ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hCF, a6⟩, hEx⟩))))
 
-#print axioms fl3_round
 
 /-! ## §8  The folded loop -/
 
@@ -817,7 +809,6 @@ theorem bansf_findLastLoop3_spec (aB newSp : Word) (acctBytes : List (BitVec 8))
       (fun j' => fl3_round aB newSp acctBytes off0 endOff F hF hsalign hslack
         hover hvalid hoff0 j') j)
 
-#print axioms bansf_findLastLoop3_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

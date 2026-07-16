@@ -83,7 +83,6 @@ theorem bansf_codeStationCont700_spec
       exact codeMaterialized_to_stationPost aB newSp oB n5 vNext vLen aLen
         fOff fSpanN acctBytes G F (hFF vNext vLen hdec) h hsp) hmF
 
-#print axioms bansf_codeStationCont700_spec
 
 /-- A rejected code value item carries the untouched station frame needed for
     the shared code-station reject boundary. -/
@@ -123,7 +122,6 @@ theorem codeTupleReject_to_stationRej (aB newSp oB n5 : Word)
   unfold codeStationRej
   xperm_hyp hq3
 
-#print axioms codeTupleReject_to_stationRej
 
 /-- Slots 163–164 (`B + 652 → B + 660`): spill the code tuple cursor and
     end before decoding its index item. -/
@@ -164,7 +162,6 @@ theorem bansf_codeTupleSpill163_spec (newSp v10 v11 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_codeTupleSpill163_spec
 
 
 theorem bansf_codeTupleItem0_spec (aB newSp : Word) (aLen off : Nat)
@@ -602,7 +599,6 @@ theorem bansf_codeTupleItem0_spec (aB newSp : Word) (aLen off : Nat)
         bytesRegion aB acctBytes ** F)) h := by
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
-#print axioms bansf_codeTupleItem0_spec
 
 
 
@@ -694,7 +690,6 @@ theorem codeTupleOk_to_cont680Pre (aB newSp oB n5 : Word)
   change R h
   exact (congrFun heq h).mp hL
 
-#print axioms codeTupleOk_to_cont680Pre
 
 /-- Continuation at `B + 680`: decode the code tuple's value item and
     materialize its selected byte window. -/
@@ -774,7 +769,6 @@ theorem bansf_codeStationCont680_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hchain)
 
-#print axioms bansf_codeStationCont680_spec
 
 /-- Continuation at `B + 660`: decode the code tuple's index item, then its
     value item, and materialize the selected window. -/
@@ -846,7 +840,6 @@ theorem bansf_codeStationCont660_spec (aB newSp oB : Word)
     (fun _ hq => hq) (fun _ hq => hq)
     (cpsBranchWithin_mono_nSteps (by omega) hchain)
 
-#print axioms bansf_codeStationCont660_spec
 
 /-- Continuation at `B + 652`: spill the code tuple cursor/end, then decode
     its index and value items. -/
@@ -905,7 +898,6 @@ theorem bansf_codeStationCont652_spec (aB newSp oB : Word)
       (fun _ hq => hq) (fun _ hq => hq) hc)
   exact cpsBranchWithin_mono_nSteps (by omega) hfull
 
-#print axioms bansf_codeStationCont652_spec
 
 
 theorem bansf_codeTupleInit161_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
@@ -1354,7 +1346,6 @@ theorem bansf_codeTupleInit161_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word
       bv_omega
 
 
-#print axioms bansf_codeTupleInit161_spec
 
 /-- Normalize a rejected code tuple `walk_init` to the shared station reject boundary. -/
 theorem codeTupleInitReject_to_stationRej
@@ -1401,7 +1392,6 @@ theorem codeTupleInitReject_to_stationRej
   unfold codeStationRej
   xperm_hyp hq3
 
-#print axioms codeTupleInitReject_to_stationRej
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen
