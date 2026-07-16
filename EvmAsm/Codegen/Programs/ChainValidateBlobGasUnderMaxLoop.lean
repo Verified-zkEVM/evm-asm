@@ -569,4 +569,25 @@ theorem flatPost_normalize (spC hbi validPtr firstBadPtr nN lenBase iW oldOff ol
 
 #print axioms flatPost_normalize
 
+/-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
+    slots the loop invariant carries. -/
+theorem k34SavedFrame_implies_frameSlotsOwn (newSp : Word)
+    (saved : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) : ∀ h,
+    EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame newSp saved h →
+    frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp h := by
+  intro h hp
+  rw [← EvmAsm.Codegen.RlpFieldToU64SAsm.frameSlotsSaved_frame] at hp
+  exact EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.frameSlotsSaved_implies_frameSlotsOwn
+    EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp
+    (EvmAsm.Codegen.RlpFieldToU64SAsm.savedVals saved) h hp
+
+/-- pcFree discharger covering the assertion atoms used in the dispatch. -/
+local macro "pcfx" : tactic =>
+  `(tactic| repeat' first
+      | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+      | exact pcFree_memIs | exact pcFree_memOwn | exact pcFree_emp | exact pcFree_pure
+      | exact bytesRegion_pcFree _ _ | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_wordArrayFrom _ _ _ | unfold savedFrame)
+
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
