@@ -95,6 +95,9 @@ import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootTail
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootTail
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootChain
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
