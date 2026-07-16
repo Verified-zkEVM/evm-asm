@@ -184,7 +184,7 @@ def payload (hdrBase lenBase : Word) (bigBytes : List (BitVec 8))
 /-- Callee-perturbed registers owned + the K34 frame slots owned + the callee's
     8-dword allocatable stack + `x0`. -/
 def scratchRegs (calleeNewSp : Word) : Assertion :=
-  regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x1 ** regOwn .x5 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
@@ -204,7 +204,7 @@ def LoopInv (_sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
     (⌜hdrTsOk hdrBase bigBytes lengths (i - 1) prevVal ∧
         (∀ j, 1 ≤ j → j < i → tsIncreasing hdrBase bigBytes lengths j)⌝ **
       (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
-      (.x6 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
+      (.x6 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
       (.x20 ↦ᵣ firstBadPtr) ** (.x7 ↦ᵣ BitVec.ofNat 64 i) ** (.x21 ↦ᵣ prevVal) **
       savedFrame spC csaved ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
       payload hdrBase lenBase bigBytes lengths ** scratchRegs calleeNewSp) h
