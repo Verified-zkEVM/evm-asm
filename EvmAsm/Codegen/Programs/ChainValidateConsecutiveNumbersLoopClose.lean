@@ -205,10 +205,10 @@ theorem cvcnHdr0Finish (hdrBase lenBase ts0 : Word) (L0 : Nat) (old5 o6 o7 o21 :
     `11` (guard `1` + `retAllValid` `10`). -/
 def cvcnLoopSteps : Nat → Nat
   | 0 => 11
-  | r + 1 => (1 + (16 + 1 + nCall)) + (24 + cvcnLoopSteps r)
+  | r + 1 => (1 + (16 + 1 + nCall)) + (25 + cvcnLoopSteps r)
 
 theorem cvcnLoopSteps_succ (r : Nat) :
-    cvcnLoopSteps (r + 1) = (1 + (16 + 1 + nCall)) + (24 + cvcnLoopSteps r) := rfl
+    cvcnLoopSteps (r + 1) = (1 + (16 + 1 + nCall)) + (25 + cvcnLoopSteps r) := rfl
 
 set_option maxRecDepth 8000 in
 theorem cvcnLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
@@ -865,17 +865,21 @@ theorem cvcnHdr0Block
 
 set_option maxRecDepth 8000 in
 /-- **`chain_validate_consecutive_numbers` caller contract.**  The
-    92-instruction cross-header accessor iterates over `N = lengths.length` block
-    headers and validates that RLP field 11 (`timestamp`) is STRICTLY increasing
-    across consecutive headers.  Its three-way post pins the verdict over the TRUE
-    count: all-strictly-increasing (`a0 = 0`, `*validPtr = 1`, either `N < 2` or
-    every adjacent pair `< N` strictly increasing), first-violation (`a0 = 0`,
-    `*validPtr = 0`, `*firstBad = k`, pair `(k-1,k)` non-increasing and all earlier
-    increasing), or first parse-failure (`a0 = status ≠ 0`, `*firstBad = k`, header
-    `k` fails the field-11 u64 decode and all earlier increasing) — each header's
-    timestamp genuinely decoded via K34's `Result`, and each `prev = ts[i-1]`
-    threaded through `cvcn_iter_prev` (`x21` in `LoopInv`).  Strict `>` matches the
-    Yellow Paper `Hs > parent.Hs`. -/
+    93-instruction cross-header accessor iterates over `N = lengths.length` block
+    headers and validates that RLP field 8 (`number`) is CONSECUTIVE across
+    adjacent headers: `num[i] = num[i-1] + 1` in `BitVec 64` (the guest's
+    `ADDI x29 x29 1` then `BNE x29 x28`).  Its three-way post pins the verdict over
+    the TRUE count: all-consecutive (`a0 = 0`, `*validPtr = 1`, either `N < 2` or
+    every adjacent pair `< N` satisfies `numConsecutive`), first-violation
+    (`a0 = 0`, `*validPtr = 0`, `*firstBad = k`, pair `(k-1,k)` has
+    `num[k] ≠ num[k-1] + 1` and all earlier consecutive), or first parse-failure
+    (`a0 = status ≠ 0`, `*firstBad = k`, header `k` fails the field-8 u64 decode
+    and all earlier consecutive) — each header's number genuinely decoded via K34's
+    `Result`, and each `prev = num[i-1]` threaded through `cvcn_iter_prev` (`x21` in
+    `LoopInv`).  The `BitVec 64` equality matches the execution-spec
+    `header.number = parent.number + 1` on all reachable block numbers (the sole
+    `BitVec`-vs-`Nat` divergence, the unreachable wraparound at `num[i-1] = 2^64-1`,
+    has no u64-decodable successor). -/
 theorem chain_validate_consecutive_numbers_spec_within
     (sp0 spC nWord lenBase hdrBase validPtr firstBadPtr raIn
       cs0 cs1 cs2 cs3 cs4 cs5 old5 : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
