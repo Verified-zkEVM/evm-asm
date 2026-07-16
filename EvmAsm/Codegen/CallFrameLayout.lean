@@ -154,7 +154,7 @@ def frameArrayBytes : Nat := frameSlotCount * frameStride
     of `call_frame_arena` (`BlockVerdictDataSection.lean`) rather than the arena
     aliasing into the pair. Soundness is the same execution-dead disjointness
     #8513 established and is now load-bearing again: `basr_values`/`basr_accounts`
-    are referenced ONLY in `BalAccountStateRoot`/`BlockVerdictStateRoot` (Phase H,
+    are referenced ONLY in `BlockVerdictStateRoot` (Phase H,
     pre-dispatch state-root recompute) with no post-replay reader, while
     `call_frame_arena` is referenced ONLY by `CallFrameBase`/`Descend`/`Return`
     (Phase D dispatch) — sequential, disjoint live windows. See

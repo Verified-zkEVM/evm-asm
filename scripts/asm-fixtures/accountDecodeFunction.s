@@ -70,10 +70,11 @@ account_decode:
   li t2, 32
   bne t1, t2, .Lad_fail
   la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-  ld t4,  0(t3); sd t4,  0(s4)
-  ld t4,  8(t3); sd t4,  8(s4)
-  ld t4, 16(t3); sd t4, 16(s4)
-  ld t4, 24(t3); sd t4, 24(s4)
+  lbu t4, 0(t3); sb t4, 0(s4)
+  addi t3, t3, 1; addi s4, s4, 1; addi t1, t1, -1
+  bnez t1, .-20
+  nop
+  nop
   # Field 3: code_hash (must be exactly 32 bytes)
   mv a0, s0
   mv a1, s1
@@ -86,10 +87,11 @@ account_decode:
   li t2, 32
   bne t1, t2, .Lad_fail
   la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-  ld t4,  0(t3); sd t4,  0(s5)
-  ld t4,  8(t3); sd t4,  8(s5)
-  ld t4, 16(t3); sd t4, 16(s5)
-  ld t4, 24(t3); sd t4, 24(s5)
+  lbu t4, 0(t3); sb t4, 0(s5)
+  addi t3, t3, 1; addi s5, s5, 1; addi t1, t1, -1
+  bnez t1, .-20
+  nop
+  nop
   li a0, 0
   j .Lad_ret
 .Lad_fail:

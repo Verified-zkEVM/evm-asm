@@ -238,6 +238,7 @@ def ziskMptStateRootInsPrologue : String :=
   mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++

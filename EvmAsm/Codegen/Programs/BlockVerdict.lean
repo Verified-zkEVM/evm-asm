@@ -18,7 +18,6 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -32,6 +31,8 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
+import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
+import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize

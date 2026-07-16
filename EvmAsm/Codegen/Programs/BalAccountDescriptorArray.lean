@@ -10,6 +10,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
+import EvmAsm.Codegen.Programs.MptBoundedSort
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -275,10 +276,17 @@ def ziskBalAccountDescriptorArrayPrologue : String :=
   "  j .Lbaada_pdone\n" ++
   balAccountDescriptorArrayDeps ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   ".Lbaada_pdone:"
 
 def ziskBalAccountDescriptorArrayDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
+  "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
+  "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\n" ++
+  "bsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
+  ".balign 8\n" ++
   ziskBalAccountHasStateChangeDataSection ++ "\n" ++
   ".balign 8\n" ++
   "aab_bal_off:\n  .zero 8\n" ++

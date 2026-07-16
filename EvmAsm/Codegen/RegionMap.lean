@@ -218,8 +218,9 @@ def schemeAAnchors : List GuestRegion :=
     fix (`fix/dispatcher-revert-state-gas`). Regenerated after the bounded
     storage-root builder replaced the legacy one-slot mutation path. Grew by
     `0xa58` for the gas-sized bounded indexed transaction/receipt root
-    builder. -/
-def textSizeBytes : Nat := 0x5c10c
+    builder. Grew by `0x128` for the batch-merge landing the chain-validate
+    Fn.Spec siblings, misaligned-load fixes, and the SSZ envelope-cap check. -/
+def textSizeBytes : Nat := 0x5c234
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
