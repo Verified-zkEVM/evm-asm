@@ -547,4 +547,66 @@ theorem retViolation
 
 #print axioms retViolation
 
+/-! ## Parse-fail exit (instructions 56--58 → epilogue)
+
+    Reached when a header fails RLP parse: `*firstBadPtr := i`, `a0 := 1`, then
+    return (`*validPtr` is left at its incumbent value, threaded in `G`). -/
+
+set_option maxRecDepth 8000 in
+theorem retParseFail
+    (sp0 spC raIn iWord firstBadPtr : Word) (csaved : Saved)
+    (G : Assertion) (hG : G.pcFree) (o10 o1 o8 o9 o18 o19 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 12 (C + 224) raIn cvedlCode
+      ((.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) **
+        memOwn firstBadPtr **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+      ((.x10 ↦ᵣ (1 : Word)) ** (firstBadPtr ↦ₘ iWord) ** (.x1 ↦ᵣ raIn) **
+        (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) **
+        (.x18 ↦ᵣ csaved.s2) ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+        (.x21 ↦ᵣ csaved.s5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G) := by
+  subst hraSaved
+  -- [56] SD x20 x21 0 : *firstBadPtr := i
+  have s56 := sd_spec_gen_own_within .x20 .x21 firstBadPtr iWord (0 : BitVec 12) (C + 224)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show firstBadPtr + (0 : Word) = firstBadPtr from by bv_omega] at s56
+  -- [57] LI x10 1
+  have s57 := li_spec_gen_within .x10 o10 (1 : Word) (C + 228) (by decide)
+  -- [58] JAL x0 8 : jump to epilogue
+  have s58 := jal_x0_spec_gen_within (8 : BitVec 21) (C + 232)
+  rw [show (C + 232) + signExtend21 (8 : BitVec 21) = C + 240 from by
+    rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]; bv_omega] at s58
+  have hblock : cpsTripleWithin 3 (C + 224) (C + 240) cvedlCode
+      ((.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) ** memOwn firstBadPtr ** (.x10 ↦ᵣ o10))
+      ((.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iWord) ** (firstBadPtr ↦ₘ iWord) **
+        (.x10 ↦ᵣ (1 : Word))) := by
+    runBlock s56 s57 s58
+  have hblockF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+      (.x19 ↦ᵣ o19) **
+      (spC ↦ₘ csaved.ra) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+      ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+      ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hblock
+  have hepi := cvedlEpilogue sp0 spC csaved.ra csaved.s0 csaved.s1 csaved.s2 csaved.s3
+    csaved.s4 csaved.s5 o1 o8 o9 o18 o19 firstBadPtr iWord hspC hret
+  have hepiF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (1 : Word)) ** (firstBadPtr ↦ₘ iWord) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
+#print axioms retParseFail
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
