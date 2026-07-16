@@ -141,6 +141,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- reduced to raw references in their parent frame, so construction never
   -- needs one node-sized allocation per descriptor or per depth.
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  -- A fixed depth-indexed cache for a constructed hashed child that may be
+  -- immediately needed by its parent's one-child collapse.  Tags prevent a
+  -- stale sibling's node from ever being reopened.
+  "bsr_builder_constructed_nodes:\n  .zero " ++ toString bsrMptConstructedCacheBytes ++ "\n" ++
+  "bsr_builder_constructed_refs:\n  .zero " ++ toString bsrMptConstructedCacheRefBytes ++ "\n" ++
+  "bsr_builder_constructed_ref_lens:\n  .zero " ++ toString bsrMptConstructedCacheWordBytes ++ "\n" ++
+  "bsr_builder_constructed_node_lens:\n  .zero " ++ toString bsrMptConstructedCacheWordBytes ++ "\n" ++
   -- One transient raw result is sufficient for depth-first unwinding. Parents
   -- immediately copy it into their fixed frame slot before visiting a sibling.
   "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\n" ++
