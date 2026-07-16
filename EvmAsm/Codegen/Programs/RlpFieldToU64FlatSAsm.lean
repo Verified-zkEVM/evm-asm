@@ -137,6 +137,5 @@ theorem rlpFieldToU64_flat_spec_within
       unfold flatPost
       exact sepConj_mono_right (fun _ hp => Or.inr hp) h hflat
 
-#print axioms rlpFieldToU64_flat_spec_within
 
 end EvmAsm.Codegen.RlpFieldToU64SAsm

@@ -262,8 +262,6 @@ theorem hesrNextOutcome_to_norm (listBase endPtr : Word) (bytes : List (BitVec 8
     refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb6
     exact fun h' ⟨he, hP⟩ => ⟨he, by decide, Or.inr hP⟩
 
-#print axioms cpsTripleWithin_or_pre
-#print axioms hesrNextOutcome_to_norm
 
 /-! ## Stage 4 — the selected item (`next4`, `BNE[32]` @+128 → ret)
 
@@ -365,7 +363,6 @@ theorem cpsTripleWithin_of_forall_memIs_to_memOwn2
     ⟨hp, hcompat, h1, h2, hd, hu,
       ⟨g0, g1, d1, u1, hP, g2, g3, d2, u2, hv1, hv2⟩, hRb⟩ hpc
 
-#print axioms hesrNextStep
 /-! ## Stages 1-3 — walk-and-recurse dispatch around a non-selected item
 
     Each of the first three `rlp_walk_next` calls decodes the zero-based child
@@ -386,7 +383,6 @@ theorem pcFree_hesrSpill (newSp cursor endPtr : Word) :
   unfold hesrSpill
   exact pcFree_sepConj pcFree_memIs pcFree_memIs
 
-#print axioms hesrSpill
 /-- Peel seven owned scratch registers at once (local mirror of the committed
     `cpsTripleWithin_of_forall_regIs_to_regOwn7`). -/
 theorem cpsTripleWithin_of_forall_regIs_to_regOwn7

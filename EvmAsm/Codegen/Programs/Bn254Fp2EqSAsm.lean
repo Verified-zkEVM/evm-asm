@@ -55,7 +55,6 @@ theorem bnpFp2Eq_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
       8).flatten (GuestAddrs.bnp_fp2_eq : Word) = bnpFp2Eq_prog from rfl] at h
   exact h
 
-#print axioms bnpFp2Eq_spec
 
 end Bn254Fp2EqSAsm
 end EvmAsm.Codegen

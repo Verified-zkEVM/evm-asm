@@ -303,7 +303,6 @@ theorem bncIsInf64Fn_spec (ptr : Word) (bs : List (BitVec 8))
       refine ⟨?_, hle, hpl⟩
       rw [hx10rf, if_pos heq]
 
-#print axioms bncIsInf64Fn_spec
 
 end Bn254CurveIsInfSAsm
 

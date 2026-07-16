@@ -535,9 +535,6 @@ theorem rlpListEncodedSize_spec
 
 end Routine
 
-#print axioms u64ByteLen_shift_zero
-#print axioms u64ByteLen_shift_ne
-#print axioms rlpListEncodedSize_spec
 
 end RlpListEncodedSizeSAsm
 

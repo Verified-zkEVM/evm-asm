@@ -298,9 +298,5 @@ theorem initCallDispatchExact
       xperm_hyp hp) hcallN
       (initNormalizedDispatch newSp listBase outPtr oldCount saved bytes listLen))
 
-#print axioms initRejectBranch
-#print axioms initSuccessBranch
-#print axioms initNormalizedDispatch
-#print axioms initCallDispatchExact
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

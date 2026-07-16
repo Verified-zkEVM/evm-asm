@@ -261,7 +261,6 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       refine ⟨?_, hlen, hptr⟩
       rw [hx10rf, isZeroNResult, if_pos heq]
 
-#print axioms blsgIsZeroNFn_spec
 
 end Bls12G1IsZeroNSAsm
 end EvmAsm.Codegen

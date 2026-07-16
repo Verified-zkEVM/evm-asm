@@ -542,7 +542,6 @@ theorem blsgEq48Fn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8))
       rw [hx10rf, if_pos heq]
 
 
-#print axioms blsgEq48Fn_spec
 
 end Bls12G1Eq48SAsm
 

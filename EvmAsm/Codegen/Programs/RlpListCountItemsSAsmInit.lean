@@ -112,8 +112,5 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
   have hc := callWalkInit oldRa (by unfold Prest; pcf) hwi'
   simpa [Prest, Q] using hc
 
-#print axioms nthFailure_to_countFailure
-#print axioms initOutcome_to_normalized
-#print axioms initCallExact
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

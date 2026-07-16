@@ -68,7 +68,6 @@ theorem successDoneToOutcome
     xperm_hyp hp), ?_⟩
   exact .success offset len hsem.1 hsem.2
 
-#print axioms successDoneToOutcome
 
 def statusCarry (sp0 listBase : Word) (saved : ListSaved)
     (bytes : List (BitVec 8)) (v11 v12 status : Word) : Assertion :=
@@ -157,7 +156,6 @@ theorem tooLongToOutcome
     xperm_hyp hp), ?_⟩
   exact .tooLong offset len hsem.1 hsem.2
 
-#print axioms tooLongToOutcome
 
 def failureOutcome (sp0 listBase outputPtr oldOffset oldLen : Word)
     (saved : ListSaved) (bytes : List (BitVec 8))
@@ -221,7 +219,6 @@ theorem failureToOutcome
     xperm_hyp hp), ?_⟩
   exact .listFailure h_fail
 
-#print axioms failureToOutcome
 
 def joinedOutcome (sp0 listBase outputPtr oldOffset oldLen : Word)
     (saved : ListSaved) (bytes : List (BitVec 8))
@@ -275,7 +272,6 @@ theorem selectedToJoined
   simpa only [Nat.add_assoc] using
     cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hl hm
 
-#print axioms selectedToJoined
 
 theorem listDispatchToJoined
     (sp0 listBase outputPtr oldOffset oldLen : Word) (saved : ListSaved)
@@ -315,6 +311,5 @@ theorem listDispatchToJoined
   have hm := cpsBranchWithin_merge_same_cr hb hf hs
   exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hm
 
-#print axioms listDispatchToJoined
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm
