@@ -209,4 +209,59 @@ theorem savedFrame_to_frameSlotsOwn (newSp : Word) (saved : Saved) : ∀ h,
 
 #print axioms savedFrame_to_frameSlotsOwn
 
+/-- The K20-call footprint (`aieMidPre`) residual as it emerges from the previous
+    field's all-zero loop exit: `x5`/`x6`/`x7` still `regIs`, the frame still
+    `savedFrame`. -/
+def aieMidResidual (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v13 v14
+    w5 w6 w7 outv oldOff oldLen retA s3 s4 s5 : Word) (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spA) ** (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) **
+  (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ v1) ** (.x10 ↦ᵣ v10) **
+  (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **
+  (.x5 ↦ᵣ w5) ** (.x6 ↦ᵣ w6) ** (.x7 ↦ᵣ w7) **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion accBase bytes ** savedFrame newSp (mkSaved retA accBase lenW outPtr s3 s4 s5) **
+  (outPtr ↦ₘ outv) ** (OffA ↦ₘ oldOff) ** (LenA ↦ₘ oldLen) ** aieSlots spA raIn c8 c9 c18
+
+set_option maxRecDepth 8000 in
+theorem aieMidResidual_to_aieMidPre (spA newSp accBase lenW outPtr raIn c8 c9 c18
+    v1 v10 v11 v12 v13 v14 w5 w6 w7 outv oldOff oldLen retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) : ∀ h,
+    aieMidResidual spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v13 v14
+      w5 w6 w7 outv oldOff oldLen retA s3 s4 s5 bytes h →
+    aieMidPre spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v13 v14
+      outv oldOff oldLen s3 s4 s5 bytes h := by
+  intro h hp
+  unfold aieMidResidual at hp
+  unfold aieMidPre
+  refine sepConj_mono (fun _ h => h) ?_ h hp
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x5) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x6) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x7) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (savedFrame_to_frameSlotsOwn newSp
+    (mkSaved retA accBase lenW outPtr s3 s4 s5)) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  exact fun _ h => h
+
+#print axioms aieMidResidual_to_aieMidPre
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
