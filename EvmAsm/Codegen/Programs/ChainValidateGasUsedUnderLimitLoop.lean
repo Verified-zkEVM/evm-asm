@@ -566,4 +566,208 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
 
 #print axioms cvgulCall2
 
+/-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
+
+    Generic in the output `cell` and the return-site `linkRA`.  Both arms of
+    `flatPost` collapse to `dispNorm`, exposing `x10 = status` (for the `bne`)
+    and `cell ↦ value` (for the reload) while owning the callee-perturbed
+    remainder. -/
+def dispNorm (spC calleeNewSp hbi validPtr firstBadPtr nN lenBase iW linkRA cell value status : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
+  (.x18 ↦ᵣ hbi) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iW) **
+  (.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** (cell ↦ₘ value) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+  regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  memOwn RfuOff ** memOwn RfuLen ** stackFree calleeNewSp 8 **
+  bytesRegion hbi bytes **
+  EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame calleeNewSp ⟨linkRA, nN, lenBase⟩
+
+set_option maxRecDepth 8000 in
+theorem flatPost_normalize (spC hbi validPtr firstBadPtr nN lenBase iW linkRA cell
+    oldOff oldLen : Word) (bytes : List (BitVec 8)) (Li index : Nat) : ∀ h,
+    (EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+      oldOff oldLen (⟨linkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+      (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, cell, hbi, validPtr, firstBadPtr, iW⟩ : Saved)
+      bytes Li index) h →
+    (∃ status value,
+      (dispNorm spC (spC + signExtend12 (-32 : BitVec 12)) hbi validPtr firstBadPtr nN lenBase iW
+          linkRA cell value status bytes **
+        ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes hbi Li index status value⌝) h) := by
+  intro h hp
+  unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost at hp
+  rcases hp with hs | hf
+  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatSuccessReturned at hs
+    obtain ⟨offset, len, v12, x5v, scalarStatus, wrapperStatus, outputValue, hs⟩ := hs
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hs
+    refine ⟨wrapperStatus, outputValue, ?_⟩
+    obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hs
+    obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
+    refine (sepConj_pure_right _).2 ⟨?_, hRes⟩
+    have hOB : (_ ** _) h := ⟨h1, h2, hd, hu, hO, hBig⟩
+    unfold dispNorm
+    have hp1 : ((RfuOff ↦ₘ offset) ** (RfuLen ↦ₘ len) ** (.x5 ↦ᵣ x5v) **
+        (.x11 ↦ᵣ scalarStatus) ** (.x12 ↦ᵣ v12) **
+        ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) **
+          (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iW) **
+          (.x10 ↦ᵣ wrapperStatus) ** (.x0 ↦ᵣ (0 : Word)) ** (cell ↦ₘ outputValue) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
+          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            ⟨linkRA, nN, lenBase⟩)) h := by xperm_hyp hOB
+    have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x))))) h hp1
+    xperm_hyp hp2
+  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatFailureReturned at hf
+    obtain ⟨v11, v12, hf⟩ := hf
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hf
+    refine ⟨(1 : Word), (0 : Word), ?_⟩
+    obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hf
+    obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
+    refine (sepConj_pure_right _).2 ⟨?_, hRes⟩
+    have hOB : (_ ** _) h := ⟨h1, h2, hd, hu, hO, hBig⟩
+    unfold dispNorm
+    have hp1 : ((RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) ** (.x11 ↦ᵣ v11) **
+        (.x12 ↦ᵣ v12) **
+        ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) **
+          (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ iW) **
+          (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (cell ↦ₘ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
+          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            ⟨linkRA, nN, lenBase⟩)) h := by xperm_hyp hOB
+    have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono (regIs_implies_regOwn .x11) (sepConj_mono (regIs_implies_regOwn .x12)
+        (fun _ x => x)))) h hp1
+    xperm_hyp hp2
+
+#print axioms flatPost_normalize
+
+/-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
+    slots the loop invariant carries. -/
+theorem k34SavedFrame_implies_frameSlotsOwn (newSp : Word)
+    (saved : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) : ∀ h,
+    EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame newSp saved h →
+    frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp h := by
+  intro h hp
+  rw [← EvmAsm.Codegen.RlpFieldToU64SAsm.frameSlotsSaved_frame] at hp
+  exact EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.frameSlotsSaved_implies_frameSlotsOwn
+    EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp
+    (EvmAsm.Codegen.RlpFieldToU64SAsm.savedVals saved) h hp
+
+/-- pcFree discharger covering the assertion atoms used in the dispatch. -/
+local macro "pcfx" : tactic =>
+  `(tactic| repeat' first
+      | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+      | exact pcFree_memIs | exact pcFree_memOwn | exact pcFree_emp | exact pcFree_pure
+      | exact bytesRegion_pcFree _ _ | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_wordArrayFrom _ _ _ | unfold savedFrame
+      | unfold EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame)
+
+/-! ## Entry half of one iteration: guard → call 1 → K34 flatPost
+
+    From the loop guard (`D+68`, `i < N`) through the first `jal` to K34's
+    return (`D+128`), with the header slice handed to K34 for field 10 and the
+    untouched `wordArray`/`bytesRegion` prefixes and the `GasLimit` cell framed. -/
+
+set_option maxRecDepth 8000 in
+theorem cvgulIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (i : Nat)
+    (oldOut oldLimit oldOff oldLen : Word)
+    (hi : i < lengths.length)
+    (hN : lengths.length < 2 ^ 64)
+    (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
+    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hover : (hdrBaseAt hdrBase lengths i).toNat +
+      (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + (13 + 1 + nCall 10)) (D + 68) (D + 128) fullCode
+      ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
+        (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 i) ** savedFrame spC csaved **
+        (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+        wordArrayFrom lenBase 0 (lengths.take i) **
+        ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+        wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+        bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+        bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+        (GasUsed ↦ₘ oldOut) ** (GasLimit ↦ₘ oldLimit) **
+        (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+        memOwn IterPtr ** memOwn IterI **
+        regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)
+      ((.x1 ↦ᵣ LinkRA1) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
+          (hdrBaseAt hdrBase lengths i) oldOff oldLen
+          (⟨LinkRA1, BitVec.ofNat 64 lengths.length, lenBase⟩ :
+            EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hdrBaseAt hdrBase lengths i, GasUsed,
+            hdrBaseAt hdrBase lengths i, validPtr, firstBadPtr, BitVec.ofNat 64 i⟩ : Saved)
+          (bigBytes.drop (hdrOff lengths i)) lengths[i]! 10 **
+        (IterPtr ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
+        ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+        wordArrayFrom lenBase 0 (lengths.take i) **
+        wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+        bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+        (GasLimit ↦ₘ oldLimit) ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+        savedFrame spC csaved) := by
+  have hbeq := beq_spec_gen_within .x21 .x8 (224 : BitVec 13) (BitVec.ofNat 64 i)
+    (BitVec.ofNat 64 lengths.length) (D + 68)
+  have hbeqC := cpsBranchWithin_extend_code cvgul_mono
+    (cpsBranchWithin_extend_code (cr' := cvgulCode)
+      (CodeReq.ofProg_mem_at D (D + 68) cvgulProg 17 (.BEQ .x21 .x8 (224 : BitVec 13))
+        (by bv_omega) (by rw [cvgul_length]; decide) rfl (by rw [cvgul_length]; decide)) hbeq)
+  have hguard0 := cpsBranchWithin_ntakenStripPure2 hbeqC (fun hp hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact ofNat_ne_of_lt i lengths.length hi hN ((sepConj_pure_right _).1 hrest).2)
+  rw [show (D + 68 + 4 : Word) = D + 72 from by bv_omega] at hguard0
+  have hguardF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) **
+      (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** savedFrame spC csaved **
+      (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+      wordArrayFrom lenBase 0 (lengths.take i) **
+      ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
+      (GasUsed ↦ₘ oldOut) ** (GasLimit ↦ₘ oldLimit) **
+      (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+      memOwn IterPtr ** memOwn IterI **
+      regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_regOwn
+                      | exact pcFree_memIs | exact pcFree_memOwn
+                      | exact pcFree_frameSlotsOwn _ _ | exact pcFree_stackFree _ _
+                      | exact bytesRegion_pcFree _ _
+                      | exact pcFree_wordArrayFrom _ _ _) hguard0
+  have hcall := cvgulCall1Owned (hdrBaseAt hdrBase lengths i) lenBase spC (BitVec.ofNat 64 i)
+    lengths[i]! (BitVec.ofNat 64 lengths.length) validPtr firstBadPtr oldOut oldOff oldLen
+    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack hover hvalid
+  have hcallF := cpsTripleWithin_frameR
+    (wordArrayFrom lenBase 0 (lengths.take i) **
+      wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
+      bytesRegion hdrBase (bigBytes.take (hdrOff lengths i)) **
+      (GasLimit ↦ₘ oldLimit) ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)))
+    (by repeat' first | apply pcFree_sepConj | exact pcFree_wordArrayFrom _ _ _
+                      | exact bytesRegion_pcFree _ _ | exact pcFree_memIs) hcall
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => by
+      rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i] at hq
+      xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
+      xperm_hyp hp) hguardF hcallF)
+
+#print axioms cvgulIterEntry
+
 end EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec
