@@ -141,4 +141,75 @@ theorem wdStack12_of_k34 (sp0 spW newSp : Word)
 
 #print axioms wdStack12_of_k34
 
+/-- Carve a K34 field call's scratch shape out of `stackFree spW 12` (the reverse
+    of `wdStack12_of_k34`, used on the continue/forward path). -/
+theorem wdStack12_to_k34 (sp0 spW newSp : Word)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12)) : ∀ h,
+    stackFree spW 12 h →
+    (memOwn (spW - BitVec.ofNat 64 8) **
+     frameSlotsOwn frame newSp ** stackFree newSp 8) h := by
+  intro h hp
+  have hse : signExtend12 (-32 : BitVec 12) = (0xFFFFFFFFFFFFFFE0 : Word) := by decide
+  subst hnewSp
+  rw [hse]
+  simp only [frameSlotsOwn, frame, List.foldr, sepConj_emp_right',
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+    show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
+  simp only [stackFree] at hp ⊢
+  simp only [sepConj_emp_right', Nat.reduceMul, Nat.reduceAdd] at hp ⊢
+  rw [show spW + (18446744073709551584 : Word) + (0 : Word)
+        = spW - BitVec.ofNat 64 32 from by bv_omega,
+      show spW + (18446744073709551584 : Word) + (8 : Word)
+        = spW - BitVec.ofNat 64 24 from by bv_omega,
+      show spW + (18446744073709551584 : Word) + (16 : Word)
+        = spW - BitVec.ofNat 64 16 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 64
+        = spW - BitVec.ofNat 64 96 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 56
+        = spW - BitVec.ofNat 64 88 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 48
+        = spW - BitVec.ofNat 64 80 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 40
+        = spW - BitVec.ofNat 64 72 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 32
+        = spW - BitVec.ofNat 64 64 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 24
+        = spW - BitVec.ofNat 64 56 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 16
+        = spW - BitVec.ofNat 64 48 from by bv_omega,
+      show spW + (18446744073709551584 : Word) - BitVec.ofNat 64 8
+        = spW - BitVec.ofNat 64 40 from by bv_omega]
+  xperm_hyp hp
+
+#print axioms wdStack12_to_k34
+
+/-- The four deep scratch cells `stackFree spW 8` leaves free out of the whole
+    12-cell region (used at the K20 field-2 boundary). -/
+def wdStackK20Deep (spW : Word) : Assertion :=
+  memOwn (spW - BitVec.ofNat 64 96) ** memOwn (spW - BitVec.ofNat 64 88) **
+  memOwn (spW - BitVec.ofNat 64 80) ** memOwn (spW - BitVec.ofNat 64 72)
+
+theorem pcFree_wdStackK20Deep (spW : Word) : (wdStackK20Deep spW).pcFree := by
+  unfold wdStackK20Deep
+  repeat' first | exact pcFree_memOwn | apply pcFree_sepConj
+
+/-- Assemble a K20 field call's reclaimed scratch back into `stackFree spW 12`. -/
+theorem wdStack12_of_k20 (spW : Word) : ∀ h,
+    (wdStackK20Deep spW ** stackFree spW 8) h → stackFree spW 12 h := by
+  intro h hp
+  simp only [stackFree, wdStackK20Deep, Nat.reduceMul] at hp ⊢
+  xperm_hyp hp
+
+#print axioms wdStack12_of_k20
+
+/-- Carve a K20 field call's scratch shape out of `stackFree spW 12`. -/
+theorem wdStack12_to_k20 (spW : Word) : ∀ h,
+    stackFree spW 12 h → (wdStackK20Deep spW ** stackFree spW 8) h := by
+  intro h hp
+  simp only [stackFree, wdStackK20Deep, Nat.reduceMul] at hp ⊢
+  xperm_hyp hp
+
+#print axioms wdStack12_to_k20
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
