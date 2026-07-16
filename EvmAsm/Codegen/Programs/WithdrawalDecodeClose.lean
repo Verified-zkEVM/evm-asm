@@ -168,4 +168,124 @@ theorem wdPrologue
 
 #print axioms wdPrologue
 
+/-! ## Epilogue core (instructions [54]-[59]) -/
+
+set_option maxRecDepth 8000 in
+/-- Restore `ra/s0/s1/s2` from the four stack slots, deallocate the 32-byte
+    frame, and return.  Generic over the callee result footprint `G`. -/
+theorem wdEpiCore
+    (sp0 spW raIn s0Old s1Old s2Old x1old x8old x9old x18old : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 6 (WB + 216) raIn fullCode
+      (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G)
+      (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) ** G) := by
+  have hz0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have hz8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+  have hz16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+  have hz24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+  -- [54] LD x1 x2 0 : restore ra
+  have h0 := ld_spec_gen_within .x1 .x2 spW x1old raIn (0 : BitVec 12) (WB + 216)
+    (by decide)
+  rw [hz0, show spW + (0 : Word) = spW from by bv_omega] at h0
+  have h0' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 216) withdrawalDecode_prog 54
+        (.LD .x1 .x2 (0 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h0)
+  -- [55] LD x8 x2 8 : restore s0
+  have h1 := ld_spec_gen_within .x8 .x2 spW x8old s0Old (8 : BitVec 12) (WB + 220)
+    (by decide)
+  rw [hz8] at h1
+  have h1' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 220) withdrawalDecode_prog 55
+        (.LD .x8 .x2 (8 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h1)
+  -- [56] LD x9 x2 16 : restore s1
+  have h2 := ld_spec_gen_within .x9 .x2 spW x9old s1Old (16 : BitVec 12) (WB + 224)
+    (by decide)
+  rw [hz16] at h2
+  have h2' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 224) withdrawalDecode_prog 56
+        (.LD .x9 .x2 (16 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h2)
+  -- [57] LD x18 x2 24 : restore s2
+  have h3 := ld_spec_gen_within .x18 .x2 spW x18old s2Old (24 : BitVec 12) (WB + 228)
+    (by decide)
+  rw [hz24] at h3
+  have h3' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 228) withdrawalDecode_prog 57
+        (.LD .x18 .x2 (24 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h3)
+  -- [58] ADDI x2 x2 32 : deallocate
+  have h4 := addi_spec_gen_same_within .x2 spW (32 : BitVec 12) (WB + 232) (by decide)
+  rw [show spW + signExtend12 (32 : BitVec 12) = sp0 from by
+    rw [hspW]; exact sext_frameRestore sp0 (-32 : BitVec 12) (32 : BitVec 12)
+      (by decide)] at h4
+  have h4' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 232) withdrawalDecode_prog 58
+        (.ADDI .x2 .x2 (32 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h4)
+  -- [59] JALR x0 x1 0 : return
+  have h5 := EvmAsm.Evm64.ret_spec_within' (WB + 236) raIn
+  rw [hret] at h5
+  have h5' := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 236) withdrawalDecode_prog 59
+        (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h5)
+  -- Frame each instruction over the untouched local cells.
+  have f0 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) ** (.x18 ↦ᵣ x18old) **
+     ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old))
+    (by pcf) h0'
+  have f1 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x9 ↦ᵣ x9old) ** (.x18 ↦ᵣ x18old) **
+     (spW ↦ₘ raIn) ** ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old))
+    (by pcf) h1'
+  have f2 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x18 ↦ᵣ x18old) **
+     (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 24) ↦ₘ s2Old))
+    (by pcf) h2'
+  have f3 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+     (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old))
+    (by pcf) h3'
+  have f4 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+     (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) **
+     ((spW + 24) ↦ₘ s2Old)) (by pcf) h4'
+  have f5 := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+     (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) **
+     ((spW + 24) ↦ₘ s2Old)) (by pcf) h5'
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 f1
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 f2
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 f3
+  have c04 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0123 f4
+  have c05 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c04 f5
+  have hlocal : cpsTripleWithin 6 (WB + 216) raIn fullCode
+      ((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old))
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) c05
+  have hframed := cpsTripleWithin_frameR G hG hlocal
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hframed
+
+#print axioms wdEpiCore
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
