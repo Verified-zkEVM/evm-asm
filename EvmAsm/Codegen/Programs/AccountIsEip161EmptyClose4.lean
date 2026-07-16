@@ -192,4 +192,67 @@ theorem aieField3SizeHead (v5 v6 v7 len3 : Word) :
 
 #print axioms aieField3SizeHead
 
+/-! ## Field-3 content-pointer setup ([74]-[79], `AB+296 → AB+320`)
+
+    `la x5 = aie_offset ;; LD x28 = offset ;; ADD x28, x8, x28 ;; la x31 = ECB`.
+    Materialises the content cursor `x28 = accBase + offset` and the
+    `EMPTY_CODE_HASH` cursor `x31 = ECB`. -/
+
+set_option maxRecDepth 8000 in
+theorem aieField3PtrSetup (v5 accBase v28 v31 offset3 : Word) :
+    cpsTripleWithin 6 (AB + 296) (AB + 320) fullCode
+      ((.x5 ↦ᵣ v5) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ v28) ** (.x31 ↦ᵣ v31) **
+        (OffA ↦ₘ offset3))
+      ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ (accBase + offset3)) **
+        (.x31 ↦ᵣ ECB) ** (OffA ↦ₘ offset3)) := by
+  -- [74-75] la x5 = aie_offset
+  have hau74 := CodeReq.ofProg_mem_at AB (AB + 296) accountIsEip161Empty_prog 74
+    (.AUIPC .x5 (EvmAsm.Codegen.laHi GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 296))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had75 := CodeReq.ofProg_mem_at AB (AB + 300) accountIsEip161Empty_prog 75
+    (.ADDI .x5 .x5 (EvmAsm.Codegen.laLo GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 296))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h75 := EvmAsm.Rv64.la_materialize_within .x5 v5 (AB + 296) OffA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau74 a i hi))
+    (fun a i hi => aie_mono a i (had75 a i hi))
+  have f75 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ v28) ** (.x31 ↦ᵣ v31) ** (OffA ↦ₘ offset3))
+    (by pcfR) h75
+  -- [76] LD x28 x5 0 : x28 := offset3
+  have h76 := ld_spec_gen_within .x28 .x5 OffA v28 offset3 (0 : BitVec 12) (AB + 304) (by decide)
+  rw [show OffA + signExtend12 (0 : BitVec 12) = OffA from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h76
+  have e76 := cpsTripleWithin_extend_code (aieFC 76, (AB + 304), (.LD .x28 .x5 (0 : BitVec 12))) h76
+  have f76 := cpsTripleWithin_frameR ((.x8 ↦ᵣ accBase) ** (.x31 ↦ᵣ v31)) (by pcfR) e76
+  -- [77] ADD x28 x8 x28 : x28 := accBase + offset3
+  have h77 := add_spec_gen_rd_eq_rs2_within .x28 .x8 accBase offset3 (AB + 308) (by decide)
+  have e77 := cpsTripleWithin_extend_code (aieFC 77, (AB + 308), (.ADD .x28 .x8 .x28)) h77
+  have f77 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ OffA) ** (.x31 ↦ᵣ v31) ** (OffA ↦ₘ offset3)) (by pcfR) e77
+  -- [78-79] la x31 = aie_empty_code_hash
+  have hau78 := CodeReq.ofProg_mem_at AB (AB + 312) accountIsEip161Empty_prog 78
+    (.AUIPC .x31 (EvmAsm.Codegen.laHi GuestAddrs.aie_empty_code_hash
+      (GuestAddrs.account_is_eip161_empty + 312))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had79 := CodeReq.ofProg_mem_at AB (AB + 316) accountIsEip161Empty_prog 79
+    (.ADDI .x31 .x31 (EvmAsm.Codegen.laLo GuestAddrs.aie_empty_code_hash
+      (GuestAddrs.account_is_eip161_empty + 312))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h79 := EvmAsm.Rv64.la_materialize_within .x31 v31 (AB + 312) ECB (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau78 a i hi))
+    (fun a i hi => aie_mono a i (had79 a i hi))
+  have f79 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ OffA) ** (.x8 ↦ᵣ accBase) ** (.x28 ↦ᵣ (accBase + offset3)) **
+      (OffA ↦ₘ offset3)) (by pcfR) h79
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f75 f76
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f77
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s2 f79
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) s3)
+
+#print axioms aieField3PtrSetup
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
