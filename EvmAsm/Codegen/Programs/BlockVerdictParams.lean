@@ -94,6 +94,18 @@ def bsrMptFrameUsedBytes : Nat := bsrMptFrameExtensionPathOffset + bsrMptFrameEx
     built. This is independent of the gas-derived descriptor count. -/
 def bsrMptBuilderNodeScratchBytes : Nat := bsrMptNodeMaxBytes
 
+/-- Constructed nodes retained for a possible one-child branch collapse are
+    indexed only by Patricia depth.  This is deliberately not a NodeDb: the
+    fixed `65 = 64 + 1` slots cannot grow with the number of changes. -/
+def bsrMptConstructedCacheSlots : Nat := bsrMptBuilderFrameCapacity
+def bsrMptConstructedCacheNodeBytes : Nat := bsrMptNodeMaxBytes
+def bsrMptConstructedCacheBytes : Nat := bsrMptConstructedCacheSlots * bsrMptConstructedCacheNodeBytes
+def bsrMptConstructedCacheRefBytes : Nat := bsrMptConstructedCacheSlots * bsrMptFrameChildRefBytes
+def bsrMptConstructedCacheWordBytes : Nat := bsrMptConstructedCacheSlots * 8
+
+#guard bsrMptConstructedCacheSlots = bsrMptKeyNibbles + 1
+#guard bsrMptConstructedCacheNodeBytes = 1024
+
 #guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
