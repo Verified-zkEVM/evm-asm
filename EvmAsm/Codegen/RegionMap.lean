@@ -222,8 +222,10 @@ def schemeAAnchors : List GuestRegion :=
     Fn.Spec siblings, misaligned-load fixes, and the SSZ envelope-cap check.
     Grew by `0x4` for the batch-merge landing the divmod cleanup and bounded
     extension direct-result ABI repair. Grew by `0x60` for the batch-merge
-    landing the BAL delegation-codes-base fix and further divmod cleanup. -/
-def textSizeBytes : Nat := 0x5c298
+    landing the BAL delegation-codes-base fix and further divmod cleanup.
+    Grew by `0x30` for the `stage_blockhash_m29` digest→stack-word byte
+    reversal (12-instruction in-place swap loop). -/
+def textSizeBytes : Nat := 0x5c2c8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
