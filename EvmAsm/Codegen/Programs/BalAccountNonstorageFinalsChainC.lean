@@ -505,7 +505,6 @@ theorem bansf_fieldInit50_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
       bv_omega
 
 
-#print axioms bansf_fieldInit50_spec
 
 /-! ## §2  Span capture (slots 46–49): `s3/s4 := (a0 - a2, a2)`, args -/
 
@@ -525,7 +524,6 @@ theorem bansf_spanCapture46_spec (n3 l3 v19 v20 : Word) :
   have s4 := mv_spec_gen_within .x11 .x20 l3 (0 : Word) (B + 196) (by decide)
   runBlock s1 s2 s3 s4
 
-#print axioms bansf_spanCapture46_spec
 
 /-! ## §3  The empty-list split (slot 52) -/
 
@@ -695,9 +693,6 @@ theorem bansf_loopEntry53_spec (aB newSp : Word) (cOff fEnd : Nat) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_balEmptyTaken_spec
-#print axioms bansf_balEmptyFall_spec
-#print axioms bansf_loopEntry53_spec
 
 /-! ## §5  The tuple-window init (slot 68) -/
 
@@ -1151,7 +1146,6 @@ theorem bansf_fieldInit68_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
       bv_omega
 
 
-#print axioms bansf_fieldInit68_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

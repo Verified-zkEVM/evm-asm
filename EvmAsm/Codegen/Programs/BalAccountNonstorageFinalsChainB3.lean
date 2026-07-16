@@ -276,7 +276,6 @@ theorem bansf_chainA_spec (aB newSp oB : Word) (aLen : Nat)
     xperm_hyp hq
   xperm_hyp hq2
 
-#print axioms bansf_chainA_spec
 
 /-! ## §2  The four-item chain (B + 104 → B + 184) -/
 
@@ -599,7 +598,6 @@ theorem bansf_chainItems_spec (aB newSp : Word) (aLen off0 : Nat)
       (cpsBranchWithin_chain_snd hstep1
         (cpsBranchWithin_chain_snd hstep2 hstep3)))
 
-#print axioms bansf_chainItems_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

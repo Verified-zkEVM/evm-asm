@@ -52,7 +52,6 @@ theorem bansf_codeFieldInitSuccess144_spec (aB : Word)
     (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
   xperm_hyp hq'
 
-#print axioms bansf_codeFieldInitSuccess144_spec
 
 /-- Slot 144, nonzero-status arm (`B + 576 → B + 736`): branch through the
     shared reject stub and release the code field-init registers. -/
@@ -114,7 +113,6 @@ theorem bansf_codeFieldInitFailure144_spec (aB cur endW k : Word)
       (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x))) h hq'
   xperm_hyp hqOwn
 
-#print axioms bansf_codeFieldInitFailure144_spec
 theorem bansf_codeFieldInit143_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
     (acctBytes : List (BitVec 8))
     (v5 v6 v7 v12 v28 v29 v30 v31 vRa : Word) (F : Assertion)
@@ -464,7 +462,6 @@ theorem bansf_codeFieldInit143_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word
       bv_omega
 
 
-#print axioms bansf_codeFieldInit143_spec
 
 /-- Slot 145, taken arm (`B + 580 → B + 724`): an empty code field skips
     directly to the success stub. -/
@@ -491,7 +488,6 @@ theorem bansf_codeEmptyTaken145_spec (aB : Word) (cOff fEnd : Nat)
     (fun h hq => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
 
-#print axioms bansf_codeEmptyTaken145_spec
 
 /-- Slot 145, fall-through arm (`B + 580 → B + 584`): a nonempty code
     window enters the station-3 find-last loop. -/
@@ -523,7 +519,6 @@ theorem bansf_codeEmptyFall145_spec (aB : Word) (aLen cOff fEnd : Nat)
     (fun h hq => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hq) h
 
-#print axioms bansf_codeEmptyFall145_spec
 
 /-- Slots 146–147 (`B + 584 → B + 592`): spill the nonempty code window
     cursor and end for station-3's find-last loop. -/
@@ -559,7 +554,6 @@ theorem bansf_codeLoopEntry146_spec (aB newSp : Word) (cOff fEnd : Nat) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_codeLoopEntry146_spec
 
 /-- Shared reject boundary for the code station. `G` is the already-complete
     balance/nonce footprint and remains untouched. -/
@@ -644,7 +638,6 @@ theorem codeLoopReject_to_stationRej (aB newSp oB n5 : Word) (aLen : Nat)
   unfold codeStationRej
   xperm_hyp hqOwn
 
-#print axioms codeLoopReject_to_stationRej
 
 /-- Slots 175–180 (`B + 700 → B + 724`): materialize the selected code
     value as the relative `(offset,length)` window and set `has_code`. -/
@@ -728,7 +721,6 @@ theorem bansf_codeMaterialize175_spec (aB oB vNext vLen v29 v5 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) c5
 
-#print axioms bansf_codeMaterialize175_spec
 
 /-- Slots 170–172 (`B + 680 → B + 692`): load the tuple value cursor/end
     and move the cursor into `a0` for `rlp_walk_next`. -/
@@ -767,7 +759,6 @@ theorem bansf_codeValueArgs170_spec (newSp cursor endW v28 v11 v10 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) c2
 
-#print axioms bansf_codeValueArgs170_spec
 
 /-- Status-zero continuation for the code tuple value (`B + 696 → B + 724`):
     fall through the gate and materialize its relative window. -/
@@ -813,7 +804,6 @@ theorem bansf_codeValueSuccess174_spec
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hchain
 
-#print axioms bansf_codeValueSuccess174_spec
 
 /-- Nonzero-status continuation for the code tuple value (`B + 696 → B + 736`). -/
 theorem bansf_codeValueFailure174_spec (aB newSp cur k : Word)
@@ -887,7 +877,6 @@ theorem bansf_codeValueFailure174_spec (aB newSp cur k : Word)
           (sepConj_mono memIs_implies_memOwn (fun _ x => x))))) h hq'
   xperm_hyp hqOwn
 
-#print axioms bansf_codeValueFailure174_spec
 theorem bansf_codeTupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
     (acctBytes : List (BitVec 8))
     (v5 v6 v7 v10 v11 v12 v28 v29 v30 v31 vRa : Word) (F : Assertion)
@@ -1266,7 +1255,6 @@ theorem bansf_codeTupleItem1_spec (aB newSp : Word) (aLen tEnd off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_codeTupleItem1_spec
 
 /-- Reframe a successful code tuple value decode as the materialization-tail
     precondition, retaining its decode derivation. -/
@@ -1319,7 +1307,6 @@ theorem codeTupleValOk_to_materializePre
     xperm_hyp hpV
   exact ⟨vNext, vLen, hp'⟩
 
-#print axioms codeTupleValOk_to_materializePre
 
 /-- Reframe the materialized code window as the found arm of the code station. -/
 theorem codeMaterialized_to_stationPost
@@ -1369,7 +1356,6 @@ theorem codeMaterialized_to_stationPost
   rw [h_off, h_len]
   xperm_hyp hpOwn
 
-#print axioms codeMaterialized_to_stationPost
 
 
 

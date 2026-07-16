@@ -597,7 +597,6 @@ theorem balValueReverseFn_spec (p c r : Word) (w : List (BitVec 8))
     subst i
     exact ⟨hx5, hx6, by rw [hA, reverseLoopWin_16_eq_reverse w]⟩
 
-#print axioms balValueReverseFn_spec
 
 end BalValueReverseSAsm
 
