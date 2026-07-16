@@ -274,4 +274,135 @@ theorem aieChunkC (accBase lenW outPtr old13 old14 : Word) :
 
 #print axioms aieChunkC
 
+/-! ## Prologue — full caller footprint and composition ([0]-[15]) -/
+
+/-- Pre-prologue caller footprint: ABI args `a0/a1/a2 = accBase/lenW/outPtr`,
+    caller callee-saved `x8/x9/x18 = c8/c9/c18` (restored on return), `x19/x20/x21
+    = s3/s4/s5` (preserved by K20), the AIE frame slots owned, the K20 stack frame
+    below `newSp`, the output cell, and the two `aie_offset`/`aie_length` scratch
+    cells. -/
+def aiePre (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+    old13 old14 oldOut oldOff oldLen s3 s4 s5 : Word) (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+  aieSlots spA q0 q1 q2 q3 **
+  (.x10 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) **
+  (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14) **
+  (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion accBase bytes ** frameSlotsOwn listNthFrame newSp **
+  (outPtr ↦ₘ oldOut) ** (OffA ↦ₘ oldOff) ** (LenA ↦ₘ oldLen)
+
+set_option maxRecDepth 8000 in
+/-- The full prologue [0]-[15]: from the caller footprint to K20's field-0 call
+    footprint, framed by the wrapper's own saved slots, output cell, and the
+    incumbent `x1 = raIn`. -/
+theorem aieHead (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+    old13 old14 oldOut oldOff oldLen s3 s4 s5 : Word) (bytes : List (BitVec 8))
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12)) :
+    cpsTripleWithin 16 AB (AB + 64) fullCode
+      (aiePre sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+        old13 old14 oldOut oldOff oldLen s3 s4 s5 bytes)
+      ((.x1 ↦ᵣ raIn) ** aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+        aieCalleePre spA newSp accBase lenW (0 : Word) oldOff oldLen
+          (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes) := by
+  have hA := aieChunkA sp0 spA raIn c8 c9 c18 q0 q1 q2 q3 hspA
+  have hB := aieChunkB accBase lenW outPtr c8 c9 c18 oldOut
+  have hC := aieChunkC accBase lenW outPtr old13 old14
+  -- Frame each chunk against the shared active atoms the other chunks touch.
+  have fA := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) **
+     (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14) ** (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut))
+    (by pcfR) hA
+  have fB := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+     (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14)) (by unfold aieSlots; pcfR) hB
+  have fC := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spA) ** (.x18 ↦ᵣ outPtr) **
+     aieSlots spA raIn c8 c9 c18 ** (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word)))
+    (by unfold aieSlots; pcfR) hC
+  have sAB := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) fA fB
+  have sABC := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) sAB fC
+  -- Frame the untouched remainder around the whole prologue.
+  have hframed := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** bytesRegion accBase bytes **
+     frameSlotsOwn listNthFrame newSp ** (OffA ↦ₘ oldOff) ** (LenA ↦ₘ oldLen))
+    (by pcfR) sABC
+  refine cpsTripleWithin_weaken (fun _ hp => by
+      unfold aiePre at hp; xperm_chunked hp) (fun _ hq => by
+      unfold aieCalleePre entryRest mkSaved; xperm_chunked hq) hframed
+
+#print axioms aieHead
+
+/-! ## Field-0 (nonce) RLP call adapter — prologue ;; jal ;; K20 ([0]-[16]+callee) -/
+
+set_option maxRecDepth 8000 in
+/-- Prologue ;; `jal rlp_list_nth_item` (field index 0) ;; the strict K20 selector.
+    The post is K20's `returnResult` for field 0 (its `aie_offset`/`aie_length`
+    cells written, its `Result` pinned), framed by the AIE saved slots and the
+    zeroed output cell. -/
+theorem aieCall0 (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+    old13 old14 oldOut oldOff oldLen s3 s4 s5 : Word) (bytes : List (BitVec 8))
+    (listLen : Nat)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hnewSp : newSp = spA + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : lenW = BitVec.ofNat 64 listLen)
+    (hsalign : accBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : accBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (accBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (16 + 1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9)) AB (AB + 68) fullCode
+      (aiePre sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+        old13 old14 oldOut oldOff oldLen s3 s4 s5 bytes)
+      (returnResult spA newSp accBase (0 : Word) OffA LenA oldOff oldLen
+          (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes listLen 0 **
+        aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word))) := by
+  have hhead := aieHead sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+    old13 old14 oldOut oldOff oldLen s3 s4 s5 bytes hspA
+  -- [16] jal x1, rlp_list_nth_item
+  have hjal := jal_link_spec_within (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+    (GuestAddrs.account_is_eip161_empty + 64)) (AB + 64) raIn
+  rw [show (AB + 64) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_is_eip161_empty + 64)) = B from by decide,
+    show (AB + 64 + 4 : Word) = AB + 68 from by bv_omega] at hjal
+  have hjalC := cpsTripleWithin_extend_code (aieFC 16, (AB + 64),
+    (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_is_eip161_empty + 64)))) hjal
+  have hjalF := cpsTripleWithin_frameR
+    (aieCalleePre spA newSp accBase lenW (0 : Word) oldOff oldLen
+        (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes **
+      aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)))
+    (by unfold aieCalleePre entryRest aieSlots; pcfR) hjalC
+  -- The K20 selector.
+  have hcallee0 := rlpListNthItem_spec_within spA newSp accBase lenW (0 : Word) OffA LenA
+    oldOff oldLen (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes listLen 0
+    hnewSp hlistLenW rfl (by decide) hsalign hslack hover hvalid
+    (by show (AB + 68 : Word) &&& ~~~(1 : Word) = AB + 68; decide)
+  have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
+  have hcalleeF := cpsTripleWithin_frameR
+    (aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)))
+    (by unfold aieSlots; pcfR) hcalleeC
+  have hcallee : cpsTripleWithin ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9) B (AB + 68) fullCode
+      ((.x1 ↦ᵣ (AB + 68)) **
+        (aieCalleePre spA newSp accBase lenW (0 : Word) oldOff oldLen
+            (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes **
+          aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word))))
+      (returnResult spA newSp accBase (0 : Word) OffA LenA oldOff oldLen
+          (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes listLen 0 **
+        aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word))) :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold aieCalleePre entryRest at hp
+      rw [regsAt_listNthFrame]
+      unfold entryRest
+      simp only [mkSaved] at hp ⊢
+      xperm_chunked hp) (fun _ hq => hq) hcalleeF
+  -- Compose head ;; jal ;; callee.
+  have hhj := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hhead hjalF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hhj hcallee
+
+#print axioms aieCall0
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
