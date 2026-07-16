@@ -428,4 +428,53 @@ theorem cvedlEpilogue
 
 #print axioms cvedlEpilogue
 
+/-! ## All-valid exit (instruction 59 → epilogue): `a0 := 0`, then return -/
+
+set_option maxRecDepth 8000 in
+/-- The loop-exhausted exit reached by the guard when `i = N`: set `a0 := 0` and
+    return through the epilogue.  Generic over the passed-through frame `G`. -/
+theorem retAllValid
+    (sp0 spC raIn : Word) (csaved : Saved) (G : Assertion) (hG : G.pcFree)
+    (o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 10 (C + 236) raIn cvedlCode
+      ((.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) **
+        (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) ** (.x18 ↦ᵣ csaved.s2) **
+        (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) ** (.x21 ↦ᵣ csaved.s5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+        ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+        ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G) := by
+  subst hraSaved
+  -- [59] LI x10 0
+  have h59 := li_spec_gen_within .x10 o10 (0 : Word) (C + 236) (by decide)
+  have h59C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 236) cvedlProg 59 (.LI .x10 (0 : Word))
+      (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide))
+    h59
+  have h59F := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+      (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ csaved.ra) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
+      ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
+      ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h59C
+  -- Epilogue.
+  have hepi := cvedlEpilogue sp0 spC csaved.ra csaved.s0 csaved.s1 csaved.s2 csaved.s3
+    csaved.s4 csaved.s5 o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF := cpsTripleWithin_frameR ((.x10 ↦ᵣ (0 : Word)) ** G)
+    (by refine pcFree_sepConj ?_ hG; pcf) hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h59F hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
+#print axioms retAllValid
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
