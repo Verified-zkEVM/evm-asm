@@ -311,6 +311,46 @@ def mptBoundedOpenChildFrameFunction : String :=
   ".Lmboc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
 
+/-- Invalidate the one constructed-child cache slot belonging to `depth`.
+    A branch does this before visiting its children, so a later collapse can
+    never consult a stale node left by a sibling subtree. -/
+def mptBoundedInvalidateConstructedCacheFunction : String :=
+  "  .globl mpt_bounded_invalidate_constructed_cache\n" ++
+  "mpt_bounded_invalidate_constructed_cache:\n" ++
+  "  li t0, " ++ toString bsrMptConstructedCacheSlots ++ "; bgeu a0, t0, .Lmbic_fail; slli t0, a0, 3; la t1, bsr_builder_constructed_ref_lens; add t1, t1, t0; sd zero, 0(t1); la t1, bsr_builder_constructed_node_lens; add t1, t1, t0; sd zero, 0(t1); li a0, 0; ret\n" ++
+  ".Lmbic_fail:\n  li a0, 1; ret\n"
+
+/-- Snapshot a newly constructed hashed child in the fixed slot for its
+    Patricia depth.  The RLP item-size check rejects values over the 1024-byte
+    slot rather than truncating them. -/
+def mptBoundedSnapshotConstructedChildFunction : String :=
+  "  .globl mpt_bounded_snapshot_constructed_child\n" ++
+  "mpt_bounded_snapshot_constructed_child:\n" ++
+  "  addi sp, sp, -64\n  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; li t0, " ++ toString bsrMptConstructedCacheSlots ++ "; bgeu s0, t0, .Lmbsc_fail; li t0, 32; bne s2, t0, .Lmbsc_fail; slli t0, s0, 3; la t1, bsr_builder_constructed_ref_lens; add t1, t1, t0; sd zero, 0(t1); la t1, bsr_builder_constructed_node_lens; add t1, t1, t0; sd zero, 0(t1); la a0, bsr_builder_node; jal ra, rlp_item_size; beqz a0, .Lmbsc_fail; li t0, " ++ toString bsrMptConstructedCacheNodeBytes ++ "; bgtu a0, t0, .Lmbsc_fail; mv s3, a0\n" ++
+  "  slli t0, s0, 3; la t1, bsr_builder_constructed_ref_lens; add t1, t1, t0; li t2, 32; sd t2, 0(t1); la t1, bsr_builder_constructed_node_lens; add t1, t1, t0; sd s3, 0(t1); slli t0, s0, 5; la t1, bsr_builder_constructed_refs; add t1, t1, t0; li t2, 32\n" ++
+  ".Lmbsc_ref_copy:\n  beqz t2, .Lmbsc_node_setup; lbu t3, 0(s1); sb t3, 0(t1); addi s1, s1, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lmbsc_ref_copy\n" ++
+  ".Lmbsc_node_setup:\n  li t0, " ++ toString bsrMptConstructedCacheNodeBytes ++ "; mul t0, s0, t0; la t1, bsr_builder_constructed_nodes; add t1, t1, t0; la t2, bsr_builder_node; mv t0, s3\n" ++
+  ".Lmbsc_node_copy:\n  beqz t0, .Lmbsc_ok; lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t0, t0, -1; j .Lmbsc_node_copy\n" ++
+  ".Lmbsc_ok:\n  li a0, 0; j .Lmbsc_ret\n" ++
+  ".Lmbsc_fail:\n  li a0, 1\n" ++
+  ".Lmbsc_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 64; ret\n"
+
+/-- Open a current-path constructed child after immutable witness lookup
+    misses.  The exact raw-reference tag is checked before the cached bytes
+    are used, which makes stale cache contents a clean reject rather than a
+    wrong reconstructed root. -/
+def mptBoundedOpenConstructedChildFrameFunction : String :=
+  "  .globl mpt_bounded_open_constructed_child_frame\n" ++
+  "mpt_bounded_open_constructed_child_frame:\n" ++
+  "  addi sp, sp, -80\n  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; li t0, 32; bne s1, t0, .Lmbocc_fail; li t0, " ++ toString bsrMptConstructedCacheSlots ++ "; bgeu s2, t0, .Lmbocc_fail; slli t0, s2, 3; la t1, bsr_builder_constructed_ref_lens; add t1, t1, t0; ld t2, 0(t1); li t3, 32; bne t2, t3, .Lmbocc_fail; la t1, bsr_builder_constructed_node_lens; add t1, t1, t0; ld s4, 0(t1); beqz s4, .Lmbocc_fail; li t0, " ++ toString bsrMptConstructedCacheNodeBytes ++ "; bgtu s4, t0, .Lmbocc_fail; slli t0, s2, 5; la t1, bsr_builder_constructed_refs; add t1, t1, t0; li t2, 32\n" ++
+  ".Lmbocc_tag_eq:\n  beqz t2, .Lmbocc_tag_ok; lbu t3, 0(s0); lbu t4, 0(t1); bne t3, t4, .Lmbocc_fail; addi s0, s0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lmbocc_tag_eq\n" ++
+  ".Lmbocc_tag_ok:\n  li t0, " ++ toString bsrMptConstructedCacheNodeBytes ++ "; mul t0, s2, t0; la t1, bsr_builder_constructed_nodes; add t1, t1, t0; sd t1, " ++ toString bsrMptFrameNodePtrOffset ++ "(s3); sd s4, " ++ toString bsrMptFrameNodeLenOffset ++ "(s3); ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s3); mv a1, s4; addi a2, sp, 64; jal ra, mpt_bounded_classify_node; bnez a0, .Lmbocc_fail; ld t0, 64(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s3); bnez t0, .Lmbocc_ok; ld a0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s3); mv a1, s4; mv a2, s3; jal ra, mpt_bounded_capture_branch_refs; bnez a0, .Lmbocc_fail\n" ++
+  ".Lmbocc_ok:\n  li a0, 0; j .Lmbocc_ret\n" ++
+  ".Lmbocc_fail:\n  li a0, 1\n" ++
+  ".Lmbocc_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 80; ret\n"
+
 /-! ## `mpt_bounded_partition_frame`
 
 Given a sorted, final-distinct descriptor interval, materialize the sixteen
@@ -600,7 +640,7 @@ def mptBoundedCollapseBranchLeafFunction : String :=
   "mpt_bounded_collapse_branch_leaf:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgeu s2, t0, .Lmbcbl_fail; li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu s1, t0, .Lmbcbl_fail; slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); beqz t1, .Lmbcbl_fail; sd t0, 72(sp); addi a0, t0, 8; mv a1, t1; mv a2, s3; mv a3, s4; addi t0, s2, 1; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t0, t0, t1; la t1, bsr_builder_frames; add s5, t1, t0; mv a4, s5; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbcbl_fail; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s5); sd t0, 64(sp); beqz t0, .Lmbcbl_branch; li t1, 2; beq t0, t1, .Lmbcbl_kind_ok; li t1, 1; beq t0, t1, .Lmbcbl_kind_ok; j .Lmbcbl_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgeu s2, t0, .Lmbcbl_fail; li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu s1, t0, .Lmbcbl_fail; slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); beqz t1, .Lmbcbl_fail; sd t0, 72(sp); addi a0, t0, 8; mv a1, t1; mv a2, s3; mv a3, s4; addi t0, s2, 1; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t0, t0, t1; la t1, bsr_builder_frames; add s5, t1, t0; mv a4, s5; jal ra, mpt_bounded_open_child_frame; beqz a0, .Lmbcbl_child_opened; ld t0, 72(sp); addi a0, t0, 8; ld a1, 0(t0); addi a2, s2, 1; mv a3, s5; jal ra, mpt_bounded_open_constructed_child_frame; bnez a0, .Lmbcbl_fail\n  .Lmbcbl_child_opened:\n  ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s5); sd t0, 64(sp); beqz t0, .Lmbcbl_branch; li t1, 2; beq t0, t1, .Lmbcbl_kind_ok; li t1, 1; beq t0, t1, .Lmbcbl_kind_ok; j .Lmbcbl_fail\n" ++
   ".Lmbcbl_branch:\n  ld t0, 72(sp); addi t1, t0, 8; ld t2, 0(t0); sd t1, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s5); sd t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s5); sb s1, " ++ toString bsrMptFrameExtensionPathOffset ++ "(s5); li t0, 1; sd t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); mv a0, s5; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; bnez a0, .Lmbcbl_fail; li a0, 0; j .Lmbcbl_ret\n" ++
   ".Lmbcbl_kind_ok:\n" ++
   "  li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; addi a1, t0, -1; mv a0, s5; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbcbl_fail; ld s6, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; addi t0, t0, -1; bgtu s6, t0, .Lmbcbl_fail; addi t0, s5, " ++ toString bsrMptFrameExtensionPathOffset ++ "; add t1, t0, s6\n" ++
@@ -693,11 +733,11 @@ def mptBoundedRebuildSubtreeFunction : String :=
   ".Lmbrs_ext_child:\n  ld t1, 72(sp); ld t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); sd t3, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); j .Lmbrs_ext_encode\n  .size mpt_bounded_extension_merge_probe, .Lmbrs_ext_wrap - mpt_bounded_extension_merge_probe\n" ++
   ".Lmbrs_ext_wrap:\n  la t0, bsr_builder_result_ref; sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); la t0, bsr_builder_result_len; ld t0, 0(t0); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0)\n" ++
   ".Lmbrs_ext_encode:\n  mv a0, s0; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; j .Lmbrs_ret\n" ++
-  ".Lmbrs_branch:\n  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4; mv a4, s0; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbrs_fail; li s7, 0; j .Lmbrs_child\n" ++
+  ".Lmbrs_branch:\n  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4; mv a4, s0; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbrs_fail; addi a0, s4, 1; jal ra, mpt_bounded_invalidate_constructed_cache; bnez a0, .Lmbrs_fail; li s7, 0; j .Lmbrs_child\n" ++
   ".Lmbrs_child:\n  li t0, 16; beq s7, t0, .Lmbrs_encode; slli t0, s7, 4; addi t1, s0, " ++ toString bsrMptFrameRangeTableOffset ++ "; add t1, t1, t0; ld t2, 0(t1); ld t3, 8(t1); beq t2, t3, .Lmbrs_next\n" ++
   "  sd t2, 80(sp); sd t3, 88(sp); slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; ld t4, 0(t0); beqz t4, .Lmbrs_missing; addi t5, t0, 8; addi t6, s4, 1; li a0, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t6, t6, a0; la a0, bsr_builder_frames; add a4, a0, t6; sd a4, 72(sp); mv a0, t5; mv a1, t4; mv a2, s5; mv a3, s6; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
   "  ld a0, 72(sp); mv a1, s1; ld a2, 80(sp); ld a3, 88(sp); addi a4, s4, 1; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; beqz a0, .Lmbrs_child_done; li t0, 2; bne a0, t0, .Lmbrs_ret; slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; sd zero, 0(t0); j .Lmbrs_next\n" ++
-  ".Lmbrs_child_done:\n  slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; la t1, bsr_builder_result_len; ld t2, 0(t1); sd t2, 0(t0); addi t0, t0, 8; la t1, bsr_builder_result_ref; j .Lmbrs_copy_ref\n" ++
+  ".Lmbrs_child_done:\n  la t1, bsr_builder_result_len; ld t2, 0(t1); li t3, 32; bne t2, t3, .Lmbrs_child_store; addi a0, s4, 1; la a1, bsr_builder_result_ref; mv a2, t2; jal ra, mpt_bounded_snapshot_constructed_child; bnez a0, .Lmbrs_fail\n  .Lmbrs_child_store:\n  slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t0, s0, t0; la t1, bsr_builder_result_len; ld t2, 0(t1); sd t2, 0(t0); addi t0, t0, 8; la t1, bsr_builder_result_ref; j .Lmbrs_copy_ref\n" ++
   ".Lmbrs_missing:\n  mv a0, s1; ld a1, 80(sp); ld a2, 88(sp); addi a3, s4, 1; jal ra, mpt_bounded_build_missing_subtree; bnez a0, .Lmbrs_ret; j .Lmbrs_child_done\n" ++
   ".Lmbrs_copy_ref:\n  beqz t2, .Lmbrs_next; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbrs_copy_ref\n" ++
   ".Lmbrs_next:\n  addi s7, s7, 1; j .Lmbrs_child\n" ++
@@ -791,6 +831,9 @@ def mptBoundedBuilderFrontEndFunction : String :=
     mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
     mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n" ++
     mptBoundedOpenChildFrameFunction ++ "\n" ++
+    mptBoundedInvalidateConstructedCacheFunction ++ "\n" ++
+    mptBoundedSnapshotConstructedChildFunction ++ "\n" ++
+    mptBoundedOpenConstructedChildFrameFunction ++ "\n" ++
     mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n" ++
     mptBoundedEncodeLeafRefFunction ++ "\n" ++ mptBoundedDecodeExtensionFunction ++ "\n" ++
     mptBoundedDecodeLeafFunction ++ "\n" ++ mptBoundedDecodeFramePayloadFunction ++ "\n" ++
@@ -832,12 +875,19 @@ def ziskMptBoundedSortPrologue : String :=
   ".Lmbsp_copy_next:\n" ++
   "  addi s3, s3, 1; j .Lmbsp_copy_desc"
 
+def mptBoundedConstructedCacheDataSection : String :=
+  "bsr_builder_constructed_nodes:\n  .zero " ++ toString bsrMptConstructedCacheBytes ++ "\n" ++
+  "bsr_builder_constructed_refs:\n  .zero " ++ toString bsrMptConstructedCacheRefBytes ++ "\n" ++
+  "bsr_builder_constructed_ref_lens:\n  .zero " ++ toString bsrMptConstructedCacheWordBytes ++ "\n" ++
+  "bsr_builder_constructed_node_lens:\n  .zero " ++ toString bsrMptConstructedCacheWordBytes ++ "\n"
+
 def ziskMptBoundedSortDataSection : String :=
   ".section .bss\n" ++
   ".balign 8\n" ++
   "mbs_changes:\n  .zero 640\n" ++
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
+  mptBoundedConstructedCacheDataSection ++
   "bsr_builder_value_max:\n  .zero 8\n" ++
   "bsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection
@@ -1117,6 +1167,7 @@ def ziskMptBoundedStateRootDataSection : String :=
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  mptBoundedConstructedCacheDataSection ++
   "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
@@ -1171,6 +1222,7 @@ def ziskMptBoundedMissingGroupDataSection : String :=
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "bsr_builder_node:\n  .zero " ++ toString bsrMptBuilderNodeScratchBytes ++ "\n" ++
+  mptBoundedConstructedCacheDataSection ++
   "bsr_builder_result_ref:\n  .zero " ++ toString bsrMptFrameChildRefBytes ++ "\nbsr_builder_result_len:\n  .zero 8\nbsr_builder_value_max:\n  .zero 8\nbsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
