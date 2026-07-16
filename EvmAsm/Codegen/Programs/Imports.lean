@@ -514,3 +514,5 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoop
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
+
+import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoop
