@@ -165,4 +165,78 @@ theorem aieNotEmptyPost_to_aiePost (sp0 spA raIn c8 c9 c18 newSp accBase outPtr 
   unfold aieJunk aieJunkNoX0 at *
   xperm_chunked hp
 
+/-! ## Boundary folds: field-3 loop/size-exit residuals into the owned residual. -/
+
+/-- Downgrade the seven callee-saved frame cells to `memOwn`. -/
+theorem savedFrame_to_memOwns (newSp : Word) (saved : Saved) : ∀ h,
+    savedFrame newSp saved h →
+    (memOwn newSp ** memOwn (newSp + 8) ** memOwn (newSp + 16) ** memOwn (newSp + 24) **
+      memOwn (newSp + 32) ** memOwn (newSp + 40) ** memOwn (newSp + 48)) h := by
+  intro h hp
+  unfold savedFrame at hp
+  exact sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))))) h hp
+
+/-- The field-3 content-loop / size-exit residual in `aieJunkNoX5` order, with
+    the callee-saved frame cells inlined (`x5`/`x0` are threaded by the bridges). -/
+def aieResMixedNoX5 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : Assertion :=
+  regOwn .x6 ** (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+  regOwn .x13 ** regOwn .x14 ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  (OffA ↦ₘ offset) ** (LenA ↦ₘ len) **
+  (newSp ↦ₘ fr0) ** ((newSp + 8) ↦ₘ fr1) ** ((newSp + 16) ↦ₘ fr2) **
+  ((newSp + 24) ↦ₘ fr3) ** ((newSp + 32) ↦ₘ fr4) ** ((newSp + 40) ↦ₘ fr5) **
+  ((newSp + 48) ↦ₘ fr6) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem pcFree_aieResMixedNoX5 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) :
+    (aieResMixedNoX5 newSp accBase bytes v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6).pcFree := by
+  unfold aieResMixedNoX5
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+
+theorem aieResMixedNoX5_to_aieJunkNoX5 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : ∀ h,
+    aieResMixedNoX5 newSp accBase bytes v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6 h →
+    aieJunkNoX5 newSp accBase bytes h := by
+  intro h hp
+  unfold aieResMixedNoX5 at hp
+  unfold aieJunkNoX5
+  refine sepConj_mono (fun _ h => h) ?_ h hp
+  refine sepConj_mono (regIs_implies_regOwn .x7) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x11) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x12) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x19) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x20) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x21) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  exact fun _ h => h
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
