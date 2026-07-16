@@ -533,7 +533,6 @@ theorem bn254CallAllotment_spec (gp sp ret : Word) (w0 w1 w2 w3 rem : Word)
     (fun h hq => by rw [hPOST] at hq; xperm_hyp hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc8)
 
-#print axioms bn254CallAllotment_spec
 
 end Bn254CallAllotmentSAsm
 

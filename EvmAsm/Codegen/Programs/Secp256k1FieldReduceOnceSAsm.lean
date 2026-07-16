@@ -513,7 +513,6 @@ theorem secfReduceOnceFrame_spec (sp0 ret src dst s0 s1 v12 : Word)
       rw [hnewSp]
       xperm_hyp hq) h1234
 
-#print axioms secfReduceOnceFrame_spec
 
 end Secp256k1FieldReduceOnceSAsm
 

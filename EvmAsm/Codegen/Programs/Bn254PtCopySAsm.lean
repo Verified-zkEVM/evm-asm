@@ -354,7 +354,6 @@ theorem bnqPtCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
     rw [hws, copyWin1152_144_eq srcBytes orig hs ho]
     rfl
 
-#print axioms bnqPtCopyFn_spec
 
 end Bn254PtCopySAsm
 

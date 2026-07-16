@@ -734,10 +734,6 @@ theorem secfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
     (hsub := by code_mem)
     (hbody := hbody)
 
-#print axioms secfBeToLeFlat_spec
-#print axioms secfLeToBeFlat_spec
-#print axioms csrsStep_spec
-#print axioms secfMulModP_spec
 
 end Secp256k1FieldMulModPSAsm
 

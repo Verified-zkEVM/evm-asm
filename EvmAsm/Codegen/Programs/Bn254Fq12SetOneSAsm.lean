@@ -391,8 +391,6 @@ theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
     xperm_hyp hq2
   abi_frame (16 : BitVec 12) halign hbody
 
-#print axioms bnqZeroFlat_spec
-#print axioms bnqSetOneFrame_spec
 
 end Bn254Fq12SetOneSAsm
 
