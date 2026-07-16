@@ -2,9 +2,19 @@
   Per-iteration body + loop induction for `chain_validate_extra_data_length`.
 
   Builds on `ChainValidateExtraDataLengthSpec` (model, prologue, epilogue, exit
-  blocks, `wordArray_split`) to prove the loop body `[C+72 … C+204]`, the loop
-  induction `cvedlLoop` (on `N − i`), and the whole-program caller contract
-  `chain_validate_extra_data_length_spec_within`.
+  blocks, `wordArray_split`).  Proves the four straight-line body blocks of one
+  loop iteration:
+
+    * `cvedlSetup`  [C+72 → C+132]  — spill + aligned array load + call-arg setup
+    * `cvedlCall`   [C+72 → C+136]  — setup ;; jal ;; `rlpListNthItem_spec_within`
+    * `cvedlReload` [C+140 → C+180] — reload iter state + field length, `x7 := 32`
+    * `cvedlAdvance`[C+184 → C+68]  — `x18 += lengths[i]`, `x21 += 1`, loop back
+
+  These plus the guard/exit/frame blocks in the `Spec` module are the reusable
+  pieces the loop induction `cvedlLoop` (BNE/BLTU 3-way dispatch tying K20's
+  `Result` to the post arms, over `N − i`) and the whole-program contract
+  `chain_validate_extra_data_length_spec_within` compose — that final gluing is
+  the remaining work.
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec

@@ -103,6 +103,15 @@ def wordArrayFrom (base : Word) (start : Nat) : List Nat → Assertion
 /-- The array region rooted at `base`, cell `k` at `base + 8*k`. -/
 def wordArray (base : Word) (xs : List Nat) : Assertion := wordArrayFrom base 0 xs
 
+theorem pcFree_wordArrayFrom (base : Word) (start : Nat) (xs : List Nat) :
+    (wordArrayFrom base start xs).pcFree := by
+  induction xs generalizing start with
+  | nil => exact pcFree_emp
+  | cons x xs ih => exact pcFree_sepConj pcFree_memIs (ih (start + 1))
+
+theorem pcFree_wordArray (base : Word) (xs : List Nat) :
+    (wordArray base xs).pcFree := pcFree_wordArrayFrom base 0 xs
+
 /-- `SLLI rd, rs, 3` on `ofNat i` computes the byte offset `8*i` (mod 2^64). -/
 theorem shiftLeft3_ofNat (i : Nat) :
     (BitVec.ofNat 64 i) <<< (3 : Nat) = BitVec.ofNat 64 (8 * i) := by
