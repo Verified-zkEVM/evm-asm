@@ -214,4 +214,55 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
 
 #print axioms cvedlCall
 
+/-! ## Reload block (instructions 35--44): restore iter state + load length
+
+    Runs on the K20-success (`bne` not-taken) path from `C+140` to `C+180`:
+    reload `x18 := *iter_ptr`, `x21 := *iter_i`, `x6 := *cvedl_length`, and set
+    `x7 := 32` for the upcoming `bltu`. -/
+
+set_option maxRecDepth 8000 in
+theorem cvedlReload (hbi iW len : Word) (old5 o18 o21 o6 o7 : Word) :
+    cpsTripleWithin 10 (C + 140) (C + 180) cvedlCode
+      ((.x5 ↦ᵣ old5) ** (.x18 ↦ᵣ o18) ** (.x21 ↦ᵣ o21) ** (.x6 ↦ᵣ o6) **
+        (.x7 ↦ᵣ o7) ** (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (CLen ↦ₘ len))
+      ((.x5 ↦ᵣ CLen) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) ** (.x6 ↦ᵣ len) **
+        (.x7 ↦ᵣ (32 : Word)) ** (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (CLen ↦ₘ len)) := by
+  -- [35-36] la x5, cvedl_iter_ptr
+  have hla35 := la_materialize_within .x5 old5 (C + 140) IterPtr (by decide) (by decide)
+    (CodeReq.ofProg_mem_at C (C + 140) cvedlProg 35 (.AUIPC .x5 (EvmAsm.Rv64.laHi (C + 140) IterPtr)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+    (CodeReq.ofProg_mem_at C (C + 144) cvedlProg 36 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (C + 140) IterPtr)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+  -- [37] LD x18 x5 0 : x18 := *iter_ptr = hbi
+  have s37 := ld_spec_gen_within .x18 .x5 IterPtr o18 hbi (0 : BitVec 12) (C + 148) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show IterPtr + (0 : Word) = IterPtr from by bv_omega] at s37
+  have s37' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 148) cvedlProg 37 (.LD .x18 .x5 (0 : BitVec 12)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s37
+  -- [38-39] la x5, cvedl_iter_i
+  have hla38 := la_materialize_within .x5 IterPtr (C + 152) IterI (by decide) (by decide)
+    (CodeReq.ofProg_mem_at C (C + 152) cvedlProg 38 (.AUIPC .x5 (EvmAsm.Rv64.laHi (C + 152) IterI)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+    (CodeReq.ofProg_mem_at C (C + 156) cvedlProg 39 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (C + 152) IterI)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+  -- [40] LD x21 x5 0 : x21 := *iter_i = iW
+  have s40 := ld_spec_gen_within .x21 .x5 IterI o21 iW (0 : BitVec 12) (C + 160) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show IterI + (0 : Word) = IterI from by bv_omega] at s40
+  have s40' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 160) cvedlProg 40 (.LD .x21 .x5 (0 : BitVec 12)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s40
+  -- [41-42] la x5, cvedl_length
+  have hla41 := la_materialize_within .x5 IterI (C + 164) CLen (by decide) (by decide)
+    (CodeReq.ofProg_mem_at C (C + 164) cvedlProg 41 (.AUIPC .x5 (EvmAsm.Rv64.laHi (C + 164) CLen)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+    (CodeReq.ofProg_mem_at C (C + 168) cvedlProg 42 (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (C + 164) CLen)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
+  -- [43] LD x6 x5 0 : x6 := *cvedl_length = len
+  have s43 := ld_spec_gen_within .x6 .x5 CLen o6 len (0 : BitVec 12) (C + 172) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show CLen + (0 : Word) = CLen from by bv_omega] at s43
+  have s43' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 172) cvedlProg 43 (.LD .x6 .x5 (0 : BitVec 12)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s43
+  -- [44] LI x7 32
+  have s44 := li_spec_gen_within .x7 o7 (32 : Word) (C + 176) (by decide)
+  have s44' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 176) cvedlProg 44 (.LI .x7 (32 : Word)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s44
+  runBlock hla35 s37' hla38 s40' hla41 s43' s44'
+
+#print axioms cvedlReload
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
