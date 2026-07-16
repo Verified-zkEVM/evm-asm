@@ -456,4 +456,257 @@ theorem helbEpilogue (newSp a0v v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.
 
 #print axioms helbEpilogue
 
+/-! ## Copy-loop helpers -/
+
+private theorem helb_succ_dec (n : Nat) :
+    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
+  apply BitVec.eq_of_toNat_eq
+  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
+  rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+private theorem helb_succ_ne_zero (n : Nat) (h : n + 1 < 18446744073709551616) :
+    BitVec.ofNat 64 (n + 1) ≠ (0 : Word) := by
+  have ht : (BitVec.ofNat 64 (n + 1) : Word).toNat = n + 1 := by
+    rw [BitVec.toNat_ofNat]; omega
+  intro hc; rw [hc] at ht; simp at ht
+
+private theorem helb_advance (b : Word) (m : Nat) :
+    (b + BitVec.ofNat 64 m) + signExtend12 (1 : BitVec 12) = b + BitVec.ofNat 64 (m + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
+
+set_option maxRecDepth 8000 in
+/-- One copy-loop body ([29]-[33], `helbBase+116 → helbBase+136`): copy one byte
+    from `srcBase[srcOff+i]` to `dstBase[dstOff+i]` and decrement the counter. -/
+private theorem helbCopyBody5 (srcBase dstBase x31old : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff dstOff i m : Nat)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_dst_align : dstBase.toNat % 8 = 0)
+    (h_src_lt : srcOff + i < srcBytes.length)
+    (h_dst_lt : dstOff + i < dstBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (dstBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 5 (helbBase + 116) (helbBase + 136) fullCode
+      (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x31 : Reg) ↦ᵣ x31old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 m) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + 1)))) **
+       ((.x31 : Reg) ↦ᵣ ((srcBytes.getD (srcOff + i) 0).zeroExtend 64)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1))) := by
+  set bval := srcBytes[srcOff + i]'h_src_lt with hbval
+  have htrunc : (bval.zeroExtend 64).truncate 8 = bval := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+    have := bval.isLt
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+  have hgetd : srcBytes.getD (srcOff + i) 0 = bval := by
+    rw [hbval, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h_src_lt]; rfl
+  have hstep : copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)
+      = (copyIntoRegion dstBytes srcBytes dstOff srcOff i).set (dstOff + i) bval := by
+    simp only [copyIntoRegion, hgetd]
+  -- [29] lbu x31, 0(x28)
+  have hlbu := bytesRegion_lbu_within .x31 .x28 srcBase x31old (helbBase + 116)
+    srcBytes (srcOff + i) (by decide) h_src_align h_src_lt (by omega)
+    (h_src_valid (srcOff + i) h_src_lt)
+  rw [show (helbBase + 116 : Word) + 4 = helbBase + 120 from by bv_omega, ← hbval] at hlbu
+  have hlbue := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 116) 29
+      (.LBU .x31 .x28 (0 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) hlbu
+  have hlbuf := cpsTripleWithin_frameR
+    (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hlbue
+  -- [30] sb x31, 0(x29)
+  have hsb := bytesRegion_sb_within .x29 .x31 dstBase (bval.zeroExtend 64) (helbBase + 120)
+    (copyIntoRegion dstBytes srcBytes dstOff srcOff i) (dstOff + i) h_dst_align
+    (by rw [copyIntoRegion_length]; omega) (by omega)
+    (h_dst_valid (dstOff + i) h_dst_lt)
+  rw [htrunc, ← hstep, show (helbBase + 120 : Word) + 4 = helbBase + 124 from by bv_omega] at hsb
+  have hsbe := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 120) 30
+      (.SB .x29 .x31 (0 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) hsb
+  have hsbf := cpsTripleWithin_frameR
+    (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes)
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hsbe
+  -- [31] addi x28, x28, 1
+  have h3 := addi_spec_gen_same_within .x28
+    (srcBase + BitVec.ofNat 64 (srcOff + i)) (1 : BitVec 12) (helbBase + 124) (by decide)
+  rw [helb_advance srcBase (srcOff + i),
+      show srcOff + i + 1 = srcOff + (i + 1) from by omega,
+      show (helbBase + 124 : Word) + 4 = helbBase + 128 from by bv_omega] at h3
+  have h3e := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 124) 31
+      (.ADDI .x28 .x28 (1 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h3
+  have h3f := cpsTripleWithin_frameR
+    (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+     ((.x31 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h3e
+  -- [32] addi x29, x29, 1
+  have h4 := addi_spec_gen_same_within .x29
+    (dstBase + BitVec.ofNat 64 (dstOff + i)) (1 : BitVec 12) (helbBase + 128) (by decide)
+  rw [helb_advance dstBase (dstOff + i),
+      show dstOff + i + 1 = dstOff + (i + 1) from by omega,
+      show (helbBase + 128 : Word) + 4 = helbBase + 132 from by bv_omega] at h4
+  have h4e := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 128) 32
+      (.ADDI .x29 .x29 (1 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h4
+  have h4f := cpsTripleWithin_frameR
+    (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+     ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+     ((.x31 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h4e
+  -- [33] addi x30, x30, -1
+  have h5 := addi_spec_gen_same_within .x30 (BitVec.ofNat 64 (m + 1)) (-1 : BitVec 12)
+    (helbBase + 132) (by decide)
+  rw [helb_succ_dec m, show (helbBase + 132 : Word) + 4 = helbBase + 136 from by bv_omega] at h5
+  have h5e := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 132) 33
+      (.ADDI .x30 .x30 (-1 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h5
+  have h5f := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+     ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + 1)))) **
+     ((.x31 : Reg) ↦ᵣ (bval.zeroExtend 64)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion srcBase srcBytes **
+     bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+    (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) h5e
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hlbuf hsbf
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s12 h3f
+  have s1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s123 h4f
+  have s12345 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1234 h5f
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by rw [hgetd]; xperm_chunked hq) s12345
+
+set_option maxRecDepth 8000 in
+/-- The while-copy loop closure ([28]-[34], `helbBase+112 → helbBase+140`):
+    the top `beq x30, x0` exits when the counter hits `0`; each iteration copies
+    one byte and re-enters via the unconditional `jal` at [34]. Copies `n` bytes. -/
+private theorem helbCopyLoop (srcBase dstBase x31old : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff dstOff n i : Nat)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_dst_align : dstBase.toNat % 8 = 0)
+    (h_src_bound : srcOff + i + n ≤ srcBytes.length)
+    (h_dst_bound : dstOff + i + n ≤ dstBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_n : n < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (dstBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (7 * n + 1) (helbBase + 112) (helbBase + 140) fullCode
+      (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x31 : Reg) ↦ᵣ x31old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (((.x30 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + n)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + n)))) **
+       regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + n))) := by
+  have ha_taken : (helbBase + 112 : Word) + signExtend13 (28 : BitVec 13) = helbBase + 140 := by
+    rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega
+  have ha_fall : (helbBase + 112 : Word) + 4 = helbBase + 116 := by bv_omega
+  have hbeqMem : ∀ a i', CodeReq.singleton (helbBase + 112) (.BEQ .x30 .x0 (28 : BitVec 13)) a = some i'
+      → fullCode a = some i' :=
+    helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 112) 28
+      (.BEQ .x30 .x0 (28 : BitVec 13)) (by rw [program_length]; norm_num) (by bv_omega) rfl
+  induction n generalizing i x31old with
+  | zero =>
+    have hbeq := beq_spec_gen_within .x30 .x0 (28 : BitVec 13) (BitVec.ofNat 64 0)
+      (0 : Word) (helbBase + 112)
+    rw [ha_taken] at hbeq
+    have hbeqe := cpsBranchWithin_extend_code hbeqMem hbeq
+    have htaken := cpsBranchWithin_takenStripPure2 hbeqe (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact ((sepConj_pure_right _).1 hQ).2 (by decide))
+    have htf := cpsTripleWithin_frameR
+      (((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x31 : Reg) ↦ᵣ x31old) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) htaken
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by
+        simp only [Nat.add_zero]
+        rw [show (BitVec.ofNat 64 0 : Word) = 0 from by decide] at hq
+        have hq2 := sepConj_mono_left (regIs_implies_regOwn .x31) _
+          (show (((.x31 : Reg) ↦ᵣ x31old) **
+            ((.x30 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+            ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+            ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            bytesRegion srcBase srcBytes **
+            bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i)) _ from by
+            xperm_chunked hq)
+        xperm_chunked hq2) htf
+  | succ k ih =>
+    have hbeq := beq_spec_gen_within .x30 .x0 (28 : BitVec 13) (BitVec.ofNat 64 (k + 1))
+      (0 : Word) (helbBase + 112)
+    rw [ha_taken, ha_fall] at hbeq
+    have hbeqe := cpsBranchWithin_extend_code hbeqMem hbeq
+    have hnt := cpsBranchWithin_ntakenStripPure2 hbeqe (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact helb_succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)
+    have hntf := cpsTripleWithin_frameR
+      (((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x31 : Reg) ↦ᵣ x31old) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hnt
+    have hbody := helbCopyBody5 srcBase dstBase x31old srcBytes dstBytes srcOff dstOff i k
+      h_src_align h_dst_align (by omega) (by omega) h_src_over h_dst_over h_src_valid h_dst_valid
+    have hjal := jal_x0_spec_gen_within (-24 : BitVec 21) (helbBase + 136)
+    rw [show (helbBase + 136 : Word) + signExtend21 (-24 : BitVec 21) = helbBase + 112 from by
+      decide] at hjal
+    have hjale := cpsTripleWithin_extend_code
+      (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 136) 34
+        (.JAL .x0 (-24 : BitVec 21)) (by rw [program_length]; norm_num) (by bv_omega) rfl) hjal
+    have hjalf := cpsTripleWithin_frameR
+      (((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 k) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + (i + 1)))) **
+       ((.x31 : Reg) ↦ᵣ ((srcBytes.getD (srcOff + i) 0).zeroExtend 64)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + 1)))
+      (by repeat' first | exact bytesRegion_pcFree _ _ | exact pcFree_regIs | apply pcFree_sepConj) hjale
+    rw [sepConj_emp_left'] at hjalf
+    have hih := ih ((srcBytes.getD (srcOff + i) 0).zeroExtend 64) (i + 1)
+      (by omega) (by omega) (by omega)
+    -- compose: beq_ntaken ;; body5 ;; jal ;; ih
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hntf hbody
+    have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hjalf
+    have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s2 hih
+    refine cpsTripleWithin_mono_nSteps (nSteps := 7 + (7 * k + 1)) (by omega) ?_
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by
+        simp only [show i + 1 + k = i + (k + 1) from by omega] at hq
+        xperm_chunked hq) s3
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
