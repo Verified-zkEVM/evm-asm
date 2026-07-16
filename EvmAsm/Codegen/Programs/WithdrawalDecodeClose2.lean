@@ -725,4 +725,102 @@ theorem wdField3Call
 
 #print axioms wdField3Call
 
+/-! ## Field-2 call adapter [20]-[27] + strict K20 selector -/
+
+open EvmAsm.Codegen.RlpListNthItemSAsm in
+set_option maxRecDepth 8000 in
+/-- Field-2 RLP call adapter [20]-[27] + the strict `rlp_list_nth_item` selector
+    (index 2, outputs `wd_offset`/`wd_length`), `ra := WB+112`.  The post is
+    K20's `flatReturnResult` (its offset/length cells written, its `Result`
+    pinned). -/
+theorem wdField2Call
+    (spW raIn listBase len s2v s3 s4 s5 oldOffset oldLen v10 v11 v12 v13 v14 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let saved : Saved :=
+      { ra := WB + 112, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
+        s5 := s5 }
+    let n20 := (12 + ((85 + 93 * (2 + 2)) + 6)) + 9
+    cpsTripleWithin (7 + (1 + n20)) (WB + 80) (WB + 112) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** stackFree spW 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (wdOffsetAddr ↦ₘ oldOffset) ** (wdLengthAddr ↦ₘ oldLen))
+      (flatReturnResult spW listBase (2 : Word) wdOffsetAddr wdLengthAddr oldOffset
+        oldLen saved bytes listLen 2) := by
+  intro saved n20
+  -- [20]-[26] arg shuffle
+  have hsetup := wdField2Setup v10 v11 v12 v13 v14 listBase len
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) **
+     (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** stackFree spW 8 ** regOwn .x5 ** regOwn .x6 **
+     regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     (wdOffsetAddr ↦ₘ oldOffset) ** (wdLengthAddr ↦ₘ oldLen))
+    (by repeat' first
+        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | exact pcFree_regOwn | exact pcFree_stackFree _ _ | apply pcFree_sepConj) hsetup
+  have hhead : cpsTripleWithin 7 (WB + 80) (WB + 108) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** stackFree spW 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (wdOffsetAddr ↦ₘ oldOffset) ** (wdLengthAddr ↦ₘ oldLen))
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+       (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+       stackFree spW 8 **
+       entryRest listBase len (2 : Word) wdOffsetAddr wdLengthAddr oldOffset oldLen bytes) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by unfold entryRest; xperm_hyp hq) hsetupF
+  -- [27] jal rlp_list_nth_item : ra := WB+112, enter K20
+  have hjal := jal_link_spec_within
+    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.withdrawal_decode + 108)) (WB + 108) raIn
+  rw [show (WB + 108) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.withdrawal_decode + 108)) = B from by decide,
+    show (WB + 108 + 4 : Word) = WB + 112 from by bv_omega] at hjal
+  have hjale := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 108) withdrawalDecode_prog 27
+        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.withdrawal_decode + 108)))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) hjal)
+  have hjalF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ s2v) **
+     (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** stackFree spW 8 **
+     entryRest listBase len (2 : Word) wdOffsetAddr wdLengthAddr oldOffset oldLen bytes)
+    (by repeat' first
+        | exact pcFree_regIs | exact pcFree_stackFree _ _
+        | exact (by unfold entryRest; repeat' first
+            | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+            | exact pcFree_regOwn | apply pcFree_sepConj : (entryRest listBase len (2 : Word)
+              wdOffsetAddr wdLengthAddr oldOffset oldLen bytes).pcFree)
+        | apply pcFree_sepConj) hjale
+  -- K20 flat selector.
+  have hk20 := rlpListNthItem_flat_spec_within spW listBase len (2 : Word) wdOffsetAddr
+    wdLengthAddr oldOffset oldLen saved bytes listLen 2 hlenW (by decide) (by decide)
+    hsalign hslack hover hvalid (by show (WB + 112) &&& ~~~(1 : Word) = WB + 112; decide)
+  have hk20C := cpsTripleWithin_extend_code k20_mono hk20
+  -- Compose head ;; jal ;; K20.
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
+  have s2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      rw [regsAt_listNthFrame]
+      simp only [show saved.ra = WB + 112 from rfl, show saved.s0 = listBase from rfl,
+        show saved.s1 = len from rfl, show saved.s2 = s2v from rfl,
+        show saved.s3 = s3 from rfl, show saved.s4 = s4 from rfl,
+        show saved.s5 = s5 from rfl]
+      xperm_hyp hp) s1 hk20C
+  exact cpsTripleWithin_mono_nSteps (by omega) s2
+
+#print axioms wdField2Call
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
