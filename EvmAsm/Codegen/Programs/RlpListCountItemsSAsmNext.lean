@@ -202,11 +202,5 @@ theorem incrementBack (count : Nat) (F : Assertion) (h_F : F.pcFree) :
   rw [sepConj_emp_left'] at hjF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) haF hjF
 
-#print axioms nextCallBlock
-#print axioms headerDone
-#print axioms headerContinue
-#print axioms statusReject
-#print axioms statusOk
-#print axioms incrementBack
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

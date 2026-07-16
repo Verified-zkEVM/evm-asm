@@ -116,8 +116,5 @@ theorem LoopInvariant.toFailure
   refine .walk cursorOff count off endPtr h_inv.h_list h_inv.h_prefix ?_
   simpa [h_inv.h_cursor] using h_fail
 
-#print axioms LoopInvariant.step
-#print axioms LoopInvariant.toSuccess
-#print axioms LoopInvariant.toFailure
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

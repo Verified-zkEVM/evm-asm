@@ -172,6 +172,5 @@ theorem callListNth
   dsimp [saved] at hcall
   exact hcall
 
-#print axioms callListNth
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

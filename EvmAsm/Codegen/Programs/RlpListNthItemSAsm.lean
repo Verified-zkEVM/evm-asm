@@ -69,7 +69,6 @@ theorem initAndScanExact
       exact Or.inr hp
     · exact absurd hf List.not_mem_nil)
 
-#print axioms initAndScanExact
 
 /-- Concrete success tail (wrapper slots 22--27): compute the content offset,
     update both ABI output cells, set status zero, and jump to the restore join. -/
@@ -118,7 +117,6 @@ theorem selectedTailCore (listBase next len offsetPtr lenPtr oldOffset oldLen v5
       (by rw [total_length]; norm_num)) h5
   runBlock h0' h1' h2' h3' h4' h5'
 
-#print axioms selectedTailCore
 
 /-- Concrete failure tail (wrapper slot 28): set the ABI status to one. -/
 theorem rejectedTailCore (oldA0 : Word) :
@@ -130,7 +128,6 @@ theorem rejectedTailCore (oldA0 : Word) :
       (.LI .x10 (1 : Word)) (by bv_omega) (by rw [total_length]; norm_num) rfl
       (by rw [total_length]; norm_num)) h0
 
-#print axioms rejectedTailCore
 
 /-- Shared ABI epilogue (slots 29--37), parameterized by arbitrary current
     values of the seven restored registers and an arbitrary framed result. -/
@@ -192,7 +189,6 @@ theorem epilogueOwned (sp0 newSp : Word) (saved : Saved)
     rw [regsAt_listNthFrame]
     xperm_hyp hp) h123
 
-#print axioms epilogueOwned
 
 def joinResult (newSp listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
@@ -354,7 +350,6 @@ theorem selectedToJoin
         xperm_hyp hallOwned
       · exact Result.ok _ _ ⟨cursorOff, endPtr, next, hlist, hnth, rfl⟩) hcF
 
-#print axioms selectedToJoin
 
 theorem scanRejected_implies_failure
     (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -372,7 +367,6 @@ theorem scanRejected_implies_failure
   exact .walk cursorOff count off endPtr hpure.2.2.1 hpure.2.1
     hpure.2.2.2.1 hpure.2.2.2.2
 
-#print axioms scanRejected_implies_failure
 
 theorem initRejected_implies_failure
     (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -398,8 +392,6 @@ theorem preTailRejected_implies_failure
   · exact initRejected_implies_failure newSp listBase indexW offsetPtr lenPtr
       oldOffset oldLen saved bytes listLen index h hp
 
-#print axioms initRejected_implies_failure
-#print axioms preTailRejected_implies_failure
 
 theorem preTailRejected_implies_result
     (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -411,7 +403,6 @@ theorem preTailRejected_implies_result
   exact .fail (preTailRejected_implies_failure newSp listBase indexW offsetPtr
     lenPtr oldOffset oldLen saved bytes listLen index h hp)
 
-#print axioms preTailRejected_implies_result
 
 def rejectedExpanded (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
@@ -497,7 +488,6 @@ theorem preTailRejected_to_expanded
     unfold R at howned
     xperm_hyp howned
 
-#print axioms preTailRejected_to_expanded
 
 /-- Run the one-instruction failure tail and fold its status into `Result.fail`. -/
 theorem rejectedExpandedToJoin
@@ -562,7 +552,6 @@ theorem rejectedExpandedToJoin
         (sepConj_pure_right h).2 ⟨?_, .fail hfailure⟩⟩
       xperm_hyp howned) ht
 
-#print axioms rejectedExpandedToJoin
 
 theorem rejectedToJoin
     (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -579,7 +568,6 @@ theorem rejectedToJoin
     (rejectedExpandedToJoin newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
       saved bytes listLen index)
 
-#print axioms rejectedToJoin
 
 /-- Initialization, strict child scan, and both semantic tails reconverge at
     the single ABI restore join. -/
@@ -621,7 +609,6 @@ theorem initScanToJoinExact
     (selectedToJoin newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
       bytes listLen index) hrejected
 
-#print axioms initScanToJoinExact
 
 def returnResult (sp0 newSp listBase _indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
@@ -672,7 +659,6 @@ theorem joinToReturn
       (sepConj_pure_right h).2 ⟨?_, hresult⟩⟩
     xperm_hyp hp) he
 
-#print axioms joinToReturn
 
 theorem cpsTripleWithin_of_forall_regIs_to_regOwn7
     {n : Nat} {entry exit_ : Word} {cr : CodeReq}
@@ -740,7 +726,6 @@ theorem setupToJoin
     unfold P initStable
     xperm_hyp hp) (fun _ hq => hq) howned
 
-#print axioms setupToJoin
 
 /-- Unified whole-routine contract for the strict, spec-aligned K20 replacement.
     Preconditions are entirely static; success, parse rejection, and OOB are
@@ -775,7 +760,6 @@ theorem rlpListNthItem_spec_within
     saved bytes listLen index hnewSp hret
   exact cpsTripleWithin_seq_same_cr (cpsTripleWithin_seq_same_cr hp hc) he
 
-#print axioms rlpListNthItem_spec_within
 
 /-! ## Call-site adapter -/
 
@@ -978,6 +962,5 @@ theorem rlpListNthItem_flat_spec_within
     simp only [stackFree_succ, stackFree_zero, sepConj_emp_right']
     xperm_hyp hq1
 
-#print axioms rlpListNthItem_flat_spec_within
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
