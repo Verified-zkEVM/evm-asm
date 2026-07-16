@@ -584,4 +584,114 @@ theorem cvgulDispatch2
 
 #print axioms cvgulDispatch2
 
+/-! ## Call block 2 with the consumed scratch registers owned
+
+    Mirror of `cvgulCall1Owned` for the second K34 call, presenting `cvgulCall2`'s
+    registers as `regOwn` (matching the loop invariant).  Since `cvgulReloadSetup2`
+    reloads `x18`/`x21` from the spill cells, they are two EXTRA owned peels on top
+    of the call-1 set. -/
+
+set_option maxRecDepth 8000 in
+theorem cvgulCall2Owned (hbi lenBase spC iW : Word) (Li : Nat)
+    (nN s3 s4 oldOut oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
+    (hsalign : hbi.toNat % 8 = 0)
+    (hslack : Li + 9 ≤ bytes.length)
+    (hover : hbi.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (13 + 1 + nCall 9) (D + 132) (D + 188) fullCode
+      ((((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) **
+            (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+            ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+            (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) **
+            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+            stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+            (GasLimit ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+            bytesRegion hbi bytes ** savedFrame spC csaved) **
+          regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+          regOwn .x14 ** regOwn .x28) ** regOwn .x1) ** regOwn .x18) ** regOwn .x21)
+      ((.x1 ↦ᵣ LinkRA2) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, GasLimit, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 9 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v21 => ?_)
+  refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
+    (show cpsTripleWithin (13 + 1 + nCall 9) (D + 132) (D + 188) fullCode
+      ((((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) **
+            (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+            ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+            (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) **
+            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+            stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+            (GasLimit ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+            bytesRegion hbi bytes ** savedFrame spC csaved) **
+          regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+          regOwn .x14 ** regOwn .x28) ** regOwn .x1) ** (.x21 ↦ᵣ v21)) ** regOwn .x18)
+      ((.x1 ↦ᵣ LinkRA2) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, GasLimit, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 9 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v18 => ?_)
+  refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
+    (show cpsTripleWithin (13 + 1 + nCall 9) (D + 132) (D + 188) fullCode
+      (((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) **
+            (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+            ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+            (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) **
+            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+            stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+            (GasLimit ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+            bytesRegion hbi bytes ** savedFrame spC csaved) **
+          regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+          regOwn .x14 ** regOwn .x28) ** (.x21 ↦ᵣ v21) ** (.x18 ↦ᵣ v18)) ** regOwn .x1)
+      ((.x1 ↦ᵣ LinkRA2) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, GasLimit, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 9 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v1 => ?_)
+  refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
+    (show cpsTripleWithin (13 + 1 + nCall 9) (D + 132) (D + 188) fullCode
+      (((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) **
+          (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+          ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+          (.x8 ↦ᵣ nN) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+          (GasLimit ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+          bytesRegion hbi bytes ** savedFrame spC csaved ** (.x1 ↦ᵣ v1) **
+          (.x18 ↦ᵣ v18) ** (.x21 ↦ᵣ v21)) **
+        regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x28)
+      ((.x1 ↦ᵣ LinkRA2) **
+        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, GasLimit, hbi, s3, s4, iW⟩ : Saved)
+          bytes Li 9 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_of_forall_regIs_to_regOwn7
+    (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
+  exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
+    (cvgulCall2 hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13
+      v18 v21 v28 bytes csaved hsalign hslack hover hvalid)
+
+#print axioms cvgulCall2Owned
+
 end EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec
