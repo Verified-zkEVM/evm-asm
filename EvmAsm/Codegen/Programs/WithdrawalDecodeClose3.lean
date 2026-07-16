@@ -355,4 +355,197 @@ theorem k20Dispatch (spW listBase oldOffset oldLen : Word)
 
 #print axioms k20Dispatch
 
+/-! ## Per-field stages: field call ;; status dispatch -/
+
+open EvmAsm.Codegen.RlpFieldToU64SAsm in
+set_option maxRecDepth 8000 in
+/-- Field-0 stage [8]-[13] (`WB+32`): the field-0 K34 call composed with its
+    status dispatch at [13].  Nonzero status → `WB+212`; status `0` → `WB+56`. -/
+theorem wdField0Stage
+    (spW newSp raIn listBase len outBase oldOut oldOffset oldLen old14
+      s3 s4 s5 v10 v11 v12 v13 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let outer : Saved := { ra := WB + 52, s0 := listBase, s1 := len }
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    let callSteps := 1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9)
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
+    cpsBranchWithin (4 + (1 + n34) + 1) (WB + 32) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (outBase ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      (WB + 212)
+        (k34FailPost spW newSp listBase oldOffset oldLen (WB + 52) outer saved bytes
+          listLen 0)
+      (WB + 56)
+        (k34ContPost spW newSp listBase (WB + 52) outer saved bytes listLen 0) := by
+  intro outer saved callSteps tailSteps n34
+  have hcall := wdField0Call spW newSp raIn listBase len outBase oldOut oldOffset
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
+    hover hvalid
+  have hmem : ∀ a i, CodeReq.singleton (WB + 52) (.BNE .x10 .x0 (160 : BitVec 13))
+      a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 52) withdrawalDecode_prog 13
+      (.BNE .x10 .x0 (160 : BitVec 13)) (by bv_omega) (by rw [wd_length]; decide)
+      rfl (by rw [wd_length]; decide) a i hi)
+  have hdisp := k34Dispatch spW newSp listBase oldOffset oldLen (WB + 52) outer saved
+    bytes listLen 0 (WB + 52) (WB + 212) (WB + 56) (160 : BitVec 13) hmem
+    (by rw [show signExtend13 (160 : BitVec 13) = (160 : Word) from by decide]; bv_omega)
+    (by bv_omega)
+  exact cpsTripleWithin_seq_branch_same_cr hcall hdisp
+
+#print axioms wdField0Stage
+
+open EvmAsm.Codegen.RlpFieldToU64SAsm in
+set_option maxRecDepth 8000 in
+/-- Field-1 stage [14]-[19] (`WB+56`): field-1 K34 call + dispatch at [19].
+    Nonzero status → `WB+212`; status `0` → `WB+80`. -/
+theorem wdField1Stage
+    (spW newSp raIn listBase len outBase oldOut oldOffset oldLen old14
+      s3 s4 s5 v10 v11 v12 v13 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let outer : Saved := { ra := WB + 76, s0 := listBase, s1 := len }
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    let callSteps := 1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9)
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
+    cpsBranchWithin (4 + (1 + n34) + 1) (WB + 56) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 8) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      (WB + 212)
+        (k34FailPost spW newSp listBase oldOffset oldLen (WB + 76) outer saved bytes
+          listLen 1)
+      (WB + 80)
+        (k34ContPost spW newSp listBase (WB + 76) outer saved bytes listLen 1) := by
+  intro outer saved callSteps tailSteps n34
+  have hcall := wdField1Call spW newSp raIn listBase len outBase oldOut oldOffset
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
+    hover hvalid
+  have hmem : ∀ a i, CodeReq.singleton (WB + 76) (.BNE .x10 .x0 (136 : BitVec 13))
+      a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 76) withdrawalDecode_prog 19
+      (.BNE .x10 .x0 (136 : BitVec 13)) (by bv_omega) (by rw [wd_length]; decide)
+      rfl (by rw [wd_length]; decide) a i hi)
+  have hdisp := k34Dispatch spW newSp listBase oldOffset oldLen (WB + 76) outer saved
+    bytes listLen 1 (WB + 76) (WB + 212) (WB + 80) (136 : BitVec 13) hmem
+    (by rw [show signExtend13 (136 : BitVec 13) = (136 : Word) from by decide]; bv_omega)
+    (by bv_omega)
+  exact cpsTripleWithin_seq_branch_same_cr hcall hdisp
+
+#print axioms wdField1Stage
+
+open EvmAsm.Codegen.RlpFieldToU64SAsm in
+set_option maxRecDepth 8000 in
+/-- Field-3 stage [45]-[50] (`WB+180`): field-3 K34 call + dispatch at [50].
+    Nonzero status → `WB+212`; status `0` → `WB+204`. -/
+theorem wdField3Stage
+    (spW newSp raIn listBase len outBase oldOut oldOffset oldLen old14
+      s3 s4 s5 v10 v11 v12 v13 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let outer : Saved := { ra := WB + 200, s0 := listBase, s1 := len }
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
+    cpsBranchWithin (4 + (1 + n34) + 1) (WB + 180) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 40) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      (WB + 212)
+        (k34FailPost spW newSp listBase oldOffset oldLen (WB + 200) outer saved bytes
+          listLen 3)
+      (WB + 204)
+        (k34ContPost spW newSp listBase (WB + 200) outer saved bytes listLen 3) := by
+  intro outer saved callSteps tailSteps n34
+  have hcall := wdField3Call spW newSp raIn listBase len outBase oldOut oldOffset
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
+    hover hvalid
+  have hmem : ∀ a i, CodeReq.singleton (WB + 200) (.BNE .x10 .x0 (12 : BitVec 13))
+      a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 200) withdrawalDecode_prog 50
+      (.BNE .x10 .x0 (12 : BitVec 13)) (by bv_omega) (by rw [wd_length]; decide)
+      rfl (by rw [wd_length]; decide) a i hi)
+  have hdisp := k34Dispatch spW newSp listBase oldOffset oldLen (WB + 200) outer saved
+    bytes listLen 3 (WB + 200) (WB + 212) (WB + 204) (12 : BitVec 13) hmem
+    (by rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide]; bv_omega)
+    (by bv_omega)
+  exact cpsTripleWithin_seq_branch_same_cr hcall hdisp
+
+#print axioms wdField3Stage
+
+open EvmAsm.Codegen.RlpListNthItemSAsm in
+set_option maxRecDepth 8000 in
+/-- Field-2 stage [20]-[28] (`WB+80`): field-2 K20 call + dispatch at [28].
+    Nonzero status → `WB+212`; status `0` → `WB+116` (length check). -/
+theorem wdField2Stage
+    (spW raIn listBase len s2v s3 s4 s5 oldOffset oldLen v10 v11 v12 v13 v14 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := WB + 112, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
+        s5 := s5 }
+    let n20 := (12 + ((85 + 93 * (2 + 2)) + 6)) + 9
+    cpsBranchWithin (7 + (1 + n20) + 1) (WB + 80) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** stackFree spW 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (wdOffsetAddr ↦ₘ oldOffset) ** (wdLengthAddr ↦ₘ oldLen))
+      (WB + 212) (k20FailPost spW listBase oldOffset oldLen saved bytes listLen)
+      (WB + 116) (k20ContPost spW listBase saved bytes listLen) := by
+  intro saved n20
+  have hcall := wdField2Call spW raIn listBase len s2v s3 s4 s5 oldOffset oldLen
+    v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
+  have hdisp := k20Dispatch spW listBase oldOffset oldLen saved bytes listLen
+  exact cpsTripleWithin_seq_branch_same_cr hcall hdisp
+
+#print axioms wdField2Stage
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
