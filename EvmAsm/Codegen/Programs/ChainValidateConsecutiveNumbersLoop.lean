@@ -71,18 +71,21 @@ theorem cvcnSpill (hbi iW prevVal old5 : Word) :
 
 #print axioms cvcnSpill
 
-/-! ## Reload block (instructions 50--55): load `cur` and `prev` for the compare
+/-! ## Reload block (instructions 50--56): load `cur`/`prev`, compute `prev + 1`
 
-    Runs on the K34-success (`bne` not-taken) path from `D+200` to `D+224`
-    (just before the `BGEU`): `x28 := *cvcn_num` (the freshly-decoded `ts[i]`,
-    `cur`) and `x29 := *cvcn_iter_prev` (the saved `ts[i-1]`, `prev`). -/
+    Runs on the K34-success (`bne` not-taken) path from `D+200` to `D+228`
+    (just before the `BNE`): `x28 := *cvcn_num` (the freshly-decoded `num[i]`,
+    `cur`), `x29 := *cvcn_iter_prev` (the saved `num[i-1]`, `prev`), then
+    `x29 := prev + 1` (`ADDI x29 x29 1`) so the following `BNE x29 x28` tests
+    `prev + 1 ≠ cur`. -/
 
 set_option maxRecDepth 8000 in
 theorem cvcnReload (curVal prevVal old5 o28 o29 : Word) :
-    cpsTripleWithin 6 (D + 200) (D + 224) cvcnCode
+    cpsTripleWithin 7 (D + 200) (D + 228) cvcnCode
       ((.x5 ↦ᵣ old5) ** (.x28 ↦ᵣ o28) ** (.x29 ↦ᵣ o29) **
         (Num ↦ₘ curVal) ** (IterPrev ↦ₘ prevVal))
-      ((.x5 ↦ᵣ IterPrev) ** (.x28 ↦ᵣ curVal) ** (.x29 ↦ᵣ prevVal) **
+      ((.x5 ↦ᵣ IterPrev) ** (.x28 ↦ᵣ curVal) **
+        (.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) **
         (Num ↦ₘ curVal) ** (IterPrev ↦ₘ prevVal)) := by
   have hla50 := la_materialize_within .x5 old5 (D + 200) Num (by decide) (by decide)
     (CodeReq.ofProg_mem_at D (D + 200) cvcnProg 50 (.AUIPC .x5 (EvmAsm.Rv64.laHi (D + 200) Num)) (by bv_omega) (by rw [cvcn_length]; decide) (by decide) (by rw [cvcn_length]; decide))
@@ -102,7 +105,11 @@ theorem cvcnReload (curVal prevVal old5 o28 o29 : Word) :
   have s55' := cpsTripleWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 220) cvcnProg 55 (.LD .x29 .x5 (0 : BitVec 12))
       (by bv_omega) (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) s55
-  runBlock hla50 s52' hla53 s55'
+  have s56 := addi_spec_gen_same_within .x29 prevVal (1 : BitVec 12) (D + 224) (by decide)
+  have s56' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 224) cvcnProg 56 (.ADDI .x29 .x29 (1 : BitVec 12))
+      (by bv_omega) (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) s56
+  runBlock hla50 s52' hla53 s55' s56'
 
 #print axioms cvcnReload
 
@@ -739,7 +746,7 @@ theorem cvcnIterDispatch
           bigBytes lengths (i + 1))
         (cvcnPost sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
           bigBytes lengths)) :
-    cpsTripleWithin (24 + nTail) (D + 196) raIn fullCode
+    cpsTripleWithin (25 + nTail) (D + 196) raIn fullCode
       ((.x1 ↦ᵣ LinkRA) **
         EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
           (hdrBaseAt hdrBase lengths i) oldOff oldLen
@@ -770,7 +777,7 @@ theorem cvcnIterDispatch
   refine cpsTripleWithin_weaken (fun h hp => ?hstrip) (fun _ hq => hq)
     (EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion (fun status =>
       EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion (fun value =>
-        (show cpsTripleWithin (24 + nTail) (D + 196) raIn fullCode
+        (show cpsTripleWithin (25 + nTail) (D + 196) raIn fullCode
           ((.x1 ↦ᵣ LinkRA) **
             (dispNorm spC (spC + signExtend12 (-32 : BitVec 12)) (hdrBaseAt hdrBase lengths i)
                 hdrBase validPtr firstBadPtr (BitVec.ofNat 64 lengths.length) lenBase prevVal
@@ -861,11 +868,11 @@ theorem cvcnIterDispatch
         rw [show (D + 196 + 4 : Word) = D + 200 from by bv_omega] at hntaken
         have hntakenF := cpsTripleWithin_frameR RframeOk (by rw [hRframeOk]; pcfx) hntaken
         refine cpsTripleWithin_weaken (fun h hp => by rw [hRframeOk]; xperm_hyp hp) (fun _ hq => hq)
-          (cpsTripleWithin_mono_nSteps (show 1 + (23 + nTail) ≤ 24 + nTail by omega)
+          (cpsTripleWithin_mono_nSteps (show 1 + (24 + nTail) ≤ 25 + nTail by omega)
             (cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hntakenF ?hcont))
         rw [hRframeOk]
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-          (show cpsTripleWithin (23 + nTail) (D + 200) raIn fullCode
+          (show cpsTripleWithin (24 + nTail) (D + 200) raIn fullCode
             (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) **
               (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
               (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) ** (Num ↦ₘ value) **
@@ -916,27 +923,28 @@ theorem cvcnIterDispatch
         have hreload := cpsTripleWithin_extend_code cvcn_mono
           (cvcnReload value prevVal v5 v28 v29)
         have hreloadF := cpsTripleWithin_frameR Rreload (by rw [hRreload]; pcfx) hreload
-        -- bgeu [56]
-        have hbgeu := bgeu_spec_gen_within .x29 .x28 (56 : BitVec 13) prevVal value (D + 224)
-        rw [show (D + 224) + signExtend13 (56 : BitVec 13) = D + 284 from by
-          rw [show signExtend13 (56 : BitVec 13) = (56 : Word) from by decide]; bv_omega] at hbgeu
+        -- bne [57]: prev + 1 ≠ cur ?
+        have hbne56 := bne_spec_gen_within .x29 .x28 (56 : BitVec 13)
+          (prevVal + signExtend12 (1 : BitVec 12)) value (D + 228)
+        rw [show (D + 228) + signExtend13 (56 : BitVec 13) = D + 284 from by
+          rw [show signExtend13 (56 : BitVec 13) = (56 : Word) from by decide]; bv_omega] at hbne56
         have hbgeuC := cpsBranchWithin_extend_code cvcn_mono
           (cpsBranchWithin_extend_code (cr' := cvcnCode)
-            (CodeReq.ofProg_mem_at D (D + 224) cvcnProg 56 (.BGEU .x29 .x28 (56 : BitVec 13))
+            (CodeReq.ofProg_mem_at D (D + 228) cvcnProg 57 (.BNE .x29 .x28 (56 : BitVec 13))
               (by bv_omega) (by rw [cvcn_length]; decide) rfl
-              (by rw [cvcn_length]; decide)) hbgeu)
+              (by rw [cvcn_length]; decide)) hbne56)
         have hbgeuF := cpsBranchWithin_frameR Rstate2 (by rw [hRstate2, hRreload]; pcfx) hbgeuC
         have hbranch := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
           (fun h hp => by rw [hRstate2]; xperm_hyp hp) hreloadF hbgeuF
-        -- Violation arm: prev ≥ᵤ cur.
+        -- Violation arm: prev + 1 ≠ cur.
         have h_t : cpsTripleWithin (16 + nTail) (D + 284) raIn fullCode
-            (((.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** ⌜¬ BitVec.ult prevVal value⌝) ** Rstate2)
+            (((.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** ⌜(prevVal + signExtend12 (1 : BitVec 12)) ≠ value⌝) ** Rstate2)
             (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase
               validPtr firstBadPtr csaved bigBytes lengths) := by
           rw [hRstate2, hRreload]
           refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-            (cpsTripleWithin_pure_pre (P := ¬ BitVec.ult prevVal value)
-              (H := (.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** (.x5 ↦ᵣ IterPrev) ** (Num ↦ₘ value) **
+            (cpsTripleWithin_pure_pre (P := (prevVal + signExtend12 (1 : BitVec 12)) ≠ value)
+              (H := (.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** (.x5 ↦ᵣ IterPrev) ** (Num ↦ₘ value) **
                 (IterPrev ↦ₘ prevVal) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                 (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) **
                 (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
@@ -959,7 +967,7 @@ theorem cvcnIterDispatch
               (fun hnult => ?_))
           have hviol := cpsTripleWithin_extend_code cvcn_mono
             (retViolation sp0 spC raIn (BitVec.ofNat 64 i) validPtr firstBadPtr csaved
-              ((.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) **
+              ((.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) **
                 regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
                 memOwn RfuOff ** memOwn RfuLen **
                 stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
@@ -984,7 +992,7 @@ theorem cvcnIterDispatch
                   (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ csaved.s0) ** ((spC + 16) ↦ₘ csaved.s1) **
                   ((spC + 24) ↦ₘ csaved.s2) ** ((spC + 32) ↦ₘ csaved.s3) **
                   ((spC + 40) ↦ₘ csaved.s4) ** ((spC + 48) ↦ₘ csaved.s5) **
-                  ((.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) **
+                  ((.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) **
                     regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
                     memOwn RfuOff ** memOwn RfuLen **
                     stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
@@ -1004,12 +1012,14 @@ theorem cvcnIterDispatch
             xperm_hyp hp2) (fun h hq => ?_)
             (cpsTripleWithin_mono_nSteps (show 16 ≤ 16 + nTail by omega) hviol)
           refine Or.inr (Or.inl ⟨i, ?_⟩)
-          refine (sepConj_pure_left h).mpr ⟨⟨hi1, hi, hprefix, ⟨prevVal, value, hprevOk, hResult, hnult⟩⟩, ?_⟩
+          refine (sepConj_pure_left h).mpr ⟨⟨hi1, hi, hprefix, ⟨prevVal, value, hprevOk, hResult,
+            by rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hnult
+               exact hnult.symm⟩⟩, ?_⟩
           unfold commonRet payload
           rw [hsf, hraSaved, wordArray_split lenBase lengths i hi,
             EvmAsm.Evm64.bytesRegion_split hdrBase bigBytes (hdrOff lengths i) halign hlen, ← hHB]
           have hp1 : ((.x5 ↦ᵣ IterI) ** (.x6 ↦ᵣ BitVec.ofNat 64 i) ** (.x7 ↦ᵣ v7) **
-              (.x28 ↦ᵣ value) ** (.x29 ↦ᵣ prevVal) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+              (.x28 ↦ᵣ value) ** (.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
               (Num ↦ₘ value) ** (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
               (IterI ↦ₘ BitVec.ofNat 64 i) ** (IterPrev ↦ₘ prevVal) **
               EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
@@ -1041,13 +1051,13 @@ theorem cvcnIterDispatch
           xperm_hyp hp2
         -- Advance arm: prev <ᵤ cur.
         have h_f : cpsTripleWithin (16 + nTail) (D + 232) raIn fullCode
-            (((.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** ⌜BitVec.ult prevVal value⌝) ** Rstate2)
+            (((.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** ⌜(prevVal + signExtend12 (1 : BitVec 12)) = value⌝) ** Rstate2)
             (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase
               validPtr firstBadPtr csaved bigBytes lengths) := by
           rw [hRstate2, hRreload]
           refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-            (cpsTripleWithin_pure_pre (P := BitVec.ult prevVal value)
-              (H := (.x29 ↦ᵣ prevVal) ** (.x28 ↦ᵣ value) ** (.x5 ↦ᵣ IterPrev) ** (Num ↦ₘ value) **
+            (cpsTripleWithin_pure_pre (P := (prevVal + signExtend12 (1 : BitVec 12)) = value)
+              (H := (.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (.x28 ↦ᵣ value) ** (.x5 ↦ᵣ IterPrev) ** (Num ↦ₘ value) **
                 (IterPrev ↦ₘ prevVal) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                 (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) **
                 (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
@@ -1072,13 +1082,16 @@ theorem cvcnIterDispatch
             intro j hj1 hj
             rcases (by omega : j < i ∨ j = i) with hlt | heq
             · exact hprefix j hj1 hlt
-            · subst heq; exact ⟨prevVal, value, hprevOk, hResult, hult⟩
+            · subst heq
+              exact ⟨prevVal, value, hprevOk, hResult,
+                by rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hult
+                   exact hult.symm⟩
           have hadv := cpsTripleWithin_extend_code cvcn_mono
             (cvcnAdvance (hdrBaseAt hdrBase lengths i) lenBase (BitVec.ofNat 64 i) value IterPrev
               v6 v7 prevVal v30 v31 lengths[i]!)
           rw [shiftLeft3_ofNat i] at hadv
           have hadvF := cpsTripleWithin_frameR
-            ((.x29 ↦ᵣ prevVal) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) ** (.x10 ↦ᵣ (0 : Word)) **
+            ((.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) ** (Num ↦ₘ value) ** (IterPrev ↦ₘ prevVal) ** (.x10 ↦ᵣ (0 : Word)) **
               (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) **
               (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
               (.x20 ↦ᵣ firstBadPtr) ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1102,7 +1115,7 @@ theorem cvcnIterDispatch
                   ← hHB, hdrBaseAt_succ hdrBase lengths i hi, ← ofNat_succ_tie i, ← hLi]
                 refine ⟨value, (sepConj_pure_left h).mpr ⟨⟨hResult, hprefix'⟩, ?_⟩⟩
                 have hp1 : ((.x1 ↦ᵣ LinkRA) ** (.x5 ↦ᵣ IterI) ** (.x10 ↦ᵣ (0 : Word)) **
-                    (.x28 ↦ᵣ value) ** (.x29 ↦ᵣ prevVal) **
+                    (.x28 ↦ᵣ value) ** (.x29 ↦ᵣ (prevVal + signExtend12 (1 : BitVec 12))) **
                     (.x30 ↦ᵣ (lenBase + BitVec.ofNat 64 (8 * i))) **
                     (.x31 ↦ᵣ BitVec.ofNat 64 lengths[i]!) **
                     (Num ↦ₘ value) ** (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
@@ -1139,12 +1152,12 @@ theorem cvcnIterDispatch
                 xperm_hyp hp2) hadvF (htail hprefix')))
         refine cpsTripleWithin_weaken (fun h hp => by rw [hRreload]; xperm_hyp hp)
           (fun _ hq => hq)
-          (cpsTripleWithin_mono_nSteps (show 7 + (16 + nTail) ≤ 23 + nTail by omega)
+          (cpsTripleWithin_mono_nSteps (show 8 + (16 + nTail) ≤ 24 + nTail by omega)
             (cpsBranchWithin_merge_same_cr hbranch h_t h_f))
       · -- PARSE-FAIL arm: `bne` taken → status ≠ 0 exit.
         -- retParseFail needs x5/x6 as concrete scratch; peel them from `regOwn` first.
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-          (show cpsTripleWithin (24 + nTail) (D + 196) raIn fullCode
+          (show cpsTripleWithin (25 + nTail) (D + 196) raIn fullCode
             (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) **
               (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
               (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) ** (Num ↦ₘ value) **
@@ -1170,7 +1183,7 @@ theorem cvcnIterDispatch
               firstBadPtr csaved bigBytes lengths) from ?_)
         refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v5 => ?_)
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-          (show cpsTripleWithin (24 + nTail) (D + 196) raIn fullCode
+          (show cpsTripleWithin (25 + nTail) (D + 196) raIn fullCode
             (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) **
               (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
               (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) ** (Num ↦ₘ value) **
@@ -1267,7 +1280,7 @@ theorem cvcnIterDispatch
           have hp2 := sepConj_mono_left memIs_implies_memOwn h hp1
           xperm_hyp hp2) htakenF hpfC
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_)
-          (cpsTripleWithin_mono_nSteps (show 1 + 14 ≤ 24 + nTail by omega) hcompose)
+          (cpsTripleWithin_mono_nSteps (show 1 + 14 ≤ 25 + nTail by omega) hcompose)
         refine Or.inr (Or.inr ⟨i, status, ?_⟩)
         refine (sepConj_pure_left h).mpr ⟨⟨hi, hprefix, ⟨value, hResult, hstatus⟩⟩, ?_⟩
         unfold commonRet payload
@@ -1335,7 +1348,7 @@ theorem cvcnIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
           firstBadPtr csaved bigBytes lengths (i + 1))
         (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths)) :
-    cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+    cpsTripleWithin ((1 + (16 + 1 + nCall)) + (25 + nTail)) (D + 124) raIn fullCode
       (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths i)
       (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -1368,19 +1381,19 @@ theorem cvcnIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
       EvmAsm.Evm64.bytesRegion_split hdrBase bigBytes (hdrOff lengths i) halign hlen,
       ← hHB, ← hLi] at hp
     rw [hEBody]; xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (25 + nTail)) (D + 124) raIn fullCode
       (((EBody ** memOwn Num) ** memOwn RfuOff) ** memOwn RfuLen)
       (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)
   refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldLen => ?_)
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (25 + nTail)) (D + 124) raIn fullCode
       (((EBody ** (RfuLen ↦ₘ oldLen)) ** memOwn Num) ** memOwn RfuOff)
       (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)
   refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff => ?_)
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (24 + nTail)) (D + 124) raIn fullCode
+    (show cpsTripleWithin ((1 + (16 + 1 + nCall)) + (25 + nTail)) (D + 124) raIn fullCode
       (((EBody ** (RfuLen ↦ₘ oldLen)) ** (RfuOff ↦ₘ oldOff)) ** memOwn Num)
       (cvcnPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)
