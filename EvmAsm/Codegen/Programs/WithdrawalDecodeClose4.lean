@@ -37,39 +37,57 @@ theorem pcFree_wdCommon (sp0 spW wra cs0 cs1 cs2 : Word) :
   unfold wdCommon
   repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj
 
+/-- The clobbered temporaries left owned on return, together with the three
+    callee-saved registers `x19/x20/x21` (holding the caller's `s3/s4/s5`, which
+    the RLP callees preserve) and the zero register.  Common to both returns. -/
+def wdScratch (s3 s4 s5 : Word) : Assertion :=
+  (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+  regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))
+
+theorem pcFree_wdScratch (s3 s4 s5 : Word) : (wdScratch s3 s4 s5).pcFree := by
+  unfold wdScratch
+  repeat' first | exact pcFree_regIs | exact pcFree_regOwn | apply pcFree_sepConj
+
 /-- The mutable leftover after a failure return: the whole 48-byte output struct
-    (contents forgotten, only ownership retained), the input region, the two
-    `wd_offset`/`wd_length` cells, and the reclaimed 12-cell scratch stack. -/
-def wdFailLeftover (spW outBase listBase : Word) (bytes : List (BitVec 8)) :
+    (contents forgotten, only ownership retained), the input region, the four
+    data cells, the clobbered temporaries, and the reclaimed 12-cell scratch
+    stack. -/
+def wdFailLeftover (spW outBase listBase s3 s4 s5 : Word) (bytes : List (BitVec 8)) :
     Assertion :=
-  fun h => ∃ (o0 o1 o3 woff wlen : Word) (addr20 pad4 : List (BitVec 8)),
+  fun h => ∃ (o0 o1 o3 woff wlen roff rlen : Word) (addr20 pad4 : List (BitVec 8)),
     ((outBase ↦ₘ o0) ** ((outBase + 8) ↦ₘ o1) **
      bytesRegion (outBase + 16) addr20 ** bytesRegion (outBase + 36) pad4 **
      ((outBase + 40) ↦ₘ o3) ** bytesRegion listBase bytes **
-     (wdOffsetAddr ↦ₘ woff) ** (wdLengthAddr ↦ₘ wlen) ** stackFree spW 12) h
+     (wdOffsetAddr ↦ₘ woff) ** (wdLengthAddr ↦ₘ wlen) **
+     (offsetCell ↦ₘ roff) ** (lengthCell ↦ₘ rlen) ** stackFree spW 12 **
+     wdScratch s3 s4 s5) h
 
 /-- The output-struct leftover after a success return, each cell tied to the
     genuinely decoded field value (`outputSuccess`), plus the untouched input
-    region, the two data cells (still holding the address offset/length), and
-    the reclaimed scratch stack. -/
-def wdSuccessOut (spW outBase listBase v0 v1 v3 o2 l2 : Word)
+    region, the two data cells (still holding the address offset/length), the
+    clobbered temporaries, and the reclaimed scratch stack. -/
+def wdSuccessOut (spW outBase listBase s3 s4 s5 v0 v1 v3 o2 l2 : Word)
     (bytes oldAddr pad4 : List (BitVec 8)) : Assertion :=
-  outputSuccess outBase v0 v1 v3 o2 bytes oldAddr pad4 **
-  bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2) **
-  stackFree spW 12
+  fun h => ∃ (roff rlen : Word),
+    (outputSuccess outBase v0 v1 v3 o2 bytes oldAddr pad4 **
+     bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2) **
+     (offsetCell ↦ₘ roff) ** (lengthCell ↦ₘ rlen) ** stackFree spW 12 **
+     wdScratch s3 s4 s5) h
 
 /-- The whole-program post: `a0 = 0` with the genuine decoded output struct, or
     `a0 = 1` with a witnessed `DecodeFailure` and the owned leftover. -/
-def wdWholePost (sp0 spW wra cs0 cs1 cs2 outBase listBase : Word)
+def wdWholePost (sp0 spW wra cs0 cs1 cs2 outBase listBase s3 s4 s5 : Word)
     (listLen : Nat) (bytes oldAddr pad4 : List (BitVec 8)) : Assertion :=
   fun h =>
     (∃ (v0 v1 v3 o2 l2 : Word),
       ((⌜Decoded bytes listBase listLen v0 v1 v3 o2 l2⌝ : Assertion) **
        ((.x10 ↦ᵣ (0 : Word)) ** wdCommon sp0 spW wra cs0 cs1 cs2 **
-        wdSuccessOut spW outBase listBase v0 v1 v3 o2 l2 bytes oldAddr pad4)) h) ∨
+        wdSuccessOut spW outBase listBase s3 s4 s5 v0 v1 v3 o2 l2 bytes oldAddr pad4)) h) ∨
     (((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
       ((.x10 ↦ᵣ (1 : Word)) ** wdCommon sp0 spW wra cs0 cs1 cs2 **
-       wdFailLeftover spW outBase listBase bytes)) h)
+       wdFailLeftover spW outBase listBase s3 s4 s5 bytes)) h)
 
 /-! ## Scratch-stack reconcile (K34 boundary)
 
