@@ -323,4 +323,37 @@ theorem cvedlAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
 
 #print axioms cvedlAdvance
 
+/-! ## Arithmetic helpers for the loop induction -/
+
+theorem hdrOff_succ (lengths : List Nat) (i : Nat) (hi : i < lengths.length) :
+    hdrOff lengths (i + 1) = hdrOff lengths i + lengths[i]! := by
+  unfold hdrOff
+  rw [List.take_add_one, List.sum_append, List.getElem?_eq_getElem hi]
+  simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hi]
+
+theorem ofNat_ne_of_lt (i N : Nat) (hi : i < N) (hN : N < 2 ^ 64) :
+    BitVec.ofNat 64 i ≠ BitVec.ofNat 64 N := by
+  intro h
+  have := congrArg BitVec.toNat h
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (Nat.lt_trans hi hN),
+    Nat.mod_eq_of_lt hN] at this
+  omega
+
+theorem ofNat_succ_tie (i : Nat) :
+    BitVec.ofNat 64 i + signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 (i + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+
+/-- `hdrBaseAt` advances by `lengths[i]` bytes (mod 2^64). -/
+theorem hdrBaseAt_succ (hdrBase : Word) (lengths : List Nat) (i : Nat)
+    (hi : i < lengths.length) :
+    hdrBaseAt hdrBase lengths (i + 1) =
+      hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 (lengths[i]!) := by
+  unfold hdrBaseAt
+  rw [hdrOff_succ lengths i hi, BitVec.add_assoc]
+  congr 1
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod]
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
