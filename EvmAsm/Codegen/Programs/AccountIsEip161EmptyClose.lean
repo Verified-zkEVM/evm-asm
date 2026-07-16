@@ -675,4 +675,86 @@ theorem aieCall3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
 
 #print axioms aieCall3
 
+/-! ## Epilogue ([102]-[107]) -/
+
+set_option maxRecDepth 8000 in
+/-- Restore `ra`/`x8`/`x9`/`x18` from the AIE frame, deallocate the 40-byte
+    frame, and return, generic over the payload footprint `G`. -/
+theorem aieEpi (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 : Word) (G : Assertion)
+    (hG : G.pcFree)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 6 (AB + 408) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) ** G)
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** G) := by
+  -- [102] LD x1 x2 0
+  have h102 := ld_spec_gen_within .x1 .x2 spA w1 raIn (0 : BitVec 12) (AB + 408) (by decide)
+  rw [show spA + signExtend12 (0 : BitVec 12) = spA from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h102
+  have e102 := cpsTripleWithin_extend_code (aieFC 102, (AB + 408), (.LD .x1 .x2 (0 : BitVec 12))) h102
+  have f102 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
+     ((spA + 8) ↦ₘ c8) ** ((spA + 16) ↦ₘ c9) ** ((spA + 24) ↦ₘ c18)) (by pcfR) e102
+  -- [103] LD x8 x2 8
+  have h103 := ld_spec_gen_within .x8 .x2 spA w8 c8 (8 : BitVec 12) (AB + 412) (by decide)
+  rw [show spA + signExtend12 (8 : BitVec 12) = spA + 8 from by
+    rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]] at h103
+  have e103 := cpsTripleWithin_extend_code (aieFC 103, (AB + 412), (.LD .x8 .x2 (8 : BitVec 12))) h103
+  have f103 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
+     (spA ↦ₘ raIn) ** ((spA + 16) ↦ₘ c9) ** ((spA + 24) ↦ₘ c18)) (by pcfR) e103
+  -- [104] LD x9 x2 16
+  have h104 := ld_spec_gen_within .x9 .x2 spA w9 c9 (16 : BitVec 12) (AB + 416) (by decide)
+  rw [show spA + signExtend12 (16 : BitVec 12) = spA + 16 from by
+    rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]] at h104
+  have e104 := cpsTripleWithin_extend_code (aieFC 104, (AB + 416), (.LD .x9 .x2 (16 : BitVec 12))) h104
+  have f104 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ c8) ** (.x18 ↦ᵣ w18) **
+     (spA ↦ₘ raIn) ** ((spA + 8) ↦ₘ c8) ** ((spA + 24) ↦ₘ c18)) (by pcfR) e104
+  -- [105] LD x18 x2 24
+  have h105 := ld_spec_gen_within .x18 .x2 spA w18 c18 (24 : BitVec 12) (AB + 420) (by decide)
+  rw [show spA + signExtend12 (24 : BitVec 12) = spA + 24 from by
+    rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide]] at h105
+  have e105 := cpsTripleWithin_extend_code (aieFC 105, (AB + 420), (.LD .x18 .x2 (24 : BitVec 12))) h105
+  have f105 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+     (spA ↦ₘ raIn) ** ((spA + 8) ↦ₘ c8) ** ((spA + 16) ↦ₘ c9)) (by pcfR) e105
+  -- [106] ADDI x2 x2 40 : deallocate
+  have h106 := addi_spec_gen_same_within .x2 spA (40 : BitVec 12) (AB + 424) (by decide)
+  rw [show spA + signExtend12 (40 : BitVec 12) = sp0 from by
+    rw [hspA]; exact sext_frameRestore sp0 (-40 : BitVec 12) (40 : BitVec 12)
+      (by decide)] at h106
+  have e106 := cpsTripleWithin_extend_code (aieFC 106, (AB + 424), (.ADDI .x2 .x2 (40 : BitVec 12))) h106
+  have f106 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+     (spA ↦ₘ raIn) ** ((spA + 8) ↦ₘ c8) ** ((spA + 16) ↦ₘ c9) **
+     ((spA + 24) ↦ₘ c18)) (by pcfR) e106
+  -- [107] JALR x0 x1 0 : return
+  have h107 := EvmAsm.Evm64.ret_spec_within' (AB + 428) raIn
+  rw [hret] at h107
+  have e107 := cpsTripleWithin_extend_code (aieFC 107, (AB + 428), (.JALR .x0 .x1 (0 : BitVec 12))) h107
+  have f107 := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+     (spA ↦ₘ raIn) ** ((spA + 8) ↦ₘ c8) ** ((spA + 16) ↦ₘ c9) **
+     ((spA + 24) ↦ₘ c18)) (by pcfR) e107
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f102 f103
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f104
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s2 f105
+  have s4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s3 f106
+  have s5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s4 f107
+  have hcore : cpsTripleWithin 6 (AB + 408) raIn fullCode
+      ((.x1 ↦ᵣ w1) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18))
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+        (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18) :=
+    cpsTripleWithin_weaken (fun _ hp => by unfold aieSlots at hp; xperm_chunked hp)
+      (fun _ hq => by unfold aieSlots; xperm_chunked hq) s5
+  have hframed := cpsTripleWithin_frameR G hG hcore
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hframed
+
+#print axioms aieEpi
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
