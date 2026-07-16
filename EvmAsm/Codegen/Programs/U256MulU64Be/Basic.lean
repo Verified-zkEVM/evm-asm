@@ -14,7 +14,7 @@ import EvmAsm.Evm64.EvmWordArith.MultiLimb
 import Mathlib.Tactic.Ring
 import Init.Data.List.Nat.TakeDrop
 
-namespace EvmAsm.U256MulU64Be
+namespace EvmAsm.Codegen.U256MulU64Be
 
 /-- Little-endian byte-list interpretation: the first byte is least significant. -/
 def leBytesToNat : List (BitVec 8) → Nat
@@ -196,4 +196,4 @@ theorem mulhu_toNat (x y : Word) : (Rv64.rv64_mulhu x y).toNat = x.toNat * y.toN
 theorem mul_toNat (x y : Word) : (x * y).toNat = (x.toNat * y.toNat) % 2 ^ 64 :=
   BitVec.toNat_mul x y
 
-end EvmAsm.U256MulU64Be
+end EvmAsm.Codegen.U256MulU64Be
