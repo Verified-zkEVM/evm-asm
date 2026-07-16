@@ -568,7 +568,6 @@ import EvmAsm.Evm64.AddMod.Args
 import EvmAsm.Evm64.AddMod.ArgsStackDecode
 import EvmAsm.Evm64.AddMod.CarryLdShared
 import EvmAsm.Evm64.AddMod.CarryLowShared
-import EvmAsm.Evm64.AddMod.Compose.Base
 import EvmAsm.Evm64.AddMod.Compose.CallAdapter
 import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
 import EvmAsm.Evm64.AddMod.Compose.CarryLdChain

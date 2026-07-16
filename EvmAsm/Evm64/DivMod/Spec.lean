@@ -79,7 +79,6 @@ import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrow
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowSelectedPath
 import EvmAsm.Evm64.DivMod.Spec.N1CallableSelectedIfBorrowShapeEvidence
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowPathWord
-import EvmAsm.Evm64.DivMod.Spec.DispatcherN1NoHdivWord
 import EvmAsm.Evm64.DivMod.Spec.N3MaxBranchFromInvariant
 import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 import EvmAsm.Evm64.DivMod.Spec.BzeroPublicPost
