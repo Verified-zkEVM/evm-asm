@@ -1076,7 +1076,7 @@ def ziskMptIndexedSortChangesProbeUnit : BuildUnit := {
     probe so the root KAT can cover the exact 0/127/128/256 RLP paths. -/
 def ziskMptIndexedTrieRootBoundedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; la s3, itr_changes; li s4, 0\n" ++
+  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; la s3, itr_changes; li t0, " ++ toString itrIndexedEntryCapacity ++ "; bgtu s1, t0, .Lmitrbp_root; li s4, 0\n" ++
   ".Lmitrbp_load:\n" ++
   "  beq s4, s1, .Lmitrbp_root; mv t0, s2; ld t1, 0(t0); addi t2, t0, 8; ld t3, 16(t0); addi t4, t0, 24; slli t5, s4, 5; slli t6, s4, 3; add t5, t5, t6; add t5, s3, t5; sd t2, 0(t5); sd t1, 8(t5); sd t4, 16(t5); sd t3, 24(t5); sd zero, 32(t5); add s2, t4, t3; addi s2, s2, 7; andi s2, s2, -8; addi s4, s4, 1; j .Lmitrbp_load\n" ++
   ".Lmitrbp_root:\n" ++

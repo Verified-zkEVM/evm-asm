@@ -58,4 +58,31 @@ run_case two '[0, 1]'
 run_case rlp_order_boundary '[0, 127, 128, 256]'
 run_case long_one '[0]'
 run_case long_extension '[0, 128]'
+
+# The indexed transaction/receipt capacity is a block-gas upper bound, not an
+# arbitrary implementation limit: every transaction consumes at least the
+# protocol's 21,000 intrinsic gas, so a 200M-gas block cannot carry C+1
+# descriptors.  The builder must reject that spec-invalid input before it
+# dereferences the descriptor array.
+uv run --directory execution-specs --quiet python3 - "$REPO_ROOT" <<'PY'
+import struct, sys
+
+repo_root = sys.argv[1]
+block_gas_limit = 200_000_000
+intrinsic_gas_floor = 21_000
+cap = block_gas_limit // intrinsic_gas_floor
+assert cap == 9523
+with open(f'{repo_root}/gen-out/zisk_mpt_indexed_trie_root_bounded_over_cap.input', 'wb') as f:
+    f.write(struct.pack('<Q', cap + 1))
+PY
+"$ZISKEMU" -e gen-out/zisk_mpt_indexed_trie_root_bounded.elf \
+  -i gen-out/zisk_mpt_indexed_trie_root_bounded_over_cap.input \
+  -o gen-out/zisk_mpt_indexed_trie_root_bounded_over_cap.output -n 3000000 >/dev/null </dev/null
+python3 - <<'PY'
+import struct
+
+out = open('gen-out/zisk_mpt_indexed_trie_root_bounded_over_cap.output', 'rb').read()
+assert struct.unpack_from('<Q', out, 32)[0] == 1
+print('OK over_cap_9524 rejects (spec-invalid: 200M // 21000 = 9523)')
+PY
 echo 'PASS: bounded indexed trie root matches execution-specs'
