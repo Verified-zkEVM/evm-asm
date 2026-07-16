@@ -341,18 +341,12 @@ theorem helbPrologue
     (`copyIntoRegion`); on a0=2 the field-6 length was ≠256 (output unchanged);
     on a0=1 the RLP parse failed. -/
 def helbRetPost (newSp listBase outPtr : Word) (fsaved : HeaderFieldsSpec.Saved)
-    (s3 s4 s5 : Word) (headerBytes outBytes : List (BitVec 8)) (listLen : Nat)
-    (Fr : Assertion) : Assertion :=
-  fun h => ∃ (a0v : Word) (finalOut : List (BitVec 8)) (fo len : Word),
+    (headerBytes outBytes : List (BitVec 8)) (listLen : Nat) : Assertion :=
+  fun h => ∃ (a0v : Word) (finalOut : List (BitVec 8)) (fo len : Word) (junk : Assertion),
     ((((.x10 ↦ᵣ a0v) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
        HeaderFieldsSpec.savedFrame newSp fsaved) **
-      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
-       regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-       regOwn .x31 ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x0 ↦ᵣ (0 : Word)) **
-       memOwn helbOffAddr ** memOwn helbLenAddr **
-       bytesRegion listBase headerBytes ** bytesRegion outPtr finalOut **
-       stackFree newSp 8 ** Fr)) **
+      bytesRegion listBase headerBytes ** bytesRegion outPtr finalOut ** junk) **
      ⌜(a0v = (0 : Word) ∧ Success headerBytes listBase listLen 6 fo len ∧
           len = (256 : Word) ∧
           finalOut = copyIntoRegion outBytes headerBytes 0 fo.toNat 256) ∨
@@ -882,5 +876,6 @@ private theorem cpsTripleWithin_callReturn_pre
   exact h status offset len v11 v12 hspl.2 R hR s hcr
     ⟨hp, hcompat, s1, s2, hd12, hu12,
       ⟨t1, t2, hdt, hut, ⟨u1, u2, hdu, huu, hX, hspl.1⟩, hFt⟩, hRs⟩ hpc
+
 
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
