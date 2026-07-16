@@ -877,5 +877,204 @@ private theorem cpsTripleWithin_callReturn_pre
     ⟨hp, hcompat, s1, s2, hd12, hu12,
       ⟨t1, t2, hdt, hut, ⟨u1, u2, hdu, huu, hX, hspl.1⟩, hFt⟩, hRs⟩ hpc
 
+/-! ## Post-call: length load ([17]-[20], `helbBase+68 → helbBase+84`)
+
+    `la x5, helb_length ; ld x6, 0(x5) ; li x7, 256`. -/
+private theorem helbLenBlock (len v5old v6old v7old : Word) :
+    cpsTripleWithin 4 (helbBase + 68) (helbBase + 84) fullCode
+      ((.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) ** (.x7 ↦ᵣ v7old) ** (helbLenAddr ↦ₘ len))
+      ((.x5 ↦ᵣ helbLenAddr) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (256 : Word)) ** (helbLenAddr ↦ₘ len)) := by
+  have f0 := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6old) ** (.x7 ↦ᵣ v7old) ** (helbLenAddr ↦ₘ len))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    (helbLaLen68 v5old)
+  have h1 := ld_spec_gen_within .x6 .x5 helbLenAddr v6old len (0 : BitVec 12)
+    (helbBase + 76) (by decide)
+  rw [signExtend12_0, show (helbLenAddr + 0 : Word) = helbLenAddr from by bv_omega,
+      show (helbBase + 76 : Word) + 4 = helbBase + 80 from by bv_omega] at h1
+  have e1 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 76) 19
+      (.LD .x6 .x5 (0 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h1
+  have f1 := cpsTripleWithin_frameR ((.x7 ↦ᵣ v7old))
+    pcFree_regIs e1
+  have h2 := li_spec_gen_within .x7 v7old (256 : Word) (helbBase + 80) (by decide)
+  rw [show (helbBase + 80 : Word) + 4 = helbBase + 84 from by bv_omega] at h2
+  have e2 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 80) 20
+      (.LI .x7 (256 : Word)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h2
+  have f2 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ helbLenAddr) ** (.x6 ↦ᵣ len) ** (helbLenAddr ↦ₘ len))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) e2
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 f1
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f2
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2
+
+/-! ## Post-call: offset load + content-pointer setup ([22]-[27],
+    `helbBase+88 → helbBase+112`)
+
+    `la x5, helb_offset ; ld x6, 0(x5) ; add x28, x8, x6 ; mv x29, x18 ;
+     li x30, 256`. -/
+private theorem helbOffsetSetup (offset listBase outPtr v5old v6old v28old v29old v30old : Word) :
+    cpsTripleWithin 6 (helbBase + 88) (helbBase + 112) fullCode
+      ((.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+       (.x28 ↦ᵣ v28old) ** (.x29 ↦ᵣ v29old) ** (.x30 ↦ᵣ v30old) ** (helbOffAddr ↦ₘ offset))
+      ((.x5 ↦ᵣ helbOffAddr) ** (.x6 ↦ᵣ offset) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+       (.x28 ↦ᵣ (listBase + offset)) ** (.x29 ↦ᵣ outPtr) ** (.x30 ↦ᵣ (256 : Word)) **
+       (helbOffAddr ↦ₘ offset)) := by
+  have f0 := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6old) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) ** (.x28 ↦ᵣ v28old) **
+     (.x29 ↦ᵣ v29old) ** (.x30 ↦ᵣ v30old) ** (helbOffAddr ↦ₘ offset))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    (helbLaOff88 v5old)
+  have h1 := ld_spec_gen_within .x6 .x5 helbOffAddr v6old offset (0 : BitVec 12)
+    (helbBase + 96) (by decide)
+  rw [signExtend12_0, show (helbOffAddr + 0 : Word) = helbOffAddr from by bv_omega,
+      show (helbBase + 96 : Word) + 4 = helbBase + 100 from by bv_omega] at h1
+  have e1 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 96) 24
+      (.LD .x6 .x5 (0 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h1
+  have f1 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) ** (.x28 ↦ᵣ v28old) ** (.x29 ↦ᵣ v29old) **
+     (.x30 ↦ᵣ v30old))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) e1
+  have h2 := add_spec_gen_within .x28 .x8 .x6 listBase offset v28old (helbBase + 100) (by decide)
+  rw [show (helbBase + 100 : Word) + 4 = helbBase + 104 from by bv_omega] at h2
+  have e2 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 100) 25
+      (.ADD .x28 .x8 .x6) (by rw [program_length]; norm_num) (by bv_omega) rfl) h2
+  have f2 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ helbOffAddr) ** (.x18 ↦ᵣ outPtr) ** (.x29 ↦ᵣ v29old) ** (.x30 ↦ᵣ v30old) **
+     (helbOffAddr ↦ₘ offset))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) e2
+  have h3 := mv_spec_gen_within .x29 .x18 outPtr v29old (helbBase + 104) (by decide)
+  rw [show (helbBase + 104 : Word) + 4 = helbBase + 108 from by bv_omega] at h3
+  have e3 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 104) 26
+      (.MV .x29 .x18) (by rw [program_length]; norm_num) (by bv_omega) rfl) h3
+  have f3 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ helbOffAddr) ** (.x6 ↦ᵣ offset) ** (.x8 ↦ᵣ listBase) **
+     (.x28 ↦ᵣ (listBase + offset)) ** (.x30 ↦ᵣ v30old) ** (helbOffAddr ↦ₘ offset))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) e3
+  have h4 := li_spec_gen_within .x30 v30old (256 : Word) (helbBase + 108) (by decide)
+  rw [show (helbBase + 108 : Word) + 4 = helbBase + 112 from by bv_omega] at h4
+  have e4 := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 108) 27
+      (.LI .x30 (256 : Word)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h4
+  have f4 := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ helbOffAddr) ** (.x6 ↦ᵣ offset) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+     (.x28 ↦ᵣ (listBase + offset)) ** (.x29 ↦ᵣ outPtr) ** (helbOffAddr ↦ₘ offset))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) e4
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f0 f1
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f2
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s2 f3
+  have s4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s3 f4
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) s4
+
+/-! ## Post-call: copy 256 content bytes then the success tail ([28]-[36]+epilogue,
+    `helbBase+112 → return`) -/
+set_option maxRecDepth 8000 in
+private theorem helbCopyThenTail0
+    (offset listBase outPtr newSp x31old v8 v9 a0old v1 : Word) (fsaved : HeaderFieldsSpec.Saved)
+    (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : offset.toNat + 256 ≤ headerBytes.length)
+    (h_dst_bound : 256 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin ((7 * 256 + 1) + (2 + 6)) (helbBase + 112) (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      (((.x30 ↦ᵣ (256 : Word)) ** (.x28 ↦ᵣ (listBase + offset)) ** (.x29 ↦ᵣ outPtr) **
+        (.x31 ↦ᵣ x31old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes) **
+       ((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ outPtr) ** HeaderFieldsSpec.savedFrame newSp fsaved ** Fr))
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
+        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
+        HeaderFieldsSpec.savedFrame newSp fsaved) **
+       ((.x30 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset.toNat + 256))) **
+        (.x29 ↦ᵣ (outPtr + (256 : Word))) ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase headerBytes **
+        bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 offset.toNat 256) ** Fr)) := by
+  have hcopy := helbCopyLoop listBase outPtr x31old headerBytes outBytes offset.toNat 0 256 0
+    h_src_align h_dst_align (by omega) (by omega) h_src_over h_dst_over (by decide)
+    h_src_valid h_dst_valid
+  simp only [Nat.add_zero, Nat.zero_add] at hcopy
+  rw [show (outPtr + BitVec.ofNat 64 0 : Word) = outPtr from by bv_omega,
+      show copyIntoRegion outBytes headerBytes 0 offset.toNat 0 = outBytes from rfl,
+      helb_ofNat_toNat offset,
+      show (BitVec.ofNat 64 256 : Word) = (256 : Word) from by decide] at hcopy
+  have hcopyF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+     (.x18 ↦ᵣ outPtr) ** HeaderFieldsSpec.savedFrame newSp fsaved ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hcopy
+  have htail := helbTail0 a0old newSp v1 v8 v9 outPtr fsaved
+    ((.x30 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset.toNat + 256))) **
+     (.x29 ↦ᵣ (outPtr + (256 : Word))) ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase headerBytes **
+     bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 offset.toNat 256) ** Fr)
+    (by repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hcopyF htail
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s
+
+/-! ## Post-call: the a0=0 success continuation ([22]-[36]+epilogue,
+    `helbBase+88 → return`) -/
+set_option maxRecDepth 8000 in
+private theorem helbSuccessContinue
+    (offset listBase outPtr newSp v5old v6old v28old v29old v30old x31old v9 a0old v1 : Word)
+    (fsaved : HeaderFieldsSpec.Saved)
+    (headerBytes outBytes : List (BitVec 8))
+    (Fr : Assertion) (hFr : Fr.pcFree)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_src_bound : offset.toNat + 256 ≤ headerBytes.length)
+    (h_dst_bound : 256 ≤ outBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (6 + ((7 * 256 + 1) + (2 + 6))) (helbBase + 88) (fsaved.ra &&& ~~~(1 : Word))
+      fullCode
+      ((.x5 ↦ᵣ v5old) ** (.x6 ↦ᵣ v6old) ** (.x8 ↦ᵣ listBase) ** (.x18 ↦ᵣ outPtr) **
+       (.x28 ↦ᵣ v28old) ** (.x29 ↦ᵣ v29old) ** (.x30 ↦ᵣ v30old) ** (.x31 ↦ᵣ x31old) **
+       (.x0 ↦ᵣ (0 : Word)) ** (helbOffAddr ↦ₘ offset) **
+       bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+       (.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x9 ↦ᵣ v9) **
+       HeaderFieldsSpec.savedFrame newSp fsaved ** Fr)
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
+        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
+        HeaderFieldsSpec.savedFrame newSp fsaved) **
+       ((.x30 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (listBase + BitVec.ofNat 64 (offset.toNat + 256))) **
+        (.x29 ↦ᵣ (outPtr + (256 : Word))) ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion listBase headerBytes **
+        bytesRegion outPtr (copyIntoRegion outBytes headerBytes 0 offset.toNat 256) **
+        ((.x5 ↦ᵣ helbOffAddr) ** (.x6 ↦ᵣ offset) ** (helbOffAddr ↦ₘ offset) ** Fr))) := by
+  have hsetup := helbOffsetSetup offset listBase outPtr v5old v6old v28old v29old v30old
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x31 ↦ᵣ x31old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes **
+     bytesRegion outPtr outBytes ** (.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) **
+     (.x9 ↦ᵣ v9) ** HeaderFieldsSpec.savedFrame newSp fsaved ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame; repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hsetup
+  have hctf := helbCopyThenTail0 offset listBase outPtr newSp x31old listBase v9 a0old v1 fsaved
+    headerBytes outBytes ((.x5 ↦ᵣ helbOffAddr) ** (.x6 ↦ᵣ offset) ** (helbOffAddr ↦ₘ offset) ** Fr)
+    (by repeat' first
+      | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
+  have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hsetupF hctf
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s
 
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
