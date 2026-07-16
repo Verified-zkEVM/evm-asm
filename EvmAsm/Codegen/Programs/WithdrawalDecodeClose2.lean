@@ -213,4 +213,280 @@ theorem wdLenCheck (v5old v6old v7old len : Word) :
 
 #print axioms wdLenCheck
 
+/-! ## Per-field argument shuffles (call setups) -/
+
+set_option maxRecDepth 8000 in
+/-- Field-0 call setup [8]-[11] (`WB+32 → WB+48`): `mv a0,s0 ; mv a1,s1 ;
+    li a2,0 ; mv a3,s2` — arrange `rlp_field_to_u64(listBase, len, 0, outBase)`. -/
+theorem wdField0Setup (v10 v11 v12 v13 listBase len outBase : Word) :
+    cpsTripleWithin 4 (WB + 32) (WB + 48) fullCode
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x13 : Reg) ↦ᵣ v13) ** ((.x8 : Reg) ↦ᵣ listBase) **
+       ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+      (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) **
+       ((.x12 : Reg) ↦ᵣ (0 : Word)) ** ((.x13 : Reg) ↦ᵣ outBase) **
+       ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+       ((.x18 : Reg) ↦ᵣ outBase)) := by
+  have h8 := mv_spec_gen_within .x10 .x8 listBase v10 (WB + 32) (by decide)
+  have h8e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 32) withdrawalDecode_prog 8 (.MV .x10 .x8)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h8)
+  have h9 := mv_spec_gen_within .x11 .x9 len v11 (WB + 36) (by decide)
+  have h9e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 36) withdrawalDecode_prog 9 (.MV .x11 .x9)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h9)
+  have h10 := li_spec_gen_within .x12 v12 (0 : Word) (WB + 40) (by decide)
+  have h10e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 40) withdrawalDecode_prog 10 (.LI .x12 (0 : Word))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h10)
+  have h11 := mv_spec_gen_within .x13 .x18 outBase v13 (WB + 44) (by decide)
+  have h11e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 44) withdrawalDecode_prog 11 (.MV .x13 .x18)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h11)
+  have f8 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h8e
+  have f9 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h9e
+  have f10 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h10e
+  have f11 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h11e
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f8 f9
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f10
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f11
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s3
+
+#print axioms wdField0Setup
+
+set_option maxRecDepth 8000 in
+/-- Field-1 call setup [14]-[17] (`WB+56 → WB+72`): `mv a0,s0 ; mv a1,s1 ;
+    li a2,1 ; addi a3,s2,8` — `rlp_field_to_u64(listBase, len, 1, outBase+8)`. -/
+theorem wdField1Setup (v10 v11 v12 v13 listBase len outBase : Word) :
+    cpsTripleWithin 4 (WB + 56) (WB + 72) fullCode
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x13 : Reg) ↦ᵣ v13) ** ((.x8 : Reg) ↦ᵣ listBase) **
+       ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+      (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) **
+       ((.x12 : Reg) ↦ᵣ (1 : Word)) ** ((.x13 : Reg) ↦ᵣ (outBase + 8)) **
+       ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+       ((.x18 : Reg) ↦ᵣ outBase)) := by
+  have h14 := mv_spec_gen_within .x10 .x8 listBase v10 (WB + 56) (by decide)
+  have h14e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 56) withdrawalDecode_prog 14 (.MV .x10 .x8)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h14)
+  have h15 := mv_spec_gen_within .x11 .x9 len v11 (WB + 60) (by decide)
+  have h15e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 60) withdrawalDecode_prog 15 (.MV .x11 .x9)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h15)
+  have h16 := li_spec_gen_within .x12 v12 (1 : Word) (WB + 64) (by decide)
+  have h16e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 64) withdrawalDecode_prog 16 (.LI .x12 (1 : Word))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h16)
+  have h17 := addi_spec_gen_within .x13 .x18 v13 outBase (8 : BitVec 12) (WB + 68) (by decide)
+  rw [show outBase + signExtend12 (8 : BitVec 12) = outBase + 8 from by
+    rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]] at h17
+  have h17e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 68) withdrawalDecode_prog 17
+        (.ADDI .x13 .x18 (8 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h17)
+  have f14 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h14e
+  have f15 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h15e
+  have f16 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h16e
+  have f17 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ (1 : Word)) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h17e
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f14 f15
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f16
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f17
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s3
+
+#print axioms wdField1Setup
+
+set_option maxRecDepth 8000 in
+/-- Field-3 call setup [45]-[48] (`WB+180 → WB+196`): `mv a0,s0 ; mv a1,s1 ;
+    li a2,3 ; addi a3,s2,40` — `rlp_field_to_u64(listBase, len, 3, outBase+40)`. -/
+theorem wdField3Setup (v10 v11 v12 v13 listBase len outBase : Word) :
+    cpsTripleWithin 4 (WB + 180) (WB + 196) fullCode
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x13 : Reg) ↦ᵣ v13) ** ((.x8 : Reg) ↦ᵣ listBase) **
+       ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+      (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) **
+       ((.x12 : Reg) ↦ᵣ (3 : Word)) ** ((.x13 : Reg) ↦ᵣ (outBase + 40)) **
+       ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+       ((.x18 : Reg) ↦ᵣ outBase)) := by
+  have h45 := mv_spec_gen_within .x10 .x8 listBase v10 (WB + 180) (by decide)
+  have h45e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 180) withdrawalDecode_prog 45 (.MV .x10 .x8)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h45)
+  have h46 := mv_spec_gen_within .x11 .x9 len v11 (WB + 184) (by decide)
+  have h46e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 184) withdrawalDecode_prog 46 (.MV .x11 .x9)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h46)
+  have h47 := li_spec_gen_within .x12 v12 (3 : Word) (WB + 188) (by decide)
+  have h47e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 188) withdrawalDecode_prog 47 (.LI .x12 (3 : Word))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h47)
+  have h48 := addi_spec_gen_within .x13 .x18 v13 outBase (40 : BitVec 12) (WB + 192) (by decide)
+  rw [show outBase + signExtend12 (40 : BitVec 12) = outBase + 40 from by
+    rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide]] at h48
+  have h48e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 192) withdrawalDecode_prog 48
+        (.ADDI .x13 .x18 (40 : BitVec 12)) (by bv_omega) (by rw [wd_length]; decide)
+        rfl (by rw [wd_length]; decide)) h48)
+  have f45 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h45e
+  have f46 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h46e
+  have f47 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ outBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h47e
+  have f48 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ (3 : Word)) **
+     ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h48e
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f45 f46
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f47
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f48
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s3
+
+#print axioms wdField3Setup
+
+/-- `la x13, wd_offset` at [23]-[24] (`WB+92 → WB+100`). -/
+theorem wdLaOff92 (v : Word) :
+    cpsTripleWithin 2 (WB + 92) (WB + 100) fullCode
+      (.x13 ↦ᵣ v) (.x13 ↦ᵣ wdOffsetAddr) := by
+  have hau : ∀ a i, CodeReq.singleton (WB + 92)
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)))
+        a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 92) withdrawalDecode_prog 23
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)))
+      (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi)
+  have had : ∀ a i, CodeReq.singleton (WB + 96)
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)))
+        a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 96) withdrawalDecode_prog 24
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)))
+      (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi)
+  have h := la_materialize_within .x13 v (WB + 92) wdOffsetAddr (by decide) (by decide) hau had
+  rw [show (WB + 92 : Word) + 8 = WB + 100 from by bv_omega] at h
+  exact h
+
+/-- `la x14, wd_length` at [25]-[26] (`WB+100 → WB+108`). -/
+theorem wdLaLen100 (v : Word) :
+    cpsTripleWithin 2 (WB + 100) (WB + 108) fullCode
+      (.x14 ↦ᵣ v) (.x14 ↦ᵣ wdLengthAddr) := by
+  have hau : ∀ a i, CodeReq.singleton (WB + 100)
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)))
+        a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 100) withdrawalDecode_prog 25
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)))
+      (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi)
+  have had : ∀ a i, CodeReq.singleton (WB + 104)
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)))
+        a = some i → fullCode a = some i := fun a i hi => wd_mono a i
+    (CodeReq.ofProg_mem_at WB (WB + 104) withdrawalDecode_prog 26
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)))
+      (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi)
+  have h := la_materialize_within .x14 v (WB + 100) wdLengthAddr (by decide) (by decide) hau had
+  rw [show (WB + 100 : Word) + 8 = WB + 108 from by bv_omega] at h
+  exact h
+
+set_option maxRecDepth 8000 in
+/-- Field-2 call setup [20]-[26] (`WB+80 → WB+108`): `mv a0,s0 ; mv a1,s1 ;
+    li a2,2 ; la a3,wd_offset ; la a4,wd_length` — arrange
+    `rlp_list_nth_item(listBase, len, 2, &wd_offset, &wd_length)`. -/
+theorem wdField2Setup (v10 v11 v12 v13 v14 listBase len : Word) :
+    cpsTripleWithin 7 (WB + 80) (WB + 108) fullCode
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+       ((.x13 : Reg) ↦ᵣ v13) ** ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) **
+       ((.x9 : Reg) ↦ᵣ len))
+      (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) **
+       ((.x12 : Reg) ↦ᵣ (2 : Word)) ** ((.x13 : Reg) ↦ᵣ wdOffsetAddr) **
+       ((.x14 : Reg) ↦ᵣ wdLengthAddr) ** ((.x8 : Reg) ↦ᵣ listBase) **
+       ((.x9 : Reg) ↦ᵣ len)) := by
+  have h20 := mv_spec_gen_within .x10 .x8 listBase v10 (WB + 80) (by decide)
+  have h20e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 80) withdrawalDecode_prog 20 (.MV .x10 .x8)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h20)
+  have h21 := mv_spec_gen_within .x11 .x9 len v11 (WB + 84) (by decide)
+  have h21e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 84) withdrawalDecode_prog 21 (.MV .x11 .x9)
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h21)
+  have h22 := li_spec_gen_within .x12 v12 (2 : Word) (WB + 88) (by decide)
+  have h22e := cpsTripleWithin_extend_code wd_mono
+    (cpsTripleWithin_extend_code (cr' := wdCode)
+      (CodeReq.ofProg_mem_at WB (WB + 88) withdrawalDecode_prog 22 (.LI .x12 (2 : Word))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide)) h22)
+  have h23 := wdLaOff92 v13
+  have h25 := wdLaLen100 v14
+  have f20 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x14 : Reg) ↦ᵣ v14) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h20e
+  have f21 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h21e
+  have f22 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x13 : Reg) ↦ᵣ v13) **
+     ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h22e
+  have f23 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ (2 : Word)) **
+     ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h23
+  have f25 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ (2 : Word)) **
+     ((.x13 : Reg) ↦ᵣ wdOffsetAddr) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj) h25
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f20 f21
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 f22
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f23
+  have s4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s3 f25
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) s4)
+
+#print axioms wdField2Setup
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
