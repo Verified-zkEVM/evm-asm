@@ -97,4 +97,72 @@ theorem pcFree_aieJunkNoX5 (newSp accBase : Word) (bytes : List (BitVec 8)) :
     | exact pcFree_memOwn
     | apply pcFree_sepConj
 
+/-- `aieJunk` with the `(.x0 ↦ᵣ 0)` cell removed; the residual the not-empty
+    verdict-return bridge carries (its `x0` is threaded separately). -/
+def aieJunkNoX0 (newSp accBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  memOwn OffA ** memOwn LenA **
+  memOwn newSp ** memOwn (newSp + 8) ** memOwn (newSp + 16) ** memOwn (newSp + 24) **
+  memOwn (newSp + 32) ** memOwn (newSp + 40) ** memOwn (newSp + 48) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem pcFree_aieJunkNoX0 (newSp accBase : Word) (bytes : List (BitVec 8)) :
+    (aieJunkNoX0 newSp accBase bytes).pcFree := by
+  unfold aieJunkNoX0
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+
+/-! ## Folding the verdict-return-bridge posts into the abstract `aiePost`. -/
+
+/-- Inject the four-way `aieOutcome` pure fact into the abstract return post. -/
+theorem aiePost_intro (sp0 spA raIn c8 c9 c18 newSp accBase outPtr : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) (a0 outVal : Word)
+    (hout : aieOutcome bytes accBase listLen a0 outVal) : ∀ h,
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+      aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ a0) ** (outPtr ↦ₘ outVal) **
+      aieJunk newSp accBase bytes) h →
+    aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen h := by
+  intro h hp
+  refine ⟨a0, outVal, ?_⟩
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (fun hh hj => (sepConj_pure_right hh).2 ⟨hj, hout⟩)))))))) h hp
+
+/-- Empty return-bridge post → `aiePost` (a0 = 0, out = 1, empty verdict). -/
+theorem aieEmptyPost_to_aiePost (sp0 spA raIn c8 c9 c18 newSp accBase outPtr : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hempty : accountEip161Empty bytes accBase listLen) : ∀ h,
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+      aieSlots spA raIn c8 c9 c18 ** (.x5 ↦ᵣ (1 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
+      (outPtr ↦ₘ (1 : Word)) ** aieJunkNoX5 newSp accBase bytes) h →
+    aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen h := by
+  intro h hp
+  have hp2 := (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_left (regIs_implies_regOwn .x5)))))))) h hp
+  refine aiePost_intro sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen 0 1
+    (Or.inl ⟨rfl, rfl, hempty⟩) h ?_
+  unfold aieJunk aieJunkNoX5 at *
+  xperm_chunked hp2
+
+/-- Not-empty return-bridge post → `aiePost` (a0 = 0, out = 0). -/
+theorem aieNotEmptyPost_to_aiePost (sp0 spA raIn c8 c9 c18 newSp accBase outPtr : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) : ∀ h,
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+      aieSlots spA raIn c8 c9 c18 ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
+      (outPtr ↦ₘ (0 : Word)) ** aieJunkNoX0 newSp accBase bytes) h →
+    aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen h := by
+  intro h hp
+  refine aiePost_intro sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen 0 0
+    (Or.inr (Or.inl ⟨rfl, rfl⟩)) h ?_
+  unfold aieJunk aieJunkNoX0 at *
+  xperm_chunked hp
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
