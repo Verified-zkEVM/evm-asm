@@ -138,7 +138,6 @@ theorem aieReturn_to_result
   simp only [mkSaved]
   xperm_pure hp
 
-#print axioms aieReturn_to_result
 
 /-- `aieCallCore` with the dispatch registers `x10`/`x0` removed — the frame the
     `bne a0, zero` step carries. -/
@@ -184,7 +183,6 @@ theorem aieResult_cases (spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s4
   | fail h_fail =>
     exact Or.inr ⟨v11, v12, (sepConj_pure_right h).2 ⟨hcore, h_fail⟩⟩
 
-#print axioms aieResult_cases
 
 set_option maxRecDepth 8000 in
 /-- On K20 success, `bne a0, zero` is not taken; the field body follows. -/
@@ -233,7 +231,6 @@ theorem aieBranchSelected (entry : Word) (foff : BitVec 13)
   unfold aieCallCore
   xperm_pure hstate
 
-#print axioms aieBranchSelected
 
 set_option maxRecDepth 8000 in
 /-- On K20 failure, `bne a0, zero` is taken to the parse-fail verdict. -/
@@ -280,7 +277,6 @@ theorem aieBranchFailed (entry : Word) (foff : BitVec 13)
   unfold aieCallCore
   xperm_pure hstate
 
-#print axioms aieBranchFailed
 
 set_option maxRecDepth 8000 in
 /-- **Unified `bne a0, zero` dispatch** over the K20 return existential: parse
@@ -311,7 +307,6 @@ theorem aieResultBranch (entry : Word) (foff : BitVec 13)
       s3 s4 s5 bytes outv oldOff oldLen listLen index h hp)
     (fun _ hq => hq) (fun _ hq => hq) hor
 
-#print axioms aieResultBranch
 
 /-! ## Per-field dispatch instantiations
 
@@ -338,7 +333,6 @@ theorem aieDispatch0 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Wo
   rw [show (AB + 68 : Word) + 4 = AB + 72 from by bv_omega] at h
   exact h
 
-#print axioms aieDispatch0
 
 /-- Field-1 (balance) dispatch `[44]` at `AB+176`: fail → `AB+396`, ok → `AB+180`. -/
 theorem aieDispatch1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
@@ -359,7 +353,6 @@ theorem aieDispatch1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Wo
   rw [show (AB + 176 : Word) + 4 = AB + 180 from by bv_omega] at h
   exact h
 
-#print axioms aieDispatch1
 
 /-- Field-3 (code_hash) dispatch `[68]` at `AB+272`: fail → `AB+396`, ok → `AB+276`. -/
 theorem aieDispatch3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
@@ -380,7 +373,6 @@ theorem aieDispatch3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Wo
   rw [show (AB + 272 : Word) + 4 = AB + 276 from by bv_omega] at h
   exact h
 
-#print axioms aieDispatch3
 
 /-! ## Parse-fail return bridge (`aieFailed` at `AB+396` → `raIn`)
 
@@ -441,6 +433,5 @@ theorem aieFailToRet (sp0 spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s
   · intro h hq
     exact ⟨v11, v12, hq⟩
 
-#print axioms aieFailToRet
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
