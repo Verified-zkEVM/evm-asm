@@ -371,4 +371,86 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
 
 #print axioms cvitLoop
 
+/-! ## Header-0 flatPost normalization (K34 saved-ra = `LinkRA0`)
+
+    The header-0 call links with `ra = LinkRA0` (`D+96`), so K34's restored saved
+    frame carries `LinkRA0` rather than `LinkRA`.  `dispNorm0`/`flatPost_normalize0`
+    are the `LinkRA0` analogues of `dispNorm`/`flatPost_normalize`; the saved-ra
+    value is only ever framed through (erased by `k34SavedFrame_implies_frameSlotsOwn`
+    at the point `LoopInv 1` is built), so it never reaches the post. -/
+
+def dispNorm0 (spC calleeNewSp hbi hdrBase validPtr firstBadPtr nN lenBase prevVal
+    value status : Word) (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
+  (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
+  (.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** (Ts ↦ₘ value) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+  regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  memOwn RfuOff ** memOwn RfuLen ** stackFree calleeNewSp 8 **
+  bytesRegion hbi bytes **
+  EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame calleeNewSp ⟨LinkRA0, nN, lenBase⟩
+
+set_option maxRecDepth 8000 in
+theorem flatPost_normalize0 (spC hbi hdrBase validPtr firstBadPtr nN lenBase prevVal
+    oldOff oldLen : Word) (bytes : List (BitVec 8)) (Li : Nat) : ∀ h,
+    (EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+      oldOff oldLen (⟨LinkRA0, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
+      (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+      bytes Li 11) h →
+    (∃ status value,
+      (dispNorm0 spC (spC + signExtend12 (-32 : BitVec 12)) hbi hdrBase validPtr firstBadPtr nN
+          lenBase prevVal value status bytes **
+        ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes hbi Li 11 status value⌝) h) := by
+  intro h hp
+  unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost at hp
+  rcases hp with hs | hf
+  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatSuccessReturned at hs
+    obtain ⟨offset, len, v12, x5v, scalarStatus, wrapperStatus, outputValue, hs⟩ := hs
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hs
+    refine ⟨wrapperStatus, outputValue, ?_⟩
+    obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hs
+    obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
+    refine (sepConj_pure_right _).2 ⟨?_, hRes⟩
+    have hOB : (_ ** _) h := ⟨h1, h2, hd, hu, hO, hBig⟩
+    unfold dispNorm0
+    have hp1 : ((RfuOff ↦ₘ offset) ** (RfuLen ↦ₘ len) ** (.x5 ↦ᵣ x5v) **
+        (.x11 ↦ᵣ scalarStatus) ** (.x12 ↦ᵣ v12) **
+        ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
+          (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
+          (.x10 ↦ᵣ wrapperStatus) ** (.x0 ↦ᵣ (0 : Word)) ** (Ts ↦ₘ outputValue) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
+          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            ⟨LinkRA0, nN, lenBase⟩)) h := by xperm_hyp hOB
+    have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x))))) h hp1
+    xperm_hyp hp2
+  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatFailureReturned at hf
+    obtain ⟨v11, v12, hf⟩ := hf
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hf
+    refine ⟨(1 : Word), (0 : Word), ?_⟩
+    obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hf
+    obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
+    refine (sepConj_pure_right _).2 ⟨?_, hRes⟩
+    have hOB : (_ ** _) h := ⟨h1, h2, hd, hu, hO, hBig⟩
+    unfold dispNorm0
+    have hp1 : ((RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) ** (.x11 ↦ᵣ v11) **
+        (.x12 ↦ᵣ v12) **
+        ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
+          (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
+          (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (Ts ↦ₘ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
+          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            ⟨LinkRA0, nN, lenBase⟩)) h := by xperm_hyp hOB
+    have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono (regIs_implies_regOwn .x11) (sepConj_mono (regIs_implies_regOwn .x12)
+        (fun _ x => x)))) h hp1
+    xperm_hyp hp2
+
+#print axioms flatPost_normalize0
+
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
