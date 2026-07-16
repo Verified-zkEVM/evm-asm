@@ -47,4 +47,69 @@ theorem ecb_valid (j : Nat) (hj : j < 32) :
     Rv64.RAM_MEM_START Rv64.RAM_MEM_END
   omega
 
+/-! ## The `accountEip161Empty` verdict, assembled from the three fields' facts
+
+    The empty-path model constructor: the lenient EIP-161-empty predicate
+    (`AccountIsEip161EmptySpec.lean:182`) built directly from the three
+    `rlp_list_nth_item` successes and the per-byte content facts established by
+    the three byte-scan loops. -/
+
+theorem aieEmpty_of_facts (bytes : List (BitVec 8)) (accBase : Word) (listLen : Nat)
+    (o0 l0 o1 l1 o3 l3 : Word)
+    (hS0 : Success bytes accBase listLen 0 o0 l0) (hl0 : l0.toNat ≤ 8)
+    (hz0 : ∀ k, k < l0.toNat → bytes.getD (o0.toNat + k) 0 = 0)
+    (hS1 : Success bytes accBase listLen 1 o1 l1) (hl1 : l1.toNat ≤ 32)
+    (hz1 : ∀ k, k < l1.toNat → bytes.getD (o1.toNat + k) 0 = 0)
+    (hS3 : Success bytes accBase listLen 3 o3 l3) (hl3 : l3.toNat = 32)
+    (hm3 : ∀ k, k < 32 → bytes.getD (o3.toNat + k) 0 = aieEmptyCodeHashBytes.getD k 0) :
+    accountEip161Empty bytes accBase listLen :=
+  ⟨o0, l0, o1, l1, o3, l3, hS0, hl0, hz0, hS1, hl1, hz1, hS3, hl3, hm3⟩
+
+/-! ## The unified whole-program verdict classification and abstract return post
+
+    `aieOutcome` records the four ABI outcomes; the empty branch carries the
+    lenient model verdict (`accountEip161Empty`).  `aiePost` is the abstract
+    caller-visible post at `raIn`: registers restored, `x10 = a0`, the output
+    cell holding the verdict value, and the whole scratch/frame footprint owned.
+    All four verdict-return bridges weaken into it. -/
+
+/-- The four-way ABI classification of `(a0, outVal)`. -/
+def aieOutcome (bytes : List (BitVec 8)) (accBase : Word) (listLen : Nat)
+    (a0 outVal : Word) : Prop :=
+  (a0 = 0 ∧ outVal = 1 ∧ accountEip161Empty bytes accBase listLen) ∨
+  (a0 = 0 ∧ outVal = 0) ∨
+  (a0 = 1 ∧ outVal = 0) ∨
+  (a0 = 2 ∧ outVal = 0)
+
+/-- The owned scratch/frame residual carried to the caller: all scratch
+    registers, the two RLP scratch cells, the seven saved-frame slots, and the
+    two `bytesRegion`s (account buffer + `EMPTY_CODE_HASH` constant). -/
+def aieJunk (newSp accBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  memOwn OffA ** memOwn LenA **
+  memOwn newSp ** memOwn (newSp + 8) ** memOwn (newSp + 16) ** memOwn (newSp + 24) **
+  memOwn (newSp + 32) ** memOwn (newSp + 40) ** memOwn (newSp + 48) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem pcFree_aieJunk (newSp accBase : Word) (bytes : List (BitVec 8)) :
+    (aieJunk newSp accBase bytes).pcFree := by
+  unfold aieJunk
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+
+/-- Abstract whole-program return post at `raIn`. -/
+def aiePost (sp0 spA raIn c8 c9 c18 newSp accBase outPtr : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) : Assertion :=
+  fun h => ∃ (a0 outVal : Word),
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+      aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ a0) ** (outPtr ↦ₘ outVal) **
+      aieJunk newSp accBase bytes ** ⌜aieOutcome bytes accBase listLen a0 outVal⌝) h
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
