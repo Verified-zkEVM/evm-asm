@@ -80,7 +80,6 @@ private theorem hesrMarshalInit (cursor endPtr newSp : Word) :
   have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 f15
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s3
 
-#print axioms hesrMarshalInit
 set_option maxRecDepth 8000 in
 private theorem hesrStage2
     (listBase endPtr outPtr newSp : Word) (offPrev listLen cursorOff : Nat)
@@ -392,7 +391,6 @@ private theorem hesrStage2
   rw [show (hesrBase + 84 : Word) + 4 = hesrBase + 88 from by bv_omega] at hwalk'
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hesrStage2
 set_option maxRecDepth 8000 in
 private theorem hesrStage1
     (listBase endPtr outPtr newSp : Word) (offPrev listLen cursorOff : Nat)
@@ -705,7 +703,6 @@ private theorem hesrStage1
   rw [show (hesrBase + 64 : Word) + 4 = hesrBase + 68 from by bv_omega] at hwalk'
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hesrStage1
 /-! ## The init-call dispatch and the whole-program caller contract
 
     The init phase in front of `hesrStage1`: the `rlp_walk_init` call at [10]
@@ -755,7 +752,6 @@ private theorem hesrMarshalInitBundled
     (fun h hq => by
       unfold hesrWalkAmbient hesrAmbRegs hesrAmbConst hesrSpill; xperm_chunked hq) hmF
 
-#print axioms hesrMarshalInitBundled
 set_option maxRecDepth 8000 in
 theorem hesrInitDispatch
     (listBase outPtr newSp oldRa v5 v6 v7 v28 v29 v30 v31 : Word)
@@ -1041,6 +1037,5 @@ theorem hesrInitDispatch
   unfold hesrScratchConst
   xperm_chunked hq
 
-#print axioms hesrInitDispatch
 
 end EvmAsm.Codegen.HeaderFieldsSpec

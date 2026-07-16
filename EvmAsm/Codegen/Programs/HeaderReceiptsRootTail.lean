@@ -905,6 +905,5 @@ theorem herrSuccessTailBundled
     · exact Or.inl ⟨ha0, hsucc, hlen, hfin⟩
     · exact Or.inr (Or.inl ⟨ha0, hsucc, hlen, hfin⟩)
 
-#print axioms herrSuccessTailBundled
 
 end EvmAsm.Codegen.HeaderReceiptsRootSpec
