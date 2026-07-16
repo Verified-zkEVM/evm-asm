@@ -136,4 +136,55 @@ theorem aieField1PtrSetup (v5 accBase v28 offset : Word) :
 
 #print axioms aieField1PtrSetup
 
+/-! ## Generic field body frame + a0=1 size-fail continuation -/
+
+/-- The frame carried around a field body, generic over the per-call return
+    address `retA` (`aieF3Frame` is the `retA = AB+272` instance). -/
+def aieFldFrame (retA spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (offset v11 v12 : Word) : Assertion :=
+  (.x1 ↦ᵣ retA) ** (.x2 ↦ᵣ spA) ** (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) **
+  (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion accBase bytes ** (OffA ↦ₘ offset) **
+  savedFrame newSp (mkSaved retA accBase lenW outPtr s3 s4 s5) **
+  aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+  bytesRegion ECB aieEmptyCodeHashBytes
+
+set_option maxRecDepth 8000 in
+/-- The a0=1 (parse/size-fail) continuation for the nonce/balance size checks
+    (`AB+396 → raIn`): from the size-head-pass state, set `a0 = 1` and fold into
+    the abstract return post.  Generic over the pure branch condition `P`. -/
+theorem aieSizeFail1Cont
+    (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) (offset len v11 v12 : Word) (P : Prop)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 8 (AB + 396) raIn fullCode
+      (((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (LenA ↦ₘ len) ** ⌜P⌝) **
+        aieFldFrame retA spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 bytes offset v11 v12)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  have hepi := aieRetFail sp0 spA raIn c8 c9 c18 retA accBase lenW outPtr (0 : Word)
+    ((outPtr ↦ₘ (0 : Word)) ** aieJunk newSp accBase bytes)
+    (pcFree_sepConj pcFree_memIs (pcFree_aieJunk _ _ _)) hspA hret
+  refine cpsTripleWithin_weaken (fun h hst => ?_) (fun h hq => ?_) hepi
+  · have hst1 := sepConj_mono_left
+      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+        (fun h3 hpf => ((sepConj_pure_right h3).1 hpf).1)))) h hst
+    have hst2 : ((.x1 ↦ᵣ retA) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
+        (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) ** (.x10 ↦ᵣ (0 : Word)) **
+        aieResMixedSizeFail newSp accBase outPtr bytes LenA len (32 : Word) v11 v12 s3 s4 s5
+          offset len retA accBase lenW outPtr s3 s4 s5) h := by
+      unfold aieFldFrame savedFrame at hst1
+      simp only [mkSaved] at hst1
+      unfold aieResMixedSizeFail
+      xperm_chunked hst1
+    exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+        (aieResMixedSizeFail_to_junk _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _))))))) h hst2
+  · exact aiePost_intro sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen 1 0
+      (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩))) h hq
+
+#print axioms aieSizeFail1Cont
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
