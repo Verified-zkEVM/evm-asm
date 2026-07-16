@@ -104,6 +104,5 @@ theorem frameLoadRegs_spec (depth old5 old6 old11 pcVal codeBase ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms frameLoadRegs_spec
 end FrameLoadRegsSAsm
 end EvmAsm.Codegen

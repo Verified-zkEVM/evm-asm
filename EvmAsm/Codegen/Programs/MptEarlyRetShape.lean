@@ -147,7 +147,6 @@ theorem mptSetAcc_failTail_spec {m : Nat} (base ret : Word) {F Q : Assertion}
     sepConj_emp_right']
   exact hp
 
-#print axioms mptSetAcc_failTail_spec
 
 /-- `mpt_insert_acc`'s mid-loop "function return": the fail stub at `+2748`
     joins the shared epilogue at `+2696`. -/
@@ -184,7 +183,6 @@ theorem mptInsertAcc_failTail_spec {m : Nat} (base ret : Word) {F Q : Assertion}
     sepConj_emp_right']
   exact hp
 
-#print axioms mptInsertAcc_failTail_spec
 
 end MptEarlyRetShape
 

@@ -47,7 +47,6 @@ theorem copyWordGasFn_spec (size base : Word) :
     · congr 1
     · exact hA
 
-#print axioms copyWordGasFn_spec
 
 end CopyWordGasSAsm
 end EvmAsm.Codegen

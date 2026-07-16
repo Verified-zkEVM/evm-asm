@@ -47,7 +47,6 @@ theorem logDataGasFn_spec (numTopics dataBytes base : Word) :
       ne_eq, reduceCtorEq, not_false_eq_true, hx10, hx11]
     constructor <;> trivial
 
-#print axioms logDataGasFn_spec
 
 end LogDataGasSAsm
 end EvmAsm.Codegen
