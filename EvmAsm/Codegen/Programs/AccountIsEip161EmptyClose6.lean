@@ -187,4 +187,26 @@ theorem aieSizeFail1Cont
 
 #print axioms aieSizeFail1Cont
 
+set_option maxRecDepth 8000 in
+/-- Downgrade the saved-frame cells to the owned frame slots (`frameSlotsOwn`),
+    the shape the next K20 call's precondition (`aieMidPre`) expects. -/
+theorem savedFrame_to_frameSlotsOwn (newSp : Word) (saved : Saved) : ∀ h,
+    savedFrame newSp saved h → frameSlotsOwn listNthFrame newSp h := by
+  intro h hp
+  have h2 := savedFrame_to_memOwns newSp saved h hp
+  unfold frameSlotsOwn listNthFrame
+  simp only [List.foldr_cons, List.foldr_nil]
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+      show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+      show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide,
+      show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+      show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+      show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+      show newSp + (0 : Word) = newSp from by bv_omega]
+  rw [sepConj_emp_right']
+  exact h2
+
+#print axioms savedFrame_to_frameSlotsOwn
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
