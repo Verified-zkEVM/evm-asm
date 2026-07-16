@@ -247,4 +247,15 @@ theorem wdFailEpiRO (sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old : Word)
 
 #print axioms wdFailEpiRO
 
+theorem pcFree_wdFailLeftover (spW outBase listBase s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) :
+    (wdFailLeftover spW outBase listBase s3 s4 s5 bytes).pcFree := by
+  intro h hp
+  obtain ⟨_, _, _, _, _, _, _, _, _, hbody⟩ := hp
+  revert h hbody
+  show Assertion.pcFree _
+  repeat' first
+    | exact pcFree_memIs | exact bytesRegion_pcFree _ _ | exact pcFree_stackFree _ _
+    | exact pcFree_wdScratch _ _ _ | apply pcFree_sepConj
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
