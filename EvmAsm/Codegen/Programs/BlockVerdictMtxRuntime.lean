@@ -203,6 +203,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_mtx_is_contract\n" ++
   blockVerdictMtxEoaSettlement ++

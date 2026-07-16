@@ -317,6 +317,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_cd_eoa_restore        # code-hash lookup failed -> conservative EOA path\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_cd_same_block_delegation\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
@@ -326,6 +327,7 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  bnez a0, .Lbv_cd_eoa_confirmed\n" ++
   ".Lbv_cd_same_block_delegation:\n" ++
