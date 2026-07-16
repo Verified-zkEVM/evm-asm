@@ -377,13 +377,45 @@ def statelessVerdictV2Function : String :=
   "  sub t4, t6, t5; la t3, svf_codes_len; sd t4, 0(t3)\n" ++
   "  mv a0, t2; mv a1, t4; jal ra, witness_codes_index_build\n" ++
   "  bnez a0, .Lv2_witness_codes_index_fail\n" ++
+  "  # ExecutionWitness.codes is SSZ List[ByteList[65536]].  The generic\n" ++
+  "  # code index checks the offset table, then records each element length.\n" ++
+  "  # Enforce the SSZ envelope before any code-hash lookup can consume it.\n" ++
+  "  la t0, wcidx_count; ld t0, 0(t0); la t1, wcidx_records; li t2, 65536\n" ++
+  ".Lv2_code_cap_loop:\n" ++
+  "  beqz t0, .Lv2_code_cap_ok\n" ++
+  "  ld t3, 40(t1); bgtu t3, t2, .Lv2_codes_cap_fail\n" ++
+  "  addi t1, t1, 48; addi t0, t0, -1; j .Lv2_code_cap_loop\n" ++
+  ".Lv2_code_cap_ok:\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
   "  mv t6, a0\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t6\n" ++
   "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
   "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_headers_bounds_fail\n" ++
   "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
-  "  mv a0, t2; la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
+  "  # ExecutionWitness.headers is SSZ List[ByteList[1024]].  Validate the\n" ++
+  "  # offset table and each element length before header parsing or keccak.\n" ++
+  "  mv s1, t2; mv s2, a1; beqz s2, .Lv2_header_cap_ok\n" ++
+  "  li t0, 4; bltu s2, t0, .Lv2_headers_cap_fail\n" ++
+  "  mv a0, s1; jal ra, bgv_u32le; mv s3, a0\n" ++
+  "  andi t0, s3, 3; bnez t0, .Lv2_headers_cap_fail\n" ++
+  "  bgtu s3, s2, .Lv2_headers_cap_fail; srli s3, s3, 2\n" ++
+  "  li t0, 256; bgtu s3, t0, .Lv2_headers_cap_fail\n" ++
+  "  li s4, 0\n" ++
+  ".Lv2_header_cap_loop:\n" ++
+  "  beq s4, s3, .Lv2_header_cap_ok\n" ++
+  "  slli t0, s4, 2; add a0, s1, t0; jal ra, bgv_u32le; mv s5, a0\n" ++
+  "  bltu s5, s3, .Lv2_headers_cap_fail; bgtu s5, s2, .Lv2_headers_cap_fail\n" ++
+  "  addi t0, s4, 1; beq t0, s3, .Lv2_header_cap_last\n" ++
+  "  slli t0, t0, 2; add a0, s1, t0; jal ra, bgv_u32le; j .Lv2_header_cap_end\n" ++
+  ".Lv2_header_cap_last:\n" ++
+  "  mv a0, s2\n" ++
+  ".Lv2_header_cap_end:\n" ++
+  "  bltu a0, s5, .Lv2_headers_cap_fail; bgtu a0, s2, .Lv2_headers_cap_fail\n" ++
+  "  sub t0, a0, s5; li t1, 1024; bgtu t0, t1, .Lv2_headers_cap_fail\n" ++
+  "  addi s4, s4, 1; j .Lv2_header_cap_loop\n" ++
+  ".Lv2_header_cap_ok:\n" ++
+  "  la t0, svf_headers_ptr; ld a0, 0(t0); la t0, svf_headers_len; ld a1, 0(t0)\n" ++
+  "  la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
   "  bnez a0, .Lv2_headers_fail\n" ++
   "  # execution-specs uses the last validated witness header as parent_header.\n" ++
   "  la t0, svf_headers_count; ld t0, 0(t0); beqz t0, .Lv2_headers_fail\n" ++
@@ -756,6 +788,12 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_codes_index_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_codes_cap_fail:\n" ++
+  "  li t0, 33; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_headers_cap_fail:\n" ++
+  "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_offsets_fail:\n" ++
   "  li t0, 21; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
