@@ -178,7 +178,8 @@ def hdrBadParse (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Na
 def payload (hdrBase lenBase : Word) (bigBytes : List (BitVec 8))
     (lengths : List Nat) : Assertion :=
   wordArray lenBase lengths ** bytesRegion hdrBase bigBytes **
-  memOwn Ts ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterChild ** memOwn IterPrev
+  memOwn Ts ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterChild ** memOwn IterI **
+  memOwn IterPrev
 
 /-- Callee-perturbed registers owned + the K34 frame slots owned + the callee's
     8-dword allocatable stack + `x0`. -/
@@ -188,5 +189,248 @@ def scratchRegs (calleeNewSp : Word) : Assertion :=
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
   stackFree calleeNewSp 8
+
+/-- Loop invariant at the guard (`D + 124`) entering iteration `i` (`1 ≤ i ≤ N`).
+
+    The register file holds `x6 = base of header i`, `x7 = i`, and
+    `x21 = prevVal`, where `prevVal` is GENUINELY the field-11 timestamp decoded
+    from header `i-1` (`⌜hdrTsOk … (i-1) prevVal⌝` — tied to K34's `Result` at
+    header `i-1`'s base).  The accumulated `hprefix` (all earlier adjacent pairs
+    strictly increasing) is carried as a pure fact. -/
+def LoopInv (_sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat)
+    (i : Nat) : Assertion :=
+  fun h => ∃ prevVal,
+    (⌜hdrTsOk hdrBase bigBytes lengths (i - 1) prevVal ∧
+        (∀ j, 1 ≤ j → j < i → tsIncreasing hdrBase bigBytes lengths j)⌝ **
+      (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+      (.x6 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
+      (.x20 ↦ᵣ firstBadPtr) ** (.x7 ↦ᵣ BitVec.ofNat 64 i) ** (.x21 ↦ᵣ prevVal) **
+      savedFrame spC csaved ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+      payload hdrBase lenBase bigBytes lengths ** scratchRegs calleeNewSp) h
+
+/-- Return footprint shared by all three post arms. -/
+def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
+    (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  (.x1 ↦ᵣ csaved.ra) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) **
+  (.x18 ↦ᵣ csaved.s2) ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
+  (.x21 ↦ᵣ csaved.s5) ** savedFrame spC csaved **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
+  regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  stackFree calleeNewSp 8 ** payload hdrBase lenBase bigBytes lengths
+
+/-- All adjacent pairs strictly increasing (or `N < 2`): `a0 = 0`,
+    `*validPtr = 1`, `*firstBadPtr = 0`, and every adjacent pair `< N` is
+    strictly increasing (each tied to K34's `Result`). -/
+def postAllValid (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  ⌜lengths.length < 2 ∨
+    (∀ i, 1 ≤ i → i < lengths.length → tsIncreasing hdrBase bigBytes lengths i)⌝ **
+  (.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)) **
+  commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths
+
+/-- First violation at `k` (`1 ≤ k < N`): `a0 = 0`, `*validPtr = 0`,
+    `*firstBadPtr = k`, pair `(k-1,k)` violates the strict order, and all earlier
+    adjacent pairs are strictly increasing. -/
+def postViolation (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h => ∃ k,
+    (⌜1 ≤ k ∧ k < lengths.length ∧
+        (∀ j, 1 ≤ j → j < k → tsIncreasing hdrBase bigBytes lengths j) ∧
+        tsViolation hdrBase bigBytes lengths k⌝ **
+      (.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) **
+      (firstBadPtr ↦ₘ BitVec.ofNat 64 k) **
+      commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths) h
+
+/-- First parse failure at `k`: `a0 = status` (the actual nonzero K34 status),
+    `*firstBadPtr = k`, `*validPtr = 1`, header `k` fails the strict field-11
+    decode, and all earlier adjacent pairs are strictly increasing.  (For `k = 0`
+    the header-0 block reads the zero-initialized `cvit_iter_i` cell, so
+    `*firstBadPtr = 0`.) -/
+def postParseFail (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h => ∃ k status,
+    (⌜k < lengths.length ∧
+        (∀ j, 1 ≤ j → j < k → tsIncreasing hdrBase bigBytes lengths j) ∧
+        hdrBadParse hdrBase bigBytes lengths k status⌝ **
+      (.x10 ↦ᵣ status) ** (validPtr ↦ₘ (1 : Word)) **
+      (firstBadPtr ↦ₘ BitVec.ofNat 64 k) **
+      commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths) h
+
+/-- Three-way whole-program post: all-strictly-increasing (or `N<2`),
+    first-violation, or first parse-failure, each genuinely tied to the actual
+    per-header `Result`s and cross-header comparisons. -/
+def cvitPost (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) : Assertion :=
+  fun h =>
+    postAllValid sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h ∨
+    postViolation sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h ∨
+    postParseFail sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
+        bigBytes lengths h
+
+/-! ## Prologue (instructions 0--16): set up the loop-entry state
+
+    Instructions 0--15 are byte-identical to the `chain_validate_*` prologue;
+    instruction 16 is `li x5, 2` (the `N < 2` comparand) rather than the
+    sibling's iterator reset, so `x21` is left untouched here. -/
+
+set_option maxRecDepth 8000 in
+theorem cvitPrologue
+    (sp0 spC nWord lenBase hdrBase validPtr firstBadPtr raIn
+      cs0 cs1 cs2 cs3 cs4 cs5 old5 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12)) :
+    cpsTripleWithin 17 D (D + 68) cvitCode
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) **
+        (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x10 ↦ᵣ nWord) ** (.x11 ↦ᵣ lenBase) ** (.x12 ↦ᵣ hdrBase) **
+        (.x13 ↦ᵣ validPtr) ** (.x14 ↦ᵣ firstBadPtr) ** (.x5 ↦ᵣ old5) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        memOwn spC ** memOwn (spC + 8) ** memOwn (spC + 16) ** memOwn (spC + 24) **
+        memOwn (spC + 32) ** memOwn (spC + 40) ** memOwn (spC + 48) **
+        memOwn validPtr ** memOwn firstBadPtr)
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ nWord) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
+        (.x21 ↦ᵣ cs5) ** (.x10 ↦ᵣ nWord) ** (.x11 ↦ᵣ lenBase) **
+        (.x12 ↦ᵣ hdrBase) ** (.x13 ↦ᵣ validPtr) ** (.x14 ↦ᵣ firstBadPtr) **
+        (.x5 ↦ᵣ (2 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        ((spC + 48) ↦ₘ cs5) ** (validPtr ↦ₘ (1 : Word)) **
+        (firstBadPtr ↦ₘ (0 : Word))) := by
+  subst hspC
+  have h0 := addi_spec_gen_same_within .x2 sp0 (-56 : BitVec 12) D (by decide)
+  have h1 := sd_spec_gen_own_within .x2 .x1
+    (sp0 + signExtend12 (-56 : BitVec 12)) raIn (0 : BitVec 12) (D + 4)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (sp0 + signExtend12 (-56 : BitVec 12)) + (0 : Word)
+      = sp0 + signExtend12 (-56 : BitVec 12) from by bv_omega] at h1
+  have h2 := sd_spec_gen_own_within .x2 .x8
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs0 (8 : BitVec 12) (D + 8)
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at h2
+  have h3 := sd_spec_gen_own_within .x2 .x9
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs1 (16 : BitVec 12) (D + 12)
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at h3
+  have h4 := sd_spec_gen_own_within .x2 .x18
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs2 (24 : BitVec 12) (D + 16)
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at h4
+  have h5 := sd_spec_gen_own_within .x2 .x19
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs3 (32 : BitVec 12) (D + 20)
+  rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide] at h5
+  have h6 := sd_spec_gen_own_within .x2 .x20
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs4 (40 : BitVec 12) (D + 24)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at h6
+  have h7 := sd_spec_gen_own_within .x2 .x21
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs5 (48 : BitVec 12) (D + 28)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide] at h7
+  have h8 := mv_spec_gen_within .x8 .x10 nWord cs0 (D + 32) (by decide)
+  have h9 := mv_spec_gen_within .x9 .x11 lenBase cs1 (D + 36) (by decide)
+  have h10 := mv_spec_gen_within .x18 .x12 hdrBase cs2 (D + 40) (by decide)
+  have h11 := mv_spec_gen_within .x19 .x13 validPtr cs3 (D + 44) (by decide)
+  have h12 := mv_spec_gen_within .x20 .x14 firstBadPtr cs4 (D + 48) (by decide)
+  have h13 := li_spec_gen_within .x5 old5 (1 : Word) (D + 52) (by decide)
+  have h14 := sd_spec_gen_own_within .x19 .x5 validPtr (1 : Word) (0 : BitVec 12) (D + 56)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show validPtr + (0 : Word) = validPtr from by bv_omega] at h14
+  have h15 := sd_spec_gen_own_within .x20 .x0 firstBadPtr (0 : Word) (0 : BitVec 12) (D + 60)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show firstBadPtr + (0 : Word) = firstBadPtr from by bv_omega] at h15
+  have h16 := li_spec_gen_within .x5 (1 : Word) (2 : Word) (D + 64) (by decide)
+  runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16
+
+#print axioms cvitPrologue
+
+/-! ## Epilogue (instructions 83--91): restore + return -/
+
+set_option maxRecDepth 8000 in
+theorem cvitEpilogue
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 9 (D + 332) raIn cvitCode
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) **
+        (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        ((spC + 48) ↦ₘ cs5))
+      ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) **
+        (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        ((spC + 48) ↦ₘ cs5)) := by
+  subst hspC
+  have l0 := ld_spec_gen_within .x1 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o1 raIn
+    (0 : BitVec 12) (D + 332) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (sp0 + signExtend12 (-56 : BitVec 12)) + (0 : Word)
+      = sp0 + signExtend12 (-56 : BitVec 12) from by bv_omega] at l0
+  have l1 := ld_spec_gen_within .x8 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o8 cs0
+    (8 : BitVec 12) (D + 336) (by decide)
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at l1
+  have l2 := ld_spec_gen_within .x9 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o9 cs1
+    (16 : BitVec 12) (D + 340) (by decide)
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at l2
+  have l3 := ld_spec_gen_within .x18 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o18 cs2
+    (24 : BitVec 12) (D + 344) (by decide)
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at l3
+  have l4 := ld_spec_gen_within .x19 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o19 cs3
+    (32 : BitVec 12) (D + 348) (by decide)
+  rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide] at l4
+  have l5 := ld_spec_gen_within .x20 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o20 cs4
+    (40 : BitVec 12) (D + 352) (by decide)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at l5
+  have l6 := ld_spec_gen_within .x21 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o21 cs5
+    (48 : BitVec 12) (D + 356) (by decide)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide] at l6
+  have l7 := addi_spec_gen_same_within .x2 (sp0 + signExtend12 (-56 : BitVec 12))
+    (56 : BitVec 12) (D + 360) (by decide)
+  rw [show (sp0 + signExtend12 (-56 : BitVec 12)) + signExtend12 (56 : BitVec 12) = sp0
+      from by rw [show signExtend12 (-56 : BitVec 12) = (-56 : Word) from by decide,
+        show signExtend12 (56 : BitVec 12) = (56 : Word) from by decide]; bv_omega] at l7
+  have hblock : cpsTripleWithin 8 (D + 332) (D + 364) cvitCode
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-56 : BitVec 12))) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) **
+        (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+        (.x21 ↦ᵣ o21) **
+        ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5))
+      ((.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) ** (.x2 ↦ᵣ sp0) **
+        ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+        ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5)) := by
+    runBlock l0 l1 l2 l3 l4 l5 l6 l7
+  have hjalr := EvmAsm.Evm64.ret_spec_within' (D + 364) raIn
+  rw [hret] at hjalr
+  have hjalrC := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 364) cvitProg 91 (.JALR .x0 .x1 (0 : BitVec 12))
+      (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide))
+    hjalr
+  have hjalrF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) **
+      (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) ** (.x2 ↦ᵣ sp0) **
+      ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+      ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5)) (by pcf) hjalrC
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblock hjalrF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
+#print axioms cvitEpilogue
 
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
