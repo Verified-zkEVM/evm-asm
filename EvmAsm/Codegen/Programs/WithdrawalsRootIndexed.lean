@@ -62,7 +62,7 @@ def blockValidateWithdrawalsRootIndexed_prog : Program :=
     .MV .x11 .x19,
     .AUIPC .x12 (laHi GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 72)),
     .ADDI .x12 .x12 (laLo GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 72)),
-    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_trie_root_small (GuestAddrs.block_validate_withdrawals_root_indexed + 80)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_trie_root_bounded_from_values (GuestAddrs.block_validate_withdrawals_root_indexed + 80)),
     .BNE .x10 .x0 (100 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 88)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 88)),
@@ -105,7 +105,7 @@ def blockValidateWithdrawalsRootIndexed_relocs : RelocTable :=
   [ (12, .la .x12 "bvwri_expected_root"),
     (14, .jal .x1 "header_extract_withdrawals_root"),
     (18, .la .x12 "bvwri_computed_root"),
-    (20, .jal .x1 "mpt_indexed_trie_root_small"),
+    (20, .jal .x1 "mpt_indexed_trie_root_bounded_from_values"),
     (22, .la .x5 "bvwri_expected_root"),
     (24, .la .x6 "bvwri_computed_root") ]
 
@@ -142,7 +142,7 @@ def ziskBlockValidateWithdrawalsRootIndexedPrologue : String :=
   "  add s5, s4, s1              # withdrawal blob cursor\n" ++
   "  addi s5, s5, 7; andi s5, s5, -8\n" ++
   "  la s6, bvwri_value_descs\n" ++
-  "  li s7, 129\n" ++
+  "  li s7, " ++ toString (itrIndexedEntryCapacity + 1) ++ "\n" ++
   "  bgeu s2, s7, .Lbvwri_pdesc_done\n" ++
   "  li s8, 0                    # i\n" ++
   ".Lbvwri_pdesc_loop:\n" ++
@@ -192,6 +192,16 @@ def ziskBlockValidateWithdrawalsRootIndexedPrologue : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+  mptBoundedNodeRefFunction ++ "\n" ++
+  mptBoundedEncodeBranchFunction ++ "\n" ++
+  mptBoundedEncodeExtensionFunction ++ "\n" ++
+  mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
   ".Lbvwri_pdone:"
@@ -203,7 +213,7 @@ def ziskBlockValidateWithdrawalsRootIndexedDataSection : String :=
   "hewr_length:\n  .zero 8\n" ++
   "bvwri_expected_root:\n  .zero 32\n" ++
   "bvwri_computed_root:\n  .zero 32\n" ++
-  "bvwri_value_descs:\n  .zero 2048"
+  "bvwri_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16)
 
 def ziskBlockValidateWithdrawalsRootIndexedProbeUnit : BuildUnit := {
   body        := NOP
