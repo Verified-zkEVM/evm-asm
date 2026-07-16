@@ -502,3 +502,5 @@ import EvmAsm.Codegen.Programs.RlpContentToU256BeCallSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
 
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
+
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
