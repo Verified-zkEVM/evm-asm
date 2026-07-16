@@ -37,7 +37,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpecV5
 import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 import EvmAsm.Evm64.SDiv.DivCallExactShared
-import EvmAsm.Evm64.SDiv.Compose.DivCallN1V4Handoff
 import EvmAsm.Evm64.SDiv.Compose.SDivViewChainA
 import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
 import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
