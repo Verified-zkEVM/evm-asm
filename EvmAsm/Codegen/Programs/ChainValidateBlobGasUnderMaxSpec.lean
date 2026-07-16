@@ -164,12 +164,14 @@ def payload (hdrBase lenBase : Word) (bigBytes : List (BitVec 8))
   wordArray lenBase lengths ** bytesRegion hdrBase bigBytes **
   memOwn Field ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterPtr ** memOwn IterI
 
-/-- Callee-perturbed registers owned + the K34 frame slots owned + `x0`. -/
+/-- Callee-perturbed registers owned + the K34 frame slots owned + the callee's
+    8-dword allocatable stack + `x0`. -/
 def scratchRegs (calleeNewSp : Word) : Assertion :=
   regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp
+  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  stackFree calleeNewSp 8
 
 /-- Loop invariant at the guard (`D + 68`) entering iteration `i` (`i ≤ N`). -/
 def LoopInv (_sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
@@ -191,7 +193,7 @@ def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
   frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
-  payload hdrBase lenBase bigBytes lengths
+  stackFree calleeNewSp 8 ** payload hdrBase lenBase bigBytes lengths
 
 /-- All headers under max: `a0 = 0`, `*validPtr = 1`, `*firstBadPtr = 0`, and
     every header `< N` decodes field 17 to a u64 ≤ 2752512. -/
