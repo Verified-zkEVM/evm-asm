@@ -39,6 +39,7 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   -- of the stale pre-state marker returned by code_at_header_state_root.
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
   "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
+  "  ld a4, 608(x20)\n" ++                                -- evm-asm-uzb6b: resolver codes base (descend re-adds 608(x20))
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
