@@ -239,4 +239,127 @@ theorem aieResMixedNoX5_to_aieJunkNoX5 (newSp accBase : Word) (bytes : List (Bit
   refine sepConj_mono (fun _ h => h) ?_
   exact fun _ h => h
 
+/-- The field-3 loop-exit residual keeping `x5`, in `aieJunkNoX0` order
+    (`x0` is threaded by the not-empty bridge). -/
+def aieResMixedNoX0 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v5 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : Assertion :=
+  (.x5 ↦ᵣ v5) ** regOwn .x6 ** (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+  regOwn .x13 ** regOwn .x14 ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (OffA ↦ₘ offset) ** (LenA ↦ₘ len) **
+  (newSp ↦ₘ fr0) ** ((newSp + 8) ↦ₘ fr1) ** ((newSp + 16) ↦ₘ fr2) **
+  ((newSp + 24) ↦ₘ fr3) ** ((newSp + 32) ↦ₘ fr4) ** ((newSp + 40) ↦ₘ fr5) **
+  ((newSp + 48) ↦ₘ fr6) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem pcFree_aieResMixedNoX0 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v5 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) :
+    (aieResMixedNoX0 newSp accBase bytes v5 v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6).pcFree := by
+  unfold aieResMixedNoX0
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+
+theorem aieResMixedNoX0_to_aieJunkNoX0 (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v5 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : ∀ h,
+    aieResMixedNoX0 newSp accBase bytes v5 v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6 h →
+    aieJunkNoX0 newSp accBase bytes h := by
+  intro h hp
+  unfold aieResMixedNoX0 at hp
+  unfold aieJunkNoX0
+  refine sepConj_mono (regIs_implies_regOwn .x5) ?_ h hp
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x7) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x11) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x12) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x19) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x20) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x21) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  exact fun _ h => h
+
+/-- The field-3 size-fail residual (no content loop ran) with the output cell,
+    in `(outPtr ↦ₘ 0) ** aieJunk` order. -/
+def aieResMixedSizeFail (newSp accBase outPtr : Word) (bytes : List (BitVec 8))
+    (v5 v6 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : Assertion :=
+  (outPtr ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+  (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  (OffA ↦ₘ offset) ** (LenA ↦ₘ len) **
+  (newSp ↦ₘ fr0) ** ((newSp + 8) ↦ₘ fr1) ** ((newSp + 16) ↦ₘ fr2) **
+  ((newSp + 24) ↦ₘ fr3) ** ((newSp + 32) ↦ₘ fr4) ** ((newSp + 40) ↦ₘ fr5) **
+  ((newSp + 48) ↦ₘ fr6) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem pcFree_aieResMixedSizeFail (newSp accBase outPtr : Word) (bytes : List (BitVec 8))
+    (v5 v6 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) :
+    (aieResMixedSizeFail newSp accBase outPtr bytes v5 v6 v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6).pcFree := by
+  unfold aieResMixedSizeFail
+  repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+
+theorem aieResMixedSizeFail_to_junk (newSp accBase outPtr : Word) (bytes : List (BitVec 8))
+    (v5 v6 v7 v11 v12 s3 s4 s5 offset len fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : ∀ h,
+    aieResMixedSizeFail newSp accBase outPtr bytes v5 v6 v7 v11 v12 s3 s4 s5 offset len
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6 h →
+    ((outPtr ↦ₘ (0 : Word)) ** aieJunk newSp accBase bytes) h := by
+  intro h hp
+  unfold aieResMixedSizeFail at hp
+  unfold aieJunk
+  refine sepConj_mono (fun _ h => h) ?_ h hp
+  refine sepConj_mono (regIs_implies_regOwn .x5) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x6) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x7) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x11) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x12) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x19) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x20) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x21) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  exact fun _ h => h
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
