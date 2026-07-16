@@ -947,4 +947,59 @@ theorem aieField0OK
 
 #print axioms aieField0OK
 
+/-! ## Top-level whole-program caller contract (`AB → raIn`) -/
+
+set_option maxRecDepth 8000 in
+/-- **Whole-program caller contract** for `accountIsEip161Empty_prog` (K137): the
+    prologue, three `rlp_list_nth_item` calls with their dispatches and byte-scan
+    verdicts, and the epilogue all compose into the abstract four-way return post
+    `aiePost`.  The empty branch positively establishes the lenient
+    `accountEip161Empty` model (via `aieEmpty_of_facts`); `a0 = 1` is a parse/size
+    failure, `a0 = 2` a code-hash size mismatch.  Honest preconditions: the K20
+    buffer-fits `hbound`, list-length overflow bound, alignment/validity, and the
+    `EMPTY_CODE_HASH` constant region `bytesRegion ECB`. -/
+theorem account_is_eip161_empty_spec_within
+    (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+      old13 old14 oldOut oldOff oldLen s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnewSp : newSp = spA + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : lenW = BitVec.ofNat 64 listLen)
+    (halign : accBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : accBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ j, j < bytes.length →
+      isValidByteAccess (accBase + BitVec.ofNat 64 j) = true)
+    (hoverL : accBase.toNat + listLen + 9 < 2 ^ 64)
+    (hbound : ∀ o next len', o ≤ listLen →
+      EvmAsm.Rv64.RLP.rlpItemDecode bytes o (accBase + BitVec.ofNat 64 o)
+        (accBase + BitVec.ofNat 64 listLen) next len' →
+      (next - len' - accBase).toNat + len'.toNat ≤ bytes.length) :
+    cpsTripleWithin 1921 AB raIn fullCode
+      (aiePre sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+          old13 old14 oldOut oldOff oldLen s3 s4 s5 bytes **
+        bytesRegion ECB aieEmptyCodeHashBytes)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  have hcall := aieCall0 sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
+    old13 old14 oldOut oldOff oldLen s3 s4 s5 bytes listLen hspA hnewSp hlistLenW halign
+    hslack hover hvalid
+  have hcallF := cpsTripleWithin_frameR (bytesRegion ECB aieEmptyCodeHashBytes)
+    (bytesRegion_pcFree _ _) hcall
+  have hdisp := aieDispatch0 spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 bytes
+    (0 : Word) oldOff oldLen listLen
+  have hdispF := cpsBranchWithin_frameR (bytesRegion ECB aieEmptyCodeHashBytes)
+    (bytesRegion_pcFree _ _) hdisp
+  have hbranch := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun h hp =>
+      sepConj_mono_left (aieReturn_to_result spA newSp accBase lenW outPtr raIn c8 c9 c18
+        (AB + 68) s3 s4 s5 bytes (0 : Word) oldOff oldLen listLen 0) h hp)
+    hcallF hdispF
+  have hfc := aieFailCont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 (AB + 68) s3 s4 s5
+    bytes oldOff oldLen listLen 0 hspA hret
+  have hok := aieField0OK sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5 bytes listLen
+    hspA hret hnewSp hlistLenW halign hslack hover hvalid hoverL hbound
+  exact cpsBranchWithin_merge_same_cr hbranch (cpsTripleWithin_mono_nSteps (by omega) hfc) hok
+
+#print axioms account_is_eip161_empty_spec_within
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
