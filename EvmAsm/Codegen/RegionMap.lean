@@ -219,8 +219,11 @@ def schemeAAnchors : List GuestRegion :=
     storage-root builder replaced the legacy one-slot mutation path. Grew by
     `0xa58` for the gas-sized bounded indexed transaction/receipt root
     builder. Grew by `0x128` for the batch-merge landing the chain-validate
-    Fn.Spec siblings, misaligned-load fixes, and the SSZ envelope-cap check. -/
-def textSizeBytes : Nat := 0x5c234
+    Fn.Spec siblings, misaligned-load fixes, and the SSZ envelope-cap check.
+    Grew by `0x4` for the batch-merge landing the divmod cleanup and bounded
+    extension direct-result ABI repair. Grew by `0x60` for the batch-merge
+    landing the BAL delegation-codes-base fix and further divmod cleanup. -/
+def textSizeBytes : Nat := 0x5c298
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

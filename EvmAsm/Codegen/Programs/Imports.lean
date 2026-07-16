@@ -98,6 +98,8 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootTail
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootChain
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
+import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomSpec
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
