@@ -272,6 +272,7 @@ import EvmAsm.Codegen.Programs.BlockValidate
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptySpec
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.CalcExcessBlobGasSAsm
