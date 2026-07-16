@@ -272,6 +272,14 @@ import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockValidate
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountFields
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptySpec
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose2
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose3
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose4
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose5
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.CalcExcessBlobGasSAsm
