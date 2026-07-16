@@ -709,4 +709,105 @@ private theorem helbCopyLoop (srcBase dstBase x31old : Word)
         simp only [show i + 1 + k = i + (k + 1) from by omega] at hq
         xperm_chunked hq) s3
 
+/-! ## Terminal tails: set `a0`, jump to the epilogue, return -/
+
+set_option maxRecDepth 8000 in
+/-- Success tail ([35]-[36] + epilogue): `li a0, 0 ; jal →+160 ; ret`. -/
+private theorem helbTail0 (v10old newSp v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.Saved)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    cpsTripleWithin (2 + 6) (helbBase + 140) (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      (((.x10 ↦ᵣ v10old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
+        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
+        HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr) := by
+  have hli := li_spec_gen_within .x10 v10old (0 : Word) (helbBase + 140) (by decide)
+  have hlie := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 140) 35 (.LI .x10 (0 : Word))
+      (by rw [program_length]; norm_num) (by bv_omega) rfl) hli
+  rw [show (helbBase + 140 : Word) + 4 = helbBase + 144 from by bv_omega] at hlie
+  have hliF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+      HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame
+        repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hlie
+  have hjal := jal_x0_spec_gen_within (16 : BitVec 21) (helbBase + 144)
+  rw [show (helbBase + 144 : Word) + signExtend21 (16 : BitVec 21) = helbBase + 160 from by decide] at hjal
+  have hjale := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 144) 36 (.JAL .x0 (16 : BitVec 21))
+      (by rw [program_length]; norm_num) (by bv_omega) rfl) hjal
+  have hjalf := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+      (.x18 ↦ᵣ v18) ** HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame
+        repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hjale
+  rw [sepConj_emp_left'] at hjalf
+  have hepi := helbEpilogue newSp (0 : Word) v1 v8 v9 v18 fsaved Fr hFr
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hjalf
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
+
+set_option maxRecDepth 8000 in
+/-- Parse-fail tail ([37]-[38] + epilogue): `li a0, 1 ; jal →+160 ; ret`. -/
+private theorem helbTail1 (v10old newSp v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.Saved)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    cpsTripleWithin (2 + 6) (helbBase + 148) (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      (((.x10 ↦ᵣ v10old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+      (((.x10 ↦ᵣ (1 : Word)) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
+        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
+        HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr) := by
+  have hli := li_spec_gen_within .x10 v10old (1 : Word) (helbBase + 148) (by decide)
+  have hlie := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 148) 37 (.LI .x10 (1 : Word))
+      (by rw [program_length]; norm_num) (by bv_omega) rfl) hli
+  rw [show (helbBase + 148 : Word) + 4 = helbBase + 152 from by bv_omega] at hlie
+  have hliF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+      HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame
+        repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hlie
+  have hjal := jal_x0_spec_gen_within (8 : BitVec 21) (helbBase + 152)
+  rw [show (helbBase + 152 : Word) + signExtend21 (8 : BitVec 21) = helbBase + 160 from by decide] at hjal
+  have hjale := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 152) 38 (.JAL .x0 (8 : BitVec 21))
+      (by rw [program_length]; norm_num) (by bv_omega) rfl) hjal
+  have hjalf := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ (1 : Word)) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+      (.x18 ↦ᵣ v18) ** HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame
+        repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hjale
+  rw [sepConj_emp_left'] at hjalf
+  have hepi := helbEpilogue newSp (1 : Word) v1 v8 v9 v18 fsaved Fr hFr
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hjalf
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
+
+set_option maxRecDepth 8000 in
+/-- Length-mismatch tail ([39] + epilogue): `li a0, 2 ; ret`. -/
+private theorem helbTail2 (v10old newSp v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.Saved)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    cpsTripleWithin (1 + 6) (helbBase + 156) (fsaved.ra &&& ~~~(1 : Word)) fullCode
+      (((.x10 ↦ᵣ v10old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+      (((.x10 ↦ᵣ (2 : Word)) ** (.x2 ↦ᵣ (newSp + 32)) ** (.x1 ↦ᵣ fsaved.ra) **
+        (.x8 ↦ᵣ fsaved.s0) ** (.x9 ↦ᵣ fsaved.s1) ** (.x18 ↦ᵣ fsaved.s2) **
+        HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr) := by
+  have hli := li_spec_gen_within .x10 v10old (2 : Word) (helbBase + 156) (by decide)
+  have hlie := cpsTripleWithin_extend_code
+    (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 156) 39 (.LI .x10 (2 : Word))
+      (by rw [program_length]; norm_num) (by bv_omega) rfl) hli
+  rw [show (helbBase + 156 : Word) + 4 = helbBase + 160 from by bv_omega] at hlie
+  have hliF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+      HeaderFieldsSpec.savedFrame newSp fsaved) ** Fr)
+    (by unfold HeaderFieldsSpec.savedFrame
+        repeat' first | exact hFr | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hlie
+  have hepi := helbEpilogue newSp (2 : Word) v1 v8 v9 v18 fsaved Fr hFr
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
+
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec
