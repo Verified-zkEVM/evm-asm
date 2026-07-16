@@ -179,11 +179,11 @@ set_option maxRecDepth 8000 in
     the abstract return post.  Generic over the pure branch condition `P`. -/
 theorem aieSizeFail1Cont
     (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 retA s3 s4 s5 : Word)
-    (bytes : List (BitVec 8)) (listLen : Nat) (offset len v11 v12 : Word) (P : Prop)
+    (bytes : List (BitVec 8)) (listLen : Nat) (offset len v7 v11 v12 : Word) (P : Prop)
     (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn) :
     cpsTripleWithin 8 (AB + 396) raIn fullCode
-      (((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ (32 : Word)) ** (LenA ↦ₘ len) ** ⌜P⌝) **
+      (((.x5 ↦ᵣ LenA) ** (.x6 ↦ᵣ len) ** (.x7 ↦ᵣ v7) ** (LenA ↦ₘ len) ** ⌜P⌝) **
         aieFldFrame retA spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 bytes offset v11 v12)
       (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
   have hepi := aieRetFail sp0 spA raIn c8 c9 c18 retA accBase lenW outPtr (0 : Word)
@@ -195,7 +195,7 @@ theorem aieSizeFail1Cont
         (fun h3 hpf => ((sepConj_pure_right h3).1 hpf).1)))) h hst
     have hst2 : ((.x1 ↦ᵣ retA) ** (.x2 ↦ᵣ spA) ** aieSlots spA raIn c8 c9 c18 **
         (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) ** (.x10 ↦ᵣ (0 : Word)) **
-        aieResMixedSizeFail newSp accBase outPtr bytes LenA len (32 : Word) v11 v12 s3 s4 s5
+        aieResMixedSizeFail newSp accBase outPtr bytes LenA len v7 v11 v12 s3 s4 s5
           offset len retA accBase lenW outPtr s3 s4 s5) h := by
       unfold aieFldFrame savedFrame at hst1
       simp only [mkSaved] at hst1
@@ -514,7 +514,7 @@ theorem aieField1OK
         bytes offset v11 v12)
       (by pcfR) (aieField1SizeHead v5 v6 v7 len)
     have hsf := aieSizeFail1Cont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 (AB + 176)
-      s3 s4 s5 bytes listLen offset len v11 v12 (BitVec.ult (32 : Word) len) hspA hret
+      s3 s4 s5 bytes listLen offset len (32 : Word) v11 v12 (BitVec.ult (32 : Word) len) hspA hret
     have hcc := aieField1ContentCont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5
       bytes listLen offset len v11 v12 o0 l0 hspA hret hnewSp hlistLenW halign hslack hover
       hvalid hoverL hbound hS1 hS0 hl0 hz0
@@ -863,5 +863,88 @@ theorem aieField0ContentCont
     omega
 
 #print axioms aieField0ContentCont
+
+/-! ## Field-0 (nonce) OK path (`AB+72 → raIn`) -/
+
+set_option maxRecDepth 8000 in
+/-- Field-0 OK path: from the successful K20 return at `AB+72`, run the nonce
+    size check and scan, continuing into the field-1 subtree. -/
+theorem aieField0OK
+    (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnewSp : newSp = spA + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : lenW = BitVec.ofNat 64 listLen)
+    (halign : accBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : accBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ j, j < bytes.length →
+      isValidByteAccess (accBase + BitVec.ofNat 64 j) = true)
+    (hoverL : accBase.toNat + listLen + 9 < 2 ^ 64)
+    (hbound : ∀ o next len', o ≤ listLen →
+      EvmAsm.Rv64.RLP.rlpItemDecode bytes o (accBase + BitVec.ofNat 64 o)
+        (accBase + BitVec.ofNat 64 listLen) next len' →
+      (next - len' - accBase).toNat + len'.toNat ≤ bytes.length) :
+    cpsTripleWithin 1605 (AB + 72) raIn fullCode
+      (aieSelected spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+          bytes (0 : Word) listLen 0 **
+        bytesRegion ECB aieEmptyCodeHashBytes)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  have key : cpsTripleWithin 1605 (AB + 72) raIn fullCode
+      (fun h => ∃ offset len v11 v12,
+        ((aieCallCore spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+            bytes (0 : Word) (0 : Word) offset len v11 v12 **
+          ⌜Success bytes accBase listLen 0 offset len⌝) **
+          bytesRegion ECB aieEmptyCodeHashBytes) h)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+    refine cpsTripleWithin_exists_assertion (fun offset => ?_)
+    refine cpsTripleWithin_exists_assertion (fun len => ?_)
+    refine cpsTripleWithin_exists_assertion (fun v11 => ?_)
+    refine cpsTripleWithin_exists_assertion (fun v12 => ?_)
+    rw [show ((aieCallCore spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+            bytes (0 : Word) (0 : Word) offset len v11 v12 **
+          ⌜Success bytes accBase listLen 0 offset len⌝) **
+          bytesRegion ECB aieEmptyCodeHashBytes)
+        = (⌜Success bytes accBase listLen 0 offset len⌝ **
+          (aieCallCore spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+            bytes (0 : Word) (0 : Word) offset len v11 v12 **
+          bytesRegion ECB aieEmptyCodeHashBytes)) from by
+          rw [sepConj_assoc', sepConj_left_comm']]
+    refine cpsTripleWithin_pure_pre (fun hS0 => ?_)
+    refine cpsTripleWithin_weaken (fun h hp => by unfold aieCallCore at hp; xperm_chunked hp)
+      (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn3
+        (P := (.x1 ↦ᵣ (AB + 68)) ** (.x2 ↦ᵣ spA) ** (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion accBase bytes ** (OffA ↦ₘ offset) ** (LenA ↦ₘ len) **
+          savedFrame newSp (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) **
+          aieSlots spA raIn c8 c9 c18 ** (outPtr ↦ₘ (0 : Word)) **
+          bytesRegion ECB aieEmptyCodeHashBytes)
+        (r1 := .x5) (r2 := .x6) (r3 := .x7) (fun v5 v6 v7 => ?_))
+    have hbr := cpsBranchWithin_frameR
+      (aieFldFrame (AB + 68) spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5
+        bytes offset v11 v12)
+      (by pcfR) (aieField0SizeHead v5 v6 v7 len)
+    have hsf := aieSizeFail1Cont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 (AB + 68)
+      s3 s4 s5 bytes listLen offset len (8 : Word) v11 v12 (BitVec.ult (8 : Word) len) hspA hret
+    have hcc := aieField0ContentCont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5
+      bytes listLen offset len v11 v12 hspA hret hnewSp hlistLenW halign hslack hover
+      hvalid hoverL hbound hS0
+    have hmerge := cpsBranchWithin_merge_same_cr hbr
+      (cpsTripleWithin_mono_nSteps (by omega) hsf) hcc
+    exact cpsTripleWithin_weaken (fun h hp => by unfold aieFldFrame; xperm_chunked hp)
+      (fun _ hq => hq) hmerge
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq) key
+  unfold aieSelected at hp
+  obtain ⟨offset, hp⟩ := aieSepConj_exists_left' h hp
+  obtain ⟨len, hp⟩ := aieSepConj_exists_left' h hp
+  obtain ⟨v11, hp⟩ := aieSepConj_exists_left' h hp
+  obtain ⟨v12, hp⟩ := aieSepConj_exists_left' h hp
+  exact ⟨offset, len, v11, v12, hp⟩
+
+#print axioms aieField0OK
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
