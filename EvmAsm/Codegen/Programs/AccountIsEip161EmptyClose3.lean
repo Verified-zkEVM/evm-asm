@@ -382,4 +382,65 @@ theorem aieDispatch3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Wo
 
 #print axioms aieDispatch3
 
+/-! ## Parse-fail return bridge (`aieFailed` at `AB+396` → `raIn`)
+
+    The residual owned/frame state carried untouched from the K20 return
+    through the fail verdict tail and epilogue to the caller. -/
+
+/-- The untouched residual carried across the fail bridge (everything except the
+    dispatch/frame registers `aieRetFail` restores), keeping the K20 `Failure`
+    witness live. -/
+def aieFailG (newSp accBase lenW outPtr retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen v11 v12 : Word)
+    (listLen index : Nat) : Assertion :=
+  (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes **
+  (OffA ↦ₘ oldOff) ** (LenA ↦ₘ oldLen) **
+  savedFrame newSp (mkSaved retA accBase lenW outPtr s3 s4 s5) **
+  (outPtr ↦ₘ outv) ** ⌜Failure bytes accBase listLen index⌝
+
+theorem pcFree_aieFailG (newSp accBase lenW outPtr retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen v11 v12 : Word)
+    (listLen index : Nat) :
+    (aieFailG newSp accBase lenW outPtr retA s3 s4 s5 bytes outv oldOff oldLen
+      v11 v12 listLen index).pcFree := by
+  unfold aieFailG savedFrame
+  pcfR
+
+set_option maxRecDepth 8000 in
+/-- Parse-fail return bridge: from the K20-failure return state at `AB+396`,
+    set `a0 = 1`, restore the frame, and return to `raIn`, leaving the output
+    cell untouched and carrying the `Failure` witness. -/
+theorem aieFailToRet (sp0 spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen : Word) (listLen index : Nat)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 8 (AB + 396) raIn fullCode
+      (aieFailed spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s4 s5
+        bytes outv oldOff oldLen listLen index)
+      (fun h => ∃ v11 v12,
+        ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) **
+          (.x18 ↦ᵣ c18) ** aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ (1 : Word)) **
+          aieFailG newSp accBase lenW outPtr retA s3 s4 s5 bytes outv oldOff oldLen
+            v11 v12 listLen index) h) := by
+  unfold aieFailed
+  refine cpsTripleWithin_exists_assertion (fun v11 => ?_)
+  refine cpsTripleWithin_exists_assertion (fun v12 => ?_)
+  have hepi := aieRetFail sp0 spA raIn c8 c9 c18 retA accBase lenW outPtr (1 : Word)
+    (aieFailG newSp accBase lenW outPtr retA s3 s4 s5 bytes outv oldOff oldLen
+      v11 v12 listLen index)
+    (pcFree_aieFailG _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) hspA hret
+  refine cpsTripleWithin_weaken ?_ ?_ hepi
+  · intro h hp
+    unfold aieCallCore at hp
+    unfold aieFailG
+    xperm_chunked hp
+  · intro h hq
+    exact ⟨v11, v12, hq⟩
+
+#print axioms aieFailToRet
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
