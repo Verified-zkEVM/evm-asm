@@ -217,7 +217,7 @@ def schemeAAnchors : List GuestRegion :=
     (evm-asm-ck36u), and by `0x4` for the settle-reverted-dispatcher-state-gas
     fix (`fix/dispatcher-revert-state-gas`). Regenerated after the bounded
     storage-root builder replaced the legacy one-slot mutation path. -/
-def textSizeBytes : Nat := 0x5b5bc
+def textSizeBytes : Nat := 0x5b6b4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

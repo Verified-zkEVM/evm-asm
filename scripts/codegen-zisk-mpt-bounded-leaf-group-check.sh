@@ -49,7 +49,7 @@ section = struct.pack('<I', 4) + old
 key0 = bytes([2, 0]) + b'\0' * 62
 key1 = bytes([2, 1]) + b'\0' * 62
 blob = (struct.pack('<Q', len(section)) + keccak256(old) + key0 + b'\x01' + b'\0' * 7 +
-        key1 + b'\x02' + b'\0' * 7 + section)
+        key1 + b'\x02' + b'\0' * 7 + struct.pack('<QQ', 1, 1) + section)
 (root / 'input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 (root / 'expected').write_bytes(bytes(encode_internal_node(new_root_spec)))
 PY
