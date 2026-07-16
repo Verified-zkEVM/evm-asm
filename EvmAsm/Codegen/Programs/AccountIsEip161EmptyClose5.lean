@@ -809,4 +809,56 @@ theorem aieFailCont (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 retA s3 s4
 
 #print axioms aieFailCont
 
+/-! ## Field-3 call + dispatch continuation (`AB+240 → raIn`) -/
+
+set_option maxRecDepth 8000 in
+/-- Field-3 continuation: the K20 call for field 3, its `bne a0, zero` dispatch,
+    and the two continuations (parse-fail verdict / field-3 OK path), all landing
+    on the abstract return post.  Threads the field-0/field-1 facts. -/
+theorem aieField3Cont
+    (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 v1 v10 v11 v12 v13 v14 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat) (oldOff oldLen o0 l0 o1 l1 : Word)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnewSp : newSp = spA + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : lenW = BitVec.ofNat 64 listLen)
+    (halign : accBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : accBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ j, j < bytes.length →
+      isValidByteAccess (accBase + BitVec.ofNat 64 j) = true)
+    (hoverL : accBase.toNat + listLen + 9 < 2 ^ 64)
+    (hbound : ∀ o next len', o ≤ listLen →
+      EvmAsm.Rv64.RLP.rlpItemDecode bytes o (accBase + BitVec.ofNat 64 o)
+        (accBase + BitVec.ofNat 64 listLen) next len' →
+      (next - len' - accBase).toNat + len'.toNat ≤ bytes.length)
+    (hS0 : Success bytes accBase listLen 0 o0 l0) (hl0 : l0.toNat ≤ 8)
+    (hz0 : ∀ k, k < l0.toNat → bytes.getD (o0.toNat + k) 0 = 0)
+    (hS1 : Success bytes accBase listLen 1 o1 l1) (hl1 : l1.toNat ≤ 32)
+    (hz1 : ∀ k, k < l1.toNat → bytes.getD (o1.toNat + k) 0 = 0) :
+    cpsTripleWithin 836 (AB + 240) raIn fullCode
+      (aieMidPre spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v13 v14
+          (0 : Word) oldOff oldLen s3 s4 s5 bytes **
+        bytesRegion ECB aieEmptyCodeHashBytes)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  have hcall3 := aieCall3 spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v13 v14
+    (0 : Word) oldOff oldLen s3 s4 s5 bytes listLen hnewSp hlistLenW halign hslack hover hvalid
+  have hcall3F := cpsTripleWithin_frameR (bytesRegion ECB aieEmptyCodeHashBytes)
+    (bytesRegion_pcFree _ _) hcall3
+  have hdisp := aieDispatch3 spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 bytes
+    (0 : Word) oldOff oldLen listLen
+  have hdispF := cpsBranchWithin_frameR (bytesRegion ECB aieEmptyCodeHashBytes)
+    (bytesRegion_pcFree _ _) hdisp
+  have hbranch := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun h hp =>
+      sepConj_mono_left (aieReturn_to_result spA newSp accBase lenW outPtr raIn c8 c9 c18
+        (AB + 272) s3 s4 s5 bytes (0 : Word) oldOff oldLen listLen 3) h hp)
+    hcall3F hdispF
+  have hfc := aieFailCont sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 (AB + 272) s3 s4 s5
+    bytes oldOff oldLen listLen 3 hspA hret
+  have hok := aieField3OK sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5 bytes listLen
+    o0 l0 o1 l1 hspA hret halign hover hvalid hoverL hbound hS0 hl0 hz0 hS1 hl1 hz1
+  exact cpsBranchWithin_merge_same_cr hbranch (cpsTripleWithin_mono_nSteps (by omega) hfc) hok
+
+#print axioms aieField3Cont
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
