@@ -232,7 +232,7 @@ def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
   (.x1 ↦ᵣ csaved.ra) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ csaved.s0) ** (.x9 ↦ᵣ csaved.s1) **
   (.x18 ↦ᵣ csaved.s2) ** (.x19 ↦ᵣ csaved.s3) ** (.x20 ↦ᵣ csaved.s4) **
   (.x21 ↦ᵣ csaved.s5) ** savedFrame spC csaved **
-  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
   frameSlotsOwn listNthFrame calleeNewSp ** payload hdrBase lenBase bigBytes lengths
