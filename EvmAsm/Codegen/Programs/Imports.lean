@@ -506,3 +506,5 @@ import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
 
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
+
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
