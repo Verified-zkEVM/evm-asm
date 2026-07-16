@@ -356,4 +356,60 @@ theorem hdrBaseAt_succ (hdrBase : Word) (lengths : List Nat) (i : Nat)
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod]
 
+/-! ## Call block with the consumed scratch registers owned
+
+    `cvedlCall` with `x1/x5/x10/x11/x12/x13/x14/x28` presented as `regOwn` (their
+    incoming values are overwritten), matching how they sit in `LoopInv`.  The
+    reusable adapter the sibling accessors need most. -/
+
+set_option maxRecDepth 8000 in
+theorem cvedlCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
+    (s0 s3 s4 oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
+    (hsalign : hbi.toNat % 8 = 0)
+    (hslack : Li + 9 ≤ bytes.length)
+    (hover : hbi.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (15 + 1 + nCall) (C + 72) (C + 136) fullCode
+      ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+          memOwn IterPtr ** memOwn IterI **
+          ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+          (.x8 ↦ᵣ s0) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          frameSlotsOwn listNthFrame (spC + signExtend12 (-64 : BitVec 12)) **
+          (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** bytesRegion hbi bytes **
+          savedFrame spC csaved) **
+        regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x28) ** regOwn .x1)
+      (returnResult spC (spC + signExtend12 (-64 : BitVec 12)) hbi (12 : Word) COff CLen
+          oldOff oldLen ⟨LinkRA, s0, lenBase, hbi, s3, s4, iW⟩ bytes Li 12 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v1 => ?_)
+  refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
+    (show cpsTripleWithin (15 + 1 + nCall) (C + 72) (C + 136) fullCode
+      ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
+          memOwn IterPtr ** memOwn IterI **
+          ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+          (.x8 ↦ᵣ s0) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          frameSlotsOwn listNthFrame (spC + signExtend12 (-64 : BitVec 12)) **
+          (COff ↦ₘ oldOff) ** (CLen ↦ₘ oldLen) ** bytesRegion hbi bytes **
+          savedFrame spC csaved) ** (.x1 ↦ᵣ v1)) **
+        regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x28)
+      (returnResult spC (spC + signExtend12 (-64 : BitVec 12)) hbi (12 : Word) COff CLen
+          oldOff oldLen ⟨LinkRA, s0, lenBase, hbi, s3, s4, iW⟩ bytes Li 12 **
+        (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_of_forall_regIs_to_regOwn7
+    (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
+  exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
+    (cvedlCall hbi lenBase spC iW Li s0 s3 s4 oldOff oldLen v1 v5 v10 v11 v12 v13 v14 v28
+      bytes csaved hsalign hslack hover hvalid)
+
+#print axioms cvedlCallOwned
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
