@@ -709,4 +709,104 @@ theorem aieField3OK
 
 #print axioms aieField3OK
 
+/-! ## Parse-fail continuation folded into the abstract post (`AB+396 → raIn`) -/
+
+/-- The parse-fail return residual in `aieJunk` order (`x11`/`x12`/`x19`/`x20`/`x21`
+    still `regIs`, the two RLP cells + saved frame still `memIs`). -/
+def aieResMixedFail (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v11 v12 s3 s4 s5 oldOff oldLen fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+  regOwn .x13 ** regOwn .x14 ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  (OffA ↦ₘ oldOff) ** (LenA ↦ₘ oldLen) **
+  (newSp ↦ₘ fr0) ** ((newSp + 8) ↦ₘ fr1) ** ((newSp + 16) ↦ₘ fr2) **
+  ((newSp + 24) ↦ₘ fr3) ** ((newSp + 32) ↦ₘ fr4) ** ((newSp + 40) ↦ₘ fr5) **
+  ((newSp + 48) ↦ₘ fr6) **
+  bytesRegion accBase bytes ** bytesRegion ECB aieEmptyCodeHashBytes
+
+theorem aieResMixedFail_to_aieJunk (newSp accBase : Word) (bytes : List (BitVec 8))
+    (v11 v12 s3 s4 s5 oldOff oldLen fr0 fr1 fr2 fr3 fr4 fr5 fr6 : Word) : ∀ h,
+    aieResMixedFail newSp accBase bytes v11 v12 s3 s4 s5 oldOff oldLen
+      fr0 fr1 fr2 fr3 fr4 fr5 fr6 h →
+    aieJunk newSp accBase bytes h := by
+  intro h hp
+  unfold aieResMixedFail at hp
+  unfold aieJunk
+  refine sepConj_mono (fun _ h => h) ?_ h hp
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x11) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x12) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x19) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x20) ?_
+  refine sepConj_mono (regIs_implies_regOwn .x21) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono memIs_implies_memOwn ?_
+  refine sepConj_mono (fun _ h => h) ?_
+  exact fun _ h => h
+
+theorem aieFailG_to_junk (newSp accBase lenW outPtr retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen v11 v12 : Word) (listLen index : Nat) : ∀ h,
+    (aieFailG newSp accBase lenW outPtr retA s3 s4 s5 bytes outv oldOff oldLen v11 v12
+        listLen index **
+      bytesRegion ECB aieEmptyCodeHashBytes) h →
+    ((outPtr ↦ₘ outv) ** aieJunk newSp accBase bytes) h := by
+  intro h hp
+  unfold aieFailG savedFrame at hp
+  simp only [mkSaved] at hp
+  extract_pure_deep hp
+  obtain ⟨_, hp⟩ := hp
+  have hp2 : ((outPtr ↦ₘ outv) ** aieResMixedFail newSp accBase bytes v11 v12 s3 s4 s5
+      oldOff oldLen retA accBase lenW outPtr s3 s4 s5) h := by
+    unfold aieResMixedFail; xperm_chunked hp
+  exact sepConj_mono_right
+    (aieResMixedFail_to_aieJunk _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) h hp2
+
+set_option maxRecDepth 8000 in
+/-- Parse-fail continuation: from the K20-failure return at `AB+396`, restore the
+    frame, set `a0 = 1`, and fold into the abstract return post (a0 = 1, out = 0). -/
+theorem aieFailCont (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 retA s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (oldOff oldLen : Word) (listLen index : Nat)
+    (hspA : spA = sp0 + signExtend12 (-40 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 8 (AB + 396) raIn fullCode
+      (aieFailed spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s4 s5 bytes (0 : Word)
+          oldOff oldLen listLen index **
+        bytesRegion ECB aieEmptyCodeHashBytes)
+      (aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen) := by
+  have hbase := aieFailToRet sp0 spA newSp accBase lenW outPtr raIn c8 c9 c18 retA s3 s4 s5
+    bytes (0 : Word) oldOff oldLen listLen index hspA hret
+  have hf := cpsTripleWithin_frameR (bytesRegion ECB aieEmptyCodeHashBytes)
+    (bytesRegion_pcFree _ _) hbase
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hf
+  obtain ⟨v11, hq⟩ := aieSepConj_exists_left' h hq
+  obtain ⟨v12, hq⟩ := aieSepConj_exists_left' h hq
+  refine aiePost_intro sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen 1 0
+    (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩))) h ?_
+  have hq2 : ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) **
+      aieSlots spA raIn c8 c9 c18 ** (.x10 ↦ᵣ (1 : Word)) **
+      (aieFailG newSp accBase lenW outPtr retA s3 s4 s5 bytes (0 : Word) oldOff oldLen v11 v12
+          listLen index **
+        bytesRegion ECB aieEmptyCodeHashBytes)) h := by
+    xperm_chunked hq
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (aieFailG_to_junk _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _))))))) h hq2
+
+#print axioms aieFailCont
+
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
