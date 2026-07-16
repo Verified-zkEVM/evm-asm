@@ -287,7 +287,6 @@ theorem multiReadFn_spec (base : Word)
     · rw [hAeq1, hptr1, hrob1, hrest1]; xperm
 end Demo
 
-#print axioms multiReadFn_spec
 
 end MultiRead
 

@@ -412,8 +412,6 @@ theorem twiceFrame_spec (sp0 ret ptr arb8 arb11 v : Word)
   rw [hNS] at hbody ⊢
   abi_frame (8 : BitVec 12) halign hbody
 
-#print axioms twiceFrame_spec
-#print axioms bumpCall_spec
 
 end AbiFrameCallDemo
 end SAsm

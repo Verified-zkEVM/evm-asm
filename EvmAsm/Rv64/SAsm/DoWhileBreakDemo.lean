@@ -104,7 +104,6 @@ theorem countBreakFn_spec (base : Word) : countBreakFn.Spec base := by
     intro rf ws A h
     exact h
 
-#print axioms countBreakFn_spec
 
 end DoWhileBreakDemo
 end SAsm

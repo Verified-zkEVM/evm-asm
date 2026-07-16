@@ -102,7 +102,6 @@ theorem rlp_field0_to_u64_content_spec_within
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp) s3)
 
-#print axioms rlp_field0_to_u64_content_spec_within
 
 /-- Successful first-item walk continuation, with the walk relation retained
 as a pure semantic witness.  The bridge theorem converts the walk's word
@@ -183,7 +182,6 @@ theorem rlp_field0_to_u64_decode_success_exact_spec_within
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hp => (sepConj_pure_right h).2 ⟨hp, hdecode⟩) hseq)
 
-#print axioms rlp_field0_to_u64_decode_success_exact_spec_within
 
 /-- Caller-visible result after the first field has either been decoded by
 the scalar routine or rejected by one of the strict walk checks. -/
@@ -322,7 +320,6 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (dropGuard 6 _ h ⟨hc, ho, hd, hu, hcommon, hout⟩)))))
 
-#print axioms rlp_field0_to_u64_next_outcome_exact_spec_within
 
 /-- Introduce the seven scratch-register values owned by the walk-next
 continuation.  This local adapter keeps the generic SAsm framework unchanged. -/
@@ -398,7 +395,6 @@ theorem rlp_field0_to_u64_next_outcome_spec_within
     dsimp only [P]
     xperm_hyp hp) (fun _ hp => hp) ho
 
-#print axioms rlp_field0_to_u64_next_outcome_spec_within
 
 /-- Compose the successful init fallthrough with the complete walk-next and
 scalar continuation, from the wrapper's status branch through final return. -/
@@ -432,7 +428,6 @@ theorem rlp_field0_to_u64_after_init_success_spec_within
     hover hvalid hoff
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hcall hcont
 
-#print axioms rlp_field0_to_u64_after_init_success_spec_within
 
 /-- Ownership-only form of the successful-init continuation, matching the
 scratch ownership returned by `rlp_walk_init`. -/
@@ -484,7 +479,6 @@ theorem rlp_field0_to_u64_after_init_success_owned_spec_within
     dsimp only [P]
     xperm_hyp hp) (fun _ hp => hp) ho
 
-#print axioms rlp_field0_to_u64_after_init_success_owned_spec_within
 
 /-- Resources common to all nine strict walk-init outcomes at wrapper index 2. -/
 def rlpField0InitCommon (base srcBase savedRa : Word)
@@ -665,7 +659,6 @@ theorem rlp_field0_to_u64_init_call_spec_within
       dsimp only [Prest]
       pcFree) hwiCall)
 
-#print axioms rlp_field0_to_u64_init_call_spec_within
 
 /-- Eliminate all nine strict walk-init outcomes: seven failures normalize to
 public status 1, while the short- and long-list successes continue at field 0. -/
@@ -903,7 +896,6 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inr (Or.inr ⟨h1, h2, hd, hu, hc, hout⟩)))))))
 
-#print axioms rlp_field0_to_u64_init_outcome_spec_within
 
 /-- Caller-facing unified specification for the complete emitted
 `rlp_field0_to_u64` wrapper.  The postcondition reports either a strict parse
@@ -967,6 +959,5 @@ theorem rlp_field0_to_u64_spec_within
       (fun h hp => by xperm_hyp hp) hsaveF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hsave' hafter
 
-#print axioms rlp_field0_to_u64_spec_within
 
 end EvmAsm.Rv64.RLP

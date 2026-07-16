@@ -124,7 +124,5 @@ theorem evm_return_stack_spec_resolved
     (la_resolve (hbase + 276 + 4) flag hr2)
     (la_resolve (hbase + 276 + 16) resume hr1)
 
-#print axioms evm_return_halt_spec_resolved
-#print axioms evm_return_stack_spec_resolved
 
 end EvmAsm.Evm64.Terminating

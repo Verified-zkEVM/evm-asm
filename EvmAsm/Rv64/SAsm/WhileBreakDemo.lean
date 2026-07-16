@@ -320,7 +320,6 @@ theorem scanNzFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
     rintro rf ws A h
     exact h
 
-#print axioms scanNzFn_spec
 
 end WhileBreakDemo
 end SAsm
