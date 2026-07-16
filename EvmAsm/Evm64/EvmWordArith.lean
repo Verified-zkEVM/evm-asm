@@ -14,6 +14,7 @@ import EvmAsm.Evm64.EvmWordArith.IsZero
 import EvmAsm.Evm64.EvmWordArith.Eq
 import EvmAsm.Evm64.EvmWordArith.Comparison
 import EvmAsm.Evm64.EvmWordArith.ByteOps
+import EvmAsm.Evm64.EvmWordArith.LowMask
 import EvmAsm.Evm64.EvmWordArith.SignExtend
 import EvmAsm.Evm64.EvmWordArith.SDiv
 import EvmAsm.Evm64.EvmWordArith.SMod
