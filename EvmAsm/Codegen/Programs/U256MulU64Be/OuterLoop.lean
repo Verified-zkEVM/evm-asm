@@ -66,7 +66,7 @@ theorem rippleCtr_eq_zero (k : Nat) (hk : k = 7) :
     BitVec.ofNat 64 (8 - (k + 1)) = 0 := by
   rw [hk]; decide
 
-theorem accCursor_succ (i k : Nat) (_h : i + k < 40) :
+theorem accCursor1_succ (i k : Nat) (_h : i + k < 40) :
     accBase + BitVec.ofNat 64 (i + k) + Rv64.signExtend12 (1 : BitVec 12)
       = accBase + BitVec.ofNat 64 (i + k + 1) := by
   rw [show Rv64.signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
