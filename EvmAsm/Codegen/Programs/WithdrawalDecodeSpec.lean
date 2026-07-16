@@ -34,6 +34,7 @@
 
 import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
 import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
 
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
@@ -105,5 +106,69 @@ theorem k20_mono :
 
 #print axioms k34_mono
 #print axioms k20_mono
+
+/-! ## Semantic decode model
+
+    Tied to the merged callee `Result`/`Success` relations.  The three u64
+    fields (index/validator_index/amount) decode via K34's `Result` (status 0);
+    the address field decodes via K20's `Success` and must be exactly 20 bytes.
+    All four are indexed positions in the same strict RLP list. -/
+
+open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+
+/-- The genuine success verdict: every field decodes (u64 status 0) and the
+    address field is exactly 20 content bytes at relative offset `o2`. -/
+def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
+    (v0 v1 v3 : Word) (o2 l2 : Word) : Prop :=
+  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 0 (0 : Word) v0 ∧
+  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 1 (0 : Word) v1 ∧
+  EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2 ∧
+  l2.toNat = 20 ∧
+  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 3 (0 : Word) v3
+
+/-- The 20 address content bytes copied forward from the input `bytes` (at the
+    relative content offset `o2`) into the caller's old 20-byte address slot. -/
+def addrCopied (bytes oldAddr : List (BitVec 8)) (o2 : Word) : List (BitVec 8) :=
+  copyIntoRegion oldAddr bytes 0 o2.toNat 20
+
+theorem addrCopied_length (bytes oldAddr : List (BitVec 8)) (o2 : Word)
+    (hlen : oldAddr.length = 20) :
+    (addrCopied bytes oldAddr o2).length = 20 := by
+  unfold addrCopied; rw [copyIntoRegion_length]; exact hlen
+
+/-- The 48-byte output struct after a **successful** decode, with each cell tied
+    to the actual decoded field value:
+      +0  = index (v0),  +8 = validator_index (v1),
+      +16 = 20-byte address copy,  +36 = 4-byte pad (unchanged),
+      +40 = amount (v3). -/
+def outputSuccess (outBase v0 v1 v3 o2 : Word)
+    (bytes oldAddr pad4 : List (BitVec 8)) : Assertion :=
+  (outBase ↦ₘ v0) ** ((outBase + 8) ↦ₘ v1) **
+  bytesRegion (outBase + 16) (addrCopied bytes oldAddr o2) **
+  bytesRegion (outBase + 36) pad4 **
+  ((outBase + 40) ↦ₘ v3)
+
+/-- A withdrawal-decode **failure** outcome, matching the program's short-circuit
+    dispatch (field 0 → field 1 → field 2 list → address length → field 3).
+    Each arm names the *actual* failing stage via the merged callee semantics
+    (no decode-determinism assumed). -/
+inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
+    (listLen : Nat) : Prop
+  | field0 (status v : Word) (hnz : status ≠ 0)
+      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 0 status v) :
+      DecodeFailure bytes listBase listLen
+  | field1 (status v : Word) (hnz : status ≠ 0)
+      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 1 status v) :
+      DecodeFailure bytes listBase listLen
+  | field2List
+      (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 2) :
+      DecodeFailure bytes listBase listLen
+  | field2Len (o2 l2 : Word)
+      (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2)
+      (hlen : l2.toNat ≠ 20) :
+      DecodeFailure bytes listBase listLen
+  | field3 (status v : Word) (hnz : status ≠ 0)
+      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 3 status v) :
+      DecodeFailure bytes listBase listLen
 
 end EvmAsm.Codegen.WithdrawalDecodeSpec
