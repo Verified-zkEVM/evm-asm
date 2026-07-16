@@ -265,4 +265,52 @@ theorem cvedlReload (hbi iW len : Word) (old5 o18 o21 o6 o7 : Word) :
 
 #print axioms cvedlReload
 
+/-! ## Advance block (instructions 46--51): step the iterator, loop back
+
+    On the length-OK (`bltu` not-taken) path from `C+184`: `x18 += lengths[i]`,
+    `x21 += 1`, then `jal x0, -136` back to the loop guard at `C+68`. -/
+
+set_option maxRecDepth 8000 in
+theorem cvedlAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
+    cpsTripleWithin 6 (C + 184) (C + 68) cvedlCode
+      ((.x21 ↦ᵣ iW) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x28 ↦ᵣ o28) **
+        (.x29 ↦ᵣ o29) ** ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li))
+      ((.x21 ↦ᵣ (iW + signExtend12 (1 : BitVec 12))) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ (hbi + BitVec.ofNat 64 Li)) ** (.x28 ↦ᵣ (lenBase + (iW <<< 3))) **
+        (.x29 ↦ᵣ BitVec.ofNat 64 Li) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li)) := by
+  -- [46] SLLI x28 x21 3
+  have s46 := slli_spec_gen_within .x28 .x21 o28 iW (3 : BitVec 6) (C + 184) (by decide)
+  rw [show (3 : BitVec 6).toNat = 3 from by decide] at s46
+  have s46' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 184) cvedlProg 46 (.SLLI .x28 .x21 (3 : BitVec 6)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s46
+  -- [47] ADD x28 x9 x28
+  have s47 := add_spec_gen_rd_eq_rs2_within .x28 .x9 lenBase (iW <<< 3) (C + 188) (by decide)
+  have s47' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 188) cvedlProg 47 (.ADD .x28 .x9 .x28) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s47
+  -- [48] LD x29 x28 0 : x29 := *(lenBase + iW<<<3) = ofNat Li
+  have s48 := ld_spec_gen_within .x29 .x28 (lenBase + (iW <<< 3)) o29 (BitVec.ofNat 64 Li)
+    (0 : BitVec 12) (C + 192) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (lenBase + (iW <<< 3)) + (0 : Word) = lenBase + (iW <<< 3) from by bv_omega] at s48
+  have s48' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 192) cvedlProg 48 (.LD .x29 .x28 (0 : BitVec 12)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s48
+  -- [49] ADD x18 x18 x29 : x18 += ofNat Li
+  have s49 := add_spec_gen_rd_eq_rs1_within .x18 .x29 hbi (BitVec.ofNat 64 Li) (C + 196) (by decide)
+  have s49' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 196) cvedlProg 49 (.ADD .x18 .x18 .x29) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s49
+  -- [50] ADDI x21 x21 1 : x21 += 1
+  have s50 := addi_spec_gen_same_within .x21 iW (1 : BitVec 12) (C + 200) (by decide)
+  have s50' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 200) cvedlProg 50 (.ADDI .x21 .x21 (1 : BitVec 12)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s50
+  -- [51] JAL x0 -136 : loop back to the guard
+  have s51 := jal_x0_spec_gen_within (-136 : BitVec 21) (C + 204)
+  rw [show (C + 204) + signExtend21 (-136 : BitVec 21) = C + 68 from by
+    rw [show signExtend21 (-136 : BitVec 21) = (-136 : Word) from by decide]; bv_omega] at s51
+  have s51' := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at C (C + 204) cvedlProg 51 (.JAL .x0 (-136 : BitVec 21)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s51
+  runBlock s46' s47' s48' s49' s50' s51'
+
+#print axioms cvedlAdvance
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
