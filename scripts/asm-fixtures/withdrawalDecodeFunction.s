@@ -24,9 +24,9 @@ withdrawal_decode:
   bne t1, t2, .Lwd_fail
   la t0, wd_offset; ld t3, 0(t0); add t3, s0, t3
   addi t4, s2, 16
-  ld t5,  0(t3); sd t5,  0(t4)
-  ld t5,  8(t3); sd t5,  8(t4)
-  lwu t5, 16(t3); sw t5, 16(t4)
+  lbu t5, 0(t3); sb t5, 0(t4)
+  addi t3, t3, 1; addi t4, t4, 1; addi t1, t1, -1
+  bnez t1, .-20
   # Pad bytes 20..24 of address slot (struct 36..40) are zero (from caller zeroing).
   # Field 3: amount (u64 at offset 40)
   mv a0, s0; mv a1, s1; li a2, 3
