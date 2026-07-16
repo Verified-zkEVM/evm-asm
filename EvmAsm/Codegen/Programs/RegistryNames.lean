@@ -383,7 +383,6 @@ def knownProgramNames : List String :=
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_final_descriptor_array",
-   "zisk_bal_account_state_root", "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",

@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.BalAccountRecordArray
 
-  Derive the pre-account record table that `bal_account_state_root` consumes:
+  Derive a pre-account record table for BAL replay callers:
   for each BAL AccountChanges item, walk the pre-state trie to find the account
   RLP, or use the canonical empty-account RLP when the account is absent.
 -/
