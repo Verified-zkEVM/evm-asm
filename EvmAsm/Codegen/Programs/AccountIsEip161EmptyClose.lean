@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
+import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.AccountIsEip161EmptySpec
 
@@ -159,5 +160,118 @@ theorem aieChunkA (sp0 spA raIn c8 c9 c18 q0 q1 q2 q3 : Word)
     (fun _ hq => by unfold aieSlots; xperm_chunked hq) s04
 
 #print axioms aieChunkA
+
+/-! ## Prologue chunk B — argument moves and output-cell zeroing ([5]-[8]) -/
+
+set_option maxRecDepth 8000 in
+/-- Move `accBase`/`lenW`/`outPtr` into `x8`/`x9`/`x18` and zero the output cell. -/
+theorem aieChunkB (accBase lenW outPtr c8 c9 c18 oldOut : Word) :
+    cpsTripleWithin 4 (AB + 20) (AB + 36) fullCode
+      ((.x8 ↦ᵣ c8) ** (.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) ** (.x10 ↦ᵣ accBase) **
+       (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut))
+      ((.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) ** (.x10 ↦ᵣ accBase) **
+       (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (outPtr ↦ₘ (0 : Word))) := by
+  -- [5] MV x8 x10
+  have h5 := mv_spec_gen_within .x8 .x10 accBase c8 (AB + 20) (by decide)
+  have e5 := cpsTripleWithin_extend_code (aieFC 5, (AB + 20), (.MV .x8 .x10)) h5
+  have f5 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ c9) ** (.x18 ↦ᵣ c18) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) **
+     (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut)) (by pcfR) e5
+  -- [6] MV x9 x11
+  have h6 := mv_spec_gen_within .x9 .x11 lenW c9 (AB + 24) (by decide)
+  have e6 := cpsTripleWithin_extend_code (aieFC 6, (AB + 24), (.MV .x9 .x11)) h6
+  have f6 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ accBase) ** (.x18 ↦ᵣ c18) ** (.x10 ↦ᵣ accBase) ** (.x12 ↦ᵣ outPtr) **
+     (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut)) (by pcfR) e6
+  -- [7] MV x18 x12
+  have h7 := mv_spec_gen_within .x18 .x12 outPtr c18 (AB + 28) (by decide)
+  have e7 := cpsTripleWithin_extend_code (aieFC 7, (AB + 28), (.MV .x18 .x12)) h7
+  have f7 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) **
+     (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut)) (by pcfR) e7
+  -- [8] SD x18 x0 0 : store 0 to the output cell
+  have h8 := sd_spec_gen_within .x18 .x0 outPtr (0 : Word) oldOut (0 : BitVec 12) (AB + 32)
+  rw [show outPtr + signExtend12 (0 : BitVec 12) = outPtr from by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at h8
+  have e8 := cpsTripleWithin_extend_code (aieFC 8, (AB + 32), (.SD .x18 .x0 (0 : BitVec 12))) h8
+  have f8 := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) **
+     (.x12 ↦ᵣ outPtr)) (by pcfR) e8
+  have s56 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f5 f6
+  have s57 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s56 f7
+  have s58 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s57 f8
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) s58
+
+#print axioms aieChunkB
+
+/-! ## Prologue chunk C — call-argument setup ([9]-[15]) -/
+
+set_option maxRecDepth 8000 in
+/-- Load the field-0 call arguments: `x10 = accBase`, `x11 = lenW`, `x12 = 0`,
+    `x13 = &aie_offset`, `x14 = &aie_length`. -/
+theorem aieChunkC (accBase lenW outPtr old13 old14 : Word) :
+    cpsTripleWithin 7 (AB + 36) (AB + 64) fullCode
+      ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) **
+       (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14))
+      ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) **
+       (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ OffA) ** (.x14 ↦ᵣ LenA)) := by
+  -- [9] MV x10 x8
+  have h9 := mv_spec_gen_within .x10 .x8 accBase accBase (AB + 36) (by decide)
+  have e9 := cpsTripleWithin_extend_code (aieFC 9, (AB + 36), (.MV .x10 .x8)) h9
+  have f9 := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) ** (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) **
+     (.x14 ↦ᵣ old14)) (by pcfR) e9
+  -- [10] MV x11 x9
+  have h10 := mv_spec_gen_within .x11 .x9 lenW lenW (AB + 40) (by decide)
+  have e10 := cpsTripleWithin_extend_code (aieFC 10, (AB + 40), (.MV .x11 .x9)) h10
+  have f10 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) **
+     (.x14 ↦ᵣ old14)) (by pcfR) e10
+  -- [11] LI x12 0
+  have h11 := li_spec_gen_within .x12 outPtr (0 : Word) (AB + 44) (by decide)
+  have e11 := cpsTripleWithin_extend_code (aieFC 11, (AB + 44), (.LI .x12 (0 : Word))) h11
+  have f11 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) **
+     (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14)) (by pcfR) e11
+  -- [12-13] la x13 = aie_offset
+  have hau12 := CodeReq.ofProg_mem_at AB (AB + 48) accountIsEip161Empty_prog 12
+    (.AUIPC .x13 (EvmAsm.Codegen.laHi GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 48))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had13 := CodeReq.ofProg_mem_at AB (AB + 52) accountIsEip161Empty_prog 13
+    (.ADDI .x13 .x13 (EvmAsm.Codegen.laLo GuestAddrs.aie_offset
+      (GuestAddrs.account_is_eip161_empty + 48))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h13 := EvmAsm.Rv64.la_materialize_within .x13 old13 (AB + 48) OffA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau12 a i hi))
+    (fun a i hi => aie_mono a i (had13 a i hi))
+  have f13 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) **
+     (.x12 ↦ᵣ (0 : Word)) ** (.x14 ↦ᵣ old14)) (by pcfR) h13
+  -- [14-15] la x14 = aie_length
+  have hau14 := CodeReq.ofProg_mem_at AB (AB + 56) accountIsEip161Empty_prog 14
+    (.AUIPC .x14 (EvmAsm.Codegen.laHi GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 56))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have had15 := CodeReq.ofProg_mem_at AB (AB + 60) accountIsEip161Empty_prog 15
+    (.ADDI .x14 .x14 (EvmAsm.Codegen.laLo GuestAddrs.aie_length
+      (GuestAddrs.account_is_eip161_empty + 56))) (by bv_omega)
+    (by rw [aie_prog_length]; norm_num) rfl (by rw [aie_prog_length]; norm_num)
+  have h15 := EvmAsm.Rv64.la_materialize_within .x14 old14 (AB + 56) LenA (by decide)
+    (by decide) (fun a i hi => aie_mono a i (hau14 a i hi))
+    (fun a i hi => aie_mono a i (had15 a i hi))
+  have f15 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ accBase) ** (.x8 ↦ᵣ accBase) ** (.x11 ↦ᵣ lenW) ** (.x9 ↦ᵣ lenW) **
+     (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ OffA)) (by pcfR) h15
+  have s910 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f9 f10
+  have s911 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s910 f11
+  have s913 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s911 f13
+  have s915 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s913 f15
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) s915
+
+#print axioms aieChunkC
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
