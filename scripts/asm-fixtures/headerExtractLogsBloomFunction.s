@@ -16,13 +16,13 @@ header_extract_logs_bloom:
   la t0, helb_offset; ld t1, 0(t0)
   add t3, s0, t1                              # src ptr
   mv t4, s2                                   # dst ptr
-  li t5, 32                                   # 256 / 8 = 32 words
+  li t5, 256
 .Lhelb_loop:
   beqz t5, .Lhelb_done
-  ld t6, 0(t3)
-  sd t6, 0(t4)
-  addi t3, t3, 8
-  addi t4, t4, 8
+  lbu t6, 0(t3)
+  sb t6, 0(t4)
+  addi t3, t3, 1
+  addi t4, t4, 1
   addi t5, t5, -1
   j .Lhelb_loop
 .Lhelb_done:

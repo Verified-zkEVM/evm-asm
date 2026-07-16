@@ -508,3 +508,6 @@ import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoop
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
