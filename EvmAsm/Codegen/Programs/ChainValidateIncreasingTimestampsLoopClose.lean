@@ -806,4 +806,61 @@ theorem cvitHdr0Dispatch
 
 #print axioms cvitHdr0Dispatch
 
+/-! ## Header-0 block (instructions 18--30): call ;; status dispatch
+
+    From the `N ≥ 2` fall-through (`D+72`) to the caller's post: `cvitHdr0Call`
+    decodes header 0's field 11 and `cvitHdr0Dispatch` splits on the status,
+    reaching `LoopInv 1` (success) or `retParseFail` at index 0 (parse-fail). -/
+
+set_option maxRecDepth 8000 in
+theorem cvitHdr0Block
+    (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn x21val : Word) (L0 : Nat)
+    (oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 : Word)
+    (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (nTail : Nat)
+    (hN2 : 2 ≤ lengths.length)
+    (hL0 : L0 = lengths[0]!)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hraSaved : csaved.ra = raIn)
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hsalign : hdrBase.toNat % 8 = 0)
+    (hslack : L0 + 9 ≤ bigBytes.length)
+    (hover : hdrBase.toNat + bigBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bigBytes.length →
+      isValidByteAccess (hdrBase + BitVec.ofNat 64 k) = true)
+    (htail : cpsTripleWithin nTail (D + 124) raIn fullCode
+        (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths 1)
+        (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+          firstBadPtr csaved bigBytes lengths)) :
+    cpsTripleWithin ((5 + 1 + nCall) + (22 + nTail)) (D + 72) raIn fullCode
+      ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ x21val) **
+        (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) ** (.x13 ↦ᵣ o13) **
+        (.x14 ↦ᵣ old14) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ oldX1) ** (.x0 ↦ᵣ (0 : Word)) **
+        (lenBase ↦ₘ BitVec.ofNat 64 L0) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
+        (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
+        bytesRegion hdrBase bigBytes ** savedFrame spC csaved **
+        wordArrayFrom lenBase 1 (lengths.drop 1) ** (validPtr ↦ₘ (1 : Word)) **
+        (firstBadPtr ↦ₘ (0 : Word)) ** (IterI ↦ₘ (0 : Word)) **
+        memOwn IterChild ** memOwn IterPrev)
+      (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
+        firstBadPtr csaved bigBytes lengths) := by
+  have hcall := cvitHdr0Call spC hdrBase lenBase validPtr firstBadPtr x21val L0
+    (BitVec.ofNat 64 lengths.length) oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13
+    bigBytes csaved hsalign hslack hover hvalid
+  have hcallF := cpsTripleWithin_frameR
+    (wordArrayFrom lenBase 1 (lengths.drop 1) ** (validPtr ↦ₘ (1 : Word)) **
+      (firstBadPtr ↦ₘ (0 : Word)) ** (IterI ↦ₘ (0 : Word)) **
+      memOwn IterChild ** memOwn IterPrev)
+    (by pcfx) hcall
+  have hdisp := cvitHdr0Dispatch sp0 spC hdrBase lenBase validPtr firstBadPtr raIn x21val L0
+    csaved bigBytes lengths oldOff oldLen nTail hN2 hL0 hspC hraSaved hret htail
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcallF hdisp)
+
+#print axioms cvitHdr0Block
+
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
