@@ -709,6 +709,46 @@ private theorem helbCopyLoop (srcBase dstBase x31old : Word)
         simp only [show i + 1 + k = i + (k + 1) from by omega] at hq
         xperm_chunked hq) s3
 
+/-! ## `la` materialize helpers for the post-call length/offset loads -/
+
+/-- `la x5, helb_length` at [17]-[18] (`helbBase+68 → helbBase+76`). -/
+theorem helbLaLen68 (v : Word) :
+    cpsTripleWithin 2 (helbBase + 68) (helbBase + 76) fullCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ helbLenAddr) := by
+  have hau := helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 68) 17
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.helb_length
+      (Codegen.GuestAddrs.header_extract_logs_bloom + 68)))
+    (by rw [program_length]; norm_num) (by bv_omega) rfl
+  have had := helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 72) 18
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.helb_length
+      (Codegen.GuestAddrs.header_extract_logs_bloom + 68)))
+    (by rw [program_length]; norm_num) (by bv_omega) rfl
+  have h := la_materialize_within .x5 v (helbBase + 68) helbLenAddr
+    (by decide) (by decide) hau had
+  rw [show (helbBase + 68 : Word) + 8 = helbBase + 76 from by bv_omega] at h
+  exact h
+
+/-- `la x5, helb_offset` at [22]-[23] (`helbBase+88 → helbBase+96`). -/
+theorem helbLaOff88 (v : Word) :
+    cpsTripleWithin 2 (helbBase + 88) (helbBase + 96) fullCode
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ helbOffAddr) := by
+  have hau := helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 88) 22
+    (.AUIPC .x5 (Codegen.laHi Codegen.GuestAddrs.helb_offset
+      (Codegen.GuestAddrs.header_extract_logs_bloom + 88)))
+    (by rw [program_length]; norm_num) (by bv_omega) rfl
+  have had := helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 92) 23
+    (.ADDI .x5 .x5 (Codegen.laLo Codegen.GuestAddrs.helb_offset
+      (Codegen.GuestAddrs.header_extract_logs_bloom + 88)))
+    (by rw [program_length]; norm_num) (by bv_omega) rfl
+  have h := la_materialize_within .x5 v (helbBase + 88) helbOffAddr
+    (by decide) (by decide) hau had
+  rw [show (helbBase + 88 : Word) + 8 = helbBase + 96 from by bv_omega] at h
+  exact h
+
+private theorem helb_ofNat_toNat (fo : Word) : (BitVec.ofNat 64 fo.toNat : Word) = fo := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt fo.isLt
+
 /-! ## Terminal tails: set `a0`, jump to the epilogue, return -/
 
 set_option maxRecDepth 8000 in
