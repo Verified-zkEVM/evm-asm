@@ -571,4 +571,158 @@ theorem wdField0Call
 
 #print axioms wdField0Call
 
+/-! ## Field-1 call adapter [14]-[18] + K34 -/
+
+open EvmAsm.Codegen.RlpFieldToU64SAsm in
+set_option maxRecDepth 8000 in
+/-- Field-1 RLP call adapter [14]-[18] + `rlp_field_to_u64` (index 1, output
+    `outBase+8`), `ra := WB+76`. -/
+theorem wdField1Call
+    (spW newSp raIn listBase len outBase oldOut oldOffset oldLen old14
+      s3 s4 s5 v10 v11 v12 v13 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let outer : Saved := { ra := WB + 76, s0 := listBase, s1 := len }
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    let callSteps := 1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9)
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
+    cpsTripleWithin (4 + (1 + n34)) (WB + 56) (WB + 76) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 8) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      (((.x1 : Reg) ↦ᵣ (WB + 76)) **
+        flatPost spW newSp listBase oldOffset oldLen outer saved bytes listLen 1) := by
+  intro outer saved callSteps tailSteps n34
+  have hsetup := wdField1Setup v10 v11 v12 v13 listBase len outBase
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+     stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     ((outBase + 8) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+    (by repeat' first
+        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | exact pcFree_regOwn | exact pcFree_frameSlotsOwn _ _ | exact pcFree_stackFree _ _
+        | apply pcFree_sepConj) hsetup
+  have hhead : cpsTripleWithin 4 (WB + 56) (WB + 72) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 8) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      ((.x1 ↦ᵣ raIn) **
+       flatPre spW newSp listBase len (1 : Word) (outBase + 8) oldOut oldOffset oldLen
+         old14 outer outBase s3 s4 s5 bytes) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
+  have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (1 : Word) (outBase + 8)
+    oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 1 hnewSp hlenW
+    (by decide) (by decide) hsalign hslack hover hvalid
+    (by show (WB + 76) &&& ~~~(1 : Word) = WB + 76; decide)
+  have hflatC := cpsTripleWithin_extend_code k34_mono hflat
+  have hcall := callWithin_spec (WB + 72) B raIn
+    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72))
+    n34 (by show (WB + 72) + signExtend21 _ = B; decide)
+    (fun a i hi => wd_mono a i
+      (CodeReq.ofProg_mem_at WB (WB + 72) withdrawalDecode_prog 18
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72)))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi))
+    (by unfold flatPre wholeRest; pcf) hflatC
+  rw [show (WB + 72 + 4 : Word) = WB + 76 from by bv_omega] at hcall
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hcall
+
+#print axioms wdField1Call
+
+/-! ## Field-3 call adapter [45]-[49] + K34 -/
+
+open EvmAsm.Codegen.RlpFieldToU64SAsm in
+set_option maxRecDepth 8000 in
+/-- Field-3 RLP call adapter [45]-[49] + `rlp_field_to_u64` (index 3, output
+    `outBase+40`), `ra := WB+200`. -/
+theorem wdField3Call
+    (spW newSp raIn listBase len outBase oldOut oldOffset oldLen old14
+      s3 s4 s5 v10 v11 v12 v13 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    let outer : Saved := { ra := WB + 200, s0 := listBase, s1 := len }
+    let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
+    cpsTripleWithin (4 + (1 + n34)) (WB + 180) (WB + 200) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 40) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      (((.x1 : Reg) ↦ᵣ (WB + 200)) **
+        flatPost spW newSp listBase oldOffset oldLen outer saved bytes listLen 3) := by
+  intro outer saved callSteps tailSteps n34
+  have hsetup := wdField3Setup v10 v11 v12 v13 listBase len outBase
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+     stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     ((outBase + 40) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+    (by repeat' first
+        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | exact pcFree_regOwn | exact pcFree_frameSlotsOwn _ _ | exact pcFree_stackFree _ _
+        | apply pcFree_sepConj) hsetup
+  have hhead : cpsTripleWithin 4 (WB + 180) (WB + 196) fullCode
+      (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        ((outBase + 40) ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen))
+      ((.x1 ↦ᵣ raIn) **
+       flatPre spW newSp listBase len (3 : Word) (outBase + 40) oldOut oldOffset oldLen
+         old14 outer outBase s3 s4 s5 bytes) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
+  have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (3 : Word) (outBase + 40)
+    oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 3 hnewSp hlenW
+    (by decide) (by decide) hsalign hslack hover hvalid
+    (by show (WB + 200) &&& ~~~(1 : Word) = WB + 200; decide)
+  have hflatC := cpsTripleWithin_extend_code k34_mono hflat
+  have hcall := callWithin_spec (WB + 196) B raIn
+    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196))
+    n34 (by show (WB + 196) + signExtend21 _ = B; decide)
+    (fun a i hi => wd_mono a i
+      (CodeReq.ofProg_mem_at WB (WB + 196) withdrawalDecode_prog 49
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196)))
+        (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi))
+    (by unfold flatPre wholeRest; pcf) hflatC
+  rw [show (WB + 196 + 4 : Word) = WB + 200 from by bv_omega] at hcall
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hcall
+
+#print axioms wdField3Call
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
