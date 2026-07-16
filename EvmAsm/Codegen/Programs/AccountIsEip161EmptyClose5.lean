@@ -52,6 +52,40 @@ theorem cpsTripleWithin_of_forall_regIs_to_regOwn7
         g6, g7, d4, u4, hv3, g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
         g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
 
+/-- Introduce THREE owned registers' values at once (trailing `regOwn` chain). -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn3
+    {nSteps : Nat} {entry exit_ : Word} {r1 r2 r3 : Reg} {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ v1 v2 v3, cpsTripleWithin nSteps entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, ⟨v3, hv3⟩⟩ := hO2
+  exact h v1 v2 v3 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3, hv2, hv3⟩, hRb⟩ hpc
+
+/-- Introduce FOUR owned registers' values at once (trailing `regOwn` chain). -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn4
+    {nSteps : Nat} {entry exit_ : Word} {r1 r2 r3 r4 : Reg} {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ v1 v2 v3 v4, cpsTripleWithin nSteps entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) ** (r4 ↦ᵣ v4)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, ⟨v4, hv4⟩⟩ := hO3
+  exact h v1 v2 v3 v4 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3, hv2,
+        g6, g7, d4, u4, hv3, hv4⟩, hRb⟩ hpc
+
 /-- Least-index witness of a bounded universal's failure. -/
 theorem first_mismatch {P : Nat → Prop} [DecidablePred P] {n : Nat}
     (h : ¬ ∀ k, k < n → P k) :
