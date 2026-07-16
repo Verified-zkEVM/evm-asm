@@ -1395,8 +1395,6 @@ theorem messageCallGas_spec (base ret v r g m e : Word)
     (fun _ hq => hq)
     (cpsTripleWithin_mono_nSteps (by omega) hall)
 
-#print axioms multiRegRetTail_spec
-#print axioms messageCallGas_spec
 
 end MessageCallGasSAsm
 

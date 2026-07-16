@@ -433,7 +433,6 @@ theorem u256Eq_spec (ptr1 ptr2 base ret : Word) (bs1 bs2 : List (BitVec 8))
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (sepConj_mono_right (asrtM_mono (u256Eq_sp_post ptr1 ptr2 bs1 bs2))) hsound
 
-#print axioms u256Eq_spec
 
 -- Byte-identity to the existing emitted `u256_eq` program.
 #guard (u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog

@@ -682,7 +682,6 @@ theorem nibblesCommonPrefixLenFn_spec (ptrA ptrB outPtr : Word)
       simpa only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem] using hwsEmpty
     · rw [hAeq, hx14Focus, hsdwsOut, hrest, hx5]
 
-#print axioms nibblesCommonPrefixLenFn_spec
 
 end NibblesCommonPrefixLenSAsm
 

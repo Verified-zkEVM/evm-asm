@@ -330,8 +330,6 @@ theorem mptResolveCacheReset_spec (old5 retAddr : Word) (orig : List (BitVec 8))
     (fun _ hp => by xperm_hyp hp) hlaF htail
   exact hall
 
-#print axioms cacheResetFn_spec
-#print axioms mptResolveCacheReset_spec
 
 end MptResolveCacheResetSAsm
 end EvmAsm.Codegen

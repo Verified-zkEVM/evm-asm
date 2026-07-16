@@ -204,7 +204,6 @@ theorem txvabJoin_spec
         hstation2))
   exact hq
 
-#print axioms txvabJoin_spec
 
 end TxValidateAgainstBlockSAsm
 

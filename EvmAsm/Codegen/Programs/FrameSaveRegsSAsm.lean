@@ -109,6 +109,5 @@ theorem frameSaveRegs_spec (depth pcVal codeBase old5 old6 oldPc oldCode ret : W
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms frameSaveRegs_spec
 end FrameSaveRegsSAsm
 end EvmAsm.Codegen

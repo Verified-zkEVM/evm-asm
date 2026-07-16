@@ -84,7 +84,6 @@ theorem callExtraGasFn_spec (isCold valueNonzero : Word) (base : Word) :
         simp_all [Cond.holds, execInstrRF, aluSem]
         try decide
 
-#print axioms callExtraGasFn_spec
 
 end CallExtraGasSAsm
 end EvmAsm.Codegen

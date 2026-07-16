@@ -259,9 +259,6 @@ theorem cdcvJoin_spec (base ret codePtr len v5old v6old dwordAddr wordVal : Word
   rw [hPtail] at hq
   xperm_hyp hq
 
-#print axioms cdcvJoin_spec
-#print axioms EvmAsm.Rv64.SAsm.retJoinStation_spec
-#print axioms EvmAsm.Rv64.SAsm.sharedRetTail_spec
 
 end CreateDeployedCodeValidSAsm
 end EvmAsm.Codegen
