@@ -1062,8 +1062,6 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     xperm_hyp hq2
   abi_frame (32 : BitVec 12) halign hbody
 
-#print axioms blskG2Wire_spec
-#print axioms blsgLeToBeWireFlat_spec
 
 end Bls12KzgG2WireSAsm
 

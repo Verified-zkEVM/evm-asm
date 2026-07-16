@@ -319,7 +319,6 @@ theorem copyFn_spec (listBase outputPtr : Word) (bytes : List (BitVec 8))
     change ws = List.replicate (32 - len) 0 ++ (bytes.drop offset).take len
     rw [hwin, copyWin_done bytes offset len hfit hbound]
 
-#print axioms copyFn_spec
 
 /-! ## Partial-register bridge for the inline caller composition -/
 
@@ -437,7 +436,6 @@ theorem copyBody_spec_within
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) sall)
 
-#print axioms copyBody_spec_within
 
 /-- Exact bounded closure of K35's top-tested copy loop (instructions 27--33).
     The post exposes the genuine right-aligned byte window. -/
@@ -640,6 +638,5 @@ theorem copyLoop_spec_within
   rw [hdone] at h0
   simpa only [Nat.zero_add, show 32 - len + len = 32 by omega] using h0
 
-#print axioms copyLoop_spec_within
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

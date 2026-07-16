@@ -134,7 +134,6 @@ theorem headerExtractLogsBloom_call_spec_within
     helbCalleeMem
   exact h
 
-#print axioms headerExtractLogsBloom_call_spec_within
 
 /-! ## `la` materialize helpers (address-specific AUIPC hi/lo) -/
 
@@ -332,7 +331,6 @@ theorem helbPrologue
       unfold callEntryRest entryRest savedRegTail
       xperm_chunked hq) call)
 
-#print axioms helbPrologue
 
 /-! ## The shared return postcondition
 
@@ -448,7 +446,6 @@ theorem helbEpilogue (newSp a0v v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
 
-#print axioms helbEpilogue
 
 /-! ## Copy-loop helpers -/
 
@@ -1420,6 +1417,5 @@ theorem headerExtractLogsBloom_spec_within
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c1 hpost
   exact c2
 
-#print axioms headerExtractLogsBloom_spec_within
 
 end EvmAsm.Codegen.HeaderExtractLogsBloomSpec

@@ -89,7 +89,6 @@ theorem contentDone_to_scalarResult
     · exact h_ok
   · exact h_scalar
 
-#print axioms contentDone_to_scalarResult
 
 def scalarFrame
     (sp0 listBase offset len v12 value : Word)
@@ -197,7 +196,6 @@ private theorem scalarBranchCase
     unfold scalarCore
     xperm_hyp hp
 
-#print axioms scalarBranchCase
 
 theorem scalarBranch
     (sp0 listBase : Word)
@@ -218,7 +216,6 @@ theorem scalarBranch
   exact scalarBranchCase sp0 listBase offset len v12 value status saved bytes
     listLen index h_ok h_out
 
-#print axioms scalarBranch
 
 /-- Store a successfully decoded scalar, materialize wrapper status zero, and
     jump to the shared restore join (instructions 22--24). -/
@@ -271,7 +268,6 @@ theorem successMachineTail
     unfold code
     exact CodeReq.union_mono_left a i hi) h012
 
-#print axioms successMachineTail
 
 /-- Scalar status two is preserved as wrapper status two
     (instructions 25, 26, 31). -/
@@ -325,7 +321,6 @@ theorem tooLongMachineTail
     unfold code
     exact CodeReq.union_mono_left a i hi) h012
 
-#print axioms tooLongMachineTail
 
 /-- Scalar status three (leading-zero rejection) maps to wrapper status one
     (instructions 25--28). -/
@@ -396,7 +391,6 @@ theorem noncanonicalMachineTail
     unfold code
     exact CodeReq.union_mono_left a i hi) h0123
 
-#print axioms noncanonicalMachineTail
 
 theorem scalarOutcome_result
     {bytes : List (BitVec 8)} {listBase offset len value status : Word}
@@ -420,7 +414,6 @@ theorem scalarOutcome_result
   | success h_pos h_fit h_nz =>
       exact ⟨0, .success offset len h_ok h_pos h_fit h_nz, Or.inl ⟨rfl, rfl⟩⟩
 
-#print axioms scalarOutcome_result
 
 def stableRest
     (ra sp0 listBase offset len v12 : Word)
@@ -496,7 +489,6 @@ private theorem successSemanticTail
     xperm_hyp hp
   · exact h_result
 
-#print axioms successSemanticTail
 
 private theorem tooLongSemanticTail
     (sp0 listBase offset len v12 x5 : Word)
@@ -528,7 +520,6 @@ private theorem tooLongSemanticTail
     xperm_hyp hp
   · exact h_result
 
-#print axioms tooLongSemanticTail
 
 private theorem noncanonicalSemanticTail
     (sp0 listBase offset len v12 x5 : Word)
@@ -560,7 +551,6 @@ private theorem noncanonicalSemanticTail
     xperm_hyp hp
   · exact h_result
 
-#print axioms noncanonicalSemanticTail
 
 def scalarNo5
     (sp0 listBase offset len v12 value status : Word)
@@ -652,9 +642,6 @@ private theorem noncanonicalSemanticOwned
       unfold P scalarNo5
       xperm_hyp hp) (fun _ hp => hp) howned
 
-#print axioms successSemanticOwned
-#print axioms tooLongSemanticOwned
-#print axioms noncanonicalSemanticOwned
 
 def fallReady
     (sp0 listBase : Word)
@@ -715,7 +702,6 @@ theorem fallSemanticTail
       exact successSemanticOwned sp0 listBase offset len v12 _ saved bytes
         listLen index (.success offset len h_ok h_pos h_fit h_nz)
 
-#print axioms fallSemanticTail
 
 theorem takenSemanticTail
     (sp0 listBase : Word)
@@ -753,7 +739,6 @@ theorem takenSemanticTail
       exact noncanonicalSemanticOwned sp0 listBase offset len v12 saved bytes
         listLen index (.noncanonical offset len h_ok h_pos h_fit h_zero)
 
-#print axioms takenSemanticTail
 
 theorem scalarTaken_framed_to_ready
     (sp0 listBase : Word)
@@ -816,9 +801,6 @@ theorem scalarBranchWithOutput
     (scalarTaken_framed_to_ready sp0 listBase saved bytes listLen index)
     (scalarFall_framed_to_ready sp0 listBase saved bytes listLen index) hbF
 
-#print axioms scalarTaken_framed_to_ready
-#print axioms scalarFall_framed_to_ready
-#print axioms scalarBranchWithOutput
 
 theorem scalarDispatch
     (sp0 listBase : Word)
@@ -848,8 +830,6 @@ theorem contentDone_framed_to_scalarResult
   sepConj_mono_left
     (contentDone_to_scalarResult sp0 listBase saved bytes listLen index)
 
-#print axioms scalarDispatch
-#print axioms contentDone_framed_to_scalarResult
 
 theorem callContentWithOutput
     (sp0 listBase vOld : Word)
@@ -905,8 +885,6 @@ theorem selectedToJoin
   have hd := scalarDispatch sp0 listBase saved bytes listLen index
   exact cpsTripleWithin_seq_same_cr hsc' hd
 
-#print axioms callContentWithOutput
-#print axioms selectedToJoin
 
 def failureResultAtJoin
     (sp0 listBase oldOffset oldLen : Word)
@@ -973,8 +951,6 @@ theorem failureToAllJoin
   · xperm_hyp hp
   · exact .listFailure h_fail
 
-#print axioms selectedToAllJoin
-#print axioms failureToAllJoin
 
 theorem listDispatchToJoin
     (sp0 listBase oldOffset oldLen : Word)
@@ -1031,7 +1007,6 @@ theorem listDispatchToJoin
       simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
     (fun _ hp => hp) hm
 
-#print axioms listDispatchToJoin
 
 def successPayload
     (sp0 listBase offset len v12 x5 scalarStatus wrapperStatus outputValue : Word)
@@ -1104,7 +1079,6 @@ theorem joinedResult_to_restoreReady
   have hcombined' := sepConj_mono_left (sepConj_mono_right himpl) h hcombined
   xperm_hyp hcombined'
 
-#print axioms joinedResult_to_restoreReady
 
 def failurePayload
     (sp0 listBase oldOffset oldLen v11 v12 : Word)
@@ -1188,7 +1162,6 @@ theorem failureResult_to_restoreReady
   have hcombined' := sepConj_mono_left (sepConj_mono_right himpl) h hcombined
   xperm_hyp hcombined'
 
-#print axioms failureResult_to_restoreReady
 
 def successReturned
     (spOuter newSp listBase : Word) (outer : Saved)
@@ -1262,7 +1235,6 @@ theorem restoreSuccess
   unfold successReturned
   exact ⟨offset, len, v12, x5, scalarStatus, wrapperStatus, outputValue, hp⟩
 
-#print axioms restoreSuccess
 
 theorem restoreFailure
     (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
@@ -1308,6 +1280,5 @@ theorem restoreAll
     (restoreFailure spOuter newSp listBase oldOffset oldLen outer saved bytes
       listLen index hnewSp hret)
 
-#print axioms restoreAll
 
 end EvmAsm.Codegen.RlpFieldToU64SAsm

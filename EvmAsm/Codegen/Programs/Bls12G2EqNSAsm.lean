@@ -535,7 +535,6 @@ theorem blsg2EqNFn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) (n : Nat)
       rw [hx10rf, if_pos heq]
 
 
-#print axioms blsg2EqNFn_spec
 
 /-! ## The byte-transparent whole-routine spec (genuine byte-equality post)
 
@@ -684,7 +683,6 @@ theorem blsg2EqN_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
     (fun h hq => by xperm_hyp hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc3)
 
-#print axioms blsg2EqN_spec
 
 end Bls12G2EqNSAsm
 

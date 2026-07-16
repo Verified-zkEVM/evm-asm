@@ -537,10 +537,5 @@ theorem hesrSuccessFinish (newSp a0old v1 v8 v9 v18 : Word) (saved : Saved)
   refine cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
 
-#print axioms hesrInitStep
-#print axioms hesrEpilogue
-#print axioms hesrStatus1Return
-#print axioms hesrStatus2Return
-#print axioms hesrSuccessFinish
 
 end EvmAsm.Codegen.HeaderFieldsSpec

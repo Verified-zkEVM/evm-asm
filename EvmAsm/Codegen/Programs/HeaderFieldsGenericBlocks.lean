@@ -406,10 +406,5 @@ theorem hfMarshalNextBundled {code : CodeReq}
     (fun h hp => by unfold hfWalkAmbient hesrAmbRegs hesrSpill at hp; xperm_chunked hp)
     (fun h hq => by unfold hfWalkAmbient hesrAmbRegs hesrSpill; xperm_chunked hq) hmF
 
-#print axioms hfEpilogue
-#print axioms hfStatus1Bundled
-#print axioms hfStatus2Return
-#print axioms hfSuccessFinish
-#print axioms hfMarshalNextBundled
 
 end EvmAsm.Codegen.HeaderFieldsSpec

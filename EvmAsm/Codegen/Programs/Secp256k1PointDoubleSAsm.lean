@@ -604,13 +604,6 @@ theorem pointDouble_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         xBE yBE oX oY ws hxlen hylen hoXlen hoYlen hwslen hwfX hwfY
         hoal hoov hovalid harval hdIn hdOut hxlt hylt hy0)
 
-#print axioms pointDouble_spec
-#print axioms pointDoubleRegBody_spec
-#print axioms curveStep_spec
-#print axioms secfBeToLeFlat_spec
-#print axioms secfLeToBeFlat_spec
-#print axioms secfIsZero32Flat_spec
-#print axioms secfZero32Flat_spec
 
 end Secp256k1PointDoubleSAsm
 

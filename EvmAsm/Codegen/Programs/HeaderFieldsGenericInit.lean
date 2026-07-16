@@ -568,9 +568,5 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
   unfold hfScratchConst
   xperm_chunked hq
 
-#print axioms hfPrologue
-#print axioms hfInitStep
-#print axioms hfMarshalInitBundled
-#print axioms hfInitDispatch
 
 end EvmAsm.Codegen.HeaderFieldsSpec

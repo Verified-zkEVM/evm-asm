@@ -57,7 +57,6 @@ theorem hdr_disjoint :
     · rw [rlp_content_to_u64_prog_length]; decide
     · rw [hdr_length, rlp_content_to_u64_prog_length]; decide
 
-#print axioms hdr_disjoint
 
 /-- K34's linked code is subsumed by the wrapper's full closure. -/
 theorem k34_mono :
@@ -213,7 +212,6 @@ theorem hdrPrologue
       unfold flatPre wholeRest
       xperm_hyp hq) hall
 
-#print axioms hdrPrologue
 
 /-! ## Epilogue core (instructions 5--7) -/
 
@@ -267,7 +265,6 @@ theorem epiCore (sp0 spH raIn : Word) (G : Assertion) (hG : G.pcFree)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hframed
 
-#print axioms epiCore
 
 /-! ## Epilogue over K34's result post (instructions 5--7) -/
 
@@ -364,7 +361,6 @@ theorem hdrEpilogue
             bytes listLen 8 h'')) h') => sepConj_or_split h' hh) h hp
   exact sepConj_or_split h hinner
 
-#print axioms hdrEpilogue
 
 /-! ## Whole-program caller contract -/
 
@@ -447,6 +443,5 @@ theorem header_extract_number_spec_within
     hpro hcall'
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) h01 hepi
 
-#print axioms header_extract_number_spec_within
 
 end EvmAsm.Codegen.HeaderExtractNumberSpec

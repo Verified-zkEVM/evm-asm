@@ -84,8 +84,5 @@ theorem callWalkNext {n : Nat} {Prest Q : Assertion} (oldRa : Word)
       (by rfl) (by rw [total_length]; norm_num) (by rw [total_length]; norm_num)
       a i h_code) walkNext_sub) h_call
 
-#print axioms reemit_byte_tie
-#print axioms callWalkInit
-#print axioms callWalkNext
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

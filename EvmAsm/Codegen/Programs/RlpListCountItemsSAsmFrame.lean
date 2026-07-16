@@ -138,7 +138,5 @@ theorem wrapperPrologue (sp0 newSp listBase listLenW outPtr oldCount : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by unfold setupPost entryRest; xperm_hyp hp) h012
 
-#print axioms setupMoves
-#print axioms wrapperPrologue
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

@@ -146,7 +146,6 @@ theorem hewrStage16Chain
           h_src_align h_dst_align hb' h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
           ⟨c0, listBase + BitVec.ofNat 64 listLenN, n', hpay', hnth, hoffeq⟩)))
 
-#print axioms hewrStage16Chain
 
 /-- Stage 15 (`hfStageRec`, count 15) at `hewrBase+364`. -/
 theorem hewrStage15Chain

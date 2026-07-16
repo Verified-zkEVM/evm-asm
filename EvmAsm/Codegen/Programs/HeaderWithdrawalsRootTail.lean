@@ -909,6 +909,5 @@ theorem hewrSuccessTailBundled
     · exact Or.inl ⟨ha0, hsucc, hlen, hfin⟩
     · exact Or.inr (Or.inl ⟨ha0, hsucc, hlen, hfin⟩)
 
-#print axioms hewrSuccessTailBundled
 
 end EvmAsm.Codegen.HeaderWithdrawalsRootSpec
