@@ -87,4 +87,44 @@ theorem cvedl_mono : ∀ a i, cvedlCode a = some i → fullCode a = some i := by
   unfold fullCode
   exact CodeReq.union_mono_left a i hi
 
+/-! ## `wordArray` : a dword-cell array region
+
+    A separating region of consecutive 8-byte cells holding
+    `BitVec.ofNat 64 xs[k]` at `base + 8*(start+k)`.  Reusable by all sibling
+    `chainValidate*` accessors that stride an aligned `u64` array. -/
+
+def wordArrayFrom (base : Word) (start : Nat) : List Nat → Assertion
+  | [] => empAssertion
+  | x :: xs =>
+    ((base + BitVec.ofNat 64 (8 * start)) ↦ₘ BitVec.ofNat 64 x) **
+      wordArrayFrom base (start + 1) xs
+
+/-- The array region rooted at `base`, cell `k` at `base + 8*k`. -/
+def wordArray (base : Word) (xs : List Nat) : Assertion := wordArrayFrom base 0 xs
+
+/-- Concatenation splits a `wordArrayFrom` region additively in the index. -/
+theorem wordArrayFrom_append (base : Word) (start : Nat) (as bs : List Nat) :
+    wordArrayFrom base start (as ++ bs) =
+      (wordArrayFrom base start as ** wordArrayFrom base (start + as.length) bs) := by
+  induction as generalizing start with
+  | nil => simp [wordArrayFrom, sepConj_emp_left']
+  | cons a as ih =>
+    simp only [List.cons_append, wordArrayFrom, List.length_cons]
+    rw [ih (start + 1), sepConj_assoc',
+      show start + 1 + as.length = start + (as.length + 1) from by omega]
+
+/-- Extract cell `i` from a `wordArray`, leaving the rest of the region framed. -/
+theorem wordArray_split (base : Word) (xs : List Nat) (i : Nat) (hi : i < xs.length) :
+    wordArray base xs =
+      (wordArrayFrom base 0 (xs.take i) **
+        ((base + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 xs[i]) **
+        wordArrayFrom base (i + 1) (xs.drop (i + 1))) := by
+  unfold wordArray
+  conv_lhs => rw [← List.take_append_drop i xs]
+  rw [wordArrayFrom_append]
+  have hdrop : xs.drop i = xs[i] :: xs.drop (i + 1) := by
+    rw [List.drop_eq_getElem_cons hi]
+  rw [hdrop, wordArrayFrom, List.length_take, Nat.min_eq_left (Nat.le_of_lt hi),
+    Nat.zero_add]
+
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
