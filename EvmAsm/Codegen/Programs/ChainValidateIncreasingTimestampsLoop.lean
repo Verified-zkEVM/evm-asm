@@ -321,7 +321,7 @@ abbrev nCall : Nat :=
     header base being decoded is `hbi` (moved into `x10`). -/
 
 set_option maxRecDepth 8000 in
-theorem cvitCall (spC hdrBase lenBase hbi validPtr firstBadPtr prevVal : Word) (Li : Nat)
+theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word) (Li : Nat)
     (nN oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
@@ -330,13 +330,13 @@ theorem cvitCall (spC hdrBase lenBase hbi validPtr firstBadPtr prevVal : Word) (
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (16 + 1 + nCall) (D + 128) (D + 196) fullCode
-      ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ (BitVec.ofNat 64 Li)) **
+      ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **
         (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) ** (.x13 ↦ᵣ o13) **
         (.x14 ↦ᵣ old14) ** (.x28 ↦ᵣ o28) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x1 ↦ᵣ oldX1) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
-        ((lenBase + ((BitVec.ofNat 64 Li) <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
         frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
         stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
         (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
@@ -346,9 +346,8 @@ theorem cvitCall (spC hdrBase lenBase hbi validPtr firstBadPtr prevVal : Word) (
           oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
           (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           bytes Li 11 **
-        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ (BitVec.ofNat 64 Li)) ** (IterPrev ↦ₘ prevVal) **
-        ((lenBase + ((BitVec.ofNat 64 Li) <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
-  set iW : Word := BitVec.ofNat 64 Li with hiW
+        (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
+        ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
   set calleeNewSp : Word := spC + signExtend12 (-32 : BitVec 12) with hcalleeNewSp
   -- Setup block, lifted to fullCode, framed with the callee footprint.
   have hsetup := cpsTripleWithin_extend_code cvit_mono
@@ -393,10 +392,10 @@ theorem cvitCall (spC hdrBase lenBase hbi validPtr firstBadPtr prevVal : Word) (
     (by pcfx) hjalC
   -- K34 flat callee, lifted to fullCode, framed with the spill/array/chain payload.
   have hcallee0 := EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_flat_spec_within
-    spC calleeNewSp hbi iW (11 : Word) Ts oldOut oldOff oldLen old14
+    spC calleeNewSp hbi (BitVec.ofNat 64 Li) (11 : Word) Ts oldOut oldOff oldLen old14
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) hdrBase validPtr firstBadPtr
     prevVal bytes Li 11
-    hcalleeNewSp hiW (by decide) (by decide)
+    hcalleeNewSp rfl (by decide) (by decide)
     hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with x5/x6/x7/x28 shown owned.
