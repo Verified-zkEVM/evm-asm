@@ -13,7 +13,7 @@ block_validate_receipts_root_indexed:
   bnez a0, .Lbvrri_header_fail
   # ---- Compute indexed receipts trie root ----
   mv a0, s2; mv a1, s3; la a2, bvrri_computed_root
-  jal ra, mpt_indexed_trie_root_small
+  jal ra, mpt_indexed_trie_root_bounded_from_values
   bnez a0, .Lbvrri_trie_fail
   la t0, bvrri_expected_root
   la t1, bvrri_computed_root
