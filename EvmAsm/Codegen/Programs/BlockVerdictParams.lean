@@ -137,9 +137,26 @@ def bsrMaxWitnessBytes : Nat := 524288
     algorithms are generalized to the full 200M target. -/
 def bvMtxActiveTxCap : Nat := 1024
 
-/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
-    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
-def bvMtxFullTxCap : Nat := 9523
+/-- Every valid transaction consumes at least this intrinsic gas.  Together
+    with the explicit block gas limit this is the protocol-enforced upper bound
+    on transaction- and receipt-trie entries; it must not become a detached
+    literal when the supported block limit changes. -/
+def bvMtxIntrinsicGasFloor : Nat := 21000
+
+/-- Full Amsterdam transaction capacity target derived from the supported block
+    gas limit and the 21,000-gas intrinsic floor. -/
+def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
+#guard bvMtxFullTxCap = 9523
+
+/-- An RLP transaction/receipt index below `bvMtxFullTxCap` has at most three
+    key bytes, hence at most six nibbles.  The indexed-root replacement keeps
+    its sort stack and construction frames depth-derived; only the descriptor
+    and permutation arrays are gas-derived. -/
+def itrIndexedKeyMaxNibbles : Nat := 6
+def itrIndexedRadixFanout : Nat := 16
+def itrIndexedSortRangeStackCapacity : Nat := itrIndexedKeyMaxNibbles * itrIndexedRadixFanout
+def itrIndexedBuilderFrameCapacity : Nat := itrIndexedKeyMaxNibbles + 1
+def itrIndexedEntryCapacity : Nat := bvMtxFullTxCap
 
 /-- Compatibility alias for existing active-loop call sites. New code should
     choose `bvMtxActiveTxCap` or `bvMtxFullTxCap` explicitly. -/

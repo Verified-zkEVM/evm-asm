@@ -55,7 +55,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_block_hash_check_enabled:\n  .dword 1\n" ++
   ".balign 8\n" ++
   "svf_tx_count:\n  .zero 8\n" ++
-  "svf_tx_descriptors:\n  .zero 32768\n" ++
+  "svf_tx_descriptors:\n  .zero " ++ toString (bvMtxFullTxCap * 16) ++ "\n" ++
   "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
@@ -342,9 +342,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvwri_computed_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
-  "itr_value_descs:\n  .zero 32768\n" ++
-  "itr_paths:\n  .zero 16384\n" ++
-  "itr_changes:\n  .zero 81920\n" ++
+  "itr_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16) ++ "\n" ++
+  "itr_paths:\n  .zero " ++ toString (itrIndexedEntryCapacity * 8) ++ "\n" ++
+  "itr_changes:\n  .zero " ++ toString (itrIndexedEntryCapacity * 40) ++ "\n" ++
+  "itr_sort_ranges:\n  .zero " ++ toString (itrIndexedSortRangeStackCapacity * 32) ++ "\n" ++
+  "itr_sort_scratch:\n  .zero 40\n" ++
+  "itr_builder_node_len:\n  .zero 8\n" ++
+  "itr_builder_node:\n  .zero 1024\n" ++
+  "itr_builder_frames:\n  .zero " ++ toString (itrIndexedBuilderFrameCapacity * 1024) ++ "\n" ++
+  "itr_root_ref_len:\n  .zero 8\n" ++
+  "itr_root_ref:\n  .zero 32\n" ++
   -- .63.1.6.2.3: receipts-consensus scratch (mirrors the hewr_/bvwri_ withdrawals
   -- pair above). herr_/helb_ are header field-extraction cursors; bvrri_* the
   -- expected/computed receipts roots + per-receipt {ptr,len} descriptors (16 B ×

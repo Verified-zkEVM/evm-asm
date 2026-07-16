@@ -95,6 +95,9 @@ import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootTail
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootTail
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootChain
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
@@ -292,6 +295,7 @@ import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
@@ -500,15 +504,10 @@ import EvmAsm.Codegen.Programs.SszPackBytesSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeFlatSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU256BeCallSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
-
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
-
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
-
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
-
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
-
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoop
-
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
