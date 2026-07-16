@@ -167,12 +167,56 @@ theorem nonstorageEffectLatestBalanceFunction_eq_prog :
 
 #guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
 #guard nonstorageEffectLatestBalance_prog.length = 36
+
+/-- `nonstorage_effect_latest_nonce`: bmvmx.5.5.10 — nonce analog of
+`nonstorage_effect_latest_balance`. Sequential multi-tx CREATE address
+derivation seeds `create_nonce` from the PRE-state witness
+(`nonce_at_header_state_root`, ChildFrameCreateTail), and the per-tx
+`create_creator_nonce_table` resets at every dispatch (`.61.8a`), so a
+contract that CREATEs in tx i and again in tx j would re-derive with the
+pre-state nonce. The non-storage effect log already records every creator
+nonce bump (NoopHalt drj99.1 5a: pre=create_nonce, post=+1) and every
+created-account record (post_nonce=1); the log persists across txs on the
+mtx lane (truncated only for FAILED txs, whose nonce bumps revert per
+protocol). This reader returns the log's latest post_nonce for an address
+(last-write-wins over the whole log); the CREATE seed site consults it
+between the witness seed and `create_creator_nonce_use`, so a hit overrides
+the pre-state seed and a miss keeps today's behavior. ABI: a0 = address
+pointer (only the first 20 bytes are compared — the log record's addr
+field is 20B + 12 zero pad), a1 = out-u64 pointer; returns a0 = 1 + latest
+post_nonce stored, or 0 when the log has no record. Clobbers a0-a2/t0-t6
+(caller saves x10/x12/x13 per the ChildFrameCreateTail idiom). Plain
+string (no `_eq_prog` guard): mirrors `nonstorageEffectLatestBalance_prog`'s
+scan, last-write-wins by writing on every match. -/
+def nonstorageEffectLatestNonceFunction : String :=
+  "# a0 = addr ptr (20B compared), a1 = out u64 ptr -> a0 = 1/0\n" ++
+  "nonstorage_effect_latest_nonce:\n" ++
+  "  la t0, exec_nonstorage_effect_log\n" ++
+  "  la t1, exec_nonstorage_effect_count\n  ld t1, 0(t1)\n" ++
+  "  li t2, 112\n  mul t1, t1, t2\n  add t1, t0, t1\n" ++
+  "  li a2, 0\n" ++
+  ".Lneln_scan:\n" ++
+  "  beq t0, t1, .Lneln_done\n" ++
+  "  ld t3, 0(t0); ld t4, 0(a0); bne t3, t4, .Lneln_next\n" ++
+  "  ld t3, 8(t0); ld t4, 8(a0); bne t3, t4, .Lneln_next\n" ++
+  "  lw t3, 16(t0); lw t4, 16(a0); bne t3, t4, .Lneln_next\n" ++
+  "  ld t3, 104(t0); sd t3, 0(a1)\n" ++
+  "  li a2, 1\n" ++
+  ".Lneln_next:\n" ++
+  "  addi t0, t0, 112\n" ++
+  "  j .Lneln_scan\n" ++
+  ".Lneln_done:\n" ++
+  "  mv a0, a2\n" ++
+  "  ret\n"
+
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=
   ".balign 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  -- bmvmx.5.5.10: out cell for nonstorage_effect_latest_nonce (CREATE seed consult).
+  "create_nonce_latest:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "exec_nonstorage_effect_log:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n"
 

@@ -40,8 +40,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
   "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  beqz a0, .Lbv_mtx_bail                         # non-deposit interaction -> conservative\n" ++
-  "  j .Lbv_mtx_deposit_capture_mark\n" ++
+  "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
+  -- bmvmx.5.5.10 whitelist v0: an interacting non-deposit block enters the full
+  -- sequential lane only when every BAL account with storage_changes rows is
+  -- whitelisted (the four request predeploys, EIP-2935/4788 modeled-system,
+  -- EIP-6110 deposit contract). Block-end system writes live in
+  -- bv_system_storage_log and per-tx user SSTOREs in bv_user_storage_log,
+  -- both consulted by the storage/tuple comparators. Any other interaction
+  -- shape keeps today's posture: conservative bail (fail-closed).
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_storage_whitelist_clean\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  j .Lbv_mtx_independence_ok\n" ++
   ".Lbv_mtx_independent_deposit_check:\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
   "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
