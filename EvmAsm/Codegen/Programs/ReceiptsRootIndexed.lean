@@ -61,7 +61,7 @@ def blockValidateReceiptsRootIndexed_prog : Program :=
     .MV .x11 .x19,
     .AUIPC .x12 (laHi GuestAddrs.bvrri_computed_root (GuestAddrs.block_validate_receipts_root_indexed + 72)),
     .ADDI .x12 .x12 (laLo GuestAddrs.bvrri_computed_root (GuestAddrs.block_validate_receipts_root_indexed + 72)),
-    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_trie_root_small (GuestAddrs.block_validate_receipts_root_indexed + 80)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_trie_root_bounded_from_values (GuestAddrs.block_validate_receipts_root_indexed + 80)),
     .BNE .x10 .x0 (100 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.bvrri_expected_root (GuestAddrs.block_validate_receipts_root_indexed + 88)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bvrri_expected_root (GuestAddrs.block_validate_receipts_root_indexed + 88)),
@@ -104,7 +104,7 @@ def blockValidateReceiptsRootIndexed_relocs : RelocTable :=
   [ (12, .la .x12 "bvrri_expected_root"),
     (14, .jal .x1 "header_extract_receipts_root"),
     (18, .la .x12 "bvrri_computed_root"),
-    (20, .jal .x1 "mpt_indexed_trie_root_small"),
+    (20, .jal .x1 "mpt_indexed_trie_root_bounded_from_values"),
     (22, .la .x5 "bvrri_expected_root"),
     (24, .la .x6 "bvrri_computed_root") ]
 
@@ -141,7 +141,7 @@ def ziskBlockValidateReceiptsRootIndexedPrologue : String :=
   "  add s5, s4, s1              # receipt blob cursor\n" ++
   "  addi s5, s5, 7; andi s5, s5, -8\n" ++
   "  la s6, bvrri_value_descs\n" ++
-  "  li s7, 129\n" ++
+  "  li s7, " ++ toString (itrIndexedEntryCapacity + 1) ++ "\n" ++
   "  bgeu s2, s7, .Lbvrri_pdesc_done\n" ++
   "  li s8, 0                    # i\n" ++
   ".Lbvrri_pdesc_loop:\n" ++
@@ -191,6 +191,16 @@ def ziskBlockValidateReceiptsRootIndexedPrologue : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+  mptBoundedNodeRefFunction ++ "\n" ++
+  mptBoundedEncodeBranchFunction ++ "\n" ++
+  mptBoundedEncodeExtensionFunction ++ "\n" ++
+  mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n" ++
   headerExtractReceiptsRootFunction ++ "\n" ++
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
   ".Lbvrri_pdone:"
@@ -202,7 +212,7 @@ def ziskBlockValidateReceiptsRootIndexedDataSection : String :=
   "herr_length:\n  .zero 8\n" ++
   "bvrri_expected_root:\n  .zero 32\n" ++
   "bvrri_computed_root:\n  .zero 32\n" ++
-  "bvrri_value_descs:\n  .zero 2048"
+  "bvrri_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16)
 
 def ziskBlockValidateReceiptsRootIndexedProbeUnit : BuildUnit := {
   body        := NOP
