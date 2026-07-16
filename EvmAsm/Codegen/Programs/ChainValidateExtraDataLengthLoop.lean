@@ -552,7 +552,7 @@ theorem cvedlIterDispatch
     (csaved : Saved) (bigBytes : List (BitVec 8)) (lengths : List Nat) (i : Nat)
     (oldOff oldLen : Word) (nTail : Nat)
     (hi : i < lengths.length)
-    (hN : lengths.length < 2 ^ 64)
+    (_hN : lengths.length < 2 ^ 64)
     (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
     (hcns : calleeNewSp = spC + signExtend12 (-64 : BitVec 12))
     (hraSaved : csaved.ra = raIn)
