@@ -41,6 +41,7 @@
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Rv64.LaResolve
+import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 
@@ -261,5 +262,76 @@ def cvedlPost (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
         bigBytes lengths h ∨
     postParseFail sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
         bigBytes lengths h
+
+/-! ## Prologue (instructions 0--16): set up the loop-entry state -/
+
+set_option maxRecDepth 8000 in
+/-- Allocate the 56-byte frame, spill `ra` and the six callee-saved registers,
+    move the five inputs into their loop registers, initialize `*validPtr := 1`,
+    `*firstBadPtr := 0`, and `x21 := 0`.  Ends at the loop guard (`C + 68`) in
+    the flat loop-entry state (this is `LoopInv` at `i = 0`, modulo packaging). -/
+theorem cvedlPrologue
+    (sp0 spC nWord lenBase hdrBase validPtr firstBadPtr raIn
+      cs0 cs1 cs2 cs3 cs4 cs5 old5 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12)) :
+    cpsTripleWithin 17 C (C + 68) cvedlCode
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) **
+        (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x10 ↦ᵣ nWord) ** (.x11 ↦ᵣ lenBase) ** (.x12 ↦ᵣ hdrBase) **
+        (.x13 ↦ᵣ validPtr) ** (.x14 ↦ᵣ firstBadPtr) ** (.x5 ↦ᵣ old5) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        memOwn spC ** memOwn (spC + 8) ** memOwn (spC + 16) ** memOwn (spC + 24) **
+        memOwn (spC + 32) ** memOwn (spC + 40) ** memOwn (spC + 48) **
+        memOwn validPtr ** memOwn firstBadPtr)
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ nWord) ** (.x9 ↦ᵣ lenBase) **
+        (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
+        (.x21 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ nWord) ** (.x11 ↦ᵣ lenBase) **
+        (.x12 ↦ᵣ hdrBase) ** (.x13 ↦ᵣ validPtr) ** (.x14 ↦ᵣ firstBadPtr) **
+        (.x5 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        ((spC + 48) ↦ₘ cs5) ** (validPtr ↦ₘ (1 : Word)) **
+        (firstBadPtr ↦ₘ (0 : Word))) := by
+  subst hspC
+  have h0 := addi_spec_gen_same_within .x2 sp0 (-56 : BitVec 12) C (by decide)
+  have h1 := sd_spec_gen_own_within .x2 .x1
+    (sp0 + signExtend12 (-56 : BitVec 12)) raIn (0 : BitVec 12) (C + 4)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (sp0 + signExtend12 (-56 : BitVec 12)) + (0 : Word)
+      = sp0 + signExtend12 (-56 : BitVec 12) from by bv_omega] at h1
+  have h2 := sd_spec_gen_own_within .x2 .x8
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs0 (8 : BitVec 12) (C + 8)
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at h2
+  have h3 := sd_spec_gen_own_within .x2 .x9
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs1 (16 : BitVec 12) (C + 12)
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at h3
+  have h4 := sd_spec_gen_own_within .x2 .x18
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs2 (24 : BitVec 12) (C + 16)
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at h4
+  have h5 := sd_spec_gen_own_within .x2 .x19
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs3 (32 : BitVec 12) (C + 20)
+  rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide] at h5
+  have h6 := sd_spec_gen_own_within .x2 .x20
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs4 (40 : BitVec 12) (C + 24)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at h6
+  have h7 := sd_spec_gen_own_within .x2 .x21
+    (sp0 + signExtend12 (-56 : BitVec 12)) cs5 (48 : BitVec 12) (C + 28)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide] at h7
+  have h8 := mv_spec_gen_within .x8 .x10 nWord cs0 (C + 32) (by decide)
+  have h9 := mv_spec_gen_within .x9 .x11 lenBase cs1 (C + 36) (by decide)
+  have h10 := mv_spec_gen_within .x18 .x12 hdrBase cs2 (C + 40) (by decide)
+  have h11 := mv_spec_gen_within .x19 .x13 validPtr cs3 (C + 44) (by decide)
+  have h12 := mv_spec_gen_within .x20 .x14 firstBadPtr cs4 (C + 48) (by decide)
+  have h13 := li_spec_gen_within .x5 old5 (1 : Word) (C + 52) (by decide)
+  have h14 := sd_spec_gen_own_within .x19 .x5 validPtr (1 : Word) (0 : BitVec 12) (C + 56)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show validPtr + (0 : Word) = validPtr from by bv_omega] at h14
+  have h15 := sd_spec_gen_own_within .x20 .x0 firstBadPtr (0 : Word) (0 : BitVec 12) (C + 60)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show firstBadPtr + (0 : Word) = firstBadPtr from by bv_omega] at h15
+  have h16 := li_spec_gen_within .x21 cs5 (0 : Word) (C + 64) (by decide)
+  runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16
+
+#print axioms cvedlPrologue
 
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
