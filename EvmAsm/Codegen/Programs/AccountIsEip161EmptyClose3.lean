@@ -37,6 +37,14 @@ local macro "pcfR" : tactic =>
     | apply pcFree_sepConj
     | pcFree)
 
+/-- `k`-th instruction membership into the full closure `fullCode`, as the
+    singleton→`fullCode` transformer that `cpsBranchWithin_extend_code` and
+    `cpsTripleWithin_extend_code` consume. -/
+local macro "aieFC" k:term ", " A:term ", " ins:term : term =>
+  `((fun a i hi => aie_mono a i
+      (CodeReq.ofProg_mem_at AB $A accountIsEip161Empty_prog $k $ins (by bv_omega)
+        (by rw [aie_prog_length]; omega) rfl (by rw [aie_prog_length]; norm_num) a i hi)))
+
 /-- Peel a leading existential out of the left operand of a separating
     conjunction. -/
 private theorem sepConj_exists_left' {α : Sort _} {F : α → Assertion} {R : Assertion} :
@@ -304,5 +312,74 @@ theorem aieResultBranch (entry : Word) (foff : BitVec 13)
     (fun _ hq => hq) (fun _ hq => hq) hor
 
 #print axioms aieResultBranch
+
+/-! ## Per-field dispatch instantiations
+
+    The three concrete `bne a0, zero` dispatches after `aieCall0`/`aieCall1`/
+    `aieCall3`.  All three fail-branch to the shared parse-fail verdict `AB+396`;
+    on success each falls to its field body. -/
+
+/-- Field-0 (nonce) dispatch `[17]` at `AB+68`: fail → `AB+396`, ok → `AB+72`. -/
+theorem aieDispatch0 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen : Word) (listLen : Nat) :
+    cpsBranchWithin 1 (AB + 68) fullCode
+      (aieCallResult spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+        bytes outv oldOff oldLen listLen 0)
+      (AB + 396)
+        (aieFailed spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+          bytes outv oldOff oldLen listLen 0)
+      (AB + 72)
+        (aieSelected spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68) s3 s4 s5
+          bytes outv listLen 0) := by
+  have h := aieResultBranch (AB + 68) (328 : BitVec 13) spA newSp accBase lenW outPtr
+    raIn c8 c9 c18 (AB + 68) s3 s4 s5 bytes outv oldOff oldLen listLen 0
+    (aieFC 17, (AB + 68), (.BNE .x10 .x0 (328 : BitVec 13)))
+    (by rw [show signExtend13 (328 : BitVec 13) = (328 : Word) from by decide]; bv_omega)
+  rw [show (AB + 68 : Word) + 4 = AB + 72 from by bv_omega] at h
+  exact h
+
+#print axioms aieDispatch0
+
+/-- Field-1 (balance) dispatch `[44]` at `AB+176`: fail → `AB+396`, ok → `AB+180`. -/
+theorem aieDispatch1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen : Word) (listLen : Nat) :
+    cpsBranchWithin 1 (AB + 176) fullCode
+      (aieCallResult spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 176) s3 s4 s5
+        bytes outv oldOff oldLen listLen 1)
+      (AB + 396)
+        (aieFailed spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 176) s3 s4 s5
+          bytes outv oldOff oldLen listLen 1)
+      (AB + 180)
+        (aieSelected spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 176) s3 s4 s5
+          bytes outv listLen 1) := by
+  have h := aieResultBranch (AB + 176) (220 : BitVec 13) spA newSp accBase lenW outPtr
+    raIn c8 c9 c18 (AB + 176) s3 s4 s5 bytes outv oldOff oldLen listLen 1
+    (aieFC 44, (AB + 176), (.BNE .x10 .x0 (220 : BitVec 13)))
+    (by rw [show signExtend13 (220 : BitVec 13) = (220 : Word) from by decide]; bv_omega)
+  rw [show (AB + 176 : Word) + 4 = AB + 180 from by bv_omega] at h
+  exact h
+
+#print axioms aieDispatch1
+
+/-- Field-3 (code_hash) dispatch `[68]` at `AB+272`: fail → `AB+396`, ok → `AB+276`. -/
+theorem aieDispatch3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) (outv oldOff oldLen : Word) (listLen : Nat) :
+    cpsBranchWithin 1 (AB + 272) fullCode
+      (aieCallResult spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 272) s3 s4 s5
+        bytes outv oldOff oldLen listLen 3)
+      (AB + 396)
+        (aieFailed spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 272) s3 s4 s5
+          bytes outv oldOff oldLen listLen 3)
+      (AB + 276)
+        (aieSelected spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 272) s3 s4 s5
+          bytes outv listLen 3) := by
+  have h := aieResultBranch (AB + 272) (124 : BitVec 13) spA newSp accBase lenW outPtr
+    raIn c8 c9 c18 (AB + 272) s3 s4 s5 bytes outv oldOff oldLen listLen 3
+    (aieFC 68, (AB + 272), (.BNE .x10 .x0 (124 : BitVec 13)))
+    (by rw [show signExtend13 (124 : BitVec 13) = (124 : Word) from by decide]; bv_omega)
+  rw [show (AB + 272 : Word) + 4 = AB + 276 from by bv_omega] at h
+  exact h
+
+#print axioms aieDispatch3
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
