@@ -18,7 +18,7 @@ which must land as ONE unit. Fail-code legend: codes live in
 BlockVerdictReceiptsTail.lean:132-215 (+ .Lbv_eip8037_gas_fail = a0+7,
 so 10 = gate status 3); 53 = receipts-root mismatch; 41 = header
 gas_used over-claim. Iterate with
-`--backend spike --max-jobs 20 --jobs 20` (minutes, not tens of
+`--backend spike --jobs 20` (minutes, not tens of
 minutes); final parity with ziskemu.
 
 ## Live sites and required v0.6.0 changes
@@ -210,7 +210,7 @@ is set (scripts/spike/spike_run capture; ziskemu -o extent) or extend
 `ziskStatelessVerdictV2Prologue` (BlockVerdict.lean:85+, which in
 source writes ≥360 bytes) and re-run
 `codegen-eest-stateless-check.sh --filter single_authorization_charges
---backend spike --max-jobs 20 --jobs 20` (~1 min). validator_status 2
+--backend spike --jobs 20` (~1 min). validator_status 2
 vs 4 splits root-vs-bloom immediately.
 
 Pre-flip baseline on those 6: 1 PASS (creates_account) / 5 FAIL —
