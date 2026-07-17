@@ -98,7 +98,6 @@ theorem cvbgum_disjoint :
     · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_prog_length]; decide
     · left; rw [cvbgum_length]; decide
 
-#print axioms cvbgum_disjoint
 
 /-- K34's linked code is subsumed by the chain accessor's full closure. -/
 theorem k34_mono :
@@ -305,7 +304,6 @@ theorem cvbgumPrologue
   have h16 := li_spec_gen_within .x21 cs5 (0 : Word) (D + 64) (by decide)
   runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16
 
-#print axioms cvbgumPrologue
 
 /-! ## Epilogue (instructions 57--65): restore + return -/
 
@@ -395,7 +393,6 @@ theorem cvbgumEpilogue
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms cvbgumEpilogue
 
 /-! ## All-valid exit (instruction 56 → epilogue): `a0 := 0`, then return -/
 
@@ -440,7 +437,6 @@ theorem retAllValid
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retAllValid
 
 /-! ## Violation exit (instructions 50--53 → epilogue)
 
@@ -504,7 +500,6 @@ theorem retViolation
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retViolation
 
 /-! ## Parse-fail exit (instructions 54--55 → epilogue)
 
@@ -561,6 +556,5 @@ theorem retParseFail
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retParseFail
 
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec

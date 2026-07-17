@@ -147,7 +147,6 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
   have hp'' := sepConj_mono (regIs_implies_regOwn .x5) (fun _ x => x) h hp'
   xperm_hyp hp''
 
-#print axioms cvitHdr0Call
 
 /-! ## Header-0 finish (instructions 25--30): save initial prev, set base_1, i:=1
 
@@ -190,7 +189,6 @@ theorem cvitHdr0Finish (hdrBase lenBase ts0 : Word) (L0 : Nat) (old5 o6 o7 o21 :
       (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s30
   runBlock hla25 s27' s28' s29' s30'
 
-#print axioms cvitHdr0Finish
 
 /-! ## Loop induction (`D+124 → raIn`, entering iteration `i`, `1 ≤ i ≤ N`)
 
@@ -369,7 +367,6 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         (hAllValid i hi)
         (fun _ => ih (i + 1) (by omega) (by omega) (by omega))
 
-#print axioms cvitLoop
 
 /-! ## Header-0 flatPost normalization (K34 saved-ra = `LinkRA0`)
 
@@ -451,7 +448,6 @@ theorem flatPost_normalize0 (spC hbi hdrBase validPtr firstBadPtr nN lenBase pre
         (fun _ x => x)))) h hp1
     xperm_hyp hp2
 
-#print axioms flatPost_normalize0
 
 /-! ## Header-0 status dispatch (instruction 24 onward): tie header-0's `Result`
 
@@ -804,7 +800,6 @@ theorem cvitHdr0Dispatch
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x))))) h hp1
         xperm_hyp hp2
 
-#print axioms cvitHdr0Dispatch
 
 /-! ## Header-0 block (instructions 18--30): call ;; status dispatch
 
@@ -861,7 +856,6 @@ theorem cvitHdr0Block
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcallF hdisp)
 
-#print axioms cvitHdr0Block
 
 set_option maxRecDepth 8000 in
 /-- **`chain_validate_increasing_timestamps` caller contract.**  The
@@ -1113,6 +1107,5 @@ theorem chain_validate_increasing_timestamps_spec_within
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hproF htail)
 
-#print axioms chain_validate_increasing_timestamps_spec_within
 
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
