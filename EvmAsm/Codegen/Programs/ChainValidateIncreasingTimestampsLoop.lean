@@ -69,7 +69,6 @@ theorem cvitSpill (hbi iW prevVal old5 : Word) :
       (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s40
   runBlock hla32 s34' hla35 s37' hla38 s40'
 
-#print axioms cvitSpill
 
 /-! ## Reload block (instructions 50--55): load `cur` and `prev` for the compare
 
@@ -104,7 +103,6 @@ theorem cvitReload (curVal prevVal old5 o28 o29 : Word) :
       (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s55
   runBlock hla50 s52' hla53 s55'
 
-#print axioms cvitReload
 
 /-! ## Advance block (instructions 57--69): update `prev`, step iterator, loop
 
@@ -180,7 +178,6 @@ theorem cvitAdvance (hbi lenBase iW curVal old5 o6 o7 o21 o30 o31 : Word) (Li : 
       (by bv_omega) (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) s69
   runBlock hla57 s59' hla60 s62' s63' s64' s65' s66' s67' s68' s69'
 
-#print axioms cvitAdvance
 
 /-! ## Loop-body argument setup (instructions 41--47): load call args
 
@@ -228,7 +225,6 @@ theorem cvitArgSetup (hbi lenBase iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at D (D + 188) cvitProg 47 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 184) Ts)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
   runBlock s41' s42' s43' s44' s45' hla46
 
-#print axioms cvitArgSetup
 
 /-! ## Header-0 argument setup (instructions 18--22): load call args for header 0
 
@@ -264,7 +260,6 @@ theorem cvitHdr0Setup (hdrBase lenBase : Word) (L0 : Nat) (old10 old11 old12 old
     (CodeReq.ofProg_mem_at D (D + 88) cvitProg 22 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 84) Ts)) (by bv_omega) (by rw [cvit_length]; decide) (by decide) (by rw [cvit_length]; decide))
   runBlock s18' s19' s20' hla21
 
-#print axioms cvitHdr0Setup
 
 /-- pcFree discharger covering the assertion atoms used throughout the loop. -/
 local macro "pcfx" : tactic =>
@@ -306,7 +301,6 @@ theorem cvitSetup (hbi lenBase iW prevVal : Word) (Li : Nat)
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hspillF hargsF)
 
-#print axioms cvitSetup
 
 /-! ## K34's whole-routine step count for field index 11. -/
 abbrev nCall : Nat :=
@@ -444,7 +438,6 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
         (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)))) h hp'
   xperm_hyp hp''
 
-#print axioms cvitCall
 
 /-! ## Call block with the consumed scratch registers owned
 
@@ -507,7 +500,6 @@ theorem cvitCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal :
     (cvitCall spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal Li nN oldOut oldOff oldLen
       v14 v1 v5 v10 v11 v12 v13 v28 bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvitCallOwned
 
 /-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
 
@@ -590,7 +582,6 @@ theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prev
         (fun _ x => x)))) h hp1
     xperm_hyp hp2
 
-#print axioms flatPost_normalize
 
 /-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
     slots the loop invariant carries. -/
@@ -604,7 +595,6 @@ theorem k34SavedFrame_implies_frameSlotsOwn (newSp : Word)
     EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp
     (EvmAsm.Codegen.RlpFieldToU64SAsm.savedVals saved) h hp
 
-#print axioms k34SavedFrame_implies_frameSlotsOwn
 
 /-! ## Entry half of one loop iteration: guard → call → K34 flatPost
 
@@ -705,7 +695,6 @@ theorem cvitIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
       rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
       xperm_hyp hp) hguardF hcallF)
 
-#print axioms cvitIterEntry
 
 /-! ## Status/order dispatch (instruction 49 onward): tie K34's `Result` to the post
 
@@ -1303,7 +1292,6 @@ theorem cvitIterDispatch
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x))))))) h hp1
         xperm_hyp hp2
 
-#print axioms cvitIterDispatch
 
 /-! ## One full loop iteration: guard → call → dispatch (`D+124 → raIn`, `1 ≤ i < N`)
 
@@ -1394,6 +1382,5 @@ theorem cvitIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         firstBadPtr raIn prevVal csaved bigBytes lengths i oldOff oldLen nTail hi1 hi hN hspC rfl
         hraSaved hret halign hlen hprevOk hprefix htail))
 
-#print axioms cvitIter
 
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
