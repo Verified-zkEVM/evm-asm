@@ -366,6 +366,7 @@ local macro "bvt_pcf" : tactic =>
     | exact pcFree_regIs
     | exact pcFree_regOwn
     | exact pcFree_regOwns _
+    | exact pcFree_stackFree _ _
     | exact pcFree_emp
     | exact pcFree_pure)
 

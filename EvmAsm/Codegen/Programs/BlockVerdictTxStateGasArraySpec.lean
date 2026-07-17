@@ -214,11 +214,21 @@ theorem txStateGasArray_snoc (teer : TeerApplied)
     need (today: abstract; after convert: ofProg of the real Programs).
 -/
 
-/-- Step budget placeholders for unconverted callees (over-approx; mono). -/
-def nIntrinsicSteps : Nat := 256
+/-- Step budgets for callees (over-approx; mono).
+    Intrinsic raised to cover the real framed 54-instr body + extract/type hyps
+    (~693 steps); was 256 when the leaf was still an abstract hyp. -/
+def nIntrinsicSteps : Nat := 1024
 def nTeerSteps : Nat := 4096
 
-/-- Assumed contract for `tx_intrinsic_state_gas` (still an asm string).
+/-- Free-stack dwords the intrinsic carves (`addi sp,-64` → 8 dwords). -/
+def nIntrinsicStackDwords : Nat := 8
+/-- Free-stack dwords the teer carves (`addi sp,-160` → 20 dwords). -/
+def nTeerStackDwords : Nat := 20
+/-- LoopInv carries the max nested free stack (teer). Intrinsic uses
+    `stackFree_split` to take 8 and frame the rest. -/
+def nCalleeStackDwords : Nat := nTeerStackDwords
+
+/-- Assumed contract for `tx_intrinsic_state_gas`.
 
     ABI: a0=tx_ptr, a1=tx_len, a2=out_ptr → a0 status, *out_ptr = value.
     Success (a0=0): *out_ptr = pureIntrinsicStateGasSuccess (= 0).
@@ -227,21 +237,30 @@ def nTeerSteps : Nat := 4096
     reads `[regionBase+off, regionBase+off+len)`, so the caller keeps the full
     `bytesRegion regionBase bs` without an unaligned mid-slice peel
     (`bytesRegion_split` needs 8-align; SSZ tx offsets are only 4-align).
-    The assumed triple is the SUCCESS arm only — failure is routed by the
-    array body to status 3 without a success claim on `out[]`. -/
+
+    **Stack (AbiFrameCall style):** the real leaf does `addi sp,-64` + storeSeq
+    + restore. PRE/POST therefore pin `(.x2 ↦ᵣ spVal)` and
+    `stackFree spVal nIntrinsicStackDwords` (8 dwords). Caller supplies them
+    from LoopInv via `stackFree_split`. Without sp+stack the hyp is not
+    dischargeable against any framed Program.
+
+    Success arm only — failure is routed by the array body to status 3. -/
 structure IntrinsicAssumed (cr : CodeReq) where
-  /-- Entry PC of the (future) converted intrinsic Program. -/
+  /-- Entry PC of the converted intrinsic Program. -/
   entry : Word
-  /-- Success-path flat contract: writes pure model 0 into `outPtr`.
-      `loadPtr = regionBase + ofNat off` with `off + len ≤ bs.length`. -/
+  /-- Success-path framed contract: writes pure model 0 into `outPtr`.
+      `loadPtr = regionBase + ofNat off` with `off + len ≤ bs.length`.
+      `spVal` is the caller's current sp; callee restores it. -/
   success_flat :
-    ∀ (ret regionBase loadPtr outPtr oldOut : Word)
+    ∀ (ret spVal regionBase loadPtr outPtr oldOut : Word)
       (bs : List (BitVec 8)) (off len : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       loadPtr = regionBase + BitVec.ofNat 64 off →
       off + len ≤ bs.length →
       cpsTripleWithin nIntrinsicSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nIntrinsicStackDwords **
+          (.x10 ↦ᵣ loadPtr) **
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
           (outPtr ↦ₘ oldOut) **
@@ -249,7 +268,9 @@ structure IntrinsicAssumed (cr : CodeReq) where
           regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nIntrinsicStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion regionBase bs **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -271,13 +292,16 @@ structure IntrinsicAssumed (cr : CodeReq) where
     (post rolled-back zeroing), never would-be.
 
     Ambient-region shape for the tx blob (same rationale as IntrinsicAssumed);
-    BAL is already a full `bytesRegion balPtr balBytes` at its base. -/
+    BAL is already a full `bytesRegion balPtr balBytes` at its base.
+
+    **Stack:** teer does `addi sp,-160` → `stackFree spVal nTeerStackDwords`
+    (20 dwords). Same AbiFrameCall discipline as IntrinsicAssumed. -/
 structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
-  /-- Entry PC of the (future) converted teer Program. -/
+  /-- Entry PC of the converted teer Program. -/
   entry : Word
-  /-- BAL-enabled APPLIED flat contract (ambient tx region). -/
+  /-- BAL-enabled APPLIED framed contract (ambient tx region + free stack). -/
   applied_flat :
-    ∀ (ret regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
+    ∀ (ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
       (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       balPtr ≠ 0 →
@@ -287,7 +311,9 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
       chainIdW = BitVec.ofNat 64 chainId →
       baiW = BitVec.ofNat 64 bai →
       cpsTripleWithin nTeerSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nTeerStackDwords **
+          (.x10 ↦ᵣ loadPtr) **
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
@@ -295,7 +321,8 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
-        ((.x1 ↦ᵣ ret) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nTeerStackDwords **
           (.x10 ↦ᵣ BitVec.ofNat 64
             (teer ((bs.drop off).take len) balBytes chainId bai)) **
           regOwn .x11 **
@@ -354,7 +381,9 @@ def scratchRegsNoA0 : Assertion :=
     `outVals` is the full eventual array; the pure prefix fact is carried
     separately as a Prop hypothesis on the induction (value-level inv).
     Extra frame regs `x1/x22/x23/x27` are `regOwn` so the epilogue `loadSeq`
-    can restore them (body may clobber their values). -/
+    can restore them (body may clobber their values).
+    `stackFree spC nCalleeStackDwords` is the nested free stack for framed
+    callees (intrinsic 8 / teer 20 dwords); max=teer so both fit. -/
 def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) (i : Nat) : Assertion :=
@@ -366,10 +395,12 @@ def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
   (.x26 ↦ᵣ chainIdW) **
   regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
   savedFrame spC csaved **
+  stackFree spC nCalleeStackDwords **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegs
 
-/-- Shared return footprint (restored frame + payload; a0 pinned by caller). -/
+/-- Shared return footprint (restored frame + payload; a0 pinned by caller).
+    Nested free stack below `spC` is preserved through the epilogue. -/
 def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
     (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) : Assertion :=
@@ -381,6 +412,7 @@ def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
   (.x24 ↦ᵣ csaved.s8) ** (.x25 ↦ᵣ csaved.s9) **
   (.x26 ↦ᵣ csaved.s10) ** (.x27 ↦ᵣ csaved.s11) **
   savedFrame spC csaved **
+  stackFree spC nCalleeStackDwords **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegsNoA0
 
