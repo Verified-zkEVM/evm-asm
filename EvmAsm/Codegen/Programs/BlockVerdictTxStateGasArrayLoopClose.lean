@@ -1768,5 +1768,216 @@ theorem bvtLoop_bal0
     (by omega) (by omega)
   simpa using h
 
+/-! ## bal≠0 loop: outVals mutates; `finalOut` is the success model array -/
+
+/-- Charge written at index `j` under SSZ table offsets (matches one-iter). -/
+def iterCharge (teer : TeerApplied) (txBlob balBytes : List (BitVec 8))
+    (chainId n j : Nat) : Nat :=
+  let startW := leU32 txBlob (4 * j)
+  let endW :=
+    if j + 1 = n then BitVec.ofNat 64 txBlob.length
+    else leU32 txBlob (4 * (j + 1))
+  let off := startW.toNat
+  let len := endW.toNat - startW.toNat
+  teer ((txBlob.drop off).take len) balBytes chainId (j + 1)
+
+/-- Pointwise list equality from bang-get. -/
+private theorem list_eq_of_getElem!_eq {α : Type _} [Inhabited α]
+    (l₁ l₂ : List α) (hlen : l₁.length = l₂.length)
+    (h : ∀ j, j < l₁.length → l₁[j]! = l₂[j]!) : l₁ = l₂ := by
+  apply List.ext_getElem hlen
+  intro j hj1 hj2
+  have hbang := h j hj1
+  have h1 : l₁[j]! = l₁[j] := getElem!_pos l₁ j hj1
+  have h2 : l₂[j]! = l₂[j] := getElem!_pos l₂ j hj2
+  exact h1.symm.trans (hbang.trans h2)
+
+/-- `getElem!` after `List.set` at the same index. -/
+private theorem getElem!_set_self (l : List Nat) (i : Nat) (a : Nat)
+    (hi : i < l.length) : (l.set i a)[i]! = a := by
+  have hlen : i < (l.set i a).length := by simpa [List.length_set] using hi
+  have hpos : (l.set i a)[i]! = (l.set i a)[i] := getElem!_pos _ i hlen
+  rw [hpos, List.getElem_set_self]
+
+/-- `getElem!` after `List.set` at a different index. -/
+private theorem getElem!_set_ne (l : List Nat) (i j : Nat) (a : Nat)
+    (hne : i ≠ j) (hj : j < l.length) : (l.set i a)[j]! = l[j]! := by
+  have hlen : j < (l.set i a).length := by simpa [List.length_set] using hj
+  have hpos : (l.set i a)[j]! = (l.set i a)[j] := getElem!_pos _ j hlen
+  have hpos0 : l[j]! = l[j] := getElem!_pos l j hj
+  rw [hpos, hpos0, List.getElem_set_ne hne]
+
+set_option maxRecDepth 8000 in
+/-- bal≠0 loop from index `i` with current `outVals` evolving toward `finalOut`.
+    Requires `finalOut.length = n` so exit equality is exactly the written prefix. -/
+theorem bvtLoopFrom_balNez
+    (hintr : IntrinsicAssumed fullCode)
+    (teer : TeerApplied) (hteer : TeerAssumed fullCode teer)
+    (sp0 spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved)
+    (txs : List (List (BitVec 8))) (txBlob balBytes : List (BitVec 8))
+    (finalOut : List Nat) (chainId n : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hAllOk : ∀ i, i < n → IterOk txBlob n i)
+    (hFinalLen : finalOut.length = n)
+    (hWrite : ∀ j, j < n →
+      finalOut[j]! =
+        pureIntrinsicStateGasSuccess + iterCharge teer txBlob balBytes chainId n j)
+    (hnLe61 : n ≤ 2 ^ 61)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentryI : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hentryT : hteer.entry =
+      (GuestAddrs.tx_eip7702_existing_authority_refund : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hretT : (LinkTeer &&& ~~~(1 : Word)) = LinkTeer)
+    (hbal : balBase ≠ 0)
+    (hchain : chainIdW = BitVec.ofNat 64 chainId)
+    (hspC : spC = sp0 + signExtend12 (-112 : BitVec 12))
+    (hret : csaved.ra &&& ~~~(1 : Word) = csaved.ra)
+    (hsucc : successCells teer txs balBytes chainId true finalOut) :
+    ∀ (f idx : Nat) (outVals : List Nat),
+      n - idx ≤ f → idx ≤ n →
+      outVals.length = n →
+      (∀ j, j < idx → outVals[j]! = finalOut[j]!) →
+      (∀ j, idx ≤ j → j < n → outVals[j]! = pureIntrinsicStateGasSuccess) →
+      cpsTripleWithin (nLoopFrom (n - idx)) LoopGuard csaved.ra fullCode
+        (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+          balBytes true idx)
+        (postOk sp0 spC txBase outBase balBase csaved teer txs txBlob balBytes
+          chainId true finalOut) := by
+  intro f
+  induction f with
+  | zero =>
+    intro idx outVals hle hi hlen hpre _hrest
+    have hi_eq : idx = n := by omega
+    have heq : outVals = finalOut := by
+      apply list_eq_of_getElem!_eq outVals finalOut (by rw [hlen, hFinalLen])
+      intro j hj
+      have hj' : j < n := by rwa [hlen] at hj
+      have hbang := hpre j (by omega)
+      simpa [hi_eq] using hbang
+    rw [hi_eq, Nat.sub_self, nLoopFrom, heq]
+    have hexit0 := bvtExitOk sp0 spC txBase outBase balBase chainIdW nW
+      csaved teer txs txBlob finalOut balBytes chainId true n hnW hspC hret hsucc
+    exact cpsTripleWithin_extend_code bvt_mono hexit0
+  | succ f ih =>
+    intro idx outVals hle hi hlen hpre hrest
+    by_cases hi_eq : idx = n
+    · have heq : outVals = finalOut := by
+        apply list_eq_of_getElem!_eq outVals finalOut (by rw [hlen, hFinalLen])
+        intro j hj
+        have hj' : j < n := by rwa [hlen] at hj
+        simpa [hi_eq] using hpre j (by omega)
+      rw [hi_eq, Nat.sub_self, nLoopFrom, heq]
+      have hexit0 := bvtExitOk sp0 spC txBase outBase balBase chainIdW nW
+        csaved teer txs txBlob finalOut balBytes chainId true n hnW hspC hret hsucc
+      exact cpsTripleWithin_extend_code bvt_mono hexit0
+    · have hi_lt : idx < n := by omega
+      have hrem : n - idx = (n - (idx + 1)) + 1 := by omega
+      rw [hrem, nLoopFrom]
+      have hok := hAllOk idx hi_lt
+      have hiOut : idx < outVals.length := by rw [hlen]; exact hi_lt
+      have hcell : outVals[idx] = pureIntrinsicStateGasSuccess := by
+        have := hrest idx (Nat.le_refl _) hi_lt
+        rwa [outVals_getElem_bang hiOut] at this
+      have hi61 : idx < 2 ^ 61 := Nat.lt_of_lt_of_le hi_lt hnLe61
+      have hone := bvtIterOne_balNez hintr teer hteer spC txBase outBase balBase
+        chainIdW nW csaved txBlob balBytes outVals chainId n idx hbgv hok
+        htxAlign hnW hentryI hentryT hretI hretT hbal hchain hiOut hcell hi61
+      let startW := leU32 txBlob (4 * idx)
+      let endW := hok.endW
+      let off := startW.toNat
+      let lenC := endW.toNat - startW.toNat
+      let chargeNat := teer ((txBlob.drop off).take lenC) balBytes chainId (idx + 1)
+      let outVals' := outVals.set idx (pureIntrinsicStateGasSuccess + chargeNat)
+      have hone' :
+          cpsTripleWithin nOneIterSteps LoopGuard LoopGuard fullCode
+            (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+              balBytes true idx)
+            (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals'
+              balBytes true (idx + 1)) := by
+        simpa [startW, endW, off, lenC, chargeNat, outVals'] using hone
+      have hlen' : outVals'.length = n := by
+        simpa [outVals', List.length_set] using hlen
+      have hpre' : ∀ j, j < idx + 1 → outVals'[j]! = finalOut[j]! := by
+        intro j hj
+        rcases (by omega : j < idx ∨ j = idx) with hlt | heq
+        · have hjOut : j < outVals.length := by rw [hlen]; omega
+          have hne : idx ≠ j := by omega
+          have hset := getElem!_set_ne outVals idx j
+            (pureIntrinsicStateGasSuccess + chargeNat) hne hjOut
+          exact hset.trans (hpre j hlt)
+        · -- j = idx: written cell equals finalOut[idx]
+          have hbang := getElem!_set_self outVals idx
+            (pureIntrinsicStateGasSuccess + chargeNat) hiOut
+          have hw := hWrite idx hi_lt
+          have hcharge :
+              chargeNat = iterCharge teer txBlob balBytes chainId n idx := by
+            simp only [iterCharge, chargeNat, startW, endW, off, lenC, hok.hEnd]
+          have hcellF :
+              finalOut[idx]! = pureIntrinsicStateGasSuccess + chargeNat := by
+            rw [hw, hcharge]
+          -- outVals'[idx]! = charge cell = finalOut[idx]!
+          calc
+            outVals'[j]! = outVals'[idx]! := by rw [heq]
+            _ = pureIntrinsicStateGasSuccess + chargeNat := by
+              simpa [outVals'] using hbang
+            _ = finalOut[idx]! := hcellF.symm
+            _ = finalOut[j]! := by rw [heq]
+      have hrest' : ∀ j, idx + 1 ≤ j → j < n →
+          outVals'[j]! = pureIntrinsicStateGasSuccess := by
+        intro j hj1 hj2
+        have hjOut : j < outVals.length := by rw [hlen]; exact hj2
+        have hne : idx ≠ j := by omega
+        have hset := getElem!_set_ne outVals idx j
+          (pureIntrinsicStateGasSuccess + chargeNat) hne hjOut
+        exact hset.trans (hrest j (by omega) hj2)
+      have htail := ih (idx + 1) outVals' (by omega) (by omega) hlen' hpre' hrest'
+      exact cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hone' htail
+
+set_option maxRecDepth 8000 in
+/-- Loop from idx=0 bal≠0 with pure initial cells → postOk on finalOut. -/
+theorem bvtLoop_balNez
+    (hintr : IntrinsicAssumed fullCode)
+    (teer : TeerApplied) (hteer : TeerAssumed fullCode teer)
+    (sp0 spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved)
+    (txs : List (List (BitVec 8))) (txBlob balBytes : List (BitVec 8))
+    (finalOut outVals0 : List Nat) (chainId n : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hAllOk : ∀ i, i < n → IterOk txBlob n i)
+    (hFinalLen : finalOut.length = n)
+    (hWrite : ∀ j, j < n →
+      finalOut[j]! =
+        pureIntrinsicStateGasSuccess + iterCharge teer txBlob balBytes chainId n j)
+    (hnLe61 : n ≤ 2 ^ 61)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentryI : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hentryT : hteer.entry =
+      (GuestAddrs.tx_eip7702_existing_authority_refund : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hretT : (LinkTeer &&& ~~~(1 : Word)) = LinkTeer)
+    (hbal : balBase ≠ 0)
+    (hchain : chainIdW = BitVec.ofNat 64 chainId)
+    (hspC : spC = sp0 + signExtend12 (-112 : BitVec 12))
+    (hret : csaved.ra &&& ~~~(1 : Word) = csaved.ra)
+    (hsucc : successCells teer txs balBytes chainId true finalOut)
+    (hlen0 : outVals0.length = n)
+    (hrest0 : ∀ j, j < n → outVals0[j]! = pureIntrinsicStateGasSuccess) :
+    cpsTripleWithin (nLoopFrom n) LoopGuard csaved.ra fullCode
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals0
+        balBytes true 0)
+      (postOk sp0 spC txBase outBase balBase csaved teer txs txBlob balBytes
+        chainId true finalOut) := by
+  have h := bvtLoopFrom_balNez hintr teer hteer sp0 spC txBase outBase balBase
+    chainIdW nW csaved txs txBlob balBytes finalOut chainId n hbgv hAllOk
+    hFinalLen hWrite hnLe61 htxAlign hnW hentryI hentryT hretI hretT hbal hchain
+    hspC hret hsucc n 0 outVals0 (by omega) (by omega) hlen0
+    (fun j hj => False.elim (Nat.not_lt_zero j hj))
+    (fun j _hj hj2 => hrest0 j hj2)
+  simpa using h
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
