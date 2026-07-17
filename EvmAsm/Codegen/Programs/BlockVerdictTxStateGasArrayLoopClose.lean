@@ -1099,5 +1099,404 @@ theorem bvtIterBal0_fromEndSpan
     (fun h hq => bal0Post_to_loopInv spC txBase outBase chainIdW nW csaved
       txBlob outVals balBytes i startW endW h hq) hcore
 
+/-! ## EndSpan → FromIntrinsic (bal≠0) + LoopInv post reshape -/
+
+/-- EndSpan post (concrete x1, bal≠0) → FromIntrinsic bal≠0 pre. -/
+private theorem endSpan_to_fromIntr_bal1
+    (spC txBase outBase balBase chainIdW nW iW startW endW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8))
+    (txPtr txLenW outPtr old1 : Word) (i : Nat) :
+    ∀ h, (((.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+            (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+            (.x1 ↦ᵣ old1) ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            savedFrame spC csaved **
+            payload txBase outBase balBase txBlob outVals balBytes true **
+            (.x0 ↦ᵣ (0 : Word))) h) →
+      (((.x1 ↦ᵣ old1) **
+          (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+          bytesRegion txBase txBlob **
+          wordArray outBase outVals **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+            startW endW (BitVec.ofNat 64 txBlob.length) csaved balBytes
+            true) h) := by
+  intro h hp
+  have hp1 :
+      (((.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+          ((.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+            (.x1 ↦ᵣ old1) ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            savedFrame spC csaved **
+            payload txBase outBase balBase txBlob outVals balBytes true **
+            (.x0 ↦ᵣ (0 : Word)))) h) := by
+    xperm_hyp hp
+  have hp2 := sepConj_mono (regIs_to_regOwn .x5 (BitVec.ofNat 64 (8 * i)))
+    (fun _ hh => hh) h hp1
+  simp only [payload, loopIntrinsicFrame, ↓reduceIte] at hp2 ⊢
+  xperm_hyp hp2
+
+set_option maxRecDepth 8000 in
+/-- bal≠0 FromIntrinsic post → LoopInv (i+1) with updated outVals'. -/
+private theorem balNezPost_to_loopInv
+    (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals' : List Nat)
+    (balBytes : List (BitVec 8)) (i : Nat) (startW endW chargeW outPtr sumW : Word) :
+    ∀ h, (((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+            (.x10 ↦ᵣ chargeW) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x24 ↦ᵣ balBase) **
+            (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+            (.x6 ↦ᵣ outPtr) **
+            (.x7 ↦ᵣ sumW) **
+            (.x1 ↦ᵣ LinkTeer) **
+            (.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            savedFrame spC csaved **
+            bytesRegion txBase txBlob **
+            wordArray outBase outVals' **
+            bytesRegion balBase balBytes **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) h) →
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals'
+        balBytes true (i + 1)) h := by
+  intro h hp
+  have step (r : Reg) (v : Word) (P : Assertion) :
+      ∀ h', ((r ↦ᵣ v) ** P) h' → (regOwn r ** P) h' :=
+    fun h' hp' => sepConj_mono (regIs_to_regOwn r v) (fun _ hh => hh) h' hp'
+  -- Pull focus regs left, mono regIs→regOwn one at a time.
+  have hp1 :
+      (((.x1 ↦ᵣ LinkTeer) ** (.x10 ↦ᵣ chargeW) **
+          (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) ** (.x6 ↦ᵣ outPtr) **
+          (.x7 ↦ᵣ sumW) ** (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+            (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+            (.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+            (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            savedFrame spC csaved **
+            bytesRegion txBase txBlob ** wordArray outBase outVals' **
+            bytesRegion balBase balBytes **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h) := by
+    xperm_hyp hp
+  have hp2 := step .x1 LinkTeer _ h hp1
+  have hp3 :
+      (((.x10 ↦ᵣ chargeW) **
+          (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) ** (.x6 ↦ᵣ outPtr) **
+          (.x7 ↦ᵣ sumW) ** (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp2
+  have hp4 := step .x10 chargeW _ h hp3
+  have hp5 :
+      (((.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) ** (.x6 ↦ᵣ outPtr) **
+          (.x7 ↦ᵣ sumW) ** (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (regOwn .x10 ** regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp4
+  have hp6 := step .x5 (BitVec.ofNat 64 (8 * i)) _ h hp5
+  have hp7 :
+      (((.x6 ↦ᵣ outPtr) ** (.x7 ↦ᵣ sumW) **
+          (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (regOwn .x5 ** regOwn .x10 ** regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp6
+  have hp8 := step .x6 outPtr _ h hp7
+  have hp9 :
+      (((.x7 ↦ᵣ sumW) ** (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (regOwn .x6 ** regOwn .x5 ** regOwn .x10 ** regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp8
+  have hp10 := step .x7 sumW _ h hp9
+  have hp11 :
+      (((.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (regOwn .x7 ** regOwn .x6 ** regOwn .x5 ** regOwn .x10 ** regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp10
+  have hp12 := step .x22 startW _ h hp11
+  have hp13 :
+      (((.x23 ↦ᵣ endW) **
+          (regOwn .x22 ** regOwn .x7 ** regOwn .x6 ** regOwn .x5 **
+            regOwn .x10 ** regOwn .x1 **
+            ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ balBase) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob ** wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31))) h) := by
+    xperm_hyp hp12
+  have hp14 := step .x23 endW _ h hp13
+  unfold LoopInv payload scratchRegs
+  simp only [↓reduceIte]
+  xperm_hyp hp14
+
+/-- EndSpan post with regOwn x1 rightmost (bal≠0). -/
+private def endSpanOwnRaBal (spC txBase outBase balBase chainIdW nW iW
+    startW endW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (txPtr txLenW outPtr : Word) (i : Nat)
+    : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+  (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+  (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+  (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+  regOwn .x6 ** regOwn .x7 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  savedFrame spC csaved **
+  payload txBase outBase balBase txBlob outVals balBytes true **
+  (.x0 ↦ᵣ (0 : Word))
+
+private theorem endSpan_to_ownRaBal
+    (spC txBase outBase balBase chainIdW nW iW startW endW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (txPtr txLenW outPtr : Word) (i : Nat) :
+    ∀ h, (((.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+            (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+            regOwn .x1 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            savedFrame spC csaved **
+            payload txBase outBase balBase txBlob outVals balBytes true **
+            (.x0 ↦ᵣ (0 : Word))) h) →
+      ((endSpanOwnRaBal spC txBase outBase balBase chainIdW nW iW startW endW
+          csaved txBlob outVals balBytes txPtr txLenW outPtr i **
+          regOwn .x1) h) := by
+  intro h hp
+  unfold endSpanOwnRaBal
+  xperm_hyp hp
+
+private theorem ownRaBal_vals_to_endSpan
+    (spC txBase outBase balBase chainIdW nW iW startW endW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (txPtr txLenW outPtr old1 : Word) (i : Nat) :
+    ∀ h, ((endSpanOwnRaBal spC txBase outBase balBase chainIdW nW iW startW endW
+            csaved txBlob outVals balBytes txPtr txLenW outPtr i **
+          (.x1 ↦ᵣ old1)) h) →
+      (((.x2 ↦ᵣ spC) **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+          (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+          (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+          (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+          (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+          (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+          (.x1 ↦ᵣ old1) ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          savedFrame spC csaved **
+          payload txBase outBase balBase txBlob outVals balBytes true **
+          (.x0 ↦ᵣ (0 : Word))) h) := by
+  intro h hp
+  unfold endSpanOwnRaBal at hp
+  xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-- AfterEndSpan → LoopGuard (i+1) on bal≠0 under Intrinsic+TeerAssumed.
+    Updates outVals[i] := pure + teer charge. -/
+theorem bvtIterBalNez_fromEndSpan
+    (hintr : IntrinsicAssumed fullCode)
+    (teer : TeerApplied) (hteer : TeerAssumed fullCode teer)
+    (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob balBytes : List (BitVec 8))
+    (outVals : List Nat) (chainId i off len : Nat)
+    (startW endW : Word)
+    (hentryI : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hentryT : hteer.entry =
+      (GuestAddrs.tx_eip7702_existing_authority_refund : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hretT : (LinkTeer &&& ~~~(1 : Word)) = LinkTeer)
+    (hbal : balBase ≠ 0)
+    (hstart : startW = BitVec.ofNat 64 off)
+    (hlen : off + len ≤ txBlob.length)
+    (htxLen : endW - startW = BitVec.ofNat 64 len)
+    (hchain : chainIdW = BitVec.ofNat 64 chainId)
+    (hi : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess)
+    (hi61 : i < 2 ^ 61) :
+    let iW := BitVec.ofNat 64 i
+    let bodyLenW := BitVec.ofNat 64 txBlob.length
+    let chargeNat := teer ((txBlob.drop off).take len) balBytes chainId (i + 1)
+    let outVals' := outVals.set i (pureIntrinsicStateGasSuccess + chargeNat)
+    let txPtr := txBase + startW
+    let txLenW := endW - startW
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    cpsTripleWithin
+      ((1 + nIntrinsicSteps) + (1 + 1 + 6 + (1 + nTeerSteps) + 5 + 1 + 2))
+      AfterEndSpan LoopGuard fullCode
+      ((.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+        (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+        regOwn .x1 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes true **
+        (.x0 ↦ᵣ (0 : Word)))
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals'
+        balBytes true (i + 1)) := by
+  intro iW bodyLenW chargeNat outVals' txPtr txLenW outPtr
+  refine cpsTripleWithin_weaken
+    (fun h hp => endSpan_to_ownRaBal spC txBase outBase balBase chainIdW nW iW
+      startW endW csaved txBlob outVals balBytes txPtr txLenW outPtr i h hp)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x1) (fun old1 => ?_)
+  have hcore := bvtIterBalNezFromIntrinsic hintr teer hteer spC txBase outBase
+    balBase chainIdW nW csaved txBlob balBytes outVals chainId i off len
+    startW endW old1 hentryI hentryT hretI hretT hbal hstart hlen htxLen
+    hchain hi hcell hi61
+  refine cpsTripleWithin_weaken
+    (fun h hp => by
+      have hp1 := ownRaBal_vals_to_endSpan spC txBase outBase balBase chainIdW nW
+        iW startW endW csaved txBlob outVals balBytes txPtr txLenW outPtr
+        old1 i h hp
+      exact endSpan_to_fromIntr_bal1 spC txBase outBase balBase chainIdW nW iW
+        startW endW csaved txBlob outVals balBytes txPtr txLenW outPtr
+        old1 i h hp1)
+    (fun h hq => by
+      let chargeW := BitVec.ofNat 64 chargeNat
+      let sumW := BitVec.ofNat 64 pureIntrinsicStateGasSuccess + chargeW
+      have hq' :
+          (((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+              (.x10 ↦ᵣ chargeW) ** (.x0 ↦ᵣ (0 : Word)) **
+              (.x24 ↦ᵣ balBase) **
+              (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+              (.x6 ↦ᵣ outPtr) **
+              (.x7 ↦ᵣ sumW) **
+              (.x1 ↦ᵣ LinkTeer) **
+              (.x2 ↦ᵣ spC) **
+              (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+              (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+              (.x20 ↦ᵣ nW) **
+              (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+              (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+              (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+              savedFrame spC csaved **
+              bytesRegion txBase txBlob **
+              wordArray outBase outVals' **
+              bytesRegion balBase balBytes **
+              regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) h) := by
+        xperm_hyp hq
+      exact balNezPost_to_loopInv spC txBase outBase balBase chainIdW nW csaved
+        txBlob outVals' balBytes i startW endW chargeW outPtr sumW h hq')
+    hcore
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
