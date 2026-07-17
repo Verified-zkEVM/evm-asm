@@ -238,8 +238,13 @@ This umbrella guard runs every crafted adversarial KAT family under
 exploit+control; `prep-halt-auth/` — a prep-halted set-delegation-OOG 7702 tx
 whose applied auth charge must be zero via BAL rollback detection;
 `gas-gate-boundary/` — EIP-7778 sequential regular-gate boundaries including
-failed-tx full-burn accumulation, plus calldata-floor clamp edges) and requires
-every fixture to byte-match its `statelessOutputBytes` (verdict byte included).
+failed-tx full-burn accumulation, plus calldata-floor clamp edges;
+`txcount-gate/` — the >16-tx inclusion-gate backstop: 17-tx blocks whose 17th
+tx's gas limit exceeds the remaining block budget (a remaining+1 edge and a
+limit≫used variant) must keep rejecting via the post-execution exact
+availability gate, the backstop for the >16-tx `eip8037_tx_gas_gate` skip) and
+requires every fixture to byte-match its `statelessOutputBytes` (verdict byte
+included).
 Generator specs with fill recipes live under `scripts/kat/`.
 
 Run the EIP-7939 CLZ/JUMP frontier:
