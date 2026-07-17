@@ -386,6 +386,7 @@ def statelessVerdictV2GuestClosure : String :=
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
+  blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
