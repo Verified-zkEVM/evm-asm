@@ -20,8 +20,10 @@
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← discharge package for all offs (ambient multi-tx)
      + regOwn temp peel + CodeReq mono into array fullCode
-  3. TisCalleeAssumptions ← convert/prove extract + type_dispatch
-     (type_dispatch leaf Fn.Spec exists; intrinsic success-only shape residual)
+  3. TisCalleeAssumptions ← extract convert + TypeDispatchAssumed redefinition
+     (type_dispatch leaf+teer discharge DONE; intrinsic Assumed claims a0=0 for
+     ALL txBytes — false for empty/unknown; needs success-domain hyp in Spec
+     + Type.lean call-site update; see TxTypeDispatchTisDischarge.lean)
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
 
