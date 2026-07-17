@@ -97,4 +97,48 @@ theorem teer_txtype_call_spec (txd : TxTypeDispatchAssumed fullCode)
   rw [show (teerB + 160) + 4 = teerB + 164 from by bv_omega] at hcall
   exact hcall
 
+/-! ## First call GROUP: arg-setup ;; call (instructions 34..40)
+
+    Chains `teer_body_entry_spec` (the `a0..a3` shuffle, lifted to `fullCode`
+    via `teer_mono`) into `teer_txtype_call_spec`.  Straight line
+    `teerB + 136 → teerB + 164`; the parse-failure `BNE` at instruction 41
+    follows.  The body-entry-only registers `x8`/`x9` (saved tx ptr/len) frame
+    the call; the call-only footprint (`ra`, `t0`/`t1`, tx bytes, the two out
+    cells) frames the shuffle. -/
+set_option maxRecDepth 8000 in
+theorem teer_txtype_group_spec (txd : TxTypeDispatchAssumed fullCode)
+    (htxd : txd.entry = BitVec.ofNat 64 GuestAddrs.tx_type_dispatch)
+    (v8 v9 v10o v11o v12o v13o raIn t0Old t1Old typeOld innerOld : Word)
+    (txBytes : List (BitVec 8))
+    (hlen : v9 = BitVec.ofNat 64 txBytes.length)
+    (halign : v8.toNat % 8 = 0)
+    (hover : v8.toNat + txBytes.length ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < txBytes.length →
+      isValidByteAccess (v8 + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (6 + (1 + nTxTypeDispatchSteps)) (teerB + 136) (teerB + 164) fullCode
+      (((.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ v10o) ** (.x11 ↦ᵣ v11o) **
+        (.x12 ↦ᵣ v12o) ** (.x13 ↦ᵣ v13o)) **
+       ((.x1 ↦ᵣ raIn) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld)))
+      (((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion v8 txBytes) **
+       (fun h =>
+         ((.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
+           (teerType ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+           (teerInnerOff ↦ₘ (teerTxTypeDispatch txBytes).2.2)) h))) **
+        ((.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9))) := by
+  have hbody := cpsTripleWithin_extend_code teer_mono
+    (teer_body_entry_spec v8 v9 v10o v11o v12o v13o)
+  have hbodyF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld))
+    (by repeat' first
+        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj) hbody
+  have hcallF := cpsTripleWithin_frameR ((.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj)
+    (teer_txtype_call_spec txd htxd v8 v9 raIn t0Old t1Old typeOld innerOld txBytes
+      hlen halign hover hvalid)
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hbodyF hcallF
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
