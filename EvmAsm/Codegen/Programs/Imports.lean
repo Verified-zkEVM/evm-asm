@@ -539,3 +539,5 @@ import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
 
 import EvmAsm.Codegen.Programs.AccountDecodeSpec
+
+import EvmAsm.Codegen.Programs.AccountDecodeLoop
