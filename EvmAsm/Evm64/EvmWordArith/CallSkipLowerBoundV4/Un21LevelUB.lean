@@ -196,30 +196,4 @@ theorem divKTrialCallV4Q0dd_le_q_true_0_plus_one_of_rhat2c_lt_pow32
       uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop h_rhat2c_lt
   exact le_trans (divKTrialCallV4Q0dd_le_q0d uHi uLo vTop) h_q0d_le
 
-/-- **Combined un21-level Q0dd UB closure**: under just normalisation +
-    `un21 < vTop`, `Q0dd ≤ q_true_0 + 1`.  Case-splits on `rhat2c < 2^32`
-    vs `≥ 2^32`, dispatching to the narrow (above) or wide
-    (PR #7063) branch.  Symmetric to
-    `div128Quot_q0_prime_ge_q_true_0_un21_level` on the LB side. -/
-theorem divKTrialCallV4Q0dd_le_q_true_0_plus_one_of_un21_lt_vTop
-    (uHi uLo vTop : Word)
-    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
-    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
-    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
-    (hUn21_lt_vTop :
-      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
-        (divKTrialCallV4DHi vTop).toNat * 2^32 +
-          (divKTrialCallV4DLo vTop).toNat) :
-    (divKTrialCallV4Q0dd uHi uLo vTop).toNat ≤
-      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
-          (divKTrialCallV4Un0 uLo).toNat) /
-        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
-          (divKTrialCallV4DLo vTop).toNat) + 1 := by
-  by_cases h_rhat2c_lt : (divKTrialCallV4Rhat2c uHi uLo vTop).toNat < 2^32
-  · exact divKTrialCallV4Q0dd_le_q_true_0_plus_one_of_rhat2c_lt_pow32
-      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop h_rhat2c_lt
-  · push Not at h_rhat2c_lt
-    exact divKTrialCallV4Q0dd_le_q_true_0_plus_one_of_rhat2c_ge_pow32
-      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop h_rhat2c_lt
-
 end EvmAsm.Evm64
