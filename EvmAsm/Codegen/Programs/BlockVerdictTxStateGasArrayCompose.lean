@@ -47,7 +47,8 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
   (TeerApplied pureIntrinsicStateGasSuccess)
 
-/-- Discharged loop-site bgv contract (no residual hyp). -/
+/-- Discharged loop-site bgv contract. Pass as `hbgv` to
+    `blockVerdictTxStateGasArray_bal0/balNez_spec_within`. -/
 def bgvOffset_discharged : BgvOffsetAssumed fullCode :=
   bgvOffsetAssumed_fullCode
 
