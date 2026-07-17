@@ -335,6 +335,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayPrologue
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayHeader
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoop
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopEnd
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopIntrinsic
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopTeer
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopBalNez
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayEpilogue
