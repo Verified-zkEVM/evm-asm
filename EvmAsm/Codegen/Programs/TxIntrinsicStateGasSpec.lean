@@ -119,27 +119,27 @@ def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
 
 /-- Assumed success contract for `tx_extract_to_address` (still asm string).
 
-    ABI: a0=tx, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
-    Side effects on scratch buffers are left unconstrained (regOwn/memOwn). -/
+    ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
+    RO tx blob ambient; scratch out-cells owned (side effects unconstrained). -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
-    ∀ (ret loadPtr lenW toBuf isCreationPtr : Word)
-      (bs : List (BitVec 8)) (off len : Nat),
+    ∀ (ret txBase lenW toBuf isCreationPtr : Word)
+      (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
-      loadPtr = BitVec.ofNat 64 off →  -- simplified; ambient region separate
-      off + len ≤ bs.length →
-      lenW = BitVec.ofNat 64 len →
+      lenW = BitVec.ofNat 64 txBytes.length →
       cpsTripleWithin nExtractSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
-          bytesRegion loadPtr ((bs.drop off).take len) **
+          bytesRegion txBase txBytes **
+          memOwn toBuf ** memOwn isCreationPtr **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
-          bytesRegion loadPtr ((bs.drop off).take len) **
+          bytesRegion txBase txBytes **
+          memOwn toBuf ** memOwn isCreationPtr **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -148,26 +148,26 @@ structure ExtractAssumed (cr : CodeReq) where
 
 /-- Assumed success contract for `tx_type_dispatch` (45-instr Program).
 
-    ABI: a0=tx, a1=len, a2=type_out, a3=inner_off_out → a0=0 on success. -/
+    ABI: a0=txBase, a1=len, a2=type_out, a3=inner_off_out → a0=0 on success. -/
 structure TypeDispatchAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
-    ∀ (ret loadPtr lenW typePtr innerPtr : Word)
-      (bs : List (BitVec 8)) (off len : Nat),
+    ∀ (ret txBase lenW typePtr innerPtr : Word)
+      (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
-      loadPtr = BitVec.ofNat 64 off →
-      off + len ≤ bs.length →
-      lenW = BitVec.ofNat 64 len →
+      lenW = BitVec.ofNat 64 txBytes.length →
       cpsTripleWithin nTypeSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
-          bytesRegion loadPtr ((bs.drop off).take len) **
+          bytesRegion txBase txBytes **
+          memOwn typePtr ** memOwn innerPtr **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
-          bytesRegion loadPtr ((bs.drop off).take len) **
+          bytesRegion txBase txBytes **
+          memOwn typePtr ** memOwn innerPtr **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
