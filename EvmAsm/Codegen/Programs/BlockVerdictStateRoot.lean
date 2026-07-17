@@ -149,14 +149,6 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
-  -- lukr5 (P0): EIP-4895 applies withdrawals after all user transactions,
-  -- and EIP-7928 records the resulting balance at access index N+1 in the
-  -- BAL. Until that tuple is checked against the SSZ withdrawal body, replaying
-  -- the BAL would accept a re-pinned withdrawal root/hash with a larger credit.
-  -- Conservatively reject the unbound overlap. Empty-BAL withdrawals retain the
-  -- existing body-driven replay below.
-  "  beqz s4, .Lbsr_bal_replay\n" ++
-  "  la t0, bsr_bal_count; ld t0, 0(t0); bnez t0, .Lbsr_cons_withdrawal_bal\n" ++
   ".Lbsr_bal_replay:\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
@@ -329,8 +321,6 @@ def blockStateRootFunction : String :=
   "  li t0, 123; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_found_add:\n" ++
   "  li t0, 124; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
-  ".Lbsr_cons_withdrawal_bal:\n" ++
-  "  li t0, 125; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons:\n" ++
   "  li a0, 1\n" ++
   ".Lbsr_ret:\n" ++
