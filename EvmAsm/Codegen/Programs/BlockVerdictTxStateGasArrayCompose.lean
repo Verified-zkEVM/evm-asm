@@ -29,10 +29,12 @@
        `tisScratchOwn` 8 cells). Packaging substrate + extractSuccess domain.
         **Frame save/restore DONE** + **pre-zero DONE** (`extractPreZero` E+56→E+72) +
         **type_dispatch call DONE** (`extractTypeSuccess` E+72→E+112, value-carrying
-        tea post) + **load type/inner DONE** (`extractLoadTypeInner` E+112→E+144).
-        Residual: body Hoare (`extractWalkInitCall` full leaf packaging +
-        walk_nexts + 20B copy) under extractSuccess; walkInit mono scaffold
-        DONE (`walkInit_in_extractLinked`, Prest, jalOff resolve). fullCode∪extract
+        tea post) + **load type/inner DONE** (`extractLoadTypeInner` E+112→E+144) +
+        **walk_init DONE** (`extractWalkInitCall`+BNE E+144→E+152) +
+        **save cursor + first walk_next skip DONE** (`extractSaveCursor` E+152→E+160;
+        `extractWalkNext0Call`+BNE E+184→E+192 under extractLinkedCode).
+        Residual: type-branch (legacy/t1/else field index) + remaining walk_next
+        skips + 20B copy/creation + epilogue compose → extractAssumed; fullCode∪extract
         (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 

@@ -99,6 +99,42 @@ theorem walkInit_in_extractLinked :
   exact CodeReq.union_mono_left
     (cr1 := (extractCode.union typeCode).union walkInitCode) (cr2 := walkNextCode) a i h1
 
+private theorem extract_walkNext_disjoint : extractCode.Disjoint walkNextCode := by
+  unfold extractCode walkNextCode E WN
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [extract_length, rlp_walk_next_prog_length]; decide
+
+private theorem type_walkNext_disjoint : typeCode.Disjoint walkNextCode := by
+  unfold typeCode walkNextCode WN
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [type_length']; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [type_length', rlp_walk_next_prog_length]; decide
+
+private theorem walkInit_walkNext_disjoint : walkInitCode.Disjoint walkNextCode := by
+  unfold walkInitCode walkNextCode WI WN
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [rlp_walk_init_prog_length, rlp_walk_next_prog_length]; decide
+
+private theorem extract_type_walkNext_disjoint :
+    (extractCode.union typeCode).Disjoint walkNextCode :=
+  CodeReq.Disjoint.union_left extract_walkNext_disjoint type_walkNext_disjoint
+
+private theorem extract_type_walkInit_walkNext_disjoint :
+    ((extractCode.union typeCode).union walkInitCode).Disjoint walkNextCode :=
+  CodeReq.Disjoint.union_left extract_type_walkNext_disjoint walkInit_walkNext_disjoint
+
+theorem walkNext_in_extractLinked :
+    ∀ a i, walkNextCode a = some i → extractLinkedCode a = some i := by
+  intro a i hi
+  unfold extractLinkedCode
+  exact CodeReq.mono_union_right extract_type_walkInit_walkNext_disjoint
+    (fun _ _ h => h) a i hi
+
 /-- 9-slot frame in 80B stack: ra, s0–s7 (x8,x9,x18–x23). -/
 def extractFrame : FrameDesc :=
   [(.x1, (0 : BitVec 12)), (.x8, (8 : BitVec 12)), (.x9, (16 : BitVec 12)),

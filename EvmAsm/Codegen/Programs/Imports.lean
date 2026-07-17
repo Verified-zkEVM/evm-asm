@@ -80,6 +80,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressPreZero
 import EvmAsm.Codegen.Programs.TxExtractToAddressTypeCall
 import EvmAsm.Codegen.Programs.TxExtractToAddressLoadType
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkInit
+import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressEpilogue
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
