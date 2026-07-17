@@ -3,7 +3,7 @@
   Split for Codegen/Programs 1500-line file-size guard.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopEnd
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopIntrinsic
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
