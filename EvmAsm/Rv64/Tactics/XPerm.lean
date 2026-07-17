@@ -435,9 +435,10 @@ partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
   extensible operation-tag typeclasses, no recorded-tactic-script replay). Here
   the search result is recorded as a **data certificate** — an index permutation
   `σ : List Nat` — and the reordering is discharged by one
-  `EvmAsm.Rv64.seps_permute` whose side condition `σ.Perm (List.range n)` is a
-  decidable check on `List Nat`, kernel-checked by a single `decide` with no
-  `isDefEq` on atom expressions.
+  `EvmAsm.Rv64.seps_permute_check` whose side condition
+  `permCheck σ n = true` (an XOR-clearing bitmask checker equivalent to
+  `σ.Perm (List.range n)`, see `perm_range_of_permCheck`) is kernel-checked by
+  a single O(n) `decide` with no `isDefEq` on atom expressions.
 
   This collapses the `O(n²)` proof term / `whnf` count / kernel re-check of
   `buildPermProofFallback` to `O(n)` (the `O(n²)` `isDefEq` *search* is the same
@@ -498,12 +499,20 @@ partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
   -- YOLO fast phase: search the index permutation once.
   let σ ← computeSigma rhsAtoms lhsAtoms
   -- Single verified certificate: seps lhsList = seps (σ.map (lhsList.getD · emp)).
+  -- The side condition is the O(n) `permCheck` Bool checker (n GMP bit ops),
+  -- NOT a `decide` on `σ.Perm (List.range n)`: kernel-reducing the `List.Perm`
+  -- `Decidable` instance costs ~500ms at 83 atoms and overflows the recursion
+  -- depth near 200 atoms (silently dropping to the slow fallback exactly on
+  -- the large chains the certificate exists for). Measured ~7ms at n = 83,
+  -- ~13ms at n = 200 (see `perm_range_of_permCheck`).
   let lhsList := mkAssertionList lhsAtoms
   let σExpr := mkNatListExpr σ
-  let rangeExpr ← mkAppM ``List.range #[mkNatLit lhsAtoms.size]
-  let permProp ← mkAppM ``List.Perm #[σExpr, rangeExpr]
-  let hσ ← mkDecideProof permProp
-  let certPf ← mkAppM ``EvmAsm.Rv64.seps_permute #[lhsList, σExpr, hσ]
+  let checkProp ← mkEq
+    (mkApp2 (mkConst ``EvmAsm.Rv64.permCheck) σExpr (mkNatLit lhsAtoms.size))
+    (mkConst ``Bool.true)
+  let hσ ← withTheReader Core.Context (fun c => { c with maxRecDepth := 1024 }) do
+    mkDecideProof checkProp
+  let certPf ← mkAppM ``EvmAsm.Rv64.seps_permute_check #[lhsList, σExpr, hσ]
   -- Emp bridges: lhsRA = empified(lhsRA) (=defeq seps lhsList); same for rhs.
   let (lhsEmpPf, _) ← buildAddEmpProof lhsRA
   let (rhsEmpPf, _) ← buildAddEmpProof rhsRA

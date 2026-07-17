@@ -99,7 +99,6 @@ theorem twoRet_spec (flag base ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (sepConj_mono_right (asrtM_mono (twoRet_sp_post flag))) hsound
 
-#print axioms twoRet_spec
 
 end EarlyRet
 end SAsm

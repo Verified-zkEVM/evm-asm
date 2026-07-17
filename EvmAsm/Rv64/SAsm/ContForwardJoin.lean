@@ -70,7 +70,5 @@ theorem cpsTripleWithin_stay (n : Nat) (addr : Word) (cr : CodeReq)
     cpsTripleWithin n addr addr cr P P :=
   fun _R _hR s _hcr h hpc => ⟨0, Nat.zero_le _, s, rfl, hpc, h⟩
 
-#print axioms contJoinStation_spec
-#print axioms cpsTripleWithin_stay
 
 end EvmAsm.Rv64.SAsm

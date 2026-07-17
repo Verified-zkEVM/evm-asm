@@ -123,7 +123,5 @@ theorem blockAt_regs_spec (instrs : List Instr) (rf : RegFile) (base : Word)
       bytesRegion_nil, bytesRegion_nil, sepConj_emp_right', sepConj_emp_right'] at hq
     exact hq
 
-#print axioms blockAt_flat_spec
-#print axioms blockAt_regs_spec
 
 end EvmAsm.Rv64.SAsm

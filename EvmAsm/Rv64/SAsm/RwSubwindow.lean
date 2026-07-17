@@ -277,8 +277,5 @@ theorem pcFree_exists {α : Sort _} {F : α → Assertion}
   rintro hp ⟨a, hF⟩
   exact h a hp hF
 
-#print axioms bytesRegion_window_focus
-#print axioms bytesRegion_window_update
-#print axioms cpsTripleWithin_rwWindow
 
 end EvmAsm.Rv64.SAsm

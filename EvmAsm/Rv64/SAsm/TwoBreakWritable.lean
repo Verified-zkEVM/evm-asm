@@ -247,8 +247,5 @@ theorem twoBreakRetLoop_spec {hdr ret : Word} {cr : CodeReq} {Q : Assertion}
         rw [Nat.succ_mul]; omega]
       exact hmerge
 
-#print axioms storeRetTail_spec
-#print axioms breakStation_spec
-#print axioms twoBreakRetLoop_spec
 
 end EvmAsm.Rv64.SAsm

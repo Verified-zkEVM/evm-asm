@@ -5,6 +5,7 @@ rust-u256-asm/
 gen-out/
 .claude/
 .codex/
+.opencode/
 __pycache__/
 
 # jscpd duplication-watch output (scripts/check-duplication.sh)

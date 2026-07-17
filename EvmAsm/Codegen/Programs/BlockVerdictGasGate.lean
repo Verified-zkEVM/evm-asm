@@ -170,7 +170,14 @@ def eip8037TxGasGateFunction : String :=
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
   "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
-  "  li a4, 0; li a5, 0; li a6, 0      # pre-runtime gate has no BAL refund context\n" ++
+  -- bmvmx.5.5.11.1 (0-FA): fill WITH the BAL refund context (mirrors the
+  -- GasGatePrelude/BlockVerdictFunction fills). The context-free fill dropped
+  -- every 7702 auth state charge from the sequential inclusion gate's
+  -- prior-state sum: a failed set-delegation tx left block_state_gas_used = 0
+  -- here while the reference retains the auth residue, so a crafted follow-up
+  -- tx passed the state budget that the reference rejects at check_transaction.
+  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  bnez a0, .Letg_state_array_ready\n" ++
   "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++

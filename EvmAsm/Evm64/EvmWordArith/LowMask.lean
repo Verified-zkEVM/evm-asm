@@ -19,5 +19,3 @@ theorem BitVec.and_two_pow_sub_one_eq_zero_iff
     rw [BitVec.toNat_ofNat]
   rw [← BitVec.toNat_inj, hzero, BitVec.toNat_and, hmask,
     Nat.and_two_pow_sub_one_eq_mod, Nat.dvd_iff_mod_eq_zero]
-
-#print axioms BitVec.and_two_pow_sub_one_eq_zero_iff
