@@ -156,7 +156,7 @@ theorem wdStack12_of_k34_saved (spW newSp : Word) (outer : Saved)
 
 /-- Carve a K34 field call's scratch shape out of `stackFree spW 12` (the reverse
     of `wdStack12_of_k34`, used on the continue/forward path). -/
-theorem wdStack12_to_k34 (sp0 spW newSp : Word)
+theorem wdStack12_to_k34 (spW newSp : Word)
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12)) : ∀ h,
     stackFree spW 12 h →
     (memOwn (spW - BitVec.ofNat 64 8) **
@@ -211,7 +211,7 @@ theorem pcFree_wdStackK20Deep (spW : Word) : (wdStackK20Deep spW).pcFree := by
 theorem wdStack12_of_k20 (spW : Word) : ∀ h,
     (wdStackK20Deep spW ** stackFree spW 8) h → stackFree spW 12 h := by
   intro h hp
-  simp only [stackFree, wdStackK20Deep, Nat.reduceMul] at hp ⊢
+  simp only [stackFree, wdStackK20Deep] at hp ⊢
   xperm_hyp hp
 
 #print axioms wdStack12_of_k20
@@ -220,10 +220,40 @@ theorem wdStack12_of_k20 (spW : Word) : ∀ h,
 theorem wdStack12_to_k20 (spW : Word) : ∀ h,
     stackFree spW 12 h → (wdStackK20Deep spW ** stackFree spW 8) h := by
   intro h hp
-  simp only [stackFree, wdStackK20Deep, Nat.reduceMul] at hp ⊢
+  simp only [stackFree, wdStackK20Deep] at hp ⊢
   xperm_hyp hp
 
 #print axioms wdStack12_to_k20
+
+/-! ## Generic `DecodeFailure` witness extraction
+
+    Both K34 fail sub-cases (a success payload with a nonzero wrapper status, or
+    the failure payload with status `1`) pin a callee `Result`.  Fusing that with
+    the nonzero-status fact yields a `DecodeFailure` via whichever constructor the
+    field maps to (supplied as `mkDF`).  Parametric over the field index and the
+    constructor — the three K34 fail arms (fields 0/1/3) instantiate it. -/
+theorem wdK34FailDF (spW newSp listBase oldOffset oldLen raRet : Word)
+    (outer : Saved) (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
+      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      DecodeFailure bytes listBase listLen) :
+    ∀ h, k34FailPost spW newSp listBase oldOffset oldLen raRet outer saved bytes
+      listLen index h → DecodeFailure bytes listBase listLen := by
+  intro h hp
+  unfold k34FailPost at hp
+  rcases hp with ⟨offset, len, v12, x5, ss, ws, ov, hs⟩ | ⟨v11, v12, hf⟩
+  · obtain ⟨hnz, hrest⟩ := (sepConj_pure_left h).1 hs
+    obtain ⟨_, hb, _, _, _, hB⟩ := hrest
+    obtain ⟨_, hd, _, _, _, hSucc⟩ := hB
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hSucc
+    exact mkDF ws ov hnz ((sepConj_pure_right hd).1 hSucc).2
+  · obtain ⟨_, hb, _, _, _, hB⟩ := hf
+    obtain ⟨_, hd, _, _, _, hFail⟩ := hB
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hFail
+    exact mkDF 1 0 (by decide) ((sepConj_pure_right hd).1 hFail).2
+
+#print axioms wdK34FailDF
 
 /-! ## Failure-tail arm -/
 
