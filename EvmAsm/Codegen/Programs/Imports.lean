@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasType
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
