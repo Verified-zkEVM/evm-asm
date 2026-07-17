@@ -555,3 +555,5 @@ import EvmAsm.Codegen.Programs.AccountDecodeDispatch
 import EvmAsm.Codegen.Programs.AccountDecodeBalanceSetup
 
 import EvmAsm.Codegen.Programs.AccountDecodeClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose2
