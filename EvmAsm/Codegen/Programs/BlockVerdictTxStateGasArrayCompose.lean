@@ -23,9 +23,11 @@
   2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
      array fullCode (off=0 regOwn peel DONE)
   3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE**
-     (`txExtractToAddress_prog`, 150 instrs, fixture+eq_prog); success-domain
-     Hoare packaging residual (frame + type_dispatch + rlp_walk calls);
-     ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+      (`txExtractToAddress_prog`, 150 instrs, fixture+eq_prog); pure model +
+      packaging substrate (`TxExtractToAddressSpec`: extractLinkedCode, frame,
+      Assumed-shaped pre/post, extractSuccess⇒type_ok). Residual: body Hoare
+      (frame + type_dispatch + rlp_walk calls) under extractSuccess;
+      ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
 
@@ -38,6 +40,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
+import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose

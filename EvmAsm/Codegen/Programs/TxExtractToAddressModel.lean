@@ -59,4 +59,17 @@ theorem extractSuccess_status
     (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
     (teerExtractToAddress txBytes).1 = (0 : Word) := h
 
+/-- Success implies type_dispatch success (status 0). -/
+theorem extractSuccess_type_ok
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    (teerTxTypeDispatch txBytes).1 = (0 : Word) := by
+  by_cases hty : (teerTxTypeDispatch txBytes).1 = (0 : Word)
+  · exact hty
+  · have hfail : teerExtractToAddress txBytes = ((1 : Word), [], (0 : Word)) := by
+      unfold teerExtractToAddress
+      rw [if_pos hty]
+    unfold extractSuccess at h
+    rw [hfail] at h
+    exact absurd h (by decide)
+
 end EvmAsm.Codegen.TxExtractToAddressModel
