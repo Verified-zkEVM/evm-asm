@@ -231,8 +231,10 @@ def schemeAAnchors : List GuestRegion :=
     `readelf -SW` on the relinked ELF after both land together. Grew again
     to `0x5c6b4` after merging main forward past #10394/#10395 (7702 auth
     state gas gate + EIP-8037 auth-retention 0-FA guard) into this same
-    integration branch, re-measured via a fresh `readelf -SW`. -/
-def textSizeBytes : Nat := 0x5c6b4
+    integration branch, re-measured via a fresh `readelf -SW`. Grew to
+    `0x5c7bc` after the bounded-MPT canonicalization and forgery-guard
+    integration branch was relinked against that main. -/
+def textSizeBytes : Nat := 0x5c7bc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
