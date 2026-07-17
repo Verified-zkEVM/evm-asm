@@ -682,4 +682,374 @@ theorem eip8037PriorStateUsedExact_exactOkFail_spec_within
 #print axioms pseFailRet_spec
 #print axioms pseOkRet_spec
 
+/-! ## Gate success → LoopGuard (prior≠0, gates hold) -/
+
+/-- Loop-entry regs after gates: n=prior, i=0, sum=0; *out already zeroed. -/
+def loopEntry
+    (raIn priorW outPtr exactOkW runtimeW : Word)
+    (v28 v29 v30 v31 : Word) : Assertion :=
+  (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+    (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x5 ↦ᵣ priorW) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+    (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+    (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW)
+
+def nGateSteps : Nat := 15
+
+private theorem P36_plus_4 : P + 36 + 4 = P + 40 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P40_plus_4 : P + 40 + 4 = P + 44 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P44_plus_4 : P + 44 + 4 = P + 48 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P48_plus_4 : P + 48 + 4 = P + 52 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P52_plus_4 : P + 52 + 4 = P + 56 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P56_plus_4 : P + 56 + 4 = LoopGuard := by
+  simp only [LoopGuard, P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P32_plus_4 : P + 32 + 4 = P + 36 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P20_plus_4 : P + 20 + 4 = P + 24 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P16_plus_4 : P + 16 + 4 = P + 20 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P8_plus_8 : P + 8 + 8 = P + 16 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+private theorem P4_plus_4 : P + 4 + 4 = P + 8 := by
+  simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide
+
+set_option maxRecDepth 8000 in
+/-- Entry → LoopGuard under prior≠0 and gate hyps (exactOk≠0, runtime≥prior, prior≤16). -/
+theorem eip8037PriorStateUsedExact_gatesToLoop_spec_within
+    (raIn priorW outPtr oldOut exactOkW runtimeW : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (hprior : priorW ≠ (0 : Word))
+    (hexact : exactOkW ≠ (0 : Word))
+    (hruntime : ¬ BitVec.ult runtimeW priorW)
+    (hpriorLe16 : ¬ BitVec.ult (16 : Word) priorW) :
+    cpsTripleWithin nGateSteps P LoopGuard pseCode
+      (entryPre raIn priorW outPtr oldOut
+        ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+          (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW)))
+      (loopEntry raIn priorW outPtr exactOkW runtimeW v28 v29 v30 v31) := by
+  -- [0] SD
+  have haddr : outPtr + signExtend12 (0 : BitVec 12) = outPtr := by
+    rw [se12_zero]; exact BitVec.add_zero outPtr
+  have e0 :
+      cpsTripleWithin 1 P (P + 4) pseCode
+        ((.x11 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ oldOut))
+        ((.x11 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word))) := by
+    have h0 := sd_spec_gen_within .x11 .x0 outPtr (0 : Word) oldOut (0 : BitVec 12) P
+    rw [haddr] at h0
+    exact cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at P P pseProg 0 (.SD .x11 .x0 (0 : BitVec 12))
+        (by decide) (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+  have e0F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e0
+  -- [1] BEQ prior ntaken
+  have hbr := beq_spec_gen_within .x10 .x0 (152 : BitVec 13) priorW (0 : Word) (P + 4)
+  have hbrC := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at P (P + 4) pseProg 1 (.BEQ .x10 .x0 (152 : BitVec 13))
+      (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+      (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) hbr
+  have hnt0 := cpsBranchWithin_ntakenStripPure2 hbrC (fun _ hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hprior)
+  have hnt : cpsTripleWithin 1 (P + 4) (P + 8) pseCode
+      ((.x10 ↦ᵣ priorW) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ priorW) ** (.x0 ↦ᵣ (0 : Word))) := by
+    rwa [P4_plus_4] at hnt0
+  have e1F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ outPtr) ** (outPtr ↦ₘ (0 : Word)) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hnt
+  -- [2-3] la exact_ok
+  have e23F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) (pseLaExactOk v5)
+  -- [4] LD exact_ok
+  have haddrE : ExactOkAddr + signExtend12 (0 : BitVec 12) = ExactOkAddr := by
+    rw [se12_zero]; exact BitVec.add_zero ExactOkAddr
+  have e4 :
+      cpsTripleWithin 1 (P + 16) (P + 20) pseCode
+        ((.x5 ↦ᵣ ExactOkAddr) ** (ExactOkAddr ↦ₘ exactOkW))
+        ((.x5 ↦ᵣ exactOkW) ** (ExactOkAddr ↦ₘ exactOkW)) := by
+    have h0 := ld_spec_gen_same_within .x5 ExactOkAddr exactOkW
+      (0 : BitVec 12) (P + 16) (by decide)
+    rw [haddrE] at h0
+    have h0' : cpsTripleWithin 1 (P + 16) ((P + 16) + 4) pseCode
+        ((.x5 ↦ᵣ ExactOkAddr) ** (ExactOkAddr ↦ₘ exactOkW))
+        ((.x5 ↦ᵣ exactOkW) ** (ExactOkAddr ↦ₘ exactOkW)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 16) pseProg 4 (.LD .x5 .x5 (0 : BitVec 12))
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P16_plus_4] at h0'
+  have e4F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e4
+  -- [5] BEQ exact_ok ntaken
+  have hbr5 := beq_spec_gen_within .x5 .x0 (144 : BitVec 13) exactOkW (0 : Word) (P + 20)
+  have hbr5C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at P (P + 20) pseProg 5 (.BEQ .x5 .x0 (144 : BitVec 13))
+      (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+      (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) hbr5
+  have hnt5_0 := cpsBranchWithin_ntakenStripPure2 hbr5C (fun _ hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hexact)
+  have hnt5 : cpsTripleWithin 1 (P + 20) (P + 24) pseCode
+      ((.x5 ↦ᵣ exactOkW) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ exactOkW) ** (.x0 ↦ᵣ (0 : Word))) := by
+    rwa [P20_plus_4] at hnt5_0
+  have e5F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hnt5
+  -- [6-7] la runtime
+  have e67F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) (pseLaRuntime exactOkW)
+  -- [8] LD runtime
+  have haddrR : RuntimeCountAddr + signExtend12 (0 : BitVec 12) = RuntimeCountAddr := by
+    rw [se12_zero]; exact BitVec.add_zero RuntimeCountAddr
+  have e8 :
+      cpsTripleWithin 1 (P + 32) (P + 36) pseCode
+        ((.x5 ↦ᵣ RuntimeCountAddr) ** (RuntimeCountAddr ↦ₘ runtimeW))
+        ((.x5 ↦ᵣ runtimeW) ** (RuntimeCountAddr ↦ₘ runtimeW)) := by
+    have h0 := ld_spec_gen_same_within .x5 RuntimeCountAddr runtimeW
+      (0 : BitVec 12) (P + 32) (by decide)
+    rw [haddrR] at h0
+    have h0' : cpsTripleWithin 1 (P + 32) ((P + 32) + 4) pseCode
+        ((.x5 ↦ᵣ RuntimeCountAddr) ** (RuntimeCountAddr ↦ₘ runtimeW))
+        ((.x5 ↦ᵣ runtimeW) ** (RuntimeCountAddr ↦ₘ runtimeW)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 32) pseProg 8 (.LD .x5 .x5 (0 : BitVec 12))
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P32_plus_4] at h0'
+  have e8F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e8
+  -- [9] BLTU runtime,prior ntaken
+  have hbr9 := bltu_spec_gen_within .x5 .x10 (128 : BitVec 13) runtimeW priorW (P + 36)
+  have hbr9C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at P (P + 36) pseProg 9 (.BLTU .x5 .x10 (128 : BitVec 13))
+      (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+      (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) hbr9
+  have hnt9_0 := cpsBranchWithin_ntakenStripPure2 hbr9C (fun _ hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hruntime)
+  have hnt9 : cpsTripleWithin 1 (P + 36) (P + 40) pseCode
+      ((.x5 ↦ᵣ runtimeW) ** (.x10 ↦ᵣ priorW))
+      ((.x5 ↦ᵣ runtimeW) ** (.x10 ↦ᵣ priorW)) := by
+    rwa [P36_plus_4] at hnt9_0
+  have e9F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ outPtr) ** (outPtr ↦ₘ (0 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hnt9
+  -- [10] LI x5,16
+  have e10 :
+      cpsTripleWithin 1 (P + 40) (P + 44) pseCode
+        (.x5 ↦ᵣ runtimeW) (.x5 ↦ᵣ (16 : Word)) := by
+    have h0 := li_spec_gen_within .x5 runtimeW (16 : Word) (P + 40) (by decide)
+    have h0' : cpsTripleWithin 1 (P + 40) ((P + 40) + 4) pseCode
+        (.x5 ↦ᵣ runtimeW) (.x5 ↦ᵣ (16 : Word)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 40) pseProg 10 (.LI .x5 (16 : Word))
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P40_plus_4] at h0'
+  have e10F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e10
+  -- [11] BLTU 16,prior ntaken
+  have hbr11 := bltu_spec_gen_within .x5 .x10 (120 : BitVec 13) (16 : Word) priorW (P + 44)
+  have hbr11C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at P (P + 44) pseProg 11 (.BLTU .x5 .x10 (120 : BitVec 13))
+      (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+      (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) hbr11
+  have hnt11_0 := cpsBranchWithin_ntakenStripPure2 hbr11C (fun _ hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hpriorLe16)
+  have hnt11 : cpsTripleWithin 1 (P + 44) (P + 48) pseCode
+      ((.x5 ↦ᵣ (16 : Word)) ** (.x10 ↦ᵣ priorW))
+      ((.x5 ↦ᵣ (16 : Word)) ** (.x10 ↦ᵣ priorW)) := by
+    rwa [P44_plus_4] at hnt11_0
+  have e11F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ outPtr) ** (outPtr ↦ₘ (0 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hnt11
+  -- [12] MV x5,x10 → n=prior
+  have e12 :
+      cpsTripleWithin 1 (P + 48) (P + 52) pseCode
+        ((.x10 ↦ᵣ priorW) ** (.x5 ↦ᵣ (16 : Word)))
+        ((.x10 ↦ᵣ priorW) ** (.x5 ↦ᵣ priorW)) := by
+    have h0 := mv_spec_gen_within .x5 .x10 priorW (16 : Word) (P + 48) (by decide)
+    have h0' : cpsTripleWithin 1 (P + 48) ((P + 48) + 4) pseCode
+        ((.x10 ↦ᵣ priorW) ** (.x5 ↦ᵣ (16 : Word)))
+        ((.x10 ↦ᵣ priorW) ** (.x5 ↦ᵣ priorW)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 48) pseProg 12 (.MV .x5 .x10)
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P48_plus_4] at h0'
+  have e12F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ outPtr) ** (outPtr ↦ₘ (0 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e12
+  -- [13] LI x6,0
+  have e13 :
+      cpsTripleWithin 1 (P + 52) (P + 56) pseCode
+        (.x6 ↦ᵣ v6) (.x6 ↦ᵣ (0 : Word)) := by
+    have h0 := li_spec_gen_within .x6 v6 (0 : Word) (P + 52) (by decide)
+    have h0' : cpsTripleWithin 1 (P + 52) ((P + 52) + 4) pseCode
+        (.x6 ↦ᵣ v6) (.x6 ↦ᵣ (0 : Word)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 52) pseProg 13 (.LI .x6 (0 : Word))
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P52_plus_4] at h0'
+  have e13F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ priorW) ** (.x7 ↦ᵣ v7) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e13
+  -- [14] LI x7,0
+  have e14 :
+      cpsTripleWithin 1 (P + 56) LoopGuard pseCode
+        (.x7 ↦ᵣ v7) (.x7 ↦ᵣ (0 : Word)) := by
+    have h0 := li_spec_gen_within .x7 v7 (0 : Word) (P + 56) (by decide)
+    have h0' : cpsTripleWithin 1 (P + 56) ((P + 56) + 4) pseCode
+        (.x7 ↦ᵣ v7) (.x7 ↦ᵣ (0 : Word)) :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at P (P + 56) pseProg 14 (.LI .x7 (0 : Word))
+          (by simp only [P, GuestAddrs.eip8037_prior_state_used_exact]; decide)
+          (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) h0
+    rwa [P56_plus_4] at h0'
+  have e14F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ priorW) ** (.x6 ↦ᵣ (0 : Word)) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      (ExactOkAddr ↦ₘ exactOkW) ** (RuntimeCountAddr ↦ₘ runtimeW))
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) e14
+  -- compose
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) e0F e1F
+  have c02 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 e23F
+  have c03 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 e4F
+  have c04 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c03 e5F
+  have c05 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c04 e67F
+  have c06 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c05 e8F
+  have c07 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c06 e9F
+  have c08 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c07 e10F
+  have c09 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c08 e11F
+  have c10 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c09 e12F
+  have c11 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c10 e13F
+  have c12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c11 e14F
+  change cpsTripleWithin
+    (1+1+2+1+1+2+1+1+1+1+1+1+1) P LoopGuard pseCode _ _ at c12
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp only [entryPre, nGateSteps] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by
+      dsimp only [loopEntry, nGateSteps] at hq ⊢
+      xperm_hyp hq) c12
+
+#print axioms eip8037PriorStateUsedExact_gatesToLoop_spec_within
+
 end EvmAsm.Codegen.Eip8037PriorStateUsedExactSpec
