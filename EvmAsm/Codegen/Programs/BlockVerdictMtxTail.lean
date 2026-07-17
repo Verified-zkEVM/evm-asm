@@ -252,11 +252,10 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
-  -- here, consuming the A1 skip-list. CONSERVATIVE guard: effect-log overflow (skip -> never
-  -- false-reject). NOTE (bmvmx.5.5.7.3): with nonstorageEffectLogCap = 32768 the overflow guard is
-  -- now UNREACHABLE under the 200M block-gas envelope (cheapest record-producing op is a value-CALL
-  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=10400 regular gas, so <= 200M/10400 ~= 19230 < 32768 raw
-  -- records), so it no longer skips any in-scope block.
+  -- here, consuming the A1 skip-list. The raw log is bounded by nonstorageEffectLogCap: a nonzero
+  -- value-CALL emits both debit and credit records, hence at most 2*(200M/10400)=38460 raw records
+  -- under the regular-gas limit; the 65536-entry cap leaves margin. The overflow bit is nevertheless
+  -- retained as the conservative multi-tx skip guard.
   -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
   -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
   -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
