@@ -1797,9 +1797,11 @@ def loopIntrinsicFrame (spC txBase outBase balBase chainIdW nW iW
   (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
   (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+  regOwn .x17 **
   savedFrame spC csaved **
-  (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
-  (.x0 ↦ᵣ (0 : Word))
+  (if balEnabled then bytesRegion balBase balBytes else empAssertion)
+  -- x0 stays in the callee footprint (not framed) to avoid double-own.
+  -- x17 is not in IntrinsicAssumed footprint; frame it across the call.
 
 theorem loopIntrinsicFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
     startW endW lenW : Word)
@@ -3213,17 +3215,186 @@ theorem wordArray_set_eq_of_get
   have h := wordArray_split base outVals i hi
   simpa [hcell] using h
 
-/-! ## Composition notes (next slice)
+set_option maxRecDepth 8000 in
+/-- Intrinsic when `outVals[i] = pureIntrinsic`: ambient wordArray is preserved
+    (peel → write same value → fold). AfterEndSpan → LinkIntrinsic. -/
+theorem bvtIterIntrinsic_preserveCell
+    (hintr : IntrinsicAssumed fullCode)
+    (spC txBase outBase balBase chainIdW nW bodyLenW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool)
+    (i off len : Nat) (startW endW old1 : Word)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hret : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hstart : startW = BitVec.ofNat 64 off)
+    (hlen : off + len ≤ txBlob.length)
+    (htxLen : endW - startW = BitVec.ofNat 64 len)
+    (hi : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess) :
+    let iW := BitVec.ofNat 64 i
+    let txPtr := txBase + startW
+    let txLenW := endW - startW
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    cpsTripleWithin (1 + nIntrinsicSteps) AfterEndSpan LinkIntrinsic fullCode
+      ((.x1 ↦ᵣ old1) **
+        (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+        bytesRegion txBase txBlob **
+        wordArray outBase outVals **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+          startW endW bodyLenW csaved balBytes balEnabled)
+      ((.x1 ↦ᵣ LinkIntrinsic) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBlob **
+        wordArray outBase outVals **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+          startW endW bodyLenW csaved balBytes balEnabled) := by
+  intro iW txPtr txLenW outPtr
+  have hpeel := wordArray_set_eq_of_get outBase outVals i
+    pureIntrinsicStateGasSuccess hi hcell
+  have hcall := bvtIterIntrinsic hintr spC txBase outBase balBase chainIdW nW
+    bodyLenW csaved txBlob balBytes balEnabled i off len startW endW
+    (BitVec.ofNat 64 pureIntrinsicStateGasSuccess) old1 hentry hret hstart hlen htxLen
+  have hfr := cpsTripleWithin_frameR
+    (wordArrayFrom outBase 0 (outVals.take i) **
+      wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)))
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_wordArrayFrom outBase 0 (outVals.take i)
+      · exact pcFree_wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)))
+    hcall
+  -- Expand wordArray in hyp pre/post, then xperm into framed peel form.
+  refine cpsTripleWithin_weaken ?_ ?_ hfr
+  · intro h hp
+    rw [hpeel] at hp
+    xperm_hyp hp
+  · intro h hq
+    -- framed post → full wordArray post: expand goal, then xperm
+    rw [hpeel]
+    xperm_hyp hq
 
-    Ambient IntrinsicAssumed/TeerAssumed remove unaligned tx peels.
-    Remaining glue for one-iter:
-
-    1. `wordArray_set_eq_of_get` / `wordArray_split` peels `out[i]`.
-    2. bal=0: `outVals[i] = pureIntrinsic` so intrinsic write folds via peel;
-       then `bvtIterBal0Tail`.
-    3. bal≠0: cell pure through teer; store pure→sum; fold final cell.
-    4. Align `bvtIterAfterStoreJal` ambient with store peel form.
-    5. Full iter + induction + top theorem under ArrayCalleeAssumptions.
--/
+set_option maxRecDepth 8000 in
+/-- bal=0 success half-iter from AfterEndSpan: intrinsic (preserve cell) +
+    BNE/BEQ/i++/back-edge → LoopGuard at i+1. Requires balBase=0. -/
+theorem bvtIterBal0FromIntrinsic
+    (hintr : IntrinsicAssumed fullCode)
+    (spC txBase outBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8))
+    (i off len : Nat) (startW endW old1 : Word)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hret : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hstart : startW = BitVec.ofNat 64 off)
+    (hlen : off + len ≤ txBlob.length)
+    (htxLen : endW - startW = BitVec.ofNat 64 len)
+    (hi : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess) :
+    let iW := BitVec.ofNat 64 i
+    let bodyLenW := BitVec.ofNat 64 txBlob.length
+    let balBase : Word := 0
+    let txPtr := txBase + startW
+    let txLenW := endW - startW
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    cpsTripleWithin ((1 + nIntrinsicSteps) + 4) AfterEndSpan LoopGuard fullCode
+      ((.x1 ↦ᵣ old1) **
+        (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+        bytesRegion txBase txBlob **
+        wordArray outBase outVals **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+          startW endW bodyLenW csaved balBytes false)
+      ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x24 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkIntrinsic) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        wordArray outBase outVals **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
+  intro iW bodyLenW balBase txPtr txLenW outPtr
+  have hintrP := bvtIterIntrinsic_preserveCell hintr spC txBase outBase balBase
+    chainIdW nW bodyLenW csaved txBlob outVals balBytes false i off len
+    startW endW old1 hentry hret hstart hlen htxLen hi hcell
+  have htail := bvtIterBal0Tail spC txBase outBase chainIdW nW csaved txBlob
+    outVals balBytes i startW endW
+  have htailF : cpsTripleWithin 4 LinkIntrinsic LoopGuard fullCode
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x24 ↦ᵣ (0 : Word)) **
+        bal0Rest spC txBase outBase chainIdW nW csaved txBlob outVals
+          (BitVec.ofNat 64 balBytes.length) startW endW iW)
+      ((.x21 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x24 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkIntrinsic) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        wordArray outBase outVals **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
+    have h0 := cpsTripleWithin_extend_code bvt_mono htail
+    exact cpsTripleWithin_weaken (fun _ hp => by
+        unfold bal0Rest at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h0
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hq => by
+      -- preserveCell post → bal0Tail pre (balBase=0, no BAL region)
+      unfold loopIntrinsicFrame at hq
+      simp only [balBase, Bool.false_eq_true, ↓reduceIte] at hq
+      -- cancel trailing empAssertion from balEnabled=false
+      have hq' :
+          ((.x1 ↦ᵣ LinkIntrinsic) **
+            (.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion txBase txBlob **
+            wordArray outBase outVals **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (.x0 ↦ᵣ (0 : Word)) **
+            (.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x24 ↦ᵣ (0 : Word)) **
+            (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            regOwn .x17 ** savedFrame spC csaved) h := by
+        -- hq ends with ** empAssertion; cancel
+        simpa [sepConj_emp_right'] using hq
+      unfold bal0Rest
+      xperm_hyp hq')
+    hintrP htailF
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
