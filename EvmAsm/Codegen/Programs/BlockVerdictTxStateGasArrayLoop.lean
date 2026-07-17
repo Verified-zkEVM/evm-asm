@@ -236,6 +236,7 @@ theorem bvtGuardNtaken (spC txBase outBase balBase chainIdW nW : Word)
 structure IterOk (txBlob : List (BitVec 8)) (n i : Nat) where
   hi : i < n
   hNBound : n < 2 ^ 62
+  hLenBound : txBlob.length < 2 ^ 64
   /-- Start offset word = leU32 at byte offset `4*i`. -/
   startW : Word
   hStart : startW = leU32 txBlob (4 * i)
@@ -597,6 +598,200 @@ theorem bvtIterStartBgv (spC txBase outBase balBase chainIdW nW : Word)
       unfold loopBgvFrame at hp
       xperm_hyp hp) c01 e36Own
   change cpsTripleWithin (2 + (1 + nBgvSteps) + 1) LoopBody AfterStartBgv fullCode
+    _ _ at c02
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c02
+
+/-! ## Span checks after start bgv (instr 37–39) -/
+
+abbrev AfterSpanChecks : Word := B + 160
+
+/-- Pure: `¬ ult startW tableW` when `n*4 ≤ startW.toNat` and `tableW = ofNat (4*n)`. -/
+private theorem not_ult_start_table (startW tableW : Word) (n : Nat)
+    (htab : tableW = BitVec.ofNat 64 (4 * n)) (hNBound : n < 2 ^ 62)
+    (hGe : (n * 4 : Nat) ≤ startW.toNat) :
+    ¬ (BitVec.ult startW tableW = true) := by
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt, htab, BitVec.toNat_ofNat]
+  have hn4 : 4 * n < 2 ^ 64 := by
+    have : n * 4 < 2 ^ 62 * 4 := Nat.mul_lt_mul_of_pos_right hNBound (by decide)
+    omega
+  rw [Nat.mod_eq_of_lt hn4]
+  omega
+
+/-- Pure: `¬ ult lenW startW` when `startW.toNat ≤ len`. -/
+private theorem not_ult_len_start (txLenW startW : Word) (txLen : Nat)
+    (htxLenW : txLenW = BitVec.ofNat 64 txLen)
+    (hLe : startW.toNat ≤ txLen) (hLenBound : txLen < 2 ^ 64) :
+    ¬ (BitVec.ult txLenW startW = true) := by
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt]
+  rw [htxLenW, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hLenBound]
+  exact hLe
+
+set_option maxRecDepth 8000 in
+/-- Instr 37–39 under `IterOk`: SLLI 4n; BLTU start≥4n; BLTU start≤len.
+    Lands at AfterSpanChecks (B+160) with x5=4n, x22=startW. -/
+theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (n i : Nat)
+    (startW : Word)
+    (hok : IterOk txBlob n i)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hStart : startW = leU32 txBlob (4 * i)) :
+    let iW := BitVec.ofNat 64 i
+    let tableW := BitVec.ofNat 64 (4 * n)
+    cpsTripleWithin 3 AfterStartBgv AfterSpanChecks bvtCode
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** regOwn .x23 **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x10 ↦ᵣ startW) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** regOwn .x23 **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x10 ↦ᵣ startW) **
+        (.x5 ↦ᵣ tableW) ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  intro iW tableW
+  have hslli_n := slli2_ofNat n hok.hNBound
+  have hnW_shift : nW <<< (2 : Nat) = tableW := by
+    rw [hnW, hslli_n]
+  -- [37] SLLI x5, x20, 2
+  have e37 :
+      cpsTripleWithin 1 AfterStartBgv (AfterStartBgv + 4) bvtCode
+        ((.x20 ↦ᵣ nW) ** regOwn .x5)
+        ((.x20 ↦ᵣ nW) ** (.x5 ↦ᵣ tableW)) := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5) (fun o5 => ?_)
+    have h0 := slli_spec_gen_within .x5 .x20 o5 nW (2 : BitVec 6)
+      AfterStartBgv (by decide)
+    rw [show (2 : BitVec 6).toNat = 2 from by decide, hnW_shift] at h0
+    exact cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at B AfterStartBgv bvtProg 37
+        (.SLLI .x5 .x20 (2 : BitVec 6))
+        (by simp only [AfterStartBgv]; bv_omega)
+        (by rw [bvt_length]; decide) rfl
+        (by rw [bvt_length]; decide)) h0
+  have e37F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x21 ↦ᵣ iW) **
+      (.x22 ↦ᵣ startW) ** regOwn .x23 **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e37
+  -- [38] BLTU x22, x5 — ntaken (rs1 rs2 offset v1 v2 addr)
+  have hbr38 := bltu_spec_gen_within .x22 .x5 (152 : BitVec 13) startW tableW
+    (B + 152)
+  have hbr38C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 152) bvtProg 38
+      (.BLTU .x22 .x5 (152 : BitVec 13))
+      (by bv_omega) (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) hbr38
+  have hStartEq : hok.startW = startW := hok.hStart.trans hStart.symm
+  have h_not_ult38 : ¬ (BitVec.ult startW tableW = true) := by
+    have hge : (n * 4 : Nat) ≤ startW.toNat := by
+      simpa [hStartEq] using hok.hStartGeTable
+    exact not_ult_start_table startW tableW n rfl hok.hNBound hge
+  have hnt38 : cpsTripleWithin 1 (B + 152) (B + 156) bvtCode
+      ((.x22 ↦ᵣ startW) ** (.x5 ↦ᵣ tableW))
+      ((.x22 ↦ᵣ startW) ** (.x5 ↦ᵣ tableW)) := by
+    have hnt := cpsBranchWithin_ntakenStripPure2 hbr38C (fun _ hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact h_not_ult38 ((sepConj_pure_right _).1 hQ).2)
+    rw [show (B + 152 + 4 : Word) = B + 156 from by bv_omega] at hnt
+    exact hnt
+  have e38F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+      regOwn .x23 **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) hnt38
+  -- [39] BLTU x9, x22 — ntaken
+  have hbr39 := bltu_spec_gen_within .x9 .x22 (148 : BitVec 13)
+    (BitVec.ofNat 64 txBlob.length) startW (B + 156)
+  have hbr39C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 156) bvtProg 39
+      (.BLTU .x9 .x22 (148 : BitVec 13))
+      (by bv_omega) (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) hbr39
+  have h_not_ult39 : ¬ (BitVec.ult (BitVec.ofNat 64 txBlob.length) startW = true) := by
+    have hle : startW.toNat ≤ txBlob.length := by
+      simpa [hStartEq] using hok.hStartLeLen
+    exact not_ult_len_start _ startW txBlob.length rfl hle hok.hLenBound
+  have hnt39 : cpsTripleWithin 1 (B + 156) AfterSpanChecks bvtCode
+      ((.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) ** (.x22 ↦ᵣ startW))
+      ((.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) ** (.x22 ↦ᵣ startW)) := by
+    have hnt := cpsBranchWithin_ntakenStripPure2 hbr39C (fun _ hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact h_not_ult39 ((sepConj_pure_right _).1 hQ).2)
+    rw [show (B + 156 + 4 : Word) = AfterSpanChecks from by
+      simp only [AfterSpanChecks]; bv_omega] at hnt
+    exact hnt
+  have e39F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+      (.x5 ↦ᵣ tableW) ** regOwn .x23 **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) hnt39
+  have c01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) e37F e38F
+  have c02 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) c01 e39F
+  change cpsTripleWithin (1 + 1 + 1) AfterStartBgv AfterSpanChecks bvtCode
     _ _ at c02
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c02
