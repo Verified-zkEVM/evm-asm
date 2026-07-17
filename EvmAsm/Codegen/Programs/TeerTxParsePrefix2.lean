@@ -428,7 +428,7 @@ theorem teer_count169_call_spec (rc : RlpListCountItemsAssumed fullCode)
           bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld)))
       ((.x1 ↦ᵣ (teerB + 680)) **
         ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x30 ** regOwn .x31 ** regOwn .x11 ** regOwn .x12 ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion listBase listBytes) **
          (fun h =>
            (∃ cnt, rc.countModel listBytes listLen = some cnt ∧
@@ -446,7 +446,7 @@ theorem teer_count169_call_spec (rc : RlpListCountItemsAssumed fullCode)
           bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld)))
       ((.x1 ↦ᵣ (teerB + 680)) **
         ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x30 ** regOwn .x31 ** regOwn .x11 ** regOwn .x12 ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion listBase listBytes) **
          (fun h =>
            (∃ cnt, rc.countModel listBytes listLen = some cnt ∧

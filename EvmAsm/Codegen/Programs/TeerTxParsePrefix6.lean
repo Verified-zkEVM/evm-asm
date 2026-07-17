@@ -102,7 +102,8 @@ theorem teer_type4_branch_spec (v7 tval : Word) :
 def teerType4Rest (v8 v9 : Word) (txBytes : List (BitVec 8)) : Assertion :=
   (.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) ** (.x0 ↦ᵣ (0 : Word)) **
   ⌜(teerTxTypeDispatch txBytes).1 = (0 : Word)⌝ **
-  (.x1 ↦ᵣ (teerB + 164)) ** bytesRegion v8 txBytes **
+  (.x1 ↦ᵣ (teerB + 164)) ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+  bytesRegion v8 txBytes **
   (teerInnerOff ↦ₘ (teerTxTypeDispatch txBytes).2.2) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9)
 
 set_option maxRecDepth 8000 in
@@ -133,7 +134,8 @@ theorem teer_prefix_dispatch_type4_spec (txd : TxTypeDispatchAssumed fullCode)
     (by exact pcFree_regIs) hdisp
   have htype4F := cpsBranchWithin_frameR (teerType4Rest v8 v9 txBytes)
     (by unfold teerType4Rest; repeat' first
-        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+        | exact bytesRegion_pcFree _ _
         | exact pcFree_pure | apply pcFree_sepConj)
     (teer_type4_branch_spec v7 (teerTxTypeDispatch txBytes).2.1)
   exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr

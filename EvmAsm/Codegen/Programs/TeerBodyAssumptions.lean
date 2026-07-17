@@ -97,7 +97,8 @@ structure TxTypeDispatchAssumed (cr : CodeReq) where
           (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
           (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBytes ** (typePtr ↦ₘ typeOld) ** (innerPtr ↦ₘ innerOld))
-        ((regOwn .x5 ** regOwn .x6 ** (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+          (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBytes) **
          (fun h =>
            ((.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
@@ -136,7 +137,8 @@ structure RlpListCountItemsAssumed (cr : CodeReq) where
           (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld))
         ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x30 ** regOwn .x31 ** regOwn .x11 ** regOwn .x12 **
+          (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion listBase listBytes) **
          (fun h =>
            -- success (a0 = 0): out cell = the modelled count
@@ -270,7 +272,8 @@ structure BalAccountNonstorageFinalsAssumed (cr : CodeReq) where
           ((outBase + 24) ↦ₘ b24) ** ((outBase + 32) ↦ₘ b32) ** ((outBase + 40) ↦ₘ hn40) **
           ((outBase + 48) ↦ₘ nn48) ** ((outBase + 56) ↦ₘ hc56) ** ((outBase + 64) ↦ₘ co64) **
           ((outBase + 72) ↦ₘ cl72))
-        ((regOwn .x5 ** regOwn .x6 ** regOwn .x29 ** (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x29 ** regOwn .x11 ** regOwn .x12 **
+          (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion acctBase acctBytes) **
          (fun h =>
            -- ok (a0 = 0): out block = FinalsOut of the derivation

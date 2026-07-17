@@ -923,7 +923,7 @@ structure BalAccountNonceBeforeIndexAssumed (cr : CodeReq) where
           regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 **
           regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** bytesRegion regionBase bs **
-          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
           regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 **
           regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
           (fun h =>

@@ -33,6 +33,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
     around the guard so both exits retain the full post-call state. -/
 def teerTxdRest (v8 v9 : Word) (txBytes : List (BitVec 8)) : Assertion :=
   (.x1 ↦ᵣ (teerB + 164)) ** regOwn .x5 ** regOwn .x6 **
+  regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
   bytesRegion v8 txBytes **
   (teerType ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
   (teerInnerOff ↦ₘ (teerTxTypeDispatch txBytes).2.2) **

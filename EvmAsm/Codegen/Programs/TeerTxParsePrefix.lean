@@ -57,7 +57,8 @@ theorem teer_txtype_call_spec (txd : TxTypeDispatchAssumed fullCode)
         (.x12 ↦ᵣ teerType) ** (.x13 ↦ᵣ teerInnerOff) **
         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld)))
-      ((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x13 ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes) **
        (fun h =>
          ((.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
@@ -70,7 +71,8 @@ theorem teer_txtype_call_spec (txd : TxTypeDispatchAssumed fullCode)
         (.x12 ↦ᵣ teerType) ** (.x13 ↦ᵣ teerInnerOff) **
         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld)))
-      ((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x13 ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes) **
        (fun h =>
          ((.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
@@ -120,7 +122,8 @@ theorem teer_txtype_group_spec (txd : TxTypeDispatchAssumed fullCode)
         (.x12 ↦ᵣ v12o) ** (.x13 ↦ᵣ v13o)) **
        ((.x1 ↦ᵣ raIn) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld)))
-      (((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) **
+      (((.x1 ↦ᵣ (teerB + 164)) ** ((regOwn .x5 ** regOwn .x6 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x13 ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion v8 txBytes) **
        (fun h =>
          ((.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
