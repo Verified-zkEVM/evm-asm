@@ -234,4 +234,79 @@ theorem teer_walknext60_toglue1_spec (wn : RlpWalkNextAssumed fullCode)
     h2
     (fun h hq => to_teerFail _ h hq)
 
+/-! ## `rlp_walk_next`@65 dispatch group + cursor pin (`teerB + 260 → {2856, 268}`)
+
+    The site-invariant shape (identical to `teer_walknext60_pin_spec`, different
+    call/mid/fall PCs and group spec); reused verbatim at every remaining
+    `rlp_walk_next` site (70/75/80/85/97 and the auth-list 116..161). -/
+set_option maxRecDepth 8000 in
+theorem teer_walknext65_pin_spec (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (C : Word)
+    (hc : ∀ next len : Word,
+      EvmAsm.Rv64.RLP.rlpItemDecode srcBytes srcOff
+        (srcBase + BitVec.ofNat 64 srcOff) endPtr next len → next = C) :
+    cpsBranchWithin ((1 + 87) + 1) (teerB + 260) fullCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes))
+      (teerB + 2856) teerFail
+      (teerB + 268)
+      (fun h => ∃ len : Word,
+        ((.x1 ↦ᵣ (teerB + 264)) **
+          (teerWalkScratch srcBase srcBytes **
+           ((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)))) h) :=
+  teer_walknext_group_pin ((1 + 87) + 1) (teerB + 260) (teerB + 268) (teerB + 264)
+    C endPtr (srcBase + BitVec.ofNat 64 srcOff) srcBytes srcOff
+    _ (teerWalkScratch srcBase srcBytes) hc
+    (teer_walknext65_group_spec wn hwn srcBase endPtr a2Old t0Old t1Old t2Old
+      t3Old t4Old t5Old t6Old raIn srcBytes srcOff halign hoff hover hvalid)
+
+/-! ## `rlp_walk_init`@110 dispatch group + cursor pin (`teerB + 440 → {2856, 448}`)
+
+    The auth-list re-init walk start; same shape as `teer_walkinit54_pin_spec`. -/
+set_option maxRecDepth 8000 in
+theorem teer_walkinit110_pin_spec (wi : RlpWalkInitAssumed fullCode)
+    (hwi : wi.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_init)
+    (listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (listBytes : List (BitVec 8)) (listOff : Nat)
+    (halign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (C : Word)
+    (hc1 : (listBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) = C)
+    (hc2 : (listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) = C) :
+    cpsBranchWithin ((1 + 81) + 1) (teerB + 440) fullCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes))
+      (teerB + 2856) teerFail
+      (teerB + 448)
+      ((.x1 ↦ᵣ (teerB + 444)) **
+        (teerWalkScratch listBase listBytes **
+         ((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+           (.x12 ↦ᵣ (0 : Word))))) :=
+  teer_walkinit_group_pin ((1 + 81) + 1) (teerB + 440) (teerB + 448) (teerB + 444) C
+    ((listBase + BitVec.ofNat 64 listOff) + listLen)
+    ((listBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))
+    ((listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)))
+    _ (teerWalkScratch listBase listBytes) hc1 hc2
+    (teer_walkinit110_group_spec wi hwi listBase listLen a2Old t0Old t1Old t2Old
+      t3Old t4Old t5Old t6Old raIn listBytes listOff halign hoff hover hvalid)
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
