@@ -241,12 +241,9 @@ def schemeAAnchors : List GuestRegion :=
     0-FA fix (`k3-3/rgtkz-bal-completeness`, #10419) together with the
     withdrawal/BAL-overlap fail-closed guard (`fix/withdrawals-bal-completeness`,
     #10420), measured via a fresh `readelf -SW` after both land together.
-    Grew to `0x5cf18` for the withdrawal-BAL-parity fix (`fix/withdrawal-bal-parity`,
-    #10422: models every nonzero EIP-4895 body withdrawal as a standard
-    non-storage effect via the existing BAL comparators, closing the
-    withdrawal-drop false-accept without the fail-closed false-reject of
-    valid withdrawal blocks). -/
-def textSizeBytes : Nat := 0x5cf18
+    Changed to `0x5cf14` for the EOA body-withdrawal reconciliation follow-up
+    (`fix/body-op-state-completeness`), measured from the linked guest. -/
+def textSizeBytes : Nat := 0x5cf14
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
