@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
+import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.AddrNorm
@@ -27,6 +28,7 @@ open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel (pureIntrinsicStateGasSucce
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
   (nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn)
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
+open EvmAsm.Codegen.TxExtractToAddressModel (extractSuccess)
 
 private theorem se12_neg64 :
     signExtend12 (-64 : BitVec 12) = BitVec.ofInt 64 (-64) := by decide
@@ -136,6 +138,7 @@ theorem intrinsicAssumed_success_flat_off0
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hextractOk : extractSuccess bs)
     (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
@@ -180,7 +183,7 @@ theorem intrinsicAssumed_success_flat_off0
     txIntrinsicStateGas_success_spec_within asm hextract htype
       spVal spC s regionBase lenW outPtr oldOut bs
       old5 old6 old7 old13 old14 old15 old16
-      hspC hret hlen hlink hsuccess halign hover hvalid0
+      hspC hret hlen hlink hextractOk hsuccess halign hover hvalid0
   have hle : nTisTopSteps ≤ nIntrinsicSteps := by
     simp only [nTisTopSteps, nExtractSteps, nTypeSteps, nIntrinsicSteps]
     omega
@@ -294,6 +297,7 @@ theorem intrinsicAssumed_success_flat_off0_own
     (bs : List (BitVec 8))
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hextractOk : extractSuccess bs)
     (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
@@ -367,7 +371,7 @@ theorem intrinsicAssumed_success_flat_off0_own
     have hf := intrinsicAssumed_success_flat_off0 asm hextract htype
       ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
       v5 v6 v7 v13 v14 v15 v16
-      hret hlink hsuccess halign hover hvalid0
+      hret hlink hextractOk hsuccess halign hover hvalid0
     refine cpsTripleWithin_weaken (fun _ hp => by
       dsimp only [Pcore] at hp ⊢
       xperm_hyp hp) (fun _ hq => by

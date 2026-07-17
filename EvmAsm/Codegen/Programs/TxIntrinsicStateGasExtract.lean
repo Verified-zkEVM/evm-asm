@@ -156,14 +156,15 @@ theorem tisExtractCall
     (hentry : asm.entry = ExtractEntry)
     (txBase lenW : Word) (txBytes : List (BitVec 8))
     (old1 : Word)
-    (hlen : lenW = BitVec.ofNat 64 txBytes.length) :
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
     cpsTripleWithin (1 + nExtractSteps) (T + 72) LinkExtract fullCode
       ((.x1 ↦ᵣ old1) ** extractCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ txBase txBytes) := by
   have hret : (LinkExtract &&& ~~~(1 : Word)) = LinkExtract := by
     simp only [LinkExtract, T]; decide
   have hcallee0 := asm.success_flat LinkExtract txBase lenW
-    ToBufAddr IsCreationAddr txBytes hret hlen
+    ToBufAddr IsCreationAddr txBytes hret hlen hsuccess
   have hcallee0' : cpsTripleWithin nExtractSteps asm.entry LinkExtract fullCode
       ((.x1 ↦ᵣ LinkExtract) ** extractCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ txBase txBytes) := by
@@ -216,7 +217,8 @@ theorem tisExtractSuccess
     (hentry : asm.entry = ExtractEntry)
     (txBase lenW outPtr : Word) (txBytes : List (BitVec 8))
     (old1 v12 v13 : Word)
-    (hlen : lenW = BitVec.ofNat 64 txBytes.length) :
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
     cpsTripleWithin (4 + (1 + nExtractSteps) + 1) (T + 56) AfterExtractBne fullCode
       ((.x1 ↦ᵣ old1) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x18 ↦ᵣ outPtr) **
@@ -242,7 +244,7 @@ theorem tisExtractSuccess
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word))) (by pcf) hsetup
-  have hcall := tisExtractCall asm hentry txBase lenW txBytes old1 hlen
+  have hcall := tisExtractCall asm hentry txBase lenW txBytes old1 hlen hsuccess
   have hcallF := cpsTripleWithin_frameR (.x18 ↦ᵣ outPtr) (by exact pcFree_regIs) hcall
   have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     unfold extractCalleeP at *

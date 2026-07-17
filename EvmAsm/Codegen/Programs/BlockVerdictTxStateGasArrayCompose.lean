@@ -37,6 +37,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
+import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
@@ -90,6 +91,7 @@ theorem intrinsic_discharge_off0_available
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hextractOk : EvmAsm.Codegen.TxExtractToAddressModel.extractSuccess bs)
     (hsuccess : (EvmAsm.Codegen.TxTypeDispatchSpec.teerTxTypeDispatch bs).1 =
       (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
@@ -128,7 +130,7 @@ theorem intrinsic_discharge_off0_available
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0 asm hextract htype
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
-    old5 old6 old7 old13 old14 old15 old16 hret hlink hsuccess halign hover hvalid0
+    old5 old6 old7 old13 old14 old15 old16 hret hlink hextractOk hsuccess halign hover hvalid0
 
 /-- Same as `intrinsic_discharge_off0_available` with regOwn temps
     (IntrinsicAssumed footprint). Multi-tx off≠0 still residual. -/
@@ -141,6 +143,7 @@ theorem intrinsic_discharge_off0_own_available
     (bs : List (BitVec 8))
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hextractOk : EvmAsm.Codegen.TxExtractToAddressModel.extractSuccess bs)
     (hsuccess : (EvmAsm.Codegen.TxTypeDispatchSpec.teerTxTypeDispatch bs).1 =
       (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
@@ -178,7 +181,7 @@ theorem intrinsic_discharge_off0_own_available
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0_own asm hextract htype
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
-    hret hlink hsuccess halign hover hvalid0
+    hret hlink hextractOk hsuccess halign hover hvalid0
 
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available

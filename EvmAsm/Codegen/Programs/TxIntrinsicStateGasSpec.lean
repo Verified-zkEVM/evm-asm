@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
@@ -156,8 +157,9 @@ def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
     `txExtractToAddress_prog`; callees type_dispatch + rlp_walk_init/next).
 
     ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
+    Success-domain only: `extractSuccess txBytes` (pure model).
     RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
-    Residual: success-domain Hoare triple packaging → ExtractAssumed. -/
+    Residual: Hoare packaging → ExtractAssumed under that domain. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
@@ -165,6 +167,7 @@ structure ExtractAssumed (cr : CodeReq) where
       (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
+      TxExtractToAddressModel.extractSuccess txBytes →
       cpsTripleWithin nExtractSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
