@@ -31,6 +31,17 @@ namespace EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
+/-! ## Body scratch globals used by the prefix straight-line blocks -/
+
+/-- Guest `.bss` cell holding the recipient (`to`) content pointer. -/
+abbrev teerRecipientPtr : Word := (GuestAddrs.teer_recipient_ptr : Word)
+/-- Guest `.bss` cell holding the recipient (`to`) content length. -/
+abbrev teerRecipientLen : Word := (GuestAddrs.teer_recipient_len : Word)
+/-- Guest `.bss` cell holding the `value ≠ 0` flag. -/
+abbrev teerValueNonzero : Word := (GuestAddrs.teer_value_nonzero : Word)
+/-- Guest `.bss` cell holding the authorization-list item count. -/
+abbrev teerAuthCount : Word := (GuestAddrs.teer_auth_count : Word)
+
 /-! ## type==4 check: load teer_type (instructions 42..45)
 
     From the `tx_type_dispatch` parse-success fall-through (`teerB + 168`):
@@ -616,5 +627,125 @@ theorem teer_walkinit177_bne_spec (a2 : Word) :
     (.BNE .x12 .x0 (2148 : BitVec 13))
     (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
   exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
+
+/-! ## `to` field capture (instructions 87..96)
+
+    After the 6th `rlp_walk_next` (the `to` field) returns `a0`(x10) = content
+    end and `a2`(x12) = content length, record the recipient content pointer
+    `x30 = a0 - a2` into `teer_recipient_ptr` and the length into
+    `teer_recipient_len`, then stage `a0`/`a1` for the next `rlp_walk_next`
+    (past `to`).  Exit `teerB + 388`.  Over `teerCode` (call-free). -/
+set_option maxRecDepth 8000 in
+theorem teer_recipient_capture_spec (v10 v11o v12 v25 v30o v5o v24o rpo rlo : Word) :
+    cpsTripleWithin 10 (teerB + 348) (teerB + 388) teerCode
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11o) ** (.x12 ↦ᵣ v12) ** (.x25 ↦ᵣ v25) **
+        (.x30 ↦ᵣ v30o) ** (.x5 ↦ᵣ v5o) ** (.x24 ↦ᵣ v24o) **
+        (teerRecipientPtr ↦ₘ rpo) ** (teerRecipientLen ↦ₘ rlo))
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v25) ** (.x12 ↦ᵣ v12) ** (.x25 ↦ᵣ v25) **
+        (.x30 ↦ᵣ (v10 - v12)) ** (.x5 ↦ᵣ teerRecipientLen) ** (.x24 ↦ᵣ v10) **
+        (teerRecipientPtr ↦ₘ (v10 - v12)) ** (teerRecipientLen ↦ₘ v12)) := by
+  have h0 := sub_spec_gen_within .x30 .x10 .x12 v10 v12 v30o (teerB + 348) (by decide)
+  have h1 := la_materialize_within .x5 v5o (teerB + 352) teerRecipientPtr (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 352) teerProg 88
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 352) teerRecipientPtr))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 356) teerProg 89
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 352) teerRecipientPtr))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have h2 := sd_spec_gen_within .x5 .x30 teerRecipientPtr (v10 - v12) rpo (0 : BitVec 12)
+    (teerB + 360)
+  have h3 := la_materialize_within .x5 teerRecipientPtr (teerB + 364) teerRecipientLen
+    (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 364) teerProg 91
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 364) teerRecipientLen))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 368) teerProg 92
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 364) teerRecipientLen))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have h4 := sd_spec_gen_within .x5 .x12 teerRecipientLen v12 rlo (0 : BitVec 12) (teerB + 372)
+  have h5 := mv_spec_gen_within .x24 .x10 v10 v24o (teerB + 376) (by decide)
+  have h6 := mv_spec_gen_within .x10 .x24 v10 v10 (teerB + 380) (by decide)
+  have h7 := mv_spec_gen_within .x11 .x25 v25 v11o (teerB + 384) (by decide)
+  runBlock h0 h1 h2 h3 h4 h5 h6 h7
+
+/-! ## `value ≠ 0` flag (instructions 99..102)
+
+    After the 7th `rlp_walk_next` (past `to`, the `value` field), set
+    `teer_value_nonzero = (value content length > 0)` via `sltu x30, x0, a2`.
+    Exit `teerB + 412`.  Over `teerCode` (call-free). -/
+set_option maxRecDepth 8000 in
+theorem teer_value_nonzero_spec (v12 v30o v5o vno : Word) :
+    cpsTripleWithin 4 (teerB + 396) (teerB + 412) teerCode
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ v12) ** (.x30 ↦ᵣ v30o) ** (.x5 ↦ᵣ v5o) **
+        (teerValueNonzero ↦ₘ vno))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ v12) **
+        (.x30 ↦ᵣ (if BitVec.ult (0 : Word) v12 then (1 : Word) else 0)) **
+        (.x5 ↦ᵣ teerValueNonzero) **
+        (teerValueNonzero ↦ₘ (if BitVec.ult (0 : Word) v12 then (1 : Word) else 0))) := by
+  have h0 := sltu_spec_gen_within .x30 .x0 .x12 v30o (0 : Word) v12 (teerB + 396) (by decide)
+  have h1 := la_materialize_within .x5 v5o (teerB + 400) teerValueNonzero (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 400) teerProg 100
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 400) teerValueNonzero))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 404) teerProg 101
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 400) teerValueNonzero))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have h2 := sd_spec_gen_within .x5 .x30 teerValueNonzero
+    (if BitVec.ult (0 : Word) v12 then (1 : Word) else 0) vno (0 : BitVec 12) (teerB + 408)
+  runBlock h0 h1 h2
+
+/-! ## authorization-list content ptr/len + count out setup (instructions 163..168)
+
+    After the 10th authorization-list `rlp_walk_next` returns `a0`(x10) = list
+    content end and `a2`(x12) = content length, compute the content pointer
+    `x21 = a0 - a2` and length `x22 = a2`, stage them into `a0`/`a1`, and
+    materialise `&teer_auth_count` into `a2`(x12) for the count call.  Exit
+    `teerB + 676`, the `jal rlp_list_count_items` at instruction 169.  Over
+    `teerCode` (call-free). -/
+set_option maxRecDepth 8000 in
+theorem teer_authlist_setup_spec (v10 v11o v12 v21o v22o : Word) :
+    cpsTripleWithin 6 (teerB + 652) (teerB + 676) teerCode
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11o) ** (.x12 ↦ᵣ v12) ** (.x21 ↦ᵣ v21o) **
+        (.x22 ↦ᵣ v22o))
+      ((.x10 ↦ᵣ (v10 - v12)) ** (.x11 ↦ᵣ v12) ** (.x12 ↦ᵣ teerAuthCount) **
+        (.x21 ↦ᵣ (v10 - v12)) ** (.x22 ↦ᵣ v12)) := by
+  have h0 := sub_spec_gen_within .x21 .x10 .x12 v10 v12 v21o (teerB + 652) (by decide)
+  have h1 := mv_spec_gen_within .x22 .x12 v12 v22o (teerB + 656) (by decide)
+  have h2 := mv_spec_gen_within .x10 .x21 (v10 - v12) v10 (teerB + 660) (by decide)
+  have h3 := mv_spec_gen_within .x11 .x22 v12 v11o (teerB + 664) (by decide)
+  have h4 := la_materialize_within .x12 v12 (teerB + 668) teerAuthCount (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 668) teerProg 167
+      (.AUIPC .x12 (EvmAsm.Rv64.laHi (teerB + 668) teerAuthCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 672) teerProg 168
+      (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (teerB + 668) teerAuthCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  runBlock h0 h1 h2 h3 h4
+
+/-! ## count load + list re-init setup (instructions 171..175)
+
+    On the count-success fall-through (`teerB + 684`), load `teer_auth_count`
+    into the callee-saved counter `x23` and stage the list content ptr/len
+    (`x21`/`x22`, captured at instr 163) into `a0`/`a1` for the list-walk
+    `rlp_walk_init` at instruction 176.  Exit `teerB + 704`.  Over `teerCode`. -/
+set_option maxRecDepth 8000 in
+theorem teer_countload_setup_spec (v21 v22 v5o v23o v10o v11o cnt : Word) :
+    cpsTripleWithin 5 (teerB + 684) (teerB + 704) teerCode
+      ((.x5 ↦ᵣ v5o) ** (.x23 ↦ᵣ v23o) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+        (.x10 ↦ᵣ v10o) ** (.x11 ↦ᵣ v11o) ** (teerAuthCount ↦ₘ cnt))
+      ((.x5 ↦ᵣ teerAuthCount) ** (.x23 ↦ᵣ cnt) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+        (.x10 ↦ᵣ v21) ** (.x11 ↦ᵣ v22) ** (teerAuthCount ↦ₘ cnt)) := by
+  have h0 := la_materialize_within .x5 v5o (teerB + 684) teerAuthCount (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 684) teerProg 171
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 684) teerAuthCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 688) teerProg 172
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 684) teerAuthCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have h1 := ld_spec_gen_within .x23 .x5 teerAuthCount v23o cnt (0 : BitVec 12) (teerB + 692)
+    (by decide)
+  have h2 := mv_spec_gen_within .x10 .x21 v21 v10o (teerB + 696) (by decide)
+  have h3 := mv_spec_gen_within .x11 .x22 v22 v11o (teerB + 700) (by decide)
+  runBlock h0 h1 h2 h3
 
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
