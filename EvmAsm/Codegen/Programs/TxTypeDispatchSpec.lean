@@ -7,7 +7,7 @@
   Fail arms (empty / unknown prefix) return a0=1.
 
   No frame, no callees. LBU needs 8-aligned `txBase` (bytesRegion_lbu_within).
-  classical-3 only; no native_decide / sorry.
+  classical-3 only; no `native_decide` / `sorry`.
 -/
 
 import EvmAsm.Rv64.CPSSpec
