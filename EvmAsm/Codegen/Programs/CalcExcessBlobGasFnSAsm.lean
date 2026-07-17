@@ -78,7 +78,6 @@ theorem calcExcessBlobGasFn_spec (parentExcess blobGasUsed target base : Word) :
       intro hge
       simp_all
 
-#print axioms calcExcessBlobGasFn_spec
 
 end CalcExcessBlobGasFnSAsm
 end EvmAsm.Codegen

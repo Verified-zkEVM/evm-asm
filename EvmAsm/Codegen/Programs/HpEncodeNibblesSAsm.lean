@@ -876,7 +876,6 @@ theorem hpEncodeNibblesFn_spec (src dst : Word) (len : Nat) (isLeaf : Word)
       bv_omega
     · rw [hwin, hpWin_done srcBytes orig len isLeaf hlenOrig]
 
-#print axioms hpEncodeNibblesFn_spec
 
 end HpEncodeNibblesSAsm
 

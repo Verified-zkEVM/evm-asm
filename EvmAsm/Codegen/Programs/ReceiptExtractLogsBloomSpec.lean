@@ -271,7 +271,6 @@ theorem relbPrologue
       unfold callEntryRest entryRest savedRegTail
       xperm_chunked hq) call)
 
-#print axioms relbPrologue
 
 /-! ## The shared return postcondition
 
@@ -387,7 +386,6 @@ theorem relbEpilogue (newSp a0v v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) s2)
 
-#print axioms relbEpilogue
 
 /-! ## Copy-loop helpers -/
 
@@ -1360,6 +1358,5 @@ theorem receiptExtractLogsBloom_spec_within
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c1 hpost
   exact c2
 
-#print axioms receiptExtractLogsBloom_spec_within
 
 end EvmAsm.Codegen.ReceiptExtractLogsBloomSpec

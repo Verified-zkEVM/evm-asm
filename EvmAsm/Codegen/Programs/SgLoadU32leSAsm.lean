@@ -133,7 +133,6 @@ theorem sgLoadU32leFn_spec (p : Word) (bs : List (BitVec 8))
     exact sgLoadU32le_engine (sgLoadU32leFn p bs).region
       (sgLoadU32leFn p bs).rw.base rf₀ hx10
 
-#print axioms sgLoadU32leFn_spec
 
 end SgLoadU32leSAsm
 

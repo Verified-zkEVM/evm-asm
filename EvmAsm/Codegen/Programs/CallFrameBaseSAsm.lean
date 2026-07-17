@@ -330,7 +330,6 @@ theorem frameBase_spec (depth ret : Word)
     have hq2 := sepConj_mono_right (regAtomsOf_to_regOwns _ fbRest) h hq1
     xperm_hyp hq2
 
-#print axioms frameBase_spec
 
 end CallFrameBaseSAsm
 end EvmAsm.Codegen

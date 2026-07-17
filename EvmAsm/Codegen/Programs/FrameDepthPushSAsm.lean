@@ -85,6 +85,5 @@ theorem frameDepthPush_spec (depth old5 old10 ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) h12345
 
-#print axioms frameDepthPush_spec
 end FrameDepthPushSAsm
 end EvmAsm.Codegen

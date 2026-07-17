@@ -693,7 +693,6 @@ theorem bloomEq_spec (aPtr bPtr outPtr ret : Word) (bsA bsB : List (BitVec 8))
     (fun h hq => by unfold bePost at hq; exact hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc4)
 
-#print axioms bloomEq_spec
 
 end BloomEqSAsm
 

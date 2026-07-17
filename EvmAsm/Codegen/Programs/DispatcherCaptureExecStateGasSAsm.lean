@@ -153,7 +153,6 @@ theorem dispatcherCaptureExecStateGas_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms dispatcherCaptureExecStateGas_spec
 
 end DispatcherCaptureExecStateGasSAsm
 end EvmAsm.Codegen

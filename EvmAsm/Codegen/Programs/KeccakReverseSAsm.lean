@@ -1252,7 +1252,6 @@ theorem byteReverse32Fn_spec (p pc aux1 aux3 : Word) (w : List (BitVec 8))
     · rw [hA, hx12, sepConj_comm',
         show ([b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31] : List (BitVec 8)).reverse = [b31, b30, b29, b28, b27, b26, b25, b24, b23, b22, b21, b20, b19, b18, b17, b16, b15, b14, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0] from rfl]
 
-#print axioms byteReverse32Fn_spec
 
 end KeccakReverseSAsm
 

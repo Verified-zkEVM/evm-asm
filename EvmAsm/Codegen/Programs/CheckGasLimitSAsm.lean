@@ -398,7 +398,6 @@ theorem checkGasLimit_spec (nl pl ret : Word)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => hq) hc2)
 
-#print axioms checkGasLimit_spec
 
 end CheckGasLimitSAsm
 
