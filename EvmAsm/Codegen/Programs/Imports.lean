@@ -233,6 +233,7 @@ import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactSpec
 import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactLoop
 import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactIter
 import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactStatusNez
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactInduct
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
