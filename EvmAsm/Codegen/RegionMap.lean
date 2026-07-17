@@ -257,8 +257,12 @@ def schemeAAnchors : List GuestRegion :=
     fallback fix (`fix/bal-descriptor-exact`, #10438) together with
     the withdrawal-BAL bailout removal (`fix/withdrawal-bal-bail-removal`,
     #10439), measured via a fresh `readelf -SW` after both land
-    together. -/
-def textSizeBytes : Nat := 0x5cf6c
+    together. Grew to `0x5cf80` for the combined batch-merge landing
+    the a4gbr s-reg/scratch-own strengthen (#10442), the
+    zisk_stateless_verdict_v2 probe closure fix (#10446), the
+    execCodeEffectLogCap raise (#10447), and the nonstorage-effect
+    overflow guard (#10448). -/
+def textSizeBytes : Nat := 0x5cf80
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -277,8 +281,10 @@ def dataSizeBytes : Nat := 0x5370
     for the fixed, gas-sized bounded indexed-root builder arenas, then `0x1d320`
     when the transaction descriptor staging was raised to the same gas bound.
     Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
-    non-storage effect modeling (#10422). -/
-def bssSizeBytes : Nat := 0x1a5ff360
+    non-storage effect modeling (#10422). Grew by `0x160000`
+    (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
+    200M-gas block can never over-reject on deployed-code volume. -/
+def bssSizeBytes : Nat := 0x1a75f360
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

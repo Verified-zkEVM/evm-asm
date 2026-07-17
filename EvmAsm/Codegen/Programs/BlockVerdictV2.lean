@@ -143,6 +143,13 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanTuplesFunction ++ "\n" ++
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
+    -- Keep the standalone verdict-debug ELF's multi-tx closure in lockstep
+    -- with the guest closure: the runtime dispatcher reaches this whitelist
+    -- gate, and the post-dispatch verdict reaches the withdrawal effect walk.
+    -- These are diagnostic-only emissions; verdict code is unchanged.
+    brpsfAddr20EqFunction ++ "\n" ++
+    balStorageWhitelistCleanFunction ++ "\n" ++
+    blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
     rlpFieldToU64Function ++ "\n" ++
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
