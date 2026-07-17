@@ -30,10 +30,11 @@
         **Frame save/restore DONE** + **pre-zero DONE** (`extractPreZero` E+56→E+72) +
         **type_dispatch call DONE** (`extractTypeSuccess` E+72→E+112, value-carrying
         tea post) + **load type/inner DONE** (`extractLoadTypeInner` E+112→E+144).
-        Residual: body Hoare (rlp_walk_init + walk_nexts + 20B copy) under
-        extractSuccess; fullCode∪extract (150-instr ofProg mono heartbeat residual
-        — use extractLinkedCode first); ~~TypeDispatchAssumed~~ DONE —
-        use `typeDispatch_discharged`
+        Residual: body Hoare (`extractWalkInitCall` full leaf packaging +
+        walk_nexts + 20B copy) under extractSuccess; walkInit mono scaffold
+        DONE (`walkInit_in_extractLinked`, Prest, jalOff resolve). fullCode∪extract
+        (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
+        ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
