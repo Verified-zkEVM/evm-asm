@@ -6,7 +6,7 @@
   array-fill half only — full eip8037_tx_gas_gate is out of scope.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopClose
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopInduct
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayHeader
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Rv64.Tactics.XSimp

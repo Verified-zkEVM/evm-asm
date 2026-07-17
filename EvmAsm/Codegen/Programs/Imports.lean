@@ -317,8 +317,12 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayPrologue
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayHeader
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoop
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopEnd
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopTeer
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopBalNez
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopClose
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayLoopInduct
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
 import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
