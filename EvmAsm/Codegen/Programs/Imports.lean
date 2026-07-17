@@ -297,6 +297,7 @@ import EvmAsm.Codegen.Programs.TeerTxParsePrefix19
 import EvmAsm.Codegen.Programs.TeerTxParsePrefix20
 import EvmAsm.Codegen.Programs.TeerTxParsePrefix21
 import EvmAsm.Codegen.Programs.TeerTxParsePrefix22
+import EvmAsm.Codegen.Programs.TeerTxParsePrefix23
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
