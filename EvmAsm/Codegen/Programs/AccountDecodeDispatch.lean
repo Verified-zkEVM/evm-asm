@@ -22,6 +22,125 @@ import EvmAsm.Rv64.LaResolve
 namespace EvmAsm.Codegen.AccountDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+open EvmAsm.Codegen.RlpListNthItemSAsm (Saved savedVals listNthFrame flatReturnResult
+  Success Result)
+
+/-! ## K20 post-call status dispatch (all four fields)
+
+    After a field's K20 call returns `flatReturnResult`, `BNE x10, x0` routes a
+    nonzero status to the shared failure tail (`AB+504`, the `li a0,1`) and a
+    zero status (a genuine `Success`) to the next phase (`dispatchPC + 4`).
+    All four fields share this shape (only the guest PC / branch offset differ),
+    so one theorem — parameterised on the dispatch PC, branch offset, index, and
+    the concrete `BNE` fetch fact — covers every field.  Mirrors `k20Dispatch`. -/
+
+/-- Continue-exit post (status `0`, a genuine K20 `Success`) of a field's
+    post-call dispatch. -/
+def adK20ContPost (spW listBase : Word) (index : Nat)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen : Nat) : Assertion :=
+  fun h => ∃ offset len v11 v12,
+    ((⌜Success bytes listBase listLen index offset len⌝ : Assertion) **
+     ((((.x2 ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved) ** stackFree spW 8) **
+       ((.x10 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len))))) h
+
+/-- Fail-exit post (nonzero status) of a field's post-call dispatch. -/
+def adK20FailPost (spW listBase oldOffset oldLen : Word) (index : Nat)
+    (saved : Saved) (bytes : List (BitVec 8)) (listLen : Nat) : Assertion :=
+  fun h => ∃ status offset len v11 v12,
+    ((⌜Result bytes listBase listLen index oldOffset oldLen status offset len ∧
+        status ≠ (0 : Word)⌝ : Assertion) **
+     ((((.x2 ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved) ** stackFree spW 8) **
+       ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len))))) h
+
+set_option maxRecDepth 8000 in
+/-- Generic K20 post-call status dispatch: `BNE x10, x0 bneOff` at `dispatchPC`
+    routes nonzero status → `AB+504` (fail) and status `0` → `dispatchPC+4`
+    (continue).  The concrete branch fetch and its taken target are supplied by
+    the caller (one per field). -/
+theorem adK20Dispatch (spW listBase oldOffset oldLen dispatchPC : Word)
+    (bneOff : BitVec 13) (index : Nat) (saved : Saved)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (htaken : dispatchPC + signExtend13 bneOff = AB + 504)
+    (hmem : ∀ a i, CodeReq.singleton dispatchPC (.BNE .x10 .x0 bneOff) a = some i →
+      fullCode a = some i) :
+    cpsBranchWithin 1 dispatchPC fullCode
+      (flatReturnResult spW listBase (BitVec.ofNat 64 index) adOffsetAddr adLengthAddr
+        oldOffset oldLen saved bytes listLen index)
+      (AB + 504) (adK20FailPost spW listBase oldOffset oldLen index saved bytes listLen)
+      (dispatchPC + 4) (adK20ContPost spW listBase index saved bytes listLen) := by
+  refine cpsBranchWithin_weaken (P := fun h => ∃ status offset len v11 v12,
+      ((((.x2 ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved) ** stackFree spW 8) **
+        ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+         (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len))) **
+       ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝) h)
+    (fun h hp => hp) (fun _ hq => hq) (fun _ hq => hq) ?_
+  refine cpsBranchWithin_exists_pre (fun status => ?_)
+  refine cpsBranchWithin_exists_pre (fun offset => ?_)
+  refine cpsBranchWithin_exists_pre (fun len => ?_)
+  refine cpsBranchWithin_exists_pre (fun v11 => ?_)
+  refine cpsBranchWithin_exists_pre (fun v12 => ?_)
+  let REST : Assertion :=
+    (((.x2 ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved) ** stackFree spW 8) **
+     (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion listBase bytes **
+      (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len))) **
+    ⌜Result bytes listBase listLen index oldOffset oldLen status offset len⌝
+  have hbne := bne_spec_gen_within .x10 .x0 bneOff status (0 : Word) dispatchPC
+  rw [htaken, show (dispatchPC : Word) + 4 = dispatchPC + 4 from rfl] at hbne
+  have hbneL := cpsBranchWithin_extend_code hmem hbne
+  have hbneF := cpsBranchWithin_frameR REST (by unfold REST; pcf) hbneL
+  refine cpsBranchWithin_weaken (fun h hp => by
+      unfold REST
+      xperm_hyp hp)
+    (fun h hq => by
+      refine ⟨status, offset, len, v11, v12, ?_⟩
+      unfold REST at hq
+      obtain ⟨h1, h2, hd, hu, hA, hR⟩ := hq
+      obtain ⟨h3, h4, hd2, hu2, hx10, hrest⟩ := hA
+      have hne : status ≠ (0 : Word) := ((sepConj_pure_right h4).1 hrest).2
+      have hx0 : ((.x0 : Reg) ↦ᵣ (0 : Word)) h4 := ((sepConj_pure_right h4).1 hrest).1
+      have hbody := ((sepConj_pure_right h2).1 hR).1
+      have hres := ((sepConj_pure_right h2).1 hR).2
+      apply (sepConj_pure_left h).2
+      refine ⟨⟨hres, hne⟩, ?_⟩
+      have hq' : (((.x10 ↦ᵣ status) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** _) h :=
+        ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hx10, hx0⟩, hbody⟩
+      xperm_hyp hq')
+    (fun h hq => by
+      unfold REST at hq
+      obtain ⟨h1, h2, hd, hu, hA, hR⟩ := hq
+      obtain ⟨h3, h4, hd2, hu2, hx10, hrest⟩ := hA
+      have hz : status = (0 : Word) := ((sepConj_pure_right h4).1 hrest).2
+      have hx0 : ((.x0 : Reg) ↦ᵣ (0 : Word)) h4 := ((sepConj_pure_right h4).1 hrest).1
+      have hres := ((sepConj_pure_right h2).1 hR).2
+      have hbody := ((sepConj_pure_right h2).1 hR).1
+      have hsucc : Success bytes listBase listLen index offset len := by
+        rw [hz] at hres
+        cases hres with
+        | ok o l hok => exact hok
+      refine ⟨offset, len, v11, v12, ?_⟩
+      subst hz
+      apply (sepConj_pure_left h).2
+      refine ⟨hsucc, ?_⟩
+      have hq' : (((.x10 ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** _) h :=
+        ⟨h1, h2, hd, hu, ⟨h3, h4, hd2, hu2, hx10, hx0⟩, hbody⟩
+      xperm_hyp hq')
+    hbneF
+
+#print axioms adK20Dispatch
 
 /-! ## `la x5, ad_length` materialisers for the four length-check sites -/
 
