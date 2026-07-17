@@ -24,10 +24,23 @@ namespace EvmAsm.Codegen.AccountDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.RlpListNthItemSAsm (Saved savedVals listNthFrame savedFrame regsAt_listNthFrame
-  Success Result Failure)
+  listNthFrameRegs_implies_owned Success Result Failure)
 open EvmAsm.Evm64.Terminating (copyIntoRegion)
 
 /-! ## Local register-ownership introduction helpers -/
+
+/-- Introduce TWO owned registers' values at once (trailing `regOwn` chain). -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn2
+    {nSteps : Nat} {entry exit_ : Word} {r1 r2 : Reg} {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ v1 v2, cpsTripleWithin nSteps entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** regOwn r1 ** regOwn r2) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, ⟨v2, hv2⟩⟩ := hO1
+  exact h v1 v2 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu, ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, hv2⟩, hRb⟩ hpc
 
 /-- Introduce THREE owned registers' values at once (trailing `regOwn` chain). -/
 theorem cpsTripleWithin_of_forall_regIs_to_regOwn3
@@ -90,5 +103,439 @@ def adCopyFetchCode : CopyFetch .x21 (AB + 464) where
   bne := fun a i hi => CodeReq.ofProg_mem_at AB (AB + 464 + 20) accountDecode_prog 121
     (.BNE .x6 .x0 (-20 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
     (by rw [ad_length]; decide) a i hi
+
+/-! ## `pcFree` discharge macro for the continue-frame reshapes -/
+
+local macro "pcfa" : tactic =>
+  `(tactic| repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_pure
+    | exact pcFree_stackFree _ _
+    | exact pcFree_adContFrame _ _ _ _ _ _ _ _ _ _
+    | exact pcFree_adScratch _
+    | exact pcFree_adCommon _ _ _
+    | apply pcFree_sepConj)
+
+/-- The clobbered temporaries (a mix of concrete `regIs` and already-owned
+    `regOwn` cells) weaken into `adScratch`; `x0`/`x15` are kept as concrete. -/
+theorem adScratch_of_regs (codeOut v5 v6 v7 v11 v12 v28 : Word) : ∀ h,
+    (((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+     ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+     ((.x28 : Reg) ↦ᵣ v28) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x15 : Reg) ↦ᵣ codeOut)) h →
+    adScratch codeOut h := by
+  intro h hp
+  unfold adScratch
+  exact sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+    (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x11)
+    (sepConj_mono (regIs_implies_regOwn .x12) (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (regIs_implies_regOwn .x28)))))))) h hp
+
+/-- Variant of `adScratch_of_regs` for the fail edge, where `x28` is already
+    owned (never materialised to a concrete cursor). -/
+theorem adScratch_of_regs_own (codeOut v5 v6 v7 v11 v12 : Word) : ∀ h,
+    (((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+     ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x15 : Reg) ↦ᵣ codeOut)) h →
+    adScratch codeOut h := by
+  intro h hp
+  unfold adScratch
+  exact sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+    (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x11)
+    (sepConj_mono_left (regIs_implies_regOwn .x12))))) h hp
+
+/-! ## Field-3 success tail (`AB+448 → raIn`): code copy + `Decoded` tie
+
+    On the `len = 32` continue edge of field 3's length check, the 20-... (32-)
+    byte code hash is copied into the final output cell, then `adSuccessEpi`
+    stores `a0 := 0` and returns.  The `Decoded` verdict, assembled from the four
+    field `Success` facts, is carried through the epilogue and unpacked into the
+    whole-program success post. -/
+
+set_option maxRecDepth 8000 in
+theorem adField3Success
+    (sp0 spW raIn listBase len nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0 l1 l2 l3
+      x28v x29v v11 v12 : Word)
+    (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hcalign : codeOut.toNat % 8 = 0)
+    (hcover : codeOut.toNat + 32 < 2 ^ 64)
+    (hcodelen : oldCode.length = 32)
+    (hcvalid : ∀ k, k < 32 → isValidByteAccess (codeOut + BitVec.ofNat 64 k) = true)
+    (hDecoded : Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 o3 l3)
+    (hf3 : Success bytes listBase listLen 3 o3 l3)
+    (hl3 : l3 = (32 : Word)) :
+    let savedCaller : Saved :=
+      { ra := raIn, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
+        s4 := rootOut, s5 := codeOut }
+    cpsTripleWithin (4 + (192 + (1 + (1 + 11)))) (AB + 448) raIn fullCode
+      (((.x6 : Reg) ↦ᵣ l3) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ((.x5 : Reg) ↦ᵣ adLengthAddr) **
+       (adLengthAddr ↦ₘ l3) ** ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) **
+       ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ nonceOut) **
+       ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) ** ((.x21 : Reg) ↦ᵣ codeOut) **
+       stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+       ((.x12 : Reg) ↦ᵣ v12) ** ((.x28 : Reg) ↦ᵣ x28v) ** ((.x29 : Reg) ↦ᵣ x29v) **
+       regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** ((.x15 : Reg) ↦ᵣ codeOut) **
+       savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+       bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+       bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode)
+      (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
+  intro savedCaller
+  have hoffnorm : listBase + o3 = listBase + BitVec.ofNat 64 (o3.toNat + 0) := by
+    rw [Nat.add_zero]; congr 1
+    apply BitVec.eq_of_toNat_eq; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt o3.isLt]
+  have hsrcbound : o3.toNat + 0 + (31 + 1) ≤ bytes.length := by
+    have hcb := adSuccessContentBound bytes listBase listLen 3 o3 l3 hslack hover hf3
+    rw [hl3] at hcb; simp only [show (32 : Word).toNat = 32 from by decide] at hcb; omega
+  -- code copy source-cursor setup [112]-[115].
+  have hcs := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ l3) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** (adLengthAddr ↦ₘ l3) **
+     ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x9 : Reg) ↦ᵣ len) **
+     ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) **
+     ((.x21 : Reg) ↦ᵣ codeOut) ** stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x29 : Reg) ↦ᵣ x29v) **
+     regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller ** bytesRegion listBase bytes **
+     (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode)
+    (by pcfa) (adCodeCopySetup listBase o3 adLengthAddr x28v)
+  -- code copy loop [116]-[121].
+  have hcl := cpsTripleWithin_frameR
+    (((.x5 : Reg) ↦ᵣ adOffsetAddr) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** (adLengthAddr ↦ₘ l3) **
+     ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) **
+     ((.x9 : Reg) ↦ᵣ len) **
+     ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) **
+     stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+     ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 **
+     ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
+     (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+    (by pcfa)
+    (adCopyLoop .x21 (AB + 464) listBase codeOut x29v bytes oldCode o3.toNat 0 0 31
+      (by decide) adCopyFetchCode hsalign hcalign hsrcbound (by rw [hcodelen])
+      hover (by rw [hcodelen]; exact hcover) hvalid
+      (by intro k hk; rw [hcodelen] at hk; exact hcvalid k hk))
+  -- bridge copysetup → copyloop.
+  have c1 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      rw [show (BitVec.ofNat 64 (31 + 1) : Word) = l3 from by rw [hl3]; decide,
+        show listBase + BitVec.ofNat 64 (o3.toNat + 0) = listBase + o3 from hoffnorm.symm,
+        show codeOut + BitVec.ofNat 64 (0 + 0) = codeOut from by bv_omega,
+        show copyIntoRegion oldCode bytes 0 o3.toNat 0 = oldCode from rfl]
+      xperm_hyp hp)
+    hcs hcl
+  -- the two trailing NOPs [122]-[123] (`AB+488 → AB+496`).
+  have hnop1 := cpsTripleWithin_extend_code ad_mono
+    (cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 488) accountDecode_prog 122 .NOP (by bv_omega)
+        (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) (nop_spec_within (AB + 488)))
+  have hnop2 := cpsTripleWithin_extend_code ad_mono
+    (cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 492) accountDecode_prog 123 .NOP (by bv_omega)
+        (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) (nop_spec_within (AB + 492)))
+  -- success tail F: the four output cells, the input, the two data cells, the
+  -- reclaimed scratch stack and the clobbered temporaries.
+  set F : Assertion :=
+    (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+    bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+    bytesRegion rootOut (fixed32Copied bytes oldRoot o2) **
+    bytesRegion codeOut (fixed32Copied bytes oldCode o3) ** bytesRegion listBase bytes **
+    (adOffsetAddr ↦ₘ o3) ** (adLengthAddr ↦ₘ l3) ** stackFree spW 8 ** adScratch codeOut
+    with hFdef
+  have hF : F.pcFree := by rw [hFdef]; unfold adScratch; pcfa
+  have hepi := adSuccessEpi sp0 spW (0 : Word) savedCaller F hF hspW
+    (show savedCaller.ra &&& ~~~(1 : Word) = savedCaller.ra from hret)
+  -- frame the NOPs by the ambient state at AB+488 / AB+492.
+  have hnop1f := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ (0 : Word)) ** ((.x28 : Reg) ↦ᵣ (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1))))) **
+     ((.x21 : Reg) ↦ᵣ (codeOut + BitVec.ofNat 64 (0 + (0 + (31 + 1))))) ** regOwn .x29 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     bytesRegion codeOut (copyIntoRegion oldCode bytes 0 o3.toNat (0 + (31 + 1))) **
+     (.x5 ↦ᵣ adOffsetAddr) ** (.x7 ↦ᵣ (32 : Word)) ** (adLengthAddr ↦ₘ l3) ** (.x2 ↦ᵣ spW) **
+     (.x1 ↦ᵣ (AB + 424)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ nonceOut) **
+     (.x19 ↦ᵣ balanceOut) **
+     (.x20 ↦ᵣ s4v) ** stackFree spW 8 ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **
+     (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 **
+     (.x15 ↦ᵣ codeOut) ** savedFrame spW savedCaller **
+     (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+    (by pcfa) hnop1
+  rw [sepConj_emp_left'] at hnop1f
+  have hnop2f := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ (0 : Word)) ** ((.x28 : Reg) ↦ᵣ (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1))))) **
+     ((.x21 : Reg) ↦ᵣ (codeOut + BitVec.ofNat 64 (0 + (0 + (31 + 1))))) ** regOwn .x29 **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+     bytesRegion codeOut (copyIntoRegion oldCode bytes 0 o3.toNat (0 + (31 + 1))) **
+     (.x5 ↦ᵣ adOffsetAddr) ** (.x7 ↦ᵣ (32 : Word)) ** (adLengthAddr ↦ₘ l3) ** (.x2 ↦ᵣ spW) **
+     (.x1 ↦ᵣ (AB + 424)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ nonceOut) **
+     (.x19 ↦ᵣ balanceOut) **
+     (.x20 ↦ᵣ s4v) ** stackFree spW 8 ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **
+     (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 **
+     (.x15 ↦ᵣ codeOut) ** savedFrame spW savedCaller **
+     (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+    (by pcfa) hnop2
+  rw [sepConj_emp_left'] at hnop2f
+  -- compose copy ;; nop ;; nop ;; success epilogue.
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 hnop1f
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c2 hnop2f
+  have c4 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      rw [hFdef]
+      have hg : (((.x10 : Reg) ↦ᵣ (0 : Word)) **
+          (((.x2 : Reg) ↦ᵣ spW) **
+           (((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+            ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
+            ((.x20 : Reg) ↦ᵣ s4v) **
+            ((.x21 : Reg) ↦ᵣ (codeOut + BitVec.ofNat 64 (0 + (0 + (31 + 1)))))) **
+           savedFrame spW savedCaller) **
+          ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+           bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+           bytesRegion rootOut (fixed32Copied bytes oldRoot o2) **
+           bytesRegion codeOut (fixed32Copied bytes oldCode o3) ** bytesRegion listBase bytes **
+           (adOffsetAddr ↦ₘ o3) ** (adLengthAddr ↦ₘ l3) ** stackFree spW 8 **
+           (((.x5 : Reg) ↦ᵣ adOffsetAddr) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+            regOwn .x13 ** regOwn .x14 **
+            ((.x28 : Reg) ↦ᵣ (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1))))) **
+            regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x15 : Reg) ↦ᵣ codeOut)))) h := by
+        rw [show copyIntoRegion oldCode bytes 0 o3.toNat (0 + (31 + 1))
+            = fixed32Copied bytes oldCode o3 from rfl] at hp
+        xperm_hyp hp
+      exact sepConj_mono_right (sepConj_mono
+        (sepConj_mono_right (sepConj_mono_left (fun h' hr => listNthFrameRegs_implies_owned
+          listBase len nonceOut balanceOut s4v
+          (codeOut + BitVec.ofNat 64 (0 + (0 + (31 + 1)))) h'
+          (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
+        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (adScratch_of_regs codeOut adOffsetAddr (0 : Word) (32 : Word) v11 v12
+              (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1)))))))))))))) h hg)
+    c3 hepi
+  -- weaken pre (stated → copysetup pre) and post (epilogue post → whole-program success).
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) c4)
+  refine Or.inl ⟨o0, l0, o1, l1, o2, l2, o3, l3, ?_⟩
+  refine (sepConj_pure_left h).2 ⟨hDecoded, ?_⟩
+  rw [hFdef] at hq
+  unfold adSuccessOut
+  exact sepConj_mono_right (sepConj_mono_right
+    (fun h' hF => ⟨o3, l3, by unfold outputSuccess; xperm_hyp hF⟩)) h hq
+
+#print axioms adField3Success
+
+/-! ## Field-3 continue: the success-content tie (`AB+428 → raIn`)
+
+    Field 3's K20 continue exit is the all-fields-decoded success path.  The
+    upstream decode facts (fields 0/1/2 `Success` with their length bounds)
+    arrive as hypotheses; combined with field 3's own pinned `Success` (from the
+    reshape) and the `len = 32` length check they assemble `Decoded`.  The code
+    copy loop writes the fourth output cell, then the success tail (`adSuccessEpi`,
+    `AB+496 → raIn`) stores `a0 := 0` and returns. -/
+
+set_option maxRecDepth 8000 in
+theorem adField3ContEpi
+    (sp0 spW raIn listBase len nonceOut balanceOut rootOut codeOut o0 o1 o2 l0 l1 l2 s4reg
+      : Word)
+    (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hcalign : codeOut.toNat % 8 = 0)
+    (hcover : codeOut.toNat + 32 < 2 ^ 64)
+    (hcodelen : oldCode.length = 32)
+    (hcvalid : ∀ k, k < 32 → isValidByteAccess (codeOut + BitVec.ofNat 64 k) = true)
+    (hf0 : Success bytes listBase listLen 0 o0 l0)
+    (hf1 : Success bytes listBase listLen 1 o1 l1)
+    (hf2 : Success bytes listBase listLen 2 o2 l2)
+    (hl0 : l0.toNat ≤ 8) (hl1 : l1.toNat ≤ 32) (hl2 : l2.toNat = 32) :
+    let saved3 : Saved :=
+      { ra := AB + 424, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
+        s4 := s4reg, s5 := codeOut }
+    let savedCaller : Saved :=
+      { ra := raIn, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
+        s4 := rootOut, s5 := codeOut }
+    cpsTripleWithin (5 + 210) (AB + 428) raIn fullCode
+      (adK20ContPost spW listBase 3 saved3 bytes listLen **
+       (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        ((.x15 : Reg) ↦ᵣ codeOut)))
+      (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
+  intro saved3 savedCaller
+  -- (1) expose the K20 continue existentials, keeping x5/x6/x7 owned.
+  refine cpsTripleWithin_weaken
+    (P := fun h => ∃ offset len' v11 v12,
+      (((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
+        ((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved3) ** stackFree spW 8 **
+        ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len') ** savedFrame spW savedCaller **
+        (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
+    (fun h hp => by
+      obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
+      unfold adK20ContPost at hcont
+      obtain ⟨offset, len', v11, v12, hbody⟩ := hcont
+      refine ⟨offset, len', v11, v12, ?_⟩
+      have hcomb : (_ ** _) h := ⟨h1, h2, hd, hu, hbody, hacc⟩
+      xperm_hyp hcomb)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_exists_pre_gen (fun offset => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun len' => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun v11 => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun v12 => ?_)
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn3 (fun v5 v6 v7 => ?_)
+  -- (2) continue reshape into length-check pre plus the ambient continue frame.
+  refine cpsTripleWithin_weaken
+    (P := (((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+        (adLengthAddr ↦ₘ len')) **
+       (adContFrame spW listBase 3 saved3 bytes listLen offset len' v11 v12 **
+        savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        ((.x15 : Reg) ↦ᵣ codeOut)))
+    (fun h hp => by
+      have hin : (((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
+          ((((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved3) ** stackFree spW 8) **
+           (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+            ((.x7 : Reg) ↦ᵣ v7) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+            (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len')))) **
+          (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+           bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+           bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+           ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
+      have hout := sepConj_mono_left (adContReshape spW listBase 3 saved3 bytes listLen offset len'
+        v11 v12 v5 v6 v7) h hin
+      xperm_hyp hout)
+    (fun _ hq => hq) ?_
+  -- (3) length-check branch, framed by the continue frame plus the output cells.
+  have hbr := cpsBranchWithin_frameR
+    (adContFrame spW listBase 3 saved3 bytes listLen offset len' v11 v12 **
+     savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+     ((.x15 : Reg) ↦ᵣ codeOut))
+    (by pcfa) (adCodeLenCheck v5 v6 v7 len')
+  refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
+  case fail =>
+    -- len ≠ 32: field3Len failure through the shared fail arm.
+    refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq)
+      (cpsTripleWithin_mono_nSteps (show (1 + 9) ≤ 210 from by omega)
+        (adFailArm sp0 spW savedCaller listBase bytes oldRoot oldCode listLen hspW
+          (show savedCaller.ra &&& ~~~(1 : Word) = savedCaller.ra from hret)))
+    unfold adContFrame at hp
+    rw [regsAt_listNthFrame] at hp
+    have hf3 : Success bytes listBase listLen 3 offset len' := by
+      obtain ⟨_, _, _, _, _, hr⟩ := hp
+      obtain ⟨_, _, _, _, hcf, _⟩ := hr
+      exact ((sepConj_pure_left _).1 hcf).1
+    have hne32 : len'.toNat ≠ 32 := by
+      have hne : len' ≠ (32 : Word) := by
+        obtain ⟨_, _, _, _, hfp, _⟩ := hp
+        obtain ⟨_, _, _, _, hAgrp, _⟩ := hfp
+        obtain ⟨_, _, _, _, _, hA2⟩ := hAgrp
+        exact ((sepConj_pure_right _).1 hA2).2
+      intro heq; exact hne (by apply BitVec.eq_of_toNat_eq; rw [heq]; decide)
+    have hDF : DecodeFailure bytes listBase listLen := DecodeFailure.field3Len offset len' hf3 hne32
+    have hgP : ((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
+        (⌜len' ≠ (32 : Word)⌝ : Assertion) **
+        ((((.x2 : Reg) ↦ᵣ spW) **
+         (((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+          ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
+          ((.x20 : Reg) ↦ᵣ saved3.s4) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
+         savedFrame spW savedCaller) **
+        ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+         bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len') **
+         stackFree spW 8 **
+         (((.x5 : Reg) ↦ᵣ adLengthAddr) ** ((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (32 : Word)) **
+          ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) h := by xperm_hyp hp
+    have hg := ((sepConj_pure_left h).1 (((sepConj_pure_left h).1 hgP).2)).2
+    exact sepConj_mono (sepConj_mono
+      (sepConj_mono_right (sepConj_mono_left (fun h' hr => listNthFrameRegs_implies_owned
+        listBase len nonceOut balanceOut saved3.s4 codeOut h'
+        (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
+      (fun h' hc => (sepConj_pure_left h').2
+        ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset, len', balanceCopied bytes o1 l1.toNat,
+          fixed32Copied bytes oldRoot o2, oldCode,
+          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+              (adScratch_of_regs_own codeOut adLengthAddr len' (32 : Word) v11 v12)))))))) h' hc⟩))
+      (regIs_implies_regOwn .x10) h hg
+  case cont =>
+    -- len = 32: the success tie.  Introduce x28/x29 witnesses, extract facts.
+    refine cpsTripleWithin_weaken
+      (P := ((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
+        (⌜len' = (32 : Word)⌝ : Assertion) **
+        ((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ((.x5 : Reg) ↦ᵣ adLengthAddr) **
+        (adLengthAddr ↦ₘ len') ** ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) **
+        ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ nonceOut) **
+        ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ saved3.s4) ** ((.x21 : Reg) ↦ᵣ codeOut) **
+        stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+        ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
+        (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode) **
+        regOwn .x28 ** regOwn .x29)
+      (fun h hp => by unfold adContFrame at hp; rw [regsAt_listNthFrame] at hp; xperm_hyp hp)
+      (fun _ hq => hq) ?_
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (fun x28v x29v => ?_)
+    refine cpsTripleWithin_weaken
+      (P := (⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
+        (⌜len' = (32 : Word)⌝ : Assertion) **
+        (((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ((.x5 : Reg) ↦ᵣ adLengthAddr) **
+         (adLengthAddr ↦ₘ len') ** ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) **
+         ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ nonceOut) **
+         ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ saved3.s4) ** ((.x21 : Reg) ↦ᵣ codeOut) **
+         stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+         ((.x12 : Reg) ↦ᵣ v12) ** ((.x28 : Reg) ↦ᵣ x28v) ** ((.x29 : Reg) ↦ᵣ x29v) **
+         regOwn .x13 ** regOwn .x14 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) **
+         savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+         bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode))
+      (fun h hp => by xperm_hyp hp) (fun _ hq => hq) ?_
+    refine cpsTripleWithin_pure_pre (fun hf3 => ?_)
+    refine cpsTripleWithin_pure_pre (fun hl3 => ?_)
+    have hDecoded : Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 offset len' :=
+      ⟨hf0, hl0, hf1, hl1, hf2, hl2, hf3, by rw [hl3]; decide⟩
+    exact cpsTripleWithin_mono_nSteps (by omega)
+      (adField3Success (s4v := saved3.s4) sp0 spW raIn listBase len nonceOut balanceOut rootOut
+        codeOut o0 o1 o2 offset l0 l1 l2 len' x28v x29v v11 v12 bytes oldRoot oldCode listLen hspW
+        hret hsalign hslack hover hvalid hcalign hcover hcodelen hcvalid hDecoded hf3 hl3)
+
+#print axioms adField3ContEpi
 
 end EvmAsm.Codegen.AccountDecodeSpec
