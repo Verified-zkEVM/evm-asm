@@ -132,7 +132,7 @@ theorem keccakF_length (st : List (BitVec 64)) : (keccakF st).length = 25 := by
   rw [hrc, List.foldl_cons]
   exact aux rest _ (keccakRound_length rc st)
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: absorbing the padded empty message
     into a zero state (rate 1088: `st[0] ^= 0x01`, `st[16] ^= 0x80 << 56`)
     and permuting yields `keccak256("") =
@@ -208,7 +208,7 @@ def sha256Compress (hs w : List (BitVec 32)) : List (BitVec 32) :=
     [T1 + T2, a, b, c, d + T1, e, f, g]) (hs.take 8)
   List.zipWith (· + ·) (hs.take 8) fin
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: compressing the padded empty
     message over the initial state yields `sha256("") =
     e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
@@ -367,7 +367,7 @@ def ptValid (p nl : Nat) (pt : List Word) : Bool :=
 def secpP : Nat :=
   0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: doubling the secp256k1 generator
     yields 2·G (expected coordinates from an independent Python
     implementation). -/
@@ -379,7 +379,7 @@ theorem secp_curveDbl_kat :
        0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
     := by decide
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: `G + 2G = 3G` on secp256k1. -/
 theorem secp_curveAdd_kat :
     curveAdd secpP
@@ -427,7 +427,7 @@ def bn254P : Nat :=
 def bls12P : Nat :=
   0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: doubling the BN254 generator
     `(1, 2)` (expected coordinates from an independent Python
     implementation). -/
@@ -437,7 +437,7 @@ theorem bn254_curveDbl_kat :
        0x15ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4)
     := by decide
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: `G + 2G = 3G` on BN254. -/
 theorem bn254_curveAdd_kat :
     curveAdd bn254P 1 2
@@ -447,7 +447,7 @@ theorem bn254_curveAdd_kat :
        0x2ab799bee0489429554fdb7c8d086475319e63b40b9c5b57cdf1ff3dd9fe2261)
     := by decide
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: doubling the BLS12-381 G1
     generator (expected coordinates from an independent Python
     implementation; the generator was validated on-curve). -/
