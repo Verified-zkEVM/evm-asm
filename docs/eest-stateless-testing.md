@@ -227,6 +227,21 @@ the block state budget, followed by a tx that fits only if that charge is
 under-counted at the sequential inclusion gate — a guest that accepts it has
 the auth-retention false-accept hole.
 
+Run the full sequential-path 0-FA guard suite (bmvmx.5.5.15):
+
+```bash
+scripts/codegen-eest-kat-sequential-guard-check.sh
+```
+
+This umbrella guard runs every crafted adversarial KAT family under
+`fixtures/kat/` (currently: `eip8037-auth-retention/` — the auth-retention
+exploit+control; `prep-halt-auth/` — a prep-halted set-delegation-OOG 7702 tx
+whose applied auth charge must be zero via BAL rollback detection;
+`gas-gate-boundary/` — EIP-7778 sequential regular-gate boundaries including
+failed-tx full-burn accumulation, plus calldata-floor clamp edges) and requires
+every fixture to byte-match its `statelessOutputBytes` (verdict byte included).
+Generator specs with fill recipes live under `scripts/kat/`.
+
 Run the EIP-7939 CLZ/JUMP frontier:
 
 ```bash
