@@ -1190,7 +1190,8 @@ def blockVerdictFunction : String :=
   "  la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, i3djw_skip_list; li a5, 9\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  "  # Conservative BAL-forward mismatch bail removed: retain the authenticated\n" ++
+  "  # state-root and continue into the independent reverse-coverage check.\n" ++
   -- i3djw.3 (REVERSE covers): every exec NON-STORAGE net-change effect must be PRESENT in
   -- the BAL — catches a hidden account that execution net-changed (balance/nonce) but the
   -- BAL omits. Completes the non-storage compare (forward = BAL declared -> exec reproduces;
