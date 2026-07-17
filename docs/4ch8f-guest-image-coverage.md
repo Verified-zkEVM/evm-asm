@@ -121,7 +121,7 @@ table and the script are authoritative.)
 | `0x800119a8` | `0x80011bd4` | 556 | `block_validate_receipts_consensus_list` | UNCONVERTED |
 | `0x80011cd0` | `0x80012018` | 840 | `simple_transfer_intrinsic_gas` | UNCONVERTED |
 | `0x80012018` | `0x800180cc` | 24756 | `block_verdict` | UNCONVERTED |
-| `0x800189e8` | `0x80018c40` | 600 | `tx_extract_to_address` | UNCONVERTED |
+| `0x800189e8` | `0x80018c40` | 600 | `tx_extract_to_address` | CONVERTED (`txExtractToAddress_prog`, 150) |
 | `0x80018c40` | `0x80018eb8` | 632 | `tx_extract_value` | UNCONVERTED |
 | `0x80018eb8` | `0x8001914c` | 660 | `tx_extract_data_section` | UNCONVERTED |
 | `0x80019818` | `0x80019e60` | 1608 | `bal_code_preimages_valid` | UNCONVERTED |
