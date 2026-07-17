@@ -37,11 +37,13 @@ private theorem endSpan_to_fromIntr_bal1
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes true **
             (.x0 ↦ᵣ (0 : Word))) h) →
       -- BalNezFromIntrinsic pre: s-regs outside loopIntrinsicFrame.
       (((.x1 ↦ᵣ old1) **
           (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+          tisScratchOwn **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
           (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
           (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
@@ -71,6 +73,7 @@ private theorem endSpan_to_fromIntr_bal1
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes true **
             (.x0 ↦ᵣ (0 : Word)))) h) := by
     xperm_hyp hp
@@ -101,6 +104,7 @@ private theorem balNezPost_to_loopInv
             (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             bytesRegion txBase txBlob **
             wordArray outBase outVals' **
             bytesRegion balBase balBytes **
@@ -127,6 +131,7 @@ private theorem balNezPost_to_loopInv
             (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             bytesRegion txBase txBlob ** wordArray outBase outVals' **
             bytesRegion balBase balBytes **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -148,6 +153,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -168,6 +174,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -188,6 +195,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -207,6 +215,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -226,6 +235,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -246,6 +256,7 @@ private theorem balNezPost_to_loopInv
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals' **
               bytesRegion balBase balBytes **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -277,6 +288,7 @@ private def endSpanOwnRaBal (spC txBase outBase balBase chainIdW nW iW
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes true **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -298,6 +310,7 @@ private theorem endSpan_to_ownRaBal
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes true **
             (.x0 ↦ᵣ (0 : Word))) h) →
       ((endSpanOwnRaBal spC txBase outBase balBase chainIdW nW iW startW endW
@@ -328,6 +341,7 @@ private theorem ownRaBal_vals_to_endSpan
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
+          tisScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes true **
           (.x0 ↦ᵣ (0 : Word))) h) := by
   intro h hp
@@ -381,6 +395,7 @@ theorem bvtIterBalNez_fromEndSpan
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes true **
         (.x0 ↦ᵣ (0 : Word)))
       (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals'
@@ -423,6 +438,7 @@ theorem bvtIterBalNez_fromEndSpan
               (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
+              tisScratchOwn **
               bytesRegion txBase txBlob **
               wordArray outBase outVals' **
               bytesRegion balBase balBytes **

@@ -228,6 +228,21 @@ def nTeerStackDwords : Nat := 20
     `stackFree_split` to take 8 and frame the rest. -/
 def nCalleeStackDwords : Nat := nTeerStackDwords
 
+/-- Global `.data` scratch the intrinsic leaf uses (`tis_to_buf` first dword,
+    `tis_is_creation`, `tis_type`, `tis_inner_off`). Matches #10434 bodyPayload
+    owns; required in IntrinsicAssumed for discharge (same class as sp/s-regs). -/
+def tisScratchOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_to_buf) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_is_creation) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_type) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_inner_off)
+
+theorem pcFree_tisScratchOwn : tisScratchOwn.pcFree := by
+  unfold tisScratchOwn
+  exact pcFree_sepConj pcFree_memOwn
+    (pcFree_sepConj pcFree_memOwn
+      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+
 /-- Assumed contract for `tx_intrinsic_state_gas`.
 
     ABI: a0=tx_ptr, a1=tx_len, a2=out_ptr → a0 status, *out_ptr = value.
@@ -247,6 +262,10 @@ def nCalleeStackDwords : Nat := nTeerStackDwords
     **Callee-saved s-regs:** the real leaf saves/restores s0–s6
     (`x8,x9,x18–x22`). PRE/POST pin those with equal entry/exit values so the
     hyp is dischargeable from the framed Program (same class as sp+stackFree).
+
+    **Global scratch:** leaf uses fixed `tis_*` `.data` cells; PRE/POST pin
+    `tisScratchOwn` (preserved). Without them the hyp is not dischargeable
+    from the framed Program (same class as sp/s-regs).
 
     Success arm only — failure is routed by the array body to status 3. -/
 structure IntrinsicAssumed (cr : CodeReq) where
@@ -273,6 +292,7 @@ structure IntrinsicAssumed (cr : CodeReq) where
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
           (outPtr ↦ₘ oldOut) **
+          tisScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -285,6 +305,7 @@ structure IntrinsicAssumed (cr : CodeReq) where
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion regionBase bs **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+          tisScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
           regOwn .x15 ** regOwn .x16 **
@@ -424,6 +445,7 @@ def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
   regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegs
 
@@ -441,8 +463,10 @@ def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
   (.x26 ↦ᵣ csaved.s10) ** (.x27 ↦ᵣ csaved.s11) **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegsNoA0
+
 
 /-- Success post: `a0 = 0` and out-array equals the pure model. -/
 def postOk (sp0 spC txBase outBase balBase : Word) (csaved : Saved)

@@ -21,6 +21,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 local macro "bvt_pcf" : tactic => `(tactic|
   repeat' first
     | exact pcFree_stackFree _ _
+    | exact pcFree_tisScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -66,6 +67,7 @@ def teerRest (spC txBase outBase balBase chainIdW nW : Word)
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   bytesRegion txBase txBlob **
   wordArray outBase outVals **
   bytesRegion balBase balBytes **
@@ -191,6 +193,7 @@ theorem bvtIterTeerSetup
         regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -210,6 +213,7 @@ theorem bvtIterTeerSetup
         regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -240,6 +244,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -273,6 +278,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -304,6 +310,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -335,6 +342,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -366,6 +374,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -408,6 +417,7 @@ theorem bvtIterTeerSetup
       regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -444,7 +454,9 @@ def loopTeerFrame (spC _txBase outBase _balBase _chainIdW _nW _iW
     _startW _endW _bodyLenW _balLenW : Word)
     (csaved : Saved) (outVals : List Nat) : Assertion :=
   -- x8/x9/x18–x27 are in TeerAssumed (leaf save/restore); not here.
+  -- tisScratchOwn is intrinsic-only global scratch; frame across teer.
   savedFrame spC csaved **
+  tisScratchOwn **
   wordArray outBase outVals **
   regOwn .x17
   -- x0 stays in the callee footprint (not framed) to avoid double-own.
@@ -676,6 +688,7 @@ theorem bvtIterStoreAdd
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArrayFrom outBase 0 outPrefix **
         wordArrayFrom outBase (i + 1) outSuffix **
@@ -698,6 +711,7 @@ theorem bvtIterStoreAdd
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArrayFrom outBase 0 outPrefix **
         wordArrayFrom outBase (i + 1) outSuffix **
@@ -739,6 +753,7 @@ theorem bvtIterStoreAdd
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArrayFrom outBase 0 outPrefix **
       wordArrayFrom outBase (i + 1) outSuffix **
@@ -793,6 +808,7 @@ theorem bvtIterStoreAdd
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArrayFrom outBase 0 outPrefix **
       wordArrayFrom outBase (i + 1) outSuffix **
@@ -838,6 +854,7 @@ theorem bvtIterStoreAdd
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArrayFrom outBase 0 outPrefix **
       wordArrayFrom outBase (i + 1) outSuffix **
@@ -883,6 +900,7 @@ theorem bvtIterStoreAdd
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArrayFrom outBase 0 outPrefix **
       wordArrayFrom outBase (i + 1) outSuffix **
@@ -928,6 +946,7 @@ theorem bvtIterStoreAdd
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArrayFrom outBase 0 outPrefix **
       wordArrayFrom outBase (i + 1) outSuffix **
@@ -976,6 +995,7 @@ theorem bvtIterAfterStoreJal
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -995,6 +1015,7 @@ theorem bvtIterAfterStoreJal
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -1027,6 +1048,7 @@ theorem bvtIterAfterStoreJal
       (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       bytesRegion txBase txBlob **
       wordArray outBase outVals **
       bytesRegion balBase balBytes **
@@ -1112,6 +1134,7 @@ theorem bvtIterStoreAdd_fold
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1132,6 +1155,7 @@ theorem bvtIterStoreAdd_fold
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1161,6 +1185,7 @@ theorem bvtIterStoreAdd_fold
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArrayFrom outBase 0 (outVals.take i) **
         wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)) **
@@ -1183,6 +1208,7 @@ theorem bvtIterStoreAdd_fold
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArrayFrom outBase 0 (outVals.take i) **
         wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)) **
@@ -1225,6 +1251,7 @@ theorem bvtIterIntrinsic_preserveCell
     cpsTripleWithin (1 + nIntrinsicSteps) AfterEndSpan LinkIntrinsic fullCode
       ((.x1 ↦ᵣ old1) **
         (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
         (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
@@ -1239,6 +1266,7 @@ theorem bvtIterIntrinsic_preserveCell
           startW endW bodyLenW csaved balBytes balEnabled)
       ((.x1 ↦ᵣ LinkIntrinsic) **
         (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
         (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
@@ -1305,6 +1333,7 @@ theorem bvtIterBal0FromIntrinsic
     cpsTripleWithin ((1 + nIntrinsicSteps) + 4) AfterEndSpan LoopGuard fullCode
       ((.x1 ↦ᵣ old1) **
         (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
         (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
@@ -1330,6 +1359,7 @@ theorem bvtIterBal0FromIntrinsic
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -1360,6 +1390,7 @@ theorem bvtIterBal0FromIntrinsic
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -1380,6 +1411,7 @@ theorem bvtIterBal0FromIntrinsic
       have hq' :
           ((.x1 ↦ᵣ LinkIntrinsic) **
             (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
             (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
             (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **

@@ -21,6 +21,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 local macro "bvt_pcf" : tactic => `(tactic|
   repeat' first
     | exact pcFree_stackFree _ _
+    | exact pcFree_tisScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -114,6 +115,7 @@ theorem bvtIterStoreAdd_fold_own
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -136,6 +138,7 @@ theorem bvtIterStoreAdd_fold_own
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -175,6 +178,7 @@ theorem bvtIterTeerSetup_own
         regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -248,6 +252,7 @@ theorem bvtIterBalNezTail
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals' **
         bytesRegion balBase balBytes **
@@ -310,6 +315,7 @@ theorem bvtIterBalNezTail
           regOwn .x27 **
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
+          tisScratchOwn **
           bytesRegion txBase txBlob **
           wordArray outBase outVals **
           bytesRegion balBase balBytes **
@@ -401,6 +407,7 @@ theorem bvtIterBalNezFromIntrinsic
       AfterEndSpan LoopGuard fullCode
       ((.x1 ↦ᵣ old1) **
         (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
         (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
@@ -429,6 +436,7 @@ theorem bvtIterBalNezFromIntrinsic
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals' **
         bytesRegion balBase balBytes **

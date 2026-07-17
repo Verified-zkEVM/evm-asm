@@ -30,6 +30,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 local macro "bvt_pcf" : tactic => `(tactic|
   repeat' first
     | exact pcFree_stackFree _ _
+    | exact pcFree_tisScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -154,6 +155,7 @@ theorem bvtGuardTaken (spC txBase outBase balBase chainIdW nW : Word)
           regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
+          tisScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           scratchRegs) : Assertion).pcFree := by
     unfold payload savedFrame scratchRegs
@@ -167,6 +169,7 @@ theorem bvtGuardTaken (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       scratchRegs)
     hF htk
@@ -213,6 +216,7 @@ theorem bvtGuardNtaken (spC txBase outBase balBase chainIdW nW : Word)
           regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
+          tisScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           scratchRegs) : Assertion).pcFree := by
     unfold payload savedFrame scratchRegs
@@ -226,6 +230,7 @@ theorem bvtGuardNtaken (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       scratchRegs)
     hF hnt
@@ -305,6 +310,7 @@ def loopBgvFrame (spC txBase outBase balBase chainIdW nW iW : Word)
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   wordArray outBase outVals **
   (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
   (.x0 ↦ᵣ (0 : Word))
@@ -356,6 +362,7 @@ def loopBgvFrameAfterMv (spC txBase outBase balBase chainIdW nW iW : Word)
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   wordArray outBase outVals **
   (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
   (.x0 ↦ᵣ (0 : Word))
@@ -373,6 +380,7 @@ def setupFrame (spC txBase outBase balBase chainIdW nW : Word)
   (.x1 ↦ᵣ old1) ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
+  tisScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -392,6 +400,7 @@ theorem setupFrame_pcFree (spC txBase outBase balBase chainIdW nW : Word)
 local macro "bvt_pcf" : tactic =>
   `(tactic| repeat' first
     | exact pcFree_stackFree _ _
+    | exact pcFree_tisScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -554,6 +563,7 @@ theorem bvtIterStartBgv (spC txBase outBase balBase chainIdW nW : Word)
             (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
+            tisScratchOwn **
             wordArray outBase outVals **
             (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
             (.x0 ↦ᵣ (0 : Word)))) **
@@ -585,6 +595,7 @@ theorem bvtIterStartBgv (spC txBase outBase balBase chainIdW nW : Word)
         (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         wordArray outBase outVals **
         (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
         (.x0 ↦ᵣ (0 : Word)))
@@ -658,6 +669,7 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word)))
       ((.x1 ↦ᵣ LinkLoopBgv1) **
@@ -675,6 +687,7 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word))) := by
   intro iW tableW
@@ -712,6 +725,7 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e37
@@ -752,6 +766,7 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) hnt38
@@ -792,6 +807,7 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) hnt39
@@ -846,6 +862,7 @@ theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word)))
       ((.x1 ↦ᵣ LinkLoopBgv1) **
@@ -863,6 +880,7 @@ theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
+        tisScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word))) := by
   intro iW ip1W lenW
@@ -898,6 +916,7 @@ theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e40
@@ -936,6 +955,7 @@ theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) htk41
@@ -971,6 +991,7 @@ theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
+      tisScratchOwn **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       (.x0 ↦ᵣ (0 : Word)))
     (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e47
