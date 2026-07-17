@@ -178,7 +178,6 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         (hAllValid i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
 
-#print axioms cvbgmLoop
 
 set_option maxRecDepth 8000 in
 /-- **`chain_validate_blob_gas_used_multiple` caller contract.**  The
@@ -271,6 +270,5 @@ theorem chain_validate_blob_gas_used_multiple_spec_within
       (sepConj_mono (regIs_implies_regOwn .x14) (fun _ x => x))))))) h hp1
     xperm_hyp hp2) hpro hloop
 
-#print axioms chain_validate_blob_gas_used_multiple_spec_within
 
 end EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec

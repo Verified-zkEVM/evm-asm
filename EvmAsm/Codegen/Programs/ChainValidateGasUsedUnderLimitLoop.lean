@@ -93,7 +93,6 @@ theorem cvgulSetup1 (hbi lenBase spC iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at D (D + 120) cvgulProg 30 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 116) GasUsed)) (by bv_omega) (by rw [cvgul_length]; decide) (by decide) (by rw [cvgul_length]; decide))
   runBlock hla18 s20' hla21 s23' s24' s25' s26' s27' s28' hla29
 
-#print axioms cvgulSetup1
 
 /-! ## Reload + setup block for call 2 (instructions 33--45)
 
@@ -152,7 +151,6 @@ theorem cvgulReloadSetup2 (hbi lenBase iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at D (D + 180) cvgulProg 45 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 176) GasLimit)) (by bv_omega) (by rw [cvgul_length]; decide) (by decide) (by rw [cvgul_length]; decide))
   runBlock hla33 s35' hla36 s38' s39' s40' s41' s42' s43' hla44
 
-#print axioms cvgulReloadSetup2
 
 /-! ## Compare block (instructions 48--59): reload iterator + both values
 
@@ -200,7 +198,6 @@ theorem cvgulCompare (hbi iW gu gl : Word) (old5 o18 o21 o6 o7 : Word) :
     (CodeReq.ofProg_mem_at D (D + 236) cvgulProg 59 (.LD .x7 .x5 (0 : BitVec 12)) (by bv_omega) (by rw [cvgul_length]; decide) rfl (by rw [cvgul_length]; decide)) s59
   runBlock hla48 s50' hla51 s53' hla54 s56' hla57 s59'
 
-#print axioms cvgulCompare
 
 /-! ## Advance block (instructions 61--66): step the iterator, loop back
 
@@ -242,7 +239,6 @@ theorem cvgulAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
     (CodeReq.ofProg_mem_at D (D + 264) cvgulProg 66 (.JAL .x0 (-196 : BitVec 21)) (by bv_omega) (by rw [cvgul_length]; decide) rfl (by rw [cvgul_length]; decide)) s66
   runBlock s61' s62' s63' s64' s65' s66'
 
-#print axioms cvgulAdvance
 
 /-! ## Call block 1 (instructions 18--31 + K34): setup1 ;; jal ;; rlp_field_to_u64
 
@@ -372,7 +368,6 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
     (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
   xperm_hyp hp''
 
-#print axioms cvgulCall1
 
 /-! ## Call block 1 with the consumed scratch registers owned -/
 
@@ -432,7 +427,6 @@ theorem cvgulCall1Owned (hbi lenBase spC iW : Word) (Li : Nat)
     (cvgulCall1 hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13 v28
       bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvgulCall1Owned
 
 /-! ## Call block 2 (instructions 33--46 + K34): reloadSetup2 ;; jal ;; rlp_field_to_u64
 
@@ -564,7 +558,6 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
     (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
   xperm_hyp hp''
 
-#print axioms cvgulCall2
 
 /-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
 
@@ -644,7 +637,6 @@ theorem flatPost_normalize (spC hbi validPtr firstBadPtr nN lenBase iW linkRA ce
         (fun _ x => x)))) h hp1
     xperm_hyp hp2
 
-#print axioms flatPost_normalize
 
 /-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
     slots the loop invariant carries. -/
@@ -768,6 +760,5 @@ theorem cvgulIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
       rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
       xperm_hyp hp) hguardF hcallF)
 
-#print axioms cvgulIterEntry
 
 end EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec
