@@ -101,6 +101,26 @@ def _decode(s):
         else: out.append(c);i+=1
     return ''.join(out)
 
+def _strip_lean_line_comments(src):
+    """Drop Lean `--` comments while leaving `--` in assembly strings intact."""
+    out=[]; i=0; in_string=False
+    while i<len(src):
+        c=src[i]
+        if in_string:
+            out.append(c)
+            if c=='\\' and i+1<len(src):
+                out.append(src[i+1]); i+=2; continue
+            if c=='"': in_string=False
+            i+=1; continue
+        if c=='"':
+            in_string=True; out.append(c); i+=1; continue
+        if src.startswith('--', i):
+            i=src.find('\n', i)
+            if i<0: break
+            out.append('\n'); i+=1; continue
+        out.append(c); i+=1
+    return ''.join(out)
+
 def extract_function(text, fname):
     """Return the decoded asm string of `def <fname> : String := "..." ++ ...`.
     Raises if the RHS is not a pure string-literal concatenation."""
@@ -114,12 +134,9 @@ def extract_function(text, fname):
                           'namespace ','/-!','/--','@[','private','example','set_option')):
             break
         body_lines.append(ln)
-    body='\n'.join(body_lines)
+    body=_strip_lean_line_comments('\n'.join(body_lines))
     strs=re.findall(r'"((?:[^"\\]|\\.)*)"',body)
     stripped=re.sub(r'"(?:[^"\\]|\\.)*"','',body)
-    # Lean line comments in a string-definition body do not affect the
-    # emitted assembly and must not prevent a mechanical conversion.
-    stripped=re.sub(r'--[^\n]*','',stripped)
     if re.sub(r'[+\s]','',stripped):
         raise ConvError(f"{fname}: RHS is not a pure string literal (references idents)")
     return ''.join(_decode(s) for s in strs)
