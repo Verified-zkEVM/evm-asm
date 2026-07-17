@@ -135,13 +135,19 @@ structure Saved where
   deriving Repr
 
 def savedFrame (spC : Word) (s : Saved) : Assertion :=
-  (spC ↦ₘ s.ra) **
-  ((spC + 8) ↦ₘ s.s0) ** ((spC + 16) ↦ₘ s.s1) **
-  ((spC + 24) ↦ₘ s.s2) ** ((spC + 32) ↦ₘ s.s3) **
-  ((spC + 40) ↦ₘ s.s4) ** ((spC + 48) ↦ₘ s.s5) **
-  ((spC + 56) ↦ₘ s.s6) ** ((spC + 64) ↦ₘ s.s7) **
-  ((spC + 72) ↦ₘ s.s8) ** ((spC + 80) ↦ₘ s.s9) **
-  ((spC + 88) ↦ₘ s.s10) ** ((spC + 96) ↦ₘ s.s11)
+  ((spC + signExtend12 (0 : BitVec 12)) ↦ₘ s.ra) **
+  ((spC + signExtend12 (8 : BitVec 12)) ↦ₘ s.s0) **
+  ((spC + signExtend12 (16 : BitVec 12)) ↦ₘ s.s1) **
+  ((spC + signExtend12 (24 : BitVec 12)) ↦ₘ s.s2) **
+  ((spC + signExtend12 (32 : BitVec 12)) ↦ₘ s.s3) **
+  ((spC + signExtend12 (40 : BitVec 12)) ↦ₘ s.s4) **
+  ((spC + signExtend12 (48 : BitVec 12)) ↦ₘ s.s5) **
+  ((spC + signExtend12 (56 : BitVec 12)) ↦ₘ s.s6) **
+  ((spC + signExtend12 (64 : BitVec 12)) ↦ₘ s.s7) **
+  ((spC + signExtend12 (72 : BitVec 12)) ↦ₘ s.s8) **
+  ((spC + signExtend12 (80 : BitVec 12)) ↦ₘ s.s9) **
+  ((spC + signExtend12 (88 : BitVec 12)) ↦ₘ s.s10) **
+  ((spC + signExtend12 (96 : BitVec 12)) ↦ₘ s.s11)
 
 /-- Status codes returned in `a0`. -/
 inductive Status where
