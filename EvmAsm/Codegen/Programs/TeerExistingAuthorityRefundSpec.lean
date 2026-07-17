@@ -77,6 +77,8 @@
 
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.EL.RLP.Basic
+import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.CodeReqExtents
 import EvmAsm.Rv64.MemRegion
@@ -89,6 +91,7 @@ import EvmAsm.Rv64.SAsm.DualReadByteScan
 namespace EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
 
 open EvmAsm.Rv64
+open EvmAsm.EL.RLP (Nat.fromBytesBE)
 
 /-! ## Teer APPLIED state-charge model
 
@@ -755,5 +758,189 @@ theorem teer_prologue_spec
     (teer_prologue_body_spec sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old
       s8old s9old s10old s11old a5old a0 a1 a2 a3 a4 x5In)
     hbeqF
+
+/-! ## Assumed sub-contracts (hypotheses, not axioms)
+
+    The teer body `jal`s into four callees that have NO standalone linked
+    Program on this branch (they are inlined into `rlp_list_count_items` or
+    emitted only as asm strings), so they cannot enter `fullCode` as `ofProg`
+    blocks.  Instead each enters the eventual top theorem as an *assumed*
+    `cpsTripleWithin` contract — a structure whose `entry`/`cr` a future
+    converted-callee Fn.Spec instantiates (drop-in via
+    `cpsTripleWithin_extend_code`), NOT an axiom and NO `sorry`.
+
+    Faithfulness: each contract's ABI (input/output register footprint) and its
+    semantic result mirror the corresponding EXISTING proven top spec
+    (`rlp_walk_init_spec_within`, `rlp_walk_next_spec_within`,
+    `rlp_content_to_u64_spec_within` in `EvmAsm/Rv64/RLP/*`) at grok's
+    single-primary-outcome abstraction level (cf. `IntrinsicAssumed`/
+    `TeerAssumed` on a4gbr).  The result is expressed with the very predicates
+    those specs establish (`EvmAsm.Rv64.RLP.rlpWalkNextOk` /
+    `rlpItemDecode`, `Nat.fromBytesBE`), so a later conversion discharges the
+    contract by construction. -/
+
+/-- Over-approximate step budget for the (asm-only) BAL nonce lookup callee. -/
+def nBalNonceSteps : Nat := 4096
+
+/-- Assumed contract for `rlp_walk_init` (RLP list-cursor initializer).
+
+    ABI (from `rlp_walk_init_spec_within`): a0 = list pointer
+    (`listBase + off`), a1 = list length; returns a0 = element cursor, a1 = list
+    end pointer, a2 = status (0 = success, ≠ 0 = a parse-shape failure that the
+    teer loop treats as end-of-list / no contribution).  On success the cursor
+    is the first content byte (short-list `p+1`, long-list `p + (lenlen+1)`);
+    `x5,x6,x7,x28..x31` are scratch (owned on return). -/
+structure RlpWalkInitAssumed (cr : CodeReq) where
+  /-- Entry PC of the (future) converted `rlp_walk_init` Program. -/
+  entry : Word
+  /-- Cursor-init contract: success positions a0 at the list's first content
+      byte and a2 = 0; failure returns a2 ≠ 0.  (Provenance side-conditions of
+      the proven top spec are omitted at this abstraction level.) -/
+  flat :
+    ∀ (ret listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+      (listBytes : List (BitVec 8)) (listOff : Nat)
+      (_halign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+      (_hover : listBase.toNat + listOff < 2 ^ 64)
+      (_hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true),
+      cpsTripleWithin 81 entry (ret &&& ~~~1) cr
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ ret) ** bytesRegion listBase listBytes)
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) **
+          bytesRegion listBase listBytes) **
+         (fun h =>
+           -- short-list success (a2 = 0): cursor = p + 1
+           (((.x10 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
+              (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+              (.x12 ↦ᵣ (0 : Word))) h) ∨
+           -- long-list success (a2 = 0): cursor = p + (lenlen + 1)
+           (((.x10 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) +
+                (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                  signExtend12 (1 : BitVec 12)))) **
+              (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+              (.x12 ↦ᵣ (0 : Word))) h) ∨
+           -- parse-shape failure (a2 ≠ 0): cursor/end unspecified
+           (∃ cur endp st : Word,
+             (((.x10 ↦ᵣ cur) ** (.x11 ↦ᵣ endp) ** (.x12 ↦ᵣ st) ** ⌜st ≠ (0 : Word)⌝) h))))
+
+/-- Assumed contract for `rlp_walk_next` (RLP item-cursor advance).
+
+    ABI (from `rlp_walk_next_spec_within`): a0 = current cursor
+    (`srcBase + off`), a1 = end pointer; returns via
+    `EvmAsm.Rv64.RLP.rlpWalkNextOk` on success (a0 = next item, a1 = 0,
+    a2 = item length) or one of five non-advance statuses (a1 ∈ {2,3,4,5,6},
+    a2 = 0) that the teer loop treats as end-of-list / malformed. -/
+structure RlpWalkNextAssumed (cr : CodeReq) where
+  /-- Entry PC of the (future) converted `rlp_walk_next` Program. -/
+  entry : Word
+  /-- Cursor-advance contract mirroring `rlp_walk_next_spec_within`. -/
+  flat :
+    ∀ (ret srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+      (srcBytes : List (BitVec 8)) (srcOff : Nat)
+      (_halign : srcBase.toNat % 8 = 0) (_hoff : srcOff < srcBytes.length)
+      (_hover : srcBase.toNat + srcOff < 2 ^ 64)
+      (_hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true),
+      cpsTripleWithin 87 entry (ret &&& ~~~1) cr
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ ret) ** bytesRegion srcBase srcBytes)
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) **
+          bytesRegion srcBase srcBytes) **
+         (fun h =>
+           EvmAsm.Rv64.RLP.rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr
+             srcBytes srcOff h ∨
+           (∃ st : Word,
+             (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ st) **
+                (.x12 ↦ᵣ (0 : Word)) ** ⌜st ≠ (0 : Word)⌝) h))))
+
+/-- Assumed contract for `rlp_content_to_u64` (big-endian RLP content → u64).
+
+    Verbatim ABI + result of `rlp_content_to_u64_spec_within`: a0 = content
+    pointer (`srcBase + off`), a1 = content length; returns a0 = value / status
+    and a1 = status code.  On the accepting arm a0 = the big-endian value
+    `Nat.fromBytesBE` of the `len` content bytes and a1 = 0. -/
+structure RlpContentToU64Assumed (cr : CodeReq) where
+  /-- Entry PC of the (future) converted `rlp_content_to_u64` Program. -/
+  entry : Word
+  /-- Content-decode contract mirroring `rlp_content_to_u64_spec_within`. -/
+  flat :
+    ∀ (ret srcBase t0Old x6Old t2Old t3Old : Word) (srcBytes : List (BitVec 8))
+      (srcOff len : Nat) (_hlen64 : len < 2 ^ 64) (_hsalign : srcBase.toNat % 8 = 0)
+      (_hslen : srcOff + len ≤ srcBytes.length)
+      (_hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+      (_hsvalid : ∀ k, k < len →
+        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true),
+      cpsTripleWithin (7 * len + 11) entry (ret &&& ~~~1) cr
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) **
+          bytesRegion srcBase srcBytes)
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ ret) ** bytesRegion srcBase srcBytes) **
+         (fun h =>
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+              ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+           (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+              (.x11 ↦ᵣ (0 : Word)) **
+              ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+
+/-- Assumed contract for `bal_account_nonce_before_index` (asm-only callee).
+
+    ABI (from `balAccountNonceBeforeIndexFunction`): a0 = AccountChanges
+    pointer (`regionBase + off`), a1 = length, a2 = current block-access index;
+    returns a0 = status (0 found / 1 no earlier change / 2 malformed) and, on
+    the found arm, a1 = the latest post-nonce strictly before the index.  The
+    found-nonce is exposed via the model field `nonceModel`, which a future
+    conversion pins to the concrete `nonce_changes` scan. -/
+structure BalAccountNonceBeforeIndexAssumed (cr : CodeReq) where
+  /-- Entry PC of the (future) converted `bal_account_nonce_before_index`. -/
+  entry : Word
+  /-- The latest pre-index post-nonce, as a pure function of the AccountChanges
+      bytes, its base offset, and the (1-based) block-access index; `none` when
+      no strictly-earlier nonce change exists. -/
+  nonceModel : List (BitVec 8) → Nat → Nat → Option Word
+  /-- Nonce-lookup contract.  `x5,x6,x7,x28..x31` and `x11..x17` are scratch;
+      the found arm publishes `nonceModel` into a1. -/
+  flat :
+    ∀ (ret regionBase loadPtr lenW baiW : Word) (bs : List (BitVec 8))
+      (off len bai : Nat)
+      (_hret : (ret &&& ~~~(1 : Word)) = ret)
+      (_hload : loadPtr = regionBase + BitVec.ofNat 64 off)
+      (_hlen : lenW = BitVec.ofNat 64 len) (_hbai : baiW = BitVec.ofNat 64 bai)
+      (_hbound : off + len ≤ bs.length),
+      cpsTripleWithin nBalNonceSteps entry ret cr
+        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ baiW) **
+          bytesRegion regionBase bs **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+        ((.x1 ↦ᵣ ret) ** bytesRegion regionBase bs **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (fun h =>
+            -- found (a0 = 0): a1 = the modelled pre-index nonce
+            (∃ nonce, nonceModel bs off bai = some nonce ∧
+              (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ nonce)) h)) ∨
+            -- no earlier change (a0 = 1)
+            (nonceModel bs off bai = none ∧ (((.x10 ↦ᵣ (1 : Word)) ** regOwn .x11) h)) ∨
+            -- malformed (a0 = 2)
+            (((.x10 ↦ᵣ (2 : Word)) ** regOwn .x11) h)))
+
+/-- Combined modular hypotheses for the eventual teer top theorem: the four
+    string-only callee contracts over the shared `fullCode`. -/
+structure TeerAssumedCallees (cr : CodeReq) where
+  walkInit : RlpWalkInitAssumed cr
+  walkNext : RlpWalkNextAssumed cr
+  contentToU64 : RlpContentToU64Assumed cr
+  nonceBeforeIndex : BalAccountNonceBeforeIndexAssumed cr
 
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
