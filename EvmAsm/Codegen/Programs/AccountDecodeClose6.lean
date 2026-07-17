@@ -1059,4 +1059,80 @@ theorem adBBField0
 
 #print axioms adBBField0
 
+/-! ## Top-level whole-program caller contract (`AB → raSaved`) -/
+
+set_option maxRecDepth 8000 in
+/-- **Whole-program caller contract** for `accountDecode_prog`: the ABI prologue
+    (`adPrologue`) followed by the four field backbones (`adBBField0`), landing
+    the abstract decode outcome `adWholePost`.  On `a0 = 0` the four output cells
+    hold the genuine `Decoded` account fields; on `a0 = 1` a `DecodeFailure` is
+    witnessed and the owned leftover retained.
+
+    Honest preconditions: the caller passes the RLP pointer/length and the four
+    output pointers in the callee-saved registers `x8/x9/x18/x19/x20/x21` (also
+    mirrored into the argument registers `a0..a5`), owns the frame slots, the K20
+    scratch stack, the seven temporaries, the input region `bytesRegion listBase`,
+    the two guest scratch cells and the four output slots (nonce dword +
+    balance/root/code 32-byte regions); the buffer fits (`listLen + 9 ≤ length`),
+    `listBase`/output alignments, the return-address low-bit invariant, the
+    over-bounds and per-byte `isValidByteAccess` facts. -/
+theorem account_decode_spec_within
+    (sp0 spW raSaved listBase len nonceOut balanceOut rootOut codeOut oldOffset oldLen oldNonce
+      : Word)
+    (bytes oldBal oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : raSaved &&& ~~~(1 : Word) = raSaved)
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hbalign : balanceOut.toNat % 8 = 0)
+    (hbover : balanceOut.toNat + 32 < 2 ^ 64)
+    (hballen : oldBal.length = 32)
+    (hbvalid : ∀ k, k < 32 → isValidByteAccess (balanceOut + BitVec.ofNat 64 k) = true)
+    (hralign : rootOut.toNat % 8 = 0)
+    (hrover : rootOut.toNat + 32 < 2 ^ 64)
+    (hrootlen : oldRoot.length = 32)
+    (hrvalid : ∀ k, k < 32 → isValidByteAccess (rootOut + BitVec.ofNat 64 k) = true)
+    (hcalign : codeOut.toNat % 8 = 0)
+    (hcover : codeOut.toNat + 32 < 2 ^ 64)
+    (hcodelen : oldCode.length = 32)
+    (hcvalid : ∀ k, k < 32 → isValidByteAccess (codeOut + BitVec.ofNat 64 k) = true) :
+    let savedCaller : Saved :=
+      { ra := raSaved, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
+        s4 := rootOut, s5 := codeOut }
+    cpsTripleWithin (14 + (((7 + (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))) + 1) + 2205))
+      AB raSaved fullCode
+      ((((.x2 : Reg) ↦ᵣ sp0) ** regsAt listNthFrame (savedVals savedCaller) **
+       frameSlotsOwn listNthFrame spW **
+       (((.x10 : Reg) ↦ᵣ listBase) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ nonceOut) **
+        ((.x13 : Reg) ↦ᵣ balanceOut) ** ((.x14 : Reg) ↦ᵣ rootOut) ** ((.x15 : Reg) ↦ᵣ codeOut))) **
+       (stackFree spW 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ oldOffset) ** (adLengthAddr ↦ₘ oldLen) **
+        (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
+        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode))
+      (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
+  intro savedCaller
+  have hpro := adPrologue sp0 spW raSaved listBase len nonceOut balanceOut rootOut codeOut
+    listBase len nonceOut balanceOut rootOut codeOut hspW
+  have hproF := cpsTripleWithin_frameR
+    (stackFree spW 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+     regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ oldOffset) ** (adLengthAddr ↦ₘ oldLen) **
+     (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+    (by pcfa) hpro
+  have hbb := adBBField0 sp0 spW raSaved raSaved listBase len nonceOut balanceOut rootOut codeOut
+    oldOffset oldLen listBase len nonceOut balanceOut rootOut oldNonce
+    bytes oldBal oldRoot oldCode listLen hspW hret hlenW hsalign hslack hover hvalid hbalign
+    hbover hballen hbvalid hralign hrover hrootlen hrvalid hcalign hcover hcodelen hcvalid
+  refine cpsTripleWithin_seq_perm_same_cr (fun h hp => ?_) hproF hbb
+  unfold adCallPre
+  xperm_hyp hp
+
+#print axioms account_decode_spec_within
+
 end EvmAsm.Codegen.AccountDecodeSpec
