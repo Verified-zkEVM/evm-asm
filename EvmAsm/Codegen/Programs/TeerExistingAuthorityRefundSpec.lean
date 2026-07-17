@@ -76,7 +76,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Rv64.CPSSpec
+import EvmAsm.Rv64.CodeReqExtents
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.InstructionSpecs
@@ -269,6 +271,129 @@ abbrev teerRegularRefund : Word := (GuestAddrs.teer_regular_refund : Word)
 abbrev teerSuccessCount : Word := (GuestAddrs.teer_success_count : Word)
 abbrev teerPredelegatedCount : Word := (GuestAddrs.teer_predelegated_count : Word)
 abbrev teerRolledBack : Word := (GuestAddrs.teer_rolled_back : Word)
+
+/-! ## `fullCode`: the teer program plus its 7 cross-`jal` callee Programs
+
+    The teer body (`jal`s begin at instruction 40) calls into seven linked
+    callee Programs.  `fullCode` is their image-level union, assembled as a
+    `CodeReqExtents.ofEntries` fold over the `(guestBase, Program)` table in
+    strictly ascending address order (teer itself is the highest-addressed
+    entry).  A single decidable extent check (`extentsOkFrom`) discharges the
+    entire pairwise (8-way) disjointness — ascending, non-overlapping byte
+    extents make every earlier block miss every later block's addresses — and
+    `ofProg_sub_ofEntries_of_extentsOk` then yields the per-entry monotonicity
+    witnesses that `cpsTripleWithin_extend_code` consumes to lift each
+    per-callee (and the teer body's own) triple into `fullCode`.
+
+    The four *string-only* callees (`rlp_walk_init`, `rlp_walk_next`,
+    `rlp_content_to_u64`, `bal_account_nonce_before_index`) have no standalone
+    linked Program (they are inlined into `rlp_list_count_items` / emitted as
+    asm), so they are NOT `fullCode` entries; they enter the top theorem as the
+    assumed sub-contracts below. -/
+
+/-- Guest-linked `(base, Program)` table for the teer closure, in strictly
+    ascending base-address order.  Extents:
+    `rlp_list_count_items` (0x8001cae0, 186 instr) is byte-adjacent to
+    `tx_type_dispatch` (0x8001cdc8); teer (0x8002d10c, 745 instr) is last. -/
+def teerFullEntries : List (Nat × Program) :=
+  [ (GuestAddrs.rlp_list_count_items, EvmAsm.Codegen.rlpListCountItems_prog),
+    (GuestAddrs.tx_type_dispatch, EvmAsm.Codegen.txTypeDispatch_prog),
+    (GuestAddrs.account_at_header_state_root, EvmAsm.Codegen.accountAtHeaderStateRoot_prog),
+    (GuestAddrs.code_at_header_state_root, EvmAsm.Codegen.codeAtHeaderStateRoot_prog),
+    (GuestAddrs.bal_find_account_by_address, EvmAsm.Codegen.balFindAccountByAddress_prog),
+    (GuestAddrs.bal_account_nonstorage_finals, EvmAsm.Codegen.balAccountNonstorageFinals_prog),
+    (GuestAddrs.eip7702_authorization_recover_address,
+      EvmAsm.Codegen.eip7702AuthorizationRecoverAddress_prog),
+    (GuestAddrs.tx_eip7702_existing_authority_refund, teerProg) ]
+
+/-- The full linked closure: teer plus its 7 cross-`jal` callee Programs. -/
+def fullCode : CodeReq := CodeReq.ofEntries teerFullEntries
+
+/-- The high extent bound: the end of the (last, highest-addressed) teer block. -/
+def teerFullHi : Nat := GuestAddrs.tx_eip7702_existing_authority_refund + 4 * 745
+
+set_option maxRecDepth 8000 in
+/-- The one decidable extent check: strictly ascending, non-overlapping byte
+    extents from the lowest callee base to the teer block end.  This single
+    `decide` is the 8-way disjointness of the whole closure. -/
+theorem teerFullEntries_extentsOk :
+    CodeReq.extentsOkFrom GuestAddrs.rlp_list_count_items teerFullHi teerFullEntries = true := by
+  decide
+
+theorem teerFullHi_lt : teerFullHi < 2 ^ 64 := by decide
+
+/-- Per-entry image subsumption: every callee (and teer) `ofProg` block is
+    subsumed by `fullCode`. -/
+theorem teerFull_sub :
+    ∀ e ∈ teerFullEntries, ∀ a i,
+      (CodeReq.ofProg (BitVec.ofNat 64 e.1) e.2) a = some i → fullCode a = some i :=
+  CodeReq.ofProg_sub_ofEntries_of_extentsOk teerFullEntries_extentsOk teerFullHi_lt
+
+/-- The teer program's own code is subsumed by the full closure. -/
+theorem teer_mono : ∀ a i, teerCode a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.tx_eip7702_existing_authority_refund, teerProg)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (List.mem_cons_of_mem _ (List.mem_cons_self))))))))
+
+/-- `tx_type_dispatch` callee code is subsumed by the full closure. -/
+theorem txTypeDispatch_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.tx_type_dispatch)
+      EvmAsm.Codegen.txTypeDispatch_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.tx_type_dispatch, EvmAsm.Codegen.txTypeDispatch_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_self))
+
+/-- `rlp_list_count_items` callee code is subsumed by the full closure. -/
+theorem rlpListCountItems_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.rlp_list_count_items)
+      EvmAsm.Codegen.rlpListCountItems_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.rlp_list_count_items, EvmAsm.Codegen.rlpListCountItems_prog)
+    (List.mem_cons_self)
+
+/-- `account_at_header_state_root` callee code is subsumed by the full closure. -/
+theorem accountAtHeaderStateRoot_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.account_at_header_state_root)
+      EvmAsm.Codegen.accountAtHeaderStateRoot_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.account_at_header_state_root,
+      EvmAsm.Codegen.accountAtHeaderStateRoot_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self)))
+
+/-- `code_at_header_state_root` callee code is subsumed by the full closure. -/
+theorem codeAtHeaderStateRoot_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.code_at_header_state_root)
+      EvmAsm.Codegen.codeAtHeaderStateRoot_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.code_at_header_state_root,
+      EvmAsm.Codegen.codeAtHeaderStateRoot_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_cons_self))))
+
+/-- `bal_find_account_by_address` callee code is subsumed by the full closure. -/
+theorem balFindAccountByAddress_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.bal_find_account_by_address)
+      EvmAsm.Codegen.balFindAccountByAddress_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.bal_find_account_by_address,
+      EvmAsm.Codegen.balFindAccountByAddress_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_cons_of_mem _ (List.mem_cons_self)))))
+
+/-- `bal_account_nonstorage_finals` callee code is subsumed by the full closure. -/
+theorem balAccountNonstorageFinals_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.bal_account_nonstorage_finals)
+      EvmAsm.Codegen.balAccountNonstorageFinals_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.bal_account_nonstorage_finals,
+      EvmAsm.Codegen.balAccountNonstorageFinals_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self))))))
+
+/-- `eip7702_authorization_recover_address` callee code is subsumed by the full closure. -/
+theorem eip7702AuthorizationRecoverAddress_mono : ∀ a i,
+    CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.eip7702_authorization_recover_address)
+      EvmAsm.Codegen.eip7702AuthorizationRecoverAddress_prog a = some i → fullCode a = some i :=
+  teerFull_sub (GuestAddrs.eip7702_authorization_recover_address,
+      EvmAsm.Codegen.eip7702AuthorizationRecoverAddress_prog)
+    (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (List.mem_cons_self)))))))
 
 /-! ## Prologue: frame setup + ABI moves (instructions 0..20)
 
