@@ -245,8 +245,12 @@ def schemeAAnchors : List GuestRegion :=
     #10422: models every nonzero EIP-4895 body withdrawal as a standard
     non-storage effect via the existing BAL comparators, closing the
     withdrawal-drop false-accept without the fail-closed false-reject of
-    valid withdrawal blocks). -/
-def textSizeBytes : Nat := 0x5cf18
+    valid withdrawal blocks). Grew to `0x5cf20` for the CREATE
+    nonstorage-effect-nonce-lookup fix (`fix/receipts-root-eip150`, #10429:
+    the caller restored saved x10 before testing the hit bit, discarding a
+    real nonce-table hit on CREATE and emitting a Transfer log for the
+    wrong address). -/
+def textSizeBytes : Nat := 0x5cf20
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
