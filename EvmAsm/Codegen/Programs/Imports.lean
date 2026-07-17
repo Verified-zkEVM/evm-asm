@@ -61,6 +61,7 @@ import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
