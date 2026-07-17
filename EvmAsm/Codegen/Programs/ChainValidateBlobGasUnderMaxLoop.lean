@@ -84,7 +84,6 @@ theorem cvbgumSetup (hbi lenBase spC iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at D (D + 120) cvbgumProg 30 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 116) Field)) (by bv_omega) (by rw [cvbgum_length]; decide) (by decide) (by rw [cvbgum_length]; decide))
   runBlock hla18 s20' hla21 s23' s24' s25' s26' s27' s28' hla29
 
-#print axioms cvbgumSetup
 
 /-! ## Reload block (instructions 33--42): restore iter state + load value
 
@@ -130,7 +129,6 @@ theorem cvbgumReload (hbi iW value : Word) (old5 o18 o21 o6 o7 : Word) :
     (CodeReq.ofProg_mem_at D (D + 168) cvbgumProg 42 (.LUI .x7 (672 : BitVec 20)) (by bv_omega) (by rw [cvbgum_length]; decide) rfl (by rw [cvbgum_length]; decide)) s42
   runBlock hla33 s35' hla36 s38' hla39 s41' s42'
 
-#print axioms cvbgumReload
 
 /-! ## Advance block (instructions 44--49): step the iterator, loop back
 
@@ -172,7 +170,6 @@ theorem cvbgumAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
     (CodeReq.ofProg_mem_at D (D + 196) cvbgumProg 49 (.JAL .x0 (-128 : BitVec 21)) (by bv_omega) (by rw [cvbgum_length]; decide) rfl (by rw [cvbgum_length]; decide)) s49
   runBlock s44' s45' s46' s47' s48' s49'
 
-#print axioms cvbgumAdvance
 
 /-! ## Arithmetic helper for the value comparison. -/
 
@@ -318,7 +315,6 @@ theorem cvbgumCall (hbi lenBase spC iW : Word) (Li : Nat)
     (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
   xperm_hyp hp''
 
-#print axioms cvbgumCall
 
 /-! ## Call block with the consumed scratch registers owned
 
@@ -381,7 +377,6 @@ theorem cvbgumCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
     (cvbgumCall hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13 v28
       bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvbgumCallOwned
 
 /-! ## Entry half of one iteration: guard → call → K34 flatPost
 
@@ -484,7 +479,6 @@ theorem cvbgumIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
       rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
       xperm_hyp hp) hguardF hcallF)
 
-#print axioms cvbgumIterEntry
 
 /-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
 
@@ -567,7 +561,6 @@ theorem flatPost_normalize (spC hbi validPtr firstBadPtr nN lenBase iW oldOff ol
         (fun _ x => x)))) h hp1
     xperm_hyp hp2
 
-#print axioms flatPost_normalize
 
 /-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
     slots the loop invariant carries. -/
@@ -1129,7 +1122,6 @@ theorem cvbgumIterDispatch
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x)))) h hp1
         xperm_hyp hp2
 
-#print axioms cvbgumIterDispatch
 
 /-! ## One full iteration: guard → call → dispatch (`D+68 → raIn`, `i < N`)
 
@@ -1214,6 +1206,5 @@ theorem cvbgumIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         firstBadPtr raIn csaved bigBytes lengths i oldOff oldLen nTail hi hN hspC rfl hraSaved
         hret halign hlen hprefix htail))
 
-#print axioms cvbgumIter
 
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
