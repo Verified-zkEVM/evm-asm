@@ -383,6 +383,19 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x17; sd x16, 0(x14)\n" ++
         "11:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x18, 32(sp); addi sp, sp, 48\n" ++
+        -- Value-unchanged rewrites (found entry's current == new) append nothing:
+        -- the found entry already records exactly this state, so last-write-wins
+        -- reads, the end-of-tx commit, and the BAL change-set are all identical
+        -- without a new entry. Skipping the append keeps long loops that rewrite
+        -- the same value (e.g. a success flag per CALL iteration) from exhausting
+        -- the 16384-entry exec-log arena and halting on the capacity guard.
+        "  beqz x18, .Lsstore_append_entry\n" ++
+        "  ld x16, 32(x18); ld x17, 32(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 40(x18); ld x17, 40(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 48(x18); ld x17, 48(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 56(x18); ld x17, 56(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  j .Lsstore_append_done\n" ++
+        ".Lsstore_append_entry:\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
@@ -434,7 +447,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
-        "  sd x15, 448(x20)"
+        "  sd x15, 448(x20)\n" ++
+        ".Lsstore_append_done:\n"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail    := .advanceAndRet 1 }
   , -- M24 real TLOAD. Scan transient log from end; copy matching
