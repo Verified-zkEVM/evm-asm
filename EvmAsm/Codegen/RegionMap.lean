@@ -16,7 +16,7 @@
   * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
     zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
-    (`--section-start=.sszscratch=0xbf500000`). Sizes here are the ELF ground
+    (`--section-start=.sszscratch=0xbf600000`). Sizes here are the ELF ground
     truth (`readelf -S`), cross-checked by `scripts/check-region-map.sh`.
 
   **Location rationale.** This module imports both `CallFrameLayout`
@@ -283,8 +283,10 @@ def dataSizeBytes : Nat := 0x5370
     Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
     non-storage effect modeling (#10422). Grew by `0x160000`
     (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
-    200M-gas block can never over-reject on deployed-code volume. -/
-def bssSizeBytes : Nat := 0x1a75f360
+    200M-gas block can never over-reject on deployed-code volume. Grew by
+    `0xe08000` when the bounded non-storage effect log capacity was raised
+    from 32768 to 65536 entries. -/
+def bssSizeBytes : Nat := 0x1b567360
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -313,10 +315,10 @@ def bssRegion : GuestRegion :=
     evidence := "ELF --section-start=.bss=0xa4000000; 0x1a320e60-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
-    (`--section-start=.sszscratch=0xbf500000`). -/
+    (`--section-start=.sszscratch=0xbf600000`). -/
 def sszScratchRegion : GuestRegion :=
-  { name := ".sszscratch", base := 0xbf500000, size := 0x680000, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.sszscratch=0xbf500000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
+  { name := ".sszscratch", base := 0xbf600000, size := 0x680000, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.sszscratch=0xbf600000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
 
 /-! ## Emitted-reality regions the section/anchor lists omit.
 

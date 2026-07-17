@@ -315,7 +315,7 @@ def bvBlockLogFullDescTarget : Nat :=
     the INFEASIBLE upper bound -- 533,333 * 256 = ~136.5 MiB of descriptors
     alone. Combined with `bvBlockLogFullMetaBytes` + `bvBlockLogFullDataBytes`
     the fixed-stride arena is ~162 MiB, which is 2.76x the measured ~58.7 MiB of
-    `.data` headroom before `.sszscratch` (0xbf500000). Kept only to document why
+    `.data` headroom before `.sszscratch` (0xbf600000). Kept only to document why
     the verbatim-copy layout cannot reach the 200M target; the actual
     implementation target is `bvBlockLogPackedDescBytes` below. -/
 def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256
