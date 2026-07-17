@@ -260,4 +260,92 @@ theorem teer_length : teerProg.length = 745 := by decide
 /-- `CodeReq` for the teer program at its guest-linked base. -/
 def teerCode : CodeReq := CodeReq.ofProg teerB teerProg
 
+/-! ## Prologue: frame setup + ABI moves (instructions 0..20)
+
+    From the guest entry PC, allocate the 160-byte stack frame (`addi sp,-160`),
+    spill the 14 callee-saved / live registers (`ra`, `s0..s11`, `a5`) into the
+    frame, move the five ABI arguments into their callee-saved homes
+    (`a0..a4 → s0/s1/s2/s3/s4`), and zero the state-charge accumulator
+    (`li s10, 0`).  Exit PC is `teerB + 84` — the first `la` of the four
+    scratch-cell zeroing stores (the BAL-ptr guard `beq` follows at
+    instruction 33).
+
+    `sp0` is the incoming stack pointer; the 14 frame slots at `sp0-160 + k`
+    (`k ∈ {0,8,…,104}`) are owned on entry and hold the saved values on exit;
+    `a0..a4` are the incoming ABI values, `raIn`/`s*old`/`a5old` the incoming
+    register values. -/
+set_option maxRecDepth 8000 in
+theorem teer_frame_setup_spec
+    (sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+      s11old a5old a0 a1 a2 a3 a4 : Word) :
+    cpsTripleWithin 21 teerB (teerB + 84) teerCode
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ s0old) ** (.x9 ↦ᵣ s1old) ** (.x15 ↦ᵣ a5old) **
+        (.x18 ↦ᵣ s2old) ** (.x19 ↦ᵣ s3old) ** (.x20 ↦ᵣ s4old) **
+        (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+        (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ s10old) **
+        (.x27 ↦ᵣ s11old) **
+        (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        memOwn ((sp0 - 160) + signExtend12 (0 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (8 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (16 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (24 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (32 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (40 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (48 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (56 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (64 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (72 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (80 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (88 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (96 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (104 : BitVec 12)))
+      ((.x2 ↦ᵣ (sp0 - 160)) ** (.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x15 ↦ᵣ a5old) **
+        (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4) **
+        (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+        (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11old) **
+        (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        (((sp0 - 160) + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+        (((sp0 - 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s0old) **
+        (((sp0 - 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s1old) **
+        (((sp0 - 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s2old) **
+        (((sp0 - 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s3old) **
+        (((sp0 - 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s4old) **
+        (((sp0 - 160) + signExtend12 (48 : BitVec 12)) ↦ₘ s5old) **
+        (((sp0 - 160) + signExtend12 (56 : BitVec 12)) ↦ₘ s6old) **
+        (((sp0 - 160) + signExtend12 (64 : BitVec 12)) ↦ₘ s7old) **
+        (((sp0 - 160) + signExtend12 (72 : BitVec 12)) ↦ₘ s8old) **
+        (((sp0 - 160) + signExtend12 (80 : BitVec 12)) ↦ₘ s9old) **
+        (((sp0 - 160) + signExtend12 (88 : BitVec 12)) ↦ₘ s10old) **
+        (((sp0 - 160) + signExtend12 (96 : BitVec 12)) ↦ₘ s11old) **
+        (((sp0 - 160) + signExtend12 (104 : BitVec 12)) ↦ₘ a5old)) := by
+  have h0 := addi_spec_gen_same_within .x2 sp0 (-160 : BitVec 12) teerB (by decide)
+  rw [show signExtend12 (-160 : BitVec 12) = (-160 : Word) from by decide,
+      show sp0 + (-160 : Word) = sp0 - 160 from by bv_omega] at h0
+  have h1 := sd_spec_gen_own_within .x2 .x1 (sp0 - 160) raIn (0 : BitVec 12) (teerB + 4)
+  have h2 := sd_spec_gen_own_within .x2 .x8 (sp0 - 160) s0old (8 : BitVec 12) (teerB + 8)
+  have h3 := sd_spec_gen_own_within .x2 .x9 (sp0 - 160) s1old (16 : BitVec 12) (teerB + 12)
+  have h4 := sd_spec_gen_own_within .x2 .x18 (sp0 - 160) s2old (24 : BitVec 12) (teerB + 16)
+  have h5 := sd_spec_gen_own_within .x2 .x19 (sp0 - 160) s3old (32 : BitVec 12) (teerB + 20)
+  have h6 := sd_spec_gen_own_within .x2 .x20 (sp0 - 160) s4old (40 : BitVec 12) (teerB + 24)
+  have h7 := sd_spec_gen_own_within .x2 .x21 (sp0 - 160) s5old (48 : BitVec 12) (teerB + 28)
+  have h8 := sd_spec_gen_own_within .x2 .x22 (sp0 - 160) s6old (56 : BitVec 12) (teerB + 32)
+  have h9 := sd_spec_gen_own_within .x2 .x23 (sp0 - 160) s7old (64 : BitVec 12) (teerB + 36)
+  have h10 := sd_spec_gen_own_within .x2 .x24 (sp0 - 160) s8old (72 : BitVec 12) (teerB + 40)
+  have h11 := sd_spec_gen_own_within .x2 .x25 (sp0 - 160) s9old (80 : BitVec 12) (teerB + 44)
+  have h12 := sd_spec_gen_own_within .x2 .x26 (sp0 - 160) s10old (88 : BitVec 12) (teerB + 48)
+  have h13 := sd_spec_gen_own_within .x2 .x27 (sp0 - 160) s11old (96 : BitVec 12) (teerB + 52)
+  have h14 := sd_spec_gen_own_within .x2 .x15 (sp0 - 160) a5old (104 : BitVec 12) (teerB + 56)
+  have h15 := mv_spec_gen_within .x8 .x10 a0 s0old (teerB + 60) (by decide)
+  have h16 := mv_spec_gen_within .x9 .x11 a1 s1old (teerB + 64) (by decide)
+  have h17 := mv_spec_gen_within .x18 .x12 a2 s2old (teerB + 68) (by decide)
+  have h18 := mv_spec_gen_within .x19 .x13 a3 s3old (teerB + 72) (by decide)
+  have h19 := mv_spec_gen_within .x20 .x14 a4 s4old (teerB + 76) (by decide)
+  have h20 := li_spec_gen_within .x26 s10old (0 : Word) (teerB + 80) (by decide)
+  runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
