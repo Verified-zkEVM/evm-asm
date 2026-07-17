@@ -181,8 +181,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
     "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
-    "  beqz a0, 13f\n" ++
+    "  beqz t0, 13f\n" ++
     "  la x19, create_nonce_latest; ld x18, 0(x19)\n" ++
     "  la x19, create_nonce; sd x18, 0(x19)\n" ++
     "13:\n" ++
