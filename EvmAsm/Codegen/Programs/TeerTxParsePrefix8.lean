@@ -90,4 +90,40 @@ theorem teer_prefix_to_cursor_extra_spec (txd : TxTypeDispatchAssumed fullCode)
       t0Old t1Old typeOld innerOld v7 v21o v22o txBytes hlen halign hover hvalid)
   exact cpsBranchWithin_weaken (fun _ hp => hp) (fun _ _ => trivial) (fun _ hq => hq) hbr
 
+/-! ## Loop-head reach: `rlp_walk_init`@176 dispatch ;; loop init (`teerB + 708 → 724`)
+
+    The disjunction-free TAIL of the tx-parse prefix.  Composes the
+    authorization-list `rlp_walk_init` parse-shape dispatch
+    (`teer_walkinit177_bne_spec`, `teerB + 708 → {2856, 712}`) into the per-auth
+    loop counter/cursor init (`teer_loop_init_spec`, `teerB + 712 → 724`, lifted
+    to `fullCode`), producing the loop-head-reaching branch
+    `teerB + 708 → {far epilogue 2856, loop head 724}`.  The not-taken exit
+    establishes the initial loop state (`x21 = list cursor`, `x22 = list end`,
+    `x24 = i = 0`) — the register core of the `LoopInv 0` / `TxParseOk` witness
+    at the per-auth loop head.  The walk-init parse-shape failure (`a2 ≠ 0`)
+    collapses to the shared `teerFail`. -/
+set_option maxRecDepth 8000 in
+theorem teer_loophead_reach_spec (v10 v11 v21o v22o v24o a2 : Word) :
+    cpsBranchWithin (1 + 3) (teerB + 708) fullCode
+      (((.x12 ↦ᵣ a2) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x21 ↦ᵣ v21o) ** (.x22 ↦ᵣ v22o) **
+          (.x24 ↦ᵣ v24o)))
+      (teerB + 2856) teerFail
+      (teerB + 724)
+      (((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x21 ↦ᵣ v10) ** (.x22 ↦ᵣ v11) **
+          (.x24 ↦ᵣ (0 : Word))) **
+        ((.x12 ↦ᵣ a2) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a2 = (0 : Word)⌝)) := by
+  have h1 := cpsBranchWithin_frameR
+    ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x21 ↦ᵣ v21o) ** (.x22 ↦ᵣ v22o) ** (.x24 ↦ᵣ v24o))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj)
+    (teer_walkinit177_bne_spec a2)
+  have h2 := cpsTripleWithin_frameR ((.x12 ↦ᵣ a2) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a2 = (0 : Word)⌝)
+    (by repeat' first | exact pcFree_regIs | exact pcFree_pure | apply pcFree_sepConj)
+    (cpsTripleWithin_extend_code teer_mono (teer_loop_init_spec v10 v11 v21o v22o v24o))
+  exact cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+    h1
+    (fun h hq => by xperm_hyp hq)
+    h2
+    (fun h hq => to_teerFail _ h hq)
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
