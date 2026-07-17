@@ -600,4 +600,135 @@ theorem bvtHeaderChecks (spC : Word) (s : Saved)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c06
 
+/-- a-temps in `bgvScratch` not touched by header setup LI/MV. -/
+def bgvScratchATemps : List Reg :=
+  [.x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem bgvScratch_eq_setup_list :
+    bgvScratch =
+      (.x5 :: .x6 :: .x7 :: .x28 :: .x29 :: .x30 :: .x31 :: bgvScratchATemps) :=
+  rfl
+
+/-- Pack concrete t0–t2 + owned s-temps + a-temps into `regOwns bgvScratch`. -/
+private theorem pack_bgvScratch (v5 v6 v7 : Word) :
+    ∀ h, (((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            regOwns bgvScratchATemps) h) →
+      (regOwns bgvScratch) h := by
+  intro h hp
+  rw [bgvScratch_eq_setup_list, regOwns_cons, regOwns_cons, regOwns_cons,
+    regOwns_cons, regOwns_cons, regOwns_cons, regOwns_cons]
+  exact sepConj_mono (regIs_to_regOwn .x5 v5)
+    (sepConj_mono (regIs_to_regOwn .x6 v6)
+      (sepConj_mono (regIs_to_regOwn .x7 v7) (fun _ hh => hh))) h hp
+
+/-- Step budget: setup(3) + jal+bgv(1+nBgv) + checks(7). -/
+def nHeaderSuccessSteps : Nat := 3 + (1 + nBgvSteps) + 7
+
+set_option maxRecDepth 8000 in
+/-- Full header success path under `HeaderOk`: B+84 → LoopGuard with
+    `x20 = countW`, `x21 = 0`, first u32 in `x10`, payload/frame preserved. -/
+theorem bvtHeaderSuccess (spC : Word) (s : Saved)
+    (txBase txLenW countW outBase balBase balLenW chainIdW : Word)
+    (old5 old6 old7 : Word)
+    (txBlob : List (BitVec 8)) (count : Nat)
+    (htxLenW : txLenW = BitVec.ofNat 64 txBlob.length)
+    (hcountW : countW = BitVec.ofNat 64 count)
+    (hok : HeaderOk txBlob count)
+    (hwf : (Region.mk txBase txBlob).wf) :
+    let first := leU32 txBlob 0
+    cpsTripleWithin nHeaderSuccessSteps (B + 84) LoopGuard fullCode
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ s.ra) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ txLenW) **
+        (.x18 ↦ᵣ countW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) **
+        (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ balLenW) ** (.x26 ↦ᵣ chainIdW) **
+        (.x27 ↦ᵣ s.s11) **
+        (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+        (.x10 ↦ᵣ txBase) **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwns bgvScratchATemps **
+        bytesRegion txBase txBlob **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ LinkHeaderBgv) ** (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ txLenW) **
+        (.x18 ↦ᵣ countW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ countW) ** (.x21 ↦ᵣ (0 : Word)) **
+        (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ balLenW) ** (.x26 ↦ᵣ chainIdW) **
+        (.x27 ↦ᵣ s.s11) **
+        (.x10 ↦ᵣ first) ** (.x5 ↦ᵣ (0 : Word)) ** regOwns bgvScratchTail **
+        bytesRegion txBase txBlob **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  intro first
+  -- Phase 1: setup framed with a-temps + RO region, lifted to fullCode
+  have hsetup0 := bvtHeaderSetup spC s txBase txLenW countW outBase
+    balBase balLenW chainIdW old5 old6 old7 txBlob.length htxLenW
+    hok.hLen hok.hLenBound
+  have hsetupF := cpsTripleWithin_frameR
+    (regOwns bgvScratchATemps ** bytesRegion txBase txBlob)
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_regOwns _
+      · exact bytesRegion_pcFree _ _) hsetup0
+  have hsetupC := cpsTripleWithin_extend_code bvt_mono hsetupF
+  -- Reshape setup post → call pre (pack scratch owns via sepConj_mono)
+  have hsetup' : cpsTripleWithin 3 (B + 84) (B + 96) fullCode
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ s.ra) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ txLenW) **
+        (.x18 ↦ᵣ countW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) **
+        (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ balLenW) ** (.x26 ↦ᵣ chainIdW) **
+        (.x27 ↦ᵣ s.s11) **
+        (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+        (.x10 ↦ᵣ txBase) **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwns bgvScratchATemps **
+        bytesRegion txBase txBlob **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ s.ra) **
+        (.x10 ↦ᵣ txBase) ** regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        headerBgvFrame spC s txBase txLenW countW outBase balBase balLenW
+          chainIdW) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) ?_ hsetupC
+    intro h hq
+    -- Pull packable scratch atoms left; remainder = ra/a0/bytes/frame.
+    have hq1 :
+        (((.x5 ↦ᵣ (4 : Word)) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            regOwns bgvScratchATemps) **
+          ((.x1 ↦ᵣ s.ra) ** (.x10 ↦ᵣ txBase) ** bytesRegion txBase txBlob **
+            headerBgvFrame spC s txBase txLenW countW outBase balBase balLenW
+              chainIdW)) h := by
+      unfold headerBgvFrame
+      xperm_hyp hq
+    have hq2 :=
+      sepConj_mono (pack_bgvScratch (4 : Word) old6 old7) (fun _ hh => hh) h hq1
+    xperm_hyp hq2
+  -- Phase 2: bgv call (post already matches checks pre after xperm)
+  have hcall := bvtHeaderBgvCall spC s txBase txLenW countW outBase
+    balBase balLenW chainIdW txBlob hok.hLen hwf
+  -- Phase 3: checks framed with RO region, lifted to fullCode
+  have hchk0 := bvtHeaderChecks spC s txBase txLenW countW outBase
+    balBase balLenW chainIdW txBlob count htxLenW hcountW hok
+  have hchkF := cpsTripleWithin_frameR (bytesRegion txBase txBlob)
+    (bytesRegion_pcFree _ _) hchk0
+  have hchkC := cpsTripleWithin_extend_code bvt_mono hchkF
+  -- Compose: setup' ;; call ;; checks (xperm across frame unfold)
+  have c01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hsetup' hcall
+  have c02 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      -- call post: ra ** a0 ** regOwns bgvScratch ** bytes ** headerBgvFrame
+      -- checks pre: (ra ** s-regs ** a0 ** regOwns bgvScratch ** x0) ** bytes
+      unfold headerBgvFrame at hp
+      xperm_hyp hp) c01 hchkC
+  change cpsTripleWithin (3 + (1 + nBgvSteps) + 7) (B + 84) LoopGuard fullCode
+    _ _ at c02
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c02
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
