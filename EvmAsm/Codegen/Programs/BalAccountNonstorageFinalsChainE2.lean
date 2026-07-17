@@ -228,7 +228,6 @@ theorem bansf_balStation_spec (aB newSp oB : Word) (aLen off3 : Nat)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_balStation_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

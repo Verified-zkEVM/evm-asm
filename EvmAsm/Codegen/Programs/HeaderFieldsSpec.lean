@@ -108,6 +108,5 @@ theorem header_extract_state_root_fnspec
     (fun h hq => by unfold hesrAmbient; xperm_chunked hq) hproF hdisp
   exact cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ h => h) hcomp
 
-#print axioms header_extract_state_root_fnspec
 
 end EvmAsm.Codegen.HeaderFieldsSpec

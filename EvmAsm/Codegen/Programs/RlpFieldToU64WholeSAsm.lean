@@ -24,7 +24,6 @@ theorem allJoinedResult_to_restoreReady
     exact failureResult_to_restoreReady newSp newSp listBase oldOffset oldLen outer
       saved bytes listLen index h ⟨h1, h2, hd, hu, hf, hsf⟩
 
-#print axioms allJoinedResult_to_restoreReady
 
 theorem dispatchAndRestore
     (spOuter newSp listBase oldOffset oldLen : Word) (outer : Saved)
@@ -58,7 +57,6 @@ theorem dispatchAndRestore
     listLen index hnewSp hret
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hd' hr
 
-#print axioms dispatchAndRestore
 
 @[irreducible] def wholeRest
     (listBase listLenW indexW outputPtr oldOut oldOffset oldLen old14 : Word)
@@ -108,7 +106,6 @@ theorem prologueAndMoves
     unfold wholeRest F at *
     xperm_hyp hp') hpm
 
-#print axioms prologueAndMoves
 
 theorem setupAndCall
     (spOuter newSp listBase listLenW indexW outputPtr oldOut oldOffset oldLen old14 : Word)
@@ -180,7 +177,6 @@ theorem setupAndCall
   have hpgc' := cpsTripleWithin_weaken (fun _ hp => hp) hpost hpgc
   simpa only [show 7 + 4 = 11 by decide] using hpgc'
 
-#print axioms setupAndCall
 
 theorem rlpFieldToU64_spec_within
     (spOuter newSp listBase listLenW indexW outputPtr oldOut oldOffset oldLen old14 : Word)
@@ -219,6 +215,5 @@ theorem rlpFieldToU64_spec_within
     saved bytes listLen index (by rfl) hsalign hslack hover hvalid hnewSp hret
   exact cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs ht
 
-#print axioms rlpFieldToU64_spec_within
 
 end EvmAsm.Codegen.RlpFieldToU64SAsm

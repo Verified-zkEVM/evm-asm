@@ -157,6 +157,5 @@ theorem rlpFieldToU256Be_flat_spec_within
           (fun _ hp => ⟨v11, v12, hp⟩) h hfixed
       exact sepConj_mono_right (fun _ hp => Or.inr (Or.inr hp)) h hflat
 
-#print axioms rlpFieldToU256Be_flat_spec_within
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

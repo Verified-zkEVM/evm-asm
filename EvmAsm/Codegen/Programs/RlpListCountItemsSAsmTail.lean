@@ -407,13 +407,5 @@ theorem joinToFinal (sp0 newSp listBase outPtr : Word) (saved : Saved)
     unfold F at hp
     xperm_hyp hp) he
 
-#print axioms scratchExact_implies_owned
-#print axioms successTail
-#print axioms failureTailConcrete
-#print axioms failureTail
-#print axioms selectedTail
-#print axioms scanAndTails
-#print axioms epilogueOwned
-#print axioms joinToFinal
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

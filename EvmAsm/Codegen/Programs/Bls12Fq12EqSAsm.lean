@@ -57,7 +57,6 @@ theorem blqEq_spec (ptr1 ptr2 ret : Word) (bs1 bs2 : List (BitVec 8))
       72).flatten (GuestAddrs.blq_eq : Word) = blqEq_prog from rfl] at h
   exact h
 
-#print axioms blqEq_spec
 
 end Bls12Fq12EqSAsm
 end EvmAsm.Codegen

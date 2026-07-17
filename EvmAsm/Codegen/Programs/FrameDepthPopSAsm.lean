@@ -87,6 +87,5 @@ theorem frameDepthPop_spec (depth old5 old10 ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) h12345
 
-#print axioms frameDepthPop_spec
 end FrameDepthPopSAsm
 end EvmAsm.Codegen

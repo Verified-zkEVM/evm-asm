@@ -80,7 +80,6 @@ theorem initCodeCostFn_spec (initCodeLength gasPerWord outPtr base : Word)
       setBytes_zero_dword_eq orig _ horig, hA]
     norm_num
 
-#print axioms initCodeCostFn_spec
 
 end InitCodeCostSAsm
 end EvmAsm.Codegen

@@ -362,7 +362,6 @@ theorem bansf_nonceFieldInit97_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word
       bv_omega
 
 
-#print axioms bansf_nonceFieldInit97_spec
 theorem bansf_item4_spec (aB newSp : Word) (aLen off : Nat)
     (acctBytes : List (BitVec 8))
     (v5 v6 v7 v10 v11 v12 v28 v29 v30 v31 vRa : Word) (F : Assertion)
@@ -784,7 +783,6 @@ theorem bansf_item4_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_item4_spec
 
 /-- Reframe an outer item-4 parse failure as the nonce station reject post,
     preserving the earlier balance footprint and all untouched out cells. -/
@@ -821,7 +819,6 @@ theorem item4Reject_to_nonceStationRej (aB newSp oB : Word) (aLen : Nat)
   unfold nonceStationRej
   xperm_hyp hqOwn
 
-#print axioms item4Reject_to_nonceStationRej
 
 /-- Expose a successful outer item-4 decode as the exact slot-92 span-capture
     precondition, retaining the decode derivation for station bounds. -/
@@ -878,7 +875,6 @@ theorem item4Ok_to_nonceSpanPre (aB newSp oB : Word) (aLen off : Nat)
   refine ⟨n4, l4, (sepConj_pure_right h).2 ⟨?_, hdec⟩⟩
   xperm_hyp hat
 
-#print axioms item4Ok_to_nonceSpanPre
 
 /-- Reframe a nonce-field `rlp_walk_init` failure as the station reject post. -/
 theorem nonceFieldInitReject_to_stationRej (aB newSp oB n4 v19 v20 : Word)
@@ -921,7 +917,6 @@ theorem nonceFieldInitReject_to_stationRej (aB newSp oB n4 v19 v20 : Word)
   unfold nonceStationRej
   xperm_hyp hqOwn
 
-#print axioms nonceFieldInitReject_to_stationRej
 
 /-- Untouched nonce-station state framed around the field initializer. -/
 def nonceFieldFrame (aB newSp oB n4 v19 v20 : Word) (aLen : Nat)
@@ -993,7 +988,6 @@ theorem nonceFieldInitOk_to_cont396Pre (aB newSp oB n4 v19 v20 : Word)
   refine ⟨cOff, (sepConj_pure_right h).2 ⟨?_, hok⟩⟩
   xperm_hyp hatOwn
 
-#print axioms nonceFieldInitOk_to_cont396Pre
 
 /-- Successful outer-item continuation (`B + 372`): capture its field span,
     initialize the field window, and run the complete nonce parser. -/
@@ -1084,7 +1078,6 @@ theorem bansf_nonceStationCont372_spec (aB newSp oB : Word)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_nonceStationCont372_spec
 
 /-- Successful outer nonce-station result, retaining the item-4 decode that
     identifies the field window consumed by `nonceStationPost`. -/
@@ -1238,7 +1231,6 @@ theorem bansf_nonceStation_spec (aB newSp oB : Word) (aLen off : Nat)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_nonceStation_spec
 
 
 end BalAccountNonstorageFinalsSpec

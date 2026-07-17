@@ -255,6 +255,5 @@ theorem fitToSuccessDone
       xperm_hyp hcombined)
     (fun _ hp => hp) hs
 
-#print axioms fitToSuccessDone
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

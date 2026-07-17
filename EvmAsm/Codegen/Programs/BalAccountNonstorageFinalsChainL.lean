@@ -45,7 +45,6 @@ theorem bansf_codeItemArgs135_spec (newSp cursor endW v10 v11 : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) hc
 
-#print axioms bansf_codeItemArgs135_spec
 
 /-- Concrete code witness for the final outer-item status gate at slot 138. -/
 theorem bansf_codeItemStatus138_code :
@@ -59,7 +58,6 @@ theorem bansf_codeItemStatus138_code :
       (by decide +kernel) (by decide +kernel) (by decide +kernel)
       (by decide +kernel) a i h)
 
-#print axioms bansf_codeItemStatus138_code
 
 /-- Status-zero arm of the final outer code item (`B + 552 → B + 556`). -/
 theorem bansf_codeItemSuccess138_spec
@@ -86,7 +84,6 @@ theorem bansf_codeItemSuccess138_spec
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
       xperm_hyp hq') hfallF
 
-#print axioms bansf_codeItemSuccess138_spec
 
 
 /-- Nonzero-status continuation for the final outer code item
@@ -162,7 +159,6 @@ theorem bansf_codeItemFailure138_spec (aB newSp cur k : Word)
           (sepConj_mono memIs_implies_memOwn (fun _ x => x))))) h hq'
   xperm_hyp hqOwn
 
-#print axioms bansf_codeItemFailure138_spec
 
 /-- Reframe final-item success for `B + 556`, keeping cursor and spill distinct. -/
 theorem codeItemSuccess_to_cont556Pre
@@ -197,7 +193,6 @@ theorem codeItemSuccess_to_cont556Pre
   intro h hp
   xperm_hyp hp
 
-#print axioms codeItemSuccess_to_cont556Pre
 
 /-- Successful final outer-item decode, with spill 48 unchanged. -/
 def codeItemFinalOk (aB newSp spill5 : Word) (aLen off : Nat)
@@ -248,7 +243,6 @@ theorem codeItemFinalOk_to_cont556Pre
   refine ⟨next, len, ?_⟩
   xperm_hyp hpL
 
-#print axioms codeItemFinalOk_to_cont556Pre
 
 
 theorem bansf_codeItem5_spec (aB newSp : Word) (aLen off : Nat)
@@ -623,7 +617,6 @@ theorem bansf_codeItem5_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_codeItem5_spec
 
 /-- Reframe final outer-item failure as the code-station reject post. -/
 theorem item5Reject_to_codeStationRej (aB newSp oB : Word) (aLen : Nat)
@@ -658,7 +651,6 @@ theorem item5Reject_to_codeStationRej (aB newSp oB : Word) (aLen : Nat)
   unfold codeStationRej
   xperm_hyp hqOwn
 
-#print axioms item5Reject_to_codeStationRej
 
 
 def codeStationOuterPost (aB newSp oB : Word) (aLen off : Nat)
@@ -816,7 +808,6 @@ theorem bansf_codeStation_spec (aB newSp oB : Word) (aLen off : Nat)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_codeStation_spec
 
 
 end BalAccountNonstorageFinalsSpec

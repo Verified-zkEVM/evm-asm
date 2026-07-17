@@ -52,7 +52,6 @@ theorem setupPrologue
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun h hp => by rw [frameSlotsSaved_frame] at hp; xperm_hyp hp) hseq
 
-#print axioms setupPrologue
 
 /-- Save the input/output pointers (instructions 4--5). -/
 theorem setupMoves
@@ -81,7 +80,6 @@ theorem setupMoves
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) hs)
 
-#print axioms setupMoves
 
 private theorem getByteAt_dword0 (j : Nat) (hj : j < 8) :
     getByteAt (dwordBytes (0 : Word)) j = 0 := by
@@ -164,7 +162,6 @@ theorem zeroOutput (outputPtr : Word) (orig : List (BitVec 8))
   rw [zeroFold orig hlen] at h0123
   simpa using h0123
 
-#print axioms zeroOutput
 
 /-- Materialize K20's offset and length result cells (instructions 10--13). -/
 theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
@@ -201,6 +198,5 @@ theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
   exact cpsTripleWithin_frameR F hF
     (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hs')
 
-#print axioms setupGlobals
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

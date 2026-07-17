@@ -53,6 +53,5 @@ theorem rlp_walk_init_flat_spec_within
       t3Old t4Old t5Old t6Old listBytes listOff hsalign hoff hover hvalid hll_len
       hll_over hll_valid)
 
-#print axioms rlp_walk_init_flat_spec_within
 
 end EvmAsm.Codegen.RlpWalkInitFlatSAsm

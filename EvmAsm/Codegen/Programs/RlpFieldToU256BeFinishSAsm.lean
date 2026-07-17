@@ -123,7 +123,6 @@ theorem listResultBranch
       listBase offsetPtr lenPtr oldOffset oldLen saved bytes listLen index h hp)
     (fun _ hp => hp) (fun _ hp => hp) hor
 
-#print axioms listResultBranch
 
 /-- Reload the selected length and comparison bound (instructions 16--19). -/
 theorem selectedLengthExact
@@ -173,7 +172,6 @@ theorem selectedLengthExact
   exact cpsTripleWithin_frameR F hF
     (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hs')
 
-#print axioms selectedLengthExact
 
 def selectedPathCarry (sp0 listBase : Word) (saved : ListSaved)
     (bytes : List (BitVec 8)) (v11 v12 : Word) : Assertion :=
@@ -261,7 +259,6 @@ theorem selectedLength
       rw [hs0] at hp
       xperm_pure hp) (fun _ hp => hp) howned
 
-#print axioms selectedLength
 
 def lengthRest (sp0 listBase offset len : Word) (saved : ListSaved)
     (bytes : List (BitVec 8)) (listLen index : Nat) (v11 v12 : Word) :
@@ -350,7 +347,6 @@ theorem lengthBranch
       xperm_hyp hp) (fun _ hp => hp) (fun _ hp => hp)
     (lengthBranchCase sp0 listBase offset len v11 v12 saved bytes listLen index)
 
-#print axioms lengthBranch
 
 /-- Materialize the selected source cursor and right-aligned destination cursor
     (instructions 21--26). -/
@@ -449,7 +445,6 @@ theorem cursorSetupExact
   exact cpsTripleWithin_frameR F hF
     (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hs)
 
-#print axioms cursorSetupExact
 
 /-- Success status and jump to the common restore join (34--35). -/
 theorem successStatusTail (old10 : Word) (F : Assertion) (hF : F.pcFree) :
@@ -515,9 +510,6 @@ theorem failureStatusTail (old10 : Word) (F : Assertion) (hF : F.pcFree) :
   exact cpsTripleWithin_frameR F hF
     (cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) h0')
 
-#print axioms successStatusTail
-#print axioms tooLongStatusTail
-#print axioms failureStatusTail
 
 /-- Restore K35's saved `ra/s0/s1`, deallocate its 32-byte frame, and return
     (instructions 39--43). -/
@@ -590,6 +582,5 @@ theorem restoreTail
     (fun h hp => by rw [regsAt_frame]; xperm_hyp hp) h123
   exact cpsTripleWithin_extend_code (fun a i hi => wrapperCode_mono a i hi) hlocal
 
-#print axioms restoreTail
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

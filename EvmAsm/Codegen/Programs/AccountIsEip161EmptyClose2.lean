@@ -85,7 +85,6 @@ theorem aieSpanBound (bytes : List (BitVec 8)) (accBase : Word) (listLen index :
   rw [hoff]
   exact hbound off next len hoffle hdec
 
-#print axioms aieSpanBound
 
 /-! ## Code-membership macro into the full closure -/
 
@@ -138,7 +137,6 @@ theorem aieVerdictNotEmpty (outPtr v10 oldout : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s2)
 
-#print axioms aieVerdictNotEmpty
 
 set_option maxRecDepth 8000 in
 /-- Parse-fail verdict tail ([99]-[100], `AB+396 → AB+408`): set `a0 = 1`. -/
@@ -161,7 +159,6 @@ theorem aieVerdictFail (v10 : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s1)
 
-#print axioms aieVerdictFail
 
 set_option maxRecDepth 8000 in
 /-- Size-fail verdict tail ([101], `AB+404 → AB+408`): set `a0 = 2`, fall through
@@ -175,7 +172,6 @@ theorem aieVerdictSizeFail (v10 : Word) :
   rw [show (AB + 404 : Word) + 4 = AB + 408 from by bv_omega] at h101
   exact cpsTripleWithin_extend_code (aieFC 101, (AB + 404), (.LI .x10 (2 : Word))) h101
 
-#print axioms aieVerdictSizeFail
 
 set_option maxRecDepth 8000 in
 /-- Empty verdict tail ([87]-[95], `AB+348 → AB+408`): 5 NOPs, then store `1`
@@ -252,7 +248,6 @@ theorem aieVerdictEmpty (outPtr v5 v10 oldout : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s8)
 
-#print axioms aieVerdictEmpty
 
 /-! ## Verdict → return bridges (verdict tail ;; epilogue, all landing on `raIn`)
 
@@ -285,7 +280,6 @@ theorem aieRetNotEmpty (sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr v10 oldout : Word
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s)
 
-#print axioms aieRetNotEmpty
 
 set_option maxRecDepth 8000 in
 /-- Parse-fail return bridge (`AB+396 → raIn`): a0 := 1, output cell untouched. -/
@@ -309,7 +303,6 @@ theorem aieRetFail (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 v10 : Word)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s)
 
-#print axioms aieRetFail
 
 set_option maxRecDepth 8000 in
 /-- Size-fail return bridge (`AB+404 → raIn`): a0 := 2, output cell untouched. -/
@@ -333,7 +326,6 @@ theorem aieRetSizeFail (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 v10 : Word)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s)
 
-#print axioms aieRetSizeFail
 
 set_option maxRecDepth 8000 in
 /-- Empty return bridge (`AB+348 → raIn`): out := 1, a0 := 0. -/
@@ -360,6 +352,5 @@ theorem aieRetEmpty (sp0 spA raIn c8 c9 c18 w1 w8 w9 outPtr v5 v10 oldout : Word
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s)
 
-#print axioms aieRetEmpty
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec

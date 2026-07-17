@@ -143,7 +143,6 @@ theorem rlpListCountItems_flat_spec_within
     simp only [stackFree_succ, stackFree_zero, sepConj_emp_right']
     xperm_hyp hq1
 
-#print axioms rlpListCountItems_flat_spec_within
 
 #guard rlpListCountItems_prog.length = 186
 
