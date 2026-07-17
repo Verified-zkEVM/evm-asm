@@ -323,6 +323,7 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeLoop
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeCall
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeSlots
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkStep
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodeLenCheck
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
