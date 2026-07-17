@@ -551,3 +551,5 @@ import EvmAsm.Codegen.Programs.AccountDecodeCall
 import EvmAsm.Codegen.Programs.AccountDecodeFrame
 
 import EvmAsm.Codegen.Programs.AccountDecodeDispatch
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceSetup
