@@ -141,4 +141,26 @@ theorem teer_txtype_group_spec (txd : TxTypeDispatchAssumed fullCode)
       hlen halign hover hvalid)
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hbodyF hcallF
 
+/-! ## Post-call parse-failure dispatch (instruction 41)
+
+    `bne a0, zero` at `teerB + 164`.  TAKEN (dispatch status `sv ≠ 0`, a parse
+    failure) branches to the far epilogue at `teerB + 2856` (the rolled-back
+    return path); NOT-TAKEN (`sv = 0`, success) falls through to `teerB + 168`,
+    the type==4 check.  This is the "error exit → far epilogue teerB+2856"
+    dispatch that ends the first call group. -/
+set_option maxRecDepth 8000 in
+theorem teer_txtype_bne_spec (sv : Word) :
+    cpsBranchWithin 1 (teerB + 164) fullCode
+      ((.x10 ↦ᵣ sv) ** (.x0 ↦ᵣ (0 : Word)))
+      (teerB + 2856) ((.x10 ↦ᵣ sv) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜sv ≠ (0 : Word)⌝)
+      (teerB + 168) ((.x10 ↦ᵣ sv) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜sv = (0 : Word)⌝) := by
+  have hbne := bne_spec_gen_within .x10 .x0 (2692 : BitVec 13) sv (0 : Word) (teerB + 164)
+  rw [show (teerB + 164) + signExtend13 (2692 : BitVec 13) = teerB + 2856 from by
+        rw [show signExtend13 (2692 : BitVec 13) = (2692 : Word) from by decide]; bv_omega,
+      show (teerB + 164) + 4 = teerB + 168 from by bv_omega] at hbne
+  have hmem := CodeReq.ofProg_mem_at teerB (teerB + 164) teerProg 41
+    (.BNE .x10 .x0 (2692 : BitVec 13))
+    (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
+  exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
