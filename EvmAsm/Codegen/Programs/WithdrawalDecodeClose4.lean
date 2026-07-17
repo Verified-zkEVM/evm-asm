@@ -225,6 +225,27 @@ theorem wdStack12_to_k20 (spW : Word) : ∀ h,
 
 #print axioms wdStack12_to_k20
 
+/-- Weaken the value-carrying temporaries `x5/x11/x12` (regIs) into ownership,
+    folding the callee residue into `wdScratch`.  The `x19/x20/x21` callee-saved
+    values and the remaining already-owned temporaries pass through unchanged.
+    This is the common "(c) weaken regIs→regOwn" step of every fail-arm reshape. -/
+theorem wdScratch_of_regs (s3 s4 s5 x5v x11v x12v : Word) : ∀ h,
+    ((.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x5 ↦ᵣ x5v) **
+     regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ x11v) ** (.x12 ↦ᵣ x12v) ** regOwn .x13 **
+     regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     (.x0 ↦ᵣ (0 : Word))) h →
+    wdScratch s3 s4 s5 h := by
+  intro h hp
+  unfold wdScratch
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono (regIs_implies_regOwn .x5)
+            (sepConj_mono_right (sepConj_mono_right
+              (sepConj_mono (regIs_implies_regOwn .x11)
+                (sepConj_mono_left (regIs_implies_regOwn .x12))))))))
+        h hp
+
+#print axioms wdScratch_of_regs
+
 /-! ## Generic `DecodeFailure` witness extraction
 
     Both K34 fail sub-cases (a success payload with a nonzero wrapper status, or
