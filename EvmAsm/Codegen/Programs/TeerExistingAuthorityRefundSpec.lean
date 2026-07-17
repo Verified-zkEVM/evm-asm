@@ -556,4 +556,204 @@ theorem teer_scratch_zero_spec (x5In : Word) :
       show teerRolledBack + (0 : Word) = teerRolledBack from by bv_omega] at sD
   runBlock hlaA sA hlaB sB hlaC sC hlaD sD
 
+/-! ## Prologue body: frame-setup ;; scratch-zeroing (instructions 0..32)
+
+    Sequential composition of `teer_frame_setup_spec` and
+    `teer_scratch_zero_spec` over the same `teerCode`, framing each block's
+    footprint over the other (the two blocks touch disjoint resources: the
+    frame block never touches `x5`/`x0`/the scratch cells, the scratch block
+    never touches the frame registers or spill slots).  Straight line
+    `teerB → teerB + 132`; the BAL-ptr guard `beq` at instruction 33 follows. -/
+set_option maxRecDepth 8000 in
+theorem teer_prologue_body_spec
+    (sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+      s11old a5old a0 a1 a2 a3 a4 x5In : Word) :
+    cpsTripleWithin 33 teerB (teerB + 132) teerCode
+      (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ s0old) ** (.x9 ↦ᵣ s1old) ** (.x15 ↦ᵣ a5old) **
+        (.x18 ↦ᵣ s2old) ** (.x19 ↦ᵣ s3old) ** (.x20 ↦ᵣ s4old) **
+        (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+        (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ s10old) **
+        (.x27 ↦ᵣ s11old) **
+        (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        memOwn ((sp0 - 160) + signExtend12 (0 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (8 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (16 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (24 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (32 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (40 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (48 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (56 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (64 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (72 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (80 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (88 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (96 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (104 : BitVec 12))) **
+       ((.x5 ↦ᵣ x5In) ** (.x0 ↦ᵣ (0 : Word)) **
+        memOwn teerRegularRefund ** memOwn teerSuccessCount **
+        memOwn teerPredelegatedCount ** memOwn teerRolledBack))
+      (((.x2 ↦ᵣ (sp0 - 160)) ** (.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x15 ↦ᵣ a5old) **
+        (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4) **
+        (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+        (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11old) **
+        (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        (((sp0 - 160) + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+        (((sp0 - 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s0old) **
+        (((sp0 - 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s1old) **
+        (((sp0 - 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s2old) **
+        (((sp0 - 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s3old) **
+        (((sp0 - 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s4old) **
+        (((sp0 - 160) + signExtend12 (48 : BitVec 12)) ↦ₘ s5old) **
+        (((sp0 - 160) + signExtend12 (56 : BitVec 12)) ↦ₘ s6old) **
+        (((sp0 - 160) + signExtend12 (64 : BitVec 12)) ↦ₘ s7old) **
+        (((sp0 - 160) + signExtend12 (72 : BitVec 12)) ↦ₘ s8old) **
+        (((sp0 - 160) + signExtend12 (80 : BitVec 12)) ↦ₘ s9old) **
+        (((sp0 - 160) + signExtend12 (88 : BitVec 12)) ↦ₘ s10old) **
+        (((sp0 - 160) + signExtend12 (96 : BitVec 12)) ↦ₘ s11old) **
+        (((sp0 - 160) + signExtend12 (104 : BitVec 12)) ↦ₘ a5old)) **
+       ((.x5 ↦ᵣ teerRolledBack) ** (.x0 ↦ᵣ (0 : Word)) **
+        (teerRegularRefund ↦ₘ (0 : Word)) ** (teerSuccessCount ↦ₘ (0 : Word)) **
+        (teerPredelegatedCount ↦ₘ (0 : Word)) **
+        (teerRolledBack ↦ₘ (0 : Word)))) := by
+  have hfs := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ x5In) ** (.x0 ↦ᵣ (0 : Word)) **
+      memOwn teerRegularRefund ** memOwn teerSuccessCount **
+      memOwn teerPredelegatedCount ** memOwn teerRolledBack)
+    (by pcFree)
+    (teer_frame_setup_spec sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old
+      s8old s9old s10old s11old a5old a0 a1 a2 a3 a4)
+  have hsz := cpsTripleWithin_frameL
+    ((.x2 ↦ᵣ (sp0 - 160)) ** (.x1 ↦ᵣ raIn) **
+      (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x15 ↦ᵣ a5old) **
+      (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4) **
+      (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+      (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ (0 : Word)) **
+      (.x27 ↦ᵣ s11old) **
+      (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+      (.x14 ↦ᵣ a4) **
+      (((sp0 - 160) + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+      (((sp0 - 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s0old) **
+      (((sp0 - 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s1old) **
+      (((sp0 - 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s2old) **
+      (((sp0 - 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s3old) **
+      (((sp0 - 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s4old) **
+      (((sp0 - 160) + signExtend12 (48 : BitVec 12)) ↦ₘ s5old) **
+      (((sp0 - 160) + signExtend12 (56 : BitVec 12)) ↦ₘ s6old) **
+      (((sp0 - 160) + signExtend12 (64 : BitVec 12)) ↦ₘ s7old) **
+      (((sp0 - 160) + signExtend12 (72 : BitVec 12)) ↦ₘ s8old) **
+      (((sp0 - 160) + signExtend12 (80 : BitVec 12)) ↦ₘ s9old) **
+      (((sp0 - 160) + signExtend12 (88 : BitVec 12)) ↦ₘ s10old) **
+      (((sp0 - 160) + signExtend12 (96 : BitVec 12)) ↦ₘ s11old) **
+      (((sp0 - 160) + signExtend12 (104 : BitVec 12)) ↦ₘ a5old))
+    (by pcFree)
+    (teer_scratch_zero_spec x5In)
+  exact cpsTripleWithin_seq_same_cr hfs hsz
+
+/-- The prologue postcondition with the two BAL-guard registers (`x18`/`s2`
+    holding the moved `a2`, and `x0`) factored out — i.e. everything the guard
+    `beq` does NOT read.  Framed around the guard so both exits retain the full
+    saved-frame + zeroed-scratch state. -/
+def teerPrologueRest
+    (sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+      s11old a5old a0 a1 a2 a3 a4 : Word) : Assertion :=
+  (.x2 ↦ᵣ (sp0 - 160)) ** (.x1 ↦ᵣ raIn) **
+  (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x15 ↦ᵣ a5old) **
+  (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4) **
+  (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+  (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ (0 : Word)) **
+  (.x27 ↦ᵣ s11old) **
+  (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+  (.x14 ↦ᵣ a4) **
+  (((sp0 - 160) + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+  (((sp0 - 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s0old) **
+  (((sp0 - 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s1old) **
+  (((sp0 - 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s2old) **
+  (((sp0 - 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s3old) **
+  (((sp0 - 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s4old) **
+  (((sp0 - 160) + signExtend12 (48 : BitVec 12)) ↦ₘ s5old) **
+  (((sp0 - 160) + signExtend12 (56 : BitVec 12)) ↦ₘ s6old) **
+  (((sp0 - 160) + signExtend12 (64 : BitVec 12)) ↦ₘ s7old) **
+  (((sp0 - 160) + signExtend12 (72 : BitVec 12)) ↦ₘ s8old) **
+  (((sp0 - 160) + signExtend12 (80 : BitVec 12)) ↦ₘ s9old) **
+  (((sp0 - 160) + signExtend12 (88 : BitVec 12)) ↦ₘ s10old) **
+  (((sp0 - 160) + signExtend12 (96 : BitVec 12)) ↦ₘ s11old) **
+  (((sp0 - 160) + signExtend12 (104 : BitVec 12)) ↦ₘ a5old) **
+  (.x5 ↦ᵣ teerRolledBack) **
+  (teerRegularRefund ↦ₘ (0 : Word)) ** (teerSuccessCount ↦ₘ (0 : Word)) **
+  (teerPredelegatedCount ↦ₘ (0 : Word)) ** (teerRolledBack ↦ₘ (0 : Word))
+
+/-! ## Prologue + BAL-ptr guard (instructions 0..33)
+
+    Appends the BAL-ptr guard `beq s2, zero` at instruction 33 (`teerB + 132`)
+    to the prologue body as a `cpsBranchWithin`.  `s2` (`x18`) holds the moved
+    `a2` = the BAL pointer.  Two exits:
+      * TAKEN (`a2 = 0`): PC = `teerB + 2856` (instruction 714) — the
+        no-BAL epilogue path that returns `a0 = a1 = 0` without parsing;
+      * NOT-TAKEN (`a2 ≠ 0`): PC = `teerB + 136` (instruction 34) — the body
+        entry (tx-type dispatch → per-authorization loop).
+    Both exit postconditions carry the full prologue post (framed as `REST`)
+    plus the guard's decided equality.  `34 = 33 + 1` steps. -/
+set_option maxRecDepth 8000 in
+theorem teer_prologue_spec
+    (sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+      s11old a5old a0 a1 a2 a3 a4 x5In : Word) :
+    cpsBranchWithin 34 teerB teerCode
+      (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ s0old) ** (.x9 ↦ᵣ s1old) ** (.x15 ↦ᵣ a5old) **
+        (.x18 ↦ᵣ s2old) ** (.x19 ↦ᵣ s3old) ** (.x20 ↦ᵣ s4old) **
+        (.x21 ↦ᵣ s5old) ** (.x22 ↦ᵣ s6old) ** (.x23 ↦ᵣ s7old) **
+        (.x24 ↦ᵣ s8old) ** (.x25 ↦ᵣ s9old) ** (.x26 ↦ᵣ s10old) **
+        (.x27 ↦ᵣ s11old) **
+        (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        memOwn ((sp0 - 160) + signExtend12 (0 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (8 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (16 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (24 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (32 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (40 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (48 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (56 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (64 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (72 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (80 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (88 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (96 : BitVec 12)) **
+        memOwn ((sp0 - 160) + signExtend12 (104 : BitVec 12))) **
+       ((.x5 ↦ᵣ x5In) ** (.x0 ↦ᵣ (0 : Word)) **
+        memOwn teerRegularRefund ** memOwn teerSuccessCount **
+        memOwn teerPredelegatedCount ** memOwn teerRolledBack))
+      -- TAKEN: a2 = 0, no-BAL epilogue path
+      (teerB + 2856)
+      (((.x18 ↦ᵣ a2) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a2 = (0 : Word)⌝) ** teerPrologueRest
+        sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+        s11old a5old a0 a1 a2 a3 a4)
+      -- NOT-TAKEN: a2 ≠ 0, body entry
+      (teerB + 136)
+      (((.x18 ↦ᵣ a2) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a2 ≠ (0 : Word)⌝) ** teerPrologueRest
+        sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old s9old s10old
+        s11old a5old a0 a1 a2 a3 a4) := by
+  have hbeq := beq_spec_gen_within .x18 .x0 (2724 : BitVec 13) a2 (0 : Word) (teerB + 132)
+  rw [show (teerB + 132) + signExtend13 (2724 : BitVec 13) = teerB + 2856 from by
+        rw [show signExtend13 (2724 : BitVec 13) = (2724 : Word) from by decide]; bv_omega,
+      show (teerB + 132) + 4 = teerB + 136 from by bv_omega] at hbeq
+  have hmem := CodeReq.ofProg_mem_at teerB (teerB + 132) teerProg 33
+    (.BEQ .x18 .x0 (2724 : BitVec 13))
+    (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
+  have hbeqE := cpsBranchWithin_extend_code hmem hbeq
+  have hbeqF := cpsBranchWithin_frameR
+    (teerPrologueRest sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old s8old
+      s9old s10old s11old a5old a0 a1 a2 a3 a4)
+    (by unfold teerPrologueRest; pcFree) hbeqE
+  exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun h hp => by unfold teerPrologueRest; xperm_hyp hp)
+    (teer_prologue_body_spec sp0 raIn s0old s1old s2old s3old s4old s5old s6old s7old
+      s8old s9old s10old s11old a5old a0 a1 a2 a3 a4 x5In)
+    hbeqF
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
