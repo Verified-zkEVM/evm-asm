@@ -13,11 +13,15 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayHeader
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 open EvmAsm.Codegen.SgLoadU32leSAsm (leU32)
 open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
@@ -274,18 +278,18 @@ theorem slli2_ofNat (i : Nat) (hi : i < 2 ^ 62) :
     Nat.mod_eq_of_lt h4i]
   omega
 
-/-- Caller-private frame across loop-site bgv (keeps LoopInv s-regs + out/BAL). -/
+/-- Caller-private frame across loop-site bgv (LoopInv s-regs + out/BAL;
+    clobberable x22/x23/x27 ride as regOwn). -/
 def loopBgvFrame (spC txBase outBase balBase chainIdW nW iW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
-    (balBytes : List (BitVec 8)) (balEnabled : Bool)
-    (o22 o23 o27 : Word) : Assertion :=
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) : Assertion :=
   (.x2 ↦ᵣ spC) **
   (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
   (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
   (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
-  (.x22 ↦ᵣ o22) ** (.x23 ↦ᵣ o23) **
+  regOwn .x22 ** regOwn .x23 **
   (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
-  (.x26 ↦ᵣ chainIdW) ** (.x27 ↦ᵣ o27) **
+  (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   savedFrame spC csaved **
   wordArray outBase outVals **
   (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
@@ -293,11 +297,308 @@ def loopBgvFrame (spC txBase outBase balBase chainIdW nW iW : Word)
 
 theorem loopBgvFrame_pcFree (spC txBase outBase balBase chainIdW nW iW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
-    (balBytes : List (BitVec 8)) (balEnabled : Bool)
-    (o22 o23 o27 : Word) :
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) :
     (loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
-      txBlob outVals balBytes balEnabled o22 o23 o27).pcFree := by
+      txBlob outVals balBytes balEnabled).pcFree := by
   unfold loopBgvFrame savedFrame
-  cases balEnabled <;> bvt_pcf
+  cases balEnabled <;>
+    repeat' first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_wordArray _ _
+      | exact pcFree_emp
+
+/-! ## Iteration start: SLLI/ADD + loop-site bgv + MV x22 (instr 33–36) -/
+
+abbrev AfterStartBgv : Word := B + 148
+
+/-- Pack owned t0–t2 + s-temps + a-temps into `regOwns bgvScratch`. -/
+private theorem pack_loop_bgvScratch :
+    ∀ h, ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 ** regOwn .x17) h) →
+      (regOwns bgvScratch) h := by
+  intro h hp
+  simp only [bgvScratch, regOwns_cons, regOwns_nil, sepConj_emp_right']
+  exact hp
+
+/-- Pack `regIs x5` + owned temps into `regOwns bgvScratch` (Header-style). -/
+private theorem pack_loop_bgvScratch_is (v5 : Word) :
+    ∀ h, (((.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 ** regOwn .x17) h) →
+      (regOwns bgvScratch) h := by
+  intro h hp
+  exact pack_loop_bgvScratch h
+    (sepConj_mono (regIs_to_regOwn .x5 v5) (fun _ hh => hh) h hp)
+
+/-- `loopBgvFrame` after MV x22 (x22 pinned, not regOwn). -/
+private def loopBgvFrameAfterMv (spC txBase outBase balBase chainIdW nW iW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (startW : Word) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+  (.x22 ↦ᵣ startW) ** regOwn .x23 **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+  savedFrame spC csaved **
+  wordArray outBase outVals **
+  (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
+  (.x0 ↦ᵣ (0 : Word))
+
+/-- Ambient across SLLI/ADD: everything except focus x5/x8/x10/x21. -/
+private def setupFrame (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (old1 : Word) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) **
+  (.x1 ↦ᵣ old1) ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
+  savedFrame spC csaved **
+  payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+  regOwn .x6 ** regOwn .x7 **
+  regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word))
+
+private theorem setupFrame_pcFree (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (old1 : Word) :
+    (setupFrame spC txBase outBase balBase chainIdW nW csaved
+      txBlob outVals balBytes balEnabled old1).pcFree := by
+  unfold setupFrame savedFrame payload
+  cases balEnabled <;>
+    repeat' first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_wordArray _ _
+      | exact pcFree_emp
+
+/-- Local pcFree for framed loop atoms. -/
+local macro "bvt_pcf" : tactic =>
+  `(tactic| repeat' first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_regOwns _
+    | exact pcFree_memIs
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_wordArray _ _
+    | exact pcFree_emp
+    | exact pcFree_pure)
+
+set_option maxRecDepth 8000 in
+/-- Loop-site start: SLLI/ADD + bgv under `BgvOffsetAssumed` + MV x22
+    (instr 33–36). Lands at AfterStartBgv with `x22 = x10 = leU32(4*i)`. -/
+theorem bvtIterStartBgv (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (n i : Nat)
+    (old1 old5 old10 : Word)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hok : IterOk txBlob n i)
+    (htxAlign : txBase.toNat % 8 = 0) :
+    let iW := BitVec.ofNat 64 i
+    let startW := leU32 txBlob (4 * i)
+    cpsTripleWithin (2 + (1 + nBgvSteps) + 1) LoopBody AfterStartBgv fullCode
+      ((.x8 ↦ᵣ txBase) ** (.x21 ↦ᵣ iW) **
+        (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ old10) **
+        setupFrame spC txBase outBase balBase chainIdW nW csaved
+          txBlob outVals balBytes balEnabled old1)
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x10 ↦ᵣ startW) **
+        regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        loopBgvFrameAfterMv spC txBase outBase balBase chainIdW nW iW csaved
+          txBlob outVals balBytes balEnabled startW) := by
+  intro iW startW
+  let loadPtr := txBase + BitVec.ofNat 64 (4 * i)
+  have hiBound : i < 2 ^ 62 := Nat.lt_trans hok.hi hok.hNBound
+  have hslli_pure := slli2_ofNat i hiBound
+  -- [33] SLLI x5, x21, 2
+  have e33 := slli_spec_gen_within .x5 .x21 old5 iW (2 : BitVec 6)
+    LoopBody (by decide)
+  rw [show (2 : BitVec 6).toNat = 2 from by decide, hslli_pure] at e33
+  have e33C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B LoopBody bvtProg 33
+      (.SLLI .x5 .x21 (2 : BitVec 6))
+      (by simp only [LoopBody]; bv_omega)
+      (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) e33
+  have e33F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ txBase) ** (.x10 ↦ᵣ old10))
+    (by apply pcFree_sepConj <;> exact pcFree_regIs) e33C
+  -- [34] ADD x10, x8, x5
+  have e34 := add_spec_gen_within .x10 .x8 .x5 txBase (BitVec.ofNat 64 (4 * i))
+    old10 (B + 136) (by decide)
+  have e34C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 136) bvtProg 34
+      (.ADD .x10 .x8 .x5)
+      (by bv_omega) (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) e34
+  have e34F := cpsTripleWithin_frameR ((.x21 ↦ᵣ iW)) pcFree_regIs e34C
+  have hsetup0 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) e33F e34F
+  have hsetupF := cpsTripleWithin_frameR
+    (setupFrame spC txBase outBase balBase chainIdW nW csaved
+      txBlob outVals balBytes balEnabled old1)
+    (setupFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _) hsetup0
+  have hsetupC := cpsTripleWithin_extend_code bvt_mono hsetupF
+  -- Reshape setup post → call pre (pack x5 + temps into bgvScratch)
+  have hsetup' : cpsTripleWithin 2 LoopBody (B + 140) fullCode
+      ((.x8 ↦ᵣ txBase) ** (.x21 ↦ᵣ iW) **
+        (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ old10) **
+        setupFrame spC txBase outBase balBase chainIdW nW csaved
+          txBlob outVals balBytes balEnabled old1)
+      ((.x1 ↦ᵣ old1) **
+        (.x10 ↦ᵣ loadPtr) ** regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+          txBlob outVals balBytes balEnabled) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) ?_ hsetupC
+    intro h hq
+    have hq1 :
+        (((.x5 ↦ᵣ BitVec.ofNat 64 (4 * i)) ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x15 ** regOwn .x16 ** regOwn .x17) **
+          ((.x1 ↦ᵣ old1) ** (.x10 ↦ᵣ loadPtr) ** bytesRegion txBase txBlob **
+            loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+              txBlob outVals balBytes balEnabled)) h := by
+      unfold setupFrame payload at hq
+      unfold loopBgvFrame
+      xperm_hyp hq
+    have hq2 :=
+      sepConj_mono (pack_loop_bgvScratch_is (BitVec.ofNat 64 (4 * i)))
+        (fun _ hh => hh) h hq1
+    xperm_hyp hq2
+  -- Bgv call under BgvOffsetAssumed
+  have hflat := hbgv.success_flat LinkLoopBgv1 loadPtr txBase txBlob (4 * i)
+    (by show LinkLoopBgv1 &&& ~~~(1 : Word) = LinkLoopBgv1; decide)
+    rfl hok.hStartOff htxAlign (hok.hNoWrap txBase htxAlign)
+    (fun k hk => hok.hValid txBase k hk)
+  have hflatF := cpsTripleWithin_frameR
+    (loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+      txBlob outVals balBytes balEnabled)
+    (loopBgvFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _) hflat
+  have hcallee : cpsTripleWithin nBgvSteps Bgv LinkLoopBgv1 fullCode
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        ((.x10 ↦ᵣ loadPtr) ** regOwns bgvScratch **
+          bytesRegion txBase txBlob **
+          loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+            txBlob outVals balBytes balEnabled))
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        ((.x10 ↦ᵣ startW) ** regOwns bgvScratch **
+          bytesRegion txBase txBlob **
+          loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+            txBlob outVals balBytes balEnabled)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hflatF
+  have hcall : cpsTripleWithin (1 + nBgvSteps) (B + 140) LinkLoopBgv1 fullCode
+      ((.x1 ↦ᵣ old1) **
+        (.x10 ↦ᵣ loadPtr) ** regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+          txBlob outVals balBytes balEnabled)
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x10 ↦ᵣ startW) ** regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+          txBlob outVals balBytes balEnabled) := by
+    have h0 := callWithin_spec (B + 140) Bgv old1 loopBgv1JalOff nBgvSteps
+      (by show (B + 140) + signExtend21 loopBgv1JalOff = Bgv; decide)
+      (fun a off hi => bvt_mono a off
+        (CodeReq.ofProg_mem_at B (B + 140) bvtProg 35
+          (.JAL .x1 loopBgv1JalOff) (by bv_omega)
+          (by rw [bvt_length]; decide) rfl
+          (by rw [bvt_length]; decide) a off hi))
+      (by
+        apply pcFree_sepConj
+        · exact pcFree_regIs
+        · apply pcFree_sepConj
+          · exact pcFree_regOwns _
+          · apply pcFree_sepConj
+            · exact bytesRegion_pcFree _ _
+            · exact loopBgvFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _)
+      hcallee
+    rw [show (B + 140 + 4 : Word) = LinkLoopBgv1 from by
+      simp only [LinkLoopBgv1]; bv_omega] at h0
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h0
+  -- [36] MV x22, x10  (peel regOwn x22 from loopBgvFrame)
+  have e36Own : cpsTripleWithin 1 LinkLoopBgv1 AfterStartBgv fullCode
+      (((.x1 ↦ᵣ LinkLoopBgv1) **
+          (.x10 ↦ᵣ startW) ** regOwns bgvScratch **
+          bytesRegion txBase txBlob **
+          ((.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            regOwn .x23 **
+            (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            savedFrame spC csaved **
+            wordArray outBase outVals **
+            (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
+            (.x0 ↦ᵣ (0 : Word)))) **
+        regOwn .x22)
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x10 ↦ᵣ startW) **
+        regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        loopBgvFrameAfterMv spC txBase outBase balBase chainIdW nW iW csaved
+          txBlob outVals balBytes balEnabled startW) := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x22) (fun o22 => ?_)
+    have e36 := mv_spec_gen_within .x22 .x10 startW o22 LinkLoopBgv1 (by decide)
+    have e36C := cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at B LinkLoopBgv1 bvtProg 36
+        (.MV .x22 .x10)
+        (by simp only [LinkLoopBgv1]; bv_omega)
+        (by rw [bvt_length]; decide) rfl
+        (by rw [bvt_length]; decide)) e36
+    have e36F := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        regOwns bgvScratch **
+        bytesRegion txBase txBlob **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        regOwn .x23 **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        wordArray outBase outVals **
+        (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
+        (.x0 ↦ᵣ (0 : Word)))
+      (by unfold savedFrame; cases balEnabled <;> bvt_pcf) e36C
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by
+        unfold loopBgvFrameAfterMv
+        xperm_hyp hq)
+      (cpsTripleWithin_extend_code bvt_mono e36F)
+  -- Compose setup' ;; call ;; mv
+  have c01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hsetup' hcall
+  have c02 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      unfold loopBgvFrame at hp
+      xperm_hyp hp) c01 e36Own
+  change cpsTripleWithin (2 + (1 + nBgvSteps) + 1) LoopBody AfterStartBgv fullCode
+    _ _ at c02
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c02
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec

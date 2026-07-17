@@ -318,11 +318,12 @@ def payload (txBase outBase balBase : Word)
   bytesRegion txBase txBlob ** wordArray outBase outVals **
     if balEnabled then bytesRegion balBase balBytes else empAssertion
 
-/-- Scratch regs owned across calls (t0–t2, a-temps, temporaries). -/
+/-- Scratch regs owned across calls (t0–t2, a-temps incl a7/x17, temporaries).
+    Includes `x17` so loop-site `bgvScratch` (which owns a7) packs from LoopInv. -/
 def scratchRegs : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-  regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -330,10 +331,9 @@ def scratchRegs : Assertion :=
 def scratchRegsNoA0 : Assertion :=
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-  regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
-
 /-- Loop invariant at `LoopGuard` entering iteration `i` (`i ≤ n`).
     `outVals` is the full eventual array; the pure prefix fact is carried
     separately as a Prop hypothesis on the induction (value-level inv).

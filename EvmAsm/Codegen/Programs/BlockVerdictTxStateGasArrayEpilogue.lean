@@ -236,7 +236,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             (.x0 ↦ᵣ (0 : Word)) **
             regOwn .x22 ** regOwn .x23 ** regOwn .x27 ** regOwn .x10) **
@@ -256,7 +256,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             (.x0 ↦ᵣ (0 : Word)) **
             regOwn .x23 ** regOwn .x27 ** regOwn .x10) **
@@ -276,7 +276,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             (.x0 ↦ᵣ (0 : Word)) **
             regOwn .x27 ** regOwn .x10) **
@@ -296,7 +296,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             (.x0 ↦ᵣ (0 : Word)) **
             regOwn .x10) **
@@ -317,7 +317,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
             (.x0 ↦ᵣ (0 : Word))) **
           regOwn .x10)
@@ -332,7 +332,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
         (payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-          regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word))).pcFree := by
       unfold payload
@@ -341,7 +341,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
       (payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
-        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x0 ↦ᵣ (0 : Word)))
       hG hstat0
