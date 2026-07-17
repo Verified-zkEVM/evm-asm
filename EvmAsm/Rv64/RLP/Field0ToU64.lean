@@ -486,9 +486,6 @@ theorem rlp_field0_to_u64_call_content
   rw [show (base + 32 + 4 : Word) = base + 36 from by bv_omega] at hcall
   exact cpsTripleWithin_extend_code hmono hcall
 
-#print axioms rlp_field0_to_u64_call_walk_init
-#print axioms rlp_field0_to_u64_call_walk_next
-#print axioms rlp_field0_to_u64_call_content
 
 /-! ## Wrapper parse-failure branches. -/
 
@@ -558,7 +555,6 @@ theorem rlp_field0_to_u64_init_failure_spec_within
       obtain ⟨_, hp'⟩ := hp
       xperm_hyp hp') hseq
 
-#print axioms rlp_field0_to_u64_init_failure_spec_within
 
 /-- If `rlp_walk_next` returns a nonzero status in `x11`, the wrapper's
 index-4 branch normalizes it to the public parse-failure result. -/
@@ -625,7 +621,6 @@ theorem rlp_field0_to_u64_next_failure_spec_within
       obtain ⟨_, hp'⟩ := hp
       xperm_hyp hp') hseq
 
-#print axioms rlp_field0_to_u64_next_failure_spec_within
 
 /-! ## Successful list-init handoff to the unified first-item walk. -/
 
@@ -774,7 +769,6 @@ theorem rlp_field0_to_u64_walk_next_call_spec_within
   refine cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hp => hp) hseq)
 
-#print axioms rlp_field0_to_u64_walk_next_call_spec_within
 
 /-! ## Unified content-decoder return path. -/
 
@@ -915,6 +909,5 @@ theorem rlp_field0_to_u64_content_call_spec_within
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp) hs2)
 
-#print axioms rlp_field0_to_u64_content_call_spec_within
 
 end EvmAsm.Rv64.RLP

@@ -48,7 +48,6 @@ theorem dispatchAndRestore
     saved bytes listLen index hs0 hs1 hnewSp hret
   exact cpsTripleWithin_seq_same_cr hd' hr
 
-#print axioms dispatchAndRestore
 
 @[irreducible] def wholeRest
     (listBase listLenW indexW outputPtr oldOffset oldLen old14 : Word)
@@ -163,7 +162,6 @@ theorem setupAndCall
       simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp') hall
   simpa only [Nat.add_assoc] using hall'
 
-#print axioms setupAndCall
 
 theorem rlpFieldToU256Be_spec_within
     (spOuter newSp listBase listLenW indexW outputPtr oldOffset oldLen old14 : Word)
@@ -208,6 +206,5 @@ theorem rlpFieldToU256Be_spec_within
     hover hoover hvalid houtvalid hnewSp hret
   exact cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs ht
 
-#print axioms rlpFieldToU256Be_spec_within
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

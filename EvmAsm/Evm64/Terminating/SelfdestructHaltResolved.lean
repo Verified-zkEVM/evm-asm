@@ -49,6 +49,5 @@ theorem evm_selfdestruct_stack_spec_resolved (hbase flag resume v5 v6 v1 f0 : Wo
     (la_resolve (hbase + 4) flag hr2)
     (la_resolve (hbase + 16) resume hr1)
 
-#print axioms evm_selfdestruct_stack_spec_resolved
 
 end EvmAsm.Evm64.Terminating

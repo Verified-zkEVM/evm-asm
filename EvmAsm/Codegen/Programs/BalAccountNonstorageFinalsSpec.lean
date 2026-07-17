@@ -410,7 +410,6 @@ theorem finalsDerivation_witness :
       rw [h1, h2]
       exact FieldFinal.empty 0xc0 rfl (by decide)⟩
 
-#print axioms finalsDerivation_witness
 
 /-! ## §3  The verdict stubs
 
@@ -456,8 +455,6 @@ theorem bansf_rejectTail_spec (base vOld : Word)
   rw [show base + 732 + 4 = base + 736 from by bv_omega] at hli
   exact hli
 
-#print axioms bansf_successTail_spec
-#print axioms bansf_rejectTail_spec
 
 /-! ## §4  Concrete linkage: code requirement, call-site adapters
 
@@ -556,7 +553,6 @@ theorem bansf_callSite22_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite22_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 28 (`B + 112`). -/
 theorem bansf_callSite28_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -582,7 +578,6 @@ theorem bansf_callSite28_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite28_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 33 (`B + 132`). -/
 theorem bansf_callSite33_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -608,7 +603,6 @@ theorem bansf_callSite33_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite33_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 38 (`B + 152`). -/
 theorem bansf_callSite38_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -634,7 +628,6 @@ theorem bansf_callSite38_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite38_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 43 (`B + 172`). -/
 theorem bansf_callSite43_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -660,7 +653,6 @@ theorem bansf_callSite43_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite43_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 50 (`B + 200`). -/
 theorem bansf_callSite50_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -685,7 +677,6 @@ theorem bansf_callSite50_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite50_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 60 (`B + 240`). -/
 theorem bansf_callSite60_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -711,7 +702,6 @@ theorem bansf_callSite60_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite60_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 68 (`B + 272`). -/
 theorem bansf_callSite68_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -736,7 +726,6 @@ theorem bansf_callSite68_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite68_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 74 (`B + 296`). -/
 theorem bansf_callSite74_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -762,7 +751,6 @@ theorem bansf_callSite74_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite74_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 79 (`B + 316`). -/
 theorem bansf_callSite79_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -788,7 +776,6 @@ theorem bansf_callSite79_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite79_walk_next
 
 /-- Call-site adapter for the `jal rlp_content_to_u256_be` at slot 84 (`B + 336`). -/
 theorem bansf_callSite84_content_to_u256_be {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -816,7 +803,6 @@ theorem bansf_callSite84_content_to_u256_be {n : Nat} {Prest Q : Assertion} (vRa
           (fun a i h => CodeReq.mono_union_right bansf_ctu64_disj_ctu256
             (fun _ _ hh => hh) a i h) a i h) a i h) a i h
 
-#print axioms bansf_callSite84_content_to_u256_be
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 90 (`B + 360`). -/
 theorem bansf_callSite90_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -842,7 +828,6 @@ theorem bansf_callSite90_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite90_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 97 (`B + 388`). -/
 theorem bansf_callSite97_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -867,7 +852,6 @@ theorem bansf_callSite97_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite97_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 107 (`B + 428`). -/
 theorem bansf_callSite107_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -893,7 +877,6 @@ theorem bansf_callSite107_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite107_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 115 (`B + 460`). -/
 theorem bansf_callSite115_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -918,7 +901,6 @@ theorem bansf_callSite115_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite115_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 121 (`B + 484`). -/
 theorem bansf_callSite121_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -944,7 +926,6 @@ theorem bansf_callSite121_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite121_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 126 (`B + 504`). -/
 theorem bansf_callSite126_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -970,7 +951,6 @@ theorem bansf_callSite126_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite126_walk_next
 
 /-- Call-site adapter for the `jal rlp_content_to_u64` at slot 130 (`B + 520`). -/
 theorem bansf_callSite130_content_to_u64 {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -997,7 +977,6 @@ theorem bansf_callSite130_content_to_u64 {n : Nat} {Prest Q : Assertion} (vRa : 
         (fun a i h => CodeReq.mono_union_right bansf_walkNext_disj_ctu64
           (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h) a i h
 
-#print axioms bansf_callSite130_content_to_u64
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 137 (`B + 548`). -/
 theorem bansf_callSite137_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1023,7 +1002,6 @@ theorem bansf_callSite137_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite137_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 143 (`B + 572`). -/
 theorem bansf_callSite143_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1048,7 +1026,6 @@ theorem bansf_callSite143_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite143_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 153 (`B + 612`). -/
 theorem bansf_callSite153_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1074,7 +1051,6 @@ theorem bansf_callSite153_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite153_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 161 (`B + 644`). -/
 theorem bansf_callSite161_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1099,7 +1075,6 @@ theorem bansf_callSite161_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bansf_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bansf_callSite161_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 167 (`B + 668`). -/
 theorem bansf_callSite167_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1125,7 +1100,6 @@ theorem bansf_callSite167_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite167_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 173 (`B + 692`). -/
 theorem bansf_callSite173_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1151,7 +1125,6 @@ theorem bansf_callSite173_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bansf_walkInit_disj_walkNext
         (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
 
-#print axioms bansf_callSite173_walk_next
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

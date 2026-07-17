@@ -329,8 +329,6 @@ private theorem hesrStage4
   rw [show (hesrBase + 124 : Word) + 4 = hesrBase + 128 from by bv_omega] at hwalk'
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hesrMarshalNext
-#print axioms hesrStage4
 /-- Bundled-entry wrapper for the inter-call marshalling: the ambient registers
     and the two spill cells stay folded (`hesrWalkAmbient`/`hesrSpill`) so the
     stage feeds it over few atoms.  Internally it unfolds them, frames the
@@ -363,7 +361,6 @@ theorem hesrMarshalNextBundled
     (fun h hp => by unfold hesrWalkAmbient hesrAmbRegs hesrSpill at hp; xperm_chunked hp)
     (fun h hq => by unfold hesrWalkAmbient hesrAmbRegs hesrSpill; xperm_chunked hq) hmF
 
-#print axioms hesrMarshalNextBundled
 set_option maxRecDepth 8000 in
 theorem hesrStage3
     (listBase endPtr outPtr newSp : Word) (offPrev listLen cursorOff : Nat)
@@ -681,6 +678,5 @@ theorem hesrStage3
   rw [show (hesrBase + 104 : Word) + 4 = hesrBase + 108 from by bv_omega] at hwalk'
   exact cpsTripleWithin_seq_same_cr hwalk' hdisp
 
-#print axioms hesrStage3
 
 end EvmAsm.Codegen.HeaderFieldsSpec

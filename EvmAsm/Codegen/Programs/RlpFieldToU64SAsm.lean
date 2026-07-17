@@ -179,7 +179,6 @@ theorem listResult_cases
   | ok offset len h_ok => exact Or.inl ⟨rfl, h_ok⟩
   | fail h_fail => exact Or.inr ⟨rfl, rfl, rfl, h_fail⟩
 
-#print axioms listResult_cases
 
 def listSelected
     (sp0 listBase offsetPtr lenPtr : Word)
@@ -222,7 +221,6 @@ theorem listCallResult_cases
     unfold listFailed
     exact ⟨v11, v12, (sepConj_pure_right h).2 ⟨hcore, h_fail⟩⟩
 
-#print axioms listCallResult_cases
 
 theorem pcFree_listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
     v11 v12 : (listCallRest sp0 listBase offsetPtr lenPtr saved bytes offset len
@@ -281,7 +279,6 @@ theorem branchSelected
   unfold listCallCore
   xperm_pure hstate
 
-#print axioms branchSelected
 
 /-- On a strict K20 failure, instruction 12's `bne a0, zero` is necessarily
     taken and preserves the exact unchanged offset/length cells. -/
@@ -334,7 +331,6 @@ theorem branchFailed
   unfold listCallCore
   xperm_pure hstate
 
-#print axioms branchFailed
 
 /-- Unified semantic dispatch for instruction 12, directly over K20's
     existential result post. -/
@@ -360,7 +356,6 @@ theorem listResultBranch
       oldLen saved bytes listLen index h hp)
     (fun _ hq => hq) (fun _ hq => hq) hor
 
-#print axioms listResultBranch
 
 /-- Peel K20's restored `ra` out of its flat post, yielding the exact
     `(ra ** P) -> (ra ** Q)` contract expected by `callWithin_spec`. -/
@@ -413,7 +408,6 @@ theorem listCalleeCallContract
   unfold listCallResult
   exact ⟨status, offset, len, v11, v12, hrest⟩
 
-#print axioms listCalleeCallContract
 
 /-- The real `jal` at wrapper instruction 11 composed with strict K20. -/
 theorem callListNth
@@ -473,7 +467,6 @@ theorem callListNth
   dsimp [saved] at hcall
   exact hcall
 
-#print axioms callListNth
 
 /-! ## Three-register ABI frame -/
 
@@ -582,7 +575,6 @@ theorem setupPrologue
     unfold code
     exact CodeReq.union_mono_left a i hi) hlocal
 
-#print axioms setupPrologue
 
 /-- Save the input/output pointers and zero the caller-visible output cell
     (instructions 4--6), before either strict callee can fail. -/
@@ -638,7 +630,6 @@ theorem setupMovesZero
     exact CodeReq.union_mono_left a i hi) hframed
   exact hall
 
-#print axioms setupMovesZero
 
 /-- Materialize `rfu_offset` and `rfu_length` in `a3/a4`
     (instructions 7--10), with both addresses proved by `la_resolve`. -/
@@ -678,7 +669,6 @@ theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
     unfold code
     exact CodeReq.union_mono_left a i hi) hframed
 
-#print axioms setupGlobals
 
 theorem frameRegs_implies_owned (s0 s1 : Word) : ∀ h,
     (regOwn .x1 ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1)) h →
@@ -760,7 +750,6 @@ theorem restoreTail (sp0 newSp : Word) (saved : Saved)
     unfold code
     exact CodeReq.union_mono_left a i hi) hlocal
 
-#print axioms restoreTail
 
 /-- Failure-status materialization and jump to the shared restore tail
     (instructions 29--30). -/
@@ -827,7 +816,6 @@ theorem failureJoin
   unfold listCallCore
   xperm_pure hq
 
-#print axioms failureJoin
 
 /-- Selected-item address setup (instructions 13--19): reload K20's exact
     offset/length cells and form the content pointer for the scalar callee. -/
@@ -915,7 +903,6 @@ theorem selectedSetupExact
     unfold code
     exact CodeReq.union_mono_left a i hi) hframed
 
-#print axioms selectedSetupExact
 
 def selectedCarry
     (sp0 listBase : Word)
@@ -997,7 +984,6 @@ theorem selectedSetup
       rw [hs0] at hp
       xperm_pure hp) (fun _ hq => hq) howned
 
-#print axioms selectedSetup
 
 theorem strictNthItem_last_decode
     {bytes : List (BitVec 8)} {base : Word} {endOff index off : Nat}
@@ -1038,8 +1024,6 @@ theorem success_content_bounds
   · omega
   · omega
 
-#print axioms strictNthItem_last_decode
-#print axioms success_content_bounds
 
 def contentOutcome (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :=
   fun h =>
@@ -1090,7 +1074,6 @@ theorem contentOutcome_semantic (bytes : List (BitVec 8)) (offset len : Nat) : �
     exact ⟨_, 0, (sepConj_pure_right h).2
       ⟨(by xperm_hyp hstate), .success h_sem.1 h_sem.2.1 h_sem.2.2⟩⟩
 
-#print axioms contentOutcome_semantic
 
 def contentCallPost (srcBase : Word) (srcBytes : List (BitVec 8))
     (srcOff len : Nat) : Assertion :=
@@ -1158,7 +1141,6 @@ theorem callContentExact
   unfold contentRawPost
   exact hcall
 
-#print axioms callContentExact
 
 def contentCarry
     (sp0 listBase offset len v12 : Word)
@@ -1217,7 +1199,6 @@ theorem callContentFramedExact
   exact cpsTripleWithin_weaken (fun h hp => by xperm_pure hp)
     (fun h hq => by xperm_pure hq) hcf
 
-#print axioms callContentFramedExact
 
 def contentDone
     (sp0 listBase : Word)
@@ -1344,7 +1325,6 @@ theorem callContentOwned
       unfold P6 contentCarry listOtherSaved
       xperm_pure hp) (fun _ hq => hq) h6
 
-#print axioms callContentOwned
 
 theorem callContent
     (sp0 listBase vOld : Word)
@@ -1368,9 +1348,6 @@ theorem callContent
     ⟨offset, len, v12, hready⟩⟩ := hp
   exact ⟨offset, len, v12, hRa, hReady, hd, hu, hra, hready⟩
 
-#print axioms callContent
 
-#print axioms Result.status_cases
-#print axioms frameRegs_implies_owned
 
 end EvmAsm.Codegen.RlpFieldToU64SAsm

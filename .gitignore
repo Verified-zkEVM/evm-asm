@@ -5,6 +5,7 @@ rust-u256-asm/
 gen-out/
 .claude/
 .codex/
+.opencode/
 __pycache__/
 
 # jscpd duplication-watch output (scripts/check-duplication.sh)
@@ -20,3 +21,22 @@ docs/agents/phase*-bootstrap.md
 docs/agents/rollout-complete.md
 build.log
 log.txt
+
+# OS cruft (macOS Finder / Windows)
+.DS_Store
+Thumbs.db
+
+# Editor swap / backup files
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+
+# AI agent local scratch dirs (analogous to .claude/ .codex/ .opencode/;
+# .opencode/ is added separately in #10379)
+.gemini/
+.cursor/
+.aider*
+.continue/

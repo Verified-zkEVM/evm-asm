@@ -54,7 +54,6 @@ theorem aie_disjoint : aieCode.Disjoint RlpListNthItemSAsm.code := by
   · right
     rw [RlpListNthItemSAsm.total_length]; decide
 
-#print axioms aie_disjoint
 
 /-- K20's linked code is subsumed by the AIE full closure. -/
 theorem k20_mono :
@@ -159,7 +158,6 @@ theorem aieChunkA (sp0 spA raIn c8 c9 c18 q0 q1 q2 q3 : Word)
   refine cpsTripleWithin_weaken (fun _ hp => by unfold aieSlots at hp; xperm_chunked hp)
     (fun _ hq => by unfold aieSlots; xperm_chunked hq) s04
 
-#print axioms aieChunkA
 
 /-! ## Prologue chunk B — argument moves and output-cell zeroing ([5]-[8]) -/
 
@@ -204,7 +202,6 @@ theorem aieChunkB (accBase lenW outPtr c8 c9 c18 oldOut : Word) :
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) s58
 
-#print axioms aieChunkB
 
 /-! ## Prologue chunk C — call-argument setup ([9]-[15]) -/
 
@@ -272,7 +269,6 @@ theorem aieChunkC (accBase lenW outPtr old13 old14 : Word) :
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) s915
 
-#print axioms aieChunkC
 
 /-! ## Prologue — full caller footprint and composition ([0]-[15]) -/
 
@@ -334,7 +330,6 @@ theorem aieHead (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
       unfold aiePre at hp; xperm_chunked hp) (fun _ hq => by
       unfold aieCalleePre entryRest mkSaved; xperm_chunked hq) hframed
 
-#print axioms aieHead
 
 /-! ## Field-0 (nonce) RLP call adapter — prologue ;; jal ;; K20 ([0]-[16]+callee) -/
 
@@ -403,7 +398,6 @@ theorem aieCall0 (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
   have hhj := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hhead hjalF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hhj hcallee
 
-#print axioms aieCall0
 
 /-! ## Mid-call (fields 1/3) RLP call adapters
 
@@ -550,7 +544,6 @@ theorem aieCall1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
     (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hsj hcallee)
 
-#print axioms aieCall1
 
 set_option maxRecDepth 8000 in
 /-- Field-3 (code_hash) call adapter: setup [60]-[66] ;; `jal` [67] ;; K20 (index 3),
@@ -673,7 +666,6 @@ theorem aieCall3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
     (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hsj hcallee)
 
-#print axioms aieCall3
 
 /-! ## Epilogue ([102]-[107]) -/
 
@@ -755,6 +747,5 @@ theorem aieEpi (sp0 spA raIn c8 c9 c18 w1 w8 w9 w18 : Word) (G : Assertion)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) hframed
 
-#print axioms aieEpi
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec

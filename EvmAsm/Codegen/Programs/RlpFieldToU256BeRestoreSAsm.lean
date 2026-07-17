@@ -39,7 +39,6 @@ theorem restoreTailExact
       xperm_hyp hp1)
     (fun _ hp => hp) ht
 
-#print axioms restoreTailExact
 
 def successPayload (newSp listBase outputPtr offset len v11 v12 : Word)
     (saved : ListSaved) (bytes : List (BitVec 8))
@@ -113,7 +112,6 @@ theorem restoreSuccess
   unfold successReturned
   exact ⟨offset, len, v11, v12, hp⟩
 
-#print axioms restoreSuccess
 
 def tooLongPayload (newSp listBase outputPtr offset len v11 v12 : Word)
     (saved : ListSaved) (bytes : List (BitVec 8))
@@ -185,7 +183,6 @@ theorem restoreTooLong
   unfold tooLongReturned
   exact ⟨offset, len, v11, v12, hp⟩
 
-#print axioms restoreTooLong
 
 def failurePayload (newSp listBase outputPtr oldOffset oldLen v11 v12 : Word)
     (saved : ListSaved) (bytes : List (BitVec 8))
@@ -255,7 +252,6 @@ theorem restoreFailure
   unfold failureReturned
   exact ⟨v11, v12, hp⟩
 
-#print axioms restoreFailure
 
 def returnedOutcome
     (spOuter newSp listBase outputPtr oldOffset oldLen : Word) (outer : Saved)
@@ -311,6 +307,5 @@ theorem restoreJoined
           ⟨g1, g2, gd, gu, ⟨ha, hb, hd, hu, hra, hf⟩, hsf⟩))
     (fun _ hp => hp) hor
 
-#print axioms restoreJoined
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

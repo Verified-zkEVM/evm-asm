@@ -226,7 +226,6 @@ theorem zeroPadLoop_spec (cr : CodeReq) (hdr : Word) (cur ctr : Reg)
         List.append_nil] at hq
     xperm_hyp hq
 
-#print axioms zeroPadLoop_spec
 
 end ZeroPadLoop
 

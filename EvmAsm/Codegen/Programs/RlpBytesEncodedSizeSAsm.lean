@@ -814,7 +814,6 @@ theorem rlpBytesEncodedSize_spec
 
 end Routine
 
-#print axioms rlpBytesEncodedSize_spec
 
 end RlpBytesEncodedSizeSAsm
 

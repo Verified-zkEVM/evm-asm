@@ -87,6 +87,16 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   then composed via `runBlock` tactic
 - **Key tactics**: `xperm`, `xsimp`, `xcancel`, `seqFrame`, `runBlock`,
   `validMem`, `liftSpec`, `pcFree`
+- **xperm certificate prover** (`xperm.cert`, default on since 2026-06-13):
+  permutation goals discharged via an index-permutation certificate +
+  `seps_permute_check`. The side condition is the O(n) `permCheck` bitmask
+  checker (`perm_range_of_permCheck` proves it sound once) — NOT a `decide`
+  on `List.Perm`, whose Decidable instance cost ~500ms at 83 atoms and
+  overflowed recursion depth near 200 atoms, silently falling back to the
+  O(n²) pick prover on exactly the large chains the certificate targets.
+  Post-fix: ~7ms kernel at n=83, works to n≈400; large unbundled atom
+  chains (40–80+) are viable, so ambient-bundling workarounds that fold
+  atoms into opaque descriptors purely for xperm cost can be retired.
 
 ---
 

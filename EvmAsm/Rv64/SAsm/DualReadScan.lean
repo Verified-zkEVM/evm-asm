@@ -690,7 +690,6 @@ theorem scan_spec (base ret : Word)
       hlenA hlenB hNlt)))
     hsound
 
-#print axioms scan_spec
 
 end ScanProof
 

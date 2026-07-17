@@ -1081,8 +1081,6 @@ theorem u256AddBeInPlace_spec (aPtr bPtr : Word)
     intro rf ws A h
     exact u256AddBeInPlace_retVal_post aPtr bPtr aBytes bBytes rf ws A h
 
-#print axioms u256AddBe_spec
-#print axioms u256AddBeInPlace_spec
 
 end U256AddBeSAsm
 

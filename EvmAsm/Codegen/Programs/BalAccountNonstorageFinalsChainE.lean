@@ -33,7 +33,6 @@ theorem cpsBranchWithin_of_forall_regIs_to_regOwn1
   exact h v1 R hR s hcr
     ⟨hp, hcompat, h1, h2, hd, hu, ⟨g0, g1, d1, u1, hP0, hv1⟩, hRb⟩ hpc
 
-#print axioms cpsBranchWithin_of_forall_regIs_to_regOwn1
 
 /-- Continuation at `B + 324` (the value item decoded): run the capture
     block; route its exits to the station posts.  `hFF` finishes the
@@ -141,7 +140,6 @@ theorem bansf_balStationCont324_spec (aB newSp oB : Word)
         regOwn .x19 ** regOwn .x20))) h := ⟨g1, g2, gd, gu, hX, hfr⟩
     xperm_hyp hR
 
-#print axioms bansf_balStationCont324_spec
 
 /-- Continuation at `B + 308` (the tuple's INDEX item decoded, cursor
     spilled): run the value item unit, then the capture continuation.
@@ -363,7 +361,6 @@ theorem bansf_balStationCont308_spec (aB newSp oB : Word)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hchain)
 
-#print axioms bansf_balStationCont308_spec
 
 /-- Continuation at `B + 280` (the tuple window's `rlp_walk_init`
     succeeded): spill the tuple cursor/end, run the index item unit, then
@@ -605,7 +602,6 @@ theorem bansf_balStationCont280_spec (aB newSp oB : Word)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_balStationCont280_spec
 
 /-- Seven-register variant of the `regOwn` introduction for branches. -/
 theorem cpsBranchWithin_of_forall_regIs_to_regOwn7
@@ -633,7 +629,6 @@ theorem cpsBranchWithin_of_forall_regIs_to_regOwn7
        g6, g7, d4, u4, hv3, g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
        g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
 
-#print axioms cpsBranchWithin_of_forall_regIs_to_regOwn7
 
 /-- Continuation at `B + 264` (the find-last loop's clean exit): move the
     last tuple's span into the walker arguments, init the tuple window,
@@ -896,7 +891,6 @@ theorem bansf_balStationCont264_spec (aB newSp oB : Word)
     (fun _ x => x) (fun _ x => x)
     (cpsBranchWithin_mono_nSteps (by omega) hfull)
 
-#print axioms bansf_balStationCont264_spec
 
 /-- Continuation at `B + 208` (the balance-field `rlp_walk_init`
     succeeded): the empty-field split; on the non-empty side, spill the

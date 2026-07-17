@@ -834,7 +834,6 @@ theorem blsgLtP_spec (inPtr ret : Word) (xs : List (BitVec 8))
     (fun h hq => by unfold ltPost at hq; exact hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc3)
 
-#print axioms blsgLtP_spec
 
 end Bls12G1LtPSAsm
 

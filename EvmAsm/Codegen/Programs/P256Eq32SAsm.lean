@@ -58,7 +58,6 @@ theorem p256Eq32Fn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8))
   simpa [p256Eq32Fn, p256Eq32Body, Secp256k1FieldEq32SAsm.secfEq32Fn] using
     Secp256k1FieldEq32SAsm.secfEq32Fn_spec ptr1 ptr2 bs1 bs2 hwf1 hwf2 base
 
-#print axioms p256Eq32Fn_spec
 
 end P256Eq32SAsm
 end EvmAsm.Codegen

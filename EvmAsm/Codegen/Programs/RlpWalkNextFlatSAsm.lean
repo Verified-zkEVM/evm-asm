@@ -55,6 +55,5 @@ theorem rlp_walk_next_flat_spec_within
     (rlp_walk_next_spec_within base srcBase endPtr raVal a2Old t0Old t1Old t2Old
       t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid hss hls hll)
 
-#print axioms rlp_walk_next_flat_spec_within
 
 end EvmAsm.Codegen.RlpWalkNextFlatSAsm

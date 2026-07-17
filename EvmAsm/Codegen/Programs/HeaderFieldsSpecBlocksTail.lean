@@ -963,14 +963,5 @@ theorem hesrSuccessTailBundled
     · exact Or.inl ⟨ha0, hsucc, hlen, hfin⟩
     · exact Or.inr (Or.inl ⟨ha0, hsucc, hlen, hfin⟩)
 
-#print axioms hesrSuccessTail
-#print axioms hesrLenDispatch
-#print axioms hesrSuccessContinue
-#print axioms hesrCopyThenFinish
-#print axioms hesrLenLoad
-#print axioms hesrOffsetLoadAdd
-#print axioms hesrOffsetStore
-#print axioms hesrCopyLoop
-#print axioms hesrSuccessTailBundled
 
 end EvmAsm.Codegen.HeaderFieldsSpec

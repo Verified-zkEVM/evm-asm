@@ -795,7 +795,6 @@ theorem p256LtBe_spec (aPtr bPtr ret : Word) (xs bs : List (BitVec 8))
     (fun h hq => by unfold ltPost at hq; exact hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc3)
 
-#print axioms p256LtBe_spec
 
 end P256LtBeSAsm
 

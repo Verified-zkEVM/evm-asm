@@ -602,8 +602,6 @@ theorem callWalkNext {n : Nat} {Prest Q : Assertion} (oldRa : Word)
         (by rw [total_length]; norm_num) (by rw [total_length]; norm_num) a i hc)
     walkNext_sub) hcall
 
-#print axioms callWalkInit
-#print axioms callWalkNext
 
 /-! ## Indexed wrapper-loop assertions -/
 
@@ -794,8 +792,6 @@ theorem wrapperPrologue (sp0 newSp listBase listLenW indexW offsetPtr lenPtr
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by unfold setupPost entryRest; xperm_hyp hp) h012
 
-#print axioms setupMoves
-#print axioms wrapperPrologue
 
 def initStable (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) : Assertion :=
@@ -953,7 +949,6 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
   have hc := callWalkInit oldRa (by unfold Prest; pcf) hwi'
   simpa [Prest, Q] using hc
 
-#print axioms initCallExact
 
 def initNormalized (listBase : Word) (bytes : List (BitVec 8))
     (listLen index : Nat) : Assertion := fun h =>
@@ -1101,7 +1096,6 @@ theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
     exact Or.inl ⟨cursorOff, listBase + BitVec.ofNat 64 listLen, by
       exact threeRegs_pure_mono (fun _ => hlist) h hl⟩
 
-#print axioms initOutcome_to_normalized
 
 def initRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=
@@ -1165,7 +1159,6 @@ theorem initRejectBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldLe
     unfold initCommon at hp' ⊢
     xperm_hyp hp') htF
 
-#print axioms initRejectBranch
 
 /-- Stable resources other than `s4`; `x20` is separated because slot 16 reads
     it while preparing the WalkNext call. -/
@@ -1340,7 +1333,6 @@ theorem initSuccessBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldL
       exact (sepConj_pure_right g).2 ⟨hg,
         ⟨by omega, by omega, hlist.cursor_le, StrictPrefix.zero⟩⟩) h hbase) h012
 
-#print axioms initSuccessBranch
 
 theorem cpsNBranchWithin_pre_or_init {n : Nat} {entry : Word} {cr : CodeReq}
     {P1 P2 : Assertion} {exits : List (Word × Assertion)}

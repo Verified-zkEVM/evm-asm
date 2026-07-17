@@ -190,7 +190,6 @@ theorem aieField3SizeHead (v5 v6 v7 len3 : Word) :
     (cpsBranchWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) hbr)
 
-#print axioms aieField3SizeHead
 
 /-! ## Field-3 content-pointer setup ([74]-[79], `AB+296 → AB+320`)
 
@@ -253,6 +252,5 @@ theorem aieField3PtrSetup (v5 accBase v28 v31 offset3 : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s3)
 
-#print axioms aieField3PtrSetup
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec
