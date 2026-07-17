@@ -402,7 +402,6 @@ theorem swdWriteBe32U64Fn_spec (v dst : Word) (orig : List (BitVec 8))
     subst hi8
     exact beWin32_8_eq v
 
-#print axioms swdWriteBe32U64Fn_spec
 
 end SwdWriteBe32U64SAsm
 

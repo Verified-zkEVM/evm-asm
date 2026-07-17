@@ -117,7 +117,6 @@ theorem rlpItemDecode_advance {bytes : List (BitVec 8)} {base : Word}
     rw [reassoc_longlist] at hnext
     exact advance_longform hhdr1 hhdr9 hfit1 hfit2 hnext hoffle hover
 
-#print axioms rlpItemDecode_advance
 
 /-- Word rotation for the long-list span shape: `h + l + 1 = (h + 1) + l`. -/
 private theorem add_rot (h l : Word) : h + l + 1 = (h + 1) + l := by
@@ -254,7 +253,6 @@ theorem rlpItemDecode_spanStart {bytes : List (BitVec 8)} {base : Word}
       exact hfit2
     exact spanStart_longlist hhdr1 hhdr9 hfit1' hfit2' hnext hlen hoffle hover
 
-#print axioms rlpItemDecode_spanStart
 
 
 /-! ## §2  The walked-so-far chain -/
@@ -300,8 +298,6 @@ theorem WalkPrefix.toLastItemAt {bytes : List (BitVec 8)} {base endPtr : Word}
   | cons o o' n l n' l' hi hne hrest ih =>
       exact .step o n l n' l' hi hne (ih hend)
 
-#print axioms WalkPrefix.snoc
-#print axioms WalkPrefix.toLastItemAt
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

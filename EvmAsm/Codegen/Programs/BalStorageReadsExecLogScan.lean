@@ -209,7 +209,6 @@ private theorem bsre_stationBr_spec {CR : CodeReq} (A : Word) (boff : BitVec 13)
   · exact fun h hq => by xperm_hyp hq
   · exact fun h hq => by xperm_hyp hq
 
-#print axioms bsre_stationBr_spec
 
 /-- `breakStation_spec` instantiated at the station lemma's exact post
     shapes: the taken (mismatch) arm runs a return-tail triple, the
@@ -355,7 +354,6 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmvF hstation)
   exact fun h hp => by unfold scanRegs at hp; xperm_hyp hp
 
-#print axioms bsre_scanNextIter_spec
 
 /-- Scan-next, last round (`j + 1 = count`, cursor at the log base): the
     `BNE x28, x29` back-edge FALLS THROUGH and slot 96's `JAL` exits to the
@@ -488,7 +486,6 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmvF hstation)
   exact fun h hp => by unfold scanRegs at hp; xperm_hyp hp
 
-#print axioms bsre_scanNextLast_spec
 
 /-! ### §5.4  The 8-station compare cascade (slots 69–93) -/
 
@@ -575,8 +572,6 @@ private theorem bsre_stationK_spec {CR : CodeReq}
   · exact fun h hq => by unfold scanRegs; xperm_hyp hq
   · exact fun h hq => by unfold scanRegs; xperm_hyp hq
 
-#print axioms bsre_stationA_spec
-#print axioms bsre_stationK_spec
 
 /-- **The compare cascade** from the first station (`base + 276`, slot 69),
     generic in the scan-next continuation `hnext` (invoked at `base + 376`
@@ -837,7 +832,6 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
   exact cpsBranchWithin_mono_nSteps (by omega)
     (cpsTripleWithin_as_cpsBranchWithin_right ret Q hfound)
 
-#print axioms bsre_cascade_spec
 
 /-! ### §5.5  One full round from the loop head, and the whole loop -/
 
@@ -914,7 +908,6 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
     (cpsBranchWithin_pure_pre hmain)
   exact fun h hp => by unfold scanInv at hp; xperm_hyp hp
 
-#print axioms bsre_scanIter_spec
 
 /-- **The last scan round** (`j + 1 = count`, the cursor about to reach the
     log base): the round either exits FOUND at `base + 388` or falls out to
@@ -988,7 +981,6 @@ theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
     (cpsBranchWithin_pure_pre hmain)
   exact fun h hp => by unfold scanInv at hp; xperm_hyp hp
 
-#print axioms bsre_scanLast_spec
 
 /-- **The whole exec-log scan loop** (`count - 1` full rounds then the last
     round): from the loop head with nothing refuted yet, exit FOUND at
@@ -1015,7 +1007,6 @@ theorem bsre_scanLoop_spec (base logBase addrPtr krevBase : Word)
     (bsre_scanLast_spec base logBase addrPtr krevBase logBytes addrBytes key32
       count F hF hlog haddr hkey hcnt hbound (count - 1) (by omega))
 
-#print axioms bsre_scanLoop_spec
 
 /-! ### §5.6  The dword↔byte-slice bridge (spec-side)
 
@@ -1084,7 +1075,6 @@ theorem entryMatchesD_iff_slices (logBytes addrBytes key32 : List (BitVec 8))
       rw [show 8 * (16 * t + (4 + k)) = 128 * t + 32 + 8 * k from by omega]
       exact hd.symm
 
-#print axioms entryMatchesD_iff_slices
 
 /-! ## §6  Concrete linkage: code requirement, call-site adapters, `la` pairs
 
@@ -1144,7 +1134,6 @@ theorem bsre_callSite15_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bsre_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bsre_callSite15_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 18 (`B + 72`). -/
 theorem bsre_callSite18_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1170,7 +1159,6 @@ theorem bsre_callSite18_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
         (fun _ _ hh => hh) a i h) a i h
 
-#print axioms bsre_callSite18_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 21 (`B + 84`). -/
 theorem bsre_callSite21_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1196,7 +1184,6 @@ theorem bsre_callSite21_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
         (fun _ _ hh => hh) a i h) a i h
 
-#print axioms bsre_callSite21_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 24 (`B + 96`). -/
 theorem bsre_callSite24_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1222,7 +1209,6 @@ theorem bsre_callSite24_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
         (fun _ _ hh => hh) a i h) a i h
 
-#print axioms bsre_callSite24_walk_next
 
 /-- Call-site adapter for the `jal rlp_walk_init` at slot 28 (`B + 112`). -/
 theorem bsre_callSite28_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1247,7 +1233,6 @@ theorem bsre_callSite28_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   · exact CodeReq.mono_union_right bsre_prog_disj_walkInit
       (fun a i h => CodeReq.union_mono_left a i h) a i h
 
-#print axioms bsre_callSite28_walk_init
 
 /-- Call-site adapter for the `jal rlp_walk_next` at slot 35 (`B + 140`). -/
 theorem bsre_callSite35_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
@@ -1273,7 +1258,6 @@ theorem bsre_callSite35_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
       (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
         (fun _ _ hh => hh) a i h) a i h
 
-#print axioms bsre_callSite35_walk_next
 
 /-- The `la t0, bsr_krev` pair at slots 45–46: AUIPC+ADDI resolve
     to the linked scratch address. -/
@@ -1310,7 +1294,6 @@ theorem bsre_la_krev1_spec (vOld : Word) :
         = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
   exact cpsTripleWithin_seq_same_cr hau haddi
 
-#print axioms bsre_la_krev1_spec
 
 /-- The `la x31, bsr_krev` pair at slots 66–67: AUIPC+ADDI resolve
     to the linked scratch address. -/
@@ -1347,7 +1330,6 @@ theorem bsre_la_krev2_spec (vOld : Word) :
         = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
   exact cpsTripleWithin_seq_same_cr hau haddi
 
-#print axioms bsre_la_krev2_spec
 
 
 end BalStorageReadsExecLogSpec

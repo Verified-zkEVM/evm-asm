@@ -255,8 +255,6 @@ theorem bsre_rejectTail_spec (base vOld : Word)
   rw [show base + 400 + 4 = base + 404 from by bv_omega] at hli
   exact hli
 
-#print axioms bsre_matchTail_spec
-#print axioms bsre_rejectTail_spec
 
 /-! ## §4  The byte-reverse loop (slots 55–61)
 
@@ -653,7 +651,6 @@ theorem bsre_revIter_spec (base acctBase krevBase : Word)
       (fun _ => cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => hq) hbody))
 
-#print axioms bsre_revIter_spec
 
 /-! ### §4.4  Exhaustion (header BEQ taken at `i = klen`) and the whole loop -/
 
@@ -767,7 +764,6 @@ theorem bsre_revExh_spec (base acctBase krevBase : Word)
       (fun _ => htaken)
       (fun hc => absurd hctr0 hc))
 
-#print axioms bsre_revExh_spec
 
 /-- **The whole byte-reverse loop** (header entry to post-loop station):
     `klen` iterations then the taken exit, materialising `keyRev32` of the
@@ -804,7 +800,6 @@ theorem bsre_revLoop_spec (base acctBase krevBase : Word)
     (bsre_revExh_spec base acctBase krevBase acctBytes contentOff klen F
       hF hklen hcw hbound)
 
-#print axioms bsre_revLoop_spec
 
 /-! ## §5  The exec-log scan loop (slots 68–95)
 

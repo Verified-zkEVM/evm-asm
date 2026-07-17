@@ -46,7 +46,6 @@ theorem keccak256WordGasFn_spec (size base : Word) :
     · congr 1
     · exact hA
 
-#print axioms keccak256WordGasFn_spec
 
 end Keccak256WordGasSAsm
 end EvmAsm.Codegen

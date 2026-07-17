@@ -613,7 +613,6 @@ theorem aieField3ContentCont
         (fun h hq => aieNotEmptyPost_to_aiePost sp0 spA raIn c8 c9 c18 newSp accBase outPtr
           bytes listLen h hq) hfull)
 
-#print axioms aieField3ContentCont
 
 /-- Peel a leading existential out of the left operand of a separating
     conjunction (local copy of the Close3 helper). -/
@@ -707,7 +706,6 @@ theorem aieField3OK
   obtain ⟨v12, hp⟩ := aieSepConj_exists_left' h hp
   exact ⟨offset, len, v11, v12, hp⟩
 
-#print axioms aieField3OK
 
 /-! ## Parse-fail continuation folded into the abstract post (`AB+396 → raIn`) -/
 
@@ -807,7 +805,6 @@ theorem aieFailCont (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 retA s3 s4
     (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
       (aieFailG_to_junk _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _))))))) h hq2
 
-#print axioms aieFailCont
 
 /-! ## Field-3 call + dispatch continuation (`AB+240 → raIn`) -/
 
@@ -859,6 +856,5 @@ theorem aieField3Cont
     o0 l0 o1 l1 hspA hret halign hover hvalid hoverL hbound hS0 hl0 hz0 hS1 hl1 hz1
   exact cpsBranchWithin_merge_same_cr hbranch (cpsTripleWithin_mono_nSteps (by omega) hfc) hok
 
-#print axioms aieField3Cont
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec

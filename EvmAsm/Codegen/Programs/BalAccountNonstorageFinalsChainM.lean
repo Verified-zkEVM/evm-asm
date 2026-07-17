@@ -49,7 +49,6 @@ theorem balStationPost_to_resultFrame
     refine sepConj_mono_left (fun h' hp' => Or.inr ⟨vNext, vLen, hp'⟩) h ?_
     xperm_hyp hp
 
-#print axioms balStationPost_to_resultFrame
 
 /-- Persistent balance+nonce result carried unchanged through code station. -/
 def nonceResult (aB oB : Word) (fOff fSpanN : Nat)
@@ -91,7 +90,6 @@ theorem nonceStationPost_to_resultFrame
     refine sepConj_mono_left (fun h' hp' => Or.inr ⟨vNext, vLen, hp'⟩) h ?_
     xperm_pure hp
 
-#print axioms nonceStationPost_to_resultFrame
 
 /-- Persistent balance+nonce+code result carried into the verdict tail. -/
 def codeResult (aB oB : Word) (fOff fSpanN : Nat)
@@ -131,7 +129,6 @@ theorem codeStationPost_to_resultFrame
     refine sepConj_mono_left (fun h' hp' => Or.inr ⟨vNext, vLen, hp'⟩) h ?_
     xperm_pure hp
 
-#print axioms codeStationPost_to_resultFrame
 
 /-- The abstract result represented by three optional final value windows. -/
 def finalsOutOf (acctBytes : List (BitVec 8)) (aB : Word)
@@ -201,7 +198,6 @@ theorem fieldFinals_to_finalsDerivation
         exact Or.inr ⟨rfl, vNext, vLen, hcode, rfl, rfl⟩
   · cases code <;> simp [finalsOutOf]
 
-#print axioms fieldFinals_to_finalsDerivation
 
 /-- Expose the optional balance window encoded by `balResult`, while retaining
     the complete owned balance footprint. -/
@@ -226,7 +222,6 @@ theorem balResult_attachFinal
       rcases heq with ⟨rfl, rfl⟩
       exact ((sepConj_pure_right h).1 hp).2.2⟩
 
-#print axioms balResult_attachFinal
 
 /-- Pure semantic witnesses accumulated after balance and nonce stations. -/
 def balNonceFinals (acctBytes : List (BitVec 8)) (aB : Word)
@@ -277,7 +272,6 @@ theorem nonceResult_attachFinals
     rcases heq with ⟨rfl, rfl⟩
     exact hNonce.2
 
-#print axioms nonceResult_attachFinals
 
 /-- Pure semantic witnesses accumulated after all three value stations. -/
 def allFieldFinals (acctBytes : List (BitVec 8)) (aB : Word)
@@ -324,7 +318,6 @@ theorem codeResult_attachFinals
     refine ⟨bal, nonce, some (vNext, vLen),
       (sepConj_pure_right h).2 ⟨hpKeep, hBNFacts, hCode⟩⟩
 
-#print axioms codeResult_attachFinals
 
 /-- The complete six-item outer AccountChanges decode chain. -/
 def outerDecodes (acctBytes : List (BitVec 8)) (aB : Word) (aLen : Nat)
@@ -363,7 +356,6 @@ theorem outerAndFieldFinals_to_derivation
     n0 l0 n1 l1 n2 l2 n3 l3 n4 l4 n5 l5 bal nonce code
     h0 hd0 hd1 hd2 hd3 hd4 hd5 hbal hnonce hcode hbalBound hnonceBound
 
-#print axioms outerAndFieldFinals_to_derivation
 
 /-- Reframe the successful outer nonce item as a persistent nonce result,
     reusable code-station frame, and its retained outer decode. -/
@@ -394,7 +386,6 @@ theorem nonceStationOuterPost_to_resultFrame
   exact nonceStationPost_to_resultFrame aB newSp oB n4 aLen
     (n4 - l4 - aB).toNat l4.toNat acctBytes G F h hStation
 
-#print axioms nonceStationOuterPost_to_resultFrame
 
 /-- Reframe the successful outer code item as the complete persistent result,
     verdict frame, and its retained outer decode. -/
@@ -426,7 +417,6 @@ theorem codeStationOuterPost_to_resultFrame
     acctBytes G F h hStation
   exact hResult
 
-#print axioms codeStationOuterPost_to_resultFrame
 
 /-- Existential code-station entry obtained from a successful nonce station;
     the item-4 decode is retained in the ambient assertion. -/
@@ -461,7 +451,6 @@ theorem nonceStationOuterPost_to_codePre
   rw [← hrep]
   xperm_hyp hp
 
-#print axioms nonceStationOuterPost_to_codePre
 
 /-- The persistent balance result owns only memory and pure facts. -/
 theorem balResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
@@ -474,7 +463,6 @@ theorem balResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
   · obtain ⟨vNext, vLen, hp⟩ := hp
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
-#print axioms balResult_pcFree
 
 /-- The persistent nonce result is PC-free when its preserved footprint is. -/
 theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
@@ -488,7 +476,6 @@ theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
   · obtain ⟨vNext, vLen, hp⟩ := hp
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
-#print axioms nonceResult_pcFree
 
 /-- The complete persistent code result is PC-free when its preserved
     balance+nonce footprint is. -/
@@ -503,7 +490,6 @@ theorem codeResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
   · obtain ⟨vNext, vLen, hp⟩ := hp
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
-#print axioms codeResult_pcFree
 
 /-- Reject result after entering code from a successful nonce station. -/
 def nonceCodeRej (aB newSp oB : Word) (aLen off : Nat)
@@ -555,7 +541,6 @@ theorem bansf_codeStation_from_noncePost
     (fun h hp => ⟨n4, l4, (sepConj_pure_right h).2 ⟨hp, hdec4⟩⟩)
     (fun h hp => ⟨n4, l4, (sepConj_pure_right h).2 ⟨hp, hdec4⟩⟩) hs
 
-#print axioms bansf_codeStation_from_noncePost
 
 /-- Unified reject assertion for the nonce→code station chain. -/
 def nonceCodeChainRej (aB newSp oB : Word) (aLen off : Nat)
@@ -594,7 +579,6 @@ theorem bansf_nonceCodeStations_spec
     hc (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
   exact cpsBranchWithin_mono_nSteps (by omega) hcomp
 
-#print axioms bansf_nonceCodeStations_spec
 
 /-- Pre-zeroed nonce and code output cells carried ambiently through balance. -/
 def laterFieldZeros (oB : Word) (F : Assertion) : Assertion :=
@@ -646,7 +630,6 @@ theorem balStationPost_to_noncePre
   rw [← hrep]
   xperm_hyp hpFrame
 
-#print axioms balStationPost_to_noncePre
 
 /-- The pre-zeroed later-field footprint is PC-free whenever its ambient
     assertion is PC-free. -/
@@ -656,7 +639,6 @@ theorem laterFieldZeros_pcFree (oB : Word) (F : Assertion) (hF : F.pcFree) :
   unfold laterFieldZeros
   exact (inferInstance : Assertion.PCFree _).proof
 
-#print axioms laterFieldZeros_pcFree
 
 /-- Unified reject assertion for the balance→nonce→code value-station chain. -/
 def valueStationsRej (aB newSp oB n3 l3 : Word) (aLen : Nat)
@@ -719,7 +701,6 @@ theorem bansf_valueStations_spec
       (n3 - l3 - aB).toNat l3.toNat acctBytes F)
     hnc (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
 
-#print axioms bansf_valueStations_spec
 
 /-- Concrete AccountChanges with one final tuple in each value field:
     balance `1`, nonce `2`, and one-byte code `0x03`. -/
@@ -772,7 +753,6 @@ theorem finalsDerivation_nonAbsent_witness :
     hbal hnonce hcode (by simp) (by simp)
   simpa [nonAbsentWitnessOut, finalsOutOf, nonAbsentWitnessBytes] using hderiv
 
-#print axioms finalsDerivation_nonAbsent_witness
 
 /-- Balance output cells indexed by the optional final value window. -/
 def balOutCells (acctBytes : List (BitVec 8)) (aB oB : Word) :
@@ -803,7 +783,6 @@ theorem balResult_to_indexed
     refine ⟨some (vNext, vLen), ?_⟩
     simpa [balOutCells] using hp
 
-#print axioms balResult_to_indexed
 
 /-- Nonce output cells indexed by the optional final value window. -/
 def nonceOutCells (acctBytes : List (BitVec 8)) (aB oB : Word) :
@@ -853,7 +832,6 @@ theorem nonceResult_to_indexed
       rcases heq with ⟨rfl, rfl⟩
       exact hNonceFinal.2
 
-#print axioms nonceResult_to_indexed
 
 /-- Code output cells indexed by the optional final value window. -/
 def codeOutCells (aB oB : Word) : Option (Word × Word) → Assertion
@@ -901,7 +879,6 @@ theorem codeResult_to_indexed
     exact ⟨hBN, hCode, hd, hu, hBNCells,
       by simpa [codeOutCells] using hCodeCells⟩
 
-#print axioms codeResult_to_indexed
 
 /-- Exact output-block ownership indexed by the abstract `FinalsOut`. -/
 def finalOutBlock (acctBytes : List (BitVec 8)) (aB oB : Word)
@@ -989,7 +966,6 @@ theorem nonceCodePost_to_successPost
   refine ⟨hResult, hFrame, hd, hu, ?_, hFrameOwn⟩
   exact ⟨bal, nonce, code, (sepConj_pure_right hResult).2 ⟨hCells, rfl⟩⟩
 
-#print axioms nonceCodePost_to_successPost
 
 /-- Success-state remainder after factoring the verdict register `a0`. -/
 def bansfSuccessRest (aB newSp oB : Word) (aLen : Nat)
@@ -1022,7 +998,6 @@ theorem bansfSuccessPost_to_a0Rest
   exact sepConj_mono_right (fun h' hp' => ⟨out, spill, hp'⟩) h (by
     xperm_hyp hp)
 
-#print axioms bansfSuccessPost_to_a0Rest
 
 /-- The exact output-block assertion owns memory and pure equality only. -/
 theorem finalOutBlock_pcFree (acctBytes : List (BitVec 8)) (aB oB : Word)
@@ -1037,7 +1012,6 @@ theorem finalOutBlock_pcFree (acctBytes : List (BitVec 8)) (aB oB : Word)
     simp only [balOutCells, nonceOutCells, codeOutCells] at hCells ⊢ <;>
     exact (inferInstance : Assertion.PCFree _).proof h hCells
 
-#print axioms finalOutBlock_pcFree
 
 /-- The semantic success remainder is PC-free when its ambient assertion is. -/
 theorem bansfSuccessRest_pcFree
@@ -1053,7 +1027,6 @@ theorem bansfSuccessRest_pcFree
     ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
   exact (inferInstance : Assertion.PCFree _).proof h hCore
 
-#print axioms bansfSuccessRest_pcFree
 
 /-- Success verdict stub over existential ownership of the incoming `a0`. -/
 theorem bansf_successTail_own :
@@ -1066,7 +1039,6 @@ theorem bansf_successTail_own :
     unfold bansfCR
     exact CodeReq.union_mono_left a i hi)
 
-#print axioms bansf_successTail_own
 
 /-- Semantic success post with the success verdict pinned in `a0`. -/
 def bansfSuccessVerdictPost (aB newSp oB : Word) (aLen : Nat)
@@ -1089,7 +1061,6 @@ theorem bansf_successTail_semantic
     (bansfSuccessPost_to_a0Rest aB newSp oB aLen acctBytes F)
     (fun _ hp => hp) ht
 
-#print axioms bansf_successTail_semantic
 
 /-- A bounded branch whose two arms reach the same PC is a triple with the
     disjunction of the two postconditions. -/
@@ -1108,7 +1079,6 @@ theorem cpsBranchWithin_same_exit_to_triple
     obtain ⟨hp, hcompat, hq⟩ := hQ2
     exact ⟨hp, hcompat, sepConj_mono_left (fun _ hx => Or.inr hx) hp hq⟩
 
-#print axioms cpsBranchWithin_same_exit_to_triple
 
 /-- Unified B+736 post after all value stations and the success verdict stub. -/
 def valueStationsVerdictPost (aB newSp oB n3 l3 : Word) (aLen : Nat)
@@ -1173,7 +1143,6 @@ theorem bansf_valueStationsVerdict_spec
     hs (fun _ hp => hp)
   exact cpsBranchWithin_same_exit_to_triple hbr
 
-#print axioms bansf_valueStationsVerdict_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

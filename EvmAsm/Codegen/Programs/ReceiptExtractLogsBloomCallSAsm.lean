@@ -97,6 +97,5 @@ theorem receiptExtractLogsBloom_call_spec_within
     hcalleeMem
   simpa [B, K20B] using h
 
-#print axioms receiptExtractLogsBloom_call_spec_within
 
 end EvmAsm.Codegen.ReceiptExtractLogsBloomCallSAsm

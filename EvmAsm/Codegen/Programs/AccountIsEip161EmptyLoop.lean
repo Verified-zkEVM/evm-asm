@@ -269,7 +269,6 @@ theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
           simp only [show i + 1 + k = i + (k + 1) from by omega] at hq
           xperm_chunked hq) sfull)
 
-#print axioms aieNonceLoop
 
 /-! ## Balance all-zero scan loop ([54]-[59], `AB+216 → {AB+240, AB+384}`)
 
@@ -447,7 +446,6 @@ theorem aieBalAllZero (accBase : Word) (bytes : List (BitVec 8))
       (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
         (fun _ hq => by xperm_chunked hq) sfull)
 
-#print axioms aieBalAllZero
 
 /-- **Balance loop, nonzero-break exit** ([54]-[59], `AB+216 → AB+384`): when
     the first `j` content bytes are zero and byte `j` is nonzero, the loop
@@ -604,7 +602,6 @@ theorem aieBalNonEmpty (accBase : Word) (bytes : List (BitVec 8))
       (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
         (fun _ hq => by xperm_chunked hq) sfull)
 
-#print axioms aieBalNonEmpty
 
 /-! ## Code-hash byte-compare loop ([80]-[86], `AB+320 → {AB+348, AB+384}`)
 
@@ -838,7 +835,6 @@ theorem aieCHAllMatch (accBase ecBase : Word) (bytes : List (BitVec 8))
         (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
           (fun _ hq => by xperm_hyp hq) sfull)
 
-#print axioms aieCHAllMatch
 
 set_option maxRecDepth 40000 in
 /-- **Code-hash loop, mismatch exit** ([80]-[86], `AB+320 → AB+384`): when the
@@ -1050,6 +1046,5 @@ theorem aieCHMismatch (accBase ecBase : Word) (bytes : List (BitVec 8))
       (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq) sfull)
 
-#print axioms aieCHMismatch
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec

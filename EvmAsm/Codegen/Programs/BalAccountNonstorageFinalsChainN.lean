@@ -26,7 +26,6 @@ theorem valueEntryAmbient_pcFree
   unfold valueEntryAmbient
   exact (inferInstance : Assertion.PCFree _).proof
 
-#print axioms valueEntryAmbient_pcFree
 
 /-- Value-station entry with the two callee-saved temporaries existentially
     owned, as exposed by the outer item walk. -/
@@ -78,7 +77,6 @@ theorem bansf_valueStationsVerdict_own1920
     hslack hover hvalid hovout hovalid hoff3 hPrefix
   exact cpsTripleWithin_weaken (by xsimp) (fun _ hp => hp) ht
 
-#print axioms bansf_valueStationsVerdict_own1920
 
 /-- Unified verdict post after entering the value stations from the existential
     item-3 accumulator produced by SEG-B. -/
@@ -160,7 +158,6 @@ theorem bansf_valueStations_from_acc3
     unfold valueEntryAmbient valueStationsEntryOwn laterFieldZeros
     xsimp) (fun _ hp => ⟨n3, l3, hp⟩) ht
 
-#print axioms bansf_valueStations_from_acc3
 
 /-- Common B+736 post after outer items 0--3 and all value stations. -/
 def itemsVerdictPost (aB newSp oB : Word) (aLen off0 : Nat)
@@ -216,7 +213,6 @@ theorem bansf_itemsVerdict_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
     (cpsBranchWithin_same_exit_to_triple hbr)
 
-#print axioms bansf_itemsVerdict_spec
 
 /-- Verdict post after eliminating the existential outer-header offset carried
     by `chainMidB`. -/
@@ -277,7 +273,6 @@ theorem bansf_chainMidVerdict_spec
     unfold valueEntryAmbient
     xperm_hyp hpp) (fun _ hp => ⟨off0, hp⟩) ht
 
-#print axioms bansf_chainMidVerdict_spec
 
 /-- Common verdict after the outer-init chain, including its early reject. -/
 def chainAVerdictPost (aB newSp oB : Word) (aLen : Nat)
@@ -335,7 +330,6 @@ theorem bansf_chainAVerdict_spec
   exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp)
     (cpsBranchWithin_same_exit_to_triple hbr)
 
-#print axioms bansf_chainAVerdict_spec
 
 /-- ABI-friendly body entry: the incoming saved-register values of `x19` and
     `x20` are concrete, while every other body resource is grouped ambiently. -/
@@ -388,7 +382,6 @@ theorem bansf_chainAVerdict_concrete1920
         (regIs_implies_regOwn .x20)) (fun _ hx => hx) h hp
     xperm_hyp hpOwn) (fun _ hp => hp) ht
 
-#print axioms bansf_chainAVerdict_concrete1920
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

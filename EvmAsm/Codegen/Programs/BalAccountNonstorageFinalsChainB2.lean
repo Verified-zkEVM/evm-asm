@@ -452,7 +452,6 @@ theorem bansf_item1_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_item1_spec
 
 /-- Outer item unit 2 (slots 36–40, `B + 144 → B + 164`). -/
 theorem bansf_item2_spec (aB newSp : Word) (aLen off : Nat)
@@ -886,7 +885,6 @@ theorem bansf_item2_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_item2_spec
 
 /-- Outer item unit 3 (slots 41–45, `B + 164 → B + 184`). -/
 theorem bansf_item3_spec (aB newSp : Word) (aLen off : Nat)
@@ -1320,7 +1318,6 @@ theorem bansf_item3_spec (aB newSp : Word) (aLen off : Nat)
       xperm_hyp hR
     exact (sepConj_pure_right h).2 ⟨hflat, by decide⟩
 
-#print axioms bansf_item3_spec
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

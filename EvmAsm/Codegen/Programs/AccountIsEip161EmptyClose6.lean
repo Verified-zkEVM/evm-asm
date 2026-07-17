@@ -116,7 +116,6 @@ theorem aieField1SizeHead (v5 v6 v7 len : Word) :
     (cpsBranchWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) hbr)
 
-#print axioms aieField1SizeHead
 
 /-! ## Field-1 (balance) content-pointer setup ([50]-[53], `AB+200 → AB+216`) -/
 
@@ -156,7 +155,6 @@ theorem aieField1PtrSetup (v5 accBase v28 offset : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s2)
 
-#print axioms aieField1PtrSetup
 
 /-! ## Generic field body frame + a0=1 size-fail continuation -/
 
@@ -207,7 +205,6 @@ theorem aieSizeFail1Cont
   · exact aiePost_intro sp0 spA raIn c8 c9 c18 newSp accBase outPtr bytes listLen 1 0
       (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩))) h hq
 
-#print axioms aieSizeFail1Cont
 
 set_option maxRecDepth 8000 in
 /-- Downgrade the saved-frame cells to the owned frame slots (`frameSlotsOwn`),
@@ -229,7 +226,6 @@ theorem savedFrame_to_frameSlotsOwn (newSp : Word) (saved : Saved) : ∀ h,
   rw [sepConj_emp_right']
   exact h2
 
-#print axioms savedFrame_to_frameSlotsOwn
 
 /-- The K20-call footprint (`aieMidPre`) residual as it emerges from the previous
     field's all-zero loop exit: `x5`/`x6`/`x7` still `regIs`, the frame still
@@ -284,7 +280,6 @@ theorem aieMidResidual_to_aieMidPre (spA newSp accBase lenW outPtr raIn c8 c9 c1
   refine sepConj_mono (fun _ h => h) ?_
   exact fun _ h => h
 
-#print axioms aieMidResidual_to_aieMidPre
 
 /-! ## Field-1 (balance) content continuation (`AB+200 → raIn`) -/
 
@@ -444,7 +439,6 @@ theorem aieField1ContentCont
           bytes listLen h hq) hfull)
     omega
 
-#print axioms aieField1ContentCont
 
 /-! ## Field-1 (balance) OK path (`AB+180 → raIn`) -/
 
@@ -530,7 +524,6 @@ theorem aieField1OK
   obtain ⟨v12, hp⟩ := aieSepConj_exists_left' h hp
   exact ⟨offset, len, v11, v12, hp⟩
 
-#print axioms aieField1OK
 
 /-! ## Field-1 call + dispatch continuation (`AB+144 → raIn`) -/
 
@@ -579,7 +572,6 @@ theorem aieField1Cont
     o0 l0 hspA hret hnewSp hlistLenW halign hslack hover hvalid hoverL hbound hS0 hl0 hz0
   exact cpsBranchWithin_merge_same_cr hbranch (cpsTripleWithin_mono_nSteps (by omega) hfc) hok
 
-#print axioms aieField1Cont
 
 /-! ## Field-0 (nonce) size-check head ([18]-[22], `AB+72 → {AB+396, AB+92}`) -/
 
@@ -631,7 +623,6 @@ theorem aieField0SizeHead (v5 v6 v7 len : Word) :
     (cpsBranchWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp) hbr)
 
-#print axioms aieField0SizeHead
 
 /-! ## Field-0 (nonce) content-pointer setup ([23]-[27], `AB+92 → AB+112`) -/
 
@@ -675,7 +666,6 @@ theorem aieField0PtrSetup (v5 accBase v28 v7 offset : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) s3)
 
-#print axioms aieField0PtrSetup
 
 /-! ## Field-0 (nonce) content continuation (`AB+92 → raIn`) -/
 
@@ -862,7 +852,6 @@ theorem aieField0ContentCont
           bytes listLen h hq) hfull)
     omega
 
-#print axioms aieField0ContentCont
 
 /-! ## Field-0 (nonce) OK path (`AB+72 → raIn`) -/
 
@@ -945,7 +934,6 @@ theorem aieField0OK
   obtain ⟨v12, hp⟩ := aieSepConj_exists_left' h hp
   exact ⟨offset, len, v11, v12, hp⟩
 
-#print axioms aieField0OK
 
 /-! ## Top-level whole-program caller contract (`AB → raIn`) -/
 
@@ -1000,6 +988,5 @@ theorem account_is_eip161_empty_spec_within
     hspA hret hnewSp hlistLenW halign hslack hover hvalid hoverL hbound
   exact cpsBranchWithin_merge_same_cr hbranch (cpsTripleWithin_mono_nSteps (by omega) hfc) hok
 
-#print axioms account_is_eip161_empty_spec_within
 
 end EvmAsm.Codegen.AccountIsEip161EmptySpec

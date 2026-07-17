@@ -37,7 +37,6 @@ theorem ephU32leFn_spec (p : Word) (bs : List (BitVec 8))
   simpa [ephU32leFn, SgLoadU32leSAsm.sgLoadU32leFn] using
     SgLoadU32leSAsm.sgLoadU32leFn_spec p bs hwf base
 
-#print axioms ephU32leFn_spec
 
 end EphU32leSAsm
 end EvmAsm.Codegen
