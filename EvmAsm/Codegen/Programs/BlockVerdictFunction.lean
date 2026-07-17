@@ -1192,6 +1192,11 @@ def blockVerdictFunction : String :=
   -- >1 value effect in the tx. Aggregating to last-post fixes that, matches the multi-tx path,
   -- and yields a SORTED agg (enables a future binary-search comparator). Behavior-preserving for
   -- the single-touch common case (0-regress). The helper resets agg_count + preserves s-regs.
+  -- Fail closed if an effect producer overflowed its bounded log. The multi-tx
+  -- validation tail applies the same rule; comparing a truncated prefix would
+  -- otherwise leave later execution effects outside both directions of the
+  -- authenticated BAL reconciliation.
+  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_bal_nonstorage_fail\n" ++
   "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
   "  jal ra, nonstorage_effect_aggregate\n" ++
