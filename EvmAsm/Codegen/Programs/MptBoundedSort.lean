@@ -403,17 +403,17 @@ def mptBoundedEncodeLeafRefFunction : String :=
 def mptBoundedDecodeExtensionFunction : String :=
   "  .globl mpt_bounded_decode_extension\n" ++
   "mpt_bounded_decode_extension:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbde_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbde_fail\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 64(sp); beqz t0, .Lmbde_fail; ld t1, 56(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bgeu t3, t4, .Lmbde_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbde_even; addi t0, t0, 1; j .Lmbde_len\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 88(sp); beqz t0, .Lmbde_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bgeu t3, t4, .Lmbde_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbde_even; addi t0, t0, 1; j .Lmbde_len\n" ++
   ".Lmbde_even:\n  andi t5, t2, 15; bnez t5, .Lmbde_fail\n" ++
   ".Lmbde_len:\n  beqz t0, .Lmbde_fail; bgtu t0, s2, .Lmbde_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbde_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
-  ".Lmbde_pairs:\n  ld t2, 64(sp); addi t2, t2, -1\n" ++
+  ".Lmbde_pairs:\n  ld t2, 88(sp); addi t2, t2, -1\n" ++
   ".Lmbde_pair_loop:\n  beqz t2, .Lmbde_child; lbu t3, 0(t1); srli t4, t3, 4; andi t3, t3, 15; sb t4, 0(t5); sb t3, 1(t5); addi t1, t1, 1; addi t5, t5, 2; addi t2, t2, -1; j .Lmbde_pair_loop\n" ++
-  ".Lmbde_child:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 64(sp); li t1, 32; bgtu t0, t1, .Lmbde_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbde_ret\n" ++
+  ".Lmbde_child:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 88(sp); li t1, 32; bgtu t0, t1, .Lmbde_fail; ld t1, 80(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbde_ret\n" ++
   ".Lmbde_fail:\n  li a0, 1\n" ++
-  ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+  ".Lmbde_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret\n"
 
 /-- Decode a bounded-trie leaf without using the legacy unbounded compact-path
     extractor. The leaf path is first proved to fit the remaining key depth;
@@ -428,17 +428,17 @@ def mptBoundedDecodeExtensionFunction : String :=
 def mptBoundedDecodeLeafFunction : String :=
   "  .globl mpt_bounded_decode_leaf\n" ++
   "mpt_bounded_decode_leaf:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbdl_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbdl_fail\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); beqz t0, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bltu t3, t4, .Lmbdl_fail; li t4, 4; bgeu t3, t4, .Lmbdl_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbdl_even; addi t0, t0, 1; j .Lmbdl_len\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 88(sp); beqz t0, .Lmbdl_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bltu t3, t4, .Lmbdl_fail; li t4, 4; bgeu t3, t4, .Lmbdl_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbdl_even; addi t0, t0, 1; j .Lmbdl_len\n" ++
   ".Lmbdl_even:\n  andi t5, t2, 15; bnez t5, .Lmbdl_fail\n" ++
   ".Lmbdl_len:\n  bgtu t0, s2, .Lmbdl_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbdl_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
-  ".Lmbdl_pairs:\n  ld t2, 64(sp); addi t2, t2, -1\n" ++
+  ".Lmbdl_pairs:\n  ld t2, 88(sp); addi t2, t2, -1\n" ++
   ".Lmbdl_pair_loop:\n  beqz t2, .Lmbdl_value; lbu t3, 0(t1); srli t4, t3, 4; andi t3, t3, 15; sb t4, 0(t5); sb t3, 1(t5); addi t1, t1, 1; addi t5, t5, 2; addi t2, t2, -1; j .Lmbdl_pair_loop\n" ++
-  ".Lmbdl_value:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 56; addi a4, sp, 64; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 64(sp); la t1, bsr_builder_witness_value_max; ld t1, 0(t1); bgtu t0, t1, .Lmbdl_fail; ld t1, 56(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbdl_ret\n" ++
+  ".Lmbdl_value:\n  mv a0, s0; mv a1, s1; li a2, 1; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 88(sp); la t1, bsr_builder_witness_value_max; ld t1, 0(t1); bgtu t0, t1, .Lmbdl_fail; ld t1, 80(sp); add t1, s0, t1; sd t1, 0(s5); sd t0, 0(s6); li a0, 0; j .Lmbdl_ret\n" ++
   ".Lmbdl_fail:\n  li a0, 1\n" ++
-  ".Lmbdl_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
+  ".Lmbdl_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret\n"
 
 /-- Populate a non-branch frontier frame's bounded compact-path payload.
     Extensions use the payload's second item as a raw child reference; leaves
@@ -727,10 +727,10 @@ def mptBoundedRebuildSubtreeFunction : String :=
   ".Lmbrs_ext_group:\n  mv a0,s0; mv a1,s1; mv a2,s2; mv a3,s3; mv a4,s4; jal ra,mpt_bounded_split_extension_group; j .Lmbrs_ret\n" ++
   ".Lmbrs_ext_next:\n  ld t0, 80(sp); addi t0, t0, 1; sd t0, 80(sp); j .Lmbrs_ext_match\n" ++
   ".Lmbrs_ext_descend:\n  ld t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); add s7, s4, t0; li t1, " ++ toString bsrMptKeyNibbles ++ "; bgeu s7, t1, .Lmbrs_fail; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t2, s7, t1; la t1, bsr_builder_frames; add t2, t1, t2; sd t2, 72(sp); ld a0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld a1, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); mv a2, s5; mv a3, s6; mv a4, t2; jal ra, mpt_bounded_open_child_frame; bnez a0, .Lmbrs_fail\n" ++
-  "  ld a0, 72(sp); mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s7; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbrs_ret; la a0, bsr_builder_node; jal ra, rlp_item_size; beqz a0, .Lmbrs_fail; li t0, " ++ toString bsrMptNodeMaxBytes ++ "; bgtu a0, t0, .Lmbrs_fail; ld t1, 72(sp); la t0, bsr_builder_node; sd t0, " ++ toString bsrMptFrameNodePtrOffset ++ "(t1); sd a0, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); la a0, bsr_builder_node; ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); addi a2, sp, 80; jal ra, mpt_bounded_classify_node; bnez a0, .Lmbrs_fail; ld t1, 72(sp); ld t0, 80(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t1); li t1, 1; bne t0, t1, .Lmbrs_ext_wrap\n" ++
-  "  .globl mpt_bounded_extension_merge_probe\n  .type mpt_bounded_extension_merge_probe, @function\nmpt_bounded_extension_merge_probe:\n.Lmbrs_ext_merge:\n  ld t0, 72(sp); li t1, " ++ toString bsrMptKeyNibbles ++ "; sub a1, t1, s7; mv a0, t0; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbrs_fail; ld t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); ld t1, 72(sp); ld t2, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(t1); add t3, t0, t2; li t4, " ++ toString bsrMptKeyNibbles ++ "; sub t4, t4, s4; bgtu t3, t4, .Lmbrs_fail; addi t4, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; add t4, t4, t0; addi t5, t1, " ++ toString bsrMptFrameExtensionPathOffset ++ "\n" ++
+  "  ld a0, 72(sp); mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s7; mv a5, s5; mv a6, s6; jal ra, mpt_bounded_rebuild_subtree; bnez a0, .Lmbrs_ret; la a0, bsr_builder_node; jal ra, rlp_item_size; beqz a0, .Lmbrs_fail; li t0, " ++ toString bsrMptNodeMaxBytes ++ "; bgtu a0, t0, .Lmbrs_fail; ld t1, 72(sp); la t0, bsr_builder_node; sd t0, " ++ toString bsrMptFrameNodePtrOffset ++ "(t1); sd a0, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); la a0, bsr_builder_node; ld a1, " ++ toString bsrMptFrameNodeLenOffset ++ "(t1); addi a2, sp, 80; jal ra, mpt_bounded_classify_node; bnez a0, .Lmbrs_fail; ld t1, 72(sp); ld t0, 80(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t1); li t1, 1; beq t0, t1, .Lmbrs_ext_merge; li t1, 2; beq t0, t1, .Lmbrs_ext_merge; j .Lmbrs_ext_wrap\n" ++
+  "  .globl mpt_bounded_extension_merge_probe\n  .type mpt_bounded_extension_merge_probe, @function\nmpt_bounded_extension_merge_probe:\n.Lmbrs_ext_merge:\n  ld t0, 72(sp); li t1, " ++ toString bsrMptKeyNibbles ++ "; sub a1, t1, s7; mv a0, t0; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbrs_fail; ld t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); ld t1, 72(sp); ld t2, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(t1); add t3, t0, t2; li t4, " ++ toString bsrMptKeyNibbles ++ "; sub t4, t4, s4; bgtu t3, t4, .Lmbrs_fail; sd t3, 88(sp); addi t4, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; add t4, t4, t0; addi t5, t1, " ++ toString bsrMptFrameExtensionPathOffset ++ "\n" ++
   ".Lmbrs_ext_copy_path:\n  beqz t2, .Lmbrs_ext_child; lbu t6, 0(t5); sb t6, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t2, t2, -1; j .Lmbrs_ext_copy_path\n" ++
-  ".Lmbrs_ext_child:\n  ld t1, 72(sp); ld t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); sd t3, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); j .Lmbrs_ext_encode\n  .size mpt_bounded_extension_merge_probe, .Lmbrs_ext_wrap - mpt_bounded_extension_merge_probe\n" ++
+  ".Lmbrs_ext_child:\n  ld t1, 72(sp); ld t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(t1); sd t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); ld t3, 88(sp); sd t3, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s0); ld t0, 72(sp); ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t0); li t1, 2; bne t0, t1, .Lmbrs_ext_encode; addi a0, s0, " ++ toString bsrMptFrameExtensionPathOffset ++ "; mv a1, t3; ld a2, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); ld a3, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0); la a4, bsr_builder_node; addi a5, sp, 80; la a6, bsr_builder_result_ref; la a7, bsr_builder_result_len; jal ra, mpt_bounded_encode_leaf_ref; bnez a0, .Lmbrs_fail; j .Lmbrs_ret\n  .size mpt_bounded_extension_merge_probe, .Lmbrs_ext_wrap - mpt_bounded_extension_merge_probe\n" ++
   ".Lmbrs_ext_wrap:\n  la t0, bsr_builder_result_ref; sd t0, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s0); la t0, bsr_builder_result_len; ld t0, 0(t0); sd t0, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s0)\n" ++
   ".Lmbrs_ext_encode:\n  mv a0, s0; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; j .Lmbrs_ret\n" ++
   ".Lmbrs_branch:\n  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4; mv a4, s0; jal ra, mpt_bounded_partition_frame; bnez a0, .Lmbrs_fail; addi a0, s4, 1; jal ra, mpt_bounded_invalidate_constructed_cache; bnez a0, .Lmbrs_fail; li s7, 0; j .Lmbrs_child\n" ++
@@ -801,9 +801,9 @@ def mptBoundedStateRootFunction : String :=
   ".Lmbsr_body:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; bnez a0, .Lmbsr_fail\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd s1, 56(sp); sd s2, 64(sp); beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; ld s1, 56(sp); ld s2, 64(sp); bnez a0, .Lmbsr_fail\n" ++
   "  # EMPTY_TRIE_ROOT = keccak256(rlp(b'')) has no witness node to open.  Hash its one-byte RLP directly, then build the normalized insertion interval as a missing subtree.\n" ++
-  "  addi t0, sp, 72; li t1, 128; sb t1, 0(t0); mv a0, t0; li a1, 1; la a2, bsr_builder_node; jal ra, zkvm_keccak256; li t0, 0; la t1, bsr_builder_node\n" ++
+  "  sd s1, 56(sp); sd s2, 64(sp); addi t0, sp, 72; li t1, 128; sb t1, 0(t0); mv a0, t0; li a1, 1; la a2, bsr_builder_node; jal ra, zkvm_keccak256; ld s1, 56(sp); ld s2, 64(sp); li t0, 0; la t1, bsr_builder_node\n" ++
   ".Lmbsr_empty_cmp:\n  li t2, 32; beq t0, t2, .Lmbsr_empty_match; add t3, s0, t0; lbu t4, 0(t3); add t3, t1, t0; lbu t5, 0(t3); bne t4, t5, .Lmbsr_open; addi t0, t0, 1; j .Lmbsr_empty_cmp\n" ++
   "  # On an empty trie, final deletes are no-ops. Compact them in place and\n" ++
   "  # turn final mode-0/1 values into inserts before constructing the missing tree.\n" ++
