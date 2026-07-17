@@ -311,6 +311,13 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
+import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose2
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose3
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose4
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose

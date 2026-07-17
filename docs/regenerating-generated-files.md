@@ -60,3 +60,49 @@ guest change, a regen step above was missed or RegionMap's sizes are stale.
   `_prog`s.
 - See also `docs/4ch8f-region-map.md` §5 ("Drift handling") for the RegionMap/TSV rationale and
   the STABLE-vs-LINK_DEPENDENT symbol classification.
+
+## Troubleshooting: bootstrapping past a stale-layout build failure
+
+Merging two address-shifting branches (or resolving a merge conflict on the generated files
+above with a placeholder) can leave the tree in a state where `lake build` fails at
+`EvmAsm/Codegen/Proofs/GuestImage.lean`'s `guestImageEntries_extentsOk : ... := by decide`, because
+`guestImageEntries` (built from the stale/placeholder `GuestAddrs.lean`) has entries that overlap
+or are out of order. This is a genuine chicken-and-egg: step 1 of the procedure above
+(`gen-symbol-addresses.py --build`) needs to build and relink `lake exe codegen`, but `Main.lean`
+(the codegen executable's root file) imports the 20 `EvmAsm.Codegen.Proofs.*` modules — including
+`GuestImage` — purely to force them to be *checked* as part of the exe build. With a false
+`extentsOk`, that import chain fails to typecheck, so the exe cannot build, so step 1 cannot run,
+so the addresses that would fix `extentsOk` can never be produced. Loosening
+`RegionMap.textSizeBytes` does **not** help: `CodeReq.extentsOkFrom` (`EvmAsm/Rv64/CodeReqExtents.lean`)
+folds over the entry list checking each entry's address against the *end of the previous entry*,
+only checking the final `hi` bound once at the very end — so the failure is almost always an
+internal ordering/overlap violation between two entries, not an upper-bound issue.
+
+The escape hatch: the codegen exe's actual emitter logic (`Cli`/`Driver`/`Emit`/`Layout`/
+`Programs.Registry`/`RegionMap`) does not need any of the `Proofs.*` modules to run — they are
+imported into `Main.lean` only so `lake build`/`lake exe codegen` also checks them as a side
+effect. Temporarily breaking that forced-check import chain lets the exe build and relink even
+while `GuestImage`'s `decide` is still false:
+
+```bash
+# 1. Comment out the twenty `import EvmAsm.Codegen.Proofs.*` lines in Main.lean
+#    (repo root) — everything else in Main.lean is untouched.
+
+# 2. Run the full 4-step regen from the "Procedure" section above against this
+#    tree (steps 1-4: relink, GuestAddrs.lean, GuestImageEntries.lean, RegionMap sizes).
+
+# 3. Restore Main.lean (git checkout -- Main.lean) — the imports must come back
+#    before committing; the exe does not need them, but everything else that
+#    imports Main's proof surface does.
+
+# 4. Full `lake build`. `extentsOkFrom` now decides true because the addresses are
+#    correct — this is real progress, not a bypass.
+```
+
+This is fully revertible and touches no proof: `Main.lean` ends up byte-identical to its
+pre-bootstrap state, and only address literals / generated doc counts (`GuestAddrs.lean`,
+`RegionMap.lean`, the TSV) change. `scripts/check-forbidden-tactics.sh` and
+`scripts/check-axioms.sh` stay clean throughout — no `sorry`, no `native_decide`/`bv_decide`, no
+weakened statement. If conflict markers from a merge are also present in the four generated files,
+resolve those with either side first (`git checkout --ours <file>` is fine — the regen overwrites
+them) so the tree parses before step 1.

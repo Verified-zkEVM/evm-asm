@@ -125,7 +125,6 @@ theorem cvedlSetup (hbi lenBase spC iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at C (C + 128) cvedlProg 32 (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (C + 124) CLen)) (by bv_omega) (by rw [cvedl_length]; decide) (by decide) (by rw [cvedl_length]; decide))
   runBlock hla18 s20' hla21 s23' s24' s25' s26' s27' s28' hla29 hla31
 
-#print axioms cvedlSetup
 
 /-- K20's whole-routine step count for field index 12 (same as the template). -/
 abbrev nCall : Nat := (12 + ((85 + 93 * (12 + 2)) + 6)) + 9
@@ -246,7 +245,6 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
     (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)) h hp'
   xperm_hyp hp''
 
-#print axioms cvedlCall
 
 /-! ## Reload block (instructions 35--44): restore iter state + load length
 
@@ -297,7 +295,6 @@ theorem cvedlReload (hbi iW len : Word) (old5 o18 o21 o6 o7 : Word) :
     (CodeReq.ofProg_mem_at C (C + 176) cvedlProg 44 (.LI .x7 (32 : Word)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s44
   runBlock hla35 s37' hla38 s40' hla41 s43' s44'
 
-#print axioms cvedlReload
 
 /-! ## Advance block (instructions 46--51): step the iterator, loop back
 
@@ -345,7 +342,6 @@ theorem cvedlAdvance (hbi lenBase iW : Word) (Li : Nat) (o28 o29 : Word) :
     (CodeReq.ofProg_mem_at C (C + 204) cvedlProg 51 (.JAL .x0 (-136 : BitVec 21)) (by bv_omega) (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) s51
   runBlock s46' s47' s48' s49' s50' s51'
 
-#print axioms cvedlAdvance
 
 /-! ## Arithmetic helpers for the loop induction -/
 
@@ -434,7 +430,6 @@ theorem cvedlCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
     (cvedlCall hbi lenBase spC iW Li s0 s3 s4 oldOff oldLen v1 v5 v10 v11 v12 v13 v14 v28
       bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvedlCallOwned
 
 /-! ## Entry half of one iteration: guard → call → K20 returnResult
 
@@ -529,7 +524,6 @@ theorem cvedlIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
       rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
       xperm_hyp hp) hguardF hcallF)
 
-#print axioms cvedlIterEntry
 
 /-- pcFree discharger covering the assertion atoms used in the dispatch. -/
 local macro "pcfx" : tactic =>
@@ -1095,7 +1089,6 @@ theorem cvedlIterDispatch
           (cpsTripleWithin_mono_nSteps (show 1 + (24 + nTail) ≤ 25 + nTail by omega)
             (cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hntakenF hcont))
 
-#print axioms cvedlIterDispatch
 
 /-! ## One full iteration: guard → call → dispatch (`C+68 → raIn`, `i < N`)
 
@@ -1173,6 +1166,5 @@ theorem cvedlIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         firstBadPtr raIn csaved bigBytes lengths i oldOff oldLen nTail hi hN hspC rfl hraSaved
         hret halign hlen hprefix htail))
 
-#print axioms cvedlIter
 
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
