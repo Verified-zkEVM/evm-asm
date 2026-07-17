@@ -1042,25 +1042,25 @@ def blockVerdictFunction : String :=
   ".Lbv_recipient_code_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
+  "  bnez a2, .Lbv_bal_recipient_field_fail           # malformed -> reject (fail-closed)\n" ++
   "  la t0, bv_rcf_off; sd a0, 0(t0); la t0, bv_rcf_len; sd a1, 0(t0)\n" ++
   "  # Walk to item 5 = code_changes.\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done\n" ++
   "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbv_bal_recipient_field_fail\n" ++
   "  jal ra, rlp_walk_next\n" ++
-  "  li t0, 2; beq a1, t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t0, 2; beq a1, t0, .Lbv_recipient_nc_done\n" ++
   "  j .Lbv_bal_recipient_field_fail\n" ++
   -- bmvmx.1.6.4.3: all-accounts storage exec-vs-BAL. Every NON-recipient BAL account's
   -- storage_changes must match the exec log — forward (every claimed change reproduced) AND
@@ -1078,11 +1078,16 @@ def blockVerdictFunction : String :=
   ".Lbv_storage_skip_sys_o:\n  li t2, 20\n" ++
   ".Lbv_storage_skip_sys_i:\n  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lbv_storage_skip_sys_i\n" ++
   "  addi t0, t0, 12; addi t4, t4, -1; bnez t4, .Lbv_storage_skip_sys_o\n" ++
-  -- If runtime replay could not materialize a complete gas/effect arena,
-  -- the execution storage log is incomplete. The authenticated state-root
-  -- recompute remains binding, so skip these redundant storage/tuple checks
-  -- rather than false-rejecting BAL rows against a partial replay.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_storage_tuple_checks\n" ++
+  -- rgtkz (bmvmx): run the all-accounts exec-vs-BAL storage/tuple checks only when the
+  -- execution storage log is COMPLETE for the block's writes: exactly one user tx AND its
+  -- dispatch completed. On multi-tx blocks the live log holds only the LAST tx's writes
+  -- (it resets per dispatch), so these checks would false-reject; multi-tx coverage stays
+  -- with the MtxTail comparators (durable stores). The previous arena-count guard skipped
+  -- the checks on every single-tx block (the gas arena is published later), leaving the
+  -- BAL-driven state-root recompute as the only link -- and that root is attacker-
+  -- recomputable (FA rgtkz). Dispatch-failed/partial flows keep the old skip posture.
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_after_storage_tuple_checks\n" ++
+  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_after_storage_tuple_checks\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
