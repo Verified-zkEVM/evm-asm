@@ -582,7 +582,6 @@ theorem cvgulDispatch2
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x))))) h hp1
         xperm_hyp hp2
 
-#print axioms cvgulDispatch2
 
 /-! ## Call block 2 with the consumed scratch registers owned
 
@@ -692,7 +691,6 @@ theorem cvgulCall2Owned (hbi lenBase spC iW : Word) (Li : Nat)
     (cvgulCall2 hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13
       v18 v21 v28 bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvgulCall2Owned
 
 /-! ## Dispatch from the first call (`D+128` onward): gas-used status + call 2
 
@@ -1029,7 +1027,6 @@ theorem cvgulDispatch1
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x))))) h hp1
         xperm_hyp hp2
 
-#print axioms cvgulDispatch1
 
 /-! ## One full iteration: guard → call 1 → dispatch 1 (`D+68 → raIn`, `i < N`)
 
@@ -1126,7 +1123,6 @@ theorem cvgulIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         oldOff oldLen oldLimit nTail hi hspC hraSaved hret halign hlen hsalign hslack hover
         hvalid hprefix htail))
 
-#print axioms cvgulIter
 
 /-- Step budget for the loop with `r = N − i` iterations remaining: each full
     iteration is `cvgulIter`'s cost (two K34 calls); the exhausted guard +
@@ -1273,7 +1269,6 @@ theorem cvgulLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         (hAllValid i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
 
-#print axioms cvgulLoop
 
 set_option maxRecDepth 8000 in
 /-- **`chain_validate_gas_used_under_limit` caller contract.**  The 83-instruction
@@ -1367,6 +1362,5 @@ theorem chain_validate_gas_used_under_limit_spec_within
       (sepConj_mono (regIs_implies_regOwn .x14) (fun _ x => x))))))) h hp1
     xperm_hyp hp2) hpro hloop
 
-#print axioms chain_validate_gas_used_under_limit_spec_within
 
 end EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec
