@@ -222,26 +222,35 @@ def nTeerSteps : Nat := 4096
 
     ABI: a0=tx_ptr, a1=tx_len, a2=out_ptr → a0 status, *out_ptr = value.
     Success (a0=0): *out_ptr = pureIntrinsicStateGasSuccess (= 0).
+
+    Ambient-region shape (BgvOffsetAssumed-style): the leaf is LBU-based and
+    reads `[regionBase+off, regionBase+off+len)`, so the caller keeps the full
+    `bytesRegion regionBase bs` without an unaligned mid-slice peel
+    (`bytesRegion_split` needs 8-align; SSZ tx offsets are only 4-align).
     The assumed triple is the SUCCESS arm only — failure is routed by the
     array body to status 3 without a success claim on `out[]`. -/
 structure IntrinsicAssumed (cr : CodeReq) where
   /-- Entry PC of the (future) converted intrinsic Program. -/
   entry : Word
-  /-- Success-path flat contract: writes pure model 0 into `outPtr`. -/
+  /-- Success-path flat contract: writes pure model 0 into `outPtr`.
+      `loadPtr = regionBase + ofNat off` with `off + len ≤ bs.length`. -/
   success_flat :
-    ∀ (ret txPtr txLenW outPtr oldOut : Word) (txBytes : List (BitVec 8)),
+    ∀ (ret regionBase loadPtr outPtr oldOut : Word)
+      (bs : List (BitVec 8)) (off len : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
-      txLenW = BitVec.ofNat 64 txBytes.length →
+      loadPtr = regionBase + BitVec.ofNat 64 off →
+      off + len ≤ bs.length →
       cpsTripleWithin nIntrinsicSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
-          (.x12 ↦ᵣ outPtr) ** bytesRegion txPtr txBytes **
+        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+          (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
           (outPtr ↦ₘ oldOut) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
-          bytesRegion txPtr txBytes **
+          bytesRegion regionBase bs **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -257,33 +266,40 @@ structure IntrinsicAssumed (cr : CodeReq) where
 
     When bal_ptr = 0 the guest short-circuits to a0=a1=0 without parsing
     (array body skips the call entirely via `beq s8, zero`).
-    When bal_ptr ≠ 0, a0 equals `teer txBytes balBytes chainId bai` —
-    the APPLIED model (post rolled-back zeroing), never would-be. -/
+    When bal_ptr ≠ 0, a0 equals
+    `teer (bs.drop off).take len balBytes chainId bai` — the APPLIED model
+    (post rolled-back zeroing), never would-be.
+
+    Ambient-region shape for the tx blob (same rationale as IntrinsicAssumed);
+    BAL is already a full `bytesRegion balPtr balBytes` at its base. -/
 structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
   /-- Entry PC of the (future) converted teer Program. -/
   entry : Word
-  /-- BAL-enabled APPLIED flat contract. -/
+  /-- BAL-enabled APPLIED flat contract (ambient tx region). -/
   applied_flat :
-    ∀ (ret txPtr txLenW balPtr balLenW chainIdW baiW : Word)
-      (txBytes balBytes : List (BitVec 8)) (chainId bai : Nat),
+    ∀ (ret regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
+      (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       balPtr ≠ 0 →
-      txLenW = BitVec.ofNat 64 txBytes.length →
+      loadPtr = regionBase + BitVec.ofNat 64 off →
+      off + len ≤ bs.length →
       balLenW = BitVec.ofNat 64 balBytes.length →
       chainIdW = BitVec.ofNat 64 chainId →
       baiW = BitVec.ofNat 64 bai →
       cpsTripleWithin nTeerSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
+        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
-          bytesRegion txPtr txBytes ** bytesRegion balPtr balBytes **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) **
-          (.x10 ↦ᵣ BitVec.ofNat 64 (teer txBytes balBytes chainId bai)) **
+          (.x10 ↦ᵣ BitVec.ofNat 64
+            (teer ((bs.drop off).take len) balBytes chainId bai)) **
           regOwn .x11 **
-          bytesRegion txPtr txBytes ** bytesRegion balPtr balBytes **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **

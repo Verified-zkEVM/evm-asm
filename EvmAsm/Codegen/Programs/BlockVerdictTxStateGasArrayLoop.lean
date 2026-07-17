@@ -1784,8 +1784,8 @@ abbrev intrinsicJalOff : BitVec 21 :=
   jalOff GuestAddrs.tx_intrinsic_state_gas
     (GuestAddrs.block_verdict_tx_state_gas_array + 216)
 
-/-- Caller-private frame across intrinsic (s-regs + start/end + saved;
-    tx slice + out cell + ABI a-regs ride in the callee footprint). -/
+/-- Caller-private frame across intrinsic (s-regs + start/end + saved + bal;
+    ambient tx region + out cell + ABI a-regs ride in the callee footprint). -/
 def loopIntrinsicFrame (spC txBase outBase balBase chainIdW nW iW
     startW endW lenW : Word)
     (csaved : Saved) (balBytes : List (BitVec 8)) (balEnabled : Bool)
@@ -1810,19 +1810,20 @@ theorem loopIntrinsicFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
   cases balEnabled <;> bvt_pcf
 
 set_option maxRecDepth 8000 in
-/-- Intrinsic success call (instr 54) under `IntrinsicAssumed`.
-    Pre exposes peeled `bytesRegion txPtr txSlice` and `outPtr ↦ₘ oldOut`
-    (caller peels from ambient `payload` via split lemmas).
-    Post: a0=0, *out=pureIntrinsicStateGasSuccess (=0). -/
+/-- Intrinsic success call (instr 54) under ambient-region `IntrinsicAssumed`.
+    Pre: full `bytesRegion txBase txBlob` + peeled `outPtr ↦ₘ oldOut`.
+    Post: a0=0, *out=pureIntrinsicStateGasSuccess (=0), ambient tx preserved. -/
 theorem bvtIterIntrinsic
     (hintr : IntrinsicAssumed fullCode)
     (spC txBase outBase balBase chainIdW nW bodyLenW : Word)
-    (csaved : Saved) (txSlice : List (BitVec 8)) (balBytes : List (BitVec 8))
-    (balEnabled : Bool) (i : Nat)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (balBytes : List (BitVec 8))
+    (balEnabled : Bool) (i off len : Nat)
     (startW endW oldOut old1 : Word)
     (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
     (hret : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
-    (htxLen : endW - startW = BitVec.ofNat 64 txSlice.length) :
+    (hstart : startW = BitVec.ofNat 64 off)
+    (hlen : off + len ≤ txBlob.length)
+    (htxLen : endW - startW = BitVec.ofNat 64 len) :
     let iW := BitVec.ofNat 64 i
     let txPtr := txBase + startW
     let txLenW := endW - startW
@@ -1830,7 +1831,7 @@ theorem bvtIterIntrinsic
     cpsTripleWithin (1 + nIntrinsicSteps) AfterEndSpan LinkIntrinsic fullCode
       ((.x1 ↦ᵣ old1) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
-        bytesRegion txPtr txSlice **
+        bytesRegion txBase txBlob **
         (outPtr ↦ₘ oldOut) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -1840,7 +1841,7 @@ theorem bvtIterIntrinsic
           startW endW bodyLenW csaved balBytes balEnabled)
       ((.x1 ↦ᵣ LinkIntrinsic) **
         (.x10 ↦ᵣ (0 : Word)) **
-        bytesRegion txPtr txSlice **
+        bytesRegion txBase txBlob **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1850,16 +1851,37 @@ theorem bvtIterIntrinsic
         loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
           startW endW bodyLenW csaved balBytes balEnabled) := by
   intro iW txPtr txLenW outPtr
-  have hflat := hintr.success_flat LinkIntrinsic txPtr txLenW outPtr oldOut txSlice
-    hret (by simp [txLenW, htxLen])
+  have hload : txPtr = txBase + BitVec.ofNat 64 off := by
+    simp only [txPtr, hstart]
+  have hlenW : txLenW = BitVec.ofNat 64 len := by
+    simp only [txLenW, htxLen]
+  have hflat0 := hintr.success_flat LinkIntrinsic txBase txPtr outPtr oldOut
+    txBlob off len hret hload hlen
+  have hflatLen : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
+      ((.x1 ↦ᵣ LinkIntrinsic) ** (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
+        (.x12 ↦ᵣ outPtr) ** bytesRegion txBase txBlob **
+        (outPtr ↦ₘ oldOut) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ LinkIntrinsic) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBlob **
+        (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) := by
+    simpa [hlenW] using hflat0
   have hflatF := cpsTripleWithin_frameR
     (loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
       startW endW bodyLenW csaved balBytes balEnabled)
-    (loopIntrinsicFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _) hflat
+    (loopIntrinsicFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _) hflatLen
   have hcallee : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
       ((.x1 ↦ᵣ LinkIntrinsic) **
         ((.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
-          bytesRegion txPtr txSlice ** (outPtr ↦ₘ oldOut) **
+          bytesRegion txBase txBlob ** (outPtr ↦ₘ oldOut) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -1868,7 +1890,7 @@ theorem bvtIterIntrinsic
             startW endW bodyLenW csaved balBytes balEnabled))
       ((.x1 ↦ᵣ LinkIntrinsic) **
         ((.x10 ↦ᵣ (0 : Word)) **
-          bytesRegion txPtr txSlice **
+          bytesRegion txBase txBlob **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1887,20 +1909,18 @@ theorem bvtIterIntrinsic
         (GuestAddrs.tx_intrinsic_state_gas : Word)
       simp only [AfterEndSpan, intrinsicJalOff, B]
       decide)
-    (fun a off hi => bvt_mono a off
+    (fun a off' hi => bvt_mono a off'
       (CodeReq.ofProg_mem_at B AfterEndSpan bvtProg 54
         (.JAL .x1 intrinsicJalOff)
         (by simp only [AfterEndSpan]; bv_omega)
         (by rw [bvt_length]; decide) rfl
-        (by rw [bvt_length]; decide) a off hi))
+        (by rw [bvt_length]; decide) a off' hi))
     (by
-      -- P = callee footprint sans ra (includes loopIntrinsicFrame)
       unfold loopIntrinsicFrame savedFrame
       cases balEnabled <;> bvt_pcf)
     hcallee
   have hlink : AfterEndSpan + 4 = LinkIntrinsic := by
     simp only [AfterEndSpan, LinkIntrinsic]; bv_omega
-  -- callWithin lands at AfterEndSpan+4; rewrite to LinkIntrinsic
   rw [hlink] at hcall
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hcall
@@ -2607,7 +2627,8 @@ theorem bvtIterTeerSetup
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c05
 
-/-- Caller-private frame across teer. Tx/BAL bytes + ABI a-regs ride in callee. -/
+/-- Caller-private frame across teer. wordArray + s-regs; ambient tx/BAL
+    ride in the callee footprint. -/
 def loopTeerFrame (spC txBase outBase balBase chainIdW nW iW
     startW endW bodyLenW balLenW : Word)
     (csaved : Saved) (outVals : List Nat) : Assertion :=
@@ -2631,33 +2652,36 @@ theorem loopTeerFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
   unfold loopTeerFrame savedFrame; bvt_pcf
 
 set_option maxRecDepth 8000 in
-/-- Teer success call (instr 63) under `TeerAssumed`.
-    Pre exposes peeled `bytesRegion txPtr txSlice` + `bytesRegion balBase balBytes`.
-    Post: a0 = teer APPLIED charge. -/
+/-- Teer success call (instr 63) under ambient-region `TeerAssumed`.
+    Pre: full `bytesRegion txBase txBlob` + `bytesRegion balBase balBytes`.
+    Post: a0 = teer APPLIED charge on slice `(txBlob.drop off).take len`. -/
 theorem bvtIterTeerCall
     (teer : TeerApplied) (hteer : TeerAssumed fullCode teer)
     (spC txBase outBase balBase chainIdW nW bodyLenW : Word)
-    (csaved : Saved) (txSlice balBytes : List (BitVec 8))
-    (outVals : List Nat) (chainId i : Nat)
+    (csaved : Saved) (txBlob balBytes : List (BitVec 8))
+    (outVals : List Nat) (chainId i off len : Nat)
     (startW endW old1 : Word)
     (hentry : hteer.entry =
       (GuestAddrs.tx_eip7702_existing_authority_refund : Word))
     (hret : (LinkTeer &&& ~~~(1 : Word)) = LinkTeer)
     (hbal : balBase ≠ 0)
-    (htxLen : endW - startW = BitVec.ofNat 64 txSlice.length)
+    (hstart : startW = BitVec.ofNat 64 off)
+    (hlen : off + len ≤ txBlob.length)
+    (htxLen : endW - startW = BitVec.ofNat 64 len)
     (hchain : chainIdW = BitVec.ofNat 64 chainId) :
     let iW := BitVec.ofNat 64 i
     let txPtr := txBase + startW
     let txLenW := endW - startW
     let balLenW := BitVec.ofNat 64 balBytes.length
     let baiW := BitVec.ofNat 64 (i + 1)
-    let chargeW := BitVec.ofNat 64 (teer txSlice balBytes chainId (i + 1))
+    let chargeW := BitVec.ofNat 64
+      (teer ((txBlob.drop off).take len) balBytes chainId (i + 1))
     cpsTripleWithin (1 + nTeerSteps) AfterTeerSetup LinkTeer fullCode
       ((.x1 ↦ᵣ old1) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
         (.x12 ↦ᵣ balBase) ** (.x13 ↦ᵣ balLenW) **
         (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
-        bytesRegion txPtr txSlice **
+        bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
@@ -2667,7 +2691,7 @@ theorem bvtIterTeerCall
       ((.x1 ↦ᵣ LinkTeer) **
         (.x10 ↦ᵣ chargeW) **
         regOwn .x11 **
-        bytesRegion txPtr txSlice **
+        bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
@@ -2676,19 +2700,40 @@ theorem bvtIterTeerCall
         loopTeerFrame spC txBase outBase balBase chainIdW nW iW
           startW endW bodyLenW balLenW csaved outVals) := by
   intro iW txPtr txLenW balLenW baiW chargeW
-  have hflat := hteer.applied_flat LinkTeer txPtr txLenW balBase balLenW
-    chainIdW baiW txSlice balBytes chainId (i + 1)
-    hret hbal (by simp [txLenW, htxLen]) rfl hchain rfl
+  have hload : txPtr = txBase + BitVec.ofNat 64 off := by
+    simp only [txPtr, hstart]
+  have hlenW : txLenW = BitVec.ofNat 64 len := by
+    simp only [txLenW, htxLen]
+  have hflat0 := hteer.applied_flat LinkTeer txBase txPtr balBase balLenW
+    chainIdW baiW txBlob balBytes off len chainId (i + 1)
+    hret hbal hload hlen rfl hchain rfl
+  have hflatLen : cpsTripleWithin nTeerSteps hteer.entry LinkTeer fullCode
+      ((.x1 ↦ᵣ LinkTeer) ** (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
+        (.x12 ↦ᵣ balBase) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion txBase txBlob ** bytesRegion balBase balBytes **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ LinkTeer) **
+        (.x10 ↦ᵣ chargeW) **
+        regOwn .x11 **
+        bytesRegion txBase txBlob ** bytesRegion balBase balBytes **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) := by
+    simpa [hlenW, chargeW] using hflat0
   have hflatF := cpsTripleWithin_frameR
     (loopTeerFrame spC txBase outBase balBase chainIdW nW iW
       startW endW bodyLenW balLenW csaved outVals)
-    (loopTeerFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _) hflat
+    (loopTeerFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _) hflatLen
   have hcallee : cpsTripleWithin nTeerSteps hteer.entry LinkTeer fullCode
       ((.x1 ↦ᵣ LinkTeer) **
         ((.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
           (.x12 ↦ᵣ balBase) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
-          bytesRegion txPtr txSlice **
+          bytesRegion txBase txBlob **
           bytesRegion balBase balBytes **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
@@ -2698,7 +2743,7 @@ theorem bvtIterTeerCall
       ((.x1 ↦ᵣ LinkTeer) **
         ((.x10 ↦ᵣ chargeW) **
           regOwn .x11 **
-          bytesRegion txPtr txSlice **
+          bytesRegion txBase txBlob **
           bytesRegion balBase balBytes **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
@@ -2716,12 +2761,12 @@ theorem bvtIterTeerCall
         (GuestAddrs.tx_eip7702_existing_authority_refund : Word)
       simp only [AfterTeerSetup, teerJalOff, B]
       decide)
-    (fun a off hi => bvt_mono a off
+    (fun a off' hi => bvt_mono a off'
       (CodeReq.ofProg_mem_at B AfterTeerSetup bvtProg 63
         (.JAL .x1 teerJalOff)
         (by simp only [AfterTeerSetup]; bv_omega)
         (by rw [bvt_length]; decide) rfl
-        (by rw [bvt_length]; decide) a off hi))
+        (by rw [bvt_length]; decide) a off' hi))
     (by
       unfold loopTeerFrame savedFrame
       bvt_pcf)
@@ -3154,5 +3199,31 @@ theorem bvtIterAfterStoreJal
         rwa [sepConj_emp_left' ambient] at hq')
       h0
   exact e69
+
+/-! ## wordArray peel helper for intrinsic + store glue -/
+
+/-- Peel cell `i` when its value is already `v` (e.g. pureIntrinsic after write). -/
+theorem wordArray_set_eq_of_get
+    (base : Word) (outVals : List Nat) (i v : Nat)
+    (hi : i < outVals.length) (hcell : outVals[i] = v) :
+    wordArray base outVals =
+      (wordArrayFrom base 0 (outVals.take i) **
+        ((base + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 v) **
+        wordArrayFrom base (i + 1) (outVals.drop (i + 1))) := by
+  have h := wordArray_split base outVals i hi
+  simpa [hcell] using h
+
+/-! ## Composition notes (next slice)
+
+    Ambient IntrinsicAssumed/TeerAssumed remove unaligned tx peels.
+    Remaining glue for one-iter:
+
+    1. `wordArray_set_eq_of_get` / `wordArray_split` peels `out[i]`.
+    2. bal=0: `outVals[i] = pureIntrinsic` so intrinsic write folds via peel;
+       then `bvtIterBal0Tail`.
+    3. bal≠0: cell pure through teer; store pure→sum; fold final cell.
+    4. Align `bvtIterAfterStoreJal` ambient with store peel form.
+    5. Full iter + induction + top theorem under ArrayCalleeAssumptions.
+-/
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
