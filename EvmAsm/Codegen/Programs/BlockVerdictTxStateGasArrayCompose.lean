@@ -8,8 +8,8 @@
     TypeDispatchAssumed; ets proven.
   * Discharge (`TxIntrinsicStateGasDischarge`): framed → IntrinsicAssumed
     shape at **off = 0, len = bs.length** (slice-eq-ambient), still under
-    TisCalleeAssumptions. Temps are concrete in the discharge pre; array
-    hyp uses regOwn (peel at package time residual).
+    TisCalleeAssumptions. **regOwn temp peel DONE**
+    (`intrinsicAssumed_success_flat_off0_own`); multi-tx ambient residual.
   * Teer leaf (prover1): targets TeerAssumed.applied_flat verbatim; body
     modulo input callees; will ping when top lands.
   * prior_exact (#10433): success + mid-loop overflow complete (gate sum).
@@ -20,8 +20,8 @@
 
   Residual set for "unconditional" a4gbr claim (honest):
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
-  2. IntrinsicAssumed ← discharge package for all offs (ambient multi-tx)
-     + regOwn temp peel + CodeReq mono into array fullCode
+  2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
+     array fullCode (off=0 regOwn peel DONE)
   3. TisCalleeAssumptions ← ExtractAssumed convert still residual;
      ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
@@ -46,7 +46,8 @@ open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
     bgvOffsetAssumed_fullCode)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (TisCalleeAssumptions ExtractAssumed ExtractEntry TypeEntry LinkEts T
-    TypeDispatchAssumed intrinsicAssumed_success_flat_off0)
+    TypeDispatchAssumed intrinsicAssumed_success_flat_off0
+    intrinsicAssumed_success_flat_off0_own)
 open EvmAsm.Codegen.TxTypeDispatchSpec (typeDispatchAssumed_fullCode)
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
   (TeerApplied pureIntrinsicStateGasSuccess)
@@ -124,7 +125,58 @@ theorem intrinsic_discharge_off0_available
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
     old5 old6 old7 old13 old14 old15 old16 hret hlink hsuccess halign hover hvalid0
 
+/-- Same as `intrinsic_discharge_off0_available` with regOwn temps
+    (IntrinsicAssumed footprint). Multi-tx off≠0 still residual. -/
+theorem intrinsic_discharge_off0_own_available
+    (asm : TisCalleeAssumptions TxIntrinsicStateGasSpec.fullCode)
+    (hextract : asm.extract.entry = ExtractEntry)
+    (htype : asm.typeDispatch.entry = TypeEntry)
+    (ret spVal regionBase outPtr oldOut : Word)
+    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (bs : List (BitVec 8))
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hsuccess : (EvmAsm.Codegen.TxTypeDispatchSpec.teerTxTypeDispatch bs).1 =
+      (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    let lenW := BitVec.ofNat 64 bs.length
+    cpsTripleWithin nIntrinsicSteps T ret TxIntrinsicStateGasSpec.fullCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ regionBase) **
+        (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
+        (outPtr ↦ₘ oldOut) **
+        tisScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion regionBase bs **
+        (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+        tisScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) :=
+  intrinsicAssumed_success_flat_off0_own asm hextract htype
+    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+    hret hlink hsuccess halign hover hvalid0
+
 #print axioms intrinsic_discharge_off0_available
+#print axioms intrinsic_discharge_off0_own_available
 #print axioms bgvOffsetAssumed_fullCode
 #print axioms typeDispatchAssumed_fullCode
 

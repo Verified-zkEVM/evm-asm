@@ -251,7 +251,136 @@ theorem intrinsicAssumed_success_flat_off0
     simp only [nIntrinsicStackDwords, hout, hscratch] at hq2 ⊢
     xperm_hyp hq2
 
+/-- Peel IntrinsicAssumed temp owns x5–x7, x13–x16 (BgvOffset-style). -/
+private theorem of_forall_intrinsic_temps
+    {nSteps : Nat} {entry exit_ : Word} {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ (v5 v6 v7 v13 v14 v15 v16 : Word),
+      cpsTripleWithin nSteps entry exit_ cr
+        (P **
+          (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (P **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v5, hv5⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v6, hv6⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v7, hv7⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v13, hv13⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v14, hv14⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v15, hv15⟩, ⟨v16, hv16⟩⟩ := hO6
+  exact h v5 v6 v7 v13 v14 v15 v16 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0,
+        g2, g3, d2, u2, hv5,
+        g4, g5, d3, u3, hv6,
+        g6, g7, d4, u4, hv7,
+        g8, g9, d5, u5, hv13,
+        g10, g11, d6, u6, hv14,
+        g12, g13, d7, u7, hv15, hv16⟩, hRb⟩ hpc
+
+set_option maxRecDepth 8000 in
+/-- IntrinsicAssumed-shaped success for **off = 0, len = bs.length** with
+    regOwn temps (peel). Multi-tx ambient (off ≠ 0) remains residual. -/
+theorem intrinsicAssumed_success_flat_off0_own
+    (asm : TisCalleeAssumptions fullCode)
+    (hextract : asm.extract.entry = ExtractEntry)
+    (htype : asm.typeDispatch.entry = TypeEntry)
+    (ret spVal regionBase outPtr oldOut : Word)
+    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (bs : List (BitVec 8))
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    let lenW := BitVec.ofNat 64 bs.length
+    cpsTripleWithin nIntrinsicSteps T ret fullCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ regionBase) **
+        (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
+        (outPtr ↦ₘ oldOut) **
+        tisScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion regionBase bs **
+        (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+        tisScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  intro lenW
+  let Pcore : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+      stackFree spVal nIntrinsicStackDwords **
+      (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+      (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+      (.x10 ↦ᵣ regionBase) **
+      (.x11 ↦ᵣ lenW) **
+      (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
+      (outPtr ↦ₘ oldOut) **
+      tisScratchOwn **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word))
+  let Qown : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+      stackFree spVal nIntrinsicStackDwords **
+      (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+      (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+      (.x10 ↦ᵣ (0 : Word)) **
+      bytesRegion regionBase bs **
+      (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+      tisScratchOwn **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+      regOwn .x15 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word))
+  have hpeel :
+      cpsTripleWithin nIntrinsicSteps T ret fullCode
+        (Pcore **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16)
+        Qown := by
+    refine of_forall_intrinsic_temps (fun v5 v6 v7 v13 v14 v15 v16 => ?_)
+    have hf := intrinsicAssumed_success_flat_off0 asm hextract htype
+      ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+      v5 v6 v7 v13 v14 v15 v16
+      hret hlink hsuccess halign hover hvalid0
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp only [Qown] at hq ⊢
+      exact hq) hf
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    dsimp only [Pcore] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp only [Qown] at hq ⊢
+    exact hq) hpeel
+
 #print axioms stackFree8_eq_frameSlotsOwn
 #print axioms intrinsicAssumed_success_flat_off0
+#print axioms intrinsicAssumed_success_flat_off0_own
 
 end EvmAsm.Codegen.TxIntrinsicStateGasSpec
