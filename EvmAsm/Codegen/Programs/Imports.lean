@@ -274,6 +274,7 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TeerExistingAuthorityRefundSpec
 import EvmAsm.Codegen.Programs.TeerBodyDecode
+import EvmAsm.Codegen.Programs.TeerBodyAssumptions
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
