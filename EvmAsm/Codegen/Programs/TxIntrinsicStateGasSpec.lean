@@ -58,15 +58,22 @@ abbrev tisCode : CodeReq := CodeReq.ofProg T tisProg
 
 theorem tis_length : tisProg.length = 54 := by decide
 
-/-- Full linked code: intrinsic + proven eip8037_tx_state_gas leaf. -/
-def fullCode : CodeReq := tisCode.union etsCode
+/-- type_dispatch leaf CodeReq (for Assumed discharge under fullCode). -/
+abbrev typeProg : Program := txTypeDispatch_prog
+abbrev typeCode : CodeReq :=
+  CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.tx_type_dispatch) typeProg
+
+theorem type_length' : typeProg.length = 45 := by decide
+
+/-- Full linked code: intrinsic + ets + type_dispatch. -/
+def fullCode : CodeReq := (tisCode.union etsCode).union typeCode
 
 theorem tis_bound : 4 * tisProg.length < 2 ^ 64 := by
   simp only [tis_length]; decide
 
 theorem ets_length' : etsProg.length = 4 := ets_length
 
-/-- Adjacent: ets @ 0x80029704 (4 instr) then tis @ 0x80029714. -/
+/-- Adjacent: ets then tis. -/
 theorem tis_ets_disjoint : tisCode.Disjoint etsCode := by
   unfold tisCode etsCode T P
   apply CodeReq.Disjoint.ofProg_ranges
@@ -74,17 +81,42 @@ theorem tis_ets_disjoint : tisCode.Disjoint etsCode := by
   · rw [ets_length']; decide
   · rw [tis_length, ets_length']; decide
 
+private theorem type_tis_disjoint : typeCode.Disjoint tisCode := by
+  unfold typeCode tisCode T
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [type_length']; decide
+  · rw [tis_length]; decide
+  · rw [type_length', tis_length]; decide
+
+private theorem type_ets_disjoint : typeCode.Disjoint etsCode := by
+  unfold typeCode etsCode P
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [type_length']; decide
+  · rw [ets_length']; decide
+  · rw [type_length', ets_length']; decide
+
+theorem tis_ets_type_disjoint : (tisCode.union etsCode).Disjoint typeCode := by
+  exact CodeReq.Disjoint.union_left type_tis_disjoint.symm type_ets_disjoint.symm
+
 theorem ets_mono :
     ∀ a i, etsCode a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
-  exact CodeReq.mono_union_right tis_ets_disjoint (fun _ _ h => h) a i hi
+  have h := CodeReq.mono_union_right tis_ets_disjoint (fun _ _ h => h) a i hi
+  exact CodeReq.union_mono_left a i h
 
 theorem tis_mono :
     ∀ a i, tisCode a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
-  exact CodeReq.union_mono_left a i hi
+  have h := CodeReq.union_mono_left (cr1 := tisCode) (cr2 := etsCode) a i hi
+  exact CodeReq.union_mono_left a i h
+
+theorem type_mono :
+    ∀ a i, typeCode a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right tis_ets_type_disjoint (fun _ _ h => h) a i hi
 
 /-- 8-slot frame: ra, s0–s6 (x8,x9,x18–x22). -/
 def tisFrame : FrameDesc :=
@@ -161,6 +193,9 @@ structure TypeDispatchAssumed (cr : CodeReq) where
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
       (teerTxTypeDispatch txBytes).1 = (0 : Word) →
+      txBase.toNat % 8 = 0 →
+      txBase.toNat + txBytes.length < 2 ^ 64 →
+      isValidByteAccess (txBase + BitVec.ofNat 64 0) = true →
       cpsTripleWithin nTypeSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **

@@ -177,14 +177,17 @@ theorem tisTypeCall
     (txBase lenW : Word) (txBytes : List (BitVec 8))
     (old1 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true) :
     cpsTripleWithin (1 + nTypeSteps) (T + 104) LinkType fullCode
       ((.x1 ↦ᵣ old1) ** typeCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkType) ** typeCalleeQ txBase txBytes) := by
   have hret : (LinkType &&& ~~~(1 : Word)) = LinkType := by
     simp only [LinkType, T]; decide
   have hcallee0 := asm.success_flat LinkType txBase lenW
-    TypeAddr InnerOffAddr txBytes hret hlen hsuccess
+    TypeAddr InnerOffAddr txBytes hret hlen hsuccess halign hover hvalid0
   have hcallee0' : cpsTripleWithin nTypeSteps asm.entry LinkType fullCode
       ((.x1 ↦ᵣ LinkType) ** typeCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkType) ** typeCalleeQ txBase txBytes) := by
@@ -237,7 +240,10 @@ theorem tisTypeSuccess
     (txBase lenW outPtr : Word) (txBytes : List (BitVec 8))
     (old1 v10 v11 v12 v13 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true) :
     cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
       ((.x1 ↦ᵣ old1) ** (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -265,7 +271,7 @@ theorem tisTypeSuccess
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word))) (by pcf) hsetup
-  have hcall := tisTypeCall asm hentry txBase lenW txBytes old1 hlen hsuccess
+  have hcall := tisTypeCall asm hentry txBase lenW txBytes old1 hlen hsuccess halign hover hvalid0
   have hcallF := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr)) (by pcf) hcall
   have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by

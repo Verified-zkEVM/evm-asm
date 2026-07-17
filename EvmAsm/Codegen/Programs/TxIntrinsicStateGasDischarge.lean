@@ -136,7 +136,10 @@ theorem intrinsicAssumed_success_flat_off0
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
-    (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word)) :
+    (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -177,7 +180,7 @@ theorem intrinsicAssumed_success_flat_off0
     txIntrinsicStateGas_success_spec_within asm hextract htype
       spVal spC s regionBase lenW outPtr oldOut bs
       old5 old6 old7 old13 old14 old15 old16
-      hspC hret hlen hlink hsuccess
+      hspC hret hlen hlink hsuccess halign hover hvalid0
   have hle : nTisTopSteps ≤ nIntrinsicSteps := by
     simp only [nTisTopSteps, nExtractSteps, nTypeSteps, nIntrinsicSteps]
     omega
