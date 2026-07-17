@@ -23,7 +23,7 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxTypeDispatchSpec
-  (teerTxTypeDispatch typeDispatch_assumed_flat_typeCode D)
+  (teerTxTypeDispatch typeDispatch_success_values_flat_typeCode D)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (nTypeSteps nExtractStackDwords extractToBufOwn teaScratchOwn typeCode)
 
@@ -172,10 +172,12 @@ def extractTypeCalleeP (txBase lenW : Word) (txBytes : List (BitVec 8)) : Assert
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
+/-- Value-carrying post: tea cells hold teer type/inner for subsequent loads. -/
 def extractTypeCalleeQ (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
   (.x10 ↦ᵣ (0 : Word)) **
   bytesRegion txBase txBytes **
-  memOwn TeaTypeAddr ** memOwn TeaInnerAddr **
+  (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+  (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
   regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -205,9 +207,8 @@ theorem extractTypeCall
       ((.x1 ↦ᵣ LinkType) ** extractTypeCalleeQ txBase txBytes) := by
   have hret : (LinkType &&& ~~~(1 : Word)) = LinkType := by
     simp only [LinkType, E]; decide
-  have hcallee0 := typeDispatch_assumed_flat_typeCode LinkType txBase lenW
+  have hcallee0 := typeDispatch_success_values_flat_typeCode LinkType txBase lenW
     TeaTypeAddr TeaInnerAddr txBytes hret hlen hsuccess halign hover hvalid0
-  -- Assumed footprint = x1 ** extractTypeCalleeP/Q (defeq after unfold).
   have hcalleeD : cpsTripleWithin nTypeSteps D LinkType typeCode
       ((.x1 ↦ᵣ LinkType) ** extractTypeCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkType) ** extractTypeCalleeQ txBase txBytes) := by
@@ -217,7 +218,6 @@ theorem extractTypeCall
       ((.x1 ↦ᵣ LinkType) ** extractTypeCalleeP txBase lenW txBytes)
       ((.x1 ↦ᵣ LinkType) ** extractTypeCalleeQ txBase txBytes) := by
     rw [← hentry]; exact hcalleeD
-
   have hcallee := cpsTripleWithin_extend_code type_in_extractLinked hcallee0'
   have hcall := callWithin_spec TypeJalPc TypeEntry old1 typeJalOff nTypeSteps
     (by show TypeJalPc + signExtend21 typeJalOff = TypeEntry
@@ -280,7 +280,8 @@ theorem extractTypeSuccess
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
         bytesRegion txBase txBytes **
-        teaScratchOwn **
+        (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+        (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -302,7 +303,8 @@ theorem extractTypeSuccess
   have hbF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ LinkType) ** (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
       bytesRegion txBase txBytes **
-      memOwn TeaTypeAddr ** memOwn TeaInnerAddr **
+      (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+      (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -336,13 +338,14 @@ theorem extractTypeSuccess
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW))
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
-        bytesRegion txBase txBytes ** teaScratchOwn **
+        bytesRegion txBase txBytes **
+        (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+        (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
     unfold extractTypeCalleeQ
-    rw [teaScratchOwn_eq_typeInner]
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hbF
   have c12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hbW

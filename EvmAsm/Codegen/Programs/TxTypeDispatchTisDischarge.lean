@@ -178,7 +178,6 @@ theorem typeDispatch_assumed_flat_typeCode
       dsimp only [Pcore, typeStableScratch] at hp ⊢
       simp only [hlen] at hp ⊢
       xperm_hyp hp) (fun s hq => by
-      -- Put type/inner rightmost, convert memIs→memOwn, xperm to Qassumed
       dsimp only [typeStableScratch] at hq
       let Rest : Assertion :=
         (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
@@ -204,6 +203,70 @@ theorem typeDispatch_assumed_flat_typeCode
     dsimp only [Qassumed] at hq ⊢
     exact hq) hpeel
 
+set_option maxRecDepth 8000 in
+/-- Value-carrying success under `typeCode` (post pins teer type/inner as memIs).
+    For extract body loads of tea_type/tea_inner_off. -/
+theorem typeDispatch_success_values_flat_typeCode
+    (ret txBase lenW typePtr innerPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true) :
+    cpsTripleWithin nTypeSteps D ret typeCode
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion txBase txBytes **
+        memOwn typePtr ** memOwn innerPtr **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        (typePtr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+        (innerPtr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  let Pcore : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+      (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+      bytesRegion txBase txBytes ** (.x0 ↦ᵣ (0 : Word)) ** typeStableScratch
+  let Qvals : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+      bytesRegion txBase txBytes **
+      (typePtr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+      (innerPtr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word))
+  have hpeel :
+      cpsTripleWithin nTypeSteps D ret typeCode
+        (Pcore ** memOwn typePtr ** memOwn innerPtr ** regOwn .x5 ** regOwn .x6)
+        Qvals := by
+    refine of_forall_type_dispatch_owns (typePtr := typePtr) (innerPtr := innerPtr)
+      (fun typeOld innerOld t0Old t1Old => ?_)
+    have hf := typeDispatch_success_framed ret txBase typePtr innerPtr
+      t0Old t1Old typeOld innerOld txBytes hret hsuccess halign hover hvalid0
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, typeStableScratch] at hp ⊢
+      simp only [hlen] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp only [typeStableScratch, Qvals] at hq ⊢
+      xperm_hyp hq) hf
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    dsimp only [Pcore, typeStableScratch] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp only [Qvals] at hq ⊢
+    exact hq) hpeel
+
 /-- `TypeDispatchAssumed` under intrinsic `fullCode`. -/
 def typeDispatchAssumed_fullCode : TypeDispatchAssumed fullCode where
   entry := BitVec.ofNat 64 GuestAddrs.tx_type_dispatch
@@ -220,6 +283,7 @@ theorem typeDispatchAssumed_entry :
 #print axioms typeDispatch_success_top
 #print axioms typeDispatch_success_framed
 #print axioms typeDispatch_assumed_flat_typeCode
+#print axioms typeDispatch_success_values_flat_typeCode
 #print axioms typeDispatchAssumed_fullCode
 
 end EvmAsm.Codegen.TxTypeDispatchSpec
