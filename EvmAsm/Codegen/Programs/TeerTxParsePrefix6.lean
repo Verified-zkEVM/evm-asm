@@ -80,4 +80,67 @@ theorem teer_type4_branch_spec (v7 tval : Word) :
   obtain ⟨h1, h2, hd, hu, hT, h3, h4, hd2, hu2, h7, h5, h6, hd3, hu3, ⟨v5, hx5⟩, ⟨v6, hx6⟩⟩ := hp
   exact ⟨v5, v6, h1, h2, hd, hu, hT, h3, h4, hd2, hu2, h7, h5, h6, hd3, hu3, hx5, hx6⟩
 
+/-! ## Front join: `tx_type_dispatch` dispatch ;; type==4 check (`teerB + 136 →`)
+
+    Chains the proven dispatch branch (`teer_txtype_dispatch_spec`, module 5,
+    `teerB + 136 → {2856, 168}`) into the type==4 check branch above
+    (`teerB + 168 → {2856, 188}`) via
+    `cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr`, producing a single
+    parse-failure-routing branch `teerB + 136 → {far epilogue 2856, cursor-setup
+    entry 188}`.  Both TAKEN exits collapse to the shared `teerFail` post.
+
+    **Frame union** (hard piece 1): the type==4 check needs the callee-clobbered
+    scratch `x5`/`x6` (returned OWNED by the dispatch contract) plus `x7`, which
+    the dispatch group does NOT touch; `x7` is therefore carried from `teerB + 136`
+    in an ambient frame `(.x7 ↦ᵣ v7)`, threaded through the dispatch branch by
+    `cpsBranchWithin_frameR` and reconciled at the join by `xperm_hyp`. -/
+
+/-- The dispatch-result footprint that the type==4 check does NOT read
+    (everything in the dispatch not-taken post except `teerType` / `x5` / `x6`,
+    which the check consumes).  Framed around the type==4 branch so the join
+    carries the full post-dispatch state to `teerB + 188`. -/
+def teerType4Rest (v8 v9 : Word) (txBytes : List (BitVec 8)) : Assertion :=
+  (.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) ** (.x0 ↦ᵣ (0 : Word)) **
+  ⌜(teerTxTypeDispatch txBytes).1 = (0 : Word)⌝ **
+  (.x1 ↦ᵣ (teerB + 164)) ** bytesRegion v8 txBytes **
+  (teerInnerOff ↦ₘ (teerTxTypeDispatch txBytes).2.2) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9)
+
+set_option maxRecDepth 8000 in
+theorem teer_prefix_dispatch_type4_spec (txd : TxTypeDispatchAssumed fullCode)
+    (htxd : txd.entry = BitVec.ofNat 64 GuestAddrs.tx_type_dispatch)
+    (v8 v9 v10o v11o v12o v13o raIn t0Old t1Old typeOld innerOld v7 : Word)
+    (txBytes : List (BitVec 8))
+    (hlen : v9 = BitVec.ofNat 64 txBytes.length)
+    (halign : v8.toNat % 8 = 0)
+    (hover : v8.toNat + txBytes.length ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < txBytes.length →
+      isValidByteAccess (v8 + BitVec.ofNat 64 k) = true) :
+    cpsBranchWithin (((6 + (1 + nTxTypeDispatchSteps)) + 1) + 5) (teerB + 136) fullCode
+      ((((.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ v10o) ** (.x11 ↦ᵣ v11o) **
+        (.x12 ↦ᵣ v12o) ** (.x13 ↦ᵣ v13o)) **
+       ((.x1 ↦ᵣ raIn) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion v8 txBytes ** (teerType ↦ₘ typeOld) ** (teerInnerOff ↦ₘ innerOld))) **
+       (.x7 ↦ᵣ v7))
+      (teerB + 2856) teerFail
+      (teerB + 188)
+      ((((.x5 ↦ᵣ teerType) ** (.x6 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+          (.x7 ↦ᵣ (4 : Word)) ** (teerType ↦ₘ (teerTxTypeDispatch txBytes).2.1)) **
+         ⌜(teerTxTypeDispatch txBytes).2.1 = (4 : Word)⌝) **
+        teerType4Rest v8 v9 txBytes) := by
+  have hdisp := teer_txtype_dispatch_spec txd htxd v8 v9 v10o v11o v12o v13o raIn
+    t0Old t1Old typeOld innerOld txBytes hlen halign hover hvalid
+  have hdispF := cpsBranchWithin_frameR ((.x7 ↦ᵣ v7))
+    (by exact pcFree_regIs) hdisp
+  have htype4F := cpsBranchWithin_frameR (teerType4Rest v8 v9 txBytes)
+    (by unfold teerType4Rest; repeat' first
+        | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+        | exact pcFree_pure | apply pcFree_sepConj)
+    (teer_type4_branch_spec v7 (teerTxTypeDispatch txBytes).2.1)
+  exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr
+    hdispF
+    (fun h hp => by unfold teerTxdRest teerType4Rest at *; xperm_hyp hp)
+    htype4F
+    (fun _ _ => trivial)
+    (fun _ _ => trivial)
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
