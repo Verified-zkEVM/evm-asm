@@ -240,8 +240,13 @@ def schemeAAnchors : List GuestRegion :=
     `0x5ccd0` for the combined batch-merge landing the BAL-completeness
     0-FA fix (`k3-3/rgtkz-bal-completeness`, #10419) together with the
     withdrawal/BAL-overlap fail-closed guard (`fix/withdrawals-bal-completeness`,
-    #10420), measured via a fresh `readelf -SW` after both land together. -/
-def textSizeBytes : Nat := 0x5ccd0
+    #10420), measured via a fresh `readelf -SW` after both land together.
+    Grew to `0x5cf18` for the withdrawal-BAL-parity fix (`fix/withdrawal-bal-parity`,
+    #10422: models every nonzero EIP-4895 body withdrawal as a standard
+    non-storage effect via the existing BAL comparators, closing the
+    withdrawal-drop false-accept without the fail-closed false-reject of
+    valid withdrawal blocks). -/
+def textSizeBytes : Nat := 0x5cf18
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -258,8 +263,10 @@ def dataSizeBytes : Nat := 0x5370
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. Grew by `0x77900`
     for the fixed, gas-sized bounded indexed-root builder arenas, then `0x1d320`
-    when the transaction descriptor staging was raised to the same gas bound. -/
-def bssSizeBytes : Nat := 0x1a5ff2a0
+    when the transaction descriptor staging was raised to the same gas bound.
+    Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
+    non-storage effect modeling (#10422). -/
+def bssSizeBytes : Nat := 0x1a5ff360
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

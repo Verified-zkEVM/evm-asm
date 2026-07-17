@@ -572,6 +572,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "stfv_wd_credit:\n  .zero 32\n" ++
   "bsw_amount:\n  .zero 32\n" ++
   "bsw_wei:\n  .zero 32\n" ++
+  -- 7rbp3: authenticated EIP-4895 withdrawal -> nonstorage-effect producer scratch.
+  ".balign 32\n" ++
+  "bv_wdne_addr:\n  .zero 32\n" ++
+  "bv_wdne_acct:\n  .zero 104\n" ++
+  "bv_wdne_post:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
   "strv_row_off:\n  .zero 8\n" ++
