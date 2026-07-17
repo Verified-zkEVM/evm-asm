@@ -221,4 +221,83 @@ theorem bvtGuardNtaken (spC txBase outBase balBase chainIdW nW : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hntF
 
+/-! ## Success-path iteration static facts
+
+    One successful iteration under well-formed SSZ offset-table hyps. Fail
+    branches (status 2/3) are not claimed here — the top theorem's success
+    arm requires `IterOk` for every `i < n`.
+-/
+
+/-- Static facts for a successful body iteration at index `i`. -/
+structure IterOk (txBlob : List (BitVec 8)) (n i : Nat) where
+  hi : i < n
+  hNBound : n < 2 ^ 62
+  /-- Start offset word = leU32 at byte offset `4*i`. -/
+  startW : Word
+  hStart : startW = leU32 txBlob (4 * i)
+  /-- End offset: next table entry, or body length when last. -/
+  endW : Word
+  hEnd : endW =
+    if i + 1 = n then BitVec.ofNat 64 txBlob.length
+    else leU32 txBlob (4 * (i + 1))
+  hStartOff : 4 * i + 4 ≤ txBlob.length
+  hEndOff : i + 1 = n ∨ 4 * (i + 1) + 4 ≤ txBlob.length
+  hStartGeTable : (n * 4 : Nat) ≤ startW.toNat
+  hStartLeLen : startW.toNat ≤ txBlob.length
+  hEndGeStart : startW.toNat ≤ endW.toNat
+  hEndLeLen : endW.toNat ≤ txBlob.length
+  /-- Region base stays in range for LBU loads at `txBase+4*i`. -/
+  hNoWrap : ∀ (base : Word), base.toNat % 8 = 0 →
+    base.toNat + 4 * i + 3 < 2 ^ 64
+  hValid : ∀ (base : Word) (k : Nat), k < 4 →
+    isValidByteAccess (base + BitVec.ofNat 64 (4 * i + k)) = true
+
+abbrev LinkLoopBgv1 : Word := B + 144
+abbrev LinkLoopBgv2 : Word := B + 180
+
+abbrev loopBgv1JalOff : BitVec 21 :=
+  jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_tx_state_gas_array + 140)
+
+abbrev loopBgv2JalOff : BitVec 21 :=
+  jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_tx_state_gas_array + 176)
+
+/-- Pure: `ofNat i <<< 2 = ofNat (4*i)` when `i < 2^62`. -/
+theorem slli2_ofNat (i : Nat) (hi : i < 2 ^ 62) :
+    BitVec.ofNat 64 i <<< (2 : Nat) = BitVec.ofNat 64 (4 * i) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  have hi' : i < 2 ^ 64 := by omega
+  have h4i : 4 * i < 2 ^ 64 := by
+    have : i * 4 < 2 ^ 62 * 4 := Nat.mul_lt_mul_of_pos_right hi (by decide)
+    omega
+  rw [Nat.mod_eq_of_lt hi', Nat.shiftLeft_eq, show 2 ^ (2 : Nat) = 4 from rfl,
+    Nat.mod_eq_of_lt h4i]
+  omega
+
+/-- Caller-private frame across loop-site bgv (keeps LoopInv s-regs + out/BAL). -/
+def loopBgvFrame (spC txBase outBase balBase chainIdW nW iW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool)
+    (o22 o23 o27 : Word) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+  (.x22 ↦ᵣ o22) ** (.x23 ↦ᵣ o23) **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) ** (.x27 ↦ᵣ o27) **
+  savedFrame spC csaved **
+  wordArray outBase outVals **
+  (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
+  (.x0 ↦ᵣ (0 : Word))
+
+theorem loopBgvFrame_pcFree (spC txBase outBase balBase chainIdW nW iW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool)
+    (o22 o23 o27 : Word) :
+    (loopBgvFrame spC txBase outBase balBase chainIdW nW iW csaved
+      txBlob outVals balBytes balEnabled o22 o23 o27).pcFree := by
+  unfold loopBgvFrame savedFrame
+  cases balEnabled <;> bvt_pcf
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
