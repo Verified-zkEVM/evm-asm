@@ -108,8 +108,11 @@ def blockVerdictFunction : String :=
   "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
   "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
   "  # positive. tx list is empty iff transactions_offset == withdrawals_offset.\n" ++
-  "  ld t4, 0(s0)                # exec_payload from extracted params\n" ++
-  "  la t5, bv_exec_p; sd t4, 0(t5)\n" ++
+  -- `blockVerdictBmvMxPrecomputePrefix` has already initialized `bv_exec_p`
+  -- to `s3 + 60`, the execution-payload SSZ base.  `0(s0)` is not populated
+  -- until the later extracted-params stage; overwriting the global here made
+  -- the no-transaction gas gate read an unrelated zero word.
+  "  la t5, bv_exec_p; ld t4, 0(t5)\n" ++
   "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
   "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
@@ -626,7 +629,13 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
-  "  j .Lbv_after_tx_gas_precharge       # EOA runtime done; skip the contract-dispatch block\n" ++
+  -- Direct EOA settlement has completed the transaction effects, but historically
+  -- jumped past the body-effect reconciliation below.  That let a forged payload
+  -- omit a withdrawal while retaining its BAL/state-root credit.  Enter at the
+  -- non-storage seam: it materializes only authenticated body withdrawals and
+  -- compares them with BAL, while avoiding the contract-only recipient/storage
+  -- state that the EOA path does not initialize.
+  "  j .Lbv_eoa_body_effect_reconcile\n" ++
   ".Lbv_st_sender_coinbase_maybe:\n" ++
   "  la t0, bv_tx_gas_precharge; addi t0, t0, 104; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
   ".Lbv_st_sender_coinbase_cmp:\n" ++
@@ -1137,6 +1146,7 @@ def blockVerdictFunction : String :=
   -- coinbase} are gas/value-coupled (pinned on the gas path); set unconditionally above
   -- (bv_simple_transfer_tx+72, bmvmx_sender_addr, bmvmx_coinbase_addr). 32-byte-strided,
   -- address in the first 20 bytes.
+  ".Lbv_eoa_body_effect_reconcile:\n" ++
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
