@@ -283,8 +283,10 @@ def dataSizeBytes : Nat := 0x5370
     Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
     non-storage effect modeling (#10422). Grew by `0x160000`
     (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
-    200M-gas block can never over-reject on deployed-code volume. -/
-def bssSizeBytes : Nat := 0x1a75f360
+    200M-gas block can never over-reject on deployed-code volume. Grew by
+    `0xe08000` when the bounded non-storage effect log capacity was raised
+    from 32768 to 65536 entries. -/
+def bssSizeBytes : Nat := 0x1b567360
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
