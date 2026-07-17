@@ -70,8 +70,60 @@ theorem hedCall_walkNext_slot14 {n : Nat} {Prest Q : Assertion} (vRa : Word)
     (by decide +kernel) (by decide) hedJal_slot14_mem walkNext_mono
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel)) hPrest hcallee
 
+set_option maxRecDepth 8000 in
+/-- The JAL at slot 81 (`HB + 324`) targeting `rlp_content_to_u64` is in `fullCode`. -/
+theorem hedJal_slot81_mem :
+    ∀ a i, CodeReq.singleton (HB + 324)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 324))) a = some i →
+      fullCode a = some i := by
+  intro a i h
+  exact hed_mono a i
+    (CodeReq.ofProg_mem_at HB (HB + 324) headerExtendedDecode_prog 81 _
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel) a i h)
+
+set_option maxRecDepth 8000 in
+/-- Concrete call-site adapter for the first `jal rlp_content_to_u64` (slot 81,
+    `HB + 324`, the `number` field), pinning the callee to `u64_mono`. -/
+theorem hedCall_u64_slot81 {n : Nat} {Prest Q : Assertion} (vRa : Word)
+    (hPrest : Prest.pcFree)
+    (hcallee : cpsTripleWithin n CU64B ((HB + 324 + 4) &&& ~~~(1 : Word))
+      (rlp_content_to_u64_code CU64B) ((.x1 ↦ᵣ (HB + 324 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (HB + 324) (HB + 324 + 4) fullCode
+      ((.x1 ↦ᵣ vRa) ** Prest) Q :=
+  hedCall (HB + 324) CU64B vRa (rlp_content_to_u64_code CU64B)
+    (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 324))
+    (by decide +kernel) (by decide) hedJal_slot81_mem u64_mono
+    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel)) hPrest hcallee
+
+set_option maxRecDepth 8000 in
+/-- The JAL at slot 137 (`HB + 548`) targeting `rlp_content_to_u256_be` is in `fullCode`. -/
+theorem hedJal_slot137_mem :
+    ∀ a i, CodeReq.singleton (HB + 548)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be (GuestAddrs.header_extended_decode + 548))) a = some i →
+      fullCode a = some i := by
+  intro a i h
+  exact hed_mono a i
+    (CodeReq.ofProg_mem_at HB (HB + 548) headerExtendedDecode_prog 137 _
+      (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel) a i h)
+
+set_option maxRecDepth 8000 in
+/-- Concrete call-site adapter for the `jal rlp_content_to_u256_be` (slot 137,
+    `HB + 548`, the `base_fee_per_gas` field), pinning the callee to `u256_mono`. -/
+theorem hedCall_u256_slot137 {n : Nat} {Prest Q : Assertion} (vRa : Word)
+    (hPrest : Prest.pcFree)
+    (hcallee : cpsTripleWithin n CU256B ((HB + 548 + 4) &&& ~~~(1 : Word))
+      (rlp_content_to_u256_be_code CU256B) ((.x1 ↦ᵣ (HB + 548 + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (HB + 548) (HB + 548 + 4) fullCode
+      ((.x1 ↦ᵣ vRa) ** Prest) Q :=
+  hedCall (HB + 548) CU256B vRa (rlp_content_to_u256_be_code CU256B)
+    (jalOff GuestAddrs.rlp_content_to_u256_be (GuestAddrs.header_extended_decode + 548))
+    (by decide +kernel) (by decide) hedJal_slot137_mem u256_mono
+    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel)) hPrest hcallee
+
 #print axioms hedCall
 #print axioms hedCall_walkNext_slot14
+#print axioms hedCall_u64_slot81
+#print axioms hedCall_u256_slot137
 
 set_option maxRecDepth 8000 in
 /-- The reusable `rlp_walk_next` invocation block ([j]-[j+2], `S → S+12`): the
