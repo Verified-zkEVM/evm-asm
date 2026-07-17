@@ -101,6 +101,26 @@ def _decode(s):
         else: out.append(c);i+=1
     return ''.join(out)
 
+def _strip_lean_line_comments(src):
+    """Drop Lean `--` comments while leaving `--` in assembly strings intact."""
+    out=[]; i=0; in_string=False
+    while i<len(src):
+        c=src[i]
+        if in_string:
+            out.append(c)
+            if c=='\\' and i+1<len(src):
+                out.append(src[i+1]); i+=2; continue
+            if c=='"': in_string=False
+            i+=1; continue
+        if c=='"':
+            in_string=True; out.append(c); i+=1; continue
+        if src.startswith('--', i):
+            i=src.find('\n', i)
+            if i<0: break
+            out.append('\n'); i+=1; continue
+        out.append(c); i+=1
+    return ''.join(out)
+
 def extract_function(text, fname):
     """Return the decoded asm string of `def <fname> : String := "..." ++ ...`.
     Raises if the RHS is not a pure string-literal concatenation."""
@@ -114,7 +134,7 @@ def extract_function(text, fname):
                           'namespace ','/-!','/--','@[','private','example','set_option')):
             break
         body_lines.append(ln)
-    body='\n'.join(body_lines)
+    body=_strip_lean_line_comments('\n'.join(body_lines))
     strs=re.findall(r'"((?:[^"\\]|\\.)*)"',body)
     stripped=re.sub(r'"(?:[^"\\]|\\.)*"','',body)
     if re.sub(r'[+\s]','',stripped):
@@ -725,6 +745,8 @@ def lean_render(manifest):
     try:
         out=subprocess.run(['lake','env','lean','--run',tmp],cwd=repo,
                            check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode()
+    except subprocess.CalledProcessError as exc:
+        raise ConvError("Lean render failed:\n" + exc.stdout.decode() + exc.stderr.decode()) from exc
     finally:
         os.unlink(tmp)
     res={}
@@ -770,7 +792,15 @@ def rewrite_file(path, funcs):
     spans=[]
     uses_reloc=False
     for fn in funcs:
-        asm=extract_function(text, fn)
+        try:
+            asm=extract_function(text, fn)
+        except ConvError:
+            # A previously converted definition can be reformatted or moved to
+            # another module.  Its checked-in fixture remains the authority for
+            # regenerating the canonical generated block.
+            fp=fixture_path(fn)
+            if not os.path.exists(fp): raise
+            asm=open(fp).read()
         entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         if not ok:
             raise ConvError(f"{fn}: guest-linked .text differs -- refusing to rewrite")

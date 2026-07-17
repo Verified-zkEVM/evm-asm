@@ -89,14 +89,4 @@ def evmModV5Patched : Program :=
   [Instr.JAL .x0 (344 : BitVec 21)] ++
   (EvmAsm.Evm64.evm_mod_v5 : List Instr).drop 268
 
-/-- `EvmAsm.Evm64.evm_sdiv_v5` with the leading save-ra block removed for
-    trampoline-style handlers. -/
-def evmSdivV5Patched : Program :=
-  (EvmAsm.Evm64.evm_sdiv_v5 : List Instr).drop 1
-
-/-- `EvmAsm.Evm64.evm_smod_v5` with the leading save-ra block removed for
-    trampoline-style handlers. -/
-def evmSmodV5Patched : Program :=
-  (EvmAsm.Evm64.evm_smod_v5 : List Instr).drop 1
-
 end EvmAsm.Codegen
