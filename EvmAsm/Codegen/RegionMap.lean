@@ -228,8 +228,11 @@ def schemeAAnchors : List GuestRegion :=
     Grew further to `0x5c688` for the combined batch-merge landing that fix
     together with the MPT bounded leaf-group delete-collapse fix
     (`fix/bounded-leaf-group-delete-collapse`), measured via a fresh
-    `readelf -SW` on the relinked ELF after both land together. -/
-def textSizeBytes : Nat := 0x5c688
+    `readelf -SW` on the relinked ELF after both land together. Grew again
+    to `0x5c6b4` after merging main forward past #10394/#10395 (7702 auth
+    state gas gate + EIP-8037 auth-retention 0-FA guard) into this same
+    integration branch, re-measured via a fresh `readelf -SW`. -/
+def textSizeBytes : Nat := 0x5c6b4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
