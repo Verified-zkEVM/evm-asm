@@ -223,9 +223,16 @@ def schemeAAnchors : List GuestRegion :=
     Grew by `0x4` for the batch-merge landing the divmod cleanup and bounded
     extension direct-result ABI repair. Grew by `0x60` for the batch-merge
     landing the BAL delegation-codes-base fix and further divmod cleanup.
-    Grew by `0x30` for the M29 blockhash byte-order fix merged against the
-    chain-validate cross-header specs batch. -/
-def textSizeBytes : Nat := 0x5c5d8
+    Grew by `0x40` for the recipient-ownership filter in
+    `bv_mtx_committed_chunked_snapshot_upsert` (`fix/committed-snapshot-recipient-filter`).
+    Grew further to `0x5c688` for the combined batch-merge landing that fix
+    together with the MPT bounded leaf-group delete-collapse fix
+    (`fix/bounded-leaf-group-delete-collapse`), measured via a fresh
+    `readelf -SW` on the relinked ELF after both land together. Grew again
+    to `0x5c6b4` after merging main forward past #10394/#10395 (7702 auth
+    state gas gate + EIP-8037 auth-retention 0-FA guard) into this same
+    integration branch, re-measured via a fresh `readelf -SW`. -/
+def textSizeBytes : Nat := 0x5c6b4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
