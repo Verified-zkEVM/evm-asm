@@ -31,7 +31,8 @@ local macro "pcf" : tactic =>
       | exact pcFree_pure
       | exact bytesRegion_pcFree _ _
       | exact pcFree_regsAt _ _
-      | exact pcFree_frameSlotsSaved _ _ _)
+      | exact pcFree_frameSlotsSaved _ _ _
+      | exact pcFree_stackFree _ _)
 
 abbrev ToBufAddr : Word := BitVec.ofNat 64 GuestAddrs.tis_to_buf
 abbrev IsCreationAddr : Word := BitVec.ofNat 64 GuestAddrs.tis_is_creation
@@ -124,8 +125,9 @@ theorem tisExtractSetup (txBase txLenW outPtr : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) h01
 
-/-- Callee footprint for extract call (no ra). -/
-def extractCalleeP (txBase lenW : Word) (txBytes : List (BitVec 8)) : Assertion :=
+/-- Callee footprint for extract call (no ra). Includes sp + nested free stack. -/
+def extractCalleeP (spVal txBase lenW : Word) (txBytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
   (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
   (.x12 ↦ᵣ ToBufAddr) ** (.x13 ↦ᵣ IsCreationAddr) **
   bytesRegion txBase txBytes **
@@ -135,7 +137,8 @@ def extractCalleeP (txBase lenW : Word) (txBytes : List (BitVec 8)) : Assertion 
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
-def extractCalleeQ (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
+def extractCalleeQ (spVal txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
   (.x10 ↦ᵣ (0 : Word)) **
   bytesRegion txBase txBytes **
   memOwn ToBufAddr ** memOwn IsCreationAddr **
@@ -145,8 +148,8 @@ def extractCalleeQ (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
-theorem extractCalleeP_pcFree (txBase lenW : Word) (txBytes : List (BitVec 8)) :
-    (extractCalleeP txBase lenW txBytes).pcFree := by
+theorem extractCalleeP_pcFree (spVal txBase lenW : Word) (txBytes : List (BitVec 8)) :
+    (extractCalleeP spVal txBase lenW txBytes).pcFree := by
   unfold extractCalleeP; pcf
 
 set_option maxRecDepth 8000 in
@@ -154,26 +157,26 @@ set_option maxRecDepth 8000 in
 theorem tisExtractCall
     (asm : ExtractAssumed fullCode)
     (hentry : asm.entry = ExtractEntry)
-    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (spVal txBase lenW : Word) (txBytes : List (BitVec 8))
     (old1 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
     (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
     cpsTripleWithin (1 + nExtractSteps) (T + 72) LinkExtract fullCode
-      ((.x1 ↦ᵣ old1) ** extractCalleeP txBase lenW txBytes)
-      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ txBase txBytes) := by
+      ((.x1 ↦ᵣ old1) ** extractCalleeP spVal txBase lenW txBytes)
+      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ spVal txBase txBytes) := by
   have hret : (LinkExtract &&& ~~~(1 : Word)) = LinkExtract := by
     simp only [LinkExtract, T]; decide
-  have hcallee0 := asm.success_flat LinkExtract txBase lenW
+  have hcallee0 := asm.success_flat LinkExtract spVal txBase lenW
     ToBufAddr IsCreationAddr txBytes hret hlen hsuccess
   have hcallee0' : cpsTripleWithin nExtractSteps asm.entry LinkExtract fullCode
-      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeP txBase lenW txBytes)
-      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ txBase txBytes) := by
+      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeP spVal txBase lenW txBytes)
+      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ spVal txBase txBytes) := by
     unfold extractCalleeP extractCalleeQ
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcallee0
   have hcallee : cpsTripleWithin nExtractSteps ExtractEntry LinkExtract fullCode
-      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeP txBase lenW txBytes)
-      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ txBase txBytes) := by
+      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeP spVal txBase lenW txBytes)
+      ((.x1 ↦ᵣ LinkExtract) ** extractCalleeQ spVal txBase txBytes) := by
     rw [← hentry]; exact hcallee0'
   have hcall := callWithin_spec (T + 72) ExtractEntry old1 extractJalOff nExtractSteps
     (by show (T + 72) + signExtend21 extractJalOff = ExtractEntry; decide)
@@ -181,7 +184,7 @@ theorem tisExtractCall
       (CodeReq.ofProg_mem_at T (T + 72) tisProg 18
         (.JAL .x1 extractJalOff) (by bv_omega) (by rw [tis_length]; decide) rfl
         (by rw [tis_length]; decide) a i hi))
-    (extractCalleeP_pcFree txBase lenW txBytes)
+    (extractCalleeP_pcFree spVal txBase lenW txBytes)
     hcallee
   rw [show (T + 72 + 4 : Word) = LinkExtract from by
     simp only [LinkExtract]; bv_omega] at hcall
@@ -211,16 +214,17 @@ theorem tisExtractBneOk :
   exact hnt
 
 set_option maxRecDepth 8000 in
-/-- Extract setup + call + BNE ok under ExtractAssumed. -/
+/-- Extract setup + call + BNE ok under ExtractAssumed (with nested stack). -/
 theorem tisExtractSuccess
     (asm : ExtractAssumed fullCode)
     (hentry : asm.entry = ExtractEntry)
-    (txBase lenW outPtr : Word) (txBytes : List (BitVec 8))
+    (spVal txBase lenW outPtr : Word) (txBytes : List (BitVec 8))
     (old1 v12 v13 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
     (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
     cpsTripleWithin (4 + (1 + nExtractSteps) + 1) (T + 56) AfterExtractBne fullCode
-      ((.x1 ↦ᵣ old1) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+      ((.x1 ↦ᵣ old1) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+        (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x18 ↦ᵣ outPtr) **
         bytesRegion txBase txBytes **
         memOwn ToBufAddr ** memOwn IsCreationAddr **
@@ -228,7 +232,8 @@ theorem tisExtractSuccess
         regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x0 ↦ᵣ (0 : Word)))
-      ((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x1 ↦ᵣ LinkExtract) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x18 ↦ᵣ outPtr) **
         bytesRegion txBase txBytes **
         memOwn ToBufAddr ** memOwn IsCreationAddr **
@@ -238,20 +243,22 @@ theorem tisExtractSuccess
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
   have hsetup := tisExtractSetup txBase lenW outPtr v12 v13
   have hsetupF := cpsTripleWithin_frameR
-    ((.x1 ↦ᵣ old1) ** bytesRegion txBase txBytes **
+    ((.x1 ↦ᵣ old1) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+      bytesRegion txBase txBytes **
       memOwn ToBufAddr ** memOwn IsCreationAddr **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word))) (by pcf) hsetup
-  have hcall := tisExtractCall asm hentry txBase lenW txBytes old1 hlen hsuccess
+  have hcall := tisExtractCall asm hentry spVal txBase lenW txBytes old1 hlen hsuccess
   have hcallF := cpsTripleWithin_frameR (.x18 ↦ᵣ outPtr) (by exact pcFree_regIs) hcall
   have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     unfold extractCalleeP at *
     xperm_hyp hp) hsetupF hcallF
   have hbne := tisExtractBneOk
   have hbneF := cpsTripleWithin_frameR
-    ((.x1 ↦ᵣ LinkExtract) ** (.x18 ↦ᵣ outPtr) **
+    ((.x1 ↦ᵣ LinkExtract) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+      (.x18 ↦ᵣ outPtr) **
       bytesRegion txBase txBytes **
       memOwn ToBufAddr ** memOwn IsCreationAddr **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **

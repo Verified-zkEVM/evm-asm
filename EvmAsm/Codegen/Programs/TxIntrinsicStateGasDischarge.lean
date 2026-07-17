@@ -3,13 +3,13 @@
   `txIntrinsicStateGas_success_spec_within` (#10434).
 
   Reshape:
-  * `stackFree sp 8` ↔ `frameSlotsOwn tisFrame (sp-64)` (pre)
-  * `frameSlotsSaved` → `stackFree` via `memIs_implies_memOwn` (post)
+  * `stackFree sp 18` ↔ `frameSlotsOwn tisFrame (sp-64) ** stackFree (sp-64) 10`
+    (own frame 8 + nested extract free stack 10)
+  * `frameSlotsSaved` → own → rejoin with nested free → `stackFree sp 18` (post)
   * s-regs + `tisScratchOwn` already match
   * region: **off = 0 only** (slice-base = ambient); multi-tx ambient residual
 
-  Result is under leaf `fullCode` (tis∪ets). Array compose later mono-lifts
-  into the guest image CodeReq once callees are linked in.
+  Result is under leaf `fullCode` (tis∪ets∪type∪extract∪walks).
 -/
 
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
@@ -87,6 +87,68 @@ theorem stackFree8_eq_frameSlotsOwn (sp0 : Word) :
     slot56, n64, n56, n48, n40, n32, n24, n16, n8]
   rfl
 
+private theorem sepConj_emp_left_eq {P : Assertion} : (empAssertion ** P) = P := by
+  funext h; exact propext (sepConj_emp_left h)
+
+private theorem sepConj_assoc_eq {P Q R : Assertion} :
+    ((P ** Q) ** R) = (P ** (Q ** R)) := by
+  funext h; exact propext (sepConj_assoc h)
+
+/-- `stackFree sp (n+m) = stackFree (sp - 8n) m ** stackFree sp n`. -/
+private theorem stackFree_add (sp : Word) (n m : Nat) :
+    stackFree sp (n + m) =
+      (stackFree (sp - BitVec.ofNat 64 (8 * n)) m ** stackFree sp n) := by
+  induction m with
+  | zero =>
+    change stackFree sp n = (empAssertion ** stackFree sp n)
+    exact sepConj_emp_left_eq.symm
+  | succ m ih =>
+    have hnm : n + (m + 1) = (n + m) + 1 := by omega
+    rw [hnm, stackFree_succ, ih, stackFree_succ]
+    have haddr :
+        sp - BitVec.ofNat 64 (8 * (n + m + 1)) =
+          (sp - BitVec.ofNat 64 (8 * n)) - BitVec.ofNat 64 (8 * (m + 1)) := by
+      have hmul : (8 * (n + m + 1) : Nat) = 8 * n + 8 * (m + 1) := by omega
+      rw [hmul]
+      -- ofNat (a+b) = ofNat a + ofNat b when a+b < 2^64 (always for small n,m in practice)
+      -- Use ring on BitVec via bv_omega after rewriting ofNat_add when in range.
+      have ha : BitVec.ofNat 64 (8 * n + 8 * (m + 1)) =
+          BitVec.ofNat 64 (8 * n) + BitVec.ofNat 64 (8 * (m + 1)) := by
+        apply BitVec.eq_of_toNat_eq
+        simp only [BitVec.toNat_ofNat, BitVec.toNat_add]
+        -- both sides mod 2^64; concrete small sums
+        omega
+      rw [ha]
+      bv_omega
+    rw [haddr]
+    exact (sepConj_assoc_eq
+      (P := memOwn ((sp - BitVec.ofNat 64 (8 * n)) - BitVec.ofNat 64 (8 * (m + 1))))
+      (Q := stackFree (sp - BitVec.ofNat 64 (8 * n)) m)
+      (R := stackFree sp n)).symm
+
+/-- Nested extract free stack at spC lives in the deeper half of entry stackFree 18. -/
+theorem stackFree18_split (sp0 : Word) :
+    let spC := sp0 + signExtend12 (-64 : BitVec 12)
+    stackFree sp0 nIntrinsicStackDwords =
+      (frameSlotsOwn tisFrame spC ** stackFree spC nExtractStackDwords) := by
+  intro spC
+  simp only [nIntrinsicStackDwords, nExtractStackDwords]
+  have hadd := stackFree_add sp0 8 10
+  -- hadd: stackFree sp0 18 = stackFree (sp0-64) 10 ** stackFree sp0 8
+  have h8 := stackFree8_eq_frameSlotsOwn sp0
+  have hsp : sp0 - BitVec.ofNat 64 (8 * 8) = spC := by
+    change sp0 - (64 : Word) = spC
+    exact (spC_eq sp0).symm
+  have h1 :
+      stackFree sp0 18 =
+        (stackFree spC 10 ** stackFree sp0 8) := by
+    simpa [hsp] using hadd
+  have h2 :
+      stackFree sp0 18 =
+        (stackFree spC 10 ** frameSlotsOwn tisFrame spC) := by
+    rw [h1, h8]
+  rw [h2, sepConj_comm']
+
 private theorem frameSlotsSaved_imp_own (spC : Word) (s : TisSaved) :
     ∀ h, frameSlotsSaved tisFrame spC (tisSavedVals s) h →
       frameSlotsOwn tisFrame spC h := by
@@ -104,16 +166,22 @@ private theorem frameSlotsSaved_imp_own (spC : Word) (s : TisSaved) :
               (sepConj_mono memIs_implies_memOwn
                 memIs_implies_memOwn)))))) h hp
 
-/-- Post: saved frame slots weaken to free-stack ownership. -/
-theorem frameSlotsSaved_imp_stackFree8 (sp0 : Word) (s : TisSaved) :
+/-- Post: saved frame + nested free rejoin to entry stackFree 18. -/
+theorem frameSlotsSaved_imp_stackFree18 (sp0 : Word) (s : TisSaved) :
     ∀ h,
-      frameSlotsSaved tisFrame (sp0 + signExtend12 (-64 : BitVec 12))
-          (tisSavedVals s) h →
-      stackFree sp0 8 h := by
+      (frameSlotsSaved tisFrame (sp0 + signExtend12 (-64 : BitVec 12))
+          (tisSavedVals s) **
+        stackFree (sp0 + signExtend12 (-64 : BitVec 12)) nExtractStackDwords) h →
+      stackFree sp0 nIntrinsicStackDwords h := by
   intro h hp
-  have hown := frameSlotsSaved_imp_own
-    (sp0 + signExtend12 (-64 : BitVec 12)) s h hp
-  rw [← stackFree8_eq_frameSlotsOwn sp0] at hown
+  simp only [nIntrinsicStackDwords, nExtractStackDwords] at hp ⊢
+  have hown :=
+    sepConj_mono
+      (frameSlotsSaved_imp_own (sp0 + signExtend12 (-64 : BitVec 12)) s)
+      (fun _ hh => hh) h hp
+  have heq := stackFree18_split sp0
+  simp only [nExtractStackDwords] at heq
+  rw [← heq] at hown
   exact hown
 
 def savedOf (ret s0 s1 s2 s3 s4 s5 s6 : Word) : TisSaved :=
@@ -189,35 +257,62 @@ theorem intrinsicAssumed_success_flat_off0
     omega
   have htop := cpsTripleWithin_mono_nSteps hle htop0
   refine cpsTripleWithin_weaken (fun h hp => ?pre) (fun h hq => ?post) htop
-  · have heq := stackFree8_eq_frameSlotsOwn spVal
-    simp only [nIntrinsicStackDwords] at hp heq
+  · have heq := stackFree18_split spVal
+    -- heq (after unfold): stackFree spVal 18 = frameOwn spC ** stackFree spC 10
+    have heq' :
+        stackFree spVal nIntrinsicStackDwords =
+          (frameSlotsOwn tisFrame spC ** stackFree spC nExtractStackDwords) := by
+      simpa [spC, nIntrinsicStackDwords, nExtractStackDwords] using heq
     have hp1 :
         ((.x2 ↦ᵣ spVal) **
           regsAt tisFrame (tisSavedVals s) **
           frameSlotsOwn tisFrame spC **
+          stackFree spC nExtractStackDwords **
           prologueAbiRest regionBase lenW outPtr
             old5 old6 old7 old13 old14 old15 old16 **
           bodyPayload regionBase bs outPtr oldOut) h := by
-      -- Expand named defs on both sides for xperm.
-      change
-        ((.x2 ↦ᵣ spVal) **
-          regsAt tisFrame (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
-          frameSlotsOwn tisFrame spC **
-          prologueAbiRest regionBase lenW outPtr
-            old5 old6 old7 old13 old14 old15 old16 **
-          bodyPayload regionBase bs outPtr oldOut) h
-      rw [regsAt_savedOf, ← heq]
-      unfold prologueAbiRest bodyPayload
-      have hscratch :
-          tisScratchOwn =
-            (memOwn ToBufAddr ** memOwn IsCreationAddr **
-              memOwn TypeAddr ** memOwn InnerOffAddr) := by
-        unfold tisScratchOwn ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
-        rfl
-      simp only [hscratch] at hp
-      xperm_hyp hp
+      have hp' :
+          ((.x2 ↦ᵣ spVal) **
+            regsAt tisFrame (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
+            stackFree spVal nIntrinsicStackDwords **
+            prologueAbiRest regionBase lenW outPtr
+              old5 old6 old7 old13 old14 old15 old16 **
+            bodyPayload regionBase bs outPtr oldOut) h := by
+        rw [regsAt_savedOf]
+        unfold prologueAbiRest bodyPayload
+        have hscratch :
+            tisScratchOwn =
+              (memOwn ToBufAddr ** memOwn IsCreationAddr **
+                memOwn TypeAddr ** memOwn InnerOffAddr) := by
+          unfold tisScratchOwn ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
+          rfl
+        simp only [hscratch] at hp
+        xperm_hyp hp
+      -- rewrite stackFree nIntrinsic → frameOwn ** nested free; reassoc.
+      rw [heq'] at hp'
+      -- hp' has (frame ** stack) grouped; goal wants frame ** stack flat.
+      have hp'' :
+          ((.x2 ↦ᵣ spVal) **
+            regsAt tisFrame (tisSavedVals s) **
+            frameSlotsOwn tisFrame spC **
+            stackFree spC nExtractStackDwords **
+            prologueAbiRest regionBase lenW outPtr
+              old5 old6 old7 old13 old14 old15 old16 **
+            bodyPayload regionBase bs outPtr oldOut) h := by
+        -- s = savedOf ...
+        change
+          ((.x2 ↦ᵣ spVal) **
+            regsAt tisFrame (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
+            frameSlotsOwn tisFrame spC **
+            stackFree spC nExtractStackDwords **
+            prologueAbiRest regionBase lenW outPtr
+              old5 old6 old7 old13 old14 old15 old16 **
+            bodyPayload regionBase bs outPtr oldOut) h
+        -- reassoc (A ** (B ** C)) → (A ** B ** C) via xperm
+        xperm_hyp hp'
+      exact hp''
     exact hp1
-  · -- Post reshape: release frameSlotsSaved; pin pure out=0.
+  · -- Post reshape: frameSlotsSaved + nested free → stackFree 18; pin pure out=0.
     change
       ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
@@ -225,11 +320,13 @@ theorem intrinsicAssumed_success_flat_off0
         (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
         frameSlotsSaved tisFrame spC
           (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
+        stackFree spC nExtractStackDwords **
         bodyPayloadOk regionBase bs outPtr **
         bodyScratch ** (.x0 ↦ᵣ (0 : Word))) h at hq
     have hq1 :
-        (frameSlotsSaved tisFrame spC
+        ((frameSlotsSaved tisFrame spC
             (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
+          stackFree spC nExtractStackDwords) **
           ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
             (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
             (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) **
@@ -239,10 +336,9 @@ theorem intrinsicAssumed_success_flat_off0
       xperm_hyp hq
     have hq2 :=
       sepConj_mono
-        (frameSlotsSaved_imp_stackFree8 spVal
+        (frameSlotsSaved_imp_stackFree18 spVal
           (savedOf ret s0 s1 s2 s3 s4 s5 s6))
         (fun _ hh => hh) h hq1
-    -- Expand bodyPayloadOk / bodyScratch / tisScratchOwn for final xperm.
     unfold bodyPayloadOk bodyScratch at hq2
     have hscratch :
         tisScratchOwn =
@@ -384,6 +480,7 @@ theorem intrinsicAssumed_success_flat_off0_own
     exact hq) hpeel
 
 #print axioms stackFree8_eq_frameSlotsOwn
+#print axioms stackFree18_split
 #print axioms intrinsicAssumed_success_flat_off0
 #print axioms intrinsicAssumed_success_flat_off0_own
 

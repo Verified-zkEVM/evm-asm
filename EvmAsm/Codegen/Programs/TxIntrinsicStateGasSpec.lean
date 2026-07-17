@@ -28,6 +28,7 @@ import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.SAsm.AbiFrame
+import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Rv64.Tactics.XSimp
@@ -66,7 +67,10 @@ abbrev typeCode : CodeReq :=
 
 theorem type_length' : typeProg.length = 45 := by decide
 
-/-- Full linked code: intrinsic + ets + type_dispatch. -/
+/-- Full linked code: intrinsic + ets + type_dispatch.
+    Residual: ∪ extract + walks when ExtractAssumed body packaging lands
+    (150-instr extractCode blows ofProg_ranges/mono heartbeats; use
+    extractLinkedCode mono from TxExtractToAddressSpec then). -/
 def fullCode : CodeReq := (tisCode.union etsCode).union typeCode
 
 theorem tis_bound : 4 * tisProg.length < 2 ^ 64 := by
@@ -152,6 +156,10 @@ def nExtractSteps : Nat := 512
 /-- Matches `nTxTypeDispatchSteps` (leaf top bound). -/
 def nTypeSteps : Nat := 256
 def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
+/-- Extract leaf carves `addi sp,-80` → 10 dwords. Nested under intrinsic. -/
+def nExtractStackDwords : Nat := 10
+/-- Intrinsic frame (8) + nested extract free stack (10). Matches array budget. -/
+def nTisStackDwords : Nat := 8 + nExtractStackDwords
 
 /-- Assumed success contract for `tx_extract_to_address` (150-instr Program
     `txExtractToAddress_prog`; callees type_dispatch + rlp_walk_init/next).
@@ -159,17 +167,20 @@ def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
     ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
     Success-domain only: `extractSuccess txBytes` (pure model).
     RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
-    Residual: Hoare packaging → ExtractAssumed under that domain. -/
+    **Stack:** real leaf does `addi sp,-80` → pin `x2` + `stackFree sp nExtractStackDwords`.
+    Residual: Hoare packaging body under that domain. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
-    ∀ (ret txBase lenW toBuf isCreationPtr : Word)
+    ∀ (ret spVal txBase lenW toBuf isCreationPtr : Word)
       (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
       TxExtractToAddressModel.extractSuccess txBytes →
       cpsTripleWithin nExtractSteps entry ret cr
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nExtractStackDwords **
+          (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
           bytesRegion txBase txBytes **
           memOwn toBuf ** memOwn isCreationPtr **
@@ -177,7 +188,9 @@ structure ExtractAssumed (cr : CodeReq) where
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
-        ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBytes **
           memOwn toBuf ** memOwn isCreationPtr **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **

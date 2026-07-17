@@ -22,11 +22,12 @@
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
      array fullCode (off=0 regOwn peel DONE)
-  3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE**
-      (`txExtractToAddress_prog`, 150 instrs, fixture+eq_prog); pure model +
-      packaging substrate (`TxExtractToAddressSpec`: extractLinkedCode, frame,
-      Assumed-shaped pre/post, extractSuccess⇒type_ok). Residual: body Hoare
-      (frame + type_dispatch + rlp_walk calls) under extractSuccess;
+  3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE** +
+      **stack honesty DONE** (`ExtractAssumed` pins `x2`+`stackFree 10`;
+      `nIntrinsicStackDwords` 8→18; discharge `stackFree18_split`).
+      Packaging substrate + extractSuccess domain. Residual: body Hoare
+      (frame + type_dispatch + rlp_walks) under extractSuccess; fullCode∪extract
+      (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
       ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)

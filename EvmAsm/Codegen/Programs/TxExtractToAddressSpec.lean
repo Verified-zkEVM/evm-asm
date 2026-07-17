@@ -25,7 +25,8 @@ open EvmAsm.Rv64.RLP
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxExtractToAddressModel
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
-  (nExtractSteps ExtractAssumed fullCode typeCode type_length')
+  (nExtractSteps nExtractStackDwords ExtractAssumed fullCode typeCode type_length')
+open EvmAsm.Rv64.SAsm (stackFree)
 
 abbrev E : Word := BitVec.ofNat 64 GuestAddrs.tx_extract_to_address
 abbrev WI : Word := BitVec.ofNat 64 GuestAddrs.rlp_walk_init
@@ -101,10 +102,11 @@ def extractSavedVals (s : ExtractSaved) : Reg → Word
   | Reg.x23 => s.s7
   | _ => 0
 
-/-- Assumed-shaped success pre (scratch owns; RO blob). -/
-def extractAssumedPre (ret txBase lenW toBuf isCreationPtr : Word)
+/-- Assumed-shaped success pre (sp + free stack + scratch owns; RO blob). -/
+def extractAssumedPre (ret spVal txBase lenW toBuf isCreationPtr : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
-  (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+    (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
     (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
     bytesRegion txBase txBytes **
     memOwn toBuf ** memOwn isCreationPtr **
@@ -113,10 +115,11 @@ def extractAssumedPre (ret txBase lenW toBuf isCreationPtr : Word)
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
     (.x0 ↦ᵣ (0 : Word))
 
-/-- Assumed-shaped success post (a0=0; scratch owns; RO blob). -/
-def extractAssumedPost (ret txBase toBuf isCreationPtr : Word)
+/-- Assumed-shaped success post (a0=0; sp restored; scratch owns; RO blob). -/
+def extractAssumedPost (ret spVal txBase toBuf isCreationPtr : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
-  (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+    (.x10 ↦ᵣ (0 : Word)) **
     bytesRegion txBase txBytes **
     memOwn toBuf ** memOwn isCreationPtr **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **

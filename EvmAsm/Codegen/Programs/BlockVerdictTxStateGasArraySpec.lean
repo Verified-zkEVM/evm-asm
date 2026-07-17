@@ -220,12 +220,13 @@ theorem txStateGasArray_snoc (teer : TeerApplied)
 def nIntrinsicSteps : Nat := 1024
 def nTeerSteps : Nat := 4096
 
-/-- Free-stack dwords the intrinsic carves (`addi sp,-64` → 8 dwords). -/
-def nIntrinsicStackDwords : Nat := 8
+/-- Free-stack dwords the intrinsic carves: own frame 8 + nested extract 10.
+    Real leaf does `addi sp,-64`; extract callee does `addi sp,-80` below that. -/
+def nIntrinsicStackDwords : Nat := 18
 /-- Free-stack dwords the teer carves (`addi sp,-160` → 20 dwords). -/
 def nTeerStackDwords : Nat := 20
 /-- LoopInv carries the max nested free stack (teer). Intrinsic uses
-    `stackFree_split` to take 8 and frame the rest. -/
+    `stackFree_split` to take 18 and frame the rest. -/
 def nCalleeStackDwords : Nat := nTeerStackDwords
 
 /-- Global `.data` scratch the intrinsic leaf uses (`tis_to_buf` first dword,
@@ -287,9 +288,9 @@ theorem pcFree_teerScratchOwn : teerScratchOwn.pcFree := by
     (`bytesRegion_split` needs 8-align; SSZ tx offsets are only 4-align).
 
     **Stack (AbiFrameCall style):** the real leaf does `addi sp,-64` + storeSeq
-    + restore. PRE/POST therefore pin `(.x2 ↦ᵣ spVal)` and
-    `stackFree spVal nIntrinsicStackDwords` (8 dwords). Caller supplies them
-    from LoopInv via `stackFree_split`. Without sp+stack the hyp is not
+    + restore, and nests extract (`addi sp,-80`). PRE/POST pin `(.x2 ↦ᵣ spVal)`
+    and `stackFree spVal nIntrinsicStackDwords` (18 = 8+10). Caller supplies
+    them from LoopInv via `stackFree_split`. Without sp+stack the hyp is not
     dischargeable against any framed Program.
 
     **Callee-saved s-regs:** the real leaf saves/restores s0–s6
