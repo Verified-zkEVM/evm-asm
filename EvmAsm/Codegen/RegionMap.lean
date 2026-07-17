@@ -233,8 +233,10 @@ def schemeAAnchors : List GuestRegion :=
     state gas gate + EIP-8037 auth-retention 0-FA guard) into this same
     integration branch, re-measured via a fresh `readelf -SW`. Grew to
     `0x5c7bc` after the bounded-MPT canonicalization and forgery-guard
-    integration branch was relinked against that main. -/
-def textSizeBytes : Nat := 0x5c7bc
+    integration branch was relinked against that main. Grew to `0x5c7f4`
+    for the SSTORE value-unchanged exec-log-append skip
+    (`k3-5/fix-sstore-noop-append-skip`, #10385). -/
+def textSizeBytes : Nat := 0x5c7f4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
