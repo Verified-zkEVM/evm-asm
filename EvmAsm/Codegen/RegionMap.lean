@@ -235,8 +235,9 @@ def schemeAAnchors : List GuestRegion :=
     `0x5cc58` for the sequential multi-tx lane (`k3-3/bmvmx-5.5.10-seq-threading`,
     #10391: fail-closed BAL storage whitelist gate, cross-tx CREATE-nonce
     threading, execution-derived storage arenas), re-measured after merging
-    main forward. -/
-def textSizeBytes : Nat := 0x5cc58
+    main forward. Grew to `0x5cc90` after merging main forward past #10385
+    (SSTORE value-unchanged exec-log-append skip), re-measured again. -/
+def textSizeBytes : Nat := 0x5cc90
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
