@@ -225,7 +225,7 @@ def schemeAAnchors : List GuestRegion :=
     landing the BAL delegation-codes-base fix and further divmod cleanup.
     Grew by `0x30` for the M29 blockhash byte-order fix merged against the
     chain-validate cross-header specs batch. -/
-def textSizeBytes : Nat := 0x5c5ac
+def textSizeBytes : Nat := 0x5c5d8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
