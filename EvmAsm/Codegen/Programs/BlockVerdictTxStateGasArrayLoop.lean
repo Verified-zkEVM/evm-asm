@@ -796,4 +796,178 @@ theorem bvtIterSpanChecks (spC txBase outBase balBase chainIdW nW : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c02
 
+/-! ## End-offset path (instr 40–47): last tx vs next-table bgv -/
+
+abbrev AfterEndOffset : Word := B + 192
+abbrev LastEndMv : Word := B + 188
+
+/-- Pure: `ofNat i + 1 = ofNat (i+1)` when no wrap. -/
+private theorem ofNat_addi1 (i : Nat) :
+    BitVec.ofNat 64 i + signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 (i + 1) := by
+  have hse : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  rw [hse, show (1 : Word) = BitVec.ofNat 64 1 from rfl, ← BitVec.ofNat_add]
+
+set_option maxRecDepth 8000 in
+/-- Last-tx end path: `i+1 = n`. ADDI; BEQ taken; MV x23,x9 → AfterEndOffset
+    with `x23 = body_len`. -/
+theorem bvtIterEndLast (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (n i : Nat)
+    (startW tableW : Word)
+    (_hok : IterOk txBlob n i)
+    (hLast : i + 1 = n)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (_hStart : startW = leU32 txBlob (4 * i))
+    (_htab : tableW = BitVec.ofNat 64 (4 * n)) :
+    let iW := BitVec.ofNat 64 i
+    let ip1W := BitVec.ofNat 64 (i + 1)
+    let lenW := BitVec.ofNat 64 txBlob.length
+    cpsTripleWithin 3 AfterSpanChecks AfterEndOffset bvtCode
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** regOwn .x23 **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x10 ↦ᵣ startW) **
+        (.x5 ↦ᵣ tableW) ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ LinkLoopBgv1) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ lenW) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x10 ↦ᵣ startW) **
+        (.x5 ↦ᵣ ip1W) ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  intro iW ip1W lenW
+  have hip1_eq_nW : ip1W = nW := by
+    simp only [ip1W, hnW, hLast]
+  -- [40] ADDI x5, x21, 1  (overwrites tableW in x5)
+  have e40 :
+      cpsTripleWithin 1 AfterSpanChecks (AfterSpanChecks + 4) bvtCode
+        ((.x21 ↦ᵣ iW) ** (.x5 ↦ᵣ tableW))
+        ((.x21 ↦ᵣ iW) ** (.x5 ↦ᵣ ip1W)) := by
+    have h0 := addi_spec_gen_within .x5 .x21 tableW iW (1 : BitVec 12)
+      AfterSpanChecks (by decide)
+    rw [ofNat_addi1 i] at h0
+    exact cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at B AfterSpanChecks bvtProg 40
+        (.ADDI .x5 .x21 (1 : BitVec 12))
+        (by simp only [AfterSpanChecks]; bv_omega)
+        (by rw [bvt_length]; decide) rfl
+        (by rw [bvt_length]; decide)) h0
+  have e40F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x20 ↦ᵣ nW) **
+      (.x22 ↦ᵣ startW) ** regOwn .x23 **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e40
+  -- [41] BEQ x5, x20, +24 — taken (i+1 = n)
+  have hbr41 := beq_spec_gen_within .x5 .x20 (24 : BitVec 13) ip1W nW
+    (B + 164)
+  have hbr41C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B (B + 164) bvtProg 41
+      (.BEQ .x5 .x20 (24 : BitVec 13))
+      (by bv_omega) (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) hbr41
+  have htk41 : cpsTripleWithin 1 (B + 164) LastEndMv bvtCode
+      ((.x5 ↦ᵣ ip1W) ** (.x20 ↦ᵣ nW))
+      ((.x5 ↦ᵣ ip1W) ** (.x20 ↦ᵣ nW)) := by
+    have htk := cpsBranchWithin_takenStripPure2 hbr41C (fun _ hQf => by
+      obtain ⟨_, _, _, _, _, hrest⟩ := hQf
+      exact absurd hip1_eq_nW ((sepConj_pure_right _).1 hrest).2)
+    have hpc : B + 164 + signExtend13 (24 : BitVec 13) = LastEndMv := by
+      simp only [LastEndMv]
+      rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]
+      bv_omega
+    rwa [hpc] at htk
+  have e41F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x21 ↦ᵣ iW) **
+      (.x22 ↦ᵣ startW) ** regOwn .x23 **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) htk41
+  -- [47] MV x23, x9  (args: rd rs v_rs v_rd_old)
+  have e47 :
+      cpsTripleWithin 1 LastEndMv AfterEndOffset bvtCode
+        ((.x9 ↦ᵣ lenW) ** regOwn .x23)
+        ((.x9 ↦ᵣ lenW) ** (.x23 ↦ᵣ lenW)) := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x23) (fun o23 => ?_)
+    have h0 := mv_spec_gen_within .x23 .x9 lenW o23 LastEndMv (by decide)
+    have hpc : LastEndMv + 4 = AfterEndOffset := by
+      simp only [LastEndMv, AfterEndOffset]; bv_omega
+    rw [← hpc]
+    exact cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at B LastEndMv bvtProg 47
+        (.MV .x23 .x9)
+        (by simp only [LastEndMv]; bv_omega)
+        (by rw [bvt_length]; decide) rfl
+        (by rw [bvt_length]; decide)) h0
+  have e47F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkLoopBgv1) **
+      (.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+      (.x22 ↦ᵣ startW) **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+      (.x10 ↦ᵣ startW) **
+      (.x5 ↦ᵣ ip1W) ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      (.x0 ↦ᵣ (0 : Word)))
+    (by unfold savedFrame payload; cases balEnabled <;> bvt_pcf) e47
+  have c01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) e40F e41F
+  have c02 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) c01 e47F
+  change cpsTripleWithin (1 + 1 + 1) AfterSpanChecks AfterEndOffset bvtCode
+    _ _ at c02
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c02
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
