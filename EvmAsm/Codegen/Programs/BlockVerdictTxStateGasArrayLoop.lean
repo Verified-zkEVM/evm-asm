@@ -1777,4 +1777,131 @@ theorem bvtIterEndSpanSetup (spC txBase outBase balBase chainIdW nW : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c13
 
+/-! ## Intrinsic call (instr 54) under IntrinsicAssumed -/
+
+abbrev intrinsicJalOff : BitVec 21 :=
+  jalOff GuestAddrs.tx_intrinsic_state_gas
+    (GuestAddrs.block_verdict_tx_state_gas_array + 216)
+
+/-- Caller-private frame across intrinsic (s-regs + start/end + saved;
+    tx slice + out cell + ABI a-regs ride in the callee footprint). -/
+def loopIntrinsicFrame (spC txBase outBase balBase chainIdW nW iW
+    startW endW lenW : Word)
+    (csaved : Saved) (balBytes : List (BitVec 8)) (balEnabled : Bool)
+    : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+  (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+  savedFrame spC csaved **
+  (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
+  (.x0 ↦ᵣ (0 : Word))
+
+theorem loopIntrinsicFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
+    startW endW lenW : Word)
+    (csaved : Saved) (balBytes : List (BitVec 8)) (balEnabled : Bool) :
+    (loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+      startW endW lenW csaved balBytes balEnabled).pcFree := by
+  unfold loopIntrinsicFrame savedFrame
+  cases balEnabled <;> bvt_pcf
+
+set_option maxRecDepth 8000 in
+/-- Intrinsic success call (instr 54) under `IntrinsicAssumed`.
+    Pre exposes peeled `bytesRegion txPtr txSlice` and `outPtr ↦ₘ oldOut`
+    (caller peels from ambient `payload` via split lemmas).
+    Post: a0=0, *out=pureIntrinsicStateGasSuccess (=0). -/
+theorem bvtIterIntrinsic
+    (hintr : IntrinsicAssumed fullCode)
+    (spC txBase outBase balBase chainIdW nW bodyLenW : Word)
+    (csaved : Saved) (txSlice : List (BitVec 8)) (balBytes : List (BitVec 8))
+    (balEnabled : Bool) (i : Nat)
+    (startW endW oldOut old1 : Word)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hret : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (htxLen : endW - startW = BitVec.ofNat 64 txSlice.length) :
+    let iW := BitVec.ofNat 64 i
+    let txPtr := txBase + startW
+    let txLenW := endW - startW
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    cpsTripleWithin (1 + nIntrinsicSteps) AfterEndSpan LinkIntrinsic fullCode
+      ((.x1 ↦ᵣ old1) **
+        (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+        bytesRegion txPtr txSlice **
+        (outPtr ↦ₘ oldOut) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+          startW endW bodyLenW csaved balBytes balEnabled)
+      ((.x1 ↦ᵣ LinkIntrinsic) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txPtr txSlice **
+        (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+          startW endW bodyLenW csaved balBytes balEnabled) := by
+  intro iW txPtr txLenW outPtr
+  have hflat := hintr.success_flat LinkIntrinsic txPtr txLenW outPtr oldOut txSlice
+    hret (by simp [txLenW, htxLen])
+  have hflatF := cpsTripleWithin_frameR
+    (loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+      startW endW bodyLenW csaved balBytes balEnabled)
+    (loopIntrinsicFrame_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _) hflat
+  have hcallee : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
+      ((.x1 ↦ᵣ LinkIntrinsic) **
+        ((.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+          bytesRegion txPtr txSlice ** (outPtr ↦ₘ oldOut) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+            startW endW bodyLenW csaved balBytes balEnabled))
+      ((.x1 ↦ᵣ LinkIntrinsic) **
+        ((.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txPtr txSlice **
+          (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          loopIntrinsicFrame spC txBase outBase balBase chainIdW nW iW
+            startW endW bodyLenW csaved balBytes balEnabled)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hflatF
+  have hcall := callWithin_spec AfterEndSpan hintr.entry old1 intrinsicJalOff
+    nIntrinsicSteps
+    (by
+      rw [hentry]
+      show AfterEndSpan + signExtend21 intrinsicJalOff =
+        (GuestAddrs.tx_intrinsic_state_gas : Word)
+      simp only [AfterEndSpan, intrinsicJalOff, B]
+      decide)
+    (fun a off hi => bvt_mono a off
+      (CodeReq.ofProg_mem_at B AfterEndSpan bvtProg 54
+        (.JAL .x1 intrinsicJalOff)
+        (by simp only [AfterEndSpan]; bv_omega)
+        (by rw [bvt_length]; decide) rfl
+        (by rw [bvt_length]; decide) a off hi))
+    (by
+      -- P = callee footprint sans ra (includes loopIntrinsicFrame)
+      unfold loopIntrinsicFrame savedFrame
+      cases balEnabled <;> bvt_pcf)
+    hcallee
+  have hlink : AfterEndSpan + 4 = LinkIntrinsic := by
+    simp only [AfterEndSpan, LinkIntrinsic]; bv_omega
+  -- callWithin lands at AfterEndSpan+4; rewrite to LinkIntrinsic
+  rw [hlink] at hcall
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hcall
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
