@@ -249,8 +249,11 @@ def schemeAAnchors : List GuestRegion :=
     nonstorage-effect-nonce-lookup fix (`fix/receipts-root-eip150`, #10429:
     the caller restored saved x10 before testing the hit bit, discarding a
     real nonce-table hit on CREATE and emitting a Transfer log for the
-    wrong address). -/
-def textSizeBytes : Nat := 0x5cf20
+    wrong address). Grew to `0x5cf24` for the EOA body-withdrawal-drop
+    fix (`fix/body-op-state-completeness`, #10435: materializes EIP-4895
+    withdrawal credits as authenticated non-storage effects before the
+    existing BAL 44/45 reconciliation). -/
+def textSizeBytes : Nat := 0x5cf24
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
