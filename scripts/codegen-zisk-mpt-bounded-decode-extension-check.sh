@@ -12,6 +12,7 @@ import pathlib, struct, sys
 root = pathlib.Path(sys.argv[1])
 cases = {
     'valid': b'\xc4\x82\x11\x23\xc0',
+    'hashed': b'\xe4\x82\x11\x23\xa0' + b'\x42' * 32,
     'leaf': b'\xc4\x82\x31\x23\xc0',
     'long': b'\xf8\x44\xb8\x41' + b'\x00' * 65 + b'\xc0',
 }
@@ -19,7 +20,7 @@ for name, node in cases.items():
     blob = struct.pack('<Q', len(node)) + node
     (root / f'{name}.input').write_bytes(blob + b'\0' * (-len(blob) % 8))
 PY
-for kind in valid leaf long; do
+for kind in valid hashed leaf long; do
   "$ZISKEMU" -e "$workdir/ext.elf" -i "$workdir/$kind.input" -o "$workdir/$kind.output" -n 1000000 >/dev/null </dev/null
 done
 python3 - "$workdir" <<'PY'
@@ -28,6 +29,8 @@ root = pathlib.Path(sys.argv[1])
 out = (root / 'valid.output').read_bytes()
 assert struct.unpack_from('<QQQQ', out) == (0, 3, 4, 1)
 assert out[32:35] == b'\x01\x02\x03'
+hashed = (root / 'hashed.output').read_bytes()
+assert struct.unpack_from('<QQQQ', hashed) == (0, 3, 5, 32)
 for name in ['leaf', 'long']:
     assert struct.unpack_from('<Q', (root / f'{name}.output').read_bytes())[0] == 1
 print('PASS: bounded extension decoder materializes short paths and rejects leaf/overlong paths')
