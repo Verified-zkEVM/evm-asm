@@ -1,9 +1,9 @@
 /-
   Packaging substrate for `tx_extract_to_address` → ExtractAssumed.
 
-  Residual (body Hoare): 150-instr frame + type_dispatch call +
-  rlp_walk_init + walk_next field loops + 20B copy under extractSuccess.
-  Callees already verified; this file holds linked CodeReq + frame + pure.
+  Residual (body Hoare): type_dispatch call + rlp_walk_init + walk_next
+  field loops + 20B copy under extractSuccess (frame save/restore in
+  Prologue/Epilogue). Callees verified; this file holds linked CodeReq + frame.
 -/
 
 import EvmAsm.Rv64.CPSSpec
