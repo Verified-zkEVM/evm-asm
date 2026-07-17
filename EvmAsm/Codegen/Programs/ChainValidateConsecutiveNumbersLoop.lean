@@ -69,7 +69,6 @@ theorem cvcnSpill (hbi iW prevVal old5 : Word) :
       (by bv_omega) (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) s40
   runBlock hla32 s34' hla35 s37' hla38 s40'
 
-#print axioms cvcnSpill
 
 /-! ## Reload block (instructions 50--56): load `cur`/`prev`, compute `prev + 1`
 
@@ -111,7 +110,6 @@ theorem cvcnReload (curVal prevVal old5 o28 o29 : Word) :
       (by bv_omega) (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) s56
   runBlock hla50 s52' hla53 s55' s56'
 
-#print axioms cvcnReload
 
 /-! ## Advance block (instructions 57--69): update `prev`, step iterator, loop
 
@@ -187,7 +185,6 @@ theorem cvcnAdvance (hbi lenBase iW curVal old5 o6 o7 o21 o30 o31 : Word) (Li : 
       (by bv_omega) (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) s69
   runBlock hla57 s59' hla60 s62' s63' s64' s65' s66' s67' s68' s69'
 
-#print axioms cvcnAdvance
 
 /-! ## Loop-body argument setup (instructions 41--47): load call args
 
@@ -235,7 +232,6 @@ theorem cvcnArgSetup (hbi lenBase iW : Word) (Li : Nat)
     (CodeReq.ofProg_mem_at D (D + 188) cvcnProg 47 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 184) Num)) (by bv_omega) (by rw [cvcn_length]; decide) (by decide) (by rw [cvcn_length]; decide))
   runBlock s41' s42' s43' s44' s45' hla46
 
-#print axioms cvcnArgSetup
 
 /-! ## Header-0 argument setup (instructions 18--22): load call args for header 0
 
@@ -271,7 +267,6 @@ theorem cvcnHdr0Setup (hdrBase lenBase : Word) (L0 : Nat) (old10 old11 old12 old
     (CodeReq.ofProg_mem_at D (D + 88) cvcnProg 22 (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (D + 84) Num)) (by bv_omega) (by rw [cvcn_length]; decide) (by decide) (by rw [cvcn_length]; decide))
   runBlock s18' s19' s20' hla21
 
-#print axioms cvcnHdr0Setup
 
 /-- pcFree discharger covering the assertion atoms used throughout the loop. -/
 local macro "pcfx" : tactic =>
@@ -313,7 +308,6 @@ theorem cvcnSetup (hbi lenBase iW prevVal : Word) (Li : Nat)
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hspillF hargsF)
 
-#print axioms cvcnSetup
 
 /-! ## K34's whole-routine step count for field index 11. -/
 abbrev nCall : Nat :=
@@ -451,7 +445,6 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
         (sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x)))) h hp'
   xperm_hyp hp''
 
-#print axioms cvcnCall
 
 /-! ## Call block with the consumed scratch registers owned
 
@@ -514,7 +507,6 @@ theorem cvcnCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal :
     (cvcnCall spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal Li nN oldOut oldOff oldLen
       v14 v1 v5 v10 v11 v12 v13 v28 bytes csaved hsalign hslack hover hvalid)
 
-#print axioms cvcnCallOwned
 
 /-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
 
@@ -597,7 +589,6 @@ theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prev
         (fun _ x => x)))) h hp1
     xperm_hyp hp2
 
-#print axioms flatPost_normalize
 
 /-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
     slots the loop invariant carries. -/
@@ -611,7 +602,6 @@ theorem k34SavedFrame_implies_frameSlotsOwn (newSp : Word)
     EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp
     (EvmAsm.Codegen.RlpFieldToU64SAsm.savedVals saved) h hp
 
-#print axioms k34SavedFrame_implies_frameSlotsOwn
 
 /-! ## Entry half of one loop iteration: guard → call → K34 flatPost
 
@@ -712,7 +702,6 @@ theorem cvcnIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
       rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
       xperm_hyp hp) hguardF hcallF)
 
-#print axioms cvcnIterEntry
 
 /-! ## Status/order dispatch (instruction 49 onward): tie K34's `Result` to the post
 
@@ -1316,7 +1305,6 @@ theorem cvcnIterDispatch
           (sepConj_mono (k34SavedFrame_implies_frameSlotsOwn _ _) (fun _ x => x))))))) h hp1
         xperm_hyp hp2
 
-#print axioms cvcnIterDispatch
 
 /-! ## One full loop iteration: guard → call → dispatch (`D+124 → raIn`, `1 ≤ i < N`)
 
@@ -1407,6 +1395,5 @@ theorem cvcnIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         firstBadPtr raIn prevVal csaved bigBytes lengths i oldOff oldLen nTail hi1 hi hN hspC rfl
         hraSaved hret halign hlen hprevOk hprefix htail))
 
-#print axioms cvcnIter
 
 end EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec

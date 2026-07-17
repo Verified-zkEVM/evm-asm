@@ -94,7 +94,6 @@ private theorem unified_jal_piece (base addr : Word) (idx : Nat) (joff : BitVec 
         (by rw [unified_decoder_prog_length]; exact hk) (by rw [unified_decoder_prog_length]; decide)
         h_addr, h_get]
 
-set_option maxHeartbeats 800000 in
 set_option maxRecDepth 8000 in
 /-- **Concrete all-class decoder spec.** Matches the `UnifiedDecoderH` hypothesis
     of the unified list-loop closure (`UnifiedListLoop.lean`): for the prefix byte

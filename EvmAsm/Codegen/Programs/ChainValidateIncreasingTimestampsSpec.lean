@@ -107,7 +107,6 @@ theorem cvit_disjoint :
     · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_prog_length]; decide
     · left; rw [cvit_length]; decide
 
-#print axioms cvit_disjoint
 
 /-- K34's linked code is subsumed by the chain accessor's full closure. -/
 theorem k34_mono :
@@ -341,7 +340,6 @@ theorem cvitPrologue
   have h16 := li_spec_gen_within .x5 (1 : Word) (2 : Word) (D + 64) (by decide)
   runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16
 
-#print axioms cvitPrologue
 
 /-! ## Epilogue (instructions 83--91): restore + return -/
 
@@ -431,7 +429,6 @@ theorem cvitEpilogue
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms cvitEpilogue
 
 /-! ## All-valid exit (instruction 82 → epilogue): `a0 := 0`, then return -/
 
@@ -476,7 +473,6 @@ theorem retAllValid
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retAllValid
 
 /-! ## Violation exit (instructions 70--76 → epilogue)
 
@@ -565,7 +561,6 @@ theorem retViolation
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retViolation
 
 /-! ## Parse-fail exit (instructions 77--81 → epilogue)
 
@@ -642,6 +637,5 @@ theorem retParseFail
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms retParseFail
 
 end EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
