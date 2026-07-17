@@ -319,6 +319,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose3
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose4
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeSpec
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodeLoop
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
