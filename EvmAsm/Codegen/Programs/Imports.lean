@@ -69,6 +69,9 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEts
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
+import EvmAsm.Codegen.Programs.TxTypeDispatchTyped
+import EvmAsm.Codegen.Programs.TxTypeDispatchTop
+import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
