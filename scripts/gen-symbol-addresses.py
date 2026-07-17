@@ -47,7 +47,7 @@ STABLE_BASES = {
     ".text":        0x80000000,
     ".data":        0xa3000000,
     ".bss":         0xa4000000,
-    ".sszscratch":  0xbf500000,
+    ".sszscratch":  0xbf600000,
     "ssz_input_decoded":      0xa0020000,
     "execution_witness_area": 0xa0030000,
     "node_db_buckets":        0xa0130000,

@@ -525,8 +525,8 @@ def statelessGuestDataSection : String :=
   -- ===== .sszscratch: large NOBITS SSZ-merkleization work region =====
   -- Relocated here (out of .data) and enlarged so hash_tree_root of a large element fits:
   -- the largest EEST transaction element is ~1 MiB and block_access_list
-  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xbf500000 by the linker's
-  -- --section-start=.sszscratch=0xbf500000 (see Driver.lean). @nobits =>
+  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xbf600000 by the linker's
+  -- --section-start=.sszscratch=0xbf600000 (see Driver.lean). @nobits =>
   -- the multi-MiB reservation never lands in the ELF file. Inside the
   -- verified RAM zone (0xa0000000..0xc0000000), so isValidMemAddr already
   -- accepts it. Same labels as before => every `la <buf>` resolves here.
