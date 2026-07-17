@@ -1665,5 +1665,108 @@ theorem bvtIterOne_balNez
   -- nOneIterSteps is definitionally the composed sum.
   exact hfull
 
+/-! ## Loop induction: LoopGuard@i=0 → postOk via exit at i=n -/
+
+/-- Remaining-iteration fuel: exit (18) at 0, else one-iter + rest. -/
+def nLoopFrom : Nat → Nat
+  | 0     => 18
+  | r + 1 => nOneIterSteps + nLoopFrom r
+
+private theorem outVals_getElem_bang
+    {outVals : List Nat} {i : Nat} (hi : i < outVals.length) :
+    outVals[i]! = outVals[i] := getElem!_pos outVals i hi
+
+set_option maxRecDepth 8000 in
+/-- Full loop bal=0 from index `i` under remaining fuel. -/
+theorem bvtLoopFrom_bal0
+    (hintr : IntrinsicAssumed fullCode)
+    (sp0 spC txBase outBase chainIdW nW : Word)
+    (csaved : Saved) (teer : TeerApplied)
+    (txs : List (List (BitVec 8))) (txBlob : List (BitVec 8))
+    (outVals : List Nat) (balBytes : List (BitVec 8))
+    (chainId n : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hAllOk : ∀ i, i < n → IterOk txBlob n i)
+    (hAllLen : n ≤ outVals.length)
+    (hAllCell : ∀ i, i < n →
+      outVals[i]! = pureIntrinsicStateGasSuccess)
+    (hnLe61 : n ≤ 2 ^ 61)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hspC : spC = sp0 + signExtend12 (-112 : BitVec 12))
+    (hret : csaved.ra &&& ~~~(1 : Word) = csaved.ra)
+    (hsucc : successCells teer txs balBytes chainId false outVals) :
+    ∀ (f i : Nat), n - i ≤ f → i ≤ n →
+      cpsTripleWithin (nLoopFrom (n - i)) LoopGuard csaved.ra fullCode
+        (LoopInv spC txBase outBase (0 : Word) chainIdW nW csaved txBlob outVals
+          balBytes false i)
+        (postOk sp0 spC txBase outBase (0 : Word) csaved teer txs txBlob balBytes
+          chainId false outVals) := by
+  intro f
+  induction f with
+  | zero =>
+    intro i hle hi
+    have hi_eq : i = n := by omega
+    rw [hi_eq, Nat.sub_self, nLoopFrom]
+    have hexit0 := bvtExitOk sp0 spC txBase outBase (0 : Word) chainIdW nW
+      csaved teer txs txBlob outVals balBytes chainId false n hnW hspC hret hsucc
+    exact cpsTripleWithin_extend_code bvt_mono hexit0
+  | succ f ih =>
+    intro i hle hi
+    by_cases hi_eq : i = n
+    · rw [hi_eq, Nat.sub_self, nLoopFrom]
+      have hexit0 := bvtExitOk sp0 spC txBase outBase (0 : Word) chainIdW nW
+        csaved teer txs txBlob outVals balBytes chainId false n hnW hspC hret hsucc
+      exact cpsTripleWithin_extend_code bvt_mono hexit0
+    · have hi_lt : i < n := by omega
+      have hrem : n - i = (n - (i + 1)) + 1 := by omega
+      rw [hrem, nLoopFrom]
+      have hok := hAllOk i hi_lt
+      have hiOut : i < outVals.length := Nat.lt_of_lt_of_le hi_lt hAllLen
+      have hcell : outVals[i] = pureIntrinsicStateGasSuccess := by
+        have := hAllCell i hi_lt
+        rwa [outVals_getElem_bang hiOut] at this
+      have hi61 : i < 2 ^ 61 := Nat.lt_of_lt_of_le hi_lt hnLe61
+      have hone := bvtIterOne_bal0 hintr spC txBase outBase chainIdW nW
+        csaved txBlob outVals balBytes n i hbgv hok htxAlign hnW hentry hretI
+        hiOut hcell hi61
+      have htail := ih (i + 1) (by omega) (by omega)
+      exact cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hone htail
+
+set_option maxRecDepth 8000 in
+/-- Loop from i=0 bal=0 → postOk. -/
+theorem bvtLoop_bal0
+    (hintr : IntrinsicAssumed fullCode)
+    (sp0 spC txBase outBase chainIdW nW : Word)
+    (csaved : Saved) (teer : TeerApplied)
+    (txs : List (List (BitVec 8))) (txBlob : List (BitVec 8))
+    (outVals : List Nat) (balBytes : List (BitVec 8))
+    (chainId n : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hAllOk : ∀ i, i < n → IterOk txBlob n i)
+    (hAllLen : n ≤ outVals.length)
+    (hAllCell : ∀ i, i < n →
+      outVals[i]! = pureIntrinsicStateGasSuccess)
+    (hnLe61 : n ≤ 2 ^ 61)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hspC : spC = sp0 + signExtend12 (-112 : BitVec 12))
+    (hret : csaved.ra &&& ~~~(1 : Word) = csaved.ra)
+    (hsucc : successCells teer txs balBytes chainId false outVals) :
+    cpsTripleWithin (nLoopFrom n) LoopGuard csaved.ra fullCode
+      (LoopInv spC txBase outBase (0 : Word) chainIdW nW csaved txBlob outVals
+        balBytes false 0)
+      (postOk sp0 spC txBase outBase (0 : Word) csaved teer txs txBlob balBytes
+        chainId false outVals) := by
+  have h := bvtLoopFrom_bal0 hintr sp0 spC txBase outBase chainIdW nW
+    csaved teer txs txBlob outVals balBytes chainId n hbgv hAllOk hAllLen
+    hAllCell hnLe61 htxAlign hnW hentry hretI hspC hret hsucc n 0
+    (by omega) (by omega)
+  simpa using h
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
