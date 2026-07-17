@@ -11,6 +11,7 @@ exploit blocks alter only trust-bearing bytes in its schema-prefixed
   repaired;
 * a BAL account post-balance; and
 * a BAL storage post-value.
+* a substituted root-referenced child node, a code preimage, and a BAL nonce.
 
 All five are protocol-invalid and must produce ``successful_validation = 0``.
 The files this writes are consumed directly by the KAT runner; the original
@@ -98,6 +99,33 @@ def mutations(control: bytes) -> dict[str, bytes]:
     malformed[node + 1] = 0x52
     out["malformed_witness_node"] = blob_of(malformed)
 
+    # The root has hash references to nodes 3 and 4.  Substitute the latter's
+    # valid bytes at node 3 without changing any offsets: the parent still
+    # commits to node 3's old hash, so lookup must fail rather than use bytes
+    # merely because they are a well-formed witness entry.
+    child3 = state + u32(base, state + 12)
+    child3_end = state + u32(base, state + 16)
+    child4 = child3_end
+    child4_end = state + u32(base, state + 20)
+    assert child3_end - child3 == child4_end - child4
+    substituted_child = bytearray(base)
+    substituted_child[child3:child3_end] = base[child4:child4_end]
+    out["substituted_witness_child"] = blob_of(substituted_child)
+
+    # Mutate a non-empty code witness byte.  The selected canonical fixture
+    # executes this code; its account leaf commits to the old code hash.
+    codes_off = u32(base, witness + 4)
+    headers_off = u32(base, witness + 8)
+    codes = witness + codes_off
+    code_count = u32(base, codes) // 4
+    assert code_count >= 2
+    code1 = codes + u32(base, codes + 4)
+    code1_end = codes + (u32(base, codes + 8) if code_count > 2 else headers_off - codes_off)
+    assert code1_end - code1 >= 2
+    forged_code = bytearray(base)
+    forged_code[code1 + 1] ^= 1
+    out["forged_witness_code_preimage"] = blob_of(forged_code)
+
     decoded = deserialize_stateless_input(Bytes(control))
     bal = bytes(decoded.new_payload_request.execution_payload.block_access_list)
     bal_start = control.find(bal)
@@ -114,6 +142,20 @@ def mutations(control: bytes) -> dict[str, bytes]:
 
     forge_bal("forged_bal_post_balance", bytes.fromhex("c3c20165"), 0x65, 0x64)
     forge_bal("forged_bal_storage_value", bytes.fromhex("c5c4808203e8"), 0xE8, 0xE9)
+    # Account 9 has balance change [1, 0x65], nonce change [1, 1], and a code
+    # change. Locate the nonce inside its individual RLP record, not globally.
+    accounts = rlp.decode(bal)
+    account9 = rlp.encode(accounts[9])
+    account9_off = bal.find(account9)
+    assert account9_off >= 0 and bal.find(account9, account9_off + 1) < 0
+    nonce = bytes.fromhex("c3c20101")
+    nonce_off = account9.find(nonce)
+    assert nonce_off >= 0 and account9.find(nonce, nonce_off + 1) < 0
+    forged_nonce = bytearray(base)
+    nonce_pos = 8 + bal_start + account9_off + nonce_off + len(nonce) - 1
+    assert forged_nonce[nonce_pos] == 1
+    forged_nonce[nonce_pos] = 2
+    out["forged_bal_nonce"] = blob_of(forged_nonce)
     out["overlong_witness_node"] = with_unused_state_leaf(control, 1025)
     return out
 

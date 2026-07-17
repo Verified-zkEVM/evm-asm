@@ -3,7 +3,7 @@
 #
 # `mpt_forgery_control` holds an expected-valid v0.6.2 Amsterdam block and
 # 1023/1024-byte unused-node boundary controls.  The
-# five `mpt_forgery_exploits` preserve host/SSZ framing while respectively
+# eight `mpt_forgery_exploits` preserve host/SSZ framing while respectively
 # forge a witness node, RLP envelope, node size, BAL account post-value, or BAL
 # storage post-value.  The control must full-match.  Each exploit must match
 # the only semantic property of a rejected block: byte 32 is zero.  In
@@ -35,9 +35,9 @@ EEST_RUN_DIR="$run_dir/exploits" \
   "$repo_root/scripts/codegen-eest-stateless-check.sh" \
   --backend spike \
   --filter mpt_forgery_exploits \
-  --limit 5 --jobs 2 \
+  --limit 8 --jobs 2 \
   --no-verdict-debug \
-  --min-succ 5 \
+  --min-succ 8 \
   "${extra_args[@]}"
 
-echo "== OK: canonical control accepted + five witness/BAL forgeries rejected =="
+echo "== OK: canonical controls accepted + eight witness/BAL forgeries rejected =="
