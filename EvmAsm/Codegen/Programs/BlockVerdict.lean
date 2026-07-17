@@ -423,7 +423,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   eip7702AuthorizationExtractSignatureFunction ++ "\n" ++

@@ -162,7 +162,7 @@ run `check-region-map`, `check-asm-to-program`, `check-drift`,
   after the child returns). Assert the pool bump math via
   `frame_parent_bases`.
 - **Full-suite A/B** (spike, ~25,693 fixtures; `setsid nohup … --all
-  --max-jobs 12`, then Monitor for the summary): FAIL/ERROR must not rise vs
+  --jobs 12`, then Monitor for the summary): FAIL/ERROR must not rise vs
   the `27 FAIL / 6 ERROR` baseline; **label-level `comm`** of the FAIL sets =
   0 regressions. The dense path (MLOAD/MSTORE/CALL/RETURN/KECCAK/LOG/COPY) is
   the key surface.

@@ -29,13 +29,6 @@ def Knuth128_64TopWindowLeVal256DivPlusOne
   (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ≤
     val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1
 
-theorem Knuth128_64TopWindowLeVal256DivPlusOne_unfold
-    (uHi uLo vTop : Word) (v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
-    Knuth128_64TopWindowLeVal256DivPlusOne uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3 ↔
-      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ≤
-        val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1 :=
-  Iff.rfl
-
 /-- Composition: from the Knuth-A v4 `+1` bound and the Knuth Theorem A
     bound, derive the val256-level `+2` overestimate consumed by the
     BLT-path bridges. -/

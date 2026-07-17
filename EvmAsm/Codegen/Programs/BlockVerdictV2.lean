@@ -386,6 +386,7 @@ def statelessVerdictV2GuestClosure : String :=
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
+  blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
@@ -505,7 +506,7 @@ def statelessVerdictV2GuestClosure : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   multiTxSequentialGasSettleStepFunction ++ "\n" ++
