@@ -252,8 +252,13 @@ def schemeAAnchors : List GuestRegion :=
     wrong address). Grew to `0x5cf24` for the EOA body-withdrawal-drop
     fix (`fix/body-op-state-completeness`, #10435: materializes EIP-4895
     withdrawal credits as authenticated non-storage effects before the
-    existing BAL 44/45 reconciliation). -/
-def textSizeBytes : Nat := 0x5cf24
+    existing BAL 44/45 reconciliation). Grew to `0x5cf6c` for the
+    combined batch-merge landing the BAL bounded-storage-builder
+    fallback fix (`fix/bal-descriptor-exact`, #10438) together with
+    the withdrawal-BAL bailout removal (`fix/withdrawal-bal-bail-removal`,
+    #10439), measured via a fresh `readelf -SW` after both land
+    together. -/
+def textSizeBytes : Nat := 0x5cf6c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
