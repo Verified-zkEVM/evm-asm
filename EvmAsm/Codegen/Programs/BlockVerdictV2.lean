@@ -505,7 +505,7 @@ def statelessVerdictV2GuestClosure : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   multiTxSequentialGasSettleStepFunction ++ "\n" ++

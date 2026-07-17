@@ -182,7 +182,10 @@ eip7702AuthorizationSigningHashFunction	EvmAsm/Codegen/Programs/TxSigningHash.le
 eip7702NonceReuseGuardFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRemaining.lean
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
+eip8037PriorStateUsedExactFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 eip8037ReservoirSplitFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
+eip8037StateUsedBeforeTxFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
+eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
 execLogLatestValueFunction	EvmAsm/Codegen/Programs/ExecLogLatestValue.lean

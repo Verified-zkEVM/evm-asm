@@ -117,6 +117,9 @@ def extract_function(text, fname):
     body='\n'.join(body_lines)
     strs=re.findall(r'"((?:[^"\\]|\\.)*)"',body)
     stripped=re.sub(r'"(?:[^"\\]|\\.)*"','',body)
+    # Lean line comments in a string-definition body do not affect the
+    # emitted assembly and must not prevent a mechanical conversion.
+    stripped=re.sub(r'--[^\n]*','',stripped)
     if re.sub(r'[+\s]','',stripped):
         raise ConvError(f"{fname}: RHS is not a pure string literal (references idents)")
     return ''.join(_decode(s) for s in strs)
@@ -725,6 +728,8 @@ def lean_render(manifest):
     try:
         out=subprocess.run(['lake','env','lean','--run',tmp],cwd=repo,
                            check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode()
+    except subprocess.CalledProcessError as exc:
+        raise ConvError("Lean render failed:\n" + exc.stdout.decode() + exc.stderr.decode()) from exc
     finally:
         os.unlink(tmp)
     res={}

@@ -49,6 +49,7 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
+import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
@@ -382,6 +383,9 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_sum_withdrawals_to_address, bvSumWithdrawalsToAddress_prog),
   (GuestAddrs.access_list_count, accessListCount_prog),
   (GuestAddrs.intrinsic_gas_amsterdam_counts, intrinsicGasAmsterdamCounts_prog),
+  (GuestAddrs.eip8037_state_used_before_tx, eip8037StateUsedBeforeTx_prog),
+  (GuestAddrs.eip8037_prior_state_used_exact, eip8037PriorStateUsedExact_prog),
+  (GuestAddrs.eip8037_tx_gas_gate, eip8037TxGasGate_prog),
   (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
   (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
@@ -523,6 +527,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 360
+#guard guestImageEntries.length = 363
 
 end EvmAsm.Codegen
