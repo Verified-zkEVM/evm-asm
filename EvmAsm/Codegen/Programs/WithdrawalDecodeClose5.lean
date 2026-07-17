@@ -968,4 +968,176 @@ theorem wdBBField1
 
 #print axioms wdBBField1
 
+/-! ## Field-0 backbone merge
+
+    Merge the field-0 (K34) stage's two exits: the parse-fail edge routes through
+    `wdK34FailArm ... 0` (`DecodeFailure.field0`), the continue edge reshapes the
+    K34 continue payload (`wdContReshape`), pins the field-0 `Result`, and hands
+    off directly to the field-1 backbone (K34→K34: the frame passes through with
+    no stack transform).  This is the entry backbone; no upstream decode facts
+    arrive. -/
+
+set_option maxRecDepth 8000 in
+/-- The field-0 backbone: field-0 stage `WB+32 → raIn`, both exits landing
+    `wdWholePost`.  Field-0's own decode fact is pinned from the continue payload
+    and threaded to the field-1 backbone. -/
+theorem wdBBField0
+    (sp0 spW newSp raEntry raSaved listBase len outBase oldOut0 oldOffset0 oldLen0 old14
+      s3 s4 s5 v10 v11 v12 v13 fld1Out oldOut2 wOldOff wOldLen s0Old s1Old s2Old : Word)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : raSaved &&& ~~~(1 : Word) = raSaved)
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (houtalign : outBase.toNat % 8 = 0)
+    (houtover : outBase.toNat + 48 < 2 ^ 64)
+    (haddrlen : oldAddr.length = 20)
+    (houtvalid : ∀ k, k < 20 →
+      isValidByteAccess ((outBase + 16) + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+        ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
+        (5 + (5 + (6 * (19 + 1)) +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))))
+      (WB + 32) raSaved fullCode
+      ((((.x1 : Reg) ↦ᵣ raEntry) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+        (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ old14) ** frameSlotsOwn frame newSp **
+        stackFree newSp 8 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+        (outBase ↦ₘ oldOut0) ** (offsetCell ↦ₘ oldOffset0) ** (lengthCell ↦ₘ oldLen0)) **
+       (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** ((outBase + 8) ↦ₘ fld1Out) **
+        bytesRegion (outBase + 16) oldAddr ** bytesRegion (outBase + 36) pad4 **
+        ((outBase + 40) ↦ₘ oldOut2) ** (wdOffsetAddr ↦ₘ wOldOff) ** (wdLengthAddr ↦ₘ wOldLen)))
+      (wdWholePost sp0 spW raSaved s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
+        oldAddr pad4) := by
+  have hstage := wdField0Stage spW newSp raEntry listBase len outBase oldOut0 oldOffset0
+    oldLen0 old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack hover
+    hvalid
+  have hbr := cpsBranchWithin_frameR
+    (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
+     ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** ((outBase + 8) ↦ₘ fld1Out) **
+     bytesRegion (outBase + 16) oldAddr ** bytesRegion (outBase + 36) pad4 **
+     ((outBase + 40) ↦ₘ oldOut2) ** (wdOffsetAddr ↦ₘ wOldOff) ** (wdLengthAddr ↦ₘ wOldLen))
+    (by pcfw) hstage
+  -- fail edge → DecodeFailure.field0 via wdK34FailArm
+  have harm := wdK34FailArm sp0 spW newSp raSaved listBase oldOffset0 oldLen0 (WB + 52)
+    s0Old s1Old s2Old { ra := WB + 52, s0 := listBase, s1 := len }
+    { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3, s4 := s4,
+      s5 := s5 } bytes oldAddr pad4 listLen 0
+    (((outBase + 8) ↦ₘ fld1Out) ** bytesRegion (outBase + 16) oldAddr **
+     bytesRegion (outBase + 36) pad4 ** ((outBase + 40) ↦ₘ oldOut2) **
+     (wdOffsetAddr ↦ₘ wOldOff) ** (wdLengthAddr ↦ₘ wOldLen))
+    hspW hnewSp hret
+    (fun status v hnz hres => DecodeFailure.field0 status v hnz hres)
+    (fun roff rlen ov' h hp => by
+      refine ⟨ov', fld1Out, oldOut2, wOldOff, wOldLen, roff, rlen, oldAddr, pad4, ?_⟩
+      xperm_hyp hp)
+  have h_t := cpsTripleWithin_mono_nSteps
+    (show (7 : Nat) ≤ ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+        ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
+        (5 + (5 + (6 * (19 + 1)) +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))) from by omega)
+    harm
+  -- continue edge → field-0 Result pinned, K34→K34 passthrough, field-1 backbone
+  have h_f : cpsTripleWithin ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
+      ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+      ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
+      (5 + (5 + (6 * (19 + 1)) +
+      ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))))
+      (WB + 56) raSaved fullCode
+      (k34ContPost spW newSp listBase (WB + 52) { ra := WB + 52, s0 := listBase, s1 := len }
+        { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3, s4 := s4,
+          s5 := s5 } bytes listLen 0 **
+       (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** ((outBase + 8) ↦ₘ fld1Out) **
+        bytesRegion (outBase + 16) oldAddr ** bytesRegion (outBase + 36) pad4 **
+        ((outBase + 40) ↦ₘ oldOut2) ** (wdOffsetAddr ↦ₘ wOldOff) ** (wdLengthAddr ↦ₘ wOldLen)))
+      (wdWholePost sp0 spW raSaved s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
+        oldAddr pad4) := by
+    refine cpsTripleWithin_weaken
+      (P := fun h => ∃ offset len' v12' x5' ss' ov,
+        ((⌜Result bytes listBase listLen 0 (0 : Word) ov⌝ : Assertion) **
+         (((.x1 ↦ᵣ (WB + 52)) **
+           (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+             savedFrame newSp { ra := WB + 52, s0 := listBase, s1 := len }) **
+            successPayload newSp listBase offset len' v12' x5' ss' (0 : Word) ov
+              { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
+                s4 := s4, s5 := s5 } bytes listLen 0)) **
+          (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
+           ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** ((outBase + 8) ↦ₘ fld1Out) **
+           bytesRegion (outBase + 16) oldAddr ** bytesRegion (outBase + 36) pad4 **
+           ((outBase + 40) ↦ₘ oldOut2) ** (wdOffsetAddr ↦ₘ wOldOff) **
+           (wdLengthAddr ↦ₘ wOldLen)))) h)
+      (fun h hp => by
+        obtain ⟨h1, h2, hd, hu, hk, hacc⟩ := hp
+        obtain ⟨offset, len', v12', x5', ss', ov, hbody⟩ := hk
+        refine ⟨offset, len', v12', x5', ss', ov, ?_⟩
+        have hRes : Result bytes listBase listLen 0 (0 : Word) ov := by
+          obtain ⟨_, _, _, _, _, hbody2⟩ := hbody
+          obtain ⟨_, _, _, _, _, hspp⟩ := hbody2
+          unfold successPayload at hspp
+          exact ((sepConj_pure_right _).1 hspp).2
+        exact (sepConj_pure_left h).2 ⟨hRes, h1, h2, hd, hu, hbody, hacc⟩)
+      (fun _ hq => hq) ?_
+    refine cpsTripleWithin_exists_pre_gen (fun offset => ?_)
+    refine cpsTripleWithin_exists_pre_gen (fun len' => ?_)
+    refine cpsTripleWithin_exists_pre_gen (fun v12' => ?_)
+    refine cpsTripleWithin_exists_pre_gen (fun x5' => ?_)
+    refine cpsTripleWithin_exists_pre_gen (fun ss' => ?_)
+    refine cpsTripleWithin_exists_pre_gen (fun ov => ?_)
+    refine cpsTripleWithin_pure_pre (fun hf0 => ?_)
+    refine cpsTripleWithin_weaken
+      (P := ((memOwn (spW - BitVec.ofNat 64 8) ** frameSlotsOwn frame newSp **
+          stackFree newSp 8) ** (.x5 ↦ᵣ x5') ** (.x1 ↦ᵣ (WB + 52)) **
+          (⌜Result bytes listBase listLen 0 (0 : Word) ov⌝ : Assertion) **
+          (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+          (.x18 ↦ᵣ outBase) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ ss') ** (.x12 ↦ᵣ v12') ** regOwn .x6 **
+          regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ wOldOff) **
+          (wdLengthAddr ↦ₘ wOldLen) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
+          ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ ov) **
+          ((outBase + 8) ↦ₘ fld1Out) ** bytesRegion (outBase + 16) oldAddr **
+          bytesRegion (outBase + 36) pad4 ** ((outBase + 40) ↦ₘ oldOut2) **
+          (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len')) **
+         regOwn .x13 ** regOwn .x14)
+      (fun h hp => by
+        have hcb := sepConj_mono_left
+          (wdContReshape spW newSp listBase (WB + 52) offset len' v12' x5' ss' ov
+            { ra := WB + 52, s0 := listBase, s1 := len }
+            { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
+              s4 := s4, s5 := s5 } bytes listLen 0) h hp
+        unfold wdContBundle at hcb
+        xperm_hyp hcb)
+      (fun _ hq => hq) ?_
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (fun v13' v14' => ?_)
+    refine cpsTripleWithin_weaken
+      (fun h hp => by
+        have hp0 := sepConj_mono_left sepConj_strip_pure_depth3 h hp
+        have hg2 := sepConj_mono_left
+          (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x5))) h hp0
+        xperm_hyp hg2)
+      (fun _ hq => hq)
+      (wdBBField1 sp0 spW newSp (WB + 52) raSaved listBase len outBase fld1Out offset len'
+        v14' s3 s4 s5 (0 : Word) ss' v12' v13' ov s0Old s1Old s2Old oldOut2 wOldOff wOldLen
+        bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hslack hover hvalid
+        houtalign houtover haddrlen houtvalid hf0)
+  exact cpsBranchWithin_merge_same_cr hbr h_t h_f
+
+#print axioms wdBBField0
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
