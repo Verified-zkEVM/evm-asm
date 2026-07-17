@@ -1498,5 +1498,172 @@ theorem bvtIterBalNez_fromEndSpan
         txBlob outVals' balBytes i startW endW chargeW outPtr sumW h hq')
     hcore
 
+/-! ## One full iteration: LoopGuard → LoopGuard (i+1)
+
+    Guard ntaken ;; ThroughSpan ;; ThroughEnd ;; EndSpanSetup ;; Bal0|BalNez.
+    Step bound is the max (bal≠0) path; bal=0 mono-lifts. -/
+
+/-- Exact one-iter step budget (covers bal≠0 teer path). -/
+def nOneIterSteps : Nat :=
+  1 +
+    ((2 + (1 + nBgvSteps) + 1) + 3) +
+    nEndPathSteps +
+    6 +
+    ((1 + nIntrinsicSteps) + (1 + 1 + 6 + (1 + nTeerSteps) + 5 + 1 + 2))
+
+/-- `ofNat i ≠ ofNat n` when `i < n < 2^62`. -/
+private theorem ofNat_ne_of_lt (i n : Nat) (hi : i < n) (hn : n < 2 ^ 62) :
+    (BitVec.ofNat 64 i : Word) ≠ BitVec.ofNat 64 n := by
+  intro heq
+  have hi64 : i < 2 ^ 64 := Nat.lt_trans hi (Nat.lt_trans hn (by decide))
+  have hn64 : n < 2 ^ 64 := Nat.lt_trans hn (by decide)
+  have : i = n := by
+    have := congrArg BitVec.toNat heq
+    simp only [BitVec.toNat_ofNat] at this
+    rwa [Nat.mod_eq_of_lt hi64, Nat.mod_eq_of_lt hn64] at this
+  omega
+
+set_option maxRecDepth 8000 in
+/-- One iteration bal=0: LoopGuard → LoopGuard (i+1), outVals unchanged. -/
+theorem bvtIterOne_bal0
+    (hintr : IntrinsicAssumed fullCode)
+    (spC txBase outBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (n i : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hok : IterOk txBlob n i)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentry : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hret : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hiOut : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess)
+    (hi61 : i < 2 ^ 61) :
+    cpsTripleWithin nOneIterSteps LoopGuard LoopGuard fullCode
+      (LoopInv spC txBase outBase (0 : Word) chainIdW nW csaved txBlob outVals
+        balBytes false i)
+      (LoopInv spC txBase outBase (0 : Word) chainIdW nW csaved txBlob outVals
+        balBytes false (i + 1)) := by
+  let startW := leU32 txBlob (4 * i)
+  let endW := hok.endW
+  let off := startW.toNat
+  let len := endW.toNat - startW.toNat
+  have hiW : BitVec.ofNat 64 i ≠ nW := by
+    rw [hnW]; exact ofNat_ne_of_lt i n hok.hi hok.hNBound
+  have hguard0 := bvtGuardNtaken spC txBase outBase (0 : Word) chainIdW nW
+    csaved txBlob outVals balBytes false i hiW
+  have hguard := cpsTripleWithin_extend_code bvt_mono hguard0
+  have hspan := bvtIterThroughSpan spC txBase outBase (0 : Word) chainIdW nW
+    csaved txBlob outVals balBytes false n i hbgv hok htxAlign hnW
+  have hend := bvtIterThroughEnd spC txBase outBase (0 : Word) chainIdW nW
+    csaved txBlob outVals balBytes false n i startW (BitVec.ofNat 64 (4 * n))
+    hbgv hok hnW rfl rfl htxAlign
+  have hStartEq : startW = hok.startW := hok.hStart.symm
+  have hsetup0 := bvtIterEndSpanSetup_fromEnd spC txBase outBase (0 : Word)
+    chainIdW nW csaved txBlob outVals balBytes false n i startW endW
+    (if i + 1 = n then LinkLoopBgv1 else LinkLoopBgv2)
+    (if i + 1 = n then startW else endW)
+    hok hStartEq rfl hi61
+  have hsetup := cpsTripleWithin_extend_code bvt_mono hsetup0
+  have hstart : startW = BitVec.ofNat 64 off := word_eq_ofNat_toNat startW
+  have hge : startW.toNat ≤ endW.toNat := by
+    have h1 : startW = hok.startW := hok.hStart.symm
+    simpa [h1] using hok.hEndGeStart
+  have htxLen : endW - startW = BitVec.ofNat 64 len :=
+    word_sub_toNat endW startW hge
+  have hlen : off + len ≤ txBlob.length := by
+    change startW.toNat + (endW.toNat - startW.toNat) ≤ txBlob.length
+    rw [Nat.add_sub_cancel' hge]
+    -- endW := hok.endW
+    exact hok.hEndLeLen
+  have hbal0 := bvtIterBal0_fromEndSpan hintr spC txBase outBase chainIdW nW
+    csaved txBlob outVals balBytes i off len startW endW
+    hentry hret hstart hlen htxLen hiOut hcell
+  -- Compose: guard ;; span ;; end ;; setup ;; bal0, padding each to nOneIterSteps pieces.
+  have hgs := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hguard hspan
+  have hgse := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgs hend
+  have hgseS := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgse hsetup
+  have hfull := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgseS hbal0
+  exact cpsTripleWithin_mono_nSteps
+    (nSteps :=
+      1 + ((2 + (1 + nBgvSteps) + 1) + 3) + nEndPathSteps + 6 +
+        ((1 + nIntrinsicSteps) + 4))
+    (nSteps' := nOneIterSteps)
+    (by simp only [nOneIterSteps, nEndPathSteps, nBgvSteps, nIntrinsicSteps,
+          nTeerSteps]; omega)
+    hfull
+
+set_option maxRecDepth 8000 in
+/-- One iteration bal≠0: LoopGuard → LoopGuard (i+1) with outVals.set charge. -/
+theorem bvtIterOne_balNez
+    (hintr : IntrinsicAssumed fullCode)
+    (teer : TeerApplied) (hteer : TeerAssumed fullCode teer)
+    (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob balBytes : List (BitVec 8))
+    (outVals : List Nat) (chainId n i : Nat)
+    (hbgv : BgvOffsetAssumed fullCode)
+    (hok : IterOk txBlob n i)
+    (htxAlign : txBase.toNat % 8 = 0)
+    (hnW : nW = BitVec.ofNat 64 n)
+    (hentryI : hintr.entry = (GuestAddrs.tx_intrinsic_state_gas : Word))
+    (hentryT : hteer.entry =
+      (GuestAddrs.tx_eip7702_existing_authority_refund : Word))
+    (hretI : (LinkIntrinsic &&& ~~~(1 : Word)) = LinkIntrinsic)
+    (hretT : (LinkTeer &&& ~~~(1 : Word)) = LinkTeer)
+    (hbal : balBase ≠ 0)
+    (hchain : chainIdW = BitVec.ofNat 64 chainId)
+    (hiOut : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess)
+    (hi61 : i < 2 ^ 61) :
+    let startW := leU32 txBlob (4 * i)
+    let endW := hok.endW
+    let off := startW.toNat
+    let len := endW.toNat - startW.toNat
+    let chargeNat := teer ((txBlob.drop off).take len) balBytes chainId (i + 1)
+    let outVals' := outVals.set i (pureIntrinsicStateGasSuccess + chargeNat)
+    cpsTripleWithin nOneIterSteps LoopGuard LoopGuard fullCode
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+        balBytes true i)
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals'
+        balBytes true (i + 1)) := by
+  intro startW endW off len chargeNat outVals'
+  have hiW : BitVec.ofNat 64 i ≠ nW := by
+    rw [hnW]; exact ofNat_ne_of_lt i n hok.hi hok.hNBound
+  have hguard0 := bvtGuardNtaken spC txBase outBase balBase chainIdW nW
+    csaved txBlob outVals balBytes true i hiW
+  have hguard := cpsTripleWithin_extend_code bvt_mono hguard0
+  have hspan := bvtIterThroughSpan spC txBase outBase balBase chainIdW nW
+    csaved txBlob outVals balBytes true n i hbgv hok htxAlign hnW
+  have hend := bvtIterThroughEnd spC txBase outBase balBase chainIdW nW
+    csaved txBlob outVals balBytes true n i startW (BitVec.ofNat 64 (4 * n))
+    hbgv hok hnW rfl rfl htxAlign
+  have hStartEq : startW = hok.startW := hok.hStart.symm
+  have hsetup0 := bvtIterEndSpanSetup_fromEnd spC txBase outBase balBase
+    chainIdW nW csaved txBlob outVals balBytes true n i startW endW
+    (if i + 1 = n then LinkLoopBgv1 else LinkLoopBgv2)
+    (if i + 1 = n then startW else endW)
+    hok hStartEq rfl hi61
+  have hsetup := cpsTripleWithin_extend_code bvt_mono hsetup0
+  have hstart : startW = BitVec.ofNat 64 off := word_eq_ofNat_toNat startW
+  have hge : startW.toNat ≤ endW.toNat := by
+    have h1 : startW = hok.startW := hok.hStart.symm
+    simpa [h1] using hok.hEndGeStart
+  have htxLen : endW - startW = BitVec.ofNat 64 len :=
+    word_sub_toNat endW startW hge
+  have hlen : off + len ≤ txBlob.length := by
+    change startW.toNat + (endW.toNat - startW.toNat) ≤ txBlob.length
+    rw [Nat.add_sub_cancel' hge]
+    exact hok.hEndLeLen
+  have hbal1 := bvtIterBalNez_fromEndSpan hintr teer hteer spC txBase outBase
+    balBase chainIdW nW csaved txBlob balBytes outVals chainId i off len
+    startW endW hentryI hentryT hretI hretT hbal hstart hlen htxLen hchain
+    hiOut hcell hi61
+  have hgs := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hguard hspan
+  have hgse := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgs hend
+  have hgseS := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgse hsetup
+  have hfull := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) hgseS hbal1
+  -- nOneIterSteps is definitionally the composed sum.
+  exact hfull
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
