@@ -57,7 +57,7 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 
 Build: `SPIKE_SRC=/path/to/riscv-isa-sim scripts/spike/build.sh`
 Run one block: `scripts/spike/spike_run <guest.elf> <input> <output>`
-EEST backend: `EEST_BACKEND=spike scripts/codegen-eest-stateless-check.sh --limit 1000 --jobs 4 --max-jobs 4`
+EEST backend: `EEST_BACKEND=spike scripts/codegen-eest-stateless-check.sh --limit 1000 --jobs 4`
 Parity gate: `scripts/spike/parity-check.sh 8 1`
 
 ## Debugging: per-instruction commit log
