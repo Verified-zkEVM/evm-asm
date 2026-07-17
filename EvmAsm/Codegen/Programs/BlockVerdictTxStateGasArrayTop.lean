@@ -97,7 +97,8 @@ private theorem prologuePost_to_headerPre_bal0
           old5 old6 old7 **
         regOwn .x17 ** bytesRegion txBase txBlob **
         stackFree spC nCalleeStackDwords **
-        tisScratchOwn) h →
+        tisScratchOwn **
+        teerScratchOwn) h →
       (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ s.ra) **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ txLenW) **
           (.x18 ↦ᵣ countW) ** (.x19 ↦ᵣ outBase) **
@@ -113,7 +114,8 @@ private theorem prologuePost_to_headerPre_bal0
           (.x0 ↦ᵣ (0 : Word)) **
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
-          tisScratchOwn) h) := by
+          tisScratchOwn **
+          teerScratchOwn) h) := by
   intro h hp
   unfold prologuePost prologueAbiRest at hp
   have hp1 :
@@ -130,6 +132,7 @@ private theorem prologuePost_to_headerPre_bal0
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           (.x10 ↦ᵣ txBase) **
           (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -155,6 +158,7 @@ private def headerPostPacked (spC txBase outBase chainIdW countW : Word)
   savedFrame spC s **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   bytesRegion txBase txBlob ** wordArray outBase outVals **
   scratchRegs
 
@@ -179,6 +183,7 @@ private theorem headerPost_to_packed
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase (0 : Word) outVals balBytes false) h) →
       (headerPostPacked spC txBase outBase chainIdW countW s txBlob outVals
         balBytes) h := by
@@ -202,6 +207,7 @@ private theorem headerPost_to_packed
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           wordArray outBase outVals)) h) := by
     xperm_hyp hp
   have hp2 :=
@@ -251,6 +257,7 @@ private theorem headerPost_to_loopInv0_bal0
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase (0 : Word) outVals balBytes false) h) →
       (LoopInv spC txBase outBase (0 : Word) chainIdW countW s txBlob outVals
         balBytes false 0) h := by
@@ -291,6 +298,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
         frameSlotsOwn bvtFrame spC **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         prologueAbiRest txBase txLenW countW outBase (0 : Word) balLenW chainIdW
           old5 old6 old7 **
         regOwn .x17 **
@@ -305,6 +313,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
   have hproF := cpsTripleWithin_frameR
     (stackFree spC nCalleeStackDwords **
       tisScratchOwn **
+      teerScratchOwn **
       regOwn .x17 ** bytesRegion txBase txBlob **
       topPayloadRest outBase (0 : Word) outVals balBytes false)
     (by
@@ -313,10 +322,12 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
       · apply pcFree_sepConj
         · exact pcFree_tisScratchOwn
         · apply pcFree_sepConj
-          · exact pcFree_regOwn
+          · exact pcFree_teerScratchOwn
           · apply pcFree_sepConj
-            · exact bytesRegion_pcFree _ _
-            · exact topPayloadRest_pcFree _ _ _ _ _)
+            · exact pcFree_regOwn
+            · apply pcFree_sepConj
+              · exact bytesRegion_pcFree _ _
+              · exact topPayloadRest_pcFree _ _ _ _ _)
     hpro0
   have hproC := cpsTripleWithin_extend_code bvt_mono hproF
   -- 2. Header success framed with savedFrame + free stack + payload rest
@@ -326,6 +337,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
     (savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
       tisScratchOwn **
+      teerScratchOwn **
       topPayloadRest outBase (0 : Word) outVals balBytes false)
     (by
       apply pcFree_sepConj
@@ -334,7 +346,9 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
         · exact pcFree_stackFree _ _
         · apply pcFree_sepConj
           · exact pcFree_tisScratchOwn
-          · exact topPayloadRest_pcFree _ _ _ _ _)
+          · apply pcFree_sepConj
+            · exact pcFree_teerScratchOwn
+            · exact topPayloadRest_pcFree _ _ _ _ _)
     hhdr0
   -- 3. Reshape prologue post → header pre + framed ambient
   have hpro' : cpsTripleWithin 21 B (B + 84) fullCode
@@ -342,6 +356,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
         frameSlotsOwn bvtFrame spC **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         prologueAbiRest txBase txLenW countW outBase (0 : Word) balLenW chainIdW
           old5 old6 old7 **
         regOwn .x17 **
@@ -363,6 +378,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase (0 : Word) outVals balBytes false)) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) ?_ hproC
     intro h hq
@@ -372,7 +388,8 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
             chainIdW old5 old6 old7 **
           regOwn .x17 ** bytesRegion txBase txBlob **
           stackFree spC nCalleeStackDwords **
-          tisScratchOwn) **
+          tisScratchOwn **
+          teerScratchOwn) **
           topPayloadRest outBase (0 : Word) outVals balBytes false) h := by
       xperm_hyp hq
     have hq2 :=
@@ -398,6 +415,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase (0 : Word) outVals balBytes false))
       (LoopInv spC txBase outBase (0 : Word) chainIdW countW csaved txBlob outVals
         balBytes false 0) := by
@@ -418,6 +436,7 @@ theorem blockVerdictTxStateGasArray_bal0_spec_within
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             topPayloadRest outBase (0 : Word) outVals balBytes false) h) := by
       simp only [txLenW, balLenW, countW] at hq
       xperm_hyp hq
@@ -447,7 +466,8 @@ private theorem prologuePost_to_headerPre_balNez
           old5 old6 old7 **
         regOwn .x17 ** bytesRegion txBase txBlob **
         stackFree spC nCalleeStackDwords **
-        tisScratchOwn) h →
+        tisScratchOwn **
+        teerScratchOwn) h →
       (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ s.ra) **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ txLenW) **
           (.x18 ↦ᵣ countW) ** (.x19 ↦ᵣ outBase) **
@@ -463,7 +483,8 @@ private theorem prologuePost_to_headerPre_balNez
           (.x0 ↦ᵣ (0 : Word)) **
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
-          tisScratchOwn) h) := by
+          tisScratchOwn **
+          teerScratchOwn) h) := by
   intro h hp
   unfold prologuePost prologueAbiRest at hp
   have hp1 :
@@ -480,6 +501,7 @@ private theorem prologuePost_to_headerPre_balNez
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           (.x10 ↦ᵣ txBase) **
           (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -504,6 +526,7 @@ private def headerPostPackedBal (spC txBase outBase balBase chainIdW countW : Wo
   savedFrame spC s **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   bytesRegion txBase txBlob ** wordArray outBase outVals **
   bytesRegion balBase balBytes **
   scratchRegs
@@ -529,6 +552,7 @@ private theorem headerPost_to_packed_bal
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase balBase outVals balBytes true) h) →
       (headerPostPackedBal spC txBase outBase balBase chainIdW countW s txBlob
         outVals balBytes) h := by
@@ -551,6 +575,7 @@ private theorem headerPost_to_packed_bal
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           wordArray outBase outVals **
           bytesRegion balBase balBytes)) h) := by
     xperm_hyp hp
@@ -601,6 +626,7 @@ private theorem headerPost_to_loopInv0_balNez
           savedFrame spC s **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase balBase outVals balBytes true) h) →
       (LoopInv spC txBase outBase balBase chainIdW countW s txBlob outVals
         balBytes true 0) h := by
@@ -653,6 +679,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
         frameSlotsOwn bvtFrame spC **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         prologueAbiRest txBase txLenW countW outBase balBase balLenW chainIdW
           old5 old6 old7 **
         regOwn .x17 **
@@ -666,6 +693,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
   have hproF := cpsTripleWithin_frameR
     (stackFree spC nCalleeStackDwords **
       tisScratchOwn **
+      teerScratchOwn **
       regOwn .x17 ** bytesRegion txBase txBlob **
       topPayloadRest outBase balBase outVals0 balBytes true)
     (by
@@ -674,10 +702,12 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
       · apply pcFree_sepConj
         · exact pcFree_tisScratchOwn
         · apply pcFree_sepConj
-          · exact pcFree_regOwn
+          · exact pcFree_teerScratchOwn
           · apply pcFree_sepConj
-            · exact bytesRegion_pcFree _ _
-            · exact topPayloadRest_pcFree _ _ _ _ _)
+            · exact pcFree_regOwn
+            · apply pcFree_sepConj
+              · exact bytesRegion_pcFree _ _
+              · exact topPayloadRest_pcFree _ _ _ _ _)
     hpro0
   have hproC := cpsTripleWithin_extend_code bvt_mono hproF
   have hhdr0 := bvtHeaderSuccess spC csaved txBase txLenW countW outBase
@@ -686,6 +716,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
     (savedFrame spC csaved **
       stackFree spC nCalleeStackDwords **
       tisScratchOwn **
+      teerScratchOwn **
       topPayloadRest outBase balBase outVals0 balBytes true)
     (by
       apply pcFree_sepConj
@@ -694,13 +725,16 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
         · exact pcFree_stackFree _ _
         · apply pcFree_sepConj
           · exact pcFree_tisScratchOwn
-          · exact topPayloadRest_pcFree _ _ _ _ _)
+          · apply pcFree_sepConj
+            · exact pcFree_teerScratchOwn
+            · exact topPayloadRest_pcFree _ _ _ _ _)
     hhdr0
   have hpro' : cpsTripleWithin 21 B (B + 84) fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt bvtFrame (savedVals csaved) **
         frameSlotsOwn bvtFrame spC **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         prologueAbiRest txBase txLenW countW outBase balBase balLenW chainIdW
           old5 old6 old7 **
         regOwn .x17 **
@@ -722,6 +756,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase balBase outVals0 balBytes true)) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) ?_ hproC
     intro h hq
@@ -730,7 +765,8 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
             chainIdW old5 old6 old7 **
           regOwn .x17 ** bytesRegion txBase txBlob **
           stackFree spC nCalleeStackDwords **
-          tisScratchOwn) **
+          tisScratchOwn **
+          teerScratchOwn) **
           topPayloadRest outBase balBase outVals0 balBytes true) h := by
       xperm_hyp hq
     have hq2 :=
@@ -755,6 +791,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           topPayloadRest outBase balBase outVals0 balBytes true))
       (LoopInv spC txBase outBase balBase chainIdW countW csaved txBlob outVals0
         balBytes true 0) := by
@@ -775,6 +812,7 @@ theorem blockVerdictTxStateGasArray_balNez_spec_within
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             topPayloadRest outBase balBase outVals0 balBytes true) h) := by
       simp only [txLenW, balLenW, countW] at hq
       xperm_hyp hq

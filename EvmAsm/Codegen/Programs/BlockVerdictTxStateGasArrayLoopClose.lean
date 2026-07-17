@@ -43,6 +43,7 @@ private theorem startBgv_post_to_spanPre
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           (.x0 ↦ᵣ (0 : Word))) h) := by
   intro h hp
@@ -66,6 +67,7 @@ private def loopInvNoX10 (spC txBase outBase balBase chainIdW nW : Word)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -100,6 +102,7 @@ private def loopInvNoX10X5 (spC txBase outBase balBase chainIdW nW : Word)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   (.x10 ↦ᵣ old10) **
   regOwn .x6 ** regOwn .x7 **
@@ -136,6 +139,7 @@ private def loopInvNoX10X5X1 (spC txBase outBase balBase chainIdW nW : Word)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   (.x10 ↦ᵣ old10) ** (.x5 ↦ᵣ old5) **
   regOwn .x6 ** regOwn .x7 **
@@ -250,6 +254,7 @@ theorem bvtIterThroughSpan
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word))) := by
   intro iW startW tableW
@@ -288,6 +293,7 @@ private def afterEndRegs (spC txBase outBase balBase chainIdW nW iW
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -313,6 +319,7 @@ private theorem endLast_post_to_afterEnd
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           (.x0 ↦ᵣ (0 : Word))) h) →
       (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW lenW lenW
@@ -337,6 +344,7 @@ private theorem endLast_post_to_afterEnd
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             (.x0 ↦ᵣ (0 : Word)))) h) := by
     xperm_hyp hp
@@ -365,6 +373,7 @@ private theorem endNext_post_to_afterEnd
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           wordArray outBase outVals **
           (if balEnabled then bytesRegion balBase balBytes else empAssertion) **
           (.x0 ↦ᵣ (0 : Word))) h) →
@@ -396,6 +405,7 @@ private def spanPostNoX6 (spC txBase outBase balBase chainIdW nW iW
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -420,6 +430,7 @@ private theorem span_to_noX6
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           (.x0 ↦ᵣ (0 : Word))) h) →
       ((spanPostNoX6 spC txBase outBase balBase chainIdW nW iW startW tableW
@@ -451,6 +462,7 @@ private theorem noX6_to_endNextPre
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           (.x0 ↦ᵣ (0 : Word))) h) := by
   intro h hp
@@ -488,6 +500,7 @@ theorem bvtIterEndLast_fromSpan
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word)))
       (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW lenW lenW
@@ -535,6 +548,7 @@ theorem bvtIterEndNext_fromSpan
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word)))
       (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW endW lenW
@@ -592,6 +606,7 @@ theorem bvtIterThroughEnd
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word)))
       (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW endW lenW
@@ -674,6 +689,7 @@ private def afterEndCore (spC txBase outBase balBase chainIdW nW iW
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -713,6 +729,7 @@ private theorem afterEnd_to_ownRa
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             (.x0 ↦ᵣ (0 : Word)) **
             regOwn .x5 ** regOwn .x12 ** regOwn .x11)) h) := by
@@ -760,6 +777,7 @@ private theorem core_vals_to_endSpanPre
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           (.x0 ↦ᵣ (0 : Word))) h) := by
   intro h hp
@@ -800,6 +818,7 @@ theorem bvtIterEndSpanSetup_fromEnd
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         (.x0 ↦ᵣ (0 : Word))) := by
   intro iW lenW txPtr txLenW outPtr
@@ -844,9 +863,10 @@ private theorem endSpan_to_fromIntr_bal0
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase (0 : Word) txBlob outVals balBytes false **
             (.x0 ↦ᵣ (0 : Word))) h) →
-      -- Bal0FromIntrinsic pre: s-regs outside loopIntrinsicFrame (callee footprint).
+      -- Bal0FromIntrinsic pre: teerScratchOwn rides inside loopIntrinsicFrame.
       (((.x1 ↦ᵣ old1) **
           (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
           tisScratchOwn **
@@ -880,6 +900,7 @@ private theorem endSpan_to_fromIntr_bal0
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase (0 : Word) txBlob outVals balBytes false **
             (.x0 ↦ᵣ (0 : Word)))) h) := by
     xperm_hyp hp
@@ -908,6 +929,7 @@ private theorem bal0Post_to_loopInv
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             bytesRegion txBase txBlob **
             wordArray outBase outVals **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -933,6 +955,7 @@ private theorem bal0Post_to_loopInv
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             bytesRegion txBase txBlob ** wordArray outBase outVals **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -953,6 +976,7 @@ private theorem bal0Post_to_loopInv
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
               tisScratchOwn **
+              teerScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals **
               regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -973,6 +997,7 @@ private theorem bal0Post_to_loopInv
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
               tisScratchOwn **
+              teerScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals **
               regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -993,6 +1018,7 @@ private theorem bal0Post_to_loopInv
               savedFrame spC csaved **
               stackFree spC nCalleeStackDwords **
               tisScratchOwn **
+              teerScratchOwn **
               bytesRegion txBase txBlob ** wordArray outBase outVals **
               regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1013,6 +1039,7 @@ private theorem bal0Post_to_loopInv
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -1048,6 +1075,7 @@ private def endSpanOwnRa (spC txBase outBase chainIdW nW iW startW endW : Word)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase (0 : Word) txBlob outVals balBytes false **
   (.x0 ↦ᵣ (0 : Word))
 
@@ -1070,6 +1098,7 @@ private theorem endSpan_to_ownRa
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase (0 : Word) txBlob outVals balBytes false **
             (.x0 ↦ᵣ (0 : Word))) h) →
       ((endSpanOwnRa spC txBase outBase chainIdW nW iW startW endW csaved
@@ -1099,6 +1128,7 @@ private theorem ownRa_vals_to_endSpan
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase (0 : Word) txBlob outVals balBytes false **
           (.x0 ↦ᵣ (0 : Word))) h) := by
   intro h hp
@@ -1141,6 +1171,7 @@ theorem bvtIterBal0_fromEndSpan
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase (0 : Word) txBlob outVals balBytes false **
         (.x0 ↦ᵣ (0 : Word)))
       (LoopInv spC txBase outBase (0 : Word) chainIdW nW csaved txBlob outVals

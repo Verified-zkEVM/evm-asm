@@ -22,6 +22,7 @@ local macro "bvt_pcf" : tactic => `(tactic|
   repeat' first
     | exact pcFree_stackFree _ _
     | exact pcFree_tisScratchOwn
+    | exact pcFree_teerScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -116,6 +117,7 @@ theorem bvtIterStoreAdd_fold_own
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -139,6 +141,7 @@ theorem bvtIterStoreAdd_fold_own
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         bytesRegion balBase balBytes **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
@@ -179,6 +182,7 @@ theorem bvtIterTeerSetup_own
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
         bytesRegion balBase balBytes **
@@ -253,6 +257,7 @@ theorem bvtIterBalNezTail
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals' **
         bytesRegion balBase balBytes **
@@ -316,6 +321,7 @@ theorem bvtIterBalNezTail
           savedFrame spC csaved **
           stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           bytesRegion txBase txBlob **
           wordArray outBase outVals **
           bytesRegion balBase balBytes **
@@ -340,6 +346,7 @@ theorem bvtIterBalNezTail
           (.x15 ↦ᵣ BitVec.ofNat 64 (i + 1)) **
           bytesRegion txBase txBlob **
           bytesRegion balBase balBytes **
+          teerScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
@@ -437,6 +444,7 @@ theorem bvtIterBalNezFromIntrinsic
         savedFrame spC csaved **
         stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         bytesRegion txBase txBlob **
         wordArray outBase outVals' **
         bytesRegion balBase balBytes **
@@ -451,11 +459,19 @@ theorem bvtIterBalNezFromIntrinsic
     csaved txBlob balBytes outVals chainId i off len startW endW
     hentryT hretT hbal hstart hlen htxLen hchain hi hcell hi61
   exact cpsTripleWithin_seq_perm_same_cr
-    (fun _ hq => by
+    (fun h hq => by
+      -- preserveCell post has loopIntrinsicFrame (teerScratchOwn inside);
+      -- teerRest wants teerScratchOwn after stackFree/tis.
       unfold loopIntrinsicFrame at hq
       simp only [↓reduceIte] at hq
-      unfold teerRest
-      xperm_hyp hq)
+      have hq' :
+          ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x24 ↦ᵣ balBase) **
+            teerRest spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+              balBytes startW endW iW) h := by
+        unfold teerRest
+        xperm_hyp hq
+      exact hq')
     hintrP htail
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec

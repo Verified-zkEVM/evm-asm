@@ -243,6 +243,39 @@ theorem pcFree_tisScratchOwn : tisScratchOwn.pcFree := by
     (pcFree_sepConj pcFree_memOwn
       (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
 
+/-- Global `.data` scratch owned by the teer leaf (`teer_*` cells). One
+    `memOwn` per symbol base (clobbered; values unspecified except where the
+    teer post pins a0). Callee-scratch used only by teer's assumed callees is
+    NOT included — those live in the assumed-callee footprints (prover1). -/
+def teerScratchOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_rolled_back) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_regular_refund) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_inner_off) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_type) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_auth_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+theorem pcFree_teerScratchOwn : teerScratchOwn.pcFree := by
+  unfold teerScratchOwn
+  repeat' (first | exact pcFree_memOwn | apply pcFree_sepConj)
+
 /-- Assumed contract for `tx_intrinsic_state_gas`.
 
     ABI: a0=tx_ptr, a1=tx_len, a2=out_ptr → a0 status, *out_ptr = value.
@@ -332,12 +365,16 @@ structure IntrinsicAssumed (cr : CodeReq) where
 
     **Callee-saved s-regs:** teer saves/restores s0–s11
     (`x8,x9,x18–x27`). PRE/POST pin those with equal entry/exit values
-    (same class as IntrinsicAssumed s0–s6). -/
+    (same class as IntrinsicAssumed s0–s6).
+
+    **Global scratch:** teer uses fixed `teer_*` `.data` cells; PRE/POST pin
+    `teerScratchOwn` (preserved ownership; values clobbered). Callee-only
+    scratch for teer's assumed callees stays in those callee footprints. -/
 structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
   /-- Entry PC of the converted teer Program. -/
   entry : Word
   /-- BAL-enabled APPLIED framed contract (ambient tx region + free stack +
-      restored s0–s11). -/
+      restored s0–s11 + teerScratchOwn). -/
   applied_flat :
     ∀ (ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
       (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
@@ -362,6 +399,7 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
           bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
@@ -376,6 +414,7 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
             (teer ((bs.drop off).take len) balBytes chainId bai)) **
           regOwn .x11 **
           bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
@@ -446,6 +485,7 @@ def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegs
 
@@ -464,6 +504,7 @@ def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
   savedFrame spC csaved **
   stackFree spC nCalleeStackDwords **
   tisScratchOwn **
+  teerScratchOwn **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegsNoA0
 

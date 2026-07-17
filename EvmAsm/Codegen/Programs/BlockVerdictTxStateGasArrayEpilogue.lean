@@ -22,6 +22,7 @@ local macro "bvt_pcf" : tactic => `(tactic|
   repeat' first
     | exact pcFree_stackFree _ _
     | exact pcFree_tisScratchOwn
+    | exact pcFree_teerScratchOwn
     | apply pcFree_sepConj
     | exact pcFree_regIs
     | exact pcFree_regOwn
@@ -238,6 +239,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -260,6 +262,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -282,6 +285,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -304,6 +308,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -327,6 +332,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
             savedFrame spC csaved **
             stackFree spC nCalleeStackDwords **
             tisScratchOwn **
+            teerScratchOwn **
             payload txBase outBase balBase txBlob outVals balBytes balEnabled **
             regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -344,6 +350,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
     have hG :
         (stackFree spC nCalleeStackDwords **
           tisScratchOwn **
+          teerScratchOwn **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -355,6 +362,7 @@ theorem bvtExitOk (sp0 spC txBase outBase balBase chainIdW nW : Word)
     have hstatF := cpsTripleWithin_frameR
       (stackFree spC nCalleeStackDwords **
         tisScratchOwn **
+        teerScratchOwn **
         payload txBase outBase balBase txBlob outVals balBytes balEnabled **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
