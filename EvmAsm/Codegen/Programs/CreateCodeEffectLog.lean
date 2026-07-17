@@ -35,10 +35,23 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (bytes) of the code-effect log heap. Each entry is
-    `round8(48 + code_len)`; deployed code is ≤ 32768 (Amsterdam EIP-7907), so 128 KiB holds
-    several created contracts. On overflow the producer sets
-    `exec_code_effect_overflow` and the consumer must stay conservative. -/
-def execCodeEffectLogCap : Nat := 131072
+    `round8(48 + code_len)`; deployed code is ≤ 32768 (Amsterdam EIP-7907).
+
+    Gas-derived bound for the full 200M block target. Code deposit charges
+    `CODE_DEPOSIT_PER_BYTE = 200` gas/byte, so the total deployed bytecode in a
+    `bsrStateRootBlockGasLimit`-gas block is at most `200M / 200 = 1,000,000`
+    bytes. Accounting for the 32,000-gas CREATE base (which lowers the realized
+    byte budget) and the per-record `+48` overhead, the worst case is reached by
+    ~30 near-max (32,768-byte) deploys: `Σcᵢ ≤ 200M/200 - 160·N` gives
+    `Σcᵢ ≈ 983,040` and arena `Σ round8(48+cᵢ) ≈ 984 KiB` (~0.94 MiB realized,
+    1.0 MiB absolute ceiling); the EIP-7907 large-code extra gas only lowers
+    this, and the empty-CREATE / EIP-7702 delegation marker paths (48-byte
+    records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
+    cap therefore reserves 1.5 MiB (≈50% margin over the 1.0 MiB ceiling).
+
+    On overflow the producer sets `exec_code_effect_overflow` and the consumer
+    must stay conservative. -/
+def execCodeEffectLogCap : Nat := 1572864
 
 /-! ## create_record_code_effect
 
