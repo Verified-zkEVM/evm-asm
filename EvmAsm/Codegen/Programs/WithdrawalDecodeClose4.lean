@@ -246,6 +246,24 @@ theorem wdScratch_of_regs (s3 s4 s5 x5v x11v x12v : Word) : ∀ h,
 
 #print axioms wdScratch_of_regs
 
+/-- Failure-payload variant of `wdScratch_of_regs`: `x5` arrives already owned,
+    only `x11/x12` need weakening. -/
+theorem wdScratch_of_regs_own5 (s3 s4 s5 x11v x12v : Word) : ∀ h,
+    ((.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** regOwn .x5 **
+     regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ x11v) ** (.x12 ↦ᵣ x12v) ** regOwn .x13 **
+     regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+     (.x0 ↦ᵣ (0 : Word))) h →
+    wdScratch s3 s4 s5 h := by
+  intro h hp
+  unfold wdScratch
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono (regIs_implies_regOwn .x11)
+              (sepConj_mono_left (regIs_implies_regOwn .x12))))))))
+        h hp
+
+#print axioms wdScratch_of_regs_own5
+
 /-! ## Generic `DecodeFailure` witness extraction
 
     Both K34 fail sub-cases (a success payload with a nonzero wrapper status, or
@@ -359,5 +377,133 @@ theorem wdFailArm (sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old
   xperm_hyp hq
 
 #print axioms wdFailArm
+
+set_option maxRecDepth 8000 in
+/-- K34 fail-post PRE reshape into the `wdFailArm` shape.  The register/pure/stack
+    surgery is common to all three K34 fields (0/1/3); the only field-specific
+    input is the memory fold `hleft`, which packages the ambient rest `Frest`
+    plus the payload's own output cell (at `saved.s1`) and the two RLP cells into
+    `wdFailLeftover`.  Both `flatPost` fail sub-cases (success payload with a
+    nonzero wrapper status, or failure payload with status `1`) collapse to the
+    same reshaped pre. -/
+theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
+      s0Old s1Old s2Old : Word)
+    (outer : Saved) (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (Frest : Assertion)
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
+      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      DecodeFailure bytes listBase listLen)
+    (hleft : ∀ (roff rlen ov : Word), ∀ h,
+      (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **
+       bytesRegion listBase bytes ** (offsetCell ↦ₘ roff) ** (lengthCell ↦ₘ rlen) **
+       (saved.s1 ↦ₘ ov) ** Frest) h →
+      wdFailLeftover spW saved.s2 listBase saved.s3 saved.s4 saved.s5 bytes h) :
+    ∀ h,
+      (k34FailPost spW newSp listBase oldOffset oldLen raRet outer saved bytes
+        listLen index **
+       memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+       ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest) h →
+      (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ raRet) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
+        (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) **
+        ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+         wdFailLeftover spW saved.s2 listBase saved.s3 saved.s4 saved.s5 bytes)) **
+       regOwn .x10) h := by
+  intro h hp
+  obtain ⟨ha, hb, hdab, huab, hkp, hRp⟩ := hp
+  have hDF : DecodeFailure bytes listBase listLen :=
+    wdK34FailDF spW newSp listBase oldOffset oldLen raRet outer saved bytes listLen
+      index mkDF ha hkp
+  unfold k34FailPost at hkp
+  rcases hkp with ⟨offset, len, v12, x5r, ss, ws, ov, hs⟩ | ⟨v11, v12, hf⟩
+  · -- success payload with nonzero wrapper status
+    obtain ⟨_, hX⟩ := (sepConj_pure_left ha).1 hs
+    have hcomb :
+        (((.x1 ↦ᵣ raRet) **
+          (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
+            savedFrame newSp outer) **
+           EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload newSp listBase offset len
+             v12 x5r ss ws ov saved bytes listLen index)) **
+         (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+          ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest)) h :=
+      ⟨ha, hb, hdab, huab, hX, hRp⟩
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hcomb
+    have hgR :
+        (((( .x2 ↦ᵣ spW) ** (.x1 ↦ᵣ raRet) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
+           (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+           ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) **
+           ((memOwn (spW - BitVec.ofNat 64 8) ** savedFrame newSp outer **
+             stackFree newSp 8) **
+            ((.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+             (.x5 ↦ᵣ x5r) ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ ss) **
+             (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+             regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+            bytesRegion listBase bytes ** (offsetCell ↦ₘ offset) **
+            (lengthCell ↦ₘ len) ** (saved.s1 ↦ₘ ov) ** Frest)) **
+          (.x10 ↦ᵣ ws)) **
+         ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index ws ov⌝) h := by
+      xperm_hyp hcomb
+    have hg_top := ((sepConj_pure_right h).1 hgR).1
+    refine sepConj_mono ?_ (regIs_implies_regOwn .x10) h hg_top
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right ?_))))))))
+    intro h' hl
+    refine (sepConj_pure_left h').2 ⟨hDF, ?_⟩
+    have h2 :
+        (stackFree spW 12 ** wdScratch saved.s3 saved.s4 saved.s5 **
+         bytesRegion listBase bytes ** (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len) **
+         (saved.s1 ↦ₘ ov) ** Frest) h' :=
+      sepConj_mono (wdStack12_of_k34_saved spW newSp outer hnewSp)
+        (sepConj_mono_left (wdScratch_of_regs saved.s3 saved.s4 saved.s5 x5r ss v12))
+        h' hl
+    refine hleft offset len ov h' ?_
+    xperm_hyp h2
+  · -- failure payload with status 1
+    have hcomb :
+        (((.x1 ↦ᵣ raRet) **
+          (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
+            savedFrame newSp outer) **
+           EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload newSp listBase oldOffset
+             oldLen v11 v12 saved bytes listLen index)) **
+         (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+          ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest)) h :=
+      ⟨ha, hb, hdab, huab, hf, hRp⟩
+    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hcomb
+    have hgR :
+        (((( .x2 ↦ᵣ spW) ** (.x1 ↦ᵣ raRet) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
+           (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+           ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) **
+           ((memOwn (spW - BitVec.ofNat 64 8) ** savedFrame newSp outer **
+             stackFree newSp 8) **
+            ((.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+             regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+             (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+             regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+            bytesRegion listBase bytes ** (offsetCell ↦ₘ oldOffset) **
+            (lengthCell ↦ₘ oldLen) ** (saved.s1 ↦ₘ (0 : Word)) ** Frest)) **
+          (.x10 ↦ᵣ (1 : Word))) **
+         ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index 1 0⌝) h := by
+      xperm_hyp hcomb
+    have hg_top := ((sepConj_pure_right h).1 hgR).1
+    refine sepConj_mono ?_ (regIs_implies_regOwn .x10) h hg_top
+    refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right ?_))))))))
+    intro h' hl
+    refine (sepConj_pure_left h').2 ⟨hDF, ?_⟩
+    have h2 :
+        (stackFree spW 12 ** wdScratch saved.s3 saved.s4 saved.s5 **
+         bytesRegion listBase bytes ** (offsetCell ↦ₘ oldOffset) ** (lengthCell ↦ₘ oldLen) **
+         (saved.s1 ↦ₘ (0 : Word)) ** Frest) h' :=
+      sepConj_mono (wdStack12_of_k34_saved spW newSp outer hnewSp)
+        (sepConj_mono_left (wdScratch_of_regs_own5 saved.s3 saved.s4 saved.s5 v11 v12))
+        h' hl
+    refine hleft oldOffset oldLen 0 h' ?_
+    xperm_hyp h2
+
+#print axioms wdK34FailPre
 
 end EvmAsm.Codegen.WithdrawalDecodeSpec
