@@ -349,4 +349,100 @@ theorem teer_walknext61_bne_spec (a1 : Word) :
     (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
   exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
 
+/-! ## authorization-list `rlp_list_count_items` call (instruction 169)
+
+    The `jal rlp_list_count_items` at `teerB + 676 → teerB + 680`.  Lifts the
+    assumed `RlpListCountItemsAssumed` contract through the `jal` via
+    `callWithin_spec`: `a0` = list ptr, `a1` = list length, `a2` =
+    `&teer_auth_count`; on success `a0 = 0` and the count is written to the out
+    cell (`countModel`); on failure `a0 ≠ 0`.  `t0..t2,t3..t6` owned.  Like
+    `tx_type_dispatch`, the contract's pre already leads with `x1` and its exit
+    is `ret` directly (via `_hret`). -/
+abbrev rcJalOff169 : BitVec 21 :=
+  jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.tx_eip7702_existing_authority_refund + 676)
+
+set_option maxRecDepth 8000 in
+theorem teer_count169_call_spec (rc : RlpListCountItemsAssumed fullCode)
+    (hrc : rc.entry = BitVec.ofNat 64 GuestAddrs.rlp_list_count_items)
+    (listBase outPtr outOld t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (listBytes : List (BitVec 8)) (listLen : Nat)
+    (halign : listBase.toNat % 8 = 0)
+    (hbound : listLen ≤ listBytes.length)
+    (hover : listBase.toNat + listBytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < listBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + nRlpListCountItemsSteps) (teerB + 676) (teerB + 680) fullCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ outPtr) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld)))
+      ((.x1 ↦ᵣ (teerB + 680)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes) **
+         (fun h =>
+           (∃ cnt, rc.countModel listBytes listLen = some cnt ∧
+             (((.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ cnt)) h)) ∨
+           (rc.countModel listBytes listLen = none ∧
+             (∃ st, (((.x10 ↦ᵣ st) ** memOwn outPtr ** ⌜st ≠ (0 : Word)⌝) h)))))) := by
+  have hflat := rc.flat (teerB + 680) listBase (BitVec.ofNat 64 listLen) outPtr outOld
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old listBytes listLen
+    (by decide) rfl halign hbound hover hvalid
+  have hcallee : cpsTripleWithin nRlpListCountItemsSteps rc.entry (teerB + 680) fullCode
+      ((.x1 ↦ᵣ (teerB + 680)) **
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ outPtr) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld)))
+      ((.x1 ↦ᵣ (teerB + 680)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes) **
+         (fun h =>
+           (∃ cnt, rc.countModel listBytes listLen = some cnt ∧
+             (((.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ cnt)) h)) ∨
+           (rc.countModel listBytes listLen = none ∧
+             (∃ st, (((.x10 ↦ᵣ st) ** memOwn outPtr ** ⌜st ≠ (0 : Word)⌝) h)))))) :=
+    cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by xperm_hyp hq) hflat
+  have htarget : (teerB + 676) + signExtend21 rcJalOff169 = rc.entry := by rw [hrc]; decide
+  have hmem : ∀ a i, CodeReq.singleton (teerB + 676) (.JAL .x1 rcJalOff169) a = some i →
+      fullCode a = some i := fun a i h =>
+    teer_mono a i
+      (CodeReq.ofProg_mem_at teerB (teerB + 676) teerProg 169 (.JAL .x1 rcJalOff169)
+        (by bv_omega) (by rw [teer_length]; decide) (by decide)
+        (by rw [teer_length]; decide) a i h)
+  have hP : Assertion.pcFree ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
+      (.x12 ↦ᵣ outPtr) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+      (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion listBase listBytes ** (outPtr ↦ₘ outOld)) := by
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj
+  have hcall := callWithin_spec (teerB + 676) rc.entry raIn rcJalOff169 nRlpListCountItemsSteps
+    htarget hmem hP hcallee
+  rw [show (teerB + 676) + 4 = teerB + 680 from by bv_omega] at hcall
+  exact hcall
+
+/-! ## authorization-list count dispatch (instruction 170)
+
+    `bne x10(a0), x0` at `teerB + 680`.  TAKEN (`a0 ≠ 0`, count parse failure)
+    exits to the far epilogue `teerB + 2856`; NOT-TAKEN (`a0 = 0`) falls to
+    `teerB + 684`, the count load into `x23`. -/
+set_option maxRecDepth 8000 in
+theorem teer_count170_bne_spec (a0 : Word) :
+    cpsBranchWithin 1 (teerB + 680) fullCode
+      ((.x10 ↦ᵣ a0) ** (.x0 ↦ᵣ (0 : Word)))
+      (teerB + 2856) ((.x10 ↦ᵣ a0) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a0 ≠ (0 : Word)⌝)
+      (teerB + 684) ((.x10 ↦ᵣ a0) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a0 = (0 : Word)⌝) := by
+  have hbne := bne_spec_gen_within .x10 .x0 (2176 : BitVec 13) a0 (0 : Word) (teerB + 680)
+  rw [show (teerB + 680) + signExtend13 (2176 : BitVec 13) = teerB + 2856 from by
+        rw [show signExtend13 (2176 : BitVec 13) = (2176 : Word) from by decide]; bv_omega,
+      show (teerB + 680) + 4 = teerB + 684 from by bv_omega] at hbne
+  have hmem := CodeReq.ofProg_mem_at teerB (teerB + 680) teerProg 170
+    (.BNE .x10 .x0 (2176 : BitVec 13))
+    (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
+  exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
