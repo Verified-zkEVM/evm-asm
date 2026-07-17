@@ -39,8 +39,12 @@ private theorem endSpan_to_fromIntr_bal1
             stackFree spC nCalleeStackDwords **
             payload txBase outBase balBase txBlob outVals balBytes true **
             (.x0 ↦ᵣ (0 : Word))) h) →
+      -- BalNezFromIntrinsic pre: s-regs outside loopIntrinsicFrame.
       (((.x1 ↦ᵣ old1) **
           (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
           (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
           bytesRegion txBase txBlob **
           wordArray outBase outVals **
