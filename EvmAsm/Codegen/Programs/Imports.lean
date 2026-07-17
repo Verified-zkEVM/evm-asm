@@ -230,6 +230,7 @@ import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactModel
 import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactSpec
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactLoop
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
