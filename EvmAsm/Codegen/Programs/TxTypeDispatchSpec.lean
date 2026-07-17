@@ -219,7 +219,118 @@ theorem txTypeDispatch_empty_fail_spec_within
     cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) htkF hfail
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) c01
 
+abbrev LegacyLi : Word := D + 52
+
+private theorem LegacyLi_eq : LegacyLi = D + BitVec.ofNat 64 (4 * 13) := by
+  simp only [LegacyLi, D, GuestAddrs.tx_type_dispatch]; decide
+private theorem D56 : D + 56 = D + BitVec.ofNat 64 (4 * 14) := by
+  simp only [D, GuestAddrs.tx_type_dispatch]; decide
+private theorem D60 : D + 60 = D + BitVec.ofNat 64 (4 * 15) := by
+  simp only [D, GuestAddrs.tx_type_dispatch]; decide
+private theorem D64 : D + 64 = D + BitVec.ofNat 64 (4 * 16) := by
+  simp only [D, GuestAddrs.tx_type_dispatch]; decide
+
+set_option maxRecDepth 8000 in
+/-- Legacy success tail at LegacyLi (instr 13–16): SD type0, SD inner0, LI a0=0, JALR. -/
+theorem typeLegacyOkRet_spec
+    (raIn txBase typePtr innerPtr oldT oldI a0v a1v v5 v6 : Word)
+    (txBytes : List (BitVec 8))
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn) :
+    cpsTripleWithin 4 LegacyLi raIn typeCode
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ a0v) ** (.x11 ↦ᵣ a1v) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion txBase txBytes **
+        (typePtr ↦ₘ oldT) ** (innerPtr ↦ₘ oldI) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ a1v) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion txBase txBytes **
+        (typePtr ↦ₘ (0 : Word)) ** (innerPtr ↦ₘ (0 : Word)) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  have h0 := sd_spec_gen_within .x12 .x0 typePtr (0 : Word) oldT
+    (0 : BitVec 12) LegacyLi
+  rw [show typePtr + signExtend12 (0 : BitVec 12) = typePtr from by
+    rw [se12_zero]; exact BitVec.add_zero typePtr] at h0
+  have h0e := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D LegacyLi typeProg 13
+      (.SD .x12 .x0 (0 : BitVec 12))
+      LegacyLi_eq (by rw [type_length]; decide) rfl type_bound) h0
+  have h0pc : LegacyLi + 4 = D + 56 := by
+    simp only [LegacyLi, D, GuestAddrs.tx_type_dispatch]; decide
+  rw [h0pc] at h0e
+  have h0F :=
+    cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ a0v) ** (.x11 ↦ᵣ a1v) **
+        (.x13 ↦ᵣ innerPtr) ** bytesRegion txBase txBytes **
+        (innerPtr ↦ₘ oldI) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6))
+      (by pcf) h0e
+  have h1 := sd_spec_gen_within .x13 .x0 innerPtr (0 : Word) oldI
+    (0 : BitVec 12) (D + 56)
+  rw [show innerPtr + signExtend12 (0 : BitVec 12) = innerPtr from by
+    rw [se12_zero]; exact BitVec.add_zero innerPtr] at h1
+  have h1e := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 56) typeProg 14
+      (.SD .x13 .x0 (0 : BitVec 12))
+      D56 (by rw [type_length]; decide) rfl type_bound) h1
+  have h1pc : (D + 56) + 4 = D + 60 := by
+    simp only [D, GuestAddrs.tx_type_dispatch]; decide
+  rw [h1pc] at h1e
+  have h1F :=
+    cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ a0v) ** (.x11 ↦ᵣ a1v) **
+        (.x12 ↦ᵣ typePtr) ** bytesRegion txBase txBytes **
+        (typePtr ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6))
+      (by pcf) h1e
+  have h2 := li_spec_gen_within .x10 a0v (0 : Word) (D + 60) (by decide)
+  have h2e := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at D (D + 60) typeProg 15
+      (.LI .x10 (0 : Word))
+      D60 (by rw [type_length]; decide) rfl type_bound) h2
+  have h2pc : (D + 60) + 4 = D + 64 := by
+    simp only [D, GuestAddrs.tx_type_dispatch]; decide
+  rw [h2pc] at h2e
+  have h2F :=
+    cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ a1v) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion txBase txBytes **
+        (typePtr ↦ₘ (0 : Word)) ** (innerPtr ↦ₘ (0 : Word)) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        (.x0 ↦ᵣ (0 : Word)))
+      (by pcf) h2e
+  have hexit : ((raIn + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) = raIn := by
+    have hz : raIn + signExtend12 (0 : BitVec 12) = raIn := by
+      rw [se12_zero]; exact BitVec.add_zero raIn
+    rw [hz, hret]
+  have h3 : cpsTripleWithin 1 (D + 64) raIn typeCode
+      (.x1 ↦ᵣ raIn) (.x1 ↦ᵣ raIn) := by
+    have hj := jalr_x0_spec_gen_within .x1 raIn (0 : BitVec 12) (D + 64)
+    rw [hexit] at hj
+    exact cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at D (D + 64) typeProg 16
+        (.JALR .x0 .x1 (0 : BitVec 12))
+        D64 (by rw [type_length]; decide) rfl type_bound) hj
+  have h3F :=
+    cpsTripleWithin_frameR
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ a1v) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion txBase txBytes **
+        (typePtr ↦ₘ (0 : Word)) ** (innerPtr ↦ₘ (0 : Word)) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        (.x0 ↦ᵣ (0 : Word)))
+      (by pcf) h3
+  have c01 :=
+    cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have c02 :=
+    cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 h2F
+  have c03 :=
+    cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 h3F
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) c03
+
 #print axioms typeFailRet_spec
 #print axioms txTypeDispatch_empty_fail_spec_within
+#print axioms typeLegacyOkRet_spec
 
 end EvmAsm.Codegen.TxTypeDispatchSpec
