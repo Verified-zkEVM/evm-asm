@@ -11,15 +11,18 @@
     TisCalleeAssumptions. Temps are concrete in the discharge pre; array
     hyp uses regOwn (peel at package time residual).
   * Teer leaf (prover1): targets TeerAssumed.applied_flat verbatim; body
-    modulo 11 assumed callees; will ping when top lands.
+    modulo input callees; will ping when top lands.
   * prior_exact (#10433): success + mid-loop overflow complete (gate sum).
+  * **BgvOffsetAssumed DISCHARGED** (`bgvOffsetAssumed_fullCode`): ambient
+    LBU compose for unaligned loop-site `bgv_u32le` (classical-3).
 
   Residual set for "unconditional" a4gbr claim (honest):
-  1. TeerAssumed ← prover1 teer top (modulo 11 input callees)
+  1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← discharge package for all offs (ambient multi-tx)
      + regOwn temp peel + CodeReq mono into array fullCode
   3. TisCalleeAssumptions ← convert/prove extract + type_dispatch
-  4. BgvOffsetAssumed ← ambient LBU composition for unaligned loop bgv
+     (type_dispatch leaf Fn.Spec exists; intrinsic success-only shape residual)
+  4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
 
   This module holds the residual inventory and import hooks. Concrete
@@ -28,6 +31,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
+import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
@@ -35,25 +39,28 @@ namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
-  (BgvOffsetAssumed nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn fullCode)
+  (BgvOffsetAssumed nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn fullCode
+    bgvOffsetAssumed_fullCode)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (TisCalleeAssumptions ExtractEntry TypeEntry LinkEts T
     intrinsicAssumed_success_flat_off0)
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
   (TeerApplied pureIntrinsicStateGasSuccess)
 
+/-- Discharged loop-site bgv contract (no residual hyp). -/
+def bgvOffset_discharged : BgvOffsetAssumed fullCode :=
+  bgvOffsetAssumed_fullCode
+
 /-- Residual inventory for the unconditional a4gbr deliverable.
-    Each field is a named hyp still required after leaf discharges land. -/
+    BgvOffset removed — use `bgvOffset_discharged`. -/
 structure A4gbrResiduals where
   /-- Extract + type_dispatch assumed contracts (intrinsic leaf). -/
   tisCallees : TisCalleeAssumptions TxIntrinsicStateGasSpec.fullCode
-  /-- Loop-site unaligned bgv (Region.wf 8-align gap). -/
-  bgvOffset : BgvOffsetAssumed fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 ∧ len=blob.length is discharged by
       `intrinsicAssumed_success_flat_off0`. -/
   ambientMultiTx : True := trivial
-  /-- Teer leaf modulo its 11 input callees (prover1 scope). -/
+  /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
 
 /-- Slice-eq-ambient discharge is available (off=0, full blob).
@@ -104,5 +111,6 @@ theorem intrinsic_discharge_off0_available
     old5 old6 old7 old13 old14 old15 old16 hret hlink
 
 #print axioms intrinsic_discharge_off0_available
+#print axioms bgvOffsetAssumed_fullCode
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
