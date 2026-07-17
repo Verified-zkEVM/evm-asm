@@ -255,6 +255,25 @@ theorem wdK34FailDF (spW newSp listBase oldOffset oldLen raRet : Word)
 
 #print axioms wdK34FailDF
 
+/-- The field-2 (K20) fail post pins a `Result` with a nonzero status; casing it
+    forces the `fail` constructor (status `1`), exposing the `Failure` that the
+    `DecodeFailure.field2List` arm needs.  The `ok` (status `0`) case contradicts
+    the pinned nonzero fact. -/
+theorem wdK20FailDF (spW listBase oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen : Nat) :
+    ∀ h, k20FailPost spW listBase oldOffset oldLen saved bytes listLen h →
+      DecodeFailure bytes listBase listLen := by
+  intro h hp
+  unfold k20FailPost at hp
+  obtain ⟨status, offset, len, v11, v12, hp⟩ := hp
+  obtain ⟨⟨hres, hnz⟩, _⟩ := (sepConj_pure_left h).1 hp
+  cases hres with
+  | ok o l hok => exact absurd rfl hnz
+  | fail hfail => exact DecodeFailure.field2List hfail
+
+#print axioms wdK20FailDF
+
 /-! ## Failure-tail arm -/
 
 set_option maxRecDepth 8000 in
