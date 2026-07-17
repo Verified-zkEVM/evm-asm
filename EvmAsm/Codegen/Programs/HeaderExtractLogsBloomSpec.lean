@@ -21,6 +21,7 @@
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
+import EvmAsm.Codegen.Programs.LogsBloomCopyArithmetic
 import EvmAsm.Rv64.SAsm.GlobalData
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.MemRegion
@@ -33,6 +34,7 @@ namespace EvmAsm.Codegen.HeaderExtractLogsBloomSpec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen.RlpListNthItemSAsm
+open EvmAsm.Codegen.LogsBloomCopyArithmetic
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
 
 /-- Guest entry of `header_extract_logs_bloom`. -/
@@ -449,23 +451,6 @@ theorem helbEpilogue (newSp a0v v1 v8 v9 v18 : Word) (fsaved : HeaderFieldsSpec.
 
 /-! ## Copy-loop helpers -/
 
-private theorem helb_succ_dec (n : Nat) :
-    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
-  apply BitVec.eq_of_toNat_eq
-  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
-  rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
-  omega
-
-private theorem helb_succ_ne_zero (n : Nat) (h : n + 1 < 18446744073709551616) :
-    BitVec.ofNat 64 (n + 1) ≠ (0 : Word) := by
-  have ht : (BitVec.ofNat 64 (n + 1) : Word).toNat = n + 1 := by
-    rw [BitVec.toNat_ofNat]; omega
-  intro hc; rw [hc] at ht; simp at ht
-
-private theorem helb_advance (b : Word) (m : Nat) :
-    (b + BitVec.ofNat 64 m) + signExtend12 (1 : BitVec 12) = b + BitVec.ofNat 64 (m + 1) := by
-  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
-
 set_option maxRecDepth 8000 in
 /-- One copy-loop body ([29]-[33], `helbBase+116 → helbBase+136`): copy one byte
     from `srcBase[srcOff+i]` to `dstBase[dstOff+i]` and decrement the counter. -/
@@ -538,7 +523,7 @@ private theorem helbCopyBody5 (srcBase dstBase x31old : Word)
   -- [31] addi x28, x28, 1
   have h3 := addi_spec_gen_same_within .x28
     (srcBase + BitVec.ofNat 64 (srcOff + i)) (1 : BitVec 12) (helbBase + 124) (by decide)
-  rw [helb_advance srcBase (srcOff + i),
+  rw [advance srcBase (srcOff + i),
       show srcOff + i + 1 = srcOff + (i + 1) from by omega,
       show (helbBase + 124 : Word) + 4 = helbBase + 128 from by bv_omega] at h3
   have h3e := cpsTripleWithin_extend_code
@@ -554,7 +539,7 @@ private theorem helbCopyBody5 (srcBase dstBase x31old : Word)
   -- [32] addi x29, x29, 1
   have h4 := addi_spec_gen_same_within .x29
     (dstBase + BitVec.ofNat 64 (dstOff + i)) (1 : BitVec 12) (helbBase + 128) (by decide)
-  rw [helb_advance dstBase (dstOff + i),
+  rw [advance dstBase (dstOff + i),
       show dstOff + i + 1 = dstOff + (i + 1) from by omega,
       show (helbBase + 128 : Word) + 4 = helbBase + 132 from by bv_omega] at h4
   have h4e := cpsTripleWithin_extend_code
@@ -570,7 +555,7 @@ private theorem helbCopyBody5 (srcBase dstBase x31old : Word)
   -- [33] addi x30, x30, -1
   have h5 := addi_spec_gen_same_within .x30 (BitVec.ofNat 64 (m + 1)) (-1 : BitVec 12)
     (helbBase + 132) (by decide)
-  rw [helb_succ_dec m, show (helbBase + 132 : Word) + 4 = helbBase + 136 from by bv_omega] at h5
+  rw [succ_dec m, show (helbBase + 132 : Word) + 4 = helbBase + 136 from by bv_omega] at h5
   have h5e := cpsTripleWithin_extend_code
     (helbMem Codegen.headerExtractLogsBloom_prog rfl (helbBase + 132) 33
       (.ADDI .x30 .x30 (-1 : BitVec 12)) (by rw [program_length]; norm_num) (by bv_omega) rfl) h5
@@ -662,7 +647,7 @@ private theorem helbCopyLoop (srcBase dstBase x31old : Word)
     have hbeqe := cpsBranchWithin_extend_code hbeqMem hbeq
     have hnt := cpsBranchWithin_ntakenStripPure2 hbeqe (fun hp hQt => by
       obtain ⟨_, _, _, _, _, hQ⟩ := hQt
-      exact helb_succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)
+      exact succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)
     have hntf := cpsTripleWithin_frameR
       (((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
        ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
@@ -735,10 +720,6 @@ theorem helbLaOff88 (v : Word) :
     (by decide) (by decide) hau had
   rw [show (helbBase + 88 : Word) + 8 = helbBase + 96 from by bv_omega] at h
   exact h
-
-private theorem helb_ofNat_toNat (fo : Word) : (BitVec.ofNat 64 fo.toNat : Word) = fo := by
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt fo.isLt
 
 /-! ## Terminal tails: set `a0`, jump to the epilogue, return -/
 
@@ -1003,7 +984,7 @@ private theorem helbCopyThenTail0
   simp only [Nat.add_zero, Nat.zero_add] at hcopy
   rw [show (outPtr + BitVec.ofNat 64 0 : Word) = outPtr from by bv_omega,
       show copyIntoRegion outBytes headerBytes 0 offset.toNat 0 = outBytes from rfl,
-      helb_ofNat_toNat offset,
+      ofNat_toNat offset,
       show (BitVec.ofNat 64 256 : Word) = (256 : Word) from by decide] at hcopy
   have hcopyF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ a0old) ** (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ v1) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
