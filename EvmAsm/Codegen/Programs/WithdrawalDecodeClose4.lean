@@ -307,4 +307,36 @@ theorem pcFree_wdFailLeftover (spW outBase listBase s3 s4 s5 : Word)
     | exact pcFree_memIs | exact bytesRegion_pcFree _ _ | exact pcFree_stackFree _ _
     | exact pcFree_wdScratch _ _ _ | apply pcFree_sepConj
 
+#print axioms pcFree_wdFailLeftover
+
+set_option maxRecDepth 8000 in
+/-- Generic fail arm: from any reshaped fail-pre — the restored-caller registers
+    and stack slots plus `⌜DecodeFailure⌝ ** wdFailLeftover` as the preserved
+    footprint `G0`, and an owned `x10` — the failure tail (`WB+212 → wra`) lands
+    the whole-program failure post.  Every fail arm (K34 fields 0/1/3, K20
+    field-2 list, length-check) reduces to this after its own PRE reshape. -/
+theorem wdFailArm (sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old
+      outBase listBase s3 s4 s5 : Word)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : wra &&& ~~~(1 : Word) = wra) :
+    cpsTripleWithin 7 (WB + 212) wra fullCode
+      (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ x1old) ** (.x8 ↦ᵣ x8old) ** (.x9 ↦ᵣ x9old) **
+        (.x18 ↦ᵣ x18old) ** (spW ↦ₘ wra) ** ((spW + 8) ↦ₘ cs0) **
+        ((spW + 16) ↦ₘ cs1) ** ((spW + 24) ↦ₘ cs2) **
+        ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+         wdFailLeftover spW outBase listBase s3 s4 s5 bytes)) ** regOwn .x10)
+      (wdWholePost sp0 spW wra cs0 cs1 cs2 outBase listBase s3 s4 s5 listLen bytes
+        oldAddr pad4) := by
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => Or.inr ?_)
+    (wdFailEpiRO sp0 spW wra cs0 cs1 cs2 x1old x8old x9old x18old
+      ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+        wdFailLeftover spW outBase listBase s3 s4 s5 bytes)
+      (pcFree_sepConj pcFree_pure (pcFree_wdFailLeftover _ _ _ _ _ _ _)) hspW hret)
+  -- hq : ((x10↦1 ** wdCommon) ** (⌜DF⌝ ** wdFailLeftover)) h
+  -- goal : (⌜DF⌝ ** (x10↦1 ** wdCommon ** wdFailLeftover)) h
+  xperm_hyp hq
+
+#print axioms wdFailArm
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
