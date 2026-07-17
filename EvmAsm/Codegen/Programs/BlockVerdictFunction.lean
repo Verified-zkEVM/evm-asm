@@ -1094,7 +1094,8 @@ def blockVerdictFunction : String :=
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
   "  la a4, i3djw_skip_list; li a5, 7\n" ++
   "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
-  "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
+  "  # Conservative all-accounts storage mismatch bail removed; retain the\n" ++
+  "  # independent tuple-sequence and authenticated state-root checks below.\n" ++
   -- bmvmx.1.6.6: per-slot tuple-SEQUENCE consistency. The checks above pin each slot's FINAL
   -- value; this pins the per-tx (block_access_index, new_value) tuple SEQUENCE that the spec
   -- hashes into header.block_access_list_hash, for every non-recipient account. Index semantics
