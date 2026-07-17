@@ -301,4 +301,169 @@ theorem teer_walk012_spec (wi : RlpWalkInitAssumed fullCode)
     (cpsBranchWithin_exists_pre hB2)
     (fun h hq => to_teerFail _ h hq) (fun h hq => to_teerFail _ h hq)
 
+/-! ## `rlp_walk_next`@70 group+pin ;; `to`-walk glue 3 (`teerB + 280 → {2856, 300}`) -/
+
+set_option maxRecDepth 8000 in
+theorem teer_walknext70_toglue3_spec (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (v24o v25 : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (C : Word)
+    (hc : ∀ next len : Word,
+      EvmAsm.Rv64.RLP.rlpItemDecode srcBytes srcOff
+        (srcBase + BitVec.ofNat 64 srcOff) endPtr next len → next = C) :
+    cpsBranchWithin (((1 + 87) + 1) + 3) (teerB + 280) fullCode
+      (((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes)) **
+        ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25)))
+      (teerB + 2856) teerFail
+      (teerB + 300)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 284)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+  have h1 := cpsBranchWithin_frameR ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj)
+    (teer_walknext70_pin_spec wn hwn srcBase endPtr a2Old t0Old t1Old t2Old
+      t3Old t4Old t5Old t6Old raIn srcBytes srcOff halign hoff hover hvalid C hc)
+  have h2 : cpsTripleWithin 3 (teerB + 288) (teerB + 300) fullCode
+      (fun h => ∃ len : Word,
+        (((.x1 ↦ᵣ (teerB + 284)) **
+            (teerWalkScratch srcBase srcBytes **
+             ((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)))) **
+          ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))) h)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 284)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+    apply cpsTripleWithin_exists_pre_gen
+    intro len
+    have ht := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (teerB + 284)) ** teerWalkScratch srcBase srcBytes ** (.x12 ↦ᵣ len))
+      (by repeat' first
+          | exact pcFree_regIs | exact teerWalkScratch_pcFree _ _ | apply pcFree_sepConj)
+      (cpsTripleWithin_extend_code teer_mono (teer_toglue3_spec C (0 : Word) v24o v25))
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hq => ⟨len, by xperm_hyp hq⟩) ht
+  exact cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+    h1 (fun h hq => sepConj_exists_left h hq) h2 (fun h hq => to_teerFail _ h hq)
+
+/-! ## `rlp_walk_next`@75 group+pin ;; `to`-walk glue 4 (`teerB + 300 → {2856, 320}`) -/
+
+set_option maxRecDepth 8000 in
+theorem teer_walknext75_toglue4_spec (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (v24o v25 : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (C : Word)
+    (hc : ∀ next len : Word,
+      EvmAsm.Rv64.RLP.rlpItemDecode srcBytes srcOff
+        (srcBase + BitVec.ofNat 64 srcOff) endPtr next len → next = C) :
+    cpsBranchWithin (((1 + 87) + 1) + 3) (teerB + 300) fullCode
+      (((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes)) **
+        ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25)))
+      (teerB + 2856) teerFail
+      (teerB + 320)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 304)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+  have h1 := cpsBranchWithin_frameR ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj)
+    (teer_walknext75_pin_spec wn hwn srcBase endPtr a2Old t0Old t1Old t2Old
+      t3Old t4Old t5Old t6Old raIn srcBytes srcOff halign hoff hover hvalid C hc)
+  have h2 : cpsTripleWithin 3 (teerB + 308) (teerB + 320) fullCode
+      (fun h => ∃ len : Word,
+        (((.x1 ↦ᵣ (teerB + 304)) **
+            (teerWalkScratch srcBase srcBytes **
+             ((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)))) **
+          ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))) h)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 304)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+    apply cpsTripleWithin_exists_pre_gen
+    intro len
+    have ht := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (teerB + 304)) ** teerWalkScratch srcBase srcBytes ** (.x12 ↦ᵣ len))
+      (by repeat' first
+          | exact pcFree_regIs | exact teerWalkScratch_pcFree _ _ | apply pcFree_sepConj)
+      (cpsTripleWithin_extend_code teer_mono (teer_toglue4_spec C (0 : Word) v24o v25))
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hq => ⟨len, by xperm_hyp hq⟩) ht
+  exact cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+    h1 (fun h hq => sepConj_exists_left h hq) h2 (fun h hq => to_teerFail _ h hq)
+
+/-! ## `rlp_walk_next`@80 group+pin ;; `to`-walk glue 5 (`teerB + 320 → {2856, 340}`) -/
+
+set_option maxRecDepth 8000 in
+theorem teer_walknext80_toglue5_spec (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (v24o v25 : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (C : Word)
+    (hc : ∀ next len : Word,
+      EvmAsm.Rv64.RLP.rlpItemDecode srcBytes srcOff
+        (srcBase + BitVec.ofNat 64 srcOff) endPtr next len → next = C) :
+    cpsBranchWithin (((1 + 87) + 1) + 3) (teerB + 320) fullCode
+      (((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes)) **
+        ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25)))
+      (teerB + 2856) teerFail
+      (teerB + 340)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 324)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+  have h1 := cpsBranchWithin_frameR ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))
+    (by repeat' first | exact pcFree_regIs | apply pcFree_sepConj)
+    (teer_walknext80_pin_spec wn hwn srcBase endPtr a2Old t0Old t1Old t2Old
+      t3Old t4Old t5Old t6Old raIn srcBytes srcOff halign hoff hover hvalid C hc)
+  have h2 : cpsTripleWithin 3 (teerB + 328) (teerB + 340) fullCode
+      (fun h => ∃ len : Word,
+        (((.x1 ↦ᵣ (teerB + 324)) **
+            (teerWalkScratch srcBase srcBytes **
+             ((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)))) **
+          ((.x24 ↦ᵣ v24o) ** (.x25 ↦ᵣ v25))) h)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C) ** (.x11 ↦ᵣ v25) ** (.x24 ↦ᵣ C) ** (.x25 ↦ᵣ v25)) **
+          ((.x1 ↦ᵣ (teerB + 324)) ** teerWalkScratch srcBase srcBytes **
+            (.x12 ↦ᵣ len))) h) := by
+    apply cpsTripleWithin_exists_pre_gen
+    intro len
+    have ht := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (teerB + 324)) ** teerWalkScratch srcBase srcBytes ** (.x12 ↦ᵣ len))
+      (by repeat' first
+          | exact pcFree_regIs | exact teerWalkScratch_pcFree _ _ | apply pcFree_sepConj)
+      (cpsTripleWithin_extend_code teer_mono (teer_toglue5_spec C (0 : Word) v24o v25))
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hq => ⟨len, by xperm_hyp hq⟩) ht
+  exact cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+    h1 (fun h hq => sepConj_exists_left h hq) h2 (fun h hq => to_teerFail _ h hq)
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
