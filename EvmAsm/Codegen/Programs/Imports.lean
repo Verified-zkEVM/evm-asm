@@ -537,3 +537,5 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersSpec
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeSpec
