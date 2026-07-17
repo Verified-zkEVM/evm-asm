@@ -170,7 +170,6 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
           xperm_hyp hq)
         (cpsTripleWithin_mono_nSteps (by simp only [List.length_cons]; omega) hc)
 
-#print axioms multiRegJumpTail_spec
 
 -- ============================================================================
 -- §2  whileBreak-to-epilogue: the tail joined to the shared epilogue
@@ -201,7 +200,6 @@ theorem jumpJoinTail_spec {m : Nat} (cr : CodeReq) (addr ret : Word)
       (multiRegJumpTail_spec cr addr ofs assigns hnz hlen hmem))
     hjoin
 
-#print axioms jumpJoinTail_spec
 
 -- ============================================================================
 -- §3  End-to-end mechanism demo: the minimal early-return-from-loop routine
@@ -610,7 +608,6 @@ theorem earlyRetLoop_spec (base ret N flag : Word)
   rw [show N - BitVec.ofNat 64 0 = N from by bv_omega]
   exact hp
 
-#print axioms earlyRetLoop_spec
 
 end EarlyRetLoop
 

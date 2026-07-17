@@ -314,7 +314,6 @@ theorem twoRwFn_spec (base : Word)
 
 end Demo
 
-#print axioms twoRwFn_spec
 
 end MultiRw
 

@@ -151,7 +151,4 @@ theorem la_materialize_within (rd : Reg) (vOld pc target : Word) {cr : CodeReq}
     show (pc + 4 : Word) + 4 = pc + 8 from by bv_omega] at h2
   exact cpsTripleWithin_seq_same_cr h1 h2
 
-#print axioms la_resolve
-#print axioms la_materialize_within
-
 end EvmAsm.Rv64

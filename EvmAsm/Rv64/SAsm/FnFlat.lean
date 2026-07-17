@@ -475,7 +475,3 @@ theorem length_flatMap_dwordBytes (vs : List Word) :
 end SAsm
 end EvmAsm.Rv64
 
-#print axioms EvmAsm.Rv64.SAsm.regFileIs_eq_regAtoms
-#print axioms EvmAsm.Rv64.SAsm.cpsTripleWithin_peel_regOwns
-#print axioms EvmAsm.Rv64.SAsm.Fn.retSpecFlat
-#print axioms EvmAsm.Rv64.SAsm.Fn.retSpecFlatAmbient

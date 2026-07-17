@@ -1097,6 +1097,4 @@ theorem evm_mload_stack_spec_within_evmMemoryArea
     h_off_ne_x0 h_addr_ne_x0 h_byte_ne_x0 h_acc_ne_x0
     hlen (by decide) hguard EVM_MEMORY_AREA_aligned hin hbound hvalid
 
-#print axioms evm_mload_stack_spec_within
-
 end EvmAsm.Evm64

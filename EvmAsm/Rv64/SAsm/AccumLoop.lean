@@ -179,8 +179,5 @@ theorem bytesRegion_ld_cursor_within (rd rs1 : Reg) (regionBase vOld : Word)
     (fun _ hq' => by xperm_hyp hq')
     (cpsTripleWithin_frameR (front ** rest) (pcFree_sepConj hf hr) hld)
 
-#print axioms retLoop_spec
-#print axioms AccumLoop.xorAcc_eq_zero_iff_bytes_eq
-#print axioms bytesRegion_ld_cursor_within
 
 end EvmAsm.Rv64.SAsm
