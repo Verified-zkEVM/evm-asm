@@ -26,6 +26,7 @@ open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel (pureIntrinsicStateGasSuccess)
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
   (nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn)
+open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
 private theorem se12_neg64 :
     signExtend12 (-64 : BitVec 12) = BitVec.ofInt 64 (-64) := by decide
@@ -134,7 +135,8 @@ theorem intrinsicAssumed_success_flat_off0
     (bs : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
-    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts) :
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word)) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -175,7 +177,7 @@ theorem intrinsicAssumed_success_flat_off0
     txIntrinsicStateGas_success_spec_within asm hextract htype
       spVal spC s regionBase lenW outPtr oldOut bs
       old5 old6 old7 old13 old14 old15 old16
-      hspC hret hlen hlink
+      hspC hret hlen hlink hsuccess
   have hle : nTisTopSteps ≤ nIntrinsicSteps := by
     simp only [nTisTopSteps, nExtractSteps, nTypeSteps, nIntrinsicSteps]
     omega

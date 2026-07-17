@@ -18,6 +18,7 @@ namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
+open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
 local macro "pcf" : tactic =>
   `(tactic| repeat
@@ -255,7 +256,8 @@ private theorem typeCore
     (spC : Word) (s : TisSaved)
     (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
     (v11 v12 v13 : Word)
-    (hlen : lenW = BitVec.ofNat 64 txBytes.length) :
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
     cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
       (typePreConcrete spC s txBase lenW outPtr oldOut txBytes v11 v12 v13)
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -263,7 +265,7 @@ private theorem typeCore
         bodyPayload txBase txBytes outPtr oldOut **
         bodyScratch) := by
   have hty0 := tisTypeSuccess asm hentry txBase lenW outPtr txBytes
-    LinkExtract 0 v11 v12 v13 hlen
+    LinkExtract 0 v11 v12 v13 hlen hsuccess
   have htyF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) **
       (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
@@ -285,7 +287,8 @@ theorem tisTypeFramed
     (hentry : asm.entry = TypeEntry)
     (spC : Word) (s : TisSaved)
     (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
-    (hlen : lenW = BitVec.ofNat 64 txBytes.length) :
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
     cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
       ((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
@@ -296,7 +299,7 @@ theorem tisTypeFramed
         bodyPayload txBase txBytes outPtr oldOut **
         bodyScratch) := by
   have hcore (v11 v12 v13 : Word) :=
-    typeCore asm hentry spC s txBase lenW outPtr oldOut txBytes v11 v12 v13 hlen
+    typeCore asm hentry spC s txBase lenW outPtr oldOut txBytes v11 v12 v13 hlen hsuccess
   -- rightmost peels: x13, then x12, then x11
   have h13 : cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
       (((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -636,7 +639,8 @@ theorem txIntrinsicStateGas_success_spec_within
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts) :
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
     cpsTripleWithin nTisTopSteps T s.ra fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt tisFrame (tisSavedVals s) **
         frameSlotsOwn tisFrame spC **
@@ -659,7 +663,7 @@ theorem txIntrinsicStateGas_success_spec_within
     old5 old6 old7 old13 old14 old15 old16 hlen
   have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hex
   have hty := tisTypeFramed asm.typeDispatch htype spC s
-    txBase lenW outPtr oldOut txBytes hlen
+    txBase lenW outPtr oldOut txBytes hlen hsuccess
   have c02 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hty
   have hets := tisEtsFramed spC s txBase lenW outPtr oldOut txBytes hlink
   have c03 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 hets

@@ -77,7 +77,9 @@ theorem intrinsic_discharge_off0_available
     (bs : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
-    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts) :
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
+    (hsuccess : (EvmAsm.Codegen.TxTypeDispatchSpec.teerTxTypeDispatch bs).1 =
+      (0 : Word)) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret TxIntrinsicStateGasSpec.fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -111,7 +113,7 @@ theorem intrinsic_discharge_off0_available
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0 asm hextract htype
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
-    old5 old6 old7 old13 old14 old15 old16 hret hlink
+    old5 old6 old7 old13 old14 old15 old16 hret hlink hsuccess
 
 #print axioms intrinsic_discharge_off0_available
 #print axioms bgvOffsetAssumed_fullCode

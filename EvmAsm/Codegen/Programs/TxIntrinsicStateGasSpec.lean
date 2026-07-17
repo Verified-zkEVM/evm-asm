@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.SyscallSpecs
@@ -38,6 +39,7 @@ open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 open EvmAsm.Codegen.Eip8037TxStateGasSpec
+open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
 local macro "pcf" : tactic =>
   `(tactic| repeat
@@ -148,7 +150,9 @@ structure ExtractAssumed (cr : CodeReq) where
 
 /-- Assumed success contract for `tx_type_dispatch` (45-instr Program).
 
-    ABI: a0=txBase, a1=len, a2=type_out, a3=inner_off_out → a0=0 on success. -/
+    ABI: a0=txBase, a1=len, a2=type_out, a3=inner_off_out → a0=0 on success.
+    Success-domain only: requires classification status = 0
+    (`teerTxTypeDispatch txBytes`).1 = 0 — empty/unknown return a0=1. -/
 structure TypeDispatchAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
@@ -156,6 +160,7 @@ structure TypeDispatchAssumed (cr : CodeReq) where
       (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
+      (teerTxTypeDispatch txBytes).1 = (0 : Word) →
       cpsTripleWithin nTypeSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
