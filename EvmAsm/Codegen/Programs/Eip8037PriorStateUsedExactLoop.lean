@@ -253,7 +253,9 @@ abbrev AfterAddState : Word := P + 88
 abbrev AfterMvSum : Word := P + 96
 abbrev AfterLaStatus : Word := P + 104
 abbrev AfterLdStatus : Word := P + 112
-abbrev AfterStatusSkip : Word := P + 144
+abbrev AfterStatusBne : Word := P + 116  -- fall-through of status BEQ (status ≠ 0)
+abbrev AfterLaExec : Word := P + 124
+abbrev AfterStatusSkip : Word := P + 144  -- join of status=0 skip and status≠0 exec path
 abbrev AfterIncr : Word := P + 148
 
 private theorem LoopGuard_plus_4 : LoopGuard + 4 = LoopBody := by
@@ -307,6 +309,27 @@ theorem pseLaStatus (v : Word) :
   rwa [show AfterMvSum + 8 = AfterLaStatus from by
     simp only [AfterMvSum, AfterLaStatus]; decide] at h
 
+/-- `la bvgr_tx_exec_state_gas` at instr 29–30 (PC P+116). -/
+theorem pseLaExec (v : Word) :
+    cpsTripleWithin 2 AfterStatusBne AfterLaExec pseCode
+      (.x29 ↦ᵣ v) (.x29 ↦ᵣ TxExecStateGasAddr) := by
+  have hau := CodeReq.ofProg_mem_at P AfterStatusBne pseProg 29
+    (.AUIPC .x29 (Codegen.laHi GuestAddrs.bvgr_tx_exec_state_gas
+      (GuestAddrs.eip8037_prior_state_used_exact + 116)))
+    (by simp only [AfterStatusBne]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have had := CodeReq.ofProg_mem_at P (AfterStatusBne + 4) pseProg 30
+    (.ADDI .x29 .x29 (Codegen.laLo GuestAddrs.bvgr_tx_exec_state_gas
+      (GuestAddrs.eip8037_prior_state_used_exact + 116)))
+    (by simp only [AfterStatusBne]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have h := la_materialize_within .x29 v AfterStatusBne TxExecStateGasAddr
+    (by decide)
+    (by simp only [AfterStatusBne, TxExecStateGasAddr]; decide)
+    hau had
+  rwa [show AfterStatusBne + 8 = AfterLaExec from by
+    simp only [AfterStatusBne, AfterLaExec]; decide] at h
+
 set_option maxRecDepth 8000 in
 /-- Guard fall-through when i ≠ n. -/
 theorem pseLoopGuardNtaken
@@ -355,6 +378,7 @@ theorem pseLoopGuardNtaken
 
 #print axioms pseLaStateGas
 #print axioms pseLaStatus
+#print axioms pseLaExec
 
 end EvmAsm.Codegen.Eip8037PriorStateUsedExactLoop
 
