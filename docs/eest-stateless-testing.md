@@ -211,6 +211,22 @@ requires the selected rows to full-match. Use
 specific row group while keeping the default script complete for future fixture
 additions.
 
+Run the EIP-8037 auth-retention 0-FA guard (bmvmx.5.5.11.1):
+
+```bash
+scripts/codegen-eest-kat-auth-retention-check.sh
+```
+
+This permanent 0-FA regression guard runs the two tracked KAT fixtures under
+`fixtures/kat/eip8037-auth-retention/` (generator spec:
+`scripts/kat/test_auth_retention_kat.py`) and requires both to byte-match their
+fixture `statelessOutputBytes`: the control block (valid, accepted) and the
+exploit block (invalid, rejected). The exploit crafts a failed 7702 tx whose
+new-account authority charge (218,790 state gas) the reference retains toward
+the block state budget, followed by a tx that fits only if that charge is
+under-counted at the sequential inclusion gate — a guest that accepts it has
+the auth-retention false-accept hole.
+
 Run the EIP-7939 CLZ/JUMP frontier:
 
 ```bash
