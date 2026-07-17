@@ -544,4 +544,113 @@ theorem wdK34FailArm (sp0 spW newSp raIn listBase oldOffset oldLen raRet
 
 #print axioms wdK34FailArm
 
+set_option maxRecDepth 8000 in
+/-- Field-2 (K20) fail-post PRE reshape into the `wdFailArm` shape.  Structurally
+    distinct from the K34 arms (a `regsAt listNthFrame` caller-save bundle and a
+    `stackFree spW 8` discipline reclaimed with the four deep cells `wdStackK20Deep`
+    instead of a `newSp` frame), but the same surgery: DF via `wdK20FailDF`, weaken
+    `x11/x12` via `wdScratch_of_regs_own5`, fold the stack via `wdStack12_of_k20`,
+    regOwn `x10`, `xperm`.  The per-field-2 fold `hleft` packages `Frest` plus the
+    payload's two `wd_offset`/`wd_length` cells into `wdFailLeftover`. -/
+theorem wdK20FailPre (spW raIn listBase oldOffset oldLen outBase
+      s0Old s1Old s2Old : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (Frest : Assertion)
+    (hleft : ∀ (offset len : Word), ∀ h,
+      (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **
+       bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ offset) ** (wdLengthAddr ↦ₘ len) **
+       Frest) h →
+      wdFailLeftover spW outBase listBase saved.s3 saved.s4 saved.s5 bytes h) :
+    ∀ h,
+      (k20FailPost spW listBase oldOffset oldLen saved bytes listLen **
+       (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) **
+       ((spW + 24) ↦ₘ s2Old) ** wdStackK20Deep spW ** Frest) h →
+      (((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+        (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) **
+        ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+         wdFailLeftover spW outBase listBase saved.s3 saved.s4 saved.s5 bytes)) **
+       regOwn .x10) h := by
+  intro h hp
+  obtain ⟨ha, hb, hdab, huab, hkp, hRp⟩ := hp
+  have hDF : DecodeFailure bytes listBase listLen :=
+    wdK20FailDF spW listBase oldOffset oldLen saved bytes listLen ha hkp
+  unfold k20FailPost at hkp
+  obtain ⟨status, offset, len, v11, v12, hp0⟩ := hkp
+  obtain ⟨_, hcore⟩ := (sepConj_pure_left ha).1 hp0
+  rw [EvmAsm.Codegen.RlpListNthItemSAsm.regsAt_listNthFrame] at hcore
+  have hcomb :
+      ((((.x2 ↦ᵣ spW) **
+         ((.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+          (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) **
+          (.x21 ↦ᵣ saved.s5)) ** stackFree spW 8) **
+        ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+         (wdOffsetAddr ↦ₘ offset) ** (wdLengthAddr ↦ₘ len))) **
+       ((spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) **
+        ((spW + 24) ↦ₘ s2Old) ** wdStackK20Deep spW ** Frest)) h :=
+    ⟨ha, hb, hdab, huab, hcore, hRp⟩
+  have hg_top :
+      ((( .x2 ↦ᵣ spW) ** (.x1 ↦ᵣ saved.ra) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+         (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+         ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) **
+         ((wdStackK20Deep spW ** stackFree spW 8) **
+          ((.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+           regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x11 ↦ᵣ v11) **
+           (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+           regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+          bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ offset) **
+          (wdLengthAddr ↦ₘ len) ** Frest)) **
+        (.x10 ↦ᵣ status)) h := by
+    xperm_hyp hcomb
+  refine sepConj_mono ?_ (regIs_implies_regOwn .x10) h hg_top
+  refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right ?_))))))))
+  intro h' hl
+  refine (sepConj_pure_left h').2 ⟨hDF, ?_⟩
+  have h2 :
+      (stackFree spW 12 ** wdScratch saved.s3 saved.s4 saved.s5 **
+       bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ offset) ** (wdLengthAddr ↦ₘ len) **
+       Frest) h' :=
+    sepConj_mono (wdStack12_of_k20 spW)
+      (sepConj_mono_left (wdScratch_of_regs_own5 saved.s3 saved.s4 saved.s5 v11 v12))
+      h' hl
+  refine hleft offset len h' ?_
+  xperm_hyp h2
+
+#print axioms wdK20FailPre
+
+set_option maxRecDepth 8000 in
+/-- The complete K20 (field-2 list) fail arm: `wdK20FailPre ;; wdFailArm`. -/
+theorem wdK20FailArm (sp0 spW raIn listBase oldOffset oldLen outBase
+      s0Old s1Old s2Old : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
+    (Frest : Assertion)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hleft : ∀ (offset len : Word), ∀ h,
+      (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **
+       bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ offset) ** (wdLengthAddr ↦ₘ len) **
+       Frest) h →
+      wdFailLeftover spW outBase listBase saved.s3 saved.s4 saved.s5 bytes h) :
+    cpsTripleWithin 7 (WB + 212) raIn fullCode
+      (k20FailPost spW listBase oldOffset oldLen saved bytes listLen **
+       (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) ** ((spW + 16) ↦ₘ s1Old) **
+       ((spW + 24) ↦ₘ s2Old) ** wdStackK20Deep spW ** Frest)
+      (wdWholePost sp0 spW raIn s0Old s1Old s2Old outBase listBase saved.s3 saved.s4
+        saved.s5 listLen bytes oldAddr pad4) :=
+  cpsTripleWithin_weaken
+    (wdK20FailPre spW raIn listBase oldOffset oldLen outBase s0Old s1Old s2Old
+      saved bytes listLen Frest hleft)
+    (fun _ hq => hq)
+    (wdFailArm sp0 spW raIn s0Old s1Old s2Old saved.ra saved.s0 saved.s1 saved.s2
+      outBase listBase saved.s3 saved.s4 saved.s5 bytes oldAddr pad4 listLen hspW hret)
+
+#print axioms wdK20FailArm
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
