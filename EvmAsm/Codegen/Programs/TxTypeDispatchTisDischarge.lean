@@ -1,18 +1,13 @@
 /-
-  Success-domain facts for intrinsic `TypeDispatchAssumed`.
+  Success-domain core for intrinsic `TypeDispatchAssumed` discharge.
 
-  `TypeDispatchAssumed.success_flat` claims a0=0 for **all** `txBytes`
-  (empty/unknown return a0=1) — not honest to discharge. This module records
-  the success-domain core triple and the residual.
-
-  Residual: redefine `TypeDispatchAssumed.success_flat` with
-  `(teerTxTypeDispatch txBytes).1 = 0` hyp, then package via memOwn/regOwn
-  peels (Type.lean call sites must supply hsuccess or stay on success path).
+  `TypeDispatchAssumed` is now honest (hsuccess + static LBU hyps).
+  Full packaging (memOwn/regOwn peels + type_mono → fullCode) is residual;
+  this file records the leaf success triple under the Assumed domain.
 -/
 
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.GuestAddrs
@@ -33,8 +28,9 @@ theorem teer_success_implies_nonempty (txBytes : List (BitVec 8))
   | _ :: _ => simp
 
 set_option maxRecDepth 8000 in
-/-- Under classification success, the proven top has a0=0 and model type/inner.
-    classical-3. Footprint is the leaf ABI (not yet intrinsic memOwn/scratch). -/
+/-- Under classification success, proven top has model post with a0=0.
+    classical-3. Residual: reshape to intrinsic memOwn/scratch Assumed
+    footprint + type_mono into fullCode. -/
 theorem typeDispatch_success_top
     (ret txBase typePtr innerPtr t0Old t1Old typeOld innerOld : Word)
     (txBytes : List (BitVec 8))
@@ -47,14 +43,9 @@ theorem typeDispatch_success_top
       (typeFlatPre ret txBase (BitVec.ofNat 64 txBytes.length) typePtr innerPtr
         t0Old t1Old typeOld innerOld txBytes)
       (typeFlatPostOf ret txBase typePtr innerPtr txBytes) := by
-  have _ := hsuccess  -- domain pin: status=0 in post model
+  have _ := hsuccess
   exact txTypeDispatch_spec_within ret txBase typePtr innerPtr t0Old t1Old
     typeOld innerOld txBytes hret halign hover (Or.inr hvalid0)
-
-/-- Corollary: status word is 0 in the success post. -/
-theorem typeDispatch_success_status_zero (txBytes : List (BitVec 8))
-    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
-    (teerTxTypeDispatch txBytes).1 = (0 : Word) := hsuccess
 
 #print axioms typeDispatch_success_top
 #print axioms teer_success_implies_nonempty

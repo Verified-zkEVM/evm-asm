@@ -148,7 +148,8 @@ def tisSavedVals (s : TisSaved) : Reg → Word
 
 /-- Step budgets (over-approx; mono). -/
 def nExtractSteps : Nat := 512
-def nTypeSteps : Nat := 128
+/-- Matches `nTxTypeDispatchSteps` (leaf top bound). -/
+def nTypeSteps : Nat := 256
 def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
 
 /-- Assumed success contract for `tx_extract_to_address` (still asm string).
