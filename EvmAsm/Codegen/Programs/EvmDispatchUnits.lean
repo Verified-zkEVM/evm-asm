@@ -184,6 +184,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -343,6 +344,7 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256AddBeFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     u256LtBeFunction ++ "\n" ++
@@ -438,6 +440,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -532,6 +535,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -624,6 +628,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -742,6 +747,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -843,6 +849,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
@@ -969,6 +976,7 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++

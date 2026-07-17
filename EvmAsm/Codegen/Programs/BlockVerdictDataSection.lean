@@ -652,6 +652,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
   "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
   "cssc_stamp_txindex:\n  .zero 8\n" ++       -- lv44p.2.2: block_access_index stamped into captured system rows
+  -- bmvmx.5.5.10 PR-2: per-tx USER-write side arena. The live exec log only holds
+  -- the LAST dispatch's rows (each dispatch resets persistentLogLength), so the
+  -- mtx loop captures each tx's surviving SSTORE rows here (same 128-byte layout,
+  -- txindex = block_access_index i+1) for the forward BAL storage comparator.
+  -- Standalone region, same disjointness argument as bv_system_storage_log.
+  "bv_user_storage_log_count:\n  .zero 8\n" ++
+  "bv_user_storage_txindex:\n  .zero " ++ toString bvUserStorageTxindexBytes ++ "\n" ++
+  ".balign 32\n" ++
+  "bv_user_storage_log:\n  .zero " ++ toString bvUserStorageLogBytes ++ "\n" ++
+  ".balign 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++

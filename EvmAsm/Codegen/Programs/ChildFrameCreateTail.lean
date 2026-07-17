@@ -167,6 +167,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x18, 0(x18)\n" ++
     "  li x19, -1\n" ++
     "  beq x18, x19, 7f\n" ++
+    -- bmvmx.5.5.10: cross-tx CREATE-nonce threading (sequential mtx lane).
+    -- create_creator_nonce_table resets PER TX (.61.8a) and the witness seed
+    -- above reads the PRE-state nonce, so a contract that CREATEs in tx i and
+    -- again in tx j would re-derive with the stale pre-state nonce. The
+    -- non-storage effect log records every creator bump (drj99.1 5a) and
+    -- created-account record (post_nonce=1) and persists across txs
+    -- (truncated only for FAILED txs, whose nonce bumps revert). Consult it:
+    -- hit -> override the seed with the latest post_nonce; miss -> witness
+    -- seed (today's behavior). Same case analysis as the SELFBALANCE live
+    -- overlay (DispatchTx:769-789). Must run BEFORE create_creator_nonce_use
+    -- (it reads create_nonce for the seed-and-bump on table miss).
+    "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
+    "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
+    "  beqz a0, 13f\n" ++
+    "  la x19, create_nonce_latest; ld x18, 0(x19)\n" ++
+    "  la x19, create_nonce; sd x18, 0(x19)\n" ++
+    "13:\n" ++
     -- .61.8c-1: replace the bare pre-state nonce with the per-creator RUNNING nonce, so a SECOND
     -- CREATE by the same creator in this tx uses a distinct nonce (-> distinct address) -- the EVM
     -- increments the creator's nonce on each CREATE/CREATE2. x18 holds the witness pre-state nonce;

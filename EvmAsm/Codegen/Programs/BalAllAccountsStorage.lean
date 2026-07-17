@@ -203,6 +203,12 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero 128\n" ++
+  -- bmvmx.5.5.10 PR-2: empty user-arena stubs (count 0 -> inert; the verdict links
+  -- the real globals from BlockVerdictDataSection).
+  ".balign 8\n" ++
+  "bv_user_storage_log_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_user_storage_log:\n  .zero 128\n" ++
   ".balign 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
