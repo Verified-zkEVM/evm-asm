@@ -397,16 +397,16 @@ def typeFlatPre (raIn txBase txLen typePtr innerPtr t0Old t1Old typeOld innerOld
     (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
     bytesRegion txBase txBytes ** (typePtr ↦ₘ typeOld) ** (innerPtr ↦ₘ innerOld))
 
-/-- Flat post: status/type/inner from `teerTxTypeDispatch`; temps regOwn;
-    a1–a3 preserved concrete (stronger than prover1 which drops them). -/
-def typeFlatPostOf (raIn txBase typePtr innerPtr txLen : Word)
+/-- Flat post matching prover1 `TxTypeDispatchAssumed` after a1–a3 regOwn fix:
+    status/type/inner from `teerTxTypeDispatch`; temps + a1–a3 regOwn. -/
+def typeFlatPostOf (raIn txBase typePtr innerPtr : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
   (regOwn .x5 ** regOwn .x6 ** (.x1 ↦ᵣ raIn) ** (.x0 ↦ᵣ (0 : Word)) **
     bytesRegion txBase txBytes **
     (.x10 ↦ᵣ (teerTxTypeDispatch txBytes).1) **
     (typePtr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
     (innerPtr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
-    (.x11 ↦ᵣ txLen) ** (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr))
+    regOwn .x11 ** regOwn .x12 ** regOwn .x13)
 
 private theorem teer_empty : teerTxTypeDispatch ([] : List (BitVec 8)) = (1, 0, 0) := rfl
 private theorem teer_legacy (b : BitVec 8) (rest : List (BitVec 8)) (h : 192 ≤ b.toNat) :
@@ -445,7 +445,7 @@ private theorem arm_post_to_flat
         bytesRegion txBase txBytes **
         (typePtr ↦ₘ typeW) ** (innerPtr ↦ₘ innerW) **
         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word))) h →
-      typeFlatPostOf raIn txBase typePtr innerPtr txLen txBytes h := by
+      typeFlatPostOf raIn txBase typePtr innerPtr txBytes h := by
   intro h hp
   simp only [typeFlatPostOf]
   have hp' :
@@ -463,7 +463,16 @@ private theorem arm_post_to_flat
       xperm_hyp hp
     rwa [hstatus, htype, hinner] at hp0
   exact sepConj_mono (regIs_to_regOwn .x5 v5)
-    (sepConj_mono (regIs_to_regOwn .x6 v6) (fun _ hq => hq)) h hp'
+    (sepConj_mono (regIs_to_regOwn .x6 v6)
+      (sepConj_mono (fun _ hq => hq)
+        (sepConj_mono (fun _ hq => hq)
+          (sepConj_mono (fun _ hq => hq)
+            (sepConj_mono (fun _ hq => hq)
+              (sepConj_mono (fun _ hq => hq)
+                (sepConj_mono (fun _ hq => hq)
+                  (sepConj_mono (regIs_to_regOwn .x11 txLen)
+                    (sepConj_mono (regIs_to_regOwn .x12 typePtr)
+                      (regIs_to_regOwn .x13 innerPtr)))))))))) h hp'
 
 set_option maxRecDepth 8000 in
 /-- Top-level leaf Spec: classification matches `teerTxTypeDispatch`, step
@@ -479,8 +488,7 @@ theorem txTypeDispatch_spec_within
     cpsTripleWithin nTxTypeDispatchSteps D raIn typeCode
       (typeFlatPre raIn txBase (BitVec.ofNat 64 txBytes.length) typePtr innerPtr
         t0Old t1Old typeOld innerOld txBytes)
-      (typeFlatPostOf raIn txBase typePtr innerPtr
-        (BitVec.ofNat 64 txBytes.length) txBytes) := by
+      (typeFlatPostOf raIn txBase typePtr innerPtr txBytes) := by
   match txBytes with
   | [] =>
     have h0 :=
