@@ -836,7 +836,7 @@ theorem aieCHAllMatch (accBase ecBase : Word) (bytes : List (BitVec 8))
           (fun _ hq => by xperm_hyp hq) sfull)
 
 
-set_option maxRecDepth 40000 in
+set_option maxRecDepth 8000 in
 /-- **Code-hash loop, mismatch exit** ([80]-[86], `AB+320 → AB+384`): when the
     first `j` content bytes equal the constant and byte `j` differs, the loop
     breaks through the inner `BNE x30, x29` to `AB+384` (not-empty). -/

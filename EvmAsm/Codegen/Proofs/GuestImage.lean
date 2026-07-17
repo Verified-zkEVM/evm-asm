@@ -49,7 +49,7 @@ def guestImageCodeReq : CodeReq := CodeReq.ofEntries guestImageEntries
 /-- End of the guest `.text` (by name, so layout regens flow through). -/
 def guestTextEnd : Nat := RegionMap.textRegion.base + RegionMap.textSizeBytes
 
-set_option maxRecDepth 100000 in
+set_option maxRecDepth 8000 in
 /-- The ONE kernel-checked disjointness fact for the whole image: the
     entries' byte extents are ascending and non-overlapping inside
     `.text = [0x80000000, guestTextEnd)`. -/
