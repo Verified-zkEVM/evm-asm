@@ -33,8 +33,9 @@
         **walk_init DONE** (`extractWalkInitCall`+BNE E+144→E+152) +
         **save cursor + first walk_next skip DONE** (`extractSaveCursor` E+152→E+160;
         `extractWalkNext0Call`+BNE E+184→E+192 under extractLinkedCode).
-        Residual: type-branch (legacy/t1/else field index) + remaining walk_next
-        skips + 20B copy/creation + epilogue compose → extractAssumed; fullCode∪extract
+        **type-branch DONE** (`extractTypeBranchLegacy/T1/Type234`).
+        Residual: remaining walk_next skips (4/5/6 per type) + 20B copy/creation +
+        epilogue compose → extractAssumed; fullCode∪extract
         (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
