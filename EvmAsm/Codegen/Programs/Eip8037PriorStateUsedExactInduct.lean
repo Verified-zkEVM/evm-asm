@@ -83,8 +83,7 @@ theorem pseIterOne
     (hexec : i < execGas.length)
     (hstatBound : status[i] < 2 ^ 64)
     (hno : sum + priorCell stateGas status execGas i < 2 ^ 64)
-    (hne : BitVec.ofNat 64 i ≠ priorW)
-    (hi61 : i < 2 ^ 61) :
+    (hne : BitVec.ofNat 64 i ≠ priorW) :
     ∃ v28' v29' v30' v31',
       cpsTripleWithin nOneIterSteps LoopGuard LoopGuard pseCode
         (LoopInv raIn priorW outPtr (BitVec.ofNat 64 sum) (BitVec.ofNat 64 i)
@@ -97,7 +96,7 @@ theorem pseIterOne
   · have hcell := priorCell_of_status0 stateGas status execGas i hstat hst hi
     have hno' : sum + stateGas[i] < 2 ^ 64 := by simpa [hcell] using hno
     have htrip := pseIterStatus0 raIn priorW outPtr exactOkW runtimeW
-      stateGas status execGas i sum v28 v29 v30 v31 hi hstat hst hno' hne hi61
+      stateGas status execGas i sum v28 v29 v30 v31 hi hstat hst hno' hne
     refine ⟨BitVec.ofNat 64 (8 * i),
       Eip8037PriorStateUsedExactLoop.TxStatusAddr + BitVec.ofNat 64 (8 * i),
       (0 : Word),
@@ -233,12 +232,10 @@ theorem pseLoopFrom
       have hn64 : n < 2 ^ 64 := Nat.lt_of_le_of_lt hn16 (by decide : (16 : Nat) < 2 ^ 64)
       have hne : BitVec.ofNat 64 i ≠ priorW := by
         rw [hnW]; exact ofNat_ne_of_lt i n hilt hn64
-      have hi61 : i < 2 ^ 61 :=
-        Nat.lt_of_lt_of_le hilt (Nat.le_trans hn16 (by decide : (16 : Nat) ≤ 2 ^ 61))
       obtain ⟨v28a, v29a, v30a, v31a, hiter⟩ :=
         pseIterOne raIn priorW outPtr exactOkW runtimeW
           stateGas status execGas i sum v28 v29 v30 v31
-          hiS hiSt hiE hstatBound hno hne hi61
+          hiS hiSt hiE hstatBound hno hne
       have hsum' : priorPrefixExact stateGas status execGas (i + 1) =
           some (sum + priorCell stateGas status execGas i) := by
         simp only [priorPrefixExact, hsum, add64?, if_pos hno]

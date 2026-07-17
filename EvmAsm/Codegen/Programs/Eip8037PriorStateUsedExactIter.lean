@@ -63,19 +63,18 @@ private theorem not_ult_add (s g : Nat) (h : s + g < 2 ^ 64) :
 
 private theorem AfterLdStatus_plus_32 :
     AfterLdStatus + signExtend13 (32 : BitVec 13) = AfterStatusSkip := by
-  simp only [AfterLdStatus, AfterStatusSkip, P, se13_32]; decide
+  simp only [AfterLdStatus, AfterStatusSkip, se13_32]; decide
 
 private theorem AfterIncr_back :
     AfterIncr + signExtend21 (-88 : BitVec 21) = LoopGuard := by
-  simp only [AfterIncr, LoopGuard, P, se21_m88, GuestAddrs.eip8037_prior_state_used_exact]
-  decide
+  simp only [AfterIncr, LoopGuard, se21_m88]; decide
 
 private theorem AfterLaState_plus_4 : AfterLaState + 4 = P + 80 := by
   simp only [AfterLaState, P]; decide
 private theorem AfterLaStatus_plus_4 : AfterLaStatus + 4 = P + 108 := by
   simp only [AfterLaStatus, P]; decide
 private theorem AfterStatusSkip_plus_4 : AfterStatusSkip + 4 = AfterIncr := by
-  simp only [AfterStatusSkip, AfterIncr, P]; decide
+  simp only [AfterStatusSkip, AfterIncr]; decide
 private theorem P80_plus_4 : (P + 80 : Word) + 4 = P + 84 := by simp only [P]; decide
 private theorem P84_plus_4 : (P + 84 : Word) + 4 = P + 88 := by simp only [P]; decide
 private theorem P88_plus_4 : (P + 88 : Word) + 4 = P + 92 := by simp only [P]; decide
@@ -143,8 +142,7 @@ theorem pseIterStatus0
     (hstat : i < status.length)
     (hstat0 : status[i] = 0)
     (hno : sum + stateGas[i] < 2 ^ 64)
-    (hne : BitVec.ofNat 64 i ≠ priorW)
-    (hi61 : i < 2 ^ 61) :
+    (hne : BitVec.ofNat 64 i ≠ priorW) :
     let iW := BitVec.ofNat 64 i
     let sumW := BitVec.ofNat 64 sum
     let sumW' := BitVec.ofNat 64 (sum + stateGas[i])
@@ -284,8 +282,7 @@ theorem pseIterStatus0
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact pcFree_wordArray _ _
-        | exact pcFree_wordArrayFrom _ _ _
-        | exact pcFree_loopGlobalsCore _ _) e20core
+        | exact pcFree_wordArrayFrom _ _ _) e20core
   have e20F : cpsTripleWithin 1 (P + 80) (P + 84) pseCode
       ((.x29 ↦ᵣ (TxStateGasAddr + offW)) ** (.x30 ↦ᵣ v30) **
         (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
@@ -482,8 +479,7 @@ theorem pseIterStatus0
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact pcFree_wordArray _ _
-        | exact pcFree_wordArrayFrom _ _ _
-        | exact pcFree_loopGlobalsCore _ _) e27core
+        | exact pcFree_wordArrayFrom _ _ _) e27core
   have e27F : cpsTripleWithin 1 (P + 108) AfterLdStatus pseCode
       ((.x29 ↦ᵣ (TxStatusAddr + offW)) ** (.x30 ↦ᵣ BitVec.ofNat 64 stateGas[i]) **
         (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **

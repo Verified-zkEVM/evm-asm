@@ -110,7 +110,6 @@ theorem pseIterStatusNez
     (hne : BitVec.ofNat 64 i ≠ priorW) :
     let iW := BitVec.ofNat 64 i
     let sumW := BitVec.ofNat 64 sum
-    let sumS := BitVec.ofNat 64 (sum + stateGas[i])
     let sumW' := BitVec.ofNat 64 (sum + stateGas[i] + execGas[i])
     let iW' := BitVec.ofNat 64 (i + 1)
     let offW := BitVec.ofNat 64 (8 * i)
@@ -120,7 +119,8 @@ theorem pseIterStatusNez
       (LoopInv raIn priorW outPtr sumW' iW' exactOkW runtimeW
         stateGas status execGas offW
           (TxExecStateGasAddr + offW) (BitVec.ofNat 64 execGas[i]) sumW') := by
-  intro iW sumW sumS sumW' iW' offW
+  intro iW sumW sumW' iW' offW
+  let sumS := BitVec.ofNat 64 (sum + stateGas[i])
   have hGpf : (loopGlobals exactOkW runtimeW stateGas status execGas).pcFree :=
     pcFree_loopGlobals exactOkW runtimeW stateGas status execGas
   have hsumAdd : sumW + BitVec.ofNat 64 stateGas[i] = sumS := by
@@ -259,8 +259,7 @@ theorem pseIterStatusNez
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact pcFree_wordArray _ _
-        | exact pcFree_wordArrayFrom _ _ _
-        | exact pcFree_loopGlobalsCore _ _) e20core
+        | exact pcFree_wordArrayFrom _ _ _) e20core
   have e20F : cpsTripleWithin 1 (P + 80) (P + 84) pseCode
       ((.x29 ↦ᵣ (TxStateGasAddr + offW)) ** (.x30 ↦ᵣ v30) **
         (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
@@ -457,8 +456,7 @@ theorem pseIterStatusNez
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact pcFree_wordArray _ _
-        | exact pcFree_wordArrayFrom _ _ _
-        | exact pcFree_loopGlobalsCore _ _) e27core
+        | exact pcFree_wordArrayFrom _ _ _) e27core
   have e27F : cpsTripleWithin 1 (P + 108) AfterLdStatus pseCode
       ((.x29 ↦ᵣ (TxStatusAddr + offW)) ** (.x30 ↦ᵣ BitVec.ofNat 64 stateGas[i]) **
         (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
@@ -597,8 +595,7 @@ theorem pseIterStatusNez
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact pcFree_wordArray _ _
-        | exact pcFree_wordArrayFrom _ _ _
-        | exact pcFree_loopGlobalsCore _ _) e32core
+        | exact pcFree_wordArrayFrom _ _ _) e32core
   have e32F : cpsTripleWithin 1 (P + 128) (P + 132) pseCode
       ((.x29 ↦ᵣ (TxExecStateGasAddr + offW)) ** (.x30 ↦ᵣ BitVec.ofNat 64 status[i]) **
         (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
