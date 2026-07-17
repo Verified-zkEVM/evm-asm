@@ -274,4 +274,54 @@ theorem wdBBField3
 
 #print axioms wdBBField3
 
+/-! ## Field-2 content bound
+
+    The address copy loop reads 20 source bytes at the selected content offset
+    `o2`.  A K20 `Success` pins a `StrictNthItem` decode chain whose final item's
+    content span stays within the declared list length; combined with the input
+    slack this bounds the source read `o2.toNat + 20 ≤ bytes.length`. -/
+
+open EvmAsm.Codegen.RlpListNthItemSAsm in
+/-- The selected item's content span (offset + length) fits inside the declared
+    list window `endOff`.  Induction on the `StrictNthItem` chain: each
+    non-final decode strictly advances the cursor but stays `≤ endOff`
+    (`rlpItemDecode_advance`), and the final decode's content span is bounded by
+    `rlpItemDecode_field0_content_span`. -/
+theorem strictNthItem_content_le {bytes : List (BitVec 8)} {base : Word}
+    {endOff : Nat} : ∀ {index cursorOff : Nat} {next len : Word},
+    StrictNthItem bytes base (base + BitVec.ofNat 64 endOff) index cursorOff next len →
+    cursorOff ≤ endOff →
+    base.toNat + endOff + 9 < 2 ^ 64 →
+    (next - len - base).toNat + len.toNat ≤ endOff := by
+  intro index cursorOff next len h
+  induction h with
+  | zero off n l hitem =>
+      intro hcursor hover
+      exact (EvmAsm.Rv64.RLP.rlpItemDecode_field0_content_span hitem hcursor hover).2.2
+  | succ idx off n l fn fl hitem hrest ih =>
+      intro hcursor hover
+      have hadv := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.rlpItemDecode_advance
+        hitem hcursor hover
+      exact ih hadv.2.2 hover
+
+#print axioms strictNthItem_content_le
+
+open EvmAsm.Codegen.RlpListNthItemSAsm in
+/-- From a K20 `Success` (index 2), the selected content offset plus length fits
+    inside the declared list length. -/
+theorem wdSuccessContentBound (bytes : List (BitVec 8)) (listBase : Word)
+    (listLen : Nat) (offset len' : Word)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hsucc : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 offset len') :
+    offset.toNat + len'.toNat ≤ listLen := by
+  obtain ⟨cursorOff, endPtr, next, hpay, hnth, hoff⟩ := hsucc
+  have hend := hpay.end_eq
+  have hcur := hpay.cursor_le
+  subst hend
+  subst hoff
+  exact strictNthItem_content_le hnth hcur (by omega)
+
+#print axioms wdSuccessContentBound
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
