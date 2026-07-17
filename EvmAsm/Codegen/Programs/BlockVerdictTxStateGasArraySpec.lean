@@ -16,9 +16,9 @@
   CONDITIONAL / modular: the array cpsTripleWithin is proved GIVEN assumed
   callee contracts for the still-unconverted strings
   `tx_intrinsic_state_gas` and `tx_eip7702_existing_authority_refund`.
-  Assumptions appear as *hypotheses* of the top theorem (not axioms, not
-  sorry). Classical-3 only. Convert+prove callees are child beads that
-  discharge those hypotheses.
+  Assumptions appear as *hypotheses* of the top theorem — not axioms,
+  not `sorry`. Classical-3 only. Convert+prove callees are child beads
+  that discharge those hypotheses.
 
   ## Conformance verdict (residue branch) — 2026-07-17
 
