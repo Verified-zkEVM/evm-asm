@@ -17,6 +17,7 @@
 
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeSpec
 import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.HeaderExtendedDecodeSpec
 
@@ -71,5 +72,61 @@ theorem hedCall_walkNext_slot14 {n : Nat} {Prest Q : Assertion} (vRa : Word)
 
 #print axioms hedCall
 #print axioms hedCall_walkNext_slot14
+
+set_option maxRecDepth 8000 in
+/-- The reusable `rlp_walk_next` invocation block ([j]-[j+2], `S → S+12`): the
+    two argument `MV`s (`a0 ← s3` cursor at `S`, `a1 ← s1` endPtr at `S+4`) then
+    the wrapped `jal rlp_walk_next` (`hcall`, the `hedCall` output at `S+8`).
+    The read-only saved registers `s3 = x19` (cursor) and `s1 = x9` (endPtr) are
+    framed unchanged, so the block's post is the callee post `Q` (the six-way
+    `rlp_walk_next` status disjunction) with `x19`/`x9` preserved.  The
+    subsequent `MV x19, x10` cursor-save and the `BNE x11, x0` status dispatch
+    are handled by the caller. -/
+theorem hedWalkCall {n : Nat} {Prest Q : Assertion}
+    (S cursor endPtr v10 v11 raOld : Word) (hPrest : Prest.pcFree)
+    (hMV0 : ∀ a i, CodeReq.singleton S (.MV .x10 .x19) a = some i → fullCode a = some i)
+    (hMV1 : ∀ a i, CodeReq.singleton (S + 4) (.MV .x11 .x9) a = some i → fullCode a = some i)
+    (hcall : cpsTripleWithin n (S + 8) (S + 12) fullCode
+      (((.x1 : Reg) ↦ᵣ raOld) **
+        (((.x10 : Reg) ↦ᵣ cursor) ** ((.x11 : Reg) ↦ᵣ endPtr) ** Prest)) Q) :
+    cpsTripleWithin (2 + n) S (S + 12) fullCode
+      (((.x19 : Reg) ↦ᵣ cursor) ** ((.x9 : Reg) ↦ᵣ endPtr) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+        ((.x1 : Reg) ↦ᵣ raOld) ** Prest)
+      (((.x19 : Reg) ↦ᵣ cursor) ** ((.x9 : Reg) ↦ᵣ endPtr) ** Q) := by
+  -- [j] MV x10, x19  (a0 ← s3 cursor)
+  have hmv0 := mv_spec_gen_within .x10 .x19 cursor v10 S (by decide)
+  have hmv0e := cpsTripleWithin_extend_code hMV0 hmv0
+  have hmv0f := cpsTripleWithin_frameR
+    (((.x9 : Reg) ↦ᵣ endPtr) ** ((.x11 : Reg) ↦ᵣ v11) **
+     ((.x1 : Reg) ↦ᵣ raOld) ** Prest) (by pcFree; exact hPrest) hmv0e
+  -- [j+1] MV x11, x9  (a1 ← s1 endPtr)
+  have hmv1 := mv_spec_gen_within .x11 .x9 endPtr v11 (S + 4) (by decide)
+  have hmv1e := cpsTripleWithin_extend_code hMV1 hmv1
+  have hmv1f := cpsTripleWithin_frameR
+    (((.x19 : Reg) ↦ᵣ cursor) ** ((.x10 : Reg) ↦ᵣ cursor) **
+     ((.x1 : Reg) ↦ᵣ raOld) ** Prest) (by pcFree; exact hPrest) hmv1e
+  -- [j+2] jal rlp_walk_next (wrapped call), framing the read-only s3/s1 on the
+  -- left so the opaque `Prest` stays trailing (keeps `xperm` unblocked).
+  have hcallf := cpsTripleWithin_frameL
+    (((.x19 : Reg) ↦ᵣ cursor) ** ((.x9 : Reg) ↦ᵣ endPtr)) (by pcFree) hcall
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hmv0f hmv1f
+  rw [show (S + 4 + 4 : Word) = S + 8 from by bv_omega] at s1
+  -- explicit-typed permutation between the two-MV post and the (frameL) call pre,
+  -- so `xperm` sees concrete assertions (not postponed metavariables).
+  have hperm : ∀ h,
+      ((((.x9 : Reg) ↦ᵣ endPtr) ** (.x11 : Reg) ↦ᵣ endPtr) **
+        ((.x19 : Reg) ↦ᵣ cursor) ** ((.x10 : Reg) ↦ᵣ cursor) **
+        ((.x1 : Reg) ↦ᵣ raOld) ** Prest) h →
+      ((((.x19 : Reg) ↦ᵣ cursor) ** (.x9 : Reg) ↦ᵣ endPtr) **
+        ((.x1 : Reg) ↦ᵣ raOld) ** ((.x10 : Reg) ↦ᵣ cursor) **
+        ((.x11 : Reg) ↦ᵣ endPtr) ** Prest) h :=
+    fun h hp => by xperm_hyp hp
+  have s2 := cpsTripleWithin_seq_perm_same_cr hperm s1 hcallf
+  refine cpsTripleWithin_mono_nSteps (nSteps := 1 + 1 + n) (by omega) ?_
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) s2
+
+#print axioms hedWalkCall
 
 end EvmAsm.Codegen.HeaderExtendedDecodeSpec
