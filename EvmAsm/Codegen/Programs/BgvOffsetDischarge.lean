@@ -26,6 +26,7 @@ import EvmAsm.Codegen.GuestAddrs
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.SgLoadU32leSAsm (leU32 leByte)
 
@@ -326,8 +327,159 @@ theorem bgvOffset_ambient_core
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by rw [hle]; xperm_hyp hq) c11
 
+set_option maxRecDepth 8000 in
+/-- Frame remaining bgvScratch regs through core (concrete post for packaging). -/
+theorem bgvOffset_ambient_flat
+    (ret loadPtr regionBase : Word) (bs : List (BitVec 8)) (off : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 : Word)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlen : off + 4 ≤ bs.length)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + off + 3 < 2 ^ 64)
+    (hvalid : ∀ k, k < 4 →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin nBgvSteps Bgv ret bgvCode
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **
+        bytesRegion regionBase bs)
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ leU32 bs off) **
+        (.x5 ↦ᵣ leU32 bs off) **
+        (.x6 ↦ᵣ (((bs[off + 3]'(by omega)).zeroExtend 64) <<< 24)) **
+        (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+        (.x31 ↦ᵣ v31) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **
+        bytesRegion regionBase bs) := by
+  have hcore := bgvOffset_ambient_core ret loadPtr regionBase bs off v5 v6
+    hret hptr hlen halign hover hvalid
+  have hframed := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+      (.x31 ↦ᵣ v31) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+      (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17))
+    (by bgv_pcf) hcore
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hframed
+
+/-- Concrete scratch post → `regOwns bgvScratch` post. -/
+private theorem post_to_regOwns
+    (ret leW v5' v6' v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 regionBase : Word)
+    (bs : List (BitVec 8)) :
+    ∀ h,
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ leW) **
+        (.x5 ↦ᵣ v5') ** (.x6 ↦ᵣ v6') ** (.x7 ↦ᵣ v7) **
+        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+        (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **
+        bytesRegion regionBase bs) h →
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ leW) ** regOwns bgvScratch **
+        bytesRegion regionBase bs) h := by
+  intro h hp
+  have hflat :=
+    sepConj_mono (fun _ x => x)
+      (sepConj_mono (fun _ x => x)
+        (sepConj_mono (regIs_to_regOwn .x5 v5')
+          (sepConj_mono (regIs_to_regOwn .x6 v6')
+            (sepConj_mono (regIs_to_regOwn .x7 v7)
+              (sepConj_mono (regIs_to_regOwn .x28 v28)
+                (sepConj_mono (regIs_to_regOwn .x29 v29)
+                  (sepConj_mono (regIs_to_regOwn .x30 v30)
+                    (sepConj_mono (regIs_to_regOwn .x31 v31)
+                      (sepConj_mono (regIs_to_regOwn .x11 v11)
+                        (sepConj_mono (regIs_to_regOwn .x12 v12)
+                          (sepConj_mono (regIs_to_regOwn .x13 v13)
+                            (sepConj_mono (regIs_to_regOwn .x14 v14)
+                              (sepConj_mono (regIs_to_regOwn .x15 v15)
+                                (sepConj_mono (regIs_to_regOwn .x16 v16)
+                                  (sepConj_mono (regIs_to_regOwn .x17 v17)
+                                    (fun _ x => x)))))))))))))))) h hp
+  -- hflat is flat right-assoc; goal groups regOwns as one conjunct
+  simp only [bgvScratch, regOwns_cons, regOwns_nil, sepConj_emp_right']
+  xperm_hyp hflat
+
+/-- Peel all 14 bgvScratch owns. Pre shape after simp:
+    `P ** regOwn x5 ** … ** regOwn x17` (right-assoc). -/
+private theorem of_forall_bgvScratch
+    {nSteps : Nat} {entry exit_ : Word} {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ (v5 v6 v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 : Word),
+      cpsTripleWithin nSteps entry exit_ cr
+        (P **
+          (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
+          (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** regOwns bgvScratch) Q := by
+  intro R hR s hcr hPR hpc
+  -- hPR : ((P ** regOwns bgvScratch) ** R).holdsFor s
+  simp only [bgvScratch, regOwns_cons, regOwns_nil, sepConj_emp_right'] at hPR
+  -- Destructure 14 nested regOwn exists (same pattern as of_forall5)
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v5, hv5⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v6, hv6⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v7, hv7⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v28, hv28⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v29, hv29⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v30, hv30⟩, hO7⟩ := hO6
+  obtain ⟨g14, g15, d8, u8, ⟨v31, hv31⟩, hO8⟩ := hO7
+  obtain ⟨g16, g17, d9, u9, ⟨v11, hv11⟩, hO9⟩ := hO8
+  obtain ⟨g18, g19, d10, u10, ⟨v12, hv12⟩, hO10⟩ := hO9
+  obtain ⟨g20, g21, d11, u11, ⟨v13, hv13⟩, hO11⟩ := hO10
+  obtain ⟨g22, g23, d12, u12, ⟨v14, hv14⟩, hO12⟩ := hO11
+  obtain ⟨g24, g25, d13, u13, ⟨v15, hv15⟩, hO13⟩ := hO12
+  obtain ⟨g26, g27, d14, u14, ⟨v16, hv16⟩, ⟨v17, hv17⟩⟩ := hO13
+  exact h v5 v6 v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0,
+        g2, g3, d2, u2, hv5,
+        g4, g5, d3, u3, hv6,
+        g6, g7, d4, u4, hv7,
+        g8, g9, d5, u5, hv28,
+        g10, g11, d6, u6, hv29,
+        g12, g13, d7, u7, hv30,
+        g14, g15, d8, u8, hv31,
+        g16, g17, d9, u9, hv11,
+        g18, g19, d10, u10, hv12,
+        g20, g21, d11, u11, hv13,
+        g22, g23, d12, u12, hv14,
+        g24, g25, d13, u13, hv15,
+        g26, g27, d14, u14, hv16, hv17⟩, hRb⟩ hpc
+
+set_option maxRecDepth 8000 in
+/-- `BgvOffsetAssumed` discharged under `bgvCode`. -/
+def bgvOffsetAssumed_bgvCode : BgvOffsetAssumed bgvCode where
+  success_flat := fun ret loadPtr regionBase bs off hret hptr hlen halign hover hvalid => by
+    have h := of_forall_bgvScratch
+      (P := (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** bytesRegion regionBase bs)
+      (Q := (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ leU32 bs off) ** regOwns bgvScratch **
+        bytesRegion regionBase bs)
+      (fun v5 v6 v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 => by
+        have hf := bgvOffset_ambient_flat ret loadPtr regionBase bs off
+          v5 v6 v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17
+          hret hptr hlen halign hover hvalid
+        exact cpsTripleWithin_weaken
+          (fun _ hp => by xperm_hyp hp)
+          (post_to_regOwns ret (leU32 bs off) (leU32 bs off)
+            (((bs[off + 3]'(by omega)).zeroExtend 64) <<< 24)
+            v7 v28 v29 v30 v31 v11 v12 v13 v14 v15 v16 v17 regionBase bs)
+          hf)
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h
+
+/-- Lift to array `fullCode` (bvt ∪ bgv). -/
+def bgvOffsetAssumed_fullCode : BgvOffsetAssumed fullCode where
+  success_flat := fun ret loadPtr regionBase bs off hret hptr hlen halign hover hvalid =>
+    cpsTripleWithin_extend_code bgv_mono
+      (bgvOffsetAssumed_bgvCode.success_flat ret loadPtr regionBase bs off
+        hret hptr hlen halign hover hvalid)
+
 #print axioms bytesRegion_lbu_imm_within
 #print axioms leU32_eq_bytes
 #print axioms bgvOffset_ambient_core
+#print axioms bgvOffset_ambient_flat
+#print axioms bgvOffsetAssumed_bgvCode
+#print axioms bgvOffsetAssumed_fullCode
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
