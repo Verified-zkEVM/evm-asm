@@ -81,6 +81,8 @@ import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.InstructionSpecs
 import EvmAsm.Rv64.GenericSpecs
+import EvmAsm.Rv64.LaResolve
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 
 namespace EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
 
@@ -258,7 +260,15 @@ set_option maxRecDepth 8000 in
 theorem teer_length : teerProg.length = 745 := by decide
 
 /-- `CodeReq` for the teer program at its guest-linked base. -/
-def teerCode : CodeReq := CodeReq.ofProg teerB teerProg
+abbrev teerCode : CodeReq := CodeReq.ofProg teerB teerProg
+
+/-! ### Scratch-cell guest globals (`.bss`)
+
+    The four accumulator / flag cells the prologue zeroes, as `Word` addresses. -/
+abbrev teerRegularRefund : Word := (GuestAddrs.teer_regular_refund : Word)
+abbrev teerSuccessCount : Word := (GuestAddrs.teer_success_count : Word)
+abbrev teerPredelegatedCount : Word := (GuestAddrs.teer_predelegated_count : Word)
+abbrev teerRolledBack : Word := (GuestAddrs.teer_rolled_back : Word)
 
 /-! ## Prologue: frame setup + ABI moves (instructions 0..20)
 
@@ -347,5 +357,78 @@ theorem teer_frame_setup_spec
   have h19 := mv_spec_gen_within .x20 .x14 a4 s4old (teerB + 76) (by decide)
   have h20 := li_spec_gen_within .x26 s10old (0 : Word) (teerB + 80) (by decide)
   runBlock h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20
+
+/-! ## Prologue: scratch-cell zeroing (instructions 21..32)
+
+    Four `la rd, sym ; sd zero, 0(rd)` sequences that zero the state-charge
+    accumulator refund, the success count, the pre-delegated count, and the
+    rolled-back flag.  The `la` (`AUIPC` + `ADDI`) pairs resolve to the guest
+    `.bss` symbol addresses via `la_materialize_within`; the stores use
+    `sd_spec_gen_own_within` with `x0` as the (zero) data register.  Entry PC is
+    `teerB + 84` (continuing the frame-setup block); exit is `teerB + 132`, the
+    BAL-ptr guard `beq` at instruction 33. -/
+set_option maxRecDepth 8000 in
+theorem teer_scratch_zero_spec (x5In : Word) :
+    cpsTripleWithin 12 (teerB + 84) (teerB + 132) teerCode
+      ((.x5 ↦ᵣ x5In) ** (.x0 ↦ᵣ (0 : Word)) **
+        memOwn teerRegularRefund ** memOwn teerSuccessCount **
+        memOwn teerPredelegatedCount ** memOwn teerRolledBack)
+      ((.x5 ↦ᵣ teerRolledBack) ** (.x0 ↦ᵣ (0 : Word)) **
+        (teerRegularRefund ↦ₘ (0 : Word)) ** (teerSuccessCount ↦ₘ (0 : Word)) **
+        (teerPredelegatedCount ↦ₘ (0 : Word)) **
+        (teerRolledBack ↦ₘ (0 : Word))) := by
+  -- la teer_regular_refund (instrs 21,22 @ teerB+84,+88)
+  have hlaA := la_materialize_within .x5 x5In (teerB + 84) teerRegularRefund
+    (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 84) teerProg 21
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 84) teerRegularRefund))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 88) teerProg 22
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 84) teerRegularRefund))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have sA := sd_spec_gen_own_within .x5 .x0 teerRegularRefund (0 : Word) (0 : BitVec 12)
+    (teerB + 92)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show teerRegularRefund + (0 : Word) = teerRegularRefund from by bv_omega] at sA
+  -- la teer_success_count (instrs 24,25 @ teerB+96,+100)
+  have hlaB := la_materialize_within .x5 teerRegularRefund (teerB + 96) teerSuccessCount
+    (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 96) teerProg 24
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 96) teerSuccessCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 100) teerProg 25
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 96) teerSuccessCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have sB := sd_spec_gen_own_within .x5 .x0 teerSuccessCount (0 : Word) (0 : BitVec 12)
+    (teerB + 104)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show teerSuccessCount + (0 : Word) = teerSuccessCount from by bv_omega] at sB
+  -- la teer_predelegated_count (instrs 27,28 @ teerB+108,+112)
+  have hlaC := la_materialize_within .x5 teerSuccessCount (teerB + 108) teerPredelegatedCount
+    (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 108) teerProg 27
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 108) teerPredelegatedCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 112) teerProg 28
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 108) teerPredelegatedCount))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have sC := sd_spec_gen_own_within .x5 .x0 teerPredelegatedCount (0 : Word) (0 : BitVec 12)
+    (teerB + 116)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show teerPredelegatedCount + (0 : Word) = teerPredelegatedCount from by bv_omega] at sC
+  -- la teer_rolled_back (instrs 30,31 @ teerB+120,+124)
+  have hlaD := la_materialize_within .x5 teerPredelegatedCount (teerB + 120) teerRolledBack
+    (by decide) (by decide)
+    (CodeReq.ofProg_mem_at teerB (teerB + 120) teerProg 30
+      (.AUIPC .x5 (EvmAsm.Rv64.laHi (teerB + 120) teerRolledBack))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+    (CodeReq.ofProg_mem_at teerB (teerB + 124) teerProg 31
+      (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (teerB + 120) teerRolledBack))
+      (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide))
+  have sD := sd_spec_gen_own_within .x5 .x0 teerRolledBack (0 : Word) (0 : BitVec 12)
+    (teerB + 128)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show teerRolledBack + (0 : Word) = teerRolledBack from by bv_omega] at sD
+  runBlock hlaA sA hlaB sB hlaC sC hlaD sD
 
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
