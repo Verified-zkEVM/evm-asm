@@ -95,7 +95,6 @@ theorem cisvJoin_spec (base ret len v5old : Word)
   rw [hPtail] at hq
   xperm_hyp hq
 
-#print axioms cisvJoin_spec
 
 end CreateInitcodeSizeValidSAsm
 end EvmAsm.Codegen

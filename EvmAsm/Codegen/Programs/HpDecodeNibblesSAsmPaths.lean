@@ -1268,8 +1268,6 @@ theorem hp_decode_nibbles_spec (base sp0 ret : Word) (vals : Reg → Word)
       src dst cnt isl srcBytes bufOrig v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl
       hsalign hsover hsvalid hbuf hdalign hdover hdvalid)
 
-#print axioms hp_decode_nibbles_spec
-#print axioms hdnRes_hpEncode
 
 end HpDecodeNibblesSAsm
 

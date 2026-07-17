@@ -90,7 +90,6 @@ theorem chainRejB_to_abiReject
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms chainRejB_to_abiReject
 
 /-- An item-walk reject carries the same ABI anchors and conservative result;
     the successful outer-header fact is irrelevant once rejection is chosen. -/
@@ -139,7 +138,6 @@ theorem itemRejAmbient_to_abiReject
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms itemRejAmbient_to_abiReject
 
 private def lateZeroBlock (oB : Word) : Assertion :=
   ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
@@ -200,7 +198,6 @@ theorem balStationRej_to_abiReject
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms balStationRej_to_abiReject
 
 private def balOwnBlock (oB : Word) : Assertion :=
   memOwn oB ** memOwn (oB + 8) ** memOwn (oB + 16) **
@@ -256,7 +253,6 @@ theorem bytesRegion32_to_memOwnU256 (base : Word) (bs : List (BitVec 8))
     (sepConj_mono memIs_implies_memOwn
       (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) h hp
 
-#print axioms bytesRegion32_to_memOwnU256
 
 /-- Either semantic balance result owns exactly the five balance output cells,
     independently of whether the field was absent or materialized. -/
@@ -288,7 +284,6 @@ theorem balResult_to_balOwnBlock
     unfold balOwnBlock
     exact hOwned
 
-#print axioms balResult_to_balOwnBlock
 
 /-- Either semantic nonce result extends an owned balance footprint with the
     two owned nonce output cells. -/
@@ -315,7 +310,6 @@ theorem nonceResult_to_balanceNonceOwnBlock
     unfold balanceNonceOwnBlock
     xperm_hyp hOwned
 
-#print axioms nonceResult_to_balanceNonceOwnBlock
 
 /-- A code-station reject normalizes to the common ABI reject result whenever
     the already-materialized balance and nonce footprint owns its cells. -/
@@ -357,7 +351,6 @@ theorem codeStationRej_to_abiReject
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms codeStationRej_to_abiReject
 
 /-- A nonce-station reject normalizes to the common ABI reject result whenever
     the already-materialized balance footprint owns its output cells. -/
@@ -407,7 +400,6 @@ theorem nonceStationRej_to_abiReject
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms nonceStationRej_to_abiReject
 
 /-- The existential code reject reached after a successful nonce station also
     normalizes to the common ABI reject result. -/
@@ -427,7 +419,6 @@ theorem nonceCodeRej_to_abiReject
     (nonceResult_to_balanceNonceOwnBlock aB oB
       (n4 - l4 - aB).toNat l4.toNat acctBytes G hG) h hRej
 
-#print axioms nonceCodeRej_to_abiReject
 
 /-- Semantic success result after factoring out the stack pointer and the
     callee-saved registers consumed by `abiFrame_spec_own`. -/
@@ -487,7 +478,6 @@ theorem bansfSuccessVerdict_to_abiSuccess
   simp only [regsOwnAt, bansfFrame, List.foldr, sepConj_emp_right']
   xperm_hyp hq'
 
-#print axioms bansfSuccessVerdict_to_abiSuccess
 
 /-- Observable result of the body: exact rejection status, or exact success
     status together with the window-anchored semantic derivation. -/
@@ -548,7 +538,6 @@ theorem chainAVerdictPost_to_abiVerdict
       · exact success (bansfSuccessVerdict_to_abiSuccess aB newSp oB aLen
           acctBytes F h hp)
 
-#print axioms chainAVerdictPost_to_abiVerdict
 
 /-- Pull an ambient assertion out of either observable verdict arm. -/
 theorem bansfVerdictResult_frame_out
@@ -568,7 +557,6 @@ theorem bansfVerdictResult_frame_out
     refine sepConj_mono_right (fun _ hp' => ⟨out, spill, hp'⟩) h ?_
     xperm_hyp hp
 
-#print axioms bansfVerdictResult_frame_out
 
 /-- Caller-owned resources used by the body, excluding the ABI frame itself. -/
 def bansfCallerPre (aB newSp oB : Word) (aLen : Nat)
@@ -647,7 +635,6 @@ theorem bansf_body_spec
       (bansfVerdictResult_frame_out aB newSp oB aLen acctBytes FS F)) h hpAbi
     simpa only [newSp, FS] using hpOut) ht
 
-#print axioms bansf_body_spec
 
 /-- The caller-owned body footprint is PC-free when its ambient frame is. -/
 theorem bansfCallerPre_pcFree
@@ -658,7 +645,6 @@ theorem bansfCallerPre_pcFree
   unfold bansfCallerPre
   exact (inferInstance : Assertion.PCFree _).proof
 
-#print axioms bansfCallerPre_pcFree
 
 /-- Both exact verdict arms are PC-free when the ambient assertion is. -/
 theorem bansfVerdictResult_pcFree
@@ -677,7 +663,6 @@ theorem bansfVerdictResult_pcFree
       ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
-#print axioms bansfVerdictResult_pcFree
 
 /-- Static account/output geometry required by the verified memory model.
     It contains no decode result or branch outcome. -/
@@ -754,7 +739,6 @@ theorem bansf_spec_within
   · simpa only [bansfFrame, List.length_cons, List.length_nil, hBodyLen,
       Nat.reduceAdd, Nat.reduceMul] using hbody
 
-#print axioms bansf_spec_within
 
 end BalAccountNonstorageFinalsSpec
 end EvmAsm.Codegen

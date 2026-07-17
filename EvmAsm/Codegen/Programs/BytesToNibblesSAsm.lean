@@ -413,7 +413,6 @@ theorem bytesToNibblesFn_spec (src dst : Word) (len : Nat)
     · rw [RegFile.get_set_self _ _ _ (by decide), hx31]
     · rw [hwin, nibbleWin_len srcBytes orig i hlenOrig]
 
-#print axioms bytesToNibblesFn_spec
 
 end BytesToNibblesSAsm
 

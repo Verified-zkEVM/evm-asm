@@ -927,7 +927,6 @@ theorem u256Min_spec (aPtr bPtr outPtr ret : Word) (as bs os : List (BitVec 8))
   unfold minSel at hq
   xperm_hyp hq
 
-#print axioms u256Min_spec
 
 end U256MinSAsm
 
