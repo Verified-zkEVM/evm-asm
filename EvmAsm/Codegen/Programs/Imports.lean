@@ -327,6 +327,7 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeLenCheck
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeNum
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeU256
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeEpilogue
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodePrologue
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
