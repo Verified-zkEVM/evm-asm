@@ -345,7 +345,7 @@ private theorem pack_loop_bgvScratch_is (v5 : Word) :
     (sepConj_mono (regIs_to_regOwn .x5 v5) (fun _ hh => hh) h hp)
 
 /-- `loopBgvFrame` after MV x22 (x22 pinned, not regOwn). -/
-private def loopBgvFrameAfterMv (spC txBase outBase balBase chainIdW nW iW : Word)
+def loopBgvFrameAfterMv (spC txBase outBase balBase chainIdW nW iW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) (startW : Word) : Assertion :=
   (.x2 ↦ᵣ spC) **
@@ -361,7 +361,7 @@ private def loopBgvFrameAfterMv (spC txBase outBase balBase chainIdW nW iW : Wor
   (.x0 ↦ᵣ (0 : Word))
 
 /-- Ambient across SLLI/ADD: everything except focus x5/x8/x10/x21. -/
-private def setupFrame (spC txBase outBase balBase chainIdW nW : Word)
+def setupFrame (spC txBase outBase balBase chainIdW nW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) (old1 : Word) : Assertion :=
   (.x2 ↦ᵣ spC) **
@@ -379,7 +379,7 @@ private def setupFrame (spC txBase outBase balBase chainIdW nW : Word)
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
-private theorem setupFrame_pcFree (spC txBase outBase balBase chainIdW nW : Word)
+theorem setupFrame_pcFree (spC txBase outBase balBase chainIdW nW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) (old1 : Word) :
     (setupFrame spC txBase outBase balBase chainIdW nW csaved
