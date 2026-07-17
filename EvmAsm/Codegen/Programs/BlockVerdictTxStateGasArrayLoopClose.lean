@@ -605,5 +605,183 @@ theorem bvtIterThroughEnd
     -- h0 has endW := leU32 ...; goal has endW := hok.endW. Align via hend.
     simpa only [nEndPathSteps, hend, hlink, hx10] using h0
 
+/-! ## EndSpanSetup from afterEndRegs + FromIntrinsic join -/
+
+/-- `w = ofNat w.toNat` (Word identity). -/
+private theorem word_eq_ofNat_toNat (w : Word) :
+    w = BitVec.ofNat 64 w.toNat := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat]
+  exact (Nat.mod_eq_of_lt w.isLt).symm
+
+/-- `a - b = ofNat (a.toNat - b.toNat)` when `b.toNat ≤ a.toNat`. -/
+private theorem word_sub_toNat (a b : Word) (hle : b.toNat ≤ a.toNat) :
+    a - b = BitVec.ofNat 64 (a.toNat - b.toNat) := by
+  have ha : a = BitVec.ofNat 64 a.toNat := word_eq_ofNat_toNat a
+  have hb : b = BitVec.ofNat 64 b.toNat := word_eq_ofNat_toNat b
+  rw [ha, hb]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_sub, BitVec.toNat_ofNat]
+  have _ha : a.toNat < 2 ^ 64 := a.isLt
+  have _hb : b.toNat < 2 ^ 64 := b.isLt
+  omega
+
+/-- Core of afterEnd with x1 owned; trailing owns x5/x12/x11 for of_forall3. -/
+private def afterEndCore (spC txBase outBase balBase chainIdW nW iW
+    startW endW lenW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (x10v : Word) : Assertion :=
+  regOwn .x1 **
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+  (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+  (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+  (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+  (.x10 ↦ᵣ x10v) **
+  regOwn .x6 ** regOwn .x7 **
+  regOwn .x13 **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  savedFrame spC csaved **
+  payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+  (.x0 ↦ᵣ (0 : Word))
+
+/-- afterEnd with regOwn x1 and trailing owned x5/x12/x11 (right-assoc). -/
+private def afterEndOwnRa (spC txBase outBase balBase chainIdW nW iW
+    startW endW lenW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (x10v : Word) : Assertion :=
+  afterEndCore spC txBase outBase balBase chainIdW nW iW startW endW lenW
+    csaved txBlob outVals balBytes balEnabled x10v **
+  regOwn .x5 ** regOwn .x12 ** regOwn .x11
+
+private theorem afterEnd_to_ownRa
+    (spC txBase outBase balBase chainIdW nW iW startW endW lenW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (link x10v : Word) :
+    ∀ h, (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW endW
+        lenW csaved txBlob outVals balBytes balEnabled link x10v) h →
+      (afterEndOwnRa spC txBase outBase balBase chainIdW nW iW startW endW
+        lenW csaved txBlob outVals balBytes balEnabled x10v) h := by
+  intro h hp
+  unfold afterEndRegs at hp
+  have hp1 :
+      (((.x1 ↦ᵣ link) **
+          ((.x2 ↦ᵣ spC) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+            (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+            (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+            (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+            (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+            (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+            (.x10 ↦ᵣ x10v) **
+            regOwn .x6 ** regOwn .x7 **
+            regOwn .x13 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            savedFrame spC csaved **
+            payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+            (.x0 ↦ᵣ (0 : Word)) **
+            regOwn .x5 ** regOwn .x12 ** regOwn .x11)) h) := by
+    xperm_hyp hp
+  have hp2 := sepConj_mono (regIs_to_regOwn .x1 link) (fun _ hh => hh) h hp1
+  unfold afterEndOwnRa afterEndCore
+  xperm_hyp hp2
+
+/-- Introduce THREE trailing owned registers (right-assoc `**` chain). -/
+private theorem of_forall3
+    {nSteps : Nat} {entry exit_ : Word} {r1 r2 r3 : Reg}
+    {P Q : Assertion} {cr : CodeReq}
+    (h : ∀ v1 v2 v3, cpsTripleWithin nSteps entry exit_ cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, ⟨v3, hv3⟩⟩ := hO2
+  exact h v1 v2 v3 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1, g4, g5, d3, u3, hv2, hv3⟩, hRb⟩ hpc
+
+private theorem core_vals_to_endSpanPre
+    (spC txBase outBase balBase chainIdW nW iW startW endW lenW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool)
+    (x10v old5 old12 old11 : Word) :
+    ∀ h, ((afterEndCore spC txBase outBase balBase chainIdW nW iW startW endW
+          lenW csaved txBlob outVals balBytes balEnabled x10v **
+        (.x5 ↦ᵣ old5) ** (.x12 ↦ᵣ old12) ** (.x11 ↦ᵣ old11)) h) →
+      (((.x2 ↦ᵣ spC) **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+          (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+          (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+          (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+          (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ old11) ** (.x12 ↦ᵣ old12) **
+          regOwn .x1 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          savedFrame spC csaved **
+          payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+          (.x0 ↦ᵣ (0 : Word))) h) := by
+  intro h hp
+  unfold afterEndCore at hp
+  xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-- AfterEndOffset → AfterEndSpan via EndSpanSetup peels. -/
+theorem bvtIterEndSpanSetup_fromEnd
+    (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (n i : Nat)
+    (startW endW link x10v : Word)
+    (hok : IterOk txBlob n i)
+    (hStart : startW = hok.startW)
+    (hEnd : endW = hok.endW)
+    (hi61 : i < 2 ^ 61) :
+    let iW := BitVec.ofNat 64 i
+    let lenW := BitVec.ofNat 64 txBlob.length
+    let txPtr := txBase + startW
+    let txLenW := endW - startW
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    cpsTripleWithin 6 AfterEndOffset AfterEndSpan bvtCode
+      (afterEndRegs spC txBase outBase balBase chainIdW nW iW startW endW lenW
+        csaved txBlob outVals balBytes balEnabled link x10v)
+      ((.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+        (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+        (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
+        regOwn .x1 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        savedFrame spC csaved **
+        payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  intro iW lenW txPtr txLenW outPtr
+  refine cpsTripleWithin_weaken
+    (fun h hp => afterEnd_to_ownRa spC txBase outBase balBase chainIdW nW iW
+      startW endW lenW csaved txBlob outVals balBytes balEnabled link x10v h hp)
+    (fun _ hq => hq) ?_
+  unfold afterEndOwnRa
+  refine of_forall3 (r1 := .x5) (r2 := .x12) (r3 := .x11) (fun old5 old12 old11 => ?_)
+  have h0 := bvtIterEndSpanSetup spC txBase outBase balBase chainIdW nW csaved
+    txBlob outVals balBytes balEnabled n i startW endW old5 x10v old11 old12
+    hok hStart hEnd hi61
+  exact cpsTripleWithin_weaken
+    (fun h hp => core_vals_to_endSpanPre spC txBase outBase balBase chainIdW nW
+      iW startW endW lenW csaved txBlob outVals balBytes balEnabled x10v
+      old5 old12 old11 h hp)
+    (fun _ hq => by xperm_hyp hq) h0
+
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 
