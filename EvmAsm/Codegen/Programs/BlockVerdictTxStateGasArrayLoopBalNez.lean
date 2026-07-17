@@ -316,9 +316,16 @@ theorem bvtIterBalNezTail
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x17 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) h) →
-      (((.x1 ↦ᵣ LinkIntrinsic) **
+      -- TeerCall pre: s-regs outside loopTeerFrame; regOwn x27 rightmost.
+      (((( .x1 ↦ᵣ LinkIntrinsic) **
           (.x2 ↦ᵣ spC) **
           stackFree spC nTeerStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+          (.x24 ↦ᵣ balBase) **
+          (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+          (.x26 ↦ᵣ chainIdW) **
           (.x10 ↦ᵣ (txBase + startW)) **
           (.x11 ↦ᵣ (endW - startW)) **
           (.x12 ↦ᵣ balBase) **
@@ -332,7 +339,8 @@ theorem bvtIterBalNezTail
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
           loopTeerFrame spC txBase outBase balBase chainIdW nW iW
             startW endW bodyLenW (BitVec.ofNat 64 balBytes.length) csaved
-            outVals) h) := by
+            outVals) **
+          regOwn .x27) h) := by
     intro h hp
     unfold loopTeerFrame
     simp only [bodyLenW, nTeerStackDwords, nCalleeStackDwords] at hp ⊢
@@ -341,6 +349,7 @@ theorem bvtIterBalNezTail
     hsetupPost_to_callPre c02 hcall
   have c04 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hq => by
+      -- TeerCall post: s-regs + loopTeerFrame (savedFrame/wordArray/x17) + regOwn x27
       unfold loopTeerFrame at hq
       simp only [bodyLenW, chargeW, nTeerStackDwords, nCalleeStackDwords] at hq ⊢
       xperm_hyp hq)
@@ -392,6 +401,9 @@ theorem bvtIterBalNezFromIntrinsic
       AfterEndSpan LoopGuard fullCode
       ((.x1 ↦ᵣ old1) **
         (.x2 ↦ᵣ spC) ** stackFree spC nCalleeStackDwords **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
