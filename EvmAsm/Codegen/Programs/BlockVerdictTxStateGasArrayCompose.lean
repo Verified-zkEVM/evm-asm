@@ -27,11 +27,12 @@
        `nIntrinsicStackDwords` 8→18; discharge `stackFree18_split`).
        **toBuf/tea honesty DONE** (`extractToBufOwn` 3 dwords + `teaScratchOwn`;
        `tisScratchOwn` 8 cells). Packaging substrate + extractSuccess domain.
-       **Frame save/restore DONE** + **pre-zero DONE** (`extractPreZero` E+56→E+72).
-       Residual: body Hoare (type_dispatch call + rlp_walks + 20B copy) under
-       extractSuccess; fullCode∪extract (150-instr ofProg mono heartbeat residual —
-       use extractLinkedCode first); ~~TypeDispatchAssumed~~ DONE —
-       use `typeDispatch_discharged`
+       **Frame save/restore DONE** + **pre-zero DONE** (`extractPreZero` E+56→E+72) +
+       **type_dispatch call DONE** (`extractTypeSuccess` E+72→E+112 under
+       extractSuccess / type_in_extractLinked). Residual: body Hoare (rlp_walks +
+       20B copy) under extractSuccess; fullCode∪extract (150-instr ofProg mono
+       heartbeat residual — use extractLinkedCode first); ~~TypeDispatchAssumed~~
+       DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
