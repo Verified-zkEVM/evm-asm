@@ -506,4 +506,42 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
 
 #print axioms wdK34FailPre
 
+set_option maxRecDepth 8000 in
+/-- The complete K34 fail arm as a single triple: from `k34FailPost` (framed over
+    the prologue slots, the reclaimed top cell, and the ambient rest `Frest`) run
+    the failure tail `WB+212 → raIn` to the whole-program failure post.  This is
+    `wdK34FailPre ;; wdFailArm`; the backbone merges it against each field stage's
+    fail edge.  Generic over the field index and constructor via `mkDF`/`hleft`. -/
+theorem wdK34FailArm (sp0 spW newSp raIn listBase oldOffset oldLen raRet
+      s0Old s1Old s2Old : Word)
+    (outer : Saved) (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen index : Nat)
+    (Frest : Assertion)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
+      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      DecodeFailure bytes listBase listLen)
+    (hleft : ∀ (roff rlen ov : Word), ∀ h,
+      (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **
+       bytesRegion listBase bytes ** (offsetCell ↦ₘ roff) ** (lengthCell ↦ₘ rlen) **
+       (saved.s1 ↦ₘ ov) ** Frest) h →
+      wdFailLeftover spW saved.s2 listBase saved.s3 saved.s4 saved.s5 bytes h) :
+    cpsTripleWithin 7 (WB + 212) raIn fullCode
+      (k34FailPost spW newSp listBase oldOffset oldLen raRet outer saved bytes
+        listLen index **
+       memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+       ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest)
+      (wdWholePost sp0 spW raIn s0Old s1Old s2Old saved.s2 listBase saved.s3 saved.s4
+        saved.s5 listLen bytes oldAddr pad4) :=
+  cpsTripleWithin_weaken
+    (wdK34FailPre spW newSp raIn listBase oldOffset oldLen raRet s0Old s1Old s2Old
+      outer saved bytes listLen index Frest hnewSp mkDF hleft)
+    (fun _ hq => hq)
+    (wdFailArm sp0 spW raIn s0Old s1Old s2Old raRet outer.s0 outer.s1 saved.s2
+      saved.s2 listBase saved.s3 saved.s4 saved.s5 bytes oldAddr pad4 listLen hspW hret)
+
+#print axioms wdK34FailArm
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
