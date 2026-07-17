@@ -478,6 +478,10 @@ def statelessVerdictV2GuestClosure : String :=
   btiScanTuplesFunction ++ "\n" ++
   btiScanStorageChangesFunction ++ "\n" ++
   balTxsIndependentFunction ++ "\n" ++
+  -- bmvmx.5.5.10: whitelist-v0 gate for the sequential lane (request-predeploy
+  -- storage rows -> conservative bail until the comparator learns the side arena)
+  brpsfAddr20EqFunction ++ "\n" ++
+  balStorageWhitelistCleanFunction ++ "\n" ++
   multiTxNthContextFunction ++ "\n" ++
   -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
   -- block_verdict's block_state-gas floor check. tx_extract_to_address /

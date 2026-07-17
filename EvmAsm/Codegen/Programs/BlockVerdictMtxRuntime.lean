@@ -40,8 +40,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
   "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  beqz a0, .Lbv_mtx_bail                         # non-deposit interaction -> conservative\n" ++
-  "  j .Lbv_mtx_deposit_capture_mark\n" ++
+  "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
+  -- bmvmx.5.5.10 whitelist v0: an interacting non-deposit block enters the full
+  -- sequential lane only when every BAL account with storage_changes rows is
+  -- whitelisted (the four request predeploys, EIP-2935/4788 modeled-system,
+  -- EIP-6110 deposit contract). Block-end system writes live in
+  -- bv_system_storage_log and per-tx user SSTOREs in bv_user_storage_log,
+  -- both consulted by the storage/tuple comparators. Any other interaction
+  -- shape keeps today's posture: conservative bail (fail-closed).
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_storage_whitelist_clean\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  j .Lbv_mtx_independence_ok\n" ++
   ".Lbv_mtx_independent_deposit_check:\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
   "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
@@ -285,6 +295,17 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
+  -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
+  -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
+  -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
+  -- (mirrors state clearing), so capture only on success. Rows are captured from
+  -- index 0: the preload rows (addrHash=0) are inert in every consumer scan.
+  -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
+  "  beqz a4, .Lbv_mtx_user_capture_done\n" ++
+  "  la t0, callee_seed_count; ld a0, 0(t0); la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_user_capture_done:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
   -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
