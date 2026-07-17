@@ -243,4 +243,118 @@ theorem pseLoopExitOk
 
 #print axioms pseLoopExitOk
 
+/-! ## Loop addresses / la helpers / one-iter (status = 0) -/
+
+abbrev LoopBody : Word := P + 64
+abbrev AfterSlli : Word := P + 68
+abbrev AfterLaState : Word := P + 76
+abbrev AfterLdState : Word := P + 84
+abbrev AfterAddState : Word := P + 88
+abbrev AfterMvSum : Word := P + 96
+abbrev AfterLaStatus : Word := P + 104
+abbrev AfterLdStatus : Word := P + 112
+abbrev AfterStatusSkip : Word := P + 144
+abbrev AfterIncr : Word := P + 148
+
+private theorem LoopGuard_plus_4 : LoopGuard + 4 = LoopBody := by
+  simp only [LoopGuard, LoopBody]; decide
+
+private theorem ofNat_addi1 (i : Nat) :
+    BitVec.ofNat 64 i + signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 (i + 1) := by
+  have h1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  rw [h1, BitVec.ofNat_add]
+  rfl
+
+/-- `la bvgr_tx_state_gas` at instr 17–18 (PC P+68). -/
+theorem pseLaStateGas (v : Word) :
+    cpsTripleWithin 2 AfterSlli AfterLaState pseCode
+      (.x29 ↦ᵣ v) (.x29 ↦ᵣ TxStateGasAddr) := by
+  have hau := CodeReq.ofProg_mem_at P AfterSlli pseProg 17
+    (.AUIPC .x29 (Codegen.laHi GuestAddrs.bvgr_tx_state_gas
+      (GuestAddrs.eip8037_prior_state_used_exact + 68)))
+    (by simp only [AfterSlli]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have had := CodeReq.ofProg_mem_at P (AfterSlli + 4) pseProg 18
+    (.ADDI .x29 .x29 (Codegen.laLo GuestAddrs.bvgr_tx_state_gas
+      (GuestAddrs.eip8037_prior_state_used_exact + 68)))
+    (by simp only [AfterSlli]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have h := la_materialize_within .x29 v AfterSlli TxStateGasAddr
+    (by decide)
+    (by simp only [AfterSlli, TxStateGasAddr]; decide)
+    hau had
+  rwa [show AfterSlli + 8 = AfterLaState from by
+    simp only [AfterSlli, AfterLaState]; decide] at h
+
+/-- `la bv_tx_status_arr` at instr 24–25 (PC P+96). -/
+theorem pseLaStatus (v : Word) :
+    cpsTripleWithin 2 AfterMvSum AfterLaStatus pseCode
+      (.x29 ↦ᵣ v) (.x29 ↦ᵣ TxStatusAddr) := by
+  have hau := CodeReq.ofProg_mem_at P AfterMvSum pseProg 24
+    (.AUIPC .x29 (Codegen.laHi GuestAddrs.bv_tx_status_arr
+      (GuestAddrs.eip8037_prior_state_used_exact + 96)))
+    (by simp only [AfterMvSum]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have had := CodeReq.ofProg_mem_at P (AfterMvSum + 4) pseProg 25
+    (.ADDI .x29 .x29 (Codegen.laLo GuestAddrs.bv_tx_status_arr
+      (GuestAddrs.eip8037_prior_state_used_exact + 96)))
+    (by simp only [AfterMvSum]; decide)
+    (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)
+  have h := la_materialize_within .x29 v AfterMvSum TxStatusAddr
+    (by decide)
+    (by simp only [AfterMvSum, TxStatusAddr]; decide)
+    hau had
+  rwa [show AfterMvSum + 8 = AfterLaStatus from by
+    simp only [AfterMvSum, AfterLaStatus]; decide] at h
+
+set_option maxRecDepth 8000 in
+/-- Guard fall-through when i ≠ n. -/
+theorem pseLoopGuardNtaken
+    (raIn priorW outPtr sumW iW : Word)
+    (exactOkW runtimeW : Word)
+    (stateGas status execGas : List Nat)
+    (v28 v29 v30 v31 : Word)
+    (hne : iW ≠ priorW) :
+    cpsTripleWithin 1 LoopGuard LoopBody pseCode
+      (LoopInv raIn priorW outPtr sumW iW exactOkW runtimeW
+        stateGas status execGas v28 v29 v30 v31)
+      (LoopInv raIn priorW outPtr sumW iW exactOkW runtimeW
+        stateGas status execGas v28 v29 v30 v31) := by
+  have hGpf : (loopGlobals exactOkW runtimeW stateGas status execGas).pcFree :=
+    pcFree_loopGlobals exactOkW runtimeW stateGas status execGas
+  have hbr := beq_spec_gen_within .x6 .x5 (92 : BitVec 13) iW priorW LoopGuard
+  have hbrC := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at P LoopGuard pseProg 15
+      (.BEQ .x6 .x5 (92 : BitVec 13))
+      (by simp only [LoopGuard]; decide)
+      (by rw [pse_length]; decide) rfl (by rw [pse_length]; decide)) hbr
+  have hnt0 := cpsBranchWithin_ntakenStripPure2 hbrC (fun _ hq => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hq
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hne)
+  have hnt : cpsTripleWithin 1 LoopGuard LoopBody pseCode
+      ((.x6 ↦ᵣ iW) ** (.x5 ↦ᵣ priorW))
+      ((.x6 ↦ᵣ iW) ** (.x5 ↦ᵣ priorW)) := by
+    rwa [LoopGuard_plus_4] at hnt0
+  have hF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ priorW) ** (.x11 ↦ᵣ outPtr) **
+      (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x7 ↦ᵣ sumW) **
+      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      loopGlobals exactOkW runtimeW stateGas status execGas)
+    (by
+      repeat' first
+        | exact hGpf
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hnt
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp only [LoopInv] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by dsimp only [LoopInv] at hq ⊢; xperm_hyp hq) hF
+
+#print axioms pseLoopGuardNtaken
+
+#print axioms pseLaStateGas
+#print axioms pseLaStatus
+
 end EvmAsm.Codegen.Eip8037PriorStateUsedExactLoop
+
