@@ -77,4 +77,123 @@ theorem wdContReshape (spW newSp listBase raRet offset len v12 x5 ss ov : Word)
 
 #print axioms wdContReshape
 
+/-! ## Field-3 continue: the success-content tie
+
+    Field 3's continue exit (`WB+204`) is the all-fields-decoded success path.
+    The upstream field decode facts (fields 0/1 `Result`, the field-2 `Success`
+    with length `20`) arrive as hypotheses; combined with field 3's own pinned
+    `Result` they assemble `Decoded`, and the written output cells assemble
+    `outputSuccess`.  The success tail (`wdSuccessEpi`, `WB+204 → raIn`) then
+    stores `a0 := 0` and returns, landing the whole-program success post. -/
+
+set_option maxRecDepth 8000 in
+/-- Field-3 continue → success return: from `k34ContPost` (index 3, framed over
+    the reclaimed top cell, the four saved slots, the already-written
+    field-0/1/address output cells, the address data cells) plus the upstream
+    decode facts, run the success tail to the whole-program success post. -/
+theorem wdField3ContEpi
+    (sp0 spW newSp raIn listBase len outBase v0 v1 o2 l2
+      s0Old s1Old s2Old s3 s4 s5 : Word)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
+    (hspW : spW = sp0 + signExtend12 (-32 : BitVec 12))
+    (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hf0 : Result bytes listBase listLen 0 (0 : Word) v0)
+    (hf1 : Result bytes listBase listLen 1 (0 : Word) v1)
+    (hf2 : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2)
+    (hl2 : l2.toNat = 20) :
+    let outer3 : Saved := { ra := WB + 200, s0 := listBase, s1 := len }
+    let saved3 : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
+      { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
+        s4 := s4, s5 := s5 }
+    cpsTripleWithin 8 (WB + 204) raIn fullCode
+      (k34ContPost spW newSp listBase (WB + 200) outer3 saved3 bytes listLen 3 **
+       (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ v0) **
+        ((outBase + 8) ↦ₘ v1) ** bytesRegion (outBase + 16) (addrCopied bytes oldAddr o2) **
+        bytesRegion (outBase + 36) pad4 ** (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2)))
+      (wdWholePost sp0 spW raIn s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
+        oldAddr pad4) := by
+  intro outer3 saved3
+  refine cpsTripleWithin_weaken (P := fun h => ∃ offset len' v12 x5 ss ov,
+      (((.x1 ↦ᵣ (WB + 200)) **
+        (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ outer3.s0) ** (.x9 ↦ᵣ outer3.s1) **
+          savedFrame newSp outer3) **
+         successPayload newSp listBase offset len' v12 x5 ss (0 : Word) ov saved3
+           bytes listLen 3)) **
+       (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+        ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ v0) **
+        ((outBase + 8) ↦ₘ v1) ** bytesRegion (outBase + 16) (addrCopied bytes oldAddr o2) **
+        bytesRegion (outBase + 36) pad4 ** (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2))) h)
+    (fun h hp => by
+      obtain ⟨h1, h2, hd, hu, hk, hacc⟩ := hp
+      unfold k34ContPost at hk
+      obtain ⟨offset, len', v12, x5, ss, ov, hbody⟩ := hk
+      exact ⟨offset, len', v12, x5, ss, ov, h1, h2, hd, hu, hbody, hacc⟩)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_exists_pre_gen (fun offset => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun len' => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun v12 => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun x5 => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun ss => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun ov => ?_)
+  -- G0: the untouched footprint threaded through `wdSuccessEpi`.
+  set G0 : Assertion :=
+    (⌜Result bytes listBase listLen 3 (0 : Word) ov⌝ : Assertion) **
+    (outputSuccess outBase v0 v1 ov o2 bytes oldAddr pad4 ** bytesRegion listBase bytes **
+     (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2) ** (offsetCell ↦ₘ offset) **
+     (lengthCell ↦ₘ len') ** stackFree spW 12 ** wdScratch s3 s4 s5) with hG0def
+  have hG0 : G0.pcFree := by
+    rw [hG0def]; unfold outputSuccess wdScratch
+    repeat' first
+      | exact pcFree_pure | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_regOwn
+      | exact bytesRegion_pcFree _ _ | exact pcFree_stackFree _ _ | apply pcFree_sepConj
+  have hepi := wdSuccessEpi sp0 spW raIn s0Old s1Old s2Old (WB + 200) listBase len outBase
+    (0 : Word) G0 hG0 hspW hret
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hepi
+  · -- pre reshape: (bodyCore ** accum) → wdSuccessEpi pre
+    unfold successPayload at hp
+    simp only [show (outer3.s0 : Word) = listBase from rfl,
+      show (outer3.s1 : Word) = len from rfl,
+      show (saved3.s1 : Word) = outBase + 40 from rfl,
+      show (saved3.s2 : Word) = outBase from rfl, show (saved3.s3 : Word) = s3 from rfl,
+      show (saved3.s4 : Word) = s4 from rfl, show (saved3.s5 : Word) = s5 from rfl] at hp
+    have hgR : ((.x10 ↦ᵣ (0 : Word)) **
+        ((.x2 ↦ᵣ spW) ** (.x1 ↦ᵣ (WB + 200)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
+         (.x18 ↦ᵣ outBase) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
+         ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old)) **
+        (⌜Result bytes listBase listLen 3 (0 : Word) ov⌝ : Assertion) **
+        ((outBase ↦ₘ v0) ** ((outBase + 8) ↦ₘ v1) **
+         bytesRegion (outBase + 16) (addrCopied bytes oldAddr o2) **
+         bytesRegion (outBase + 36) pad4 ** ((outBase + 40) ↦ₘ ov)) **
+        bytesRegion listBase bytes ** (wdOffsetAddr ↦ₘ o2) ** (wdLengthAddr ↦ₘ l2) **
+        (offsetCell ↦ₘ offset) ** (lengthCell ↦ₘ len') **
+        (memOwn (spW - BitVec.ofNat 64 8) ** savedFrame newSp outer3 **
+         stackFree newSp 8) **
+        ((.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x5 ↦ᵣ x5) ** regOwn .x6 **
+         regOwn .x7 ** (.x11 ↦ᵣ ss) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (.x0 ↦ᵣ (0 : Word)))) h := by
+      xperm_hyp hp
+    rw [hG0def]
+    exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono (fun _ hx => hx)
+        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono_right
+            (sepConj_mono (wdStack12_of_k34_saved spW newSp outer3 hnewSp)
+              (wdScratch_of_regs s3 s4 s5 x5 ss v12))))))))))
+      h hgR
+  · -- post reshape: wdSuccessEpi post → whole-program success
+    rw [hG0def] at hq
+    have hf3 : Result bytes listBase listLen 3 (0 : Word) ov := by
+      obtain ⟨_, _, _, _, _, hR⟩ := hq
+      obtain ⟨_, _, _, _, _, hG0'⟩ := hR
+      exact ((sepConj_pure_left _).1 hG0').1
+    refine Or.inl ⟨v0, v1, ov, o2, l2,
+      (sepConj_pure_left h).2 ⟨⟨hf0, hf1, hf2, hl2, hf3⟩, ?_⟩⟩
+    exact sepConj_mono_right (sepConj_mono (fun _ hx => hx)
+      (fun h' hg0 => ⟨offset, len', ((sepConj_pure_left h').1 hg0).2⟩)) h hq
+
+#print axioms wdField3ContEpi
+
 end EvmAsm.Codegen.WithdrawalDecodeSpec
