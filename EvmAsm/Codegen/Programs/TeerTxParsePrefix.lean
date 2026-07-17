@@ -49,7 +49,7 @@ theorem teer_txtype_call_spec (txd : TxTypeDispatchAssumed fullCode)
     (v8 v9 raIn t0Old t1Old typeOld innerOld : Word) (txBytes : List (BitVec 8))
     (hlen : v9 = BitVec.ofNat 64 txBytes.length)
     (halign : v8.toNat % 8 = 0)
-    (hover : v8.toNat + txBytes.length ≤ 2 ^ 64)
+    (hover : v8.toNat + txBytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < txBytes.length →
       isValidByteAccess (v8 + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (1 + nTxTypeDispatchSteps) (teerB + 160) (teerB + 164) fullCode
@@ -114,7 +114,7 @@ theorem teer_txtype_group_spec (txd : TxTypeDispatchAssumed fullCode)
     (txBytes : List (BitVec 8))
     (hlen : v9 = BitVec.ofNat 64 txBytes.length)
     (halign : v8.toNat % 8 = 0)
-    (hover : v8.toNat + txBytes.length ≤ 2 ^ 64)
+    (hover : v8.toNat + txBytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < txBytes.length →
       isValidByteAccess (v8 + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (6 + (1 + nTxTypeDispatchSteps)) (teerB + 136) (teerB + 164) fullCode

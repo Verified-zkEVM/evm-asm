@@ -89,7 +89,7 @@ structure TxTypeDispatchAssumed (cr : CodeReq) where
       (_hret : ret &&& ~~~(1 : Word) = ret)
       (_hlen : txLen = BitVec.ofNat 64 txBytes.length)
       (_halign : txBase.toNat % 8 = 0)
-      (_hover : txBase.toNat + txBytes.length ≤ 2 ^ 64)
+      (_hover : txBase.toNat + txBytes.length < 2 ^ 64)
       (_hvalid : ∀ k, k < txBytes.length →
         isValidByteAccess (txBase + BitVec.ofNat 64 k) = true),
       cpsTripleWithin nTxTypeDispatchSteps entry ret cr

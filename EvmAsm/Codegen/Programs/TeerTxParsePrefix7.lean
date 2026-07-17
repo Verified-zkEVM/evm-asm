@@ -84,7 +84,7 @@ theorem teer_prefix_to_cursor_spec (txd : TxTypeDispatchAssumed fullCode)
     (txBytes : List (BitVec 8))
     (hlen : v9 = BitVec.ofNat 64 txBytes.length)
     (halign : v8.toNat % 8 = 0)
-    (hover : v8.toNat + txBytes.length ≤ 2 ^ 64)
+    (hover : v8.toNat + txBytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < txBytes.length →
       isValidByteAccess (v8 + BitVec.ofNat 64 k) = true) :
     cpsBranchWithin ((((6 + (1 + nTxTypeDispatchSteps)) + 1) + 5) + 7) (teerB + 136) fullCode
