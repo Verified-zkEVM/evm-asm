@@ -250,6 +250,80 @@ def balTxsIndependentFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
+/-- `brpsf_addr20_eq` — 20-byte equality helper for
+    `bal_request_predeploy_storage_free`. a0 = ptr1, a1 = ptr2; returns a0 = 1
+    iff the 20 bytes match, else 0. Leaf: t-regs only, no frame. -/
+def brpsfAddr20EqFunction : String :=
+  "brpsf_addr20_eq:\n" ++
+  "  li t0, 20\n" ++
+  ".Lbrpsf_eq_loop:\n" ++
+  "  beqz t0, .Lbrpsf_eq_yes\n" ++
+  "  lbu t1, 0(a0); lbu t2, 0(a1); bne t1, t2, .Lbrpsf_eq_no\n" ++
+  "  addi a0, a0, 1; addi a1, a1, 1; addi t0, t0, -1; j .Lbrpsf_eq_loop\n" ++
+  ".Lbrpsf_eq_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbrpsf_eq_no:\n" ++
+  "  li a0, 0; ret"
+
+/-- `bal_storage_whitelist_clean` — bmvmx.5.5.10 whitelist-v0 gate for the
+    sequential multi-tx lane. a0 = BAL ptr, a1 = BAL len; returns a0 = 0 when
+    EVERY account carrying `storage_changes` rows is one of the seven
+    whitelisted addresses (the four EIP-7002/7251/8282 request predeploys,
+    the EIP-2935/4788 modeled-system contracts, and the EIP-6110 deposit
+    contract), 1 when any other account has storage rows, 2 on parse error.
+    The caller takes the full sequential lane only on 0. Verified end-to-end
+    on the request-cluster shape: block-end system writes are captured in
+    `bv_system_storage_log`, per-tx user writes in `bv_user_storage_log`
+    (SSTORE tail past `callee_seed_count`), and both comparators consult the
+    arenas; read-time values come from BAL read-set preloads. Any other
+    interaction shape keeps today's bail posture (fail-closed). Walks the BAL
+    with the same rlp_walk_init/rlp_walk_next idiom as `bal_txs_independent`. -/
+def balStorageWhitelistCleanFunction : String :=
+  "bal_storage_whitelist_clean:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s4, 32(sp); sd s5, 40(sp); sd s6, 48(sp); sd s7, 56(sp)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbswc_err\n" ++
+  "  mv s0, a0; mv s1, a1                 # BAL cursor/end\n" ++
+  ".Lbswc_acct:\n" ++
+  "  beq s0, s1, .Lbswc_clean\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbswc_err\n" ++
+  "  mv s0, a0; sub s4, a0, a2; mv s5, a2  # AccountChanges ptr/len\n" ++
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbswc_err\n" ++
+  "  mv s6, a0; mv s7, a1                 # AccountChanges cursor/end\n" ++
+  "  jal ra, rlp_walk_next                # item 0 = address\n" ++
+  "  bnez a1, .Lbswc_err\n" ++
+  "  mv s6, a0; sub s2, a0, a2            # s2 = addr ptr\n" ++
+  "  li t0, 20; bne a2, t0, .Lbswc_err    # malformed address item -> conservative\n" ++
+  "  mv a0, s2; la a1, withdrawal_request_predeploy_addr; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, consolidation_request_predeploy_addr; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, builder_deposit_contract_addr; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, builder_exit_contract_addr; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, bams_addr_2935; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, bams_addr_4788; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  "  mv a0, s2; la a1, bbcv_sys_6110; jal ra, brpsf_addr20_eq; bnez a0, .Lbswc_acct\n" ++
+  -- non-whitelisted account: storage_changes (item 1) non-empty -> bail
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbswc_err\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbswc_err\n" ++
+  "  bne a0, a1, .Lbswc_found\n" ++
+  "  j .Lbswc_acct\n" ++
+  ".Lbswc_clean:\n" ++
+  "  li a0, 0; j .Lbswc_ret\n" ++
+  ".Lbswc_found:\n" ++
+  "  li a0, 1; j .Lbswc_ret\n" ++
+  ".Lbswc_err:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbswc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s4, 32(sp); ld s5, 40(sp); ld s6, 48(sp); ld s7, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 /-- Data: scratch cells + two hand-encoded BAL fixtures for the probe. -/
 def ziskBalTxsIndependentDataSection : String :=
   ".section .data\n" ++

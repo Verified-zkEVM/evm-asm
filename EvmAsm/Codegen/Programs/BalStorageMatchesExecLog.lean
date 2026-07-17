@@ -88,7 +88,7 @@ def balStorageMatchesExecLogFunction : String :=
   -- Same 128-byte row layout (addrHash@0, slotKey@32, original@64, current@96). In the
   -- focused probes bv_system_storage_log_count = 0, so this scan is inert there.
   "  la t0, bv_system_storage_log_count; ld t2, 0(t0)\n" ++
-  "  beqz t2, .Lbsme_user_scan    # no captured system rows -> straight to user log\n" ++
+  "  beqz t2, .Lbsme_uarena_scan # no captured system rows -> user side arena\n" ++
   "  la t1, bv_system_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last system entry\n" ++
   ".Lbsme_sys_scan:\n" ++
   "  addi t3, t3, -128\n" ++
@@ -109,6 +109,34 @@ def balStorageMatchesExecLogFunction : String :=
   ".Lbsme_sys_next:\n" ++
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .Lbsme_sys_scan     # not this row -> earlier system row\n" ++
+  -- bmvmx.5.5.10 PR-2: THEN consult the per-tx USER-write side arena
+  -- (bv_user_storage_log, captured after each mtx dispatch; the live exec log only
+  -- holds the LAST dispatch's rows). Backward scan = last-write-wins across txs.
+  -- These rows precede the end-of-block system writes (block_access_index 1..N <
+  -- N+1), so this scan runs only after the system scan missed. Same 128-byte row
+  -- layout. On single-tx lanes the count is 0 (never populated) and this is inert.
+  "  la t0, bv_user_storage_log_count; ld t2, 0(t0)\n" ++
+  "  beqz t2, .Lbsme_user_scan    # no captured user rows -> live exec log\n" ++
+  "  la t1, bv_user_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last user entry\n" ++
+  ".Lbsme_uarena_scan:\n" ++
+  "  addi t3, t3, -128\n" ++
+  "  ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 24(t3); ld t5, 24(s0); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 32(t3); ld t5, 0(t6);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 40(t3); ld t5, 8(t6);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 48(t3); ld t5, 16(t6); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 56(t3); ld t5, 24(t6); bne t4, t5, .Lbsme_uarena_next\n" ++
+  -- User side arena has the (addr,slot): this captured value is the final write.
+  "  ld t4, 96(t3);  ld t5, 32(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 104(t3); ld t5, 40(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 112(t3); ld t5, 48(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 120(t3); ld t5, 56(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  j .Lbsme_advance             # captured final value matches -> next change\n" ++
+  ".Lbsme_uarena_next:\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lbsme_uarena_scan  # not this row -> earlier user row\n" ++
   -- Scan the user exec log from the end (last write wins) for (addrHash==s0, key==krev).
   ".Lbsme_user_scan:\n" ++
   "  mv t2, s2\n" ++
@@ -224,12 +252,17 @@ def ziskBalStorageMatchesExecLogDataSection : String :=
   "bsme_acct:\n  .zero 128\n" ++
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
-  -- lv44p: empty captured-system-log stub so the focused probe links the function's
-  -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
-  ".balign 8\n" ++
-  "bv_system_storage_log_count:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+   -- lv44p: empty captured-system-log stub so the focused probe links the function's
+   -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
+   ".balign 8\n" ++
+   "bv_system_storage_log_count:\n  .zero 8\n" ++
+   ".balign 32\n" ++
+   "bv_system_storage_log:\n  .zero 128\n" ++
+   -- bmvmx.5.5.10 PR-2: same inert stub for the per-tx user-write side arena scan.
+   ".balign 8\n" ++
+   "bv_user_storage_log_count:\n  .zero 8\n" ++
+   ".balign 32\n" ++
+   "bv_user_storage_log:\n  .zero 128\n"
 
 def ziskBalStorageMatchesExecLogProbeUnit : BuildUnit := {
   body        := NOP
