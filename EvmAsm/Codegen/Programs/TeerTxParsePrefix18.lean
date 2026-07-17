@@ -72,4 +72,68 @@ theorem teer_walk_scratch_regOwn_adaptor
     (fun _ hp => by simp only [teerWalkScratch] at hp; xperm_hyp hp)
     (fun _ hq => hq) (fun _ hq => hq) h''
 
+/-! ## First walk boundary join (`teerB + 216 → {2856, 260}`)
+
+    Chains the proven `rlp_walk_init`@54 group+pin ;; first `to`-walk glue
+    (`teer_walkinit54_toglue0_spec`, `teerB + 216 → 240`) onto the proven
+    `rlp_walk_next`@60 group+pin ;; `to`-walk glue 1
+    (`teer_walknext60_toglue1_spec`, `teerB + 240 → 260`), applying the scratch
+    adaptor at the boundary.  The walk-0 output cursor `C0` matches the walk-1
+    input cursor via the parse-success offset correspondence
+    `listBase + srcOff1 = C0`. -/
+set_option maxRecDepth 8000 in
+theorem teer_walk01_spec (wi : RlpWalkInitAssumed fullCode)
+    (hwi : wi.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_init)
+    (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (listBytes : List (BitVec 8)) (listOff srcOff1 : Nat)
+    (halign : listBase.toNat % 8 = 0)
+    (hoff : listOff < listBytes.length) (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hoff1 : srcOff1 < listBytes.length) (hover1 : listBase.toNat + srcOff1 < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (listBase + BitVec.ofNat 64 srcOff1) = true)
+    (C0 C1 : Word)
+    (hc1 : (listBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) = C0)
+    (hc2 : (listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)) = C0)
+    (hoc : listBase + BitVec.ofNat 64 srcOff1 = C0)
+    (hc : ∀ next len : Word,
+      EvmAsm.Rv64.RLP.rlpItemDecode listBytes srcOff1
+        (listBase + BitVec.ofNat 64 srcOff1) ((listBase + BitVec.ofNat 64 listOff) + listLen)
+        next len → next = C1) :
+    cpsBranchWithin (((((1 + 81) + 1) + 4) + (((1 + 87) + 1) + 3))) (teerB + 216) fullCode
+      (((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion listBase listBytes)) **
+        ((.x24 ↦ᵣ t0Old) ** (.x25 ↦ᵣ t1Old)))
+      (teerB + 2856) teerFail
+      (teerB + 260)
+      (fun h => ∃ len : Word,
+        (((.x10 ↦ᵣ C1) ** (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+            (.x24 ↦ᵣ C1) ** (.x25 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen))) **
+          ((.x1 ↦ᵣ (teerB + 244)) ** teerWalkScratch listBase listBytes **
+            (.x12 ↦ᵣ len))) h) := by
+  -- Block 0: walk-init@54 group+pin ;; toglue0 (216 → 240).
+  have hB0 := teer_walkinit54_toglue0_spec wi hwi listBase listLen a2Old t0Old t1Old t2Old
+    t3Old t4Old t5Old t6Old raIn t0Old t1Old listBytes listOff halign hoff hover hvalid
+    C0 hc1 hc2
+  -- Block 1: walk-next@60 group+pin ;; toglue1 (240 → 260), scratch-adapted.
+  have hB1 := teer_walk_scratch_regOwn_adaptor (teerB + 220)
+    (listBase + BitVec.ofNat 64 srcOff1) ((listBase + BitVec.ofNat 64 listOff) + listLen)
+    (0 : Word) listBase listBytes ((.x24 ↦ᵣ C0) ** (.x25 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)))
+    (fun t0 t1 t2 t3 t4 t5 t6 =>
+      teer_walknext60_toglue1_spec wn hwn listBase
+        ((listBase + BitVec.ofNat 64 listOff) + listLen) (0 : Word)
+        t0 t1 t2 t3 t4 t5 t6 (teerB + 220) C0
+        ((listBase + BitVec.ofNat 64 listOff) + listLen) listBytes srcOff1
+        halign hoff1 hover1 hvalid1 C1 hc)
+  exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr hB0
+    (fun h hq => by rw [hoc]; xperm_hyp hq) hB1
+    (fun h hq => to_teerFail _ h hq) (fun h hq => to_teerFail _ h hq)
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
