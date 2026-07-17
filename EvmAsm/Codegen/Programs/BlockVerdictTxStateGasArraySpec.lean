@@ -326,9 +326,19 @@ def scratchRegs : Assertion :=
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word))
 
+/-- Return-path scratch: same as `scratchRegs` but without `x10` (a0 holds status). -/
+def scratchRegsNoA0 : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x0 ↦ᵣ (0 : Word))
+
 /-- Loop invariant at `LoopGuard` entering iteration `i` (`i ≤ n`).
     `outVals` is the full eventual array; the pure prefix fact is carried
-    separately as a Prop hypothesis on the induction (value-level inv). -/
+    separately as a Prop hypothesis on the induction (value-level inv).
+    Extra frame regs `x1/x22/x23/x27` are `regOwn` so the epilogue `loadSeq`
+    can restore them (body may clobber their values). -/
 def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
     (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) (i : Nat) : Assertion :=
@@ -338,11 +348,12 @@ def LoopInv (spC txBase outBase balBase chainIdW nW : Word)
   (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ BitVec.ofNat 64 i) **
   (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
   (.x26 ↦ᵣ chainIdW) **
+  regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
   savedFrame spC csaved **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
   scratchRegs
 
-/-- Shared return footprint (restored frame + payload). -/
+/-- Shared return footprint (restored frame + payload; a0 pinned by caller). -/
 def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
     (txBlob : List (BitVec 8)) (outVals : List Nat)
     (balBytes : List (BitVec 8)) (balEnabled : Bool) : Assertion :=
@@ -355,7 +366,7 @@ def commonRet (sp0 spC txBase outBase balBase : Word) (csaved : Saved)
   (.x26 ↦ᵣ csaved.s10) ** (.x27 ↦ᵣ csaved.s11) **
   savedFrame spC csaved **
   payload txBase outBase balBase txBlob outVals balBytes balEnabled **
-  scratchRegs
+  scratchRegsNoA0
 
 /-- Success post: `a0 = 0` and out-array equals the pure model. -/
 def postOk (sp0 spC txBase outBase balBase : Word) (csaved : Saved)

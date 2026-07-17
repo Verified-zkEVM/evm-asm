@@ -144,6 +144,7 @@ theorem bvtGuardTaken (spC txBase outBase balBase chainIdW nW : Word)
           (.x18 ↦ᵣ nWord) ** (.x19 ↦ᵣ outBase) **
           (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
           (.x26 ↦ᵣ chainIdW) **
+          regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
           savedFrame spC csaved **
           payload txBase outBase balBase txBlob outVals balBytes balEnabled **
           scratchRegs) : Assertion).pcFree := by
@@ -155,11 +156,69 @@ theorem bvtGuardTaken (spC txBase outBase balBase chainIdW nW : Word)
       (.x18 ↦ᵣ nWord) ** (.x19 ↦ᵣ outBase) **
       (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
       (.x26 ↦ᵣ chainIdW) **
+      regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
       savedFrame spC csaved **
       payload txBase outBase balBase txBlob outVals balBytes balEnabled **
       scratchRegs)
     hF htk
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) htkF
+
+/-! ## Guard fall-through: i ≠ n → body entry at B+132 -/
+
+abbrev LoopBody : Word := B + 132
+
+set_option maxRecDepth 8000 in
+/-- Loop guard not-taken when `i ≠ n`: fall through to body entry, preserving
+    `LoopInv` (index still `i`). -/
+theorem bvtGuardNtaken (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8)) (balEnabled : Bool) (i : Nat)
+    (hiW : BitVec.ofNat 64 i ≠ nW) :
+    cpsTripleWithin 1 LoopGuard LoopBody bvtCode
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+        balBytes balEnabled i)
+      (LoopInv spC txBase outBase balBase chainIdW nW csaved txBlob outVals
+        balBytes balEnabled i) := by
+  unfold LoopInv
+  set iWord : Word := BitVec.ofNat 64 i
+  have hbr := beq_spec_gen_within .x21 .x20 (168 : BitVec 13) iWord nW LoopGuard
+  have hbrC := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at B LoopGuard bvtProg 32
+      (.BEQ .x21 .x20 (168 : BitVec 13))
+      (by simp only [LoopGuard]; bv_omega)
+      (by rw [bvt_length]; decide) rfl
+      (by rw [bvt_length]; decide)) hbr
+  have hnt := cpsBranchWithin_ntakenStripPure2 hbrC (fun _ hQf => by
+    obtain ⟨_, _, _, _, _, hrest⟩ := hQf
+    exact absurd ((sepConj_pure_right _).1 hrest).2 hiW)
+  have hpc : LoopGuard + 4 = LoopBody := by
+    simp only [LoopGuard, LoopBody]; bv_omega
+  rw [hpc] at hnt
+  have hF :
+      (((.x2 ↦ᵣ spC) **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+          (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+          (.x26 ↦ᵣ chainIdW) **
+          regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
+          savedFrame spC csaved **
+          payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+          scratchRegs) : Assertion).pcFree := by
+    unfold payload savedFrame scratchRegs
+    cases balEnabled <;> bvt_pcf
+  have hntF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) **
+      (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+      (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
+      (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+      (.x26 ↦ᵣ chainIdW) **
+      regOwn .x1 ** regOwn .x22 ** regOwn .x23 ** regOwn .x27 **
+      savedFrame spC csaved **
+      payload txBase outBase balBase txBlob outVals balBytes balEnabled **
+      scratchRegs)
+    hF hnt
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hntF
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
