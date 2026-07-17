@@ -236,8 +236,12 @@ def schemeAAnchors : List GuestRegion :=
     #10391: fail-closed BAL storage whitelist gate, cross-tx CREATE-nonce
     threading, execution-derived storage arenas), re-measured after merging
     main forward. Grew to `0x5cc90` after merging main forward past #10385
-    (SSTORE value-unchanged exec-log-append skip), re-measured again. -/
-def textSizeBytes : Nat := 0x5cc90
+    (SSTORE value-unchanged exec-log-append skip), re-measured again. Grew to
+    `0x5ccd0` for the combined batch-merge landing the BAL-completeness
+    0-FA fix (`k3-3/rgtkz-bal-completeness`, #10419) together with the
+    withdrawal/BAL-overlap fail-closed guard (`fix/withdrawals-bal-completeness`,
+    #10420), measured via a fresh `readelf -SW` after both land together. -/
+def textSizeBytes : Nat := 0x5ccd0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

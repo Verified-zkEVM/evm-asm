@@ -85,6 +85,7 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanSpec
 import EvmAsm.Codegen.Programs.MptSpliceSlotSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
@@ -545,3 +546,31 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersSpec
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeSpec
+
+import EvmAsm.Codegen.Programs.AccountDecodeLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeNonceLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeCall
+
+import EvmAsm.Codegen.Programs.AccountDecodeFrame
+
+import EvmAsm.Codegen.Programs.AccountDecodeDispatch
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceSetup
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose2
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose3
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose4
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose5
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose6
