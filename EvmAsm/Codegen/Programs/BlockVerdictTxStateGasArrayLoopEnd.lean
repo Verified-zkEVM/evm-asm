@@ -874,17 +874,17 @@ abbrev intrinsicJalOff : BitVec 21 :=
   jalOff GuestAddrs.tx_intrinsic_state_gas
     (GuestAddrs.block_verdict_tx_state_gas_array + 216)
 
-/-- Caller-private frame across intrinsic (s-regs + start/end + saved + bal).
-    sp + stackFree ride in the callee footprint (IntrinsicAssumed now framed).
-    Ambient tx region + out cell + ABI a-regs also in callee footprint. -/
-def loopIntrinsicFrame (spC txBase outBase balBase chainIdW nW iW
-    startW endW lenW : Word)
+/-- Caller-private frame across intrinsic (non-saved temps + end + bal + saved).
+    sp + stackFree + s0–s6 (x8/x9/x18–x22) ride in the callee footprint
+    (IntrinsicAssumed now owns them for dischargeability).
+    Ambient tx region + out cell + ABI a-regs also in callee footprint.
+    Unused binder names kept for call-site positional stability. -/
+def loopIntrinsicFrame (spC _txBase _outBase balBase chainIdW _nW _iW
+    _startW endW _lenW : Word)
     (csaved : Saved) (balBytes : List (BitVec 8)) (balEnabled : Bool)
     : Assertion :=
-  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
-  (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) **
-  (.x20 ↦ᵣ nW) ** (.x21 ↦ᵣ iW) **
-  (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+  -- x8/x9/x18–x22 are in IntrinsicAssumed (leaf save/restore); not here.
+  (.x23 ↦ᵣ endW) **
   (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   regOwn .x17 **
@@ -892,7 +892,7 @@ def loopIntrinsicFrame (spC txBase outBase balBase chainIdW nW iW
   (if balEnabled then bytesRegion balBase balBytes else empAssertion)
   -- x0 stays in the callee footprint (not framed) to avoid double-own.
   -- x17 is not in IntrinsicAssumed footprint; frame it across the call.
-  -- x2 + stackFree are in the callee footprint (framed leaf), not here.
+  -- x2 + stackFree + s-regs are in the callee footprint (framed leaf).
 
 theorem loopIntrinsicFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
     startW endW lenW : Word)
@@ -904,8 +904,8 @@ theorem loopIntrinsicFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
 
 set_option maxRecDepth 8000 in
 /-- Intrinsic success call (instr 54) under framed `IntrinsicAssumed`.
-    Pre: sp + stackFree 8 + full `bytesRegion txBase txBlob` + out cell.
-    Post: a0=0, *out=pure, sp+stackFree restored, ambient tx preserved. -/
+    Pre: sp + stackFree 8 + s0–s6 + full `bytesRegion txBase txBlob` + out cell.
+    Post: a0=0, *out=pure, sp+stackFree+s-regs restored, ambient tx preserved. -/
 theorem bvtIterIntrinsic
     (hintr : IntrinsicAssumed fullCode)
     (spC txBase outBase balBase chainIdW nW bodyLenW : Word)
@@ -924,6 +924,9 @@ theorem bvtIterIntrinsic
     cpsTripleWithin (1 + nIntrinsicSteps) AfterEndSpan LinkIntrinsic fullCode
       ((.x1 ↦ᵣ old1) **
         (.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ oldOut) **
@@ -935,6 +938,9 @@ theorem bvtIterIntrinsic
           startW endW bodyLenW csaved balBytes balEnabled)
       ((.x1 ↦ᵣ LinkIntrinsic) **
         (.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -951,10 +957,14 @@ theorem bvtIterIntrinsic
   have hlenW : txLenW = BitVec.ofNat 64 len := by
     simp only [txLenW, htxLen]
   have hflat0 := hintr.success_flat LinkIntrinsic spC txBase txPtr outPtr oldOut
+    txBase bodyLenW nW outBase nW iW startW
     txBlob off len hret hload hlen
   have hflatLen : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
       ((.x1 ↦ᵣ LinkIntrinsic) ** (.x2 ↦ᵣ spC) **
         stackFree spC nIntrinsicStackDwords **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion txBase txBlob **
         (outPtr ↦ₘ oldOut) **
@@ -964,6 +974,9 @@ theorem bvtIterIntrinsic
         (.x0 ↦ᵣ (0 : Word)))
       ((.x1 ↦ᵣ LinkIntrinsic) ** (.x2 ↦ᵣ spC) **
         stackFree spC nIntrinsicStackDwords **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+        (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -980,6 +993,9 @@ theorem bvtIterIntrinsic
   have hcallee : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
       ((.x1 ↦ᵣ LinkIntrinsic) **
         ((.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
           (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
           bytesRegion txBase txBlob ** (outPtr ↦ₘ oldOut) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -990,6 +1006,9 @@ theorem bvtIterIntrinsic
             startW endW bodyLenW csaved balBytes balEnabled))
       ((.x1 ↦ᵣ LinkIntrinsic) **
         ((.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
+          (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBlob **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **

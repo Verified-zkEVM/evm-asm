@@ -244,15 +244,21 @@ def nCalleeStackDwords : Nat := nTeerStackDwords
     from LoopInv via `stackFree_split`. Without sp+stack the hyp is not
     dischargeable against any framed Program.
 
+    **Callee-saved s-regs:** the real leaf saves/restores s0–s6
+    (`x8,x9,x18–x22`). PRE/POST pin those with equal entry/exit values so the
+    hyp is dischargeable from the framed Program (same class as sp+stackFree).
+
     Success arm only — failure is routed by the array body to status 3. -/
 structure IntrinsicAssumed (cr : CodeReq) where
   /-- Entry PC of the converted intrinsic Program. -/
   entry : Word
   /-- Success-path framed contract: writes pure model 0 into `outPtr`.
       `loadPtr = regionBase + ofNat off` with `off + len ≤ bs.length`.
-      `spVal` is the caller's current sp; callee restores it. -/
+      `spVal` is the caller's current sp; callee restores it.
+      `s0`–`s6` are the caller's callee-saved values (restored on exit). -/
   success_flat :
     ∀ (ret spVal regionBase loadPtr outPtr oldOut : Word)
+      (s0 s1 s2 s3 s4 s5 s6 : Word)
       (bs : List (BitVec 8)) (off len : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       loadPtr = regionBase + BitVec.ofNat 64 off →
@@ -260,6 +266,9 @@ structure IntrinsicAssumed (cr : CodeReq) where
       cpsTripleWithin nIntrinsicSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nIntrinsicStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
           (.x10 ↦ᵣ loadPtr) **
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -270,6 +279,9 @@ structure IntrinsicAssumed (cr : CodeReq) where
           (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nIntrinsicStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion regionBase bs **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -295,13 +307,19 @@ structure IntrinsicAssumed (cr : CodeReq) where
     BAL is already a full `bytesRegion balPtr balBytes` at its base.
 
     **Stack:** teer does `addi sp,-160` → `stackFree spVal nTeerStackDwords`
-    (20 dwords). Same AbiFrameCall discipline as IntrinsicAssumed. -/
+    (20 dwords). Same AbiFrameCall discipline as IntrinsicAssumed.
+
+    **Callee-saved s-regs:** teer saves/restores s0–s11
+    (`x8,x9,x18–x27`). PRE/POST pin those with equal entry/exit values
+    (same class as IntrinsicAssumed s0–s6). -/
 structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
   /-- Entry PC of the converted teer Program. -/
   entry : Word
-  /-- BAL-enabled APPLIED framed contract (ambient tx region + free stack). -/
+  /-- BAL-enabled APPLIED framed contract (ambient tx region + free stack +
+      restored s0–s11). -/
   applied_flat :
     ∀ (ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
+      (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
       (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       balPtr ≠ 0 →
@@ -313,6 +331,11 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
       cpsTripleWithin nTeerSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nTeerStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+          (.x27 ↦ᵣ s11) **
           (.x10 ↦ᵣ loadPtr) **
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
@@ -323,6 +346,11 @@ structure TeerAssumed (cr : CodeReq) (teer : TeerApplied) where
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nTeerStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+          (.x27 ↦ᵣ s11) **
           (.x10 ↦ᵣ BitVec.ofNat 64
             (teer ((bs.drop off).take len) balBytes chainId bai)) **
           regOwn .x11 **
