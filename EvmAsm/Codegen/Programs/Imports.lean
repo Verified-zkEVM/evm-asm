@@ -543,3 +543,5 @@ import EvmAsm.Codegen.Programs.AccountDecodeSpec
 import EvmAsm.Codegen.Programs.AccountDecodeLoop
 
 import EvmAsm.Codegen.Programs.AccountDecodeNonceLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceLoop
