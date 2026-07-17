@@ -84,6 +84,9 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressTypeBranch
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNextArgs
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNextRest
+import EvmAsm.Codegen.Programs.TxExtractToAddressLegacyWalk
+import EvmAsm.Codegen.Programs.TxExtractToAddressT1Walk
+import EvmAsm.Codegen.Programs.TxExtractToAddressHaveField
 import EvmAsm.Codegen.Programs.TxExtractToAddressEpilogue
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
