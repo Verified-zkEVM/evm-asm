@@ -356,7 +356,7 @@ txEip7702DecodeFunction	EvmAsm/Codegen/Programs/TxDecode7702.lean
 txEip7702ExistingAuthorityRefundFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean
 txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
 txGasSenderBalLookupFunction	EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean
-txIntrinsicStateGasFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean
+txIntrinsicStateGasFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGasProg.lean
 txPubkeyEcrecoverStageMaterialFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
 txPubkeyPublicKeyMatchesFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
 txPubkeyRecoverRawFunction	EvmAsm/Codegen/Programs/TxPubkey.lean

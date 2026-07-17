@@ -145,6 +145,7 @@ import EvmAsm.Codegen.Programs.TxDecode7702
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSigningHash

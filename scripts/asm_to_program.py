@@ -792,7 +792,15 @@ def rewrite_file(path, funcs):
     spans=[]
     uses_reloc=False
     for fn in funcs:
-        asm=extract_function(text, fn)
+        try:
+            asm=extract_function(text, fn)
+        except ConvError:
+            # A previously converted definition can be reformatted or moved to
+            # another module.  Its checked-in fixture remains the authority for
+            # regenerating the canonical generated block.
+            fp=fixture_path(fn)
+            if not os.path.exists(fp): raise
+            asm=open(fp).read()
         entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         if not ok:
             raise ConvError(f"{fn}: guest-linked .text differs -- refusing to rewrite")
