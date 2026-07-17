@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPrecompileGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
+import EvmAsm.Codegen.Programs.BlockVerdictWithdrawalEffects
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -276,7 +277,7 @@ def blockVerdictFunction : String :=
   "  # pre-account record table materialized by block_state_root.\n" ++
   blockVerdictMtxRuntimeLoop ++
   ".Lbv_singletx:\n" ++
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
@@ -1166,11 +1167,14 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
-  -- If contract replay could not materialize a complete runtime gas/effect arena,
-  -- the final state-root recompute is still the binding authenticated check. Do not
-  -- false-reject such rows in the redundant exec-vs-BAL non-storage comparator with
-  -- an incomplete execution log (observed on same-tx SELFDESTRUCT-via-CALL rows).
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_nonstorage_covers\n" ++
+  -- 7rbp3: EIP-4895 body credits are authenticated non-storage effects too.
+  -- Materialize them before aggregation so the existing 44/45 comparators check
+  -- both BAL->effect consistency and effect->BAL coverage.
+  "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- Run the all-account comparison even when replay produced no transaction arena:
+  -- the reverse arm must reject a BAL balance credit with no corresponding body
+  -- withdrawal (or execution) effect. The modeled-system accounts remain skipped.
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
