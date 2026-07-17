@@ -215,4 +215,138 @@ theorem teer_walkinit55_bne_spec (a2 : Word) :
     (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
   exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
 
+/-! ## Reusable `rlp_walk_next` call group
+
+    Every `jal rlp_walk_next` in the prefix (and each per-auth iteration) has
+    the identical framing shape; only the call site `A`, the `jal` offset, and
+    the concrete-membership / return-parity facts differ.  This site-abstract
+    lemma lifts the assumed `RlpWalkNextAssumed` contract through one `jal`;
+    each site instantiates it with its own `A := teerB + <pc>`, `off`, and the
+    three `by decide`/`ofProg` witnesses.  The advance result (a `rlpWalkNextOk`
+    success arm or a non-advance status arm) is carried through unchanged; the
+    following `bne a1, 0` dispatches on it. -/
+set_option maxRecDepth 8000 in
+theorem teer_walknext_call_spec_at (wn : RlpWalkNextAssumed fullCode)
+    (A : Word) (off : BitVec 21)
+    (htarget : A + signExtend21 off = wn.entry)
+    (hmem : ∀ a i, CodeReq.singleton A (.JAL .x1 off) a = some i → fullCode a = some i)
+    (heven : (A + 4) &&& ~~~(1 : Word) = A + 4)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true) :
+    cpsTripleWithin (1 + 87) A (A + 4) fullCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes))
+      ((.x1 ↦ᵣ (A + 4)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes) **
+         (fun h =>
+           EvmAsm.Rv64.RLP.rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr
+             srcBytes srcOff h ∨
+           (∃ st : Word,
+             (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ st) **
+                (.x12 ↦ᵣ (0 : Word)) ** ⌜st ≠ (0 : Word)⌝) h))))) := by
+  have hflat := wn.flat (A + 4) srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old
+    t6Old srcBytes srcOff halign hoff hover hvalid
+  rw [heven] at hflat
+  have hcallee : cpsTripleWithin 87 wn.entry (A + 4) fullCode
+      ((.x1 ↦ᵣ (A + 4)) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes))
+      ((.x1 ↦ᵣ (A + 4)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes) **
+         (fun h =>
+           EvmAsm.Rv64.RLP.rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr
+             srcBytes srcOff h ∨
+           (∃ st : Word,
+             (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ st) **
+                (.x12 ↦ᵣ (0 : Word)) ** ⌜st ≠ (0 : Word)⌝) h))))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hflat
+  have hP : Assertion.pcFree ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+      (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+      (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion srcBase srcBytes) := by
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj
+  exact callWithin_spec A wn.entry raIn off 87 htarget hmem hP hcallee
+
+/-! ## `to`/value walk GROUP — first `rlp_walk_next` (instruction 60)
+
+    Instantiates `teer_walknext_call_spec_at` at the first walk site
+    (`teerB + 240 → teerB + 244`, `jal rlp_walk_next` at instruction 60). -/
+abbrev wnJalOff60 : BitVec 21 :=
+  jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 240)
+
+set_option maxRecDepth 8000 in
+theorem teer_walknext60_call_spec (wn : RlpWalkNextAssumed fullCode)
+    (hwn : wn.entry = BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+    (srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true) :
+    cpsTripleWithin (1 + 87) (teerB + 240) (teerB + 244) fullCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+          (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes))
+      ((.x1 ↦ᵣ (teerB + 244)) **
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes) **
+         (fun h =>
+           EvmAsm.Rv64.RLP.rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr
+             srcBytes srcOff h ∨
+           (∃ st : Word,
+             (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ st) **
+                (.x12 ↦ᵣ (0 : Word)) ** ⌜st ≠ (0 : Word)⌝) h))))) := by
+  have hmem : ∀ a i, CodeReq.singleton (teerB + 240) (.JAL .x1 wnJalOff60) a = some i →
+      fullCode a = some i := fun a i h =>
+    teer_mono a i
+      (CodeReq.ofProg_mem_at teerB (teerB + 240) teerProg 60 (.JAL .x1 wnJalOff60)
+        (by bv_omega) (by rw [teer_length]; decide) (by decide)
+        (by rw [teer_length]; decide) a i h)
+  have hres := teer_walknext_call_spec_at wn (teerB + 240) wnJalOff60
+    (by rw [hwn]; decide) hmem (by decide)
+    srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn srcBytes srcOff
+    halign hoff hover hvalid
+  rw [show (teerB + 240) + 4 = teerB + 244 from by bv_omega] at hres
+  exact hres
+
+/-! ## `to`/value walk GROUP — first `rlp_walk_next` dispatch (instruction 61)
+
+    `bne x11(a1), x0` at `teerB + 244`.  TAKEN (`a1 ≠ 0`, a non-advance status
+    ⇒ end-of-list / malformed) exits to the far epilogue `teerB + 2856`;
+    NOT-TAKEN (`a1 = 0`, item advanced) falls to `teerB + 248`. -/
+set_option maxRecDepth 8000 in
+theorem teer_walknext61_bne_spec (a1 : Word) :
+    cpsBranchWithin 1 (teerB + 244) fullCode
+      ((.x11 ↦ᵣ a1) ** (.x0 ↦ᵣ (0 : Word)))
+      (teerB + 2856) ((.x11 ↦ᵣ a1) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a1 ≠ (0 : Word)⌝)
+      (teerB + 248) ((.x11 ↦ᵣ a1) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜a1 = (0 : Word)⌝) := by
+  have hbne := bne_spec_gen_within .x11 .x0 (2612 : BitVec 13) a1 (0 : Word) (teerB + 244)
+  rw [show (teerB + 244) + signExtend13 (2612 : BitVec 13) = teerB + 2856 from by
+        rw [show signExtend13 (2612 : BitVec 13) = (2612 : Word) from by decide]; bv_omega,
+      show (teerB + 244) + 4 = teerB + 248 from by bv_omega] at hbne
+  have hmem := CodeReq.ofProg_mem_at teerB (teerB + 244) teerProg 61
+    (.BNE .x11 .x0 (2612 : BitVec 13))
+    (by bv_omega) (by rw [teer_length]; decide) (by decide) (by rw [teer_length]; decide)
+  exact cpsBranchWithin_extend_code (fun a i h => teer_mono a i (hmem a i h)) hbne
+
 end EvmAsm.Codegen.TeerExistingAuthorityRefundSpec
