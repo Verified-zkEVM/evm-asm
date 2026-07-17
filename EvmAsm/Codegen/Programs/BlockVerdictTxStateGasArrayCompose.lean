@@ -15,15 +15,15 @@
   * prior_exact (#10433): success + mid-loop overflow complete (gate sum).
   * **BgvOffsetAssumed DISCHARGED** (`bgvOffsetAssumed_fullCode`): ambient
     LBU compose for unaligned loop-site `bgv_u32le` (classical-3).
+  * **TypeDispatchAssumed DISCHARGED** (`typeDispatchAssumed_fullCode`):
+    success-domain leaf + memOwn/regOwn peel under fullCode (classical-3).
 
   Residual set for "unconditional" a4gbr claim (honest):
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← discharge package for all offs (ambient multi-tx)
      + regOwn temp peel + CodeReq mono into array fullCode
-  3. TisCalleeAssumptions ← extract convert + TypeDispatchAssumed redefinition
-     (type_dispatch leaf+teer discharge DONE; intrinsic Assumed claims a0=0 for
-     ALL txBytes — false for empty/unknown; needs success-domain hyp in Spec
-     + Type.lean call-site update; see TxTypeDispatchTisDischarge.lean)
+  3. TisCalleeAssumptions ← ExtractAssumed convert still residual;
+     ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
 
@@ -34,6 +34,7 @@
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
+import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
@@ -44,8 +45,9 @@ open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
   (BgvOffsetAssumed nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn fullCode
     bgvOffsetAssumed_fullCode)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
-  (TisCalleeAssumptions ExtractEntry TypeEntry LinkEts T
-    intrinsicAssumed_success_flat_off0)
+  (TisCalleeAssumptions ExtractAssumed ExtractEntry TypeEntry LinkEts T
+    TypeDispatchAssumed intrinsicAssumed_success_flat_off0)
+open EvmAsm.Codegen.TxTypeDispatchSpec (typeDispatchAssumed_fullCode)
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
   (TeerApplied pureIntrinsicStateGasSuccess)
 
@@ -54,11 +56,15 @@ open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 def bgvOffset_discharged : BgvOffsetAssumed fullCode :=
   bgvOffsetAssumed_fullCode
 
+/-- Discharged type_dispatch contract for intrinsic TisCalleeAssumptions. -/
+def typeDispatch_discharged : TypeDispatchAssumed TxIntrinsicStateGasSpec.fullCode :=
+  typeDispatchAssumed_fullCode
+
 /-- Residual inventory for the unconditional a4gbr deliverable.
-    BgvOffset removed — use `bgvOffset_discharged`. -/
+    BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
-  /-- Extract + type_dispatch assumed contracts (intrinsic leaf). -/
-  tisCallees : TisCalleeAssumptions TxIntrinsicStateGasSpec.fullCode
+  /-- Extract assumed still residual; type_dispatch discharged. -/
+  extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 ∧ len=blob.length is discharged by
       `intrinsicAssumed_success_flat_off0`. -/
@@ -120,5 +126,6 @@ theorem intrinsic_discharge_off0_available
 
 #print axioms intrinsic_discharge_off0_available
 #print axioms bgvOffsetAssumed_fullCode
+#print axioms typeDispatchAssumed_fullCode
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
