@@ -36,12 +36,6 @@ def DivKTrialCallV5QHatLeFloorPlusOne (uHi uLo vTop : Word) : Prop :=
   (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
     (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1
 
-theorem DivKTrialCallV5QHatLeFloorPlusOne_unfold (uHi uLo vTop : Word) :
-    DivKTrialCallV5QHatLeFloorPlusOne uHi uLo vTop ↔
-      (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
-        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 :=
-  Iff.rfl
-
 /-- **The V5 payoff** (v5 analog of the impossible v4 bead `7.1.4.1`):
     `divKTrialCallV5QHat ≤ (uHi·2^64 + uLo)/vTop + 1` discharged
     unconditionally from V5.4.5, under just the call regime

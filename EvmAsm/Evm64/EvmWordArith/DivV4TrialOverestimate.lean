@@ -44,10 +44,4 @@ def DivKTrialCallV4QHatLeFloorPlusOne (uHi uLo vTop : Word) : Prop :=
   (divKTrialCallV4QHat uHi uLo vTop).toNat ≤
     (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1
 
-theorem DivKTrialCallV4QHatLeFloorPlusOne_unfold (uHi uLo vTop : Word) :
-    DivKTrialCallV4QHatLeFloorPlusOne uHi uLo vTop ↔
-      (divKTrialCallV4QHat uHi uLo vTop).toNat ≤
-        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 :=
-  Iff.rfl
-
 end EvmAsm.Evm64
