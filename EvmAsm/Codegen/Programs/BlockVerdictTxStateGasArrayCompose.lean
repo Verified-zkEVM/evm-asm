@@ -22,15 +22,17 @@
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
      array fullCode (off=0 regOwn peel DONE)
-  3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE** +
-      **stack honesty DONE** (`ExtractAssumed` pins `x2`+`stackFree 10`;
-      `nIntrinsicStackDwords` 8→18; discharge `stackFree18_split`).
-      Packaging substrate + extractSuccess domain. **Frame save/restore DONE**
-      (`extractFrameSave`/`extractPrologue`/`extractEpilogueRestore`). Residual:
-      body Hoare (pre-zero + type_dispatch + rlp_walks + 20B copy) under
-      extractSuccess; fullCode∪extract (150-instr ofProg mono heartbeat residual —
-      use extractLinkedCode first); ~~TypeDispatchAssumed~~ DONE —
-      use `typeDispatch_discharged`
+   3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE** +
+       **stack honesty DONE** (`ExtractAssumed` pins `x2`+`stackFree 10`;
+       `nIntrinsicStackDwords` 8→18; discharge `stackFree18_split`).
+       **toBuf/tea honesty DONE** (`extractToBufOwn` 3 dwords + `teaScratchOwn`;
+       `tisScratchOwn` 8 cells). Packaging substrate + extractSuccess domain.
+       **Frame save/restore DONE** + **pre-zero DONE** (`extractPreZero` E+56→E+72).
+       Residual: body Hoare (type_dispatch call + rlp_walks + 20B copy) under
+       extractSuccess; fullCode∪extract (150-instr ofProg mono heartbeat residual —
+       use extractLinkedCode first); ~~TypeDispatchAssumed~~ DONE —
+       use `typeDispatch_discharged`
+
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
 

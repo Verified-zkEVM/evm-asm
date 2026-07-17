@@ -29,6 +29,8 @@ local macro "pcf" : tactic =>
       | exact pcFree_regOwn
       | exact pcFree_memIs
       | exact pcFree_memOwn
+      | exact pcFree_extractToBufOwn _
+      | exact pcFree_teaScratchOwn
       | exact pcFree_emp
       | exact pcFree_pure
       | exact bytesRegion_pcFree _ _
@@ -100,15 +102,15 @@ def bodyScratch : Assertion :=
 def bodyPayload (txBase : Word) (txBytes : List (BitVec 8))
     (outPtr oldOut : Word) : Assertion :=
   bytesRegion txBase txBytes **
-  memOwn ToBufAddr ** memOwn IsCreationAddr **
-  memOwn TypeAddr ** memOwn InnerOffAddr **
+  extractToBufOwn ToBufAddr ** memOwn IsCreationAddr **
+  memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
   (outPtr ↦ₘ oldOut)
 
 def bodyPayloadOk (txBase : Word) (txBytes : List (BitVec 8))
     (outPtr : Word) : Assertion :=
   bytesRegion txBase txBytes **
-  memOwn ToBufAddr ** memOwn IsCreationAddr **
-  memOwn TypeAddr ** memOwn InnerOffAddr **
+  extractToBufOwn ToBufAddr ** memOwn IsCreationAddr **
+  memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
   (outPtr ↦ₘ (0 : Word))
 
 private theorem pack6
@@ -157,7 +159,7 @@ private theorem prologue_to_extractPre
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) ** (.x18 ↦ᵣ outPtr) **
           bytesRegion txBase txBytes **
-          memOwn ToBufAddr ** memOwn IsCreationAddr **
+          extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -174,7 +176,7 @@ private theorem prologue_to_extractPre
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) ** (.x18 ↦ᵣ outPtr) **
           bytesRegion txBase txBytes **
-          memOwn ToBufAddr ** memOwn IsCreationAddr **
+          extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)) **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
@@ -198,7 +200,7 @@ private theorem extractPost_to_body
           (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
           (.x18 ↦ᵣ outPtr) **
           bytesRegion txBase txBytes **
-          memOwn ToBufAddr ** memOwn IsCreationAddr **
+          extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -279,7 +281,7 @@ private theorem typeCore
     ((.x2 ↦ᵣ spC) ** stackFree spC nExtractStackDwords **
       (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
       frameSlotsSaved tisFrame spC (tisSavedVals s) **
-      memOwn ToBufAddr ** memOwn IsCreationAddr **
+      extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
       (outPtr ↦ₘ oldOut))
     (by pcf) hty0
   exact cpsTripleWithin_weaken
@@ -380,8 +382,8 @@ private theorem etsCore
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bytesRegion txBase txBytes **
-        memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-        memOwn TypeAddr ** memOwn InnerOffAddr **
+        extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+        memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
         (outPtr ↦ₘ oldOut) **
         (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -399,7 +401,7 @@ private theorem etsCore
       (.x19 ↦ᵣ s.s3) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
       frameSlotsSaved tisFrame spC (tisSavedVals s) **
       bytesRegion txBase txBytes **
-      memOwn ToBufAddr ** memOwn TypeAddr ** memOwn InnerOffAddr **
+      extractToBufOwn ToBufAddr ** memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
       regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
     (by pcf) hets0
@@ -419,8 +421,8 @@ private theorem etsCore
               (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
               frameSlotsSaved tisFrame spC (tisSavedVals s) **
               bytesRegion txBase txBytes **
-              memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-              memOwn TypeAddr ** memOwn InnerOffAddr **
+              extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+              memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
               (outPtr ↦ₘ (0 : Word)))) h := by
         xperm_hyp hq
       have hq2 :=
@@ -429,8 +431,8 @@ private theorem etsCore
           ((.x1 ↦ᵣ LinkEts) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
               bodyFrameAfterEts spC s txBase lenW outPtr **
               bytesRegion txBase txBytes **
-              memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-              memOwn TypeAddr ** memOwn InnerOffAddr **
+              extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+              memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
               (outPtr ↦ₘ (0 : Word)) **
               bodyScratch) h := by
         unfold bodyFrameAfterEts bodyScratch at *
@@ -440,8 +442,8 @@ private theorem etsCore
           (((.x1 ↦ᵣ LinkEts) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
               bodyFrameAfterEts spC s txBase lenW outPtr **
               bytesRegion txBase txBytes **
-              memOwn ToBufAddr **
-              memOwn TypeAddr ** memOwn InnerOffAddr **
+              extractToBufOwn ToBufAddr **
+              memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
               (outPtr ↦ₘ (0 : Word)) **
               bodyScratch) **
             (IsCreationAddr ↦ₘ isC)) h := by
@@ -473,8 +475,8 @@ theorem tisEtsFramed
       (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
           bodyFrame spC s txBase lenW outPtr **
           bytesRegion txBase txBytes **
-          memOwn ToBufAddr **
-          memOwn TypeAddr ** memOwn InnerOffAddr **
+          extractToBufOwn ToBufAddr **
+          memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
           (outPtr ↦ₘ oldOut) **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -491,8 +493,8 @@ theorem tisEtsFramed
         (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
             bodyFrame spC s txBase lenW outPtr **
             bytesRegion txBase txBytes **
-            memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-            memOwn TypeAddr ** memOwn InnerOffAddr **
+            extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+            memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
             (outPtr ↦ₘ oldOut) **
             regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -508,8 +510,8 @@ theorem tisEtsFramed
           (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
               bodyFrame spC s txBase lenW outPtr **
               bytesRegion txBase txBytes **
-              memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-              memOwn TypeAddr ** memOwn InnerOffAddr **
+              extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+              memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
               (outPtr ↦ₘ oldOut) **
               (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -525,8 +527,8 @@ theorem tisEtsFramed
             (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                 bodyFrame spC s txBase lenW outPtr **
                 bytesRegion txBase txBytes **
-                memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-                memOwn TypeAddr ** memOwn InnerOffAddr **
+                extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+                memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
                 (outPtr ↦ₘ oldOut) **
                 (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
                 regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
@@ -543,8 +545,8 @@ theorem tisEtsFramed
               (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                   bodyFrame spC s txBase lenW outPtr **
                   bytesRegion txBase txBytes **
-                  memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-                  memOwn TypeAddr ** memOwn InnerOffAddr **
+                  extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+                  memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
                   (outPtr ↦ₘ oldOut) **
                   (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
                   regOwn .x11 ** regOwn .x12 **
@@ -561,8 +563,8 @@ theorem tisEtsFramed
                 (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                     bodyFrame spC s txBase lenW outPtr **
                     bytesRegion txBase txBytes **
-                    memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-                    memOwn TypeAddr ** memOwn InnerOffAddr **
+                    extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+                    memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
                     (outPtr ↦ₘ oldOut) **
                     (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
                     regOwn .x11 **
@@ -579,8 +581,8 @@ theorem tisEtsFramed
                   (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
                       bodyFrame spC s txBase lenW outPtr **
                       bytesRegion txBase txBytes **
-                      memOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
-                      memOwn TypeAddr ** memOwn InnerOffAddr **
+                      extractToBufOwn ToBufAddr ** (IsCreationAddr ↦ₘ isC) **
+                      memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
                       (outPtr ↦ₘ oldOut) **
                       (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
                       regOwn .x16 **

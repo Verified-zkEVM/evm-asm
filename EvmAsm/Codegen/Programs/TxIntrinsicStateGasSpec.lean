@@ -161,6 +161,24 @@ def nExtractStackDwords : Nat := 10
 /-- Intrinsic frame (8) + nested extract free stack (10). Matches array budget. -/
 def nTisStackDwords : Nat := 8 + nExtractStackDwords
 
+/-- 20B `to` out-buffer: 3 dwords (SD 0/8 + SW 16 share the third dword). -/
+def extractToBufOwn (toBuf : Word) : Assertion :=
+  memOwn toBuf ** memOwn (toBuf + 8) ** memOwn (toBuf + 16)
+
+theorem pcFree_extractToBufOwn (toBuf : Word) : (extractToBufOwn toBuf).pcFree := by
+  unfold extractToBufOwn
+  exact pcFree_sepConj pcFree_memOwn
+    (pcFree_sepConj pcFree_memOwn pcFree_memOwn)
+
+/-- Extract private `.data` cells for type_dispatch (`tea_type`, `tea_inner_off`). -/
+def teaScratchOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.tea_type) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tea_inner_off)
+
+theorem pcFree_teaScratchOwn : teaScratchOwn.pcFree := by
+  unfold teaScratchOwn
+  exact pcFree_sepConj pcFree_memOwn pcFree_memOwn
+
 /-- Assumed success contract for `tx_extract_to_address` (150-instr Program
     `txExtractToAddress_prog`; callees type_dispatch + rlp_walk_init/next).
 
@@ -168,6 +186,7 @@ def nTisStackDwords : Nat := 8 + nExtractStackDwords
     Success-domain only: `extractSuccess txBytes` (pure model).
     RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
     **Stack:** real leaf does `addi sp,-80` → pin `x2` + `stackFree sp nExtractStackDwords`.
+    **Out buf:** 3 dwords (`extractToBufOwn`); **tea_*** private type_dispatch cells.
     Residual: Hoare packaging body under that domain. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
@@ -183,7 +202,7 @@ structure ExtractAssumed (cr : CodeReq) where
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
           bytesRegion txBase txBytes **
-          memOwn toBuf ** memOwn isCreationPtr **
+          extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -192,7 +211,7 @@ structure ExtractAssumed (cr : CodeReq) where
           stackFree spVal nExtractStackDwords **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBytes **
-          memOwn toBuf ** memOwn isCreationPtr **
+          extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **

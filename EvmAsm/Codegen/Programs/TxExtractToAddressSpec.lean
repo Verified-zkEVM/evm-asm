@@ -25,7 +25,8 @@ open EvmAsm.Rv64.RLP
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxExtractToAddressModel
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
-  (nExtractSteps nExtractStackDwords ExtractAssumed fullCode typeCode type_length')
+  (nExtractSteps nExtractStackDwords ExtractAssumed fullCode typeCode type_length'
+    extractToBufOwn teaScratchOwn)
 open EvmAsm.Rv64.SAsm (stackFree)
 
 abbrev E : Word := BitVec.ofNat 64 GuestAddrs.tx_extract_to_address
@@ -102,6 +103,15 @@ def extractSavedVals (s : ExtractSaved) : Reg → Word
   | Reg.x23 => s.s7
   | _ => 0
 
+theorem pcFree_extractToBufOwn (toBuf : Word) : (extractToBufOwn toBuf).pcFree := by
+  unfold extractToBufOwn
+  exact pcFree_sepConj pcFree_memOwn
+    (pcFree_sepConj pcFree_memOwn pcFree_memOwn)
+
+theorem pcFree_teaScratchOwn : teaScratchOwn.pcFree := by
+  unfold teaScratchOwn
+  exact pcFree_sepConj pcFree_memOwn pcFree_memOwn
+
 /-- Assumed-shaped success pre (sp + free stack + scratch owns; RO blob). -/
 def extractAssumedPre (ret spVal txBase lenW toBuf isCreationPtr : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
@@ -109,7 +119,7 @@ def extractAssumedPre (ret spVal txBase lenW toBuf isCreationPtr : Word)
     (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
     (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
     bytesRegion txBase txBytes **
-    memOwn toBuf ** memOwn isCreationPtr **
+    extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -121,7 +131,7 @@ def extractAssumedPost (ret spVal txBase toBuf isCreationPtr : Word)
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
     (.x10 ↦ᵣ (0 : Word)) **
     bytesRegion txBase txBytes **
-    memOwn toBuf ** memOwn isCreationPtr **
+    extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
     regOwn .x14 ** regOwn .x15 ** regOwn .x16 **

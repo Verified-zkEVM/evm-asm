@@ -279,14 +279,9 @@ theorem intrinsicAssumed_success_flat_off0
               old5 old6 old7 old13 old14 old15 old16 **
             bodyPayload regionBase bs outPtr oldOut) h := by
         rw [regsAt_savedOf]
-        unfold prologueAbiRest bodyPayload
-        have hscratch :
-            tisScratchOwn =
-              (memOwn ToBufAddr ** memOwn IsCreationAddr **
-                memOwn TypeAddr ** memOwn InnerOffAddr) := by
-          unfold tisScratchOwn ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
-          rfl
-        simp only [hscratch] at hp
+        unfold prologueAbiRest bodyPayload extractToBufOwn teaScratchOwn
+          ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
+        unfold tisScratchOwn at hp
         xperm_hyp hp
       -- rewrite stackFree nIntrinsic → frameOwn ** nested free; reassoc.
       rw [heq'] at hp'
@@ -339,15 +334,12 @@ theorem intrinsicAssumed_success_flat_off0
         (frameSlotsSaved_imp_stackFree18 spVal
           (savedOf ret s0 s1 s2 s3 s4 s5 s6))
         (fun _ hh => hh) h hq1
-    unfold bodyPayloadOk bodyScratch at hq2
-    have hscratch :
-        tisScratchOwn =
-          (memOwn ToBufAddr ** memOwn IsCreationAddr **
-            memOwn TypeAddr ** memOwn InnerOffAddr) := by
-      unfold tisScratchOwn ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
-      rfl
+    unfold bodyPayloadOk bodyScratch extractToBufOwn teaScratchOwn
+      ToBufAddr IsCreationAddr TypeAddr InnerOffAddr at hq2
     have hout : BitVec.ofNat 64 pureIntrinsicStateGasSuccess = (0 : Word) := rfl
-    simp only [nIntrinsicStackDwords, hout, hscratch] at hq2 ⊢
+    simp only [nIntrinsicStackDwords, hout] at hq2 ⊢
+    -- hq2 already expanded; goal still has `tisScratchOwn` (flat 8-own chain).
+    unfold tisScratchOwn
     xperm_hyp hq2
 
 /-- Peel IntrinsicAssumed temp owns x5–x7, x13–x16 (BgvOffset-style). -/

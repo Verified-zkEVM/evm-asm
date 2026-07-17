@@ -229,20 +229,25 @@ def nTeerStackDwords : Nat := 20
     `stackFree_split` to take 18 and frame the rest. -/
 def nCalleeStackDwords : Nat := nTeerStackDwords
 
-/-- Global `.data` scratch the intrinsic leaf uses (`tis_to_buf` first dword,
-    `tis_is_creation`, `tis_type`, `tis_inner_off`). Matches #10434 bodyPayload
-    owns; required in IntrinsicAssumed for discharge (same class as sp/s-regs). -/
+/-- Global `.data` scratch the intrinsic leaf uses:
+    `tis_to_buf` 3 dwords (20B extract out), `tis_is_creation`, `tis_type`,
+    `tis_inner_off`, plus extract private `tea_type`/`tea_inner_off`.
+    Matches bodyPayload / ExtractAssumed owns. -/
 def tisScratchOwn : Assertion :=
   memOwn (BitVec.ofNat 64 GuestAddrs.tis_to_buf) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_to_buf + 8) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_to_buf + 16) **
   memOwn (BitVec.ofNat 64 GuestAddrs.tis_is_creation) **
   memOwn (BitVec.ofNat 64 GuestAddrs.tis_type) **
-  memOwn (BitVec.ofNat 64 GuestAddrs.tis_inner_off)
+  memOwn (BitVec.ofNat 64 GuestAddrs.tis_inner_off) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tea_type) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.tea_inner_off)
 
 theorem pcFree_tisScratchOwn : tisScratchOwn.pcFree := by
   unfold tisScratchOwn
-  exact pcFree_sepConj pcFree_memOwn
-    (pcFree_sepConj pcFree_memOwn
-      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+  repeat first
+    | apply pcFree_sepConj
+    | exact pcFree_memOwn
 
 /-- Global `.data` scratch owned by the teer leaf (`teer_*` cells). One
     `memOwn` per symbol base (clobbered; values unspecified except where the

@@ -27,6 +27,8 @@ local macro "pcf" : tactic =>
       | exact pcFree_regOwn
       | exact pcFree_memIs
       | exact pcFree_memOwn
+      | exact pcFree_extractToBufOwn _
+      | exact pcFree_teaScratchOwn
       | exact pcFree_emp
       | exact pcFree_pure
       | exact bytesRegion_pcFree _ _
@@ -131,7 +133,7 @@ def extractCalleeP (spVal txBase lenW : Word) (txBytes : List (BitVec 8)) : Asse
   (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
   (.x12 ↦ᵣ ToBufAddr) ** (.x13 ↦ᵣ IsCreationAddr) **
   bytesRegion txBase txBytes **
-  memOwn ToBufAddr ** memOwn IsCreationAddr **
+  extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -141,7 +143,7 @@ def extractCalleeQ (spVal txBase : Word) (txBytes : List (BitVec 8)) : Assertion
   (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
   (.x10 ↦ᵣ (0 : Word)) **
   bytesRegion txBase txBytes **
-  memOwn ToBufAddr ** memOwn IsCreationAddr **
+  extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
   regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -227,7 +229,7 @@ theorem tisExtractSuccess
         (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x18 ↦ᵣ outPtr) **
         bytesRegion txBase txBytes **
-        memOwn ToBufAddr ** memOwn IsCreationAddr **
+        extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -236,7 +238,7 @@ theorem tisExtractSuccess
         (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x18 ↦ᵣ outPtr) **
         bytesRegion txBase txBytes **
-        memOwn ToBufAddr ** memOwn IsCreationAddr **
+        extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
@@ -245,7 +247,7 @@ theorem tisExtractSuccess
   have hsetupF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ old1) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
       bytesRegion txBase txBytes **
-      memOwn ToBufAddr ** memOwn IsCreationAddr **
+      extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
@@ -260,7 +262,7 @@ theorem tisExtractSuccess
     ((.x1 ↦ᵣ LinkExtract) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
       (.x18 ↦ᵣ outPtr) **
       bytesRegion txBase txBytes **
-      memOwn ToBufAddr ** memOwn IsCreationAddr **
+      extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
