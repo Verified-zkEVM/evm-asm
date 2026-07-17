@@ -2643,8 +2643,8 @@ def loopTeerFrame (spC txBase outBase balBase chainIdW nW iW
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   savedFrame spC csaved **
   wordArray outBase outVals **
-  regOwn .x17 **
-  (.x0 ↦ᵣ (0 : Word))
+  regOwn .x17
+  -- x0 stays in the callee footprint (not framed) to avoid double-own.
 
 theorem loopTeerFrame_pcFree (spC txBase outBase balBase chainIdW nW iW
     startW endW bodyLenW balLenW : Word)
@@ -3214,6 +3214,144 @@ theorem wordArray_set_eq_of_get
         wordArrayFrom base (i + 1) (outVals.drop (i + 1))) := by
   have h := wordArray_split base outVals i hi
   simpa [hcell] using h
+
+/-- Peel form of `wordArray` after `List.set i newV`. -/
+theorem wordArray_of_set
+    (base : Word) (outVals : List Nat) (i newV : Nat)
+    (hi : i < outVals.length) :
+    wordArray base (outVals.set i newV) =
+      (wordArrayFrom base 0 (outVals.take i) **
+        ((base + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 newV) **
+        wordArrayFrom base (i + 1) (outVals.drop (i + 1))) := by
+  have hi' : i < (outVals.set i newV).length := by simpa using hi
+  have h := wordArray_split base (outVals.set i newV) i hi'
+  have hget : (outVals.set i newV)[i] = newV := List.getElem_set_self hi'
+  have htake : (outVals.set i newV).take i = outVals.take i := by
+    rw [List.take_set, List.set_eq_of_length_le]
+    simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt hi)]
+  have hdrop : (outVals.set i newV).drop (i + 1) = outVals.drop (i + 1) := by
+    rw [List.drop_set, if_pos (Nat.lt_succ_self i)]
+  simpa [hget, htake, hdrop] using h
+
+set_option maxRecDepth 8000 in
+/-- Store under full wordArray when cell i is pureIntrinsic: writes pure+charge
+    and folds to `outVals.set i newV`. Requires `chargeW = ofNat chargeNat` and
+    no BitVec wrap on pure+charge (= charge when pure=0). -/
+theorem bvtIterStoreAdd_fold
+    (spC txBase outBase balBase chainIdW nW : Word)
+    (csaved : Saved) (txBlob : List (BitVec 8)) (outVals : List Nat)
+    (balBytes : List (BitVec 8))
+    (startW endW chargeW old5 old6 old7 : Word) (i chargeNat : Nat)
+    (hi : i < outVals.length)
+    (hcell : outVals[i] = pureIntrinsicStateGasSuccess)
+    (_hcharge : chargeW = BitVec.ofNat 64 chargeNat)
+    (hsum : BitVec.ofNat 64 pureIntrinsicStateGasSuccess + chargeW =
+      BitVec.ofNat 64 (pureIntrinsicStateGasSuccess + chargeNat))
+    (hi61 : i < 2 ^ 61) :
+    let iW := BitVec.ofNat 64 i
+    let outPtr := outBase + BitVec.ofNat 64 (8 * i)
+    let pureW := BitVec.ofNat 64 pureIntrinsicStateGasSuccess
+    let sumW := pureW + chargeW
+    let outVals' := outVals.set i (pureIntrinsicStateGasSuccess + chargeNat)
+    cpsTripleWithin 5 LinkTeer AfterStore bvtCode
+      ((.x10 ↦ᵣ chargeW) ** (.x21 ↦ᵣ iW) ** (.x19 ↦ᵣ outBase) **
+        (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+        wordArray outBase outVals **
+        (.x1 ↦ᵣ LinkTeer) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        bytesRegion balBase balBytes **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      ((.x10 ↦ᵣ chargeW) ** (.x21 ↦ᵣ iW) ** (.x19 ↦ᵣ outBase) **
+        (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+        (.x6 ↦ᵣ outPtr) ** (.x7 ↦ᵣ sumW) **
+        wordArray outBase outVals' **
+        (.x1 ↦ᵣ LinkTeer) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        bytesRegion balBase balBytes **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
+  intro iW outPtr pureW sumW outVals'
+  have hpeel := wordArray_set_eq_of_get outBase outVals i
+    pureIntrinsicStateGasSuccess hi hcell
+  have hfold := wordArray_of_set outBase outVals i
+    (pureIntrinsicStateGasSuccess + chargeNat) hi
+  have hstore := bvtIterStoreAdd spC txBase outBase balBase chainIdW nW
+    csaved txBlob (outVals.take i) (outVals.drop (i + 1)) balBytes
+    startW endW chargeW old5 old6 old7 i hi61
+  -- Align sumW in store post with ofNat (pure+charge) via hsum
+  have hstore' : cpsTripleWithin 5 LinkTeer AfterStore bvtCode
+      ((.x10 ↦ᵣ chargeW) ** (.x21 ↦ᵣ iW) ** (.x19 ↦ᵣ outBase) **
+        (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+        (outPtr ↦ₘ pureW) **
+        (.x1 ↦ᵣ LinkTeer) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        wordArrayFrom outBase 0 (outVals.take i) **
+        wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)) **
+        bytesRegion balBase balBytes **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      ((.x10 ↦ᵣ chargeW) ** (.x21 ↦ᵣ iW) ** (.x19 ↦ᵣ outBase) **
+        (.x5 ↦ᵣ BitVec.ofNat 64 (8 * i)) **
+        (.x6 ↦ᵣ outPtr) ** (.x7 ↦ᵣ sumW) **
+        (outPtr ↦ₘ (BitVec.ofNat 64 (pureIntrinsicStateGasSuccess + chargeNat))) **
+        (.x1 ↦ᵣ LinkTeer) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (.x2 ↦ᵣ spC) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 txBlob.length) **
+        (.x18 ↦ᵣ nW) ** (.x20 ↦ᵣ nW) **
+        (.x22 ↦ᵣ startW) ** (.x23 ↦ᵣ endW) **
+        (.x24 ↦ᵣ balBase) **
+        (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
+        (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
+        savedFrame spC csaved **
+        bytesRegion txBase txBlob **
+        wordArrayFrom outBase 0 (outVals.take i) **
+        wordArrayFrom outBase (i + 1) (outVals.drop (i + 1)) **
+        bytesRegion balBase balBytes **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) := by
+    have h := hstore
+    -- rewrite sumW cell via hsum
+    simpa [sumW, pureW, hsum] using h
+  refine cpsTripleWithin_weaken ?_ ?_ hstore'
+  · intro h hp
+    rw [hpeel] at hp
+    xperm_hyp hp
+  · intro h hq
+    rw [hfold]
+    xperm_hyp hq
 
 set_option maxRecDepth 8000 in
 /-- Intrinsic when `outVals[i] = pureIntrinsic`: ambient wordArray is preserved
