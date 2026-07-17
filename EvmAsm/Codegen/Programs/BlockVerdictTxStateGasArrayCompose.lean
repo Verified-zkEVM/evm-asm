@@ -22,7 +22,9 @@
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
   2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
      array fullCode (off=0 regOwn peel DONE)
-  3. TisCalleeAssumptions ← ExtractAssumed convert still residual;
+  3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE**
+     (`txExtractToAddress_prog`, 150 instrs, fixture+eq_prog); success-domain
+     Hoare packaging residual (frame + type_dispatch + rlp_walk calls);
      ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)

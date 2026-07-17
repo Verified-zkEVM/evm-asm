@@ -152,10 +152,12 @@ def nExtractSteps : Nat := 512
 def nTypeSteps : Nat := 256
 def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16
 
-/-- Assumed success contract for `tx_extract_to_address` (still asm string).
+/-- Assumed success contract for `tx_extract_to_address` (150-instr Program
+    `txExtractToAddress_prog`; callees type_dispatch + rlp_walk_init/next).
 
     ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
-    RO tx blob ambient; scratch out-cells owned (side effects unconstrained). -/
+    RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
+    Residual: success-domain Hoare triple packaging → ExtractAssumed. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :

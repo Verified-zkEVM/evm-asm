@@ -354,6 +354,7 @@ txEip4844DecodeFunction	EvmAsm/Codegen/Programs/TxDecode4844.lean
 txEip4844ValidateBlobHashesFunction	EvmAsm/Codegen/Programs/TxBlobGas.lean
 txEip7702DecodeFunction	EvmAsm/Codegen/Programs/TxDecode7702.lean
 txEip7702ExistingAuthorityRefundFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean
+txExtractToAddressFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
 txGasSenderBalLookupFunction	EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean
 txIntrinsicStateGasFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGasProg.lean

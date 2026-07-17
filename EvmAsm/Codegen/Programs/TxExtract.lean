@@ -355,74 +355,197 @@ def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
         2 : `to` field extraction failed (not 0 or 20 B)
 
     Uses two 8-byte `.data` scratch slots (`tea_type` + `tea_inner_off`). -/
-def txExtractToAddressFunction : String :=
-  "tx_extract_to_address:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                   # tx_bytes ptr\n" ++
-  "  mv s1, a1                   # tx_len\n" ++
-  "  mv s2, a2                   # 20B out ptr\n" ++
-  "  mv s3, a3                   # is_creation out ptr\n" ++
-  "  # Pre-zero outputs in case of failure.\n" ++
-  "  sd zero,  0(s2); sd zero,  8(s2); sw zero, 16(s2)\n" ++
-  "  sd zero,  0(s3)\n" ++
-  "  # Step 1: tx_type_dispatch(tx, len, &type, &inner_off)\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, tea_type\n" ++
-  "  la a3, tea_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  beqz a0, .Ltea_after_dispatch\n" ++
-  "  li a0, 1\n" ++
-  "  j .Ltea_ret\n" ++
-  ".Ltea_after_dispatch:\n" ++
-  "  la t0, tea_type;      ld s4, 0(t0)    # type\n" ++
-  "  la t0, tea_inner_off; ld t5, 0(t0)    # inner_off\n" ++
-  "  add a0, s0, t5                         # inner_ptr\n" ++
-  "  sub a1, s1, t5                         # inner_len\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Ltea_field_fail\n" ++
-  "  mv s5, a0                              # cursor\n" ++
-  "  mv s6, a1                              # end\n" ++
-  "  # Determine field index based on type: 0 -> 3, 1 -> 4, 2/3/4 -> 5.\n" ++
-  "  li t0, 0\n" ++
-  "  beq s4, t0, .Ltea_legacy_idx\n" ++
-  "  li t0, 1\n" ++
-  "  beq s4, t0, .Ltea_t1_idx\n" ++
-  txExtractWalkFieldAsm ".Ltea_field_fail" 5 ++
-  "  j .Ltea_have_field\n" ++
-  ".Ltea_legacy_idx:\n" ++
-  txExtractWalkFieldAsm ".Ltea_field_fail" 3 ++
-  "  j .Ltea_have_field\n" ++
-  ".Ltea_t1_idx:\n" ++
-  txExtractWalkFieldAsm ".Ltea_field_fail" 4 ++
-  ".Ltea_have_field:\n" ++
-  "  mv t2, a2                    # content length\n" ++
-  "  beqz t2, .Ltea_creation\n" ++
-  "  li t1, 20\n" ++
-  "  bne t2, t1, .Ltea_field_fail\n" ++
-  "  # Copy 20 bytes from content pointer t6 to s2.\n" ++
-  "  ld t0,  0(t6); sd t0,  0(s2)\n" ++
-  "  ld t0,  8(t6); sd t0,  8(s2)\n" ++
-  "  lwu t0, 16(t6); sw t0, 16(s2)\n" ++
-  "  sd zero, 0(s3)              # is_creation = 0\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltea_ret\n" ++
-  ".Ltea_creation:\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3)                # is_creation = 1\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltea_ret\n" ++
-  ".Ltea_field_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Ltea_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def txExtractToAddress_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SW .x18 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.tea_type (GuestAddrs.tx_extract_to_address + 80)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tea_type (GuestAddrs.tx_extract_to_address + 80)),
+    .AUIPC .x13 (laHi GuestAddrs.tea_inner_off (GuestAddrs.tx_extract_to_address + 88)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tea_inner_off (GuestAddrs.tx_extract_to_address + 88)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.tx_extract_to_address + 96)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (448 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tea_type (GuestAddrs.tx_extract_to_address + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_type (GuestAddrs.tx_extract_to_address + 112)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tea_inner_off (GuestAddrs.tx_extract_to_address + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_inner_off (GuestAddrs.tx_extract_to_address + 124)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x30,
+    .SUB .x11 .x9 .x30,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_extract_to_address + 144)),
+    .BNE .x12 .x0 (404 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .LI .x5 (0 : Word),
+    .BEQ .x20 .x5 (136 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x20 .x5 (212 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 184)),
+    .BNE .x11 .x0 (364 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 204)),
+    .BNE .x11 .x0 (344 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 224)),
+    .BNE .x11 .x0 (324 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 244)),
+    .BNE .x11 .x0 (304 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 264)),
+    .BNE .x11 .x0 (284 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 284)),
+    .BNE .x11 .x0 (264 : BitVec 13),
+    .SUB .x31 .x10 .x12,
+    .JAL .x0 (188 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 308)),
+    .BNE .x11 .x0 (240 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 328)),
+    .BNE .x11 .x0 (220 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 348)),
+    .BNE .x11 .x0 (200 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 368)),
+    .BNE .x11 .x0 (180 : BitVec 13),
+    .SUB .x31 .x10 .x12,
+    .JAL .x0 (104 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 392)),
+    .BNE .x11 .x0 (156 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 412)),
+    .BNE .x11 .x0 (136 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 432)),
+    .BNE .x11 .x0 (116 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 452)),
+    .BNE .x11 .x0 (96 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_extract_to_address + 472)),
+    .BNE .x11 .x0 (76 : BitVec 13),
+    .SUB .x31 .x10 .x12,
+    .MV .x7 .x12,
+    .BEQ .x7 .x0 (48 : BitVec 13),
+    .LI .x6 (20 : Word),
+    .BNE .x7 .x6 (56 : BitVec 13),
+    .LD .x5 .x31 (0 : BitVec 12),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LD .x5 .x31 (8 : BitVec 12),
+    .SD .x18 .x5 (8 : BitVec 12),
+    .LWU .x5 .x31 (16 : BitVec 12),
+    .SW .x18 .x5 (16 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txExtractToAddress_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txExtractToAddress_relocs : RelocTable :=
+  [ (20, .la .x12 "tea_type"),
+    (22, .la .x13 "tea_inner_off"),
+    (24, .jal .x1 "tx_type_dispatch"),
+    (28, .la .x5 "tea_type"),
+    (31, .la .x5 "tea_inner_off"),
+    (36, .jal .x1 "rlp_walk_init"),
+    (46, .jal .x1 "rlp_walk_next"),
+    (51, .jal .x1 "rlp_walk_next"),
+    (56, .jal .x1 "rlp_walk_next"),
+    (61, .jal .x1 "rlp_walk_next"),
+    (66, .jal .x1 "rlp_walk_next"),
+    (71, .jal .x1 "rlp_walk_next"),
+    (77, .jal .x1 "rlp_walk_next"),
+    (82, .jal .x1 "rlp_walk_next"),
+    (87, .jal .x1 "rlp_walk_next"),
+    (92, .jal .x1 "rlp_walk_next"),
+    (98, .jal .x1 "rlp_walk_next"),
+    (103, .jal .x1 "rlp_walk_next"),
+    (108, .jal .x1 "rlp_walk_next"),
+    (113, .jal .x1 "rlp_walk_next"),
+    (118, .jal .x1 "rlp_walk_next") ]
+
+def txExtractToAddressFunction : String :=
+  "tx_extract_to_address:\n" ++ emitProgramR txExtractToAddress_prog txExtractToAddress_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txExtractToAddress_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txExtractToAddressFunction_eq_prog :
+    txExtractToAddressFunction = "tx_extract_to_address:\n" ++ emitProgramR txExtractToAddress_prog txExtractToAddress_relocs := rfl
+
+#guard txExtractToAddressFunction.startsWith "tx_extract_to_address:\n"
+#guard txExtractToAddress_prog.length = 150
 /-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
     (tx_len, tx_bytes) from host input, writes (status, 20-byte
     address, is_creation u64) to OUTPUT (40 bytes total).
