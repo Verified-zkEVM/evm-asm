@@ -182,9 +182,7 @@
                 **copy Assumed pure wire DONE**
                 (`extractAssumed_copy_shortConcrete_pure(_fullCode)`:
                 shortListSrcOff + hnext/hlen20/hnext_content pure;
-                Assumed**contentDwords). Residual: pureHvalid collapse
-                (hvalid from validByteRange) + fill
-                `ExtractAssumed.success_flat` case-split.
+                Assumed**contentDwords). **copy pureHvalid DONE** (Assumed**content). **copy pureHvalid + Assumed**content path Prop DONE**. Residual: bare ExtractAssumed.success_flat case-split (creation/copy×type×short/long); multi-tx Option A; Teer; gate.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
@@ -233,6 +231,10 @@ def typeDispatch_discharged : TypeDispatchAssumed TxIntrinsicStateGasSpec.fullCo
     Full `ExtractAssumed.success_flat` still residual (other success arms). -/
 def extract_discharge_creation_type234_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short
+
+/-- Copy path packaging under Assumed**contentDwords (not bare success_flat). -/
+def extract_discharge_copy_type234_short_available :=
+  TxExtractToAddressSpec.extractAssumed_content_copy_type234_short
 
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
