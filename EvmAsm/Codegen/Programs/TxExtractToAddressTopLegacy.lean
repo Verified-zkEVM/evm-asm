@@ -29,7 +29,7 @@ local macro "pcf" : tactic => `(tactic|
     | exact pcFree_pure
     | exact bytesRegion_pcFree _ _)
 
-private theorem of_forall_regOwn7_leg
+theorem of_forall_regOwn7_leg
     {n : Nat} {entry exit_ : Word} {cr : CodeReq}
     {r1 r2 r3 r4 r5 r6 r7 : Reg} {P Q : Assertion}
     (hspec : ∀ v1 v2 v3 v4 v5 v6 v7, cpsTripleWithin n entry exit_ cr
@@ -92,7 +92,7 @@ def legStable (txBase lenW innerW endPtr cursor : Word) : Assertion :=
     (.x20 ↦ᵣ (0 : Word)) **
     (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
 
-private theorem legStable_pcFree (txBase lenW innerW endPtr cursor : Word) :
+theorem legStable_pcFree (txBase lenW innerW endPtr cursor : Word) :
     (legStable txBase lenW innerW endPtr cursor).pcFree := by
   unfold legStable; pcf
 
