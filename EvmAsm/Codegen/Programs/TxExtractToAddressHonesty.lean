@@ -220,11 +220,24 @@ theorem extractSuccess_inner_eq_encode
   obtain ⟨items, hdec⟩ := extractSuccess_decode txBytes h
   exact ⟨items, hdec, decodeListItems_eq_encode _ _ hdec⟩
 
+/-- `lenW - innerW` as Word matches drop length when bounds hold. -/
+theorem listLen_word_eq_drop
+    (txBytes : List (BitVec 8)) (lenW innerW : Word)
+    (hinner : innerW.toNat < txBytes.length)
+    (hlenW : lenW.toNat = txBytes.length) :
+    (lenW - innerW).toNat =
+      (txBytes.drop innerW.toNat).length := by
+  have hle : innerW ≤ lenW := by
+    exact (BitVec.le_def).mpr (by omega)
+  rw [BitVec.toNat_sub_of_le hle, hlenW, List.length_drop]
+  omega
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
 #print axioms decodeListItems_eq_encode
 #print axioms decodeListItems_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
+#print axioms listLen_word_eq_drop
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
