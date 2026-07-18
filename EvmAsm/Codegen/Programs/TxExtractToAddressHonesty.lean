@@ -2134,6 +2134,179 @@ theorem hll_vacuous_of_short_list_item
     simpa [hhead] using hlt
   exact absurd hlt' hgeF8
 
+/-- Length-1 encode with head in `[0x80,0xb8)` is empty bytes `0x80`. -/
+theorem encode_len1_short_string_is_empty (item : RLPItem)
+    (hlen1 : (encode item).length = 1)
+    (hge : 0x80 ≤ ((encode item)[0]'(by rw [hlen1]; omega)).toNat)
+    (hlt : ((encode item)[0]'(by rw [hlen1]; omega)).toNat < 0xb8) :
+    item = .bytes [] := by
+  have hle : (encode item).length ≤ 55 := by omega
+  cases item with
+  | list sub =>
+    have hb := encode_item_head_toNat_bounds (.list sub) hle
+    rcases hb with hltB8 | ⟨hgeC0, _⟩
+    · -- short-list head is ≥ 0xc0, so not < 0xb8
+      have henc' := encode_list_short sub (by
+        have : (encode (.list sub)).length = 1 := hlen1
+        -- short form length = 1 + payload; payload 0 ⇒ length 1
+        have hp : (encode.encodeItems sub).length ≤ 55 := by
+          by_cases hp : (encode.encodeItems sub).length ≤ 55
+          · exact hp
+          · have hgt := encode_list_long_length_gt sub (by omega)
+            omega
+        exact hp)
+      -- head = 0xC0 + 0 = 0xC0 when length 1
+      have hb' :
+          (encode (.list sub))[0]'(by rw [hlen1]; omega) =
+            BitVec.ofNat 8 (0xC0 + (encode.encodeItems sub).length) := by
+        have h := encode_list_short sub (by
+          by_cases hp : (encode.encodeItems sub).length ≤ 55
+          · exact hp
+          · have hgt := encode_list_long_length_gt sub (by omega)
+            omega)
+        -- encode_list_short : encode = ofNat (0xC0+n) :: encodeItems
+        simpa [h] using encode_head_of_cons h
+      have : ((encode (.list sub))[0]'(by rw [hlen1]; omega)).toNat =
+          0xC0 + (encode.encodeItems sub).length := by
+        rw [hb', BitVec.toNat_ofNat]
+        exact Nat.mod_eq_of_lt (by
+          have : (encode.encodeItems sub).length ≤ 55 := by
+            by_cases hp : (encode.encodeItems sub).length ≤ 55
+            · exact hp
+            · have hgt := encode_list_long_length_gt sub (by omega)
+              omega
+          omega)
+      omega
+    · omega
+  | bytes data =>
+    match data with
+    | [] => rfl
+    | a :: tail =>
+      match tail with
+      | [] =>
+        by_cases ha : a.toNat < 0x80
+        · have henc' : encode (.bytes [a]) = [a] := by
+            simp only [encode, encodeBytes, ha, ↓reduceIte]
+          have hb' : (encode (.bytes [a]))[0]'(by rw [hlen1]; omega) = a :=
+            encode_head_of_cons henc'
+          have : a.toNat = ((encode (.bytes [a]))[0]'(by rw [hlen1]; omega)).toNat := by
+            rw [hb']
+          omega
+        · have henc' : encode (.bytes [a]) = [BitVec.ofNat 8 0x81, a] := by
+            simp only [encode, encodeBytes, ha, ↓reduceIte]
+          have : (encode (.bytes [a])).length = 2 := by simp [henc']
+          omega
+      | c :: rest =>
+        have hne1 : (a :: c :: rest).length ≠ 1 := by intro h; cases h
+        by_cases hle55 : (a :: c :: rest).length ≤ 55
+        · have hlen2 := encode_bytes_short_ne_one_length (a :: c :: rest) hle55 hne1
+          rw [hlen2] at hlen1
+          have h0 : (a :: c :: rest).length = 0 := Nat.add_left_cancel hlen1
+          cases h0
+        · have hgt := encode_bytes_long_length_gt (a :: c :: rest) (by omega)
+          rw [hlen1] at hgt
+          exact absurd hgt (by decide)
+
+/-- Short-string ante (`0x80 ≤ pfx < 0xb8`) ⇒ content offset in-bounds when either
+    the item encode is multi-byte or a following list item exists (empty `0x80`). -/
+theorem hss_room_of_short_string_ante
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hoff : shortListSrcOff listOff items n < txBytes.length)
+    (hlo : ¬ BitVec.ult ((txBytes[shortListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0x80 : Word) = true)
+    (hhi : BitVec.ult ((txBytes[shortListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xb8 : Word) = true)
+    (hnext : n + 1 < items.length ∨ 2 ≤ (encode (items[n]'hn)).length) :
+    shortListSrcOff listOff items n + 1 < txBytes.length := by
+  set srcOff := shortListSrcOff listOff items n
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  rcases hnext with hnxt | hge2
+  · by_cases hge2' : 2 ≤ (encode (items[n]'hn)).length
+    · exact hss_room_of_encode_ge_two txBytes listOff items n henc hshort hn hge2'
+    · have hlen1 : (encode (items[n]'hn)).length = 1 := by omega
+      have hhead := short_list_item_head_eq txBytes listOff items n henc hshort hn hoff
+      have h80 : (0x80 : Word).toNat = 0x80 := by decide
+      have hb8 : (0xb8 : Word).toNat = 0xb8 := by decide
+      have hze :
+          ((txBytes[srcOff]'hoff).zeroExtend 64).toNat =
+            (txBytes[srcOff]'hoff).toNat := toNat_zeroExtend_byte _
+      have hgeN : 0x80 ≤ (txBytes[srcOff]'hoff).toNat := by
+        by_contra hlt
+        have hult : BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+          apply (BitVec.ult_iff_lt).2
+          change ((txBytes[srcOff]'hoff).zeroExtend 64).toNat < (0x80 : Word).toNat
+          rw [hze, h80]; exact Nat.lt_of_not_ge hlt
+        exact hlo hult
+      have hltN : (txBytes[srcOff]'hoff).toNat < 0xb8 := by
+        have hult := (BitVec.ult_iff_lt).1 hhi
+        change ((txBytes[srcOff]'hoff).zeroExtend 64).toNat < (0xb8 : Word).toNat at hult
+        rwa [hze, hb8] at hult
+      have hgeE : 0x80 ≤ ((encode (items[n]'hn))[0]'(by rw [hlen1]; omega)).toNat := by
+        simpa [srcOff, hhead] using hgeN
+      have hltE : ((encode (items[n]'hn))[0]'(by rw [hlen1]; omega)).toNat < 0xb8 := by
+        simpa [srcOff, hhead] using hltN
+      have hitem := encode_len1_short_string_is_empty (items[n]'hn) hlen1 hgeE hltE
+      exact hss_room_of_empty_not_last txBytes listOff items n henc hshort hn hnxt hitem
+  · exact hss_room_of_encode_ge_two txBytes listOff items n henc hshort hn hge2
+
+/-- Packaging `hss` conclusion from room + hover + byte validity. -/
+theorem hss_pack_of_room_hover_valid
+    (txBytes : List (BitVec 8)) (txBase : Word) (srcOff : Nat)
+    (hoff1 : srcOff + 1 < txBytes.length)
+    (hover1 : txBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1)) = true) :
+    srcOff + 1 < txBytes.length ∧
+      txBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+      isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1)) = true :=
+  ⟨hoff1, hover1, hvalid1⟩
+
+/-- Fields 0..4 under creation type234 short: `n+1 < items.length` from `6 ≤ length`. -/
+theorem extractSuccess_creation_type234_hnext_fields04
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    (0 + 1 < items.length) ∧ (1 + 1 < items.length) ∧ (2 + 1 < items.length) ∧
+      (3 + 1 < items.length) ∧ (4 + 1 < items.length) := by
+  have hlen := extractSuccess_creation_type234_items_length txBytes h hcreFlag hge
+    items hdecL hshort
+  omega
+
+/-- Packaging `hss` for one short-list item: short-string ante ⇒ room/hover/valid.
+    `hnext` discharges empty last-item edge; `hvalid1` is RAM-validity residual. -/
+theorem hss_of_short_list_item
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hoff : shortListSrcOff listOff items n < txBytes.length)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hnext : n + 1 < items.length ∨ 2 ≤ (encode (items[n]'hn)).length)
+    (hvalid1 : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items n + 1)) = true) :
+    ¬ BitVec.ult ((txBytes[shortListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0x80 : Word) = true →
+      BitVec.ult ((txBytes[shortListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xb8 : Word) = true →
+      shortListSrcOff listOff items n + 1 < txBytes.length ∧
+        txBase.toNat + (shortListSrcOff listOff items n + 1) < 2 ^ 64 ∧
+        isValidByteAccess
+          (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items n + 1)) = true := by
+  intro hlo hhi
+  have hroom :=
+    hss_room_of_short_string_ante txBytes listOff items n henc hshort hn hoff hlo hhi hnext
+  have hover1 := hover_of_buffer_span txBase (shortListSrcOff listOff items n + 1)
+    txBytes.length hover hroom
+  exact hss_pack_of_room_hover_valid txBytes txBase _ hroom hover1 hvalid1
+
 #print axioms encode_item_length_pos
 #print axioms shortListSrcOff_lt_length
 #print axioms extractSuccess_creation_type234_hoff_srcOff
@@ -2146,5 +2319,8 @@ theorem hll_vacuous_of_short_list_item
 #print axioms encode_item_head_lt_f8
 #print axioms hls_vacuous_of_short_list_item
 #print axioms hll_vacuous_of_short_list_item
+#print axioms hss_room_of_short_string_ante
+#print axioms hss_of_short_list_item
+#print axioms extractSuccess_creation_type234_hnext_fields04
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
