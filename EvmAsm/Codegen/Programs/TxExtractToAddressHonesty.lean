@@ -507,6 +507,150 @@ theorem extractSuccess_short_front_walkInit_hyps
       (teerTxTypeDispatch txBytes).2.2.toNat
       (txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff') heq
 
+/-! ## encodeItems offset algebra (walk_next cursor chain) -/
+
+/-- Byte length of the encoding of the first `n` list items. -/
+def encodeItemsPrefixLen (items : List RLPItem) (n : Nat) : Nat :=
+  (encode.encodeItems (items.take n)).length
+
+theorem encodeItems_nil : encode.encodeItems ([] : List RLPItem) = [] := rfl
+
+theorem encodeItems_cons (item : RLPItem) (rest : List RLPItem) :
+    encode.encodeItems (item :: rest) = encode item ++ encode.encodeItems rest := rfl
+
+/-- Split `encodeItems` at an index. -/
+theorem encodeItems_take_drop (items : List RLPItem) (n : Nat) :
+    encode.encodeItems items =
+      encode.encodeItems (items.take n) ++ encode.encodeItems (items.drop n) := by
+  induction items generalizing n with
+  | nil =>
+    cases n <;> simp [encodeItems_nil]
+  | cons item rest ih =>
+    cases n with
+    | zero =>
+      simp only [List.take_zero, List.drop_zero, encodeItems_nil, List.nil_append]
+    | succ n =>
+      simp only [List.take_succ_cons, List.drop_succ_cons, encodeItems_cons]
+      rw [ih n, List.append_assoc]
+
+/-- Encoding of item `n` sits at offset `encodeItemsPrefixLen items n` in the payload. -/
+theorem encodeItems_drop_at (items : List RLPItem) (n : Nat) (hn : n < items.length) :
+    (encode.encodeItems items).drop (encodeItemsPrefixLen items n) =
+      encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := by
+  have hsplit := encodeItems_take_drop items n
+  have hdropn : items.drop n = items[n]'hn :: items.drop (n + 1) :=
+    List.drop_eq_getElem_cons hn
+  unfold encodeItemsPrefixLen
+  -- LHS: drop (len take) (take ++ drop) = drop
+  have hlen : (encode.encodeItems (items.take n)).length =
+      (encode.encodeItems (items.take n)).length := rfl
+  calc (encode.encodeItems items).drop (encode.encodeItems (items.take n)).length
+      = (encode.encodeItems (items.take n) ++ encode.encodeItems (items.drop n)).drop
+          (encode.encodeItems (items.take n)).length := by rw [hsplit]
+    _ = encode.encodeItems (items.drop n) := List.drop_left' rfl
+    _ = encode.encodeItems (items[n]'hn :: items.drop (n + 1)) := by rw [hdropn]
+    _ = encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := encodeItems_cons _ _
+
+/-- Short-list encoding: payload starts after the 1-byte prefix. -/
+theorem encode_list_short_drop_payload (items : List RLPItem)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    (encode (.list items)).drop 1 = encode.encodeItems items := by
+  have henc := encode_list_short items hshort
+  rw [henc]
+  rfl
+
+/-- Full-buffer form: item `n` of a short list at `listOff` begins at
+    `listOff + 1 + encodeItemsPrefixLen items n`. -/
+theorem short_list_item_drop
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length) :
+    bs.drop (listOff + 1 + encodeItemsPrefixLen items n) =
+      encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := by
+  have hpay' : bs.drop (listOff + 1) = encode.encodeItems items := by
+    have : (bs.drop listOff).drop 1 = encode.encodeItems items := by
+      rw [henc, encode_list_short_drop_payload items hshort]
+    -- (drop listOff).drop 1 = drop (1+listOff) = drop (listOff+1)
+    simpa [List.drop_drop, Nat.add_comm] using this
+  have hitem := encodeItems_drop_at items n hn
+  let p := encodeItemsPrefixLen items n
+  -- drop_drop: drop n (drop m l) = drop (m + n) l
+  have hdd : List.drop p (List.drop (listOff + 1) bs) =
+      List.drop (listOff + 1 + p) bs := by
+    simpa [Nat.add_assoc] using
+      (List.drop_drop : List.drop p (List.drop (listOff + 1) bs) =
+        List.drop ((listOff + 1) + p) bs)
+  calc bs.drop (listOff + 1 + p)
+      = List.drop p (List.drop (listOff + 1) bs) := hdd.symm
+    _ = (encode.encodeItems items).drop p := by rw [hpay']
+    _ = encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := hitem
+
+/-- If `bs.drop off = b :: rest` then `off < length` and `bs[off] = b`. -/
+theorem getElem_of_drop_cons (bs : List Byte) (off : Nat) (b : Byte) (rest : List Byte)
+    (h : bs.drop off = b :: rest) :
+    ∃ hoff : off < bs.length, bs[off]'hoff = b := by
+  have hpos : 0 < (bs.drop off).length := by rw [h]; simp
+  have hoff : off < bs.length := by
+    rw [List.length_drop] at hpos
+    omega
+  refine ⟨hoff, ?_⟩
+  have heq := List.getElem_drop (xs := bs) (i := off) (j := 0) (h := by
+    rw [List.length_drop]; omega)
+  have h0 : (bs.drop off)[0]'(by rw [h]; simp) = b := by simp [h]
+  have : bs[off + 0]'(by omega) = b := heq.symm.trans h0
+  simpa using this
+
+/-- Empty-bytes item at absolute offset from short-list placement. -/
+theorem short_list_empty_bytes_pfx
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hitem : items[n]'hn = .bytes []) :
+    let off := listOff + 1 + encodeItemsPrefixLen items n
+    ∃ hoff : off < bs.length, bs[off]'hoff = (0x80 : BitVec 8) := by
+  intro off
+  have hdrop := short_list_item_drop bs listOff items n henc hshort hn
+  have hencI : encode (items[n]'hn) = [BitVec.ofNat 8 0x80] := by
+    rw [hitem, encode_bytes_empty]
+  have hdrop' :
+      bs.drop off = BitVec.ofNat 8 0x80 :: encode.encodeItems (items.drop (n + 1)) := by
+    simpa [off, hencI] using hdrop
+  obtain ⟨hoff, hb⟩ := getElem_of_drop_cons bs off (BitVec.ofNat 8 0x80) _ hdrop'
+  exact ⟨hoff, hb⟩
+
+/-- Creation + type234 + short list ⇒ field index 5 is empty bytes at computable `0x80` offset. -/
+theorem extractSuccess_creation_type234_field5_pfx80
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let off := listOff + 1 + encodeItemsPrefixLen items 5
+    (5 : Nat) < items.length ∧
+      items[5]? = some (.bytes []) ∧
+      ∃ hoff : off < txBytes.length, txBytes[off]'hoff = (0x80 : BitVec 8) := by
+  intro listOff off
+  have hidx := extractSuccess_type234_toFieldIndex txBytes h hge
+  have htf := extractSuccess_creation_encode_empty txBytes h hcreFlag
+  obtain ⟨items', hdec', hitem, _henc80⟩ := htf
+  have hitems : items = items' := by
+    have : some items = some items' := hdec.symm.trans hdec'
+    exact Option.some.inj this
+  subst hitems
+  have h5 : toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat = 5 := hidx
+  have hget : items[5]? = some (.bytes []) := by simpa [h5] using hitem
+  have hn : (5 : Nat) < items.length := (List.getElem?_eq_some_iff.mp hget).1
+  have hval : items[5]'hn = .bytes [] := (List.getElem?_eq_some_iff.mp hget).2
+  have hencFull := decodeListItems_eq_encode _ _ hdec
+  have hpfx := short_list_empty_bytes_pfx txBytes listOff items 5 hencFull hshort hn hval
+  exact ⟨hn, hget, hpfx⟩
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
@@ -524,5 +668,10 @@ theorem extractSuccess_short_front_walkInit_hyps
 #print axioms listLen_word_eq_drop
 #print axioms extractSuccess_short_walkInit_guards
 #print axioms extractSuccess_short_front_walkInit_hyps
+#print axioms encodeItems_take_drop
+#print axioms encodeItems_drop_at
+#print axioms short_list_item_drop
+#print axioms short_list_empty_bytes_pfx
+#print axioms extractSuccess_creation_type234_field5_pfx80
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
