@@ -7,6 +7,7 @@ import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInitLong
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopTypeBranch
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
@@ -123,5 +124,53 @@ theorem frontAfterSavePostShort_to_midJoinPre
 #print axioms afterSave_to_midJoinCore
 #print axioms frontAfterSave_to_midJoinPre
 #print axioms frontAfterSavePostShort_to_midJoinPre
+
+/-- Concrete long AfterSave → MidJoin pre at longWalkCursor/End (no ∃). -/
+theorem frontAfterSavePostLong_to_midJoinPre
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length) :
+    ∀ h, frontAfterSavePostLong spC s txBase lenW toBuf isCreationPtr txBytes hoff h →
+      (afterSaveFrameTy txBase lenW
+          (teerTxTypeDispatch txBytes).2.1
+          (teerTxTypeDispatch txBytes).2.2
+          (longWalkCursor txBase txBytes
+            (teerTxTypeDispatch txBytes).2.2.toNat hoff)
+          (longWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+            (teerTxTypeDispatch txBytes).2.2.toNat)
+          txBytes **
+        (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s.s7) h := by
+  intro h hp
+  simp only [frontAfterSavePostLong] at hp
+  obtain ⟨h1, h2, hd, hu, hW, hAS⟩ := hp
+  have hM := walkFrame_to_midOwned spC s toBuf isCreationPtr h1 hW
+  have hC := afterSave_to_midJoinCore txBase lenW
+    (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2
+    (longWalkCursor txBase txBytes
+      (teerTxTypeDispatch txBytes).2.2.toNat hoff)
+    (longWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+      (teerTxTypeDispatch txBytes).2.2.toNat)
+    txBytes h2 hAS
+  have hnest :
+      ((afterSaveFrameTy txBase lenW
+          (teerTxTypeDispatch txBytes).2.1
+          (teerTxTypeDispatch txBytes).2.2
+          (longWalkCursor txBase txBytes
+            (teerTxTypeDispatch txBytes).2.2.toNat hoff)
+          (longWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+            (teerTxTypeDispatch txBytes).2.2.toNat)
+          txBytes **
+        (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word))) **
+      midOwned spC s toBuf isCreationPtr s.s7) h :=
+    ⟨h2, h1, hd.symm,
+      by rw [PartialState.union_comm_of_disjoint hd.symm, hu],
+      hC, hM⟩
+  xperm_hyp hnest
+
+#print axioms frontAfterSavePostLong_to_midJoinPre
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
