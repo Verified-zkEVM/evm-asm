@@ -178,8 +178,9 @@
                 Assumed**contentDwords under honesty hyps).
                 **copy pure field5 0x94 DONE**
                 (`encode_bytes_len20_pfx`, `extractSuccess_copy_type234_field5_pfx94`,
-                `_hlen20`, `_hnext_content` packaging). Residual: pureHvalid-style
-                Assumed wire for copy (srcOffk:=shortListSrcOff) + fill
+                `_hlen20`, `_hnext_content`, `_hnext_hlen20_srcOff` packaging).
+                Residual: pureHvalid-style Assumed wire for copy
+                (srcOffk:=shortListSrcOff into Assumed**content) + fill
                 `ExtractAssumed.success_flat` case-split.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
