@@ -432,6 +432,57 @@ theorem extractCopyJalRet :
         (by rw [extract_length]; decide) rfl
         (by rw [extract_length]; decide) a i hi)) hj
 
+set_option maxRecDepth 8000 in
+/-- Copy path: `lwu t0, 16(t6)`. Post uses leaf `extractWord32` index. -/
+theorem extractCopyLwu16
+    (contentPtr w1 w2 : Word)
+    (halign : contentPtr.toNat % 8 = 0)
+    (hover : contentPtr.toNat + 16 < 2 ^ 64)
+    (hvalid : isValidMemAccess (contentPtr + (16 : Word)) = true) :
+    cpsTripleWithin 1 (E + 516) (E + 520) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x5 ↦ᵣ w1) ** ((contentPtr + 16) ↦ₘ w2))
+      ((.x31 ↦ᵣ contentPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        ((contentPtr + 16) ↦ₘ w2)) := by
+  have hdw : alignToDword (contentPtr + signExtend12 (16 : BitVec 12)) =
+      contentPtr + 16 := by
+    simp only [signExtend12_16]
+    exact alignToDword_add_ofNat_of_aligned (base := contentPtr) (i := 16) halign hover
+  have h := lwu_spec_gen_within .x5 .x31 contentPtr w1 (16 : BitVec 12) (E + 516)
+    (contentPtr + 16) w2 (by decide) hdw (by simpa [signExtend12_16] using hvalid)
+  simp only [signExtend12_16] at h
+  exact cpsTripleWithin_extend_code
+    (fun a i hi => extract_mono a i
+      (CodeReq.ofProg_mem_at E (E + 516) extractProg 129
+        (.LWU .x5 .x31 (16 : BitVec 12)) (by bv_omega)
+        (by rw [extract_length]; decide) rfl
+        (by rw [extract_length]; decide) a i hi)) h
+
+set_option maxRecDepth 8000 in
+/-- Copy path: `sw t0, 16(s2)`. -/
+theorem extractCopySw16
+    (toBuf wLow w2 : Word)
+    (halign : toBuf.toNat % 8 = 0)
+    (hover : toBuf.toNat + 16 < 2 ^ 64)
+    (hvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin 1 (E + 520) (E + 524) extractLinkedCode
+      ((.x18 ↦ᵣ toBuf) ** (.x5 ↦ᵣ wLow) ** ((toBuf + 16) ↦ₘ w2))
+      ((.x18 ↦ᵣ toBuf) ** (.x5 ↦ᵣ wLow) **
+        ((toBuf + 16) ↦ₘ replaceWord32 w2 ((byteOffset (toBuf + 16)) / 4)
+          (wLow.truncate 32))) := by
+  have hdw : alignToDword (toBuf + signExtend12 (16 : BitVec 12)) = toBuf + 16 := by
+    simp only [signExtend12_16]
+    exact alignToDword_add_ofNat_of_aligned (base := toBuf) (i := 16) halign hover
+  have h := sw_spec_gen_within .x18 .x5 toBuf wLow (16 : BitVec 12) (E + 520)
+    (toBuf + 16) w2 hdw (by simpa [signExtend12_16] using hvalid)
+  simp only [signExtend12_16] at h
+  exact cpsTripleWithin_extend_code
+    (fun a i hi => extract_mono a i
+      (CodeReq.ofProg_mem_at E (E + 520) extractProg 130
+        (.SW .x18 .x5 (16 : BitVec 12)) (by bv_omega)
+        (by rw [extract_length]; decide) rfl
+        (by rw [extract_length]; decide) a i hi)) h
+
 #print axioms extractHaveMv
 #print axioms extractHaveBeqzNt
 #print axioms extractHaveBeqzTaken
@@ -441,6 +492,8 @@ theorem extractCopyJalRet :
 #print axioms extractHaveFieldCreation
 #print axioms extractCopyLd0
 #print axioms extractCopySd0
+#print axioms extractCopyLwu16
+#print axioms extractCopySw16
 #print axioms extractCopyJalRet
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
