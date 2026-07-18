@@ -64,7 +64,7 @@
            **front→WalkInitJalPc DONE** (`extractFrontThenTypeLoad`;
            model pure extractSuccess_outcome/creation/copy).
            Residual: extractSuccess drop-fail pure (discharge hok/hnext/hcre/
-           hlen20/hnext_content); walk_init OK→AfterSave; extractAssumed;
+           hlen20/hnext_content); walk_init call OkFail under front ambient DONE; OK arm→AfterSave + drop-fail; extractAssumed;
            fullCode∪extract (use extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 

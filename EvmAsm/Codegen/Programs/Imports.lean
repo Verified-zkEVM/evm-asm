@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChain
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChainRest
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
