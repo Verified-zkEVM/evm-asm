@@ -335,8 +335,10 @@ structure A4gbrResiduals where
             AmbientPureHvalid + path Prop DONE classical-3
               (`extractAssumed_success_flat_creation_type234_short_ambient`);
             Front E2E short copy region ambient DONE
-              (`extractFrontCopy_then_epi_of_decode_short_concrete_region_ambient`;
-               AfterSave copy: `extractFrontAfterSaveCopy_then_epi_of_decode_short_region_ambient`)
+              (`extractFrontCopy_then_epi_of_decode_short_concrete_region_ambient`);
+            Assumed copy packaging ambient DONE
+              (`extractAssumed_copy_fullCode_of_decode_short_concrete_region_ambient`;
+               residual pureHvalid path Prop for ExtractAssumedAmbient copy arm)
           * TIS ambient callees + framed: extract/type/ets framed
           * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
           * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE

@@ -95,6 +95,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientPureBridge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortConcretePureAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtractAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTypeAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTopAmbient
