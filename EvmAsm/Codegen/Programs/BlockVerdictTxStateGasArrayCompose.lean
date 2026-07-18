@@ -36,12 +36,13 @@
         **type-branch DONE** (`extractTypeBranchLegacy/T1/Type234`).
         **all type walk chains DONE**; **HaveField both exits DONE**
         (`extractHaveFieldCreation` + `extractHaveFieldCopy` → EpiRestore
-        classical-3). **walk_init 9-way→OkFail DONE** + **OK exists_pre
-        bneSave DONE** (`extractWalkInitOkExists/OkNested_bneSave` → AfterSave
-        ∃cursor,end classical-3). Residual: seq walk_init call→OK save under
-        extractSuccess (drop fail arm); type-branch+walks+HaveField+epilogue
-        top compose; extractAssumed; fullCode∪extract (use extractLinkedCode
-        first); ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+         classical-3). **walk_init 9-way→OkFail DONE** + **OK exists_pre
+         bneSave DONE** + **s5/s6 frame through call DONE** + **type234
+         AfterSave→WalkNext0 framed DONE** (`extractType234ToWalkNext0`).
+         Residual: walk_next wn0..5 under ambient (OkFail+BNE); legacy/t1 same;
+         extractSuccess drop-fail pure; HaveField+epilogue top → extractAssumed;
+         fullCode∪extract (use extractLinkedCode first);
+         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
