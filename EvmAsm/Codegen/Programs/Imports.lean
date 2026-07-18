@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressLegacyWalk
 import EvmAsm.Codegen.Programs.TxExtractToAddressT1Walk
 import EvmAsm.Codegen.Programs.TxExtractToAddressHaveField
 import EvmAsm.Codegen.Programs.TxExtractToAddressHaveFieldBody
+import EvmAsm.Codegen.Programs.TxExtractToAddressCopyFromRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressEpilogue
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFront
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopTypeLoad

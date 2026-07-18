@@ -199,6 +199,95 @@ theorem bytesRegion_dword_pair_at (regionBase : Word) (bs : List (BitVec 8)) (dw
     rw [bytesRegion_eq_cons regionBase bs hne, heq', haddr, haddr', hdrop, hdrop',
         ← sepConj_assoc_eq]
 
+/-- Extract three **adjacent** dword cells (`dw`, `dw+1`, `dw+2`) from a region,
+    framing the rest. Used by 20-byte content copies (LD/LD/LWU over 24B window).
+    The third chunk may be partial — `packBytes` zero-pads. -/
+theorem bytesRegion_dword_triple_at (regionBase : Word) (bs : List (BitVec 8)) (dw : Nat)
+    (hdw : 8 * dw + 16 < bs.length) :
+    ∃ front rest : Assertion, front.pcFree ∧ rest.pcFree ∧
+      bytesRegion regionBase bs
+        = (front ** (((regionBase + BitVec.ofNat 64 (8 * dw)) ↦ₘ
+            packBytes ((bs.drop (8 * dw)).take 8)) **
+            (((regionBase + BitVec.ofNat 64 (8 * dw + 8)) ↦ₘ
+              packBytes ((bs.drop (8 * dw + 8)).take 8)) **
+            (((regionBase + BitVec.ofNat 64 (8 * dw + 16)) ↦ₘ
+              packBytes ((bs.drop (8 * dw + 16)).take 8)) ** rest)))) := by
+  induction dw generalizing regionBase bs with
+  | zero =>
+    have hne : bs ≠ [] := by intro h; subst h; simp at hdw
+    have hne' : bs.drop 8 ≠ [] := by
+      intro h
+      have hlen := congrArg List.length h
+      rw [List.length_drop] at hlen
+      simp at hlen
+      omega
+    have hne'' : (bs.drop 8).drop 8 ≠ [] := by
+      intro h
+      have hlen := congrArg List.length h
+      rw [List.length_drop, List.length_drop] at hlen
+      simp at hlen
+      omega
+    refine ⟨empAssertion,
+      bytesRegion ((regionBase + 8) + 8 + 8) (((bs.drop 8).drop 8).drop 8),
+      pcFree_emp, bytesRegion_pcFree _ _, ?_⟩
+    rw [sepConj_emp_left_eq]
+    rw [bytesRegion_eq_cons regionBase bs hne,
+        bytesRegion_eq_cons (regionBase + 8) (bs.drop 8) hne',
+        bytesRegion_eq_cons ((regionBase + 8) + 8) ((bs.drop 8).drop 8) hne'']
+    have haddr0 : regionBase + BitVec.ofNat 64 (8 * 0) = regionBase := by
+      rw [show (8 * 0 : Nat) = 0 from rfl]
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := regionBase.isLt
+      omega
+    have haddr8 : regionBase + BitVec.ofNat 64 (8 * 0 + 8) = regionBase + 8 := by
+      rw [show (8 * 0 + 8 : Nat) = 8 from rfl]
+      congr 1
+    have haddr16 : regionBase + BitVec.ofNat 64 (8 * 0 + 16) =
+        (regionBase + 8) + 8 := by
+      rw [show (8 * 0 + 16 : Nat) = 16 from rfl]
+      have h16 : BitVec.ofNat 64 16 = (8 : Word) + (8 : Word) := by decide
+      rw [h16, BitVec.add_assoc]
+    rw [haddr0, haddr8, haddr16, show (8 * 0 : Nat) = 0 from rfl, List.drop_zero,
+        show (8 * 0 + 8 : Nat) = 8 from rfl, show (8 * 0 + 16 : Nat) = 16 from rfl]
+    -- packBytes third chunk: drop 8 (drop 8 bs) = drop 16 bs
+    simp only [List.drop_drop]
+  | succ k ih =>
+    have hne : bs ≠ [] := by intro h; subst h; simp at hdw
+    have hdw' : 8 * k + 16 < (bs.drop 8).length := by rw [List.length_drop]; omega
+    obtain ⟨front', rest', hf', hr', heq'⟩ := ih (regionBase + 8) (bs.drop 8) hdw'
+    have haddr : (regionBase + 8) + BitVec.ofNat 64 (8 * k)
+        = regionBase + BitVec.ofNat 64 (8 * (k + 1)) := by
+      rw [BitVec.add_assoc]; congr 1
+      apply BitVec.eq_of_toNat_eq
+      have h8 : (8 : BitVec 64).toNat = 8 := by decide
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat, h8]
+      omega
+    have haddr' : (regionBase + 8) + BitVec.ofNat 64 (8 * k + 8)
+        = regionBase + BitVec.ofNat 64 (8 * (k + 1) + 8) := by
+      rw [BitVec.add_assoc]; congr 1
+      apply BitVec.eq_of_toNat_eq
+      have h8 : (8 : BitVec 64).toNat = 8 := by decide
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat, h8]
+      omega
+    have haddr'' : (regionBase + 8) + BitVec.ofNat 64 (8 * k + 16)
+        = regionBase + BitVec.ofNat 64 (8 * (k + 1) + 16) := by
+      rw [BitVec.add_assoc]; congr 1
+      apply BitVec.eq_of_toNat_eq
+      have h8 : (8 : BitVec 64).toNat = 8 := by decide
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat, h8]
+      omega
+    have hdrop : (bs.drop 8).drop (8 * k) = bs.drop (8 * (k + 1)) := by
+      rw [List.drop_drop]; congr 1; omega
+    have hdrop' : (bs.drop 8).drop (8 * k + 8) = bs.drop (8 * (k + 1) + 8) := by
+      rw [List.drop_drop]; congr 1; omega
+    have hdrop'' : (bs.drop 8).drop (8 * k + 16) = bs.drop (8 * (k + 1) + 16) := by
+      rw [List.drop_drop]; congr 1; omega
+    refine ⟨(regionBase ↦ₘ packBytes (bs.take 8)) ** front', rest',
+      pcFree_sepConj pcFree_memIs hf', hr', ?_⟩
+    rw [bytesRegion_eq_cons regionBase bs hne, heq', haddr, haddr', haddr'',
+        hdrop, hdrop', hdrop'', ← sepConj_assoc_eq]
+
 /-! ## Reading a byte from the region (the keystone) -/
 
 /-- **`LBU` reads byte `i` from the region.** Reading the byte at `regionBase + i`
