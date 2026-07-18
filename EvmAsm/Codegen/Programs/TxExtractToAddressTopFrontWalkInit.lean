@@ -16,7 +16,7 @@ namespace EvmAsm.Codegen.TxExtractToAddressSpec
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
-open EvmAsm.Codegen.TxIntrinsicStateGasSpec (extractToBufOwn)
+open EvmAsm.Codegen.TxIntrinsicStateGasSpec (extractToBufOwn nTypeSteps)
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
 local macro "pcf" : tactic =>
@@ -293,9 +293,70 @@ theorem extractWalkInitCall_toAfterSave_owned
     txBase lenW toBuf isCreationPtr txBytes hdrop
   exact cpsTripleWithin_seq_same_cr hCall hSave
 
+set_option maxRecDepth 8000 in
+/-- E → AfterSaveCursor: front + typeLoad + walk_init OK under drop-fail. -/
+theorem extractFrontToAfterSave
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hinover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hinvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hll_len : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat
+        ≤ txBytes.length)
+    (hll_over : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      txBase.toNat + ((teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      ∀ k, k < ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat →
+        isValidByteAccess (txBase + BitVec.ofNat 64
+          ((teerTxTypeDispatch txBytes).2.2.toNat + 1 + k)) = true)
+    (hdrop : walkInitOkFail_drop) :
+    cpsTripleWithin
+      (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) +
+        ((1 + 81) + (1 + (1 + 1))))
+      E AfterSaveCursor extractLinkedCode
+      ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+        frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+        prologueAbiRest txBase lenW toBuf isCreationPtr
+          old5 old6 old7 old14 old15 old16 **
+        extractToBufOwn toBuf ** memOwn isCreationPtr **
+        frontExtraAmbient txBase txBytes)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have hF := extractFrontThenTypeLoad sp0 spC s txBase lenW toBuf isCreationPtr
+    old5 old6 old7 old14 old15 old16 txBytes
+    hspC htalign htover htvalid hlen hsuccess halign hover hvalid0
+  have hW := extractWalkInitCall_toAfterSave_owned spC s
+    txBase lenW toBuf isCreationPtr txBytes
+    halign hoff hinover hinvalid hll_len hll_over hll_valid hdrop
+  exact cpsTripleWithin_seq_same_cr hF hW
+
 #print axioms extractWalkInitCall_fromFrontTypeLoad_owned
 #print axioms extractWalkInitOkNested_owned
 #print axioms extractWalkInitOkFail_toAfterSave_owned
 #print axioms extractWalkInitCall_toAfterSave_owned
+#print axioms extractFrontToAfterSave
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
