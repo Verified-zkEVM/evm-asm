@@ -346,9 +346,9 @@ structure A4gbrResiduals where
           * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
           * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
           * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-          * legacy frames ambient DONE; leg0 CallOk + ToWalk0 of_decode ambient DONE
-              (`extractLegacyToWalk0Ok_owned_of_decode_ambient`)
-          Residual: legacy leg1..3 + ToWalk3/MidJoin/Front/PureHvalid ambient;
+          * legacy frames ambient DONE; leg0..3 PrepCallOk + ToWalk3 of_decode ambient DONE
+              (`extractLegacyToWalk3Ok_owned_of_decode_ambient`)
+          Residual: legacy MidJoin creation/copy + Front E2E + PureHvalid ambient;
             t1/long ambient arms;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
