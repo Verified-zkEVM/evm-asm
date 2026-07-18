@@ -37,7 +37,7 @@ def wn1Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
     (.x20 ↦ᵣ typeW) **
     (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
 
-private theorem wn1Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
+theorem wn1Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
     (wn1Stable txBase lenW typeW innerW endPtr cursor).pcFree := by
   unfold wn1Stable; pcf
 

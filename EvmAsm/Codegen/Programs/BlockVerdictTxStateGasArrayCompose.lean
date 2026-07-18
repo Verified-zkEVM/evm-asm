@@ -53,8 +53,10 @@
            **midOwned through type234+legacy+t1 walks + type-branch DONE**;
            **all three HaveField→epi under midOwned DONE**
            (type234/legacy/t1 creation+copy → ret with stackFree10).
-           Residual: extractSuccess drop-fail pure;
-           full mid seq → extractAssumed under extractLinkedCode;
+           **type234 mid-seq PrepCallOk wn0..wn5 DONE** (`TopMidSeq` +
+           `TopMidSeqRest`; a2-any closes prep→call gap; hok drop-fail residual).
+           Residual: extractSuccess drop-fail pure (discharge hok);
+           full mid seq chain → extractAssumed under extractLinkedCode;
            fullCode∪extract (use extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 

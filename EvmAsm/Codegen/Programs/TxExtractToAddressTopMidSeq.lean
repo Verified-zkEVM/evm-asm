@@ -323,9 +323,73 @@ theorem extractWalkNext5PrepCallOk_owned
     toBuf isCreationPtr s7 txBytes srcOff5
   exact cpsTripleWithin_seq_same_cr hPC2 hOk
 
+set_option maxRecDepth 8000 in
+/-- type234 wn0 call+Ok under midOwned (a2=0 from type234 load args). -/
+theorem extractWalkNext0CallOk_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW typeW innerW endPtr toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : srcOff < txBytes.length)
+    (hover : txBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < txBytes.length ∧ txBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hok : ∀ (h : PartialState),
+      wn0OkFail txBase endPtr txBytes srcOff h →
+        rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes srcOff h) :
+    cpsTripleWithin ((1 + 87) + 1) WalkNext0JalPc AfterWalkNext0Bne extractLinkedCode
+      (type234StartFrame txBase lenW typeW innerW
+          (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes **
+        midOwned spC s toBuf isCreationPtr s7)
+      (fun h => ∃ next0 len0 : Word,
+        (wn0OkConcrete txBase lenW typeW innerW endPtr next0 len0
+          txBytes srcOff **
+          midOwned spC s toBuf isCreationPtr s7) h) := by
+  have hCall := extractWalkNext0Call_owned spC s txBase lenW typeW innerW endPtr
+    toBuf isCreationPtr s7 txBytes srcOff
+    hsalign hoff hover hvalid hss hls hll
+  have hCall2 :
+      cpsTripleWithin (1 + 87) WalkNext0JalPc LinkWalkNext0 extractLinkedCode
+        (type234StartFrame txBase lenW typeW innerW
+            (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes **
+          midOwned spC s toBuf isCreationPtr s7)
+        (wn0Stable txBase lenW typeW innerW endPtr
+            (txBase + BitVec.ofNat 64 srcOff) **
+          wn0Common txBase txBytes **
+          rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes srcOff **
+          midOwned spC s toBuf isCreationPtr s7) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by
+      obtain ⟨h1, h2, hd1, hu1, hS, hBCD⟩ := hq
+      obtain ⟨h3, h4, hd2, hu2, hC, hCD⟩ := hBCD
+      obtain ⟨h5, h6, hd3, hu3, hF, hM⟩ := hCD
+      exact ⟨h1, h2, hd1, hu1, hS, h3, h4, hd2, hu2, hC,
+        h5, h6, hd3, hu3, hok h5 hF, hM⟩) hCall
+  have hOk := extractWalkNext0OkNested_owned spC s txBase lenW typeW innerW endPtr
+    toBuf isCreationPtr s7 txBytes srcOff
+  exact cpsTripleWithin_seq_same_cr hCall2 hOk
+
 #print axioms extractWalkNext5Call_type234_a2
 #print axioms extractWalkNext5Call_owned_a2
 #print axioms extractWalkNext5PrepCall_owned
 #print axioms extractWalkNext5PrepCallOk_owned
+#print axioms extractWalkNext0CallOk_owned
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

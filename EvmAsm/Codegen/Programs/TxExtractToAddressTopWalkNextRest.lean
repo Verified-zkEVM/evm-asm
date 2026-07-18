@@ -63,7 +63,7 @@ def wn2Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
     (.x20 ↦ᵣ typeW) **
     (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
 
-private theorem wn2Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
+theorem wn2Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
     (wn2Stable txBase lenW typeW innerW endPtr cursor).pcFree := by
   unfold wn2Stable; pcf
 
@@ -290,7 +290,7 @@ def wn3Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
     (.x20 ↦ᵣ typeW) **
     (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
 
-private theorem wn3Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
+theorem wn3Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
     (wn3Stable txBase lenW typeW innerW endPtr cursor).pcFree := by
   unfold wn3Stable; pcf
 
@@ -517,7 +517,7 @@ def wn4Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
     (.x20 ↦ᵣ typeW) **
     (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
 
-private theorem wn4Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
+theorem wn4Stable_pcFree (txBase lenW typeW innerW endPtr cursor : Word) :
     (wn4Stable txBase lenW typeW innerW endPtr cursor).pcFree := by
   unfold wn4Stable; pcf
 
