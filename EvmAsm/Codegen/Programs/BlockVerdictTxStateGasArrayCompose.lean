@@ -186,7 +186,12 @@
                 **copy content-from-bytesRegion leaf DONE**
                 (`bytesRegion_dword_triple_at` + `extractCopyPath_region` classical-3;
                 split/rejoin partition, no additive contentDwords). HaveField/MidJoin/Front short bare copy region DONE classical-3.
-                Residual: Assumed bare path Prop for copy (no contentDwords);
+                **Assumed bare packaging DONE** (`TopAssumedCopyRegion`:
+                `copyPost_to_assumed_region`,
+                `extractAssumed_copy_of_front_short_concrete_region`,
+                `_fullCode_of_decode_short_concrete_region`).
+                Residual: pureHvalid+path Prop bare Assumed
+                (gate `srcOff5+1=8*q`);
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
