@@ -85,7 +85,8 @@
             still takes honesty residuals hdrop/hok*/hnext*/hcre + walk statics).
             **pure honesty substrate DONE** (`extractSuccess_inner_lt` = walk_init
             hoff; `toFieldIndex_*` / type234 index; `creation_to_empty` /
-            `copy_to_len20` for hcre/hlen20 pure halves; decode/to_field prior).
+            `copy_to_len20`; `rlpItemDecode_empty_short` / `_addr20_short` +
+            `rlpWalkNextOk_empty_short` for field-prefix → walk len).
             Residual: machine bridge (EL decode ↔ rlp_walk_init/next OK arms)
             to discharge hdrop/hok*/hnext* and fill `ExtractAssumed.success_flat`;
             copy-path Assumed packaging; legacy/t1 front E2E.
