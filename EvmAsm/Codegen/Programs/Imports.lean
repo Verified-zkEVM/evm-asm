@@ -120,6 +120,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext0
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopType234Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext0Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext1Ambient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext2Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext1
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNextRest

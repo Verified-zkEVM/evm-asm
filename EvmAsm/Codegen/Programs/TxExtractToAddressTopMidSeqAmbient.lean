@@ -11,6 +11,7 @@ import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwned
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext0Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext1Ambient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext2Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopType234Ambient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 
@@ -545,5 +546,190 @@ theorem extractType234ToWn1Ok_owned_of_decode_ambient
   exact cpsTripleWithin_seq_same_cr h0 h1
 
 #print axioms extractType234ToWn1Ok_owned_of_decode_ambient
+
+theorem extractWalkNext2Prep_owned_ambient
+    (spC : Word) (s : ExtractSaved)
+    (loadPtr regionBase lenW typeW innerW endPtr next len toBuf isCreationPtr s7 : Word)
+    (bs : List (BitVec 8)) (absOff1 : Nat) :
+    cpsTripleWithin (1 + (1 + 1)) AfterWalkNext1Bne WalkNext2JalPc extractLinkedCode
+      (wn1OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+          bs absOff1 **
+        midOwned spC s toBuf isCreationPtr s7)
+      (wn2StableAmbient loadPtr lenW typeW innerW endPtr next **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkWalkNext1) ** bytesRegion regionBase bs **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractWalkNext2Prep_framed_ambient loadPtr regionBase
+    lenW typeW innerW endPtr next len bs absOff1
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+set_option maxRecDepth 8000 in
+theorem extractWalkNext2Call_owned_a2_outcome_ambient
+    (spC : Word) (s : ExtractSaved)
+    (loadPtr regionBase lenW typeW innerW endPtr a2Old toBuf isCreationPtr s7 : Word)
+    (bs : List (BitVec 8)) (absOff : Nat)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hoff : absOff < bs.length)
+    (hover : regionBase.toNat + absOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 absOff) = true)
+    (hss : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        absOff + 1 < bs.length ∧ regionBase.toNat + (absOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext2JalPc LinkWalkNext2 extractLinkedCode
+      (wn2StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        (.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 absOff)) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkWalkNext1) ** bytesRegion regionBase bs **
+        midOwned spC s toBuf isCreationPtr s7)
+      (wn2StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        wn2CommonAmbient regionBase bs **
+        wn0Outcome regionBase endPtr bs absOff **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractWalkNext2Call_type234_a2_outcome_ambient loadPtr regionBase
+    lenW typeW innerW endPtr a2Old bs absOff
+    hsalign hoff hover hvalid hss hls hll
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+set_option maxRecDepth 8000 in
+theorem extractWalkNext2OkNested_owned_ambient
+    (spC : Word) (s : ExtractSaved)
+    (loadPtr regionBase lenW typeW innerW endPtr toBuf isCreationPtr s7 : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) :
+    cpsTripleWithin 1 LinkWalkNext2 AfterWalkNext2Bne extractLinkedCode
+      (wn2StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        wn2CommonAmbient regionBase bs **
+        rlpWalkNextOk (regionBase + BitVec.ofNat 64 absOff) endPtr bs absOff **
+        midOwned spC s toBuf isCreationPtr s7)
+      (fun h => ∃ next len : Word,
+        (wn2OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+          bs absOff **
+          midOwned spC s toBuf isCreationPtr s7) h) := by
+  have h := extractWalkNext2OkNested_bne_ambient loadPtr regionBase
+    lenW typeW innerW endPtr bs absOff
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun h hq => by
+      obtain ⟨h1, h2, hd, hu, hEx, hM⟩ := hq
+      obtain ⟨next, len, hOk⟩ := hEx
+      exact ⟨next, len, h1, h2, hd, hu, hOk, hM⟩) hF
+
+set_option maxRecDepth 8000 in
+theorem extractWalkNext2PrepCallOk_owned_of_decode_ambient
+    (spC : Word) (s : ExtractSaved)
+    (loadPtr regionBase lenW typeW innerW endPtr next len toBuf isCreationPtr s7 : Word)
+    (bs : List (BitVec 8)) (absOff1 absOff2 : Nat)
+    (hnext : next = regionBase + BitVec.ofNat 64 absOff2)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hoff : absOff2 < bs.length)
+    (hover : regionBase.toNat + absOff2 < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 absOff2) = true)
+    (hss : ¬ BitVec.ult ((bs[absOff2]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[absOff2]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        absOff2 + 1 < bs.length ∧ regionBase.toNat + (absOff2 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff2 + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[absOff2]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[absOff2]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        absOff2 + 1 + ((bs[absOff2]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff2 + 1 +
+          ((bs[absOff2]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff2]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff2 + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[absOff2]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        absOff2 + 1 + ((bs[absOff2]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff2 + 1 +
+          ((bs[absOff2]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff2]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff2 + 1 + k)) = true)
+    (hdec : ∃ next1 len1 : Word,
+      rlpItemDecode bs absOff2 (regionBase + BitVec.ofNat 64 absOff2)
+        endPtr next1 len1)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 absOff2) endPtr = true) :
+    cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+      AfterWalkNext1Bne AfterWalkNext2Bne extractLinkedCode
+      (wn1OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+          bs absOff1 **
+        midOwned spC s toBuf isCreationPtr s7)
+      (fun h => ∃ next1 len1 : Word,
+        (wn2OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next1 len1
+          bs absOff2 **
+          midOwned spC s toBuf isCreationPtr s7) h) := by
+  have hPrep := extractWalkNext2Prep_owned_ambient spC s loadPtr regionBase
+    lenW typeW innerW endPtr next len toBuf isCreationPtr s7 bs absOff1
+  have hPrep2 :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext1Bne WalkNext2JalPc extractLinkedCode
+        (wn1OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+            bs absOff1 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (wn2StableAmbient loadPtr lenW typeW innerW endPtr
+            (regionBase + BitVec.ofNat 64 absOff2) **
+          (.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 absOff2)) **
+          (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext1) ** bytesRegion regionBase bs **
+          midOwned spC s toBuf isCreationPtr s7) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
+      simp only [hnext] at hq
+      xperm_hyp hq) hPrep
+  have hCall := extractWalkNext2Call_owned_a2_outcome_ambient spC s loadPtr regionBase
+    lenW typeW innerW endPtr len toBuf isCreationPtr s7 bs absOff2
+    hsalign hoff hover hvalid hss hls hll
+  have hPC := cpsTripleWithin_seq_same_cr hPrep2 hCall
+  have hPC2 :
+      cpsTripleWithin ((1 + (1 + 1)) + (1 + 87))
+        AfterWalkNext1Bne LinkWalkNext2 extractLinkedCode
+        (wn1OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+            bs absOff1 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (wn2StableAmbient loadPtr lenW typeW innerW endPtr
+            (regionBase + BitVec.ofNat 64 absOff2) **
+          wn2CommonAmbient regionBase bs **
+          rlpWalkNextOk (regionBase + BitVec.ofNat 64 absOff2) endPtr bs absOff2 **
+          midOwned spC s toBuf isCreationPtr s7) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by
+      obtain ⟨h1, h2, hd1, hu1, hS, hBCD⟩ := hq
+      obtain ⟨h3, h4, hd2, hu2, hC, hCD⟩ := hBCD
+      obtain ⟨h5, h6, hd3, hu3, hOut, hM⟩ := hCD
+      have hOk := wn0Outcome_drop_fail_of_decode regionBase endPtr bs absOff2
+        hdec hinb h5 hOut
+      exact ⟨h1, h2, hd1, hu1, hS, h3, h4, hd2, hu2, hC,
+        h5, h6, hd3, hu3, hOk, hM⟩) hPC
+  have hOk := extractWalkNext2OkNested_owned_ambient spC s loadPtr regionBase
+    lenW typeW innerW endPtr toBuf isCreationPtr s7 bs absOff2
+  exact cpsTripleWithin_seq_same_cr hPC2 hOk
+
+#print axioms extractWalkNext2PrepCallOk_owned_of_decode_ambient
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
