@@ -280,8 +280,11 @@ def schemeAAnchors : List GuestRegion :=
     a phantom second-selfdestruct credit. Settled to `0x5d20c` after
     merging main forward past #10458 (multi-tx caller-context staging
     fix) and this PR's own baap=501 delete-walk bail removal, measured
-    via a fresh `readelf -SW`. -/
-def textSizeBytes : Nat := 0x5d2a4
+    via a fresh `readelf -SW`. Grew to `0x5d2a4` for the C3 arena
+    overflow-reject batch (#10460). Grew to `0x5d518` for the bounded
+    storage-root delete-walk fix (`fix/bounded-storage-delete-walk`,
+    #10461), clearing the 98-fixture EIP-7002/7251 code-1 cluster. -/
+def textSizeBytes : Nat := 0x5d518
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
