@@ -42,8 +42,10 @@
          **wn0 call_type234 + OkFail DONE** (`extractWalkNext0Call_type234`) +
          **wn0 OK exists_pre→BNE DONE** (`extractWalkNext0OkNested_bne`).
          **wn1..5 ambient DONE** (`TopWalkNext1` + `TopWalkNextRest`).
-         Residual: legacy/t1 ambient; extractSuccess drop-fail;
-         extractSuccess drop-fail pure; HaveField+epilogue top → extractAssumed;
+         **legacy ambient DONE** (`TopLegacy` walk0..3 + ToHaveField).
+         **t1 ambient DONE** (`TopT1` walk0..4 + ToHaveField).
+         Residual: extractSuccess drop-fail pure; type234 SUB/JAL HaveField
+         ambient; HaveField+epilogue top → extractAssumed under extractLinkedCode;
          fullCode∪extract (use extractLinkedCode first);
          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
