@@ -190,8 +190,10 @@
                 `copyPost_to_assumed_region`,
                 `extractAssumed_copy_of_front_short_concrete_region`,
                 `_fullCode_of_decode_short_concrete_region`).
-                Residual: pureHvalid+path Prop bare Assumed
-                (gate `srcOff5+1=8*q`);
+                **bare Assumed copy path Prop DONE**
+                (`extractAssumed_success_flat_copy_type234_short`,
+                gate `srcOff5+1=8*q`). Residual: long-list;
+                multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
@@ -246,9 +248,13 @@ def extract_discharge_creation_type234_short_available :=
 def extract_discharge_creation_legacy_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short
 
-/-- Copy path packaging under Assumed**contentDwords (not bare success_flat). -/
+/-- Copy path packaging under Assumed**contentDwords (legacy content packaging). -/
 def extract_discharge_copy_type234_short_available :=
   TxExtractToAddressSpec.extractAssumed_content_copy_type234_short
+
+/-- Bare Assumed copy path (region partition; dword-aligned content). -/
+def extract_discharge_copy_type234_short_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short
 
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/

@@ -27,8 +27,8 @@ open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 open EvmAsm.Rv64.RLP (rlpItemDecode)
 
 theorem nFrontCopyStepsShortRegion_le_nExtract :
-    nFrontCopyStepsShort ≤ nExtractSteps := by
-  simp only [nFrontCopyStepsShort, nExtractSteps, nTypeSteps]
+    nFrontCopyStepsShortRegion ≤ nExtractSteps := by
+  simp only [nFrontCopyStepsShortRegion, nExtractSteps, nTypeSteps]
   omega
 
 private theorem regIs_to_regOwn (r : Reg) (v : Word) :
@@ -148,7 +148,7 @@ theorem extractAssumed_copy_concrete_region
     (old5 old6 old7 old14 old15 old16 : Word)
     (txBytes : List (BitVec 8))
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
-    (hE2E : cpsTripleWithin nFrontCopyStepsShort E s.ra extractLinkedCode
+    (hE2E : cpsTripleWithin nFrontCopyStepsShortRegion E s.ra extractLinkedCode
       (creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
         old5 old6 old7 old14 old15 old16 txBytes)
       (copyE2EPostRegion sp0 s txBase toBuf isCreationPtr contentPtr w2
@@ -211,7 +211,7 @@ theorem extractAssumed_copy_temps_region
     (txBytes : List (BitVec 8))
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
     (hE2E : ∀ (old5 old6 old7 old14 old15 old16 : Word),
-      cpsTripleWithin nFrontCopyStepsShort E s.ra extractLinkedCode
+      cpsTripleWithin nFrontCopyStepsShortRegion E s.ra extractLinkedCode
         (creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
           old5 old6 old7 old14 old15 old16 txBytes)
         (copyE2EPostRegion sp0 s txBase toBuf isCreationPtr contentPtr w2

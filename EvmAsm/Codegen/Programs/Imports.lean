@@ -168,6 +168,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPure
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyRegion
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedSrcOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHlsHll

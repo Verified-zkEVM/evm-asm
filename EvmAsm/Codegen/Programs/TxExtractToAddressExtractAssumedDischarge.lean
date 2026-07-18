@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidLegacy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidT1
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalid
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
@@ -205,6 +206,64 @@ theorem extractAssumed_content_copy_type234_short
       halign hover hvalidBuf hge7
 
 #print axioms extractAssumed_content_copy_type234_short
+
+/-- Path refinements for bare short type234 copy with dword-aligned content.
+    `shortListSrcOff listOff items 5 + 1 = 8 * q` gates region LD alignment. -/
+def extractCopyType234ShortPathRegion
+    (txBytes : List (BitVec 8)) (items : List EL.RLP.RLPItem) (q : Nat) : Prop :=
+  extractCopyType234ShortPath txBytes items ∧
+    shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 5 + 1 = 8 * q ∧
+    8 * q + 16 < txBytes.length
+
+set_option maxRecDepth 8000 in
+/-- Bare Assumed footprint under short type234 copy + aligned content. classical-3. -/
+theorem extractAssumed_success_flat_copy_type234_short
+    (ret spVal txBase lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (txBytes : List (BitVec 8))
+    (items : List EL.RLP.RLPItem)
+    (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hcover : txBase.toNat + (8 * q + 16) < 2 ^ 64)
+    (hcvalid : isValidMemAccess
+      (txBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true)
+    (hpath : extractCopyType234ShortPathRegion txBytes items q) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPre ret spVal txBase lenW toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes)
+      (extractAssumedPost ret spVal txBase toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes) := by
+  obtain ⟨⟨hsuccess, hcopyFlag, hge, hdecL, hshort, hge7⟩, hq_align, hq⟩ := hpath
+  let s : ExtractSaved :=
+    { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3
+      s4 := s4, s5 := s5, s6 := s6, s7 := s7 }
+  let spC : Word := spVal + signExtend12 (-80 : BitVec 12)
+  have hspC : spC = spVal + signExtend12 (-80 : BitVec 12) := rfl
+  have hsra : s.ra = ret := rfl
+  have hs0 : s.s0 = s0 := rfl
+  have hs1 : s.s1 = s1 := rfl
+  have hs2 : s.s2 = s2 := rfl
+  have hs3 : s.s3 = s3 := rfl
+  have hs4 : s.s4 = s4 := rfl
+  have hs5 : s.s5 = s5 := rfl
+  have hs6 : s.s6 = s6 := rfl
+  have hs7 : s.s7 = s7 := rfl
+  simpa only [hsra, hs0, hs1, hs2, hs3, hs4, hs5, hs6, hs7] using
+    extractAssumed_copy_shortConcrete_pureHvalid_region_fullCode
+      spVal spC s txBase lenW toBuf isCreationPtr txBytes items q
+      hspC hret htalign htover htvalid hq_align hq hcover hcvalid
+      hlen hsuccess hcopyFlag hge hdecL hshort
+      halign hover hvalidBuf hge7
+
+#print axioms extractAssumed_success_flat_copy_type234_short
+
 /-- Path refinements for the packaged short legacy creation arm. -/
 def extractCreationLegacyShortPath
     (txBytes : List (BitVec 8)) (items : List EL.RLP.RLPItem) : Prop :=

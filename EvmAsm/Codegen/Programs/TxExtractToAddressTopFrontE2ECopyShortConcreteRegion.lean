@@ -26,7 +26,7 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
 /-- Short-path E2E copy steps: walk_init uses 15 not 81. -/
-def nFrontCopyStepsShort : Nat :=
+def nFrontCopyStepsShortRegion : Nat :=
   (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) + ((1 + 15) + (1 + (1 + 1)))) +
     (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
             (((1 + (1 + 1)) + (1 + 87)) + 1)) +
@@ -295,7 +295,7 @@ theorem extractFrontCopy_then_epi_of_decode_short_concrete_region
     (old5 old6 old7 old14 old15 old16 : Word) :
     let contentPtr := txBase + BitVec.ofNat 64 (8 * q)
     let w2 := (contentWordsAt txBytes q).2.2
-    cpsTripleWithin nFrontCopyStepsShort
+    cpsTripleWithin nFrontCopyStepsShortRegion
       E s.ra extractLinkedCode
       ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
         frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
