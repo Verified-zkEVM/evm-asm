@@ -108,12 +108,16 @@
               no hok*). **E2ECopy of_decode DONE**. **Assumed creation short+of_decode fullCode DONE** (no hdrop).
               **Pure field5+hcre DONE**: encodeItems offset algebra;
               `extractSuccess_creation_type234_field5_pfx80` /
-              `_hcre` / fit-gated `_hdec5`. **srcOff chain + short hnext DONE**:
+              `_hcre` / fit-gated `_hdec5`.               **srcOff chain + short hnext DONE**:
               `shortListSrcOff` / `encodeItemsPrefixLen_succ` /
-              `hnext_short_string_of_decode`. Residual: wire packaging
-              srcOffk:=shortListSrcOff; decode-gated hnext* (not universal);
-              pure ∃decode skips 0..4; long-list (≥56); fill
-              `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
+              `hnext_short_string_of_decode`. **Empty-field packaging hnext DONE**:
+              `hnext_empty_short_of_pfx80` /
+              `hnext_empty_matches_srcOff_succ` (decode-gated next =
+              txBase+shortListSrcOff(n+1)). Residual: wire packaging
+              srcOffk:=shortListSrcOff + decode-gated hnext* (drop universal);
+              pure ∃decode skips 0..4 (non-empty short/single-byte);
+              long-list (≥56); fill `ExtractAssumed.success_flat`;
+              copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
