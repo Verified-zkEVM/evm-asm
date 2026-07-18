@@ -161,10 +161,13 @@
                 discharges hcur/hnext/hcre/hinb/hoff/hover/hls/hll/hne + short
                 walk guards from extractSuccess+shortListSrcOff.
                 **pure hdec DONE** (`hdec_short_list_item` /
-                `extractAssumed_creation_shortConcrete_pureHdec(_fullCode)`):
-                any short-list item ⇒ ∃rlpItemDecode at shortListSrcOff vs
-                shortListEndPtr; residual only hvalid*/hvalid1_* (RAM); fill
-                `ExtractAssumed.success_flat`; copy Assumed; long-list;
+                `extractAssumed_creation_shortConcrete_pureHdec(_fullCode)`).
+                **pureHvalid DONE** (`validByteRange` collapse;
+                `extractAssumed_creation_shortConcrete_pureHvalid(_fullCode)`):
+                hvalid*/hvalid1_*/hvalidTx0/hinvalid from one buffer range hyp
+                (+ hge7 for field5+1 room). Residual static domain: validByteRange
+                + toBuf align/valid + align/hover/hinover; fold into
+                ExtractAssumed.success_flat; copy Assumed; long-list;
                 legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).

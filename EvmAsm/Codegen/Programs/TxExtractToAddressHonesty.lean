@@ -2928,4 +2928,130 @@ theorem hdec_short_list_end
 #print axioms hdec_short_list_item
 #print axioms hdec_short_list_end
 
+/-! ## Buffer-wide byte validity (`validByteRange`)
+
+    RAM validity is static (address range), not pure-from-decode. Collapse
+    per-offset `hvalid*` / `hvalid1_*` packaging residuals into one
+    `validByteRange txBase length` hyp (DualReadByteScan pattern).
+-/
+
+/-- Every offset in `[0, n)` is a valid byte address at `base + k`. -/
+def validByteRange (base : Word) (n : Nat) : Prop :=
+  ∀ k, k < n → isValidByteAccess (base + BitVec.ofNat 64 k) = true
+
+theorem isValidByteAccess_of_validByteRange
+    (base : Word) (n i : Nat)
+    (h : validByteRange base n) (hi : i < n) :
+    isValidByteAccess (base + BitVec.ofNat 64 i) = true :=
+  h i hi
+
+/-- Content offset of field `n` is ≤ start of field `n+1` by ≥1 (encode nonempty). -/
+theorem shortListSrcOff_add_one_le_succ
+    (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (hn : n < items.length) :
+    shortListSrcOff listOff items n + 1 ≤ shortListSrcOff listOff items (n + 1) := by
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hsucc := shortListSrcOff_succ listOff items n hn
+  omega
+
+/-- `srcOff_n + 1 < length` when a following field exists (encode nonempty). -/
+theorem shortListSrcOff_succ_room
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hnxt : n + 1 < items.length) :
+    shortListSrcOff listOff items n + 1 < bs.length := by
+  have hn : n < items.length := Nat.lt_of_succ_lt hnxt
+  have hle := shortListSrcOff_add_one_le_succ listOff items n hn
+  have hnext := shortListSrcOff_lt_length bs listOff items (n + 1) henc hshort hnxt
+  omega
+
+/-- Pack creation type234 short hvalid/hvalid1 at all six field offsets from
+    one buffer-wide `validByteRange`. Needs `7 ≤ items.length` so field5 has a
+    following item (srcOff5+1 in-bounds). -/
+theorem extractSuccess_creation_type234_hvalid_srcOff
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hge7 : 7 ≤ items.length)
+    (hvalidBuf : validByteRange txBase txBytes.length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 0)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 0 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 1 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 2)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 2 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 3)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 3 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 4)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 4 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 5)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 5 + 1)) = true := by
+  let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+  have hencInner :
+      txBytes.drop listOff = encode (.list items) :=
+    decodeListItems_eq_encode _ _ hdecL
+  have hlen :=
+    extractSuccess_creation_type234_items_length txBytes h hcreFlag hge
+      items hdecL hshort
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hn4 : (4 : Nat) < items.length := by omega
+  have hn5 : (5 : Nat) < items.length := by omega
+  have hn6 : (6 : Nat) < items.length := by omega
+  have h0 := shortListSrcOff_lt_length txBytes listOff items 0 hencInner hshort hn0
+  have h1 := shortListSrcOff_lt_length txBytes listOff items 1 hencInner hshort hn1
+  have h2 := shortListSrcOff_lt_length txBytes listOff items 2 hencInner hshort hn2
+  have h3 := shortListSrcOff_lt_length txBytes listOff items 3 hencInner hshort hn3
+  have h4 := shortListSrcOff_lt_length txBytes listOff items 4 hencInner hshort hn4
+  have h5 := shortListSrcOff_lt_length txBytes listOff items 5 hencInner hshort hn5
+  have h0s := shortListSrcOff_succ_room txBytes listOff items 0 hencInner hshort (by omega)
+  have h1s := shortListSrcOff_succ_room txBytes listOff items 1 hencInner hshort (by omega)
+  have h2s := shortListSrcOff_succ_room txBytes listOff items 2 hencInner hshort (by omega)
+  have h3s := shortListSrcOff_succ_room txBytes listOff items 3 hencInner hshort (by omega)
+  have h4s := shortListSrcOff_succ_room txBytes listOff items 4 hencInner hshort (by omega)
+  have h5s := shortListSrcOff_succ_room txBytes listOff items 5 hencInner hshort hn6
+  exact ⟨
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h0,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h0s,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h1,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h1s,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h2,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h2s,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h3,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h3s,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h4,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h4s,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h5,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf h5s⟩
+
+/-- `hvalidTx0` + inner-off validity from buffer range under extractSuccess. -/
+theorem extractSuccess_hvalid_tx0_inner
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hvalidBuf : validByteRange txBase txBytes.length) :
+    isValidByteAccess (txBase + BitVec.ofNat 64 0) = true ∧
+      isValidByteAccess
+        (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true := by
+  have hinner := extractSuccess_inner_lt txBytes h
+  have hpos : 0 < txBytes.length := Nat.zero_lt_of_lt hinner
+  exact ⟨
+    isValidByteAccess_of_validByteRange txBase _ 0 hvalidBuf hpos,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hinner⟩
+
+#print axioms validByteRange
+#print axioms isValidByteAccess_of_validByteRange
+#print axioms shortListSrcOff_add_one_le_succ
+#print axioms shortListSrcOff_succ_room
+#print axioms extractSuccess_creation_type234_hvalid_srcOff
+#print axioms extractSuccess_hvalid_tx0_inner
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
