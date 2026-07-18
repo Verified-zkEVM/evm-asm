@@ -132,6 +132,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumed
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedSrcOff
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureOff
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
