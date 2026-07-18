@@ -82,7 +82,9 @@
             given hE2E for all old temps).
             Residual: wire hE2E from extractFrontCreation_then_epi (honesty
             residuals hdrop/hok/hnext/hcre/hlen20 under extractSuccess pure);
-            extractAssumed_fullCode; fullCode∪extract;
+            extractAssumed_fullCode via extractLinked_mono.
+            **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
+            `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`

@@ -31,6 +31,8 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.GuestAddrs
 
@@ -38,6 +40,7 @@ namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.RLP
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 open EvmAsm.Codegen.Eip8037TxStateGasSpec
@@ -67,11 +70,21 @@ abbrev typeCode : CodeReq :=
 
 theorem type_length' : typeProg.length = 45 := by decide
 
-/-- Full linked code: intrinsic + ets + type_dispatch.
-    Residual: ∪ extract + walks when ExtractAssumed body packaging lands
-    (150-instr extractCode blows ofProg_ranges/mono heartbeats; use
-    extractLinkedCode mono from TxExtractToAddressSpec then). -/
-def fullCode : CodeReq := (tisCode.union etsCode).union typeCode
+/-- Extract leaf + walk callees (same shape as `extractLinkedCode`). -/
+abbrev extractE : Word := BitVec.ofNat 64 GuestAddrs.tx_extract_to_address
+abbrev extractProg : Program := txExtractToAddress_prog
+abbrev extractCode : CodeReq := CodeReq.ofProg extractE extractProg
+abbrev walkInitCode : CodeReq :=
+  rlp_walk_init_code (BitVec.ofNat 64 GuestAddrs.rlp_walk_init)
+abbrev walkNextCode : CodeReq :=
+  rlp_walk_next_code (BitVec.ofNat 64 GuestAddrs.rlp_walk_next)
+
+set_option maxRecDepth 8000 in
+theorem extract_length' : extractProg.length = 150 := rfl
+
+/-- Linked extract body + type + walks (matches TxExtractToAddressSpec.extractLinkedCode). -/
+def extractLinkedCode : CodeReq :=
+  ((extractCode.union typeCode).union walkInitCode).union walkNextCode
 
 theorem tis_bound : 4 * tisProg.length < 2 ^ 64 := by
   simp only [tis_length]; decide
@@ -100,8 +113,134 @@ private theorem type_ets_disjoint : typeCode.Disjoint etsCode := by
   · rw [ets_length']; decide
   · rw [type_length', ets_length']; decide
 
-theorem tis_ets_type_disjoint : (tisCode.union etsCode).Disjoint typeCode := by
-  exact CodeReq.Disjoint.union_left type_tis_disjoint.symm type_ets_disjoint.symm
+private theorem extract_tis_disjoint : extractCode.Disjoint tisCode := by
+  unfold extractCode tisCode extractE T
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length']; decide
+  · rw [tis_length]; decide
+  · rw [extract_length', tis_length]; decide
+
+private theorem extract_ets_disjoint : extractCode.Disjoint etsCode := by
+  unfold extractCode etsCode extractE P
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length']; decide
+  · rw [ets_length']; decide
+  · rw [extract_length', ets_length']; decide
+
+private theorem walkInit_tis_disjoint : walkInitCode.Disjoint tisCode := by
+  unfold walkInitCode tisCode T
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [tis_length]; decide
+  · rw [rlp_walk_init_prog_length, tis_length]; decide
+
+private theorem walkInit_ets_disjoint : walkInitCode.Disjoint etsCode := by
+  unfold walkInitCode etsCode P
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [ets_length']; decide
+  · rw [rlp_walk_init_prog_length, ets_length']; decide
+
+private theorem walkNext_tis_disjoint : walkNextCode.Disjoint tisCode := by
+  unfold walkNextCode tisCode T
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [tis_length]; decide
+  · rw [rlp_walk_next_prog_length, tis_length]; decide
+
+private theorem walkNext_ets_disjoint : walkNextCode.Disjoint etsCode := by
+  unfold walkNextCode etsCode P
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [ets_length']; decide
+  · rw [rlp_walk_next_prog_length, ets_length']; decide
+
+private theorem extract_type_disjoint : extractCode.Disjoint typeCode := by
+  unfold extractCode typeCode extractE
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length']; decide
+  · rw [type_length']; decide
+  · rw [extract_length', type_length']; decide
+
+private theorem extract_walkInit_disjoint : extractCode.Disjoint walkInitCode := by
+  unfold extractCode walkInitCode extractE
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length']; decide
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [extract_length', rlp_walk_init_prog_length]; decide
+
+private theorem type_walkInit_disjoint : typeCode.Disjoint walkInitCode := by
+  unfold typeCode walkInitCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [type_length']; decide
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [type_length', rlp_walk_init_prog_length]; decide
+
+private theorem extract_walkNext_disjoint : extractCode.Disjoint walkNextCode := by
+  unfold extractCode walkNextCode extractE
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [extract_length']; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [extract_length', rlp_walk_next_prog_length]; decide
+
+private theorem type_walkNext_disjoint : typeCode.Disjoint walkNextCode := by
+  unfold typeCode walkNextCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [type_length']; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [type_length', rlp_walk_next_prog_length]; decide
+
+private theorem walkInit_walkNext_disjoint : walkInitCode.Disjoint walkNextCode := by
+  unfold walkInitCode walkNextCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [rlp_walk_init_prog_length, rlp_walk_next_prog_length]; decide
+
+private theorem extract_type_walkInit_disjoint :
+    (extractCode.union typeCode).Disjoint walkInitCode :=
+  CodeReq.Disjoint.union_left extract_walkInit_disjoint type_walkInit_disjoint
+
+private theorem extract_type_walkNext_disjoint :
+    (extractCode.union typeCode).Disjoint walkNextCode :=
+  CodeReq.Disjoint.union_left extract_walkNext_disjoint type_walkNext_disjoint
+
+private theorem extract_type_walkInit_walkNext_disjoint :
+    ((extractCode.union typeCode).union walkInitCode).Disjoint walkNextCode :=
+  CodeReq.Disjoint.union_left extract_type_walkNext_disjoint walkInit_walkNext_disjoint
+
+private theorem type_tis_ets_disjoint : typeCode.Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_right type_tis_disjoint type_ets_disjoint
+
+private theorem extract_tis_ets_disjoint : extractCode.Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_right extract_tis_disjoint extract_ets_disjoint
+
+private theorem walkInit_tis_ets_disjoint : walkInitCode.Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_right walkInit_tis_disjoint walkInit_ets_disjoint
+
+private theorem walkNext_tis_ets_disjoint : walkNextCode.Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_right walkNext_tis_disjoint walkNext_ets_disjoint
+
+private theorem extract_type_tis_ets_disjoint :
+    (extractCode.union typeCode).Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_left extract_tis_ets_disjoint type_tis_ets_disjoint
+
+private theorem extract_type_walkInit_tis_ets_disjoint :
+    ((extractCode.union typeCode).union walkInitCode).Disjoint (tisCode.union etsCode) :=
+  CodeReq.Disjoint.union_left extract_type_tis_ets_disjoint walkInit_tis_ets_disjoint
+
+theorem extractLinked_tis_ets_disjoint :
+    extractLinkedCode.Disjoint (tisCode.union etsCode) := by
+  unfold extractLinkedCode
+  exact CodeReq.Disjoint.union_left extract_type_walkInit_tis_ets_disjoint
+    walkNext_tis_ets_disjoint
+
+/-- Full linked code: intrinsic + ets + extractLinked (type + extract + walks). -/
+def fullCode : CodeReq := (tisCode.union etsCode).union extractLinkedCode
+
+theorem tis_ets_extractLinked_disjoint :
+    (tisCode.union etsCode).Disjoint extractLinkedCode :=
+  extractLinked_tis_ets_disjoint.symm
 
 theorem ets_mono :
     ∀ a i, etsCode a = some i → fullCode a = some i := by
@@ -117,11 +256,36 @@ theorem tis_mono :
   have h := CodeReq.union_mono_left (cr1 := tisCode) (cr2 := etsCode) a i hi
   exact CodeReq.union_mono_left a i h
 
+theorem extractLinked_mono :
+    ∀ a i, extractLinkedCode a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right tis_ets_extractLinked_disjoint (fun _ _ h => h) a i hi
+
 theorem type_mono :
     ∀ a i, typeCode a = some i → fullCode a = some i := by
   intro a i hi
-  unfold fullCode
-  exact CodeReq.mono_union_right tis_ets_type_disjoint (fun _ _ h => h) a i hi
+  have h1 := CodeReq.mono_union_right extract_type_disjoint (fun _ _ h => h) a i hi
+  have h2 :=
+    CodeReq.union_mono_left (cr1 := extractCode.union typeCode) (cr2 := walkInitCode) a i h1
+  have h3 : extractLinkedCode a = some i := by
+    simp only [extractLinkedCode]
+    exact CodeReq.union_mono_left
+      (cr1 := (extractCode.union typeCode).union walkInitCode) (cr2 := walkNextCode) a i h2
+  exact extractLinked_mono a i h3
+
+theorem extract_mono_full :
+    ∀ a i, extractCode a = some i → fullCode a = some i := by
+  intro a i hi
+  have h1 := CodeReq.union_mono_left (cr1 := extractCode) (cr2 := typeCode) a i hi
+  have h2 :=
+    CodeReq.union_mono_left (cr1 := extractCode.union typeCode) (cr2 := walkInitCode) a i h1
+  have h3 : extractLinkedCode a = some i := by
+    simp only [extractLinkedCode]
+    exact CodeReq.union_mono_left
+      (cr1 := (extractCode.union typeCode).union walkInitCode) (cr2 := walkNextCode) a i h2
+  exact extractLinked_mono a i h3
+
 
 /-- 8-slot frame: ra, s0–s6 (x8,x9,x18–x22). -/
 def tisFrame : FrameDesc :=
