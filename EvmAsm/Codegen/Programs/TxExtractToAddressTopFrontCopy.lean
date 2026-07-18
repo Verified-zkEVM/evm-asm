@@ -200,8 +200,9 @@ theorem extractFrontAfterSaveCopy_then_epi
     (hlen20 : ∀ (endPtr next5 len5 : Word),
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
         endPtr next5 len5 → len5 = (20 : Word))
-    (hnext_content : ∀ (next5 : Word) (_len5 : Word),
-      next5 = contentPtr + (20 : Word))
+    (hnext_content : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
     (hcover : contentPtr.toNat + 16 < 2 ^ 64)
     (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true)
@@ -299,7 +300,7 @@ theorem extractFrontAfterSaveCopy_then_epi
       hoff4 hover4 hvalid4 hss4 hls4 hll4 (hok4 endPtr)
       hoff5 hover5 hvalid5 hss5 hls5 hll5 (hok5 endPtr)
       hnext1 hnext2 hnext3 hnext4 hnext5
-      (hlen20 endPtr) hnext_content hcalign hcover hcvalid htalign htover htvalid
+      (hlen20 endPtr) (hnext_content endPtr) hcalign hcover hcvalid htalign htover htvalid
     -- MidJoin pre is flat midOwned chain; reassoc to (core) ** content
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcore

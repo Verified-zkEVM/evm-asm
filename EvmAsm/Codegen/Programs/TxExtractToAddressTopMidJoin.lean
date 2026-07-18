@@ -318,8 +318,9 @@ private theorem wn5Exists_to_copy
     (hlen20 : ∀ (next5 len5 : Word),
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
         endPtr next5 len5 → len5 = (20 : Word))
-    (hnext_content : ∀ (next5 : Word) (_len5 : Word),
-      next5 = contentPtr + (20 : Word))
+    (hnext_content : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
     (hcover : contentPtr.toNat + 16 < 2 ^ 64)
     (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true)
@@ -357,35 +358,70 @@ private theorem wn5Exists_to_copy
         regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
   refine cpsTripleWithin_exists_pre_gen (fun next5 => ?_)
   refine cpsTripleWithin_exists_pre_gen (fun len5 => ?_)
-  have hnext : next5 = contentPtr + (20 : Word) := hnext_content next5 len5
-  have hsub : next5 - (20 : Word) = contentPtr := by
-    rw [hnext]; exact BitVec.add_sub_cancel contentPtr (20 : Word)
-  have h := extractType234HaveFieldCopy_then_epi sp0 spC s txBase lenW
-    typeW innerW endPtr next5 toBuf isCreationPtr s7 txBytes srcOff5
-    w0 w1 w2 hspC hret (by
-      simp only [hsub]; exact hcalign) (by
-      simp only [hsub]; exact hcover) (by
-      simp only [hsub]; exact hcvalid) htalign htover htvalid
-  refine cpsTripleWithin_weaken (fun hst hp => by
-    -- hp : OkConcrete ** (midOwned ** content); extract pure → len5 = 20
+  -- pure_pre: decode ⇒ leaf under hlen20 + hnext_content
+  have hpure :
+      cpsTripleWithin
+        ((1 + 1) +
+          ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11))
+        AfterWalkNext5Bne s.ra extractLinkedCode
+        (⌜rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+            endPtr next5 len5⌝ **
+          (wn5OkRegs txBase lenW typeW innerW endPtr next5 len5
+            txBytes srcOff5 **
+            midOwned spC s toBuf isCreationPtr s7 **
+            contentDwords contentPtr w0 w1 w2))
+        ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+          stackFree sp0 nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txBase txBytes **
+          extractToBufOwn toBuf **
+          (isCreationPtr ↦ₘ (0 : Word)) **
+          (TeaTypeAddr ↦ₘ typeW) ** (TeaInnerAddr ↦ₘ innerW) **
+          contentDwords contentPtr w0 w1 w2 **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+          (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+          (Reg.x23 ↦ᵣ s.s7) **
+          (.x5 ↦ᵣ (extractWord32 w2
+              (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+          (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+    refine cpsTripleWithin_pure_pre (fun hdec => ?_)
+    have hlen : len5 = (20 : Word) := hlen20 next5 len5 hdec
+    have hnext : next5 = contentPtr + (20 : Word) := hnext_content next5 len5 hdec
+    have hsub : next5 - (20 : Word) = contentPtr := by
+      rw [hnext]; exact BitVec.add_sub_cancel contentPtr (20 : Word)
+    have hleaf := extractType234HaveFieldCopy_then_epi sp0 spC s txBase lenW
+      typeW innerW endPtr next5 toBuf isCreationPtr s7 txBytes srcOff5
+      w0 w1 w2 hspC hret (by simp only [hsub]; exact hcalign)
+      (by simp only [hsub]; exact hcover)
+      (by simp only [hsub]; exact hcvalid) htalign htover htvalid
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      -- OkRegs next5 len5 ** mid ** contentPtr → OkConcrete next5 20 ** mid ** next-20
+      simp only [hlen, hsub, contentDwords, wn5OkConcrete] at hp ⊢
+      obtain ⟨h1, h2, hd, hu, hRegs, hMC⟩ := hp
+      refine ⟨h1, h2, hd, hu, ?_, hMC⟩
+      refine (sepConj_pure_right h1).mpr ⟨hRegs, ?_⟩
+      convert hdec
+      simp only [hlen]) (fun _ hq => by
+      simp only [hsub, contentDwords] at hq ⊢
+      xperm_hyp hq) hleaf
+  -- OkConcrete ** mid ** content → pure ** (OkRegs ** mid ** content)
+  refine cpsTripleWithin_weaken (fun st hp => by
     obtain ⟨h1, h2, hd, hu, hOkC, hMC⟩ := hp
     obtain ⟨hRegs, hdec⟩ := (sepConj_pure_right h1).mp (by
       simpa only [wn5OkConcrete] using hOkC)
-    have hlen : len5 = (20 : Word) := hlen20 next5 len5 hdec
-    have hOk20 : wn5OkConcrete txBase lenW typeW innerW endPtr next5 (20 : Word)
-        txBytes srcOff5 h1 := by
-      simp only [wn5OkConcrete, hlen] at hRegs hdec ⊢
-      exact (sepConj_pure_right h1).mpr ⟨hRegs, hdec⟩
-    have hp' :
-        (wn5OkConcrete txBase lenW typeW innerW endPtr next5 (20 : Word)
+    have hRest :
+        (wn5OkRegs txBase lenW typeW innerW endPtr next5 len5
           txBytes srcOff5 **
           midOwned spC s toBuf isCreationPtr s7 **
-          contentDwords contentPtr w0 w1 w2) hst :=
-      ⟨h1, h2, hd, hu, hOk20, hMC⟩
-    simp only [hsub, contentDwords] at hp' ⊢
-    xperm_hyp hp') (fun _ hq => by
-    simp only [hsub, contentDwords] at hq ⊢
-    xperm_hyp hq) h
+          contentDwords contentPtr w0 w1 w2) st :=
+      ⟨h1, h2, hd, hu, hRegs, hMC⟩
+    exact (sepConj_pure_left st).mpr ⟨hdec, hRest⟩) (fun _ hq => hq) hpure
 
 set_option maxRecDepth 8000 in
 /-- type234 AfterSave → 20B copy → ret under midOwned + content dwords.
@@ -564,8 +600,9 @@ theorem extractType234AfterSaveCopy_then_epi
     (hlen20 : ∀ (next5 len5 : Word),
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
         endPtr next5 len5 → len5 = (20 : Word))
-    (hnext_content : ∀ (next5 : Word) (_len5 : Word),
-      next5 = contentPtr + (20 : Word))
+    (hnext_content : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
     (hcover : contentPtr.toNat + 16 < 2 ^ 64)
     (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true)

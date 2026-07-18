@@ -185,6 +185,73 @@ theorem hlen20_decode_of_pfx94
       rlpItemDecode bytes off cursor endPtr next len → len = (20 : Word) :=
   fun next len h => rlpItemDecode_pfx94_imp_len20 bytes off cursor endPtr next len hoff hb h
 
+/-- Any successful decode with prefix `0x94` has `next = cursor + 21`
+    (content at `cursor+1`, span 20). -/
+theorem rlpItemDecode_pfx94_imp_next
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr next len : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x94 : BitVec 8))
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    next = cursor + (21 : Word) := by
+  obtain ⟨b, hb?, hforms⟩ := h
+  have heq : b = (0x94 : BitVec 8) := by
+    have hget : bytes[off]? = some (bytes[off]'hoff) := List.getElem?_eq_getElem hoff
+    rw [hget, hb] at hb?
+    exact Option.some.inj hb?.symm
+  subst heq
+  rcases hforms with h1 | h2 | h3 | h4 | h5
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0x80 : Word) = false := by
+      decide
+    have : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0x80 : Word) = true := h1.1
+    rw [hult] at this
+    exact absurd this (by decide)
+  · -- short string: next = (cursor + 1) + (0x94 - 0x80) = cursor + 21
+    have hnext : next =
+        (cursor + signExtend12 (1 : BitVec 12)) +
+          ((0x94 : BitVec 8).zeroExtend 64 - (0x80 : Word)) := h2.2.2.2.2.1
+    have h1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    have h20 : (0x94 : BitVec 8).zeroExtend 64 - (0x80 : Word) = (20 : Word) := by decide
+    have h21 : (1 : Word) + (20 : Word) = (21 : Word) := by decide
+    calc next
+        = (cursor + signExtend12 (1 : BitVec 12)) +
+            ((0x94 : BitVec 8).zeroExtend 64 - (0x80 : Word)) := hnext
+      _ = (cursor + (1 : Word)) + (20 : Word) := by rw [h1, h20]
+      _ = cursor + ((1 : Word) + (20 : Word)) := by
+          rw [BitVec.add_assoc]
+      _ = cursor + (21 : Word) := by rw [h21]
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := h3.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := h4.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := h5.1
+    exact absurd hult this
+
+/-- Decode-gated content-pointer residual: prefix `0x94` and
+    `contentPtr = cursor + 1` ⇒ every decode has `next = contentPtr + 20`. -/
+theorem hnext_content_decode_of_pfx94
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr contentPtr : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x94 : BitVec 8))
+    (hcontent : contentPtr = cursor + (1 : Word)) :
+    ∀ (next len : Word),
+      rlpItemDecode bytes off cursor endPtr next len →
+        next = contentPtr + (20 : Word) := by
+  intro next len h
+  have hnext : next = cursor + (21 : Word) :=
+    rlpItemDecode_pfx94_imp_next bytes off cursor endPtr next len hoff hb h
+  have h21 : (1 : Word) + (20 : Word) = (21 : Word) := by decide
+  calc next
+      = cursor + (21 : Word) := hnext
+    _ = cursor + ((1 : Word) + (20 : Word)) := by rw [h21]
+    _ = (cursor + (1 : Word)) + (20 : Word) := by rw [← BitVec.add_assoc]
+    _ = contentPtr + (20 : Word) := by rw [hcontent]
+
 /-- Empty bytes item encodes as the single prefix `0x80`. -/
 theorem encode_bytes_empty : encode (.bytes []) = [BitVec.ofNat 8 0x80] := by
   have h : (0 : Nat) ≤ 55 := by decide
@@ -418,6 +485,8 @@ theorem extractSuccess_short_walkInit_guards
 #print axioms rlpItemDecode_pfx94_imp_len20
 #print axioms hcre_decode_of_pfx80
 #print axioms hlen20_decode_of_pfx94
+#print axioms rlpItemDecode_pfx94_imp_next
+#print axioms hnext_content_decode_of_pfx94
 #print axioms encode_bytes_empty
 #print axioms extractSuccess_creation_encode_empty
 #print axioms decodeListItems_eq_encode

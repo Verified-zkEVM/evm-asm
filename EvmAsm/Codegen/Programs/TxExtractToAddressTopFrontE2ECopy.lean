@@ -245,8 +245,9 @@ theorem extractFrontCopy_then_epi
     (hlen20 : ∀ (endPtr next5 len5 : Word),
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
         endPtr next5 len5 → len5 = (20 : Word))
-    (hnext_content : ∀ (next5 : Word) (_len5 : Word),
-      next5 = contentPtr + (20 : Word))
+    (hnext_content : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
     (hcover : contentPtr.toNat + 16 < 2 ^ 64)
     (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true) :
