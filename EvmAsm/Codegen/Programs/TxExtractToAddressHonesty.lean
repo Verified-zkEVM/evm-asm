@@ -4922,8 +4922,339 @@ theorem extractSuccess_long_walkInit_guards
   · rw [hlenDrop]
     exact hg.2.2.2.2.2.2.2
 
+/-! ## Long-list leaf hyps (h_llz / h_min / hllen / hoff1 / h_fits / h_match) -/
+
+private theorem signExtend12_one : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+
+private theorem word_one_toNat : (1 : Word).toNat = 1 := by decide
+
+/-- Full long-list encode shape at absolute drop. -/
+theorem long_list_encode_cons
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length) :
+    txBytes.drop listOff =
+      BitVec.ofNat 8 (0xF7 + longListLol items) ::
+        (Nat.toBytesBE (encode.encodeItems items).length ++ encode.encodeItems items) := by
+  have hstr := encode_list_long items hlong
+  unfold longListLol
+  rw [henc, hstr]
+
+/-- Take lol after prefix = toBytesBE payload length. -/
+theorem long_list_tx_take_lol
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length) :
+    (txBytes.drop (listOff + 1)).take (longListLol items) =
+      Nat.toBytesBE (encode.encodeItems items).length := by
+  have hdrop : txBytes.drop (listOff + 1) = (txBytes.drop listOff).drop 1 := by
+    rw [← List.drop_drop]
+  have hcons := long_list_encode_cons txBytes listOff items henc hlong
+  rw [hdrop, hcons]
+  -- (pfx :: (lenBytes ++ payload)).drop 1 = lenBytes ++ payload
+  change ((Nat.toBytesBE (encode.encodeItems items).length ++ encode.encodeItems items).take
+      (longListLol items)) =
+    Nat.toBytesBE (encode.encodeItems items).length
+  unfold longListLol
+  exact List.take_left
+
+/-- Prefix byte at absolute offset. -/
+theorem long_list_pfx_at
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff : listOff < txBytes.length) :
+    txBytes[listOff]'hoff = BitVec.ofNat 8 (0xF7 + longListLol items) := by
+  have hcons := long_list_encode_cons txBytes listOff items henc hlong
+  have hpos : 0 < (txBytes.drop listOff).length := by
+    rw [hcons]; exact Nat.zero_lt_succ _
+  have heq := List.getElem_drop (xs := txBytes) (i := listOff) (j := 0) (h := hpos)
+  simp only [Nat.add_zero] at heq
+  have hhead : (txBytes.drop listOff)[0]'hpos =
+      BitVec.ofNat 8 (0xF7 + longListLol items) := by
+    have hlen' : 0 <
+        (BitVec.ofNat 8 (0xF7 + longListLol items) ::
+          (Nat.toBytesBE (encode.encodeItems items).length ++
+            encode.encodeItems items)).length :=
+      Nat.zero_lt_succ _
+    have heqL :
+        (txBytes.drop listOff)[0]'hpos =
+          (BitVec.ofNat 8 (0xF7 + longListLol items) ::
+            (Nat.toBytesBE (encode.encodeItems items).length ++
+              encode.encodeItems items))[0]'hlen' :=
+      List.getElem_of_eq hcons hpos
+    rw [heqL, List.getElem_cons_zero]
+  exact heq.symm.trans hhead
+
+/-- `hoff1` from long-list structure. -/
+theorem hoff1_of_long_list
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length) :
+    listOff + 1 < txBytes.length := by
+  have h1 := longListLol_pos items hlong
+  have hdrop : (txBytes.drop listOff).length =
+      1 + longListLol items + longListPayloadLen items := by
+    rw [henc, encode_list_long_length items hlong]
+  have : 1 < (txBytes.drop listOff).length := by omega
+  simp only [List.length_drop] at this
+  omega
+
+/-- `hllen` from long-list structure. -/
+theorem hllen_of_long_list
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff : listOff < txBytes.length)
+    (hbound : (encode.encodeItems items).length < 256 ^ 8) :
+    listOff + 1 + ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤
+      txBytes.length := by
+  have hpfx := long_list_pfx_at txBytes listOff items henc hlong hoff
+  rw [hpfx, pfx_sub_F7_eq_lol items hlong hbound]
+  have hdrop : (txBytes.drop listOff).length =
+      1 + longListLol items + longListPayloadLen items := by
+    rw [henc, encode_list_long_length items hlong]
+  simp only [List.length_drop] at hdrop
+  omega
+
+/-- Leading length byte at listOff+1. -/
+theorem long_list_len_byte_at
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff1 : listOff + 1 < txBytes.length) :
+    ∃ b tl, Nat.toBytesBE (encode.encodeItems items).length = b :: tl ∧
+      b ≠ (0 : Byte) ∧ txBytes[listOff + 1]'hoff1 = b := by
+  obtain ⟨b, tl, heq, hbne⟩ := long_list_len_head_ne_zero items hlong
+  refine ⟨b, tl, heq, hbne, ?_⟩
+  have hcons := long_list_encode_cons txBytes listOff items henc hlong
+  have hfull : txBytes.drop listOff =
+      BitVec.ofNat 8 (0xF7 + longListLol items) :: b :: (tl ++ encode.encodeItems items) := by
+    rw [hcons, heq]
+    rfl
+  have hpos1 : 1 < (txBytes.drop listOff).length := by
+    rw [hfull]; simp
+  have hidx : (txBytes.drop listOff)[1]'hpos1 = b := by
+    have hlen' : 1 <
+        (BitVec.ofNat 8 (0xF7 + longListLol items) :: b ::
+          (tl ++ encode.encodeItems items)).length := by simp
+    have heqL :
+        (txBytes.drop listOff)[1]'hpos1 =
+          (BitVec.ofNat 8 (0xF7 + longListLol items) :: b ::
+            (tl ++ encode.encodeItems items))[1]'hlen' :=
+      List.getElem_of_eq hfull hpos1
+    rw [heqL, List.getElem_cons_succ, List.getElem_cons_zero]
+  have heq' := List.getElem_drop (xs := txBytes) (i := listOff) (j := 1) (h := hpos1)
+  exact heq'.symm.trans hidx
+
+/-- `h_llz`: leading length byte zeroExtend ≠ 0. -/
+theorem h_llz_of_long_list
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff1 : listOff + 1 < txBytes.length) :
+    (txBytes[listOff + 1]'hoff1).zeroExtend 64 ≠ (0 : Word) := by
+  obtain ⟨b, _, _, hbne, hbyte⟩ := long_list_len_byte_at txBytes listOff items henc hlong hoff1
+  intro hz
+  apply hbne
+  apply BitVec.eq_of_toNat_eq
+  have hz' : b.zeroExtend 64 = (0 : Word) := by rw [← hbyte]; exact hz
+  have ht := congrArg BitVec.toNat hz'
+  rw [toNat_zeroExtend_byte] at ht
+  change b.toNat = (0 : Word).toNat at ht
+  simpa using ht
+
+/-- `h_min`: decoded payload Word ≥ 56. -/
+theorem h_min_of_long_list
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff : listOff < txBytes.length)
+    (hbound : (encode.encodeItems items).length < 2 ^ 64) :
+    ¬ BitVec.ult
+        (BitVec.ofNat 64 (Nat.fromBytesBE
+          ((txBytes.drop (listOff + 1)).take
+            ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+        (56 : Word) = true := by
+  have hbound8 : (encode.encodeItems items).length < 256 ^ 8 := by
+    rw [pow256_8_eq_pow2_64]; exact hbound
+  have hpfx := long_list_pfx_at txBytes listOff items henc hlong hoff
+  have hlolEq : ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat =
+      longListLol items := by
+    rw [hpfx]; exact pfx_sub_F7_eq_lol items hlong hbound8
+  have htake := long_list_tx_take_lol txBytes listOff items henc hlong
+  have hdec : Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+      ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) =
+      (encode.encodeItems items).length := by
+    rw [hlolEq, htake, long_list_fromBytesBE_payload]
+  rw [hdec]
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt, BitVec.toNat_ofNat]
+  have h56 : (56 : Word).toNat = 56 := by decide
+  rw [h56, Nat.mod_eq_of_lt hbound]
+  exact Nat.succ_le_of_lt hlong
+
+private theorem toNat_add_word_of_lt (a b : Word)
+    (h : a.toNat + b.toNat < 2 ^ 64) :
+    (a + b).toNat = a.toNat + b.toNat := by
+  rw [BitVec.toNat_add, Nat.mod_eq_of_lt h]
+
+private theorem lol_plus_one_toNat (items : List RLPItem)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hbound : (encode.encodeItems items).length < 256 ^ 8)
+    (pfx : Word)
+    (hlolW : pfx = BitVec.ofNat 64 (longListLol items)) :
+    (pfx + (1 : Word)).toNat = longListLol items + 1 := by
+  have h1 := longListLol_pos items hlong
+  have h8 := longListLol_le_8 items hbound
+  rw [hlolW]
+  have hsum : (BitVec.ofNat 64 (longListLol items)).toNat + (1 : Word).toNat < 2 ^ 64 := by
+    rw [BitVec.toNat_ofNat, word_one_toNat, Nat.mod_eq_of_lt (by omega)]
+    omega
+  rw [toNat_add_word_of_lt _ _ hsum, BitVec.toNat_ofNat, word_one_toNat,
+    Nat.mod_eq_of_lt (by omega)]
+
+/-- `h_fits` under non-wrapping ptr/end bounds. -/
+theorem h_fits_of_long_list
+    (txBase listLen : Word) (txBytes : List (BitVec 8)) (listOff : Nat)
+    (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff : listOff < txBytes.length)
+    (hbound : (encode.encodeItems items).length < 256 ^ 8)
+    (hlenNat : listLen.toNat = (txBytes.drop listOff).length)
+    (hptr : (txBase + BitVec.ofNat 64 listOff).toNat = txBase.toNat + listOff)
+    (hend : (txBase + BitVec.ofNat 64 listOff).toNat + listLen.toNat < 2 ^ 64) :
+    ¬ BitVec.ult ((txBase + BitVec.ofNat 64 listOff) + listLen)
+        ((txBase + BitVec.ofNat 64 listOff) +
+          (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true := by
+  have hpfx := long_list_pfx_at txBytes listOff items henc hlong hoff
+  have hlolEq : ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat =
+      longListLol items := by
+    rw [hpfx]; exact pfx_sub_F7_eq_lol items hlong hbound
+  have hpay : listLen.toNat = 1 + longListLol items + longListPayloadLen items := by
+    rw [hlenNat, henc, encode_list_long_length items hlong]
+  have h1 := longListLol_pos items hlong
+  have h8 := longListLol_le_8 items hbound
+  have hse := signExtend12_one
+  have hlolW : (txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word) =
+      BitVec.ofNat 64 (longListLol items) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [hlolEq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  set ptr := txBase + BitVec.ofNat 64 listOff
+  have hendN : (ptr + listLen).toNat = ptr.toNat + listLen.toNat :=
+    toNat_add_word_of_lt ptr listLen hend
+  have hcurOff :
+      (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)).toNat =
+        longListLol items + 1 := by
+    rw [hlolW, hse]
+    exact lol_plus_one_toNat items hlong hbound _ rfl
+  have hcurLt : ptr.toNat + longListLol items + 1 < 2 ^ 64 := by
+    have := hend; rw [hpay] at this; omega
+  have hcurN :
+      (ptr + (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))).toNat =
+        ptr.toNat + longListLol items + 1 := by
+    have hsum : ptr.toNat +
+        (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)).toNat < 2 ^ 64 := by
+      rw [hcurOff]; exact hcurLt
+    rw [toNat_add_word_of_lt ptr _ hsum, hcurOff]
+    omega
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt]
+  rw [hendN, hcurN, hpay]
+  omega
+
+/-- `h_match` under same bounds as h_fits. -/
+theorem h_match_of_long_list
+    (txBase listLen : Word) (txBytes : List (BitVec 8)) (listOff : Nat)
+    (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hoff : listOff < txBytes.length)
+    (hbound : (encode.encodeItems items).length < 256 ^ 8)
+    (hlenNat : listLen.toNat = (txBytes.drop listOff).length)
+    (hptr : (txBase + BitVec.ofNat 64 listOff).toNat = txBase.toNat + listOff)
+    (hend : (txBase + BitVec.ofNat 64 listOff).toNat + listLen.toNat < 2 ^ 64) :
+    ((txBase + BitVec.ofNat 64 listOff) +
+        (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+          ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+      = (txBase + BitVec.ofNat 64 listOff) + listLen := by
+  have hpfx := long_list_pfx_at txBytes listOff items henc hlong hoff
+  have hlolEq : ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat =
+      longListLol items := by
+    rw [hpfx]; exact pfx_sub_F7_eq_lol items hlong hbound
+  have hpay : listLen.toNat = 1 + longListLol items + longListPayloadLen items := by
+    rw [hlenNat, henc, encode_list_long_length items hlong]
+  have h1 := longListLol_pos items hlong
+  have h8 := longListLol_le_8 items hbound
+  have hse := signExtend12_one
+  have hlolW : (txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word) =
+      BitVec.ofNat 64 (longListLol items) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [hlolEq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  have htake := long_list_tx_take_lol txBytes listOff items henc hlong
+  have hdecN : Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+      ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) =
+      longListPayloadLen items := by
+    rw [hlolEq, htake, longListPayloadLen, long_list_fromBytesBE_payload]
+  set ptr := txBase + BitVec.ofNat 64 listOff
+  apply BitVec.eq_of_toNat_eq
+  have hL : (ptr + listLen).toNat = ptr.toNat + listLen.toNat :=
+    toNat_add_word_of_lt ptr listLen hend
+  have hcurOff :
+      (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)).toNat =
+        longListLol items + 1 := by
+    rw [hlolW, hse]
+    exact lol_plus_one_toNat items hlong hbound _ rfl
+  have hcur :
+      (ptr + (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))).toNat =
+        ptr.toNat + longListLol items + 1 := by
+    have hsum : ptr.toNat +
+        (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12)).toNat < 2 ^ 64 := by
+      rw [hcurOff]
+      have := hend; rw [hpay] at this; omega
+    rw [toNat_add_word_of_lt ptr _ hsum, hcurOff]
+    omega
+  have hpayLt : longListPayloadLen items < 2 ^ 64 := by
+    simp only [longListPayloadLen]
+    have : (encode.encodeItems items).length < 256 ^ 8 := hbound
+    rw [pow256_8_eq_pow2_64] at this; exact this
+  have hdecW :
+      (BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+          ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))).toNat =
+        longListPayloadLen items := by
+    rw [hdecN, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hpayLt]
+  have hR :
+      ((ptr + (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12))) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+          ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))).toNat =
+        ptr.toNat + longListLol items + 1 + longListPayloadLen items := by
+    have hsum :
+        (ptr + (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))).toNat +
+          (BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+            ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))).toNat <
+          2 ^ 64 := by
+      rw [hcur, hdecW]
+      have := hend; rw [hpay] at this; omega
+    rw [toNat_add_word_of_lt _ _ hsum, hcur, hdecW]
+  rw [hR, hL, hpay]
+  omega
+
 #print axioms encode_list_long_length
 #print axioms decodeListItems_long_walkInit_guards
 #print axioms extractSuccess_long_walkInit_guards
+#print axioms h_llz_of_long_list
+#print axioms h_min_of_long_list
+#print axioms h_fits_of_long_list
+#print axioms h_match_of_long_list
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
