@@ -9,6 +9,7 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.Programs.TxExtractToAddressPrologue
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumed
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressCopyFromRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopyLongConcreteRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitLong
@@ -33,116 +34,6 @@ theorem nFrontCopyStepsLongRegion_le_nExtract (lol : Nat) (hlol : lol ≤ 8) :
   simp only [nFrontCopyStepsLongRegion, nExtractSteps, nTypeSteps]
   omega
   -- lol ≤ 8 ⇒ 7*lol+25 ≤ 81 (= short full walk_init budget)
-
-private theorem regIs_to_regOwn (r : Reg) (v : Word) :
-    ∀ h, (r ↦ᵣ v) h → regOwn r h :=
-  fun _ hx => ⟨v, hx⟩
-
-/-- Flat E2E copy post bare (matches FrontE2ECopyShortConcreteRegion). -/
-def copyE2EPostRegion (sp0 : Word) (s : ExtractSaved)
-    (txBase toBuf isCreationPtr contentPtr w2 : Word)
-    (txBytes : List (BitVec 8)) : Assertion :=
-  (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
-    stackFree sp0 nExtractStackDwords **
-    (.x10 ↦ᵣ (0 : Word)) **
-    bytesRegion txBase txBytes **
-    extractToBufOwn toBuf **
-    (isCreationPtr ↦ₘ (0 : Word)) **
-    (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
-    (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
-    (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
-    (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
-    (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
-    (Reg.x23 ↦ᵣ s.s7) **
-    (.x5 ↦ᵣ (extractWord32 w2
-        (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
-    (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
-    (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
-    (.x31 ↦ᵣ contentPtr) **
-    (.x0 ↦ᵣ (0 : Word)) **
-    regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
-    regOwn .x28 ** regOwn .x29 ** regOwn .x30
-
-private def copyKeepRegion (sp0 : Word) (s : ExtractSaved)
-    (txBase toBuf : Word) (txBytes : List (BitVec 8)) : Assertion :=
-  (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
-    stackFree sp0 nExtractStackDwords **
-    (.x10 ↦ᵣ (0 : Word)) **
-    bytesRegion txBase txBytes **
-    extractToBufOwn toBuf **
-    (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
-    (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
-    (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
-    (Reg.x23 ↦ᵣ s.s7) **
-    (.x0 ↦ᵣ (0 : Word)) **
-    regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
-    regOwn .x28 ** regOwn .x29 ** regOwn .x30
-
-private def copyConvIsRegion (isCreationPtr contentPtr w2 : Word)
-    (txBytes : List (BitVec 8)) : Assertion :=
-  (isCreationPtr ↦ₘ (0 : Word)) **
-    (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
-    (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
-    (.x5 ↦ᵣ (extractWord32 w2
-        (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
-    (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
-    (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
-    (.x31 ↦ᵣ contentPtr)
-
-private def copyConvOwnRegion (isCreationPtr : Word) : Assertion :=
-  memOwn isCreationPtr **
-    memOwn TeaTypeAddr **
-    memOwn TeaInnerAddr **
-    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-    regOwn .x11 ** regOwn .x12 ** regOwn .x31
-
-private theorem copyConvIs_to_own_region (isCreationPtr contentPtr w2 : Word)
-    (txBytes : List (BitVec 8)) :
-    ∀ (st : PartialState), copyConvIsRegion isCreationPtr contentPtr w2 txBytes st →
-      copyConvOwnRegion isCreationPtr st := by
-  intro st hp
-  simp only [copyConvIsRegion, copyConvOwnRegion] at hp ⊢
-  obtain ⟨a1, a2, ad, au, his, rest1⟩ := hp
-  obtain ⟨b1, b2, bd, bu, hteaT, rest2⟩ := rest1
-  obtain ⟨c1, c2, cd, cu, hteaI, rest3⟩ := rest2
-  obtain ⟨d1, d2, dd, du, hx5, rest4⟩ := rest3
-  obtain ⟨e1, e2, ed, eu, hx6, rest5⟩ := rest4
-  obtain ⟨f1, f2, fd, fu, hx7, rest6⟩ := rest5
-  obtain ⟨g1, g2, gd, gu, hx11, rest7⟩ := rest6
-  obtain ⟨h1, h2, hd, hu, hx12, hx31⟩ := rest7
-  exact ⟨a1, a2, ad, au, memIs_implies_memOwn _ his,
-    b1, b2, bd, bu, memIs_implies_memOwn _ hteaT,
-    c1, c2, cd, cu, memIs_implies_memOwn _ hteaI,
-    d1, d2, dd, du, regIs_to_regOwn .x5 _ _ hx5,
-    e1, e2, ed, eu, regIs_to_regOwn .x6 _ _ hx6,
-    f1, f2, fd, fu, regIs_to_regOwn .x7 _ _ hx7,
-    g1, g2, gd, gu, regIs_to_regOwn .x11 _ _ hx11,
-    h1, h2, hd, hu, regIs_to_regOwn .x12 _ _ hx12,
-    regIs_to_regOwn .x31 _ _ hx31⟩
-
-set_option maxRecDepth 8000 in
-/-- Copy E2E bare post → Assumed post (KEEP s0–s7; no contentDwords). -/
-theorem copyPost_to_assumed_region
-    (sp0 : Word) (s : ExtractSaved)
-    (txBase toBuf isCreationPtr contentPtr w2 : Word)
-    (txBytes : List (BitVec 8)) :
-    ∀ h, copyE2EPostRegion sp0 s txBase toBuf isCreationPtr contentPtr w2
-        txBytes h →
-      extractAssumedPost s.ra sp0 txBase toBuf isCreationPtr
-        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes h := by
-  intro h hp
-  simp only [copyE2EPostRegion] at hp
-  have hp1 : (copyKeepRegion sp0 s txBase toBuf txBytes **
-      copyConvIsRegion isCreationPtr contentPtr w2 txBytes) h := by
-    simp only [copyKeepRegion, copyConvIsRegion]
-    xperm_hyp hp
-  obtain ⟨hk, hc, hd, hu, hKeep, hConv⟩ := hp1
-  have hConv' := copyConvIs_to_own_region isCreationPtr contentPtr w2 txBytes hc hConv
-  have hJoined : (copyKeepRegion sp0 s txBase toBuf txBytes **
-      copyConvOwnRegion isCreationPtr) h :=
-    ⟨hk, hc, hd, hu, hKeep, hConv'⟩
-  simp only [copyKeepRegion, copyConvOwnRegion, extractAssumedPost, teaScratchOwn] at hJoined ⊢
-  xperm_hyp hJoined
 
 set_option maxRecDepth 8000 in
 theorem extractAssumed_copy_concrete_long_region
@@ -874,7 +765,6 @@ theorem extractAssumed_copy_fullCode_of_decode_long_concrete_region
       hvalidTx0 hoff hinover hinvalid hlistLen_ne h_ge h_ge_f8 hllen hlover hlvalid
       hwi_off1 h_fits h_llz h_min h_match hlol)
 
-#print axioms copyPost_to_assumed_region
 #print axioms extractAssumed_copy_of_front_long_concrete_region
 #print axioms extractAssumed_copy_fullCode_of_decode_long_concrete_region
 
