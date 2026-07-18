@@ -7,9 +7,12 @@ import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitOk
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitShort
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitShortAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopTypeBranch
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwned
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkInit
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNext
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbient
@@ -379,8 +382,85 @@ theorem extractWalkInitCall_short_toAfterSave_concrete_ambient
       shortWalkCursor, shortWalkEnd, listOff, listLen, inner] at hq ⊢
     xperm_hyp hq) hseq
 
+/-- Split-base AfterSave frame: x8=loadPtr, bytesRegion regionBase/bs. -/
+def afterSaveFrameTyAmbient (loadPtr regionBase lenW typeW innerW
+    cursor endPtr : Word) (bs : List (BitVec 8)) : Assertion :=
+  (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+    (TeaTypeAddr ↦ₘ typeW) ** (TeaInnerAddr ↦ₘ innerW) **
+    regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+    regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkWalkInit) **
+    bytesRegion regionBase bs **
+    (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) **
+    (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)
+
+/-- extractAfterSavePostAmbient → afterSaveFrameTyAmbient ** x20 ** regOwn x5 ** x0. -/
+theorem afterSave_to_midJoinCore_ambient
+    (loadPtr regionBase lenW typeW innerW cursor endPtr : Word)
+    (bs : List (BitVec 8)) :
+    ∀ h, extractAfterSavePostAmbient loadPtr regionBase lenW typeW innerW
+        cursor endPtr bs h →
+      (afterSaveFrameTyAmbient loadPtr regionBase lenW typeW innerW
+          cursor endPtr bs **
+        (.x20 ↦ᵣ typeW) ** regOwn .x5 ** (.x0 ↦ᵣ (0 : Word))) h := by
+  intro h hp
+  simp only [extractAfterSavePostAmbient, walkInitAmbient, walkInitRest,
+    afterSaveFrameTyAmbient] at hp ⊢
+  xperm_hyp hp
+
+/-- Concrete short AfterSave ambient → MidJoin pre (split bases). -/
+theorem frontAfterSavePostShortAmbient_to_midJoinPre
+    (spC : Word) (s : ExtractSaved)
+    (regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (bs : List (BitVec 8)) (off len : Nat) :
+    ∀ h, frontAfterSavePostShortAmbient spC s regionBase loadPtr lenW toBuf
+        isCreationPtr bs off len h →
+      (afterSaveFrameTyAmbient loadPtr regionBase lenW
+          (teerTxTypeDispatch (txSlice bs off len)).2.1
+          (teerTxTypeDispatch (txSlice bs off len)).2.2
+          (shortWalkCursor regionBase
+            (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+          (shortWalkEnd regionBase
+            (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
+            (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+          bs **
+        (.x20 ↦ᵣ (teerTxTypeDispatch (txSlice bs off len)).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s.s7) h := by
+  intro h hp
+  simp only [frontAfterSavePostShortAmbient] at hp
+  obtain ⟨h1, h2, hd, hu, hW, hAS⟩ := hp
+  have hM := walkFrame_to_midOwned spC s toBuf isCreationPtr h1 hW
+  have hC := afterSave_to_midJoinCore_ambient loadPtr regionBase lenW
+    (teerTxTypeDispatch (txSlice bs off len)).2.1
+    (teerTxTypeDispatch (txSlice bs off len)).2.2
+    (shortWalkCursor regionBase
+      (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+    (shortWalkEnd regionBase
+      (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
+      (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+    bs h2 hAS
+  have hnest :
+      ((afterSaveFrameTyAmbient loadPtr regionBase lenW
+          (teerTxTypeDispatch (txSlice bs off len)).2.1
+          (teerTxTypeDispatch (txSlice bs off len)).2.2
+          (shortWalkCursor regionBase
+            (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+          (shortWalkEnd regionBase
+            (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
+            (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
+          bs **
+        (.x20 ↦ᵣ (teerTxTypeDispatch (txSlice bs off len)).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word))) **
+      midOwned spC s toBuf isCreationPtr s.s7) h :=
+    ⟨h2, h1, hd.symm,
+      by rw [PartialState.union_comm_of_disjoint hd.symm, hu],
+      hC, hM⟩
+  xperm_hyp hnest
+
 #print axioms extractWalkInitBneSave_ambient
 #print axioms extractWalkInitCall_short_fromFrontTypeLoad_owned_ambient
 #print axioms extractWalkInitCall_short_toAfterSave_concrete_ambient
+#print axioms frontAfterSavePostShortAmbient_to_midJoinPre
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

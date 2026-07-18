@@ -302,21 +302,26 @@ structure A4gbrResiduals where
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient Option A progress classical-3:
       * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
-      * extract ambient body dual progress:
-        off0 lemma + path package; pure bridges `txSlice_getElem`/`loadPtr_add_rel_eq`/`ambientAbsOff`;
-        type_dispatch call ambient DONE (`extractTypeSuccessAmbient`);
-        load type/inner ambient DONE (`extractLoadTypeInnerAmbient`);
-        type+load compose ambient DONE (`extractTypeThenLoadAmbient` E+72→E+144);
-        walk_init short ambient DONE (`extractWalkInitCall_short_ambient` + guards bridge);
-        residual: walk_next abs srcOff chain + HaveField/copy region dual → fill
-        ExtractAssumedAmbient.success_flat general off
-      * TIS ambient callees + framed: extract/type/ets framed
-      * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
-      * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
-      * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-      Residual: dualize extract Top packaging (~offset-shift, not leaf rewrite)
-        to fill ExtractAssumedAmbient.success_flat general off;
-        package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
+       * extract ambient body dual progress:
+         off0 lemma + path package; pure bridges `txSlice_getElem`/`loadPtr_add_rel_eq`/`ambientAbsOff`;
+         type_dispatch call ambient DONE (`extractTypeSuccessAmbient`);
+         load type/inner ambient DONE (`extractLoadTypeInnerAmbient`);
+         type+load compose ambient DONE (`extractTypeThenLoadAmbient` E+72→E+144);
+         walk_init short ambient DONE (`extractWalkInitCall_short_ambient` + guards);
+         walk_next0 call ambient alias DONE; short fromTypeLoad ambient DONE;
+         Front short AfterSave ambient concrete DONE
+           (`extractWalkInitCall_short_toAfterSave_concrete_ambient`);
+         split-base AfterSave frame + midJoin bridge DONE
+           (`afterSaveFrameTyAmbient`, `frontAfterSavePostShortAmbient_to_midJoinPre`);
+         residual: MidChain/MidJoin walk_next dual (wn0Stable split loadPtr/regionBase)
+           + HaveField/copy → fill ExtractAssumedAmbient.success_flat general off
+       * TIS ambient callees + framed: extract/type/ets framed
+       * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
+       * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
+       * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
+       Residual: dualize MidChain/MidJoin (split x8=loadPtr vs bytesRegion regionBase)
+         to fill ExtractAssumedAmbient.success_flat general off;
+         package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
