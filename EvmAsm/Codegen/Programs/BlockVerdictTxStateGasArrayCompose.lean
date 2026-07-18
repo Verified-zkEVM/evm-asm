@@ -217,6 +217,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
@@ -337,14 +338,15 @@ structure A4gbrResiduals where
             Front E2E short copy region ambient DONE
               (`extractFrontCopy_then_epi_of_decode_short_concrete_region_ambient`);
             Assumed copy packaging ambient DONE
-              (`extractAssumed_copy_fullCode_of_decode_short_concrete_region_ambient`;
-               residual pureHvalid path Prop for ExtractAssumedAmbient copy arm)
+              (`extractAssumed_copy_fullCode_of_decode_short_concrete_region_ambient`);
+            Ambient copy PureHvalid + path Prop DONE classical-3
+              (`extractAssumed_success_flat_copy_type234_short_ambient`;
+               gate absOff_field5+1=8*q)
           * TIS ambient callees + framed: extract/type/ets framed
           * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
           * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
           * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-          Residual: Assumed copy pureHvalid ambient path Prop;
-            legacy/t1/long ambient arms;
+          Residual: legacy/t1/long ambient arms;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
 
@@ -473,6 +475,10 @@ def type_dispatch_ambient_discharged :=
 def extract_discharge_creation_type234_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
 
+/-- Multi-tx Option A: ambient ExtractAssumed short type234 copy path Prop. -/
+def extract_discharge_copy_type234_short_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short_ambient
+
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available
 #print axioms bgvOffsetAssumed_fullCode
@@ -481,5 +487,6 @@ def extract_discharge_creation_type234_short_ambient_available :=
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_creation_type234_short_off0
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short_ambient
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
