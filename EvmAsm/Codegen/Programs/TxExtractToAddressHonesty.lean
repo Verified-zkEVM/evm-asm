@@ -1786,4 +1786,105 @@ theorem extractSuccess_creation_type234_hnext_hcre_srcOff
 #print axioms extractSuccess_creation_type234_items_length
 #print axioms extractSuccess_creation_type234_hnext_hcre_srcOff
 
+/-- Item encode is non-empty (every RLP item has ≥1 header byte). -/
+theorem encode_item_length_pos (item : RLPItem) : 0 < (encode item).length :=
+  encode_nonempty item
+
+/-- Absolute offset of item `n` in a short list is in-bounds. -/
+theorem shortListSrcOff_lt_length
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length) :
+    shortListSrcOff listOff items n < bs.length := by
+  have hdrop := short_list_item_drop bs listOff items n henc hshort hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hne : encode (items[n]'hn) ≠ [] := List.ne_nil_of_length_pos hpos
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h hne
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      bs.drop (shortListSrcOff listOff items n) =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [shortListSrcOff, heq, List.cons_append] using hdrop
+  obtain ⟨hoff, _⟩ := getElem_of_drop_cons bs (shortListSrcOff listOff items n) b _ hdrop'
+  exact hoff
+
+/-- `txBase + srcOff < 2^64` from buffer span and in-bounds offset. -/
+theorem hover_of_buffer_span (txBase : Word) (srcOff len : Nat)
+    (hover : txBase.toNat + len < 2 ^ 64)
+    (hoff : srcOff < len) :
+    txBase.toNat + srcOff < 2 ^ 64 := by omega
+
+/-- Creation type234 short: hoff0..5 under `shortListSrcOff`. -/
+theorem extractSuccess_creation_type234_hoff_srcOff
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    shortListSrcOff listOff items 0 < txBytes.length ∧
+    shortListSrcOff listOff items 1 < txBytes.length ∧
+    shortListSrcOff listOff items 2 < txBytes.length ∧
+    shortListSrcOff listOff items 3 < txBytes.length ∧
+    shortListSrcOff listOff items 4 < txBytes.length ∧
+    shortListSrcOff listOff items 5 < txBytes.length := by
+  intro listOff
+  have hlen := extractSuccess_creation_type234_items_length txBytes h hcreFlag hge
+    items hdecL hshort
+  have henc := decodeListItems_eq_encode _ _ hdecL
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hn4 : (4 : Nat) < items.length := by omega
+  have hn5 : (5 : Nat) < items.length := by omega
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact shortListSrcOff_lt_length txBytes listOff items 0 henc hshort hn0
+  · exact shortListSrcOff_lt_length txBytes listOff items 1 henc hshort hn1
+  · exact shortListSrcOff_lt_length txBytes listOff items 2 henc hshort hn2
+  · exact shortListSrcOff_lt_length txBytes listOff items 3 henc hshort hn3
+  · exact shortListSrcOff_lt_length txBytes listOff items 4 henc hshort hn4
+  · exact shortListSrcOff_lt_length txBytes listOff items 5 henc hshort hn5
+
+/-- Creation type234 short: hover0..5 from buffer span + hoff. -/
+theorem extractSuccess_creation_type234_hover_srcOff
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    txBase.toNat + shortListSrcOff listOff items 0 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 1 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 2 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 3 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 4 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 5 < 2 ^ 64 := by
+  intro listOff
+  have hoffs := extractSuccess_creation_type234_hoff_srcOff txBytes h hcreFlag hge
+    items hdecL hshort
+  obtain ⟨h0, h1, h2, h3, h4, h5⟩ := hoffs
+  exact ⟨hover_of_buffer_span txBase _ _ hover h0,
+    hover_of_buffer_span txBase _ _ hover h1,
+    hover_of_buffer_span txBase _ _ hover h2,
+    hover_of_buffer_span txBase _ _ hover h3,
+    hover_of_buffer_span txBase _ _ hover h4,
+    hover_of_buffer_span txBase _ _ hover h5⟩
+
+#print axioms encode_item_length_pos
+#print axioms shortListSrcOff_lt_length
+#print axioms extractSuccess_creation_type234_hoff_srcOff
+#print axioms extractSuccess_creation_type234_hover_srcOff
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
