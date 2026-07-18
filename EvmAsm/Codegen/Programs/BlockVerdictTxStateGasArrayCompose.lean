@@ -61,8 +61,10 @@
            **AfterSave→20B copy→ret DONE**
            (`extractType234AfterSaveCopy_then_epi`; contentDwords +
            hlen20/hnext_content residual).
+           **front→WalkInitJalPc DONE** (`extractFrontThenTypeLoad`;
+           model pure extractSuccess_outcome/creation/copy).
            Residual: extractSuccess drop-fail pure (discharge hok/hnext/hcre/
-           hlen20/hnext_content); front→AfterSave; extractAssumed;
+           hlen20/hnext_content); walk_init OK→AfterSave; extractAssumed;
            fullCode∪extract (use extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 

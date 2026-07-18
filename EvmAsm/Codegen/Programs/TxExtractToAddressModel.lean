@@ -72,4 +72,89 @@ theorem extractSuccess_type_ok
     rw [hfail] at h
     exact absurd h (by decide)
 
+/-- Success outcome: status 0 with creation (empty to) or 20-byte to. -/
+theorem extractSuccess_outcome
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    (teerTxTypeDispatch txBytes).1 = (0 : Word) ∧
+      ∃ content isCre,
+        teerExtractToAddress txBytes = ((0 : Word), content, isCre) ∧
+        ((content = [] ∧ isCre = (1 : Word)) ∨
+          (content.length = 20 ∧ isCre = (0 : Word))) := by
+  have hty := extractSuccess_type_ok txBytes h
+  refine ⟨hty, ?_⟩
+  revert h
+  unfold extractSuccess teerExtractToAddress
+  intro h
+  simp only [hty, ne_eq, not_true_eq_false, ↓reduceIte] at h ⊢
+  cases hdec : decodeListItems
+      (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) with
+  | none =>
+    simp only [hdec] at h
+    exact absurd h (by decide)
+  | some items =>
+    simp only [hdec] at h ⊢
+    cases hitem : items[toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat]? with
+    | none =>
+      simp only [hitem] at h
+      exact absurd h (by decide)
+    | some item =>
+      cases item with
+      | list _ =>
+        simp only [hitem] at h
+        exact absurd h (by decide)
+      | bytes content =>
+        simp only [hitem] at h ⊢
+        by_cases h0 : content.length = 0
+        · have hcre : content = [] := List.eq_nil_of_length_eq_zero h0
+          subst hcre
+          simp only [List.length_nil, ↓reduceIte] at h ⊢
+          exact ⟨[], (1 : Word), rfl, Or.inl ⟨rfl, rfl⟩⟩
+        · by_cases h20 : content.length = 20
+          · rw [if_neg h0, if_pos h20] at h ⊢
+            exact ⟨content, (0 : Word), rfl, Or.inr ⟨h20, rfl⟩⟩
+          · rw [if_neg h0, if_neg h20] at h
+            -- h : False (status 2 ≠ success 0)
+            exact False.elim ((by decide : ¬((2 : Word) = 0)) h)
+
+/-- Success + empty to-bytes ⇒ creation flag. -/
+theorem extractSuccess_creation
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hempty : (teerExtractToAddress txBytes).2.1 = []) :
+    (teerExtractToAddress txBytes).2.2 = (1 : Word) := by
+  obtain ⟨_, content, isCre, heq, hcases⟩ := extractSuccess_outcome txBytes h
+  have hc : (teerExtractToAddress txBytes).2.1 = content := by
+    rw [heq]
+  have hi : (teerExtractToAddress txBytes).2.2 = isCre := by
+    rw [heq]
+  rw [hi]
+  rw [hc] at hempty
+  cases hcases with
+  | inl hcre => exact hcre.2
+  | inr hcopy =>
+    have : content.length = 0 := by simp [hempty]
+    omega
+
+/-- Success + 20-byte to ⇒ non-creation. -/
+theorem extractSuccess_copy
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hlen : (teerExtractToAddress txBytes).2.1.length = 20) :
+    (teerExtractToAddress txBytes).2.2 = (0 : Word) := by
+  obtain ⟨_, content, isCre, heq, hcases⟩ := extractSuccess_outcome txBytes h
+  have hc : (teerExtractToAddress txBytes).2.1 = content := by
+    rw [heq]
+  have hi : (teerExtractToAddress txBytes).2.2 = isCre := by
+    rw [heq]
+  rw [hi]
+  rw [hc] at hlen
+  cases hcases with
+  | inl hcre =>
+    have : content.length = 0 := by simp [hcre.1]
+    omega
+  | inr hcopy => exact hcopy.2
+
+#print axioms extractSuccess_type_ok
+#print axioms extractSuccess_outcome
+#print axioms extractSuccess_creation
+#print axioms extractSuccess_copy
+
 end EvmAsm.Codegen.TxExtractToAddressModel
