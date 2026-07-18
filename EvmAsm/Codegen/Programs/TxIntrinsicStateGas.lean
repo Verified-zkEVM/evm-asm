@@ -1262,6 +1262,7 @@ theorem blockVerdictEip7702AuthNonstorageEffectsArrayFunction_eq_prog :
     blockVerdictEip7702AuthNonstorageEffectsArrayFunction = "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++ emitProgramR blockVerdictEip7702AuthNonstorageEffectsArray_prog blockVerdictEip7702AuthNonstorageEffectsArray_relocs := rfl
 
 #guard blockVerdictEip7702AuthNonstorageEffectsArrayFunction.startsWith "block_verdict_eip7702_auth_nonstorage_effects_array:\n"
+#guard blockVerdictEip7702AuthNonstorageEffectsArray_prog.length = 66
 /-- `zisk_block_verdict_tx_state_gas_array`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : tx-section byte length
