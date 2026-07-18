@@ -268,8 +268,10 @@ def schemeAAnchors : List GuestRegion :=
     `0x5d078` for the nested-CREATE final-nonce retention fix
     (`fix/create-final-nonce`, #10453). Grew to `0x5d120` for the callable
     per-transaction auxiliary-journal resets, which prevent stale execution
-    evidence from crossing a transaction boundary. -/
-def textSizeBytes : Nat := 0x5d120
+    evidence from crossing a transaction boundary. Grew to `0x5d188`
+    for the value-CALL net-nonce-preservation fix
+    (`fix/call-effect-net-nonce`, #10455). -/
+def textSizeBytes : Nat := 0x5d188
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

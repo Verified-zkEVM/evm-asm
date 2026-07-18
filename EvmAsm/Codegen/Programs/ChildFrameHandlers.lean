@@ -448,6 +448,13 @@ def callDescendFallThrough
       "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
       "  la t0, nse_acct\n  sd zero, 0(t0)\n" ++            -- not found / error -> nonce 0
       ".Lcd_deb_have_nonce_" ++ tag ++ ":\n" ++
+      -- A value CALL leaves its caller nonce unchanged, but its append can follow
+      -- a same-transaction CREATE by that caller. Preserve that running nonce
+      -- instead of overwriting it with the header snapshot.
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  la a0, cd_caller_be\n  la a1, nse_acct\n" ++
+      "  jal ra, nonstorage_effect_latest_nonce\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
       "  jal ra, u256_add_be\n" ++
@@ -530,6 +537,13 @@ def callDescendFallThrough
     "  beqz t1, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0)\n" ++
     ".Lcd_nse_prior_alive_done_" ++ tag ++ ":\n" ++
+    -- A value transfer does not change a nonce, but its row is appended after
+    -- same-transaction effects. Keep the latest recorded nonce so it cannot
+    -- overwrite a created account's EIP-161 nonce=1 with header nonce=0.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n" ++
+    "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
