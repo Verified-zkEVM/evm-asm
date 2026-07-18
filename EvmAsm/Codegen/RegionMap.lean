@@ -270,9 +270,15 @@ def schemeAAnchors : List GuestRegion :=
     per-transaction auxiliary-journal resets, which prevent stale execution
     evidence from crossing a transaction boundary. Grew to `0x5d188`
     for the value-CALL net-nonce-preservation fix
-    (`fix/call-effect-net-nonce`, #10455), then to `0x5d1d0` for the
-    live-origin-balance selfdestruct fix. -/
-def textSizeBytes : Nat := 0x5d1d0
+    (`fix/call-effect-net-nonce`, #10455). Grew to `0x5d1bc` for the
+    EIP-7702 authorization net-nonce threading fix
+    (`fix/auth-net-nonce`, #10456), which also split the auth-effect
+    emitter out into `TxIntrinsicAuthEffects.lean` to clear the
+    1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
+    live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
+    #10457), mirroring the earlier beneficiary-balance overlay to fix
+    a phantom second-selfdestruct credit. -/
+def textSizeBytes : Nat := 0x5d204
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
