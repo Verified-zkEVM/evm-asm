@@ -50,8 +50,6 @@ theorem extractLegacyHaveFieldCopy_then_epi_region_ambient
     (htover : toBuf.toNat + 16 < 2 ^ 64)
     (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
     let contentPtr := regionBase + BitVec.ofNat 64 (8 * q)
-    let w0 := (contentWordsAt bs q).1
-    let w1 := (contentWordsAt bs q).2.1
     let w2 := (contentWordsAt bs q).2.2
     cpsTripleWithin
       ((1 + 1) +
@@ -79,8 +77,7 @@ theorem extractLegacyHaveFieldCopy_then_epi_region_ambient
         (.x0 ↦ᵣ (0 : Word)) **
         regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
-  intro contentPtr w0 w1 w2
-  have _ := w0; have _ := w1
+  intro contentPtr w2
   let cursor := regionBase + BitVec.ofNat 64 absOff3
   have hsub : next - (20 : Word) = contentPtr := by
     rw [hnext]; exact BitVec.add_sub_cancel contentPtr (20 : Word)
@@ -178,9 +175,9 @@ theorem extractLegacyHaveFieldCopy_then_epi_region_ambient
             · exact pcFree_regOwn
             · exact pcFree_regOwn) h
       exact cpsTripleWithin_weaken (fun _ hp => by
-        dsimp only [Pcore, contentPtr, w0, w1, w2] at hp ⊢
+        dsimp only [Pcore, contentPtr, w2] at hp ⊢
         xperm_hyp hp) (fun _ hq => by
-        dsimp only [contentPtr, w0, w1, w2] at hq ⊢
+        dsimp only [contentPtr, w2] at hq ⊢
         xperm_hyp hq) hF
     exact cpsTripleWithin_weaken (fun _ hp => by
       dsimp only [Pcore, midOwned, joinStackAmbient, haveFieldCopyAmbientNoBytes,
