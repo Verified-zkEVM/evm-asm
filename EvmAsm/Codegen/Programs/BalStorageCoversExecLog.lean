@@ -299,7 +299,9 @@ def balStorageCoversExecLogData : String :=
     slot 9 -> 0x33. The exec log is varied per scenario (addrHash A=0xAA):
       (1) S7 (0x11 then 0x22), S9 0x33, SB read no-op -> all net changes claimed -> 0
       (2) + S5 net change 0x44 not in the BAL                            -> 1 (omission)
-      (3) S7 last current 0x99 (BAL claims 0x22)                         -> 1 (mismatch) -/
+      (3) S7 last current 0x99 (BAL claims 0x22)                         -> 1 (mismatch)
+      (4) stale same-tx-destroyed marker for A skips the omitted S5      -> 0
+      (5) clearing that marker makes the same omitted S5 demand BAL      -> 1 -/
 def ziskBalStorageCoversExecLogPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -363,6 +365,20 @@ def ziskBalStorageCoversExecLogPrologue : String :=
   "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 4\n" ++
   "  jal ra, bal_storage_covers_exec_log\n" ++
   "  sd a0, 16(s0)\n" ++
+  -- A stale marker from an earlier transaction makes the omitted S5 appear
+  -- ephemeral. The table holds a BE-20 address: addrHash A's low byte is at
+  -- byte 19, so it is 0xAA at that final table byte.
+  "  la t0, evm_selfdestruct_destroyed_table; li t1, 0xAA; sb t1, 19(t0)\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 5\n" ++
+  "  jal ra, bal_storage_covers_exec_log\n" ++
+  "  sd a0, 24(s0)\n" ++
+  -- The callable per-transaction reset clears the marker.  With exactly the
+  -- same omitted write, coverage must now demand a BAL storage change.
+  "  la t0, evm_selfdestruct_destroyed_count; sd zero, 0(t0)\n" ++
+  "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 5\n" ++
+  "  jal ra, bal_storage_covers_exec_log\n" ++
+  "  sd a0, 32(s0)\n" ++
   "  j .Lbsce_probe_done\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++

@@ -266,8 +266,10 @@ def schemeAAnchors : List GuestRegion :=
     demotes raw storage writes only when the account is recorded in
     the transaction-scoped EIP-6780 same-tx deletion table). Grew to
     `0x5d078` for the nested-CREATE final-nonce retention fix
-    (`fix/create-final-nonce`, #10453). -/
-def textSizeBytes : Nat := 0x5d078
+    (`fix/create-final-nonce`, #10453). Grew to `0x5d120` for the callable
+    per-transaction auxiliary-journal resets, which prevent stale execution
+    evidence from crossing a transaction boundary. -/
+def textSizeBytes : Nat := 0x5d120
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

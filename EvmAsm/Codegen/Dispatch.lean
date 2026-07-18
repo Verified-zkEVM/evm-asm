@@ -2831,6 +2831,25 @@ def emitRuntimeDispatcherSetup : String :=
      "  li x21, 0x40000010\n")     -- M15: preserved code base (mirrors x10 init)
 
 def emitRuntimeDispatcherCallableSetup : String :=
+  -- The callable dispatcher executes one transaction in the stateless guest.
+  -- Reset every auxiliary transaction journal before its dispatch.  The
+  -- standalone prologue does the same; retaining any of these across callable
+  -- invocations lets a preceding transaction alter the next transaction's
+  -- execution evidence.
+  "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
     ("  la x5, runtime_dispatcher_input_ptr\n" ++
      "  ld x6, 0(x5)\n" ++
