@@ -163,4 +163,115 @@ theorem extractWalkNext2Call_ambient
 
 #print axioms extractWalkNext2Call_ambient
 
+
+/-- Ambient walk_next3 call: regionBase + absOff into full blob. -/
+theorem extractWalkNext3Call_ambient
+    (regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) (old1 : Word)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hoff : absOff < bs.length)
+    (hover : regionBase.toNat + absOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 absOff) = true)
+    (hss : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        absOff + 1 < bs.length ∧ regionBase.toNat + (absOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext3JalPc LinkWalkNext3 extractLinkedCode
+      ((.x1 ↦ᵣ old1) **
+        extractWalkNextPrest (regionBase + BitVec.ofNat 64 absOff) endPtr
+          a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old regionBase bs)
+      (extractWalkNext3Post regionBase endPtr bs absOff) :=
+  extractWalkNext3Call regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old
+    t5Old t6Old bs absOff old1 hsalign hoff hover hvalid hss hls hll
+
+#print axioms extractWalkNext3Call_ambient
+
+/-- Ambient walk_next4 call: regionBase + absOff into full blob. -/
+theorem extractWalkNext4Call_ambient
+    (regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) (old1 : Word)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hoff : absOff < bs.length)
+    (hover : regionBase.toNat + absOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 absOff) = true)
+    (hss : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        absOff + 1 < bs.length ∧ regionBase.toNat + (absOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext4JalPc LinkWalkNext4 extractLinkedCode
+      ((.x1 ↦ᵣ old1) **
+        extractWalkNextPrest (regionBase + BitVec.ofNat 64 absOff) endPtr
+          a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old regionBase bs)
+      (extractWalkNext4Post regionBase endPtr bs absOff) :=
+  extractWalkNext4Call regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old
+    t5Old t6Old bs absOff old1 hsalign hoff hover hvalid hss hls hll
+
+#print axioms extractWalkNext4Call_ambient
+
+/-- Ambient walk_next5 call: regionBase + absOff into full blob. -/
+theorem extractWalkNext5Call_ambient
+    (regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) (old1 : Word)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hoff : absOff < bs.length)
+    (hover : regionBase.toNat + absOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 absOff) = true)
+    (hss : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        absOff + 1 < bs.length ∧ regionBase.toNat + (absOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[absOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        absOff + 1 + ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (absOff + 1 +
+          ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[absOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (absOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext5JalPc LinkWalkNext5 extractLinkedCode
+      ((.x1 ↦ᵣ old1) **
+        extractWalkNextPrest (regionBase + BitVec.ofNat 64 absOff) endPtr
+          a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old regionBase bs)
+      (extractWalkNext5Post regionBase endPtr bs absOff) :=
+  extractWalkNext5Call regionBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old
+    t5Old t6Old bs absOff old1 hsalign hoff hover hvalid hss hls hll
+
+#print axioms extractWalkNext5Call_ambient
 end EvmAsm.Codegen.TxExtractToAddressSpec
