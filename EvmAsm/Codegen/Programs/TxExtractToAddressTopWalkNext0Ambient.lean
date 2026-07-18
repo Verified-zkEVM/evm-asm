@@ -179,4 +179,97 @@ theorem extractWalkNext0Call_type234_outcome_ambient
 
 #print axioms extractWalkNext0Call_type234_outcome_ambient
 
+set_option maxRecDepth 8000 in
+theorem extractWalkNext0BneOk_framed_ambient
+    (loadPtr regionBase lenW typeW innerW endPtr next len : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) :
+    cpsTripleWithin 1 LinkWalkNext0 AfterWalkNext0Bne extractLinkedCode
+      (wn0StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        wn0CommonAmbient regionBase bs **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len))
+      (wn0StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        wn0CommonAmbient regionBase bs **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)) := by
+  have h0 := extractWalkNext0BneOk
+  have hF := cpsTripleWithin_frameR
+    (wn0StableAmbient loadPtr lenW typeW innerW endPtr
+        (regionBase + BitVec.ofNat 64 absOff) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkWalkNext0) **
+        bytesRegion regionBase bs **
+        (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))
+    (by pcf) h0
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn0StableAmbient, wn0CommonAmbient] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    simp only [wn0StableAmbient, wn0CommonAmbient] at hq ⊢
+    xperm_hyp hq) hF
+
+def wn0OkRegsAmbient (loadPtr regionBase lenW typeW innerW endPtr next len : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) : Assertion :=
+  wn0StableAmbient loadPtr lenW typeW innerW endPtr
+      (regionBase + BitVec.ofNat 64 absOff) **
+    wn0CommonAmbient regionBase bs **
+    (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+
+def wn0OkConcreteAmbient (loadPtr regionBase lenW typeW innerW endPtr next len : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) : Assertion :=
+  wn0OkRegsAmbient loadPtr regionBase lenW typeW innerW endPtr next len bs absOff **
+    ⌜rlpItemDecode bs absOff (regionBase + BitVec.ofNat 64 absOff)
+      endPtr next len⌝
+
+set_option maxRecDepth 8000 in
+theorem extractWalkNext0OkNested_bne_ambient
+    (loadPtr regionBase lenW typeW innerW endPtr : Word)
+    (bs : List (BitVec 8)) (absOff : Nat) :
+    cpsTripleWithin 1 LinkWalkNext0 AfterWalkNext0Bne extractLinkedCode
+      (wn0StableAmbient loadPtr lenW typeW innerW endPtr
+          (regionBase + BitVec.ofNat 64 absOff) **
+        wn0CommonAmbient regionBase bs **
+        rlpWalkNextOk (regionBase + BitVec.ofNat 64 absOff) endPtr bs absOff)
+      (fun h => ∃ next len : Word,
+        wn0OkConcreteAmbient loadPtr regionBase lenW typeW innerW endPtr next len
+          bs absOff h) := by
+  let cursor := regionBase + BitVec.ofNat 64 absOff
+  refine cpsTripleWithin_weaken
+    (P := fun h => ∃ next len : Word,
+      (wn0StableAmbient loadPtr lenW typeW innerW endPtr cursor **
+        wn0CommonAmbient regionBase bs **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+          ⌜rlpItemDecode bs absOff cursor endPtr next len⌝)) h)
+    (fun h hp => by
+      obtain ⟨h1, h2, hd, hu, hSt, hCR⟩ := hp
+      obtain ⟨hC, hR, hdc, huc, hCom, hOk⟩ := hCR
+      obtain ⟨next, len, hw⟩ := hOk
+      exact ⟨next, len, h1, h2, hd, hu, hSt, hC, hR, hdc, huc, hCom, hw⟩)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_exists_pre_gen (fun next => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun len => ?_)
+  refine cpsTripleWithin_weaken
+    (P := ⌜rlpItemDecode bs absOff cursor endPtr next len⌝ **
+      (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (wn0StableAmbient loadPtr lenW typeW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkWalkNext0) **
+          bytesRegion regionBase bs **
+          (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))))
+    (fun h hp => by
+      simp only [wn0CommonAmbient] at hp
+      xperm_hyp hp)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hdec => ?_)
+  have h0 := extractWalkNext0BneOk_framed_ambient loadPtr regionBase
+    lenW typeW innerW endPtr next len bs absOff
+  refine cpsTripleWithin_weaken (fun h hp => by
+    simp only [wn0CommonAmbient] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    refine ⟨next, len, ?_⟩
+    simp only [wn0OkConcreteAmbient, wn0OkRegsAmbient]
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
+
+#print axioms extractWalkNext0BneOk_framed_ambient
+#print axioms extractWalkNext0OkNested_bne_ambient
+
 end EvmAsm.Codegen.TxExtractToAddressSpec

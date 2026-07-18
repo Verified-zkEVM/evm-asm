@@ -315,7 +315,9 @@ structure A4gbrResiduals where
            (`afterSaveFrameTyAmbient`, `frontAfterSavePostShortAmbient_to_midJoinPre`);
          type234 AfterSave→WalkNext0 ambient DONE (`extractType234ToWalkNext0_ambient`);
          wn0 call outcome ambient DONE (`extractWalkNext0Call_type234_outcome_ambient`);
-         residual: wn0 BNE/OkNested + wn1..5 MidSeq dual + MidJoin creation/copy ambient
+         wn0 BNE/OkNested ambient DONE; ToWn0Ok of_decode ambient DONE
+           (`extractType234ToWn0Ok_owned_of_decode_ambient`);
+         residual: wn1..5 MidSeq dual + MidJoin creation/copy ambient
            + HaveField → fill ExtractAssumedAmbient.success_flat general off
        * TIS ambient callees + framed: extract/type/ets framed
        * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
