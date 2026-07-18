@@ -80,9 +80,12 @@
             **extractAssumed_creation_temps DONE** (of_forall6 peels x5/x6/x7/x14–16;
             mono nFrontCreation→nExtract; Assumed pre/post under extractLinkedCode
             given hE2E for all old temps).
-            Residual: wire hE2E from extractFrontCreation_then_epi (honesty
-            residuals hdrop/hok/hnext/hcre/hlen20 under extractSuccess pure);
-            extractAssumed_fullCode via extractLinked_mono.
+            **extractAssumed_creation_under_honesty / _fullCode DONE** (wire
+            FrontCreation E2E → Assumed shape under extractLinkedCode/fullCode;
+            still takes honesty residuals hdrop/hok*/hnext*/hcre + walk statics).
+            Residual: pure discharge of honesty residuals from `extractSuccess`
+            (EL decode ↔ walk machine) to fill `ExtractAssumed.success_flat`;
+            copy-path Assumed packaging; legacy/t1 front E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
