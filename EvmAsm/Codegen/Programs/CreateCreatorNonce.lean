@@ -24,8 +24,8 @@
   The table is reset per transaction (count := 0) by the dispatcher setup; the tail
   integration (replace the pre-state nonce with create_creator_nonce_use's result) +
   the per-tx reset land in .8b-3b. On table overflow the creator's nonce falls back to
-  pre_nonce (no store) and sets create_nonce_table_overflow so the consumer can stay
-  conservative. Entries are 40 bytes: addr (20B BE in the low/first 20, padded to 32)
+  pre_nonce (no store) and sets create_nonce_table_overflow so block_verdict rejects.
+  Entries are 40 bytes: addr (20B BE in the low/first 20, padded to 32)
   + next nonce (u64).
 -/
 
