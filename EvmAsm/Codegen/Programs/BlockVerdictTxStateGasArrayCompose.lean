@@ -359,7 +359,9 @@ structure A4gbrResiduals where
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
           * legacy PureHvalid ambient path Prop DONE
               (`extractAssumed_success_flat_creation_legacy_short_ambient`)
-          Residual: legacy copy ambient; t1/long ambient arms;
+          * legacy Front E2E short copy ambient + Assumed packaging DONE
+              (`extractAssumed_copy_fullCode_of_decode_short_concrete_legacy_region_ambient`)
+          Residual: legacy copy PureHvalid ambient path Prop;
             t1/long ambient arms;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
