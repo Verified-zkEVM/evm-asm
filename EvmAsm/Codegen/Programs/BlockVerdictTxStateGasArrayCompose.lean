@@ -74,8 +74,10 @@
            `nFrontCreation_le_nExtract` / `nFrontCopy_le_nExtract`.
            **callee-saved s0–s7 pin DONE** (`ExtractAssumed` + `IntrinsicAssumed`
            pin x8,x9,x18–x23; array x23=endW concrete; loopIntrinsicFrame drops x23).
-           Residual: extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
-           of_forall Assumed pre peels + post memIs→memOwn (KEEP s-regs);
+           **creationPost_to_assumed DONE** (KEEP s-regs; memIs→memOwn isCre/tea;
+           regIs→regOwn temps; classical-3).
+           Residual: of_forall Assumed pre peels (stackFree10_eq_frameSlotsOwn +
+           prologueAbiRest); extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
            extractAssumed_fullCode; fullCode∪extract;
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
