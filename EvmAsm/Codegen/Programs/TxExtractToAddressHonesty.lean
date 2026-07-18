@@ -231,6 +231,79 @@ theorem listLen_word_eq_drop
     exact (BitVec.le_def).mpr (by omega)
   rw [BitVec.toNat_sub_of_le hle, hlenW, List.length_drop]
 
+/-- Nat equality of `(pfx−0xc0)+1` lifts to Word equality with `listLen`. -/
+theorem short_pfx_add1_eq_listLen
+    (listLen : Word) (pfx : BitVec 8)
+    (hNat : ((pfx.zeroExtend 64 - (0xc0 : Word)) +
+        signExtend12 (1 : BitVec 12)).toNat = listLen.toNat) :
+    (pfx.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12) = listLen := by
+  apply BitVec.eq_of_toNat_eq
+  exact hNat
+
+/-- `h_exact` form for `rlp_walk_init_short_spec_within`. -/
+theorem short_walkInit_h_exact
+    (listBase listLen : Word) (listOff : Nat) (pfx : BitVec 8)
+    (heq : (pfx.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12) = listLen) :
+    (listBase + BitVec.ofNat 64 listOff) +
+        ((pfx.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 listOff) + listLen := by
+  rw [heq]
+
+/-- Success + short-list ⇒ walk_init short-success pure (Word-level).
+    Residual long-list (≥56 payload) still open. -/
+theorem extractSuccess_short_walkInit_guards
+    (txBytes : List (BitVec 8)) (lenW : Word)
+    (h : extractSuccess txBytes)
+    (hlenW : lenW.toNat = txBytes.length)
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let innerW := (teerTxTypeDispatch txBytes).2.2
+    let listOff := innerW.toNat
+    let listLen := lenW - innerW
+    listOff < txBytes.length ∧
+      listLen ≠ (0 : Word) ∧
+      (∃ hoff : listOff < txBytes.length,
+        ¬ BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+        BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+        ((txBytes[listOff]'hoff).zeroExtend 64 - (0xc0 : Word) +
+          signExtend12 (1 : BitVec 12) = listLen)) := by
+  let innerW := (teerTxTypeDispatch txBytes).2.2
+  let listOff := innerW.toNat
+  let listLen := lenW - innerW
+  let bs := txBytes.drop listOff
+  have hinner : listOff < txBytes.length := extractSuccess_inner_lt txBytes h
+  have hlenDrop : listLen.toNat = bs.length :=
+    listLen_word_eq_drop txBytes lenW innerW hinner hlenW
+  have hoff0 : 0 < bs.length := by
+    have hne := decodeListItems_some_ne_nil hdec
+    exact List.length_pos_of_ne_nil hne
+  have hguards := decodeListItems_short_walkInit_guards bs items hdec hshort hoff0
+  have hbs0 : bs[0]'hoff0 = txBytes[listOff]'hinner := by
+    simp only [bs]
+    have heq := List.getElem_drop (xs := txBytes) (i := listOff) (j := 0) (h := hoff0)
+    simp [Nat.add_zero] at heq
+    exact heq
+  refine ⟨hinner, ?_, ⟨hinner, ?_, ?_, ?_⟩⟩
+  · intro hz
+    have hzN : listLen.toNat = 0 := by
+      change (lenW - innerW).toNat = 0
+      rw [hz]
+      exact BitVec.toNat_zero
+    have : bs.length ≠ 0 := Nat.ne_of_gt hoff0
+    exact this (by rw [← hlenDrop, hzN])
+  · have hg := hguards.2.1
+    simpa only [hbs0] using hg
+  · have hg := hguards.2.2.1
+    simpa only [hbs0] using hg
+  · have hNat := hguards.2.2.2
+    have hNat' :
+        (((txBytes[listOff]'hinner).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)).toNat = listLen.toNat := by
+      simpa only [hbs0, hlenDrop] using hNat
+    exact short_pfx_add1_eq_listLen listLen (txBytes[listOff]'hinner) hNat'
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
@@ -238,5 +311,6 @@ theorem listLen_word_eq_drop
 #print axioms decodeListItems_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
 #print axioms listLen_word_eq_drop
+#print axioms extractSuccess_short_walkInit_guards
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty

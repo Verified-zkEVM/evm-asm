@@ -88,10 +88,13 @@
             `copy_to_len20`; `rlpItemDecode_empty_short` / `_addr20_short` +
             `rlpWalkNextOk_empty_short`; `decodeListItems_eq_encode` +
             `decodeListItems_short_walkInit_guards` + `extractSuccess_inner_eq_encode`
-            for short-list walk_init pure guards).
-            Residual: machine bridge (EL decode ↔ rlp_walk_init/next OK arms;
-            long-list still open) to discharge hdrop/hok*/hnext* and fill
-            `ExtractAssumed.success_flat`; copy-path Assumed packaging; legacy/t1 front E2E.
+            for short-list walk_init pure guards;
+            `extractSuccess_short_walkInit_guards` Word-level short success pure
+            under extractSuccess + hshort ≤55).
+            Residual: machine bridge (wire short guards into walk_init call /
+            replace universal walkInitOkFail_drop; hok*/hnext*; long-list open)
+            to fill `ExtractAssumed.success_flat`; copy-path Assumed packaging;
+            legacy/t1 front E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
