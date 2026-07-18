@@ -5974,4 +5974,418 @@ theorem extractSuccess_creation_type234_hnext_hcre_srcOff_long
 #print axioms packaging_hnext_longListSrcOff
 #print axioms extractSuccess_creation_type234_hnext_hcre_srcOff_long
 
+/-- Absolute offset of item `n` in a long list is in-bounds. -/
+theorem longListSrcOff_lt_length
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length) :
+    longListSrcOff listOff items n < bs.length := by
+  have hdrop := long_list_item_drop bs listOff items n henc hlong hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hne : encode (items[n]'hn) ≠ [] := List.ne_nil_of_length_pos hpos
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h hne
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      bs.drop (longListSrcOff listOff items n) =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [longListSrcOff, heq, List.cons_append] using hdrop
+  obtain ⟨hoff, _⟩ := getElem_of_drop_cons bs (longListSrcOff listOff items n) b _ hdrop'
+  exact hoff
+
+/-- Long-list end pointer: payload end after 1-byte long-list header + lol length bytes. -/
+def longListEndPtr (txBase : Word) (listOff : Nat) (items : List RLPItem) : Word :=
+  txBase + BitVec.ofNat 64
+    (listOff + 1 + longListLol items + (encode.encodeItems items).length)
+
+/-- `hinb` at long-list end. -/
+theorem hinb_long_list_end
+    (txBase : Word) (listOff : Nat) (items : List RLPItem) (k : Nat)
+    (hn : k < items.length)
+    (hover : txBase.toNat +
+      (listOff + 1 + longListLol items + (encode.encodeItems items).length) < 2 ^ 64)
+    (endPtr : Word)
+    (hend : endPtr = longListEndPtr txBase listOff items) :
+    BitVec.ult (txBase + BitVec.ofNat 64 (longListSrcOff listOff items k)) endPtr = true := by
+  have hlt := encodeItemsPrefixLen_lt_total items k hn
+  have hsrc : longListSrcOff listOff items k =
+      listOff + 1 + longListLol items + encodeItemsPrefixLen items k := rfl
+  have hendN : endPtr.toNat =
+      txBase.toNat +
+        (listOff + 1 + longListLol items + (encode.encodeItems items).length) := by
+    rw [hend, longListEndPtr, toNat_add_ofNat_lt txBase _ hover]
+  have hcurN :
+      (txBase + BitVec.ofNat 64 (longListSrcOff listOff items k)).toNat =
+        txBase.toNat + longListSrcOff listOff items k := by
+    have hover' : txBase.toNat + longListSrcOff listOff items k < 2 ^ 64 := by
+      simp only [hsrc]; omega
+    exact toNat_add_ofNat_lt txBase _ hover'
+  apply (BitVec.ult_iff_lt).mpr
+  rw [BitVec.lt_def, hcurN, hendN, hsrc]
+  omega
+
+/-- Machine longWalkCursor = `txBase + longListSrcOff 0` under long encode. -/
+theorem longWalkCursor_eq_srcOff0
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hbound : (encode.encodeItems items).length < 256 ^ 8)
+    (hoff : listOff < txBytes.length)
+    (hover : txBase.toNat + (listOff + 1 + longListLol items) < 2 ^ 64) :
+    (txBase + BitVec.ofNat 64 listOff) +
+      (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) =
+      txBase + BitVec.ofNat 64 (longListSrcOff listOff items 0) := by
+  have hpfx := long_list_pfx_at txBytes listOff items henc hlong hoff
+  have hlolEq : ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat =
+      longListLol items := by
+    rw [hpfx]; exact pfx_sub_F7_eq_lol items hlong hbound
+  have hlolW :
+      (txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word) =
+        BitVec.ofNat 64 (longListLol items) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [hlolEq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by
+      have h1 := longListLol_pos items hlong
+      have : longListLol items ≤ 8 := Nat.toBytesBE_length_le
+        (encode.encodeItems items).length 8 hbound
+      omega)]
+  have hse1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  rw [hlolW, hse1, longListSrcOff_zero]
+  have hover0 : txBase.toNat + listOff < 2 ^ 64 := by omega
+  apply BitVec.eq_of_toNat_eq
+  have hlb : (txBase + BitVec.ofNat 64 listOff).toNat = txBase.toNat + listOff :=
+    toNat_add_ofNat_lt txBase listOff hover0
+  have hlolN : (BitVec.ofNat 64 (longListLol items)).toNat = longListLol items := by
+    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by
+      have : longListLol items ≤ 8 := Nat.toBytesBE_length_le
+        (encode.encodeItems items).length 8 hbound
+      omega)]
+  have h1 : (1 : Word).toNat = 1 := by decide
+  have hl :
+      ((txBase + BitVec.ofNat 64 listOff) +
+        (BitVec.ofNat 64 (longListLol items) + (1 : Word))).toNat =
+        txBase.toNat + listOff + longListLol items + 1 := by
+    have hmid :
+        ((txBase + BitVec.ofNat 64 listOff) + BitVec.ofNat 64 (longListLol items)).toNat =
+          txBase.toNat + listOff + longListLol items := by
+      rw [BitVec.toNat_add, hlb, hlolN]; omega
+    have hre :
+        (txBase + BitVec.ofNat 64 listOff) +
+          (BitVec.ofNat 64 (longListLol items) + (1 : Word)) =
+        ((txBase + BitVec.ofNat 64 listOff) + BitVec.ofNat 64 (longListLol items)) +
+          (1 : Word) := by ac_rfl
+    rw [hre, BitVec.toNat_add, hmid, h1]; omega
+  have hr :
+      (txBase + BitVec.ofNat 64 (listOff + 1 + longListLol items)).toNat =
+        txBase.toNat + (listOff + 1 + longListLol items) :=
+    toNat_add_ofNat_lt txBase _ hover
+  omega
+
+/-- Long walk_init end = longListEndPtr under success + long list. -/
+theorem longWalkEnd_eq_longListEndPtr
+    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (items : List RLPItem)
+    (h : extractSuccess txBytes)
+    (hlenW : lenW.toNat = txBytes.length)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let innerW := (teerTxTypeDispatch txBytes).2.2
+    let listOff := innerW.toNat
+    (txBase + BitVec.ofNat 64 listOff) + (lenW - innerW) =
+      longListEndPtr txBase listOff items := by
+  intro innerW listOff
+  have henc := decodeListItems_eq_encode _ _ hdec
+  have hlenEnc := encode_list_long_length items hlong
+  have hin := extractSuccess_inner_lt txBytes h
+  have hlistLen := listLen_word_eq_drop txBytes lenW innerW hin hlenW
+  have hlo : listOff = innerW.toNat := rfl
+  have hdropEq : (txBytes.drop listOff).length = (encode (.list items)).length := by
+    rw [henc]
+  have hpay : (lenW - innerW).toNat =
+      1 + longListLol items + (encode.encodeItems items).length := by
+    have hencLen : (encode (.list items)).length =
+        1 + longListLol items + (encode.encodeItems items).length := by
+      simpa [longListPayloadLen] using hlenEnc
+    have hlistLen' : (lenW - innerW).toNat = (txBytes.drop listOff).length := by
+      simpa [hlo] using hlistLen
+    exact hlistLen'.trans (hdropEq.trans hencLen)
+  have hoverBase : txBase.toNat + listOff < 2 ^ 64 := by
+    have : listOff < txBytes.length := by simpa [hlo] using hin
+    omega
+  have hsumEq : listOff + (lenW - innerW).toNat = txBytes.length := by
+    have hd : (txBytes.drop listOff).length = txBytes.length - listOff := by
+      simp [List.length_drop]
+    have hlistLen' : (lenW - innerW).toNat = (txBytes.drop listOff).length := by
+      simpa [hlo] using hlistLen
+    have hle : listOff ≤ txBytes.length := by
+      have : listOff < txBytes.length := by simpa [hlo] using hin
+      exact Nat.le_of_lt this
+    omega
+  have hoverSum : txBase.toNat + listOff + (lenW - innerW).toNat < 2 ^ 64 := by
+    have h' : txBase.toNat + (listOff + (lenW - innerW).toNat) < 2 ^ 64 := by
+      rw [hsumEq]; exact hover
+    omega
+  apply BitVec.eq_of_toNat_eq
+  have hlb : (txBase + BitVec.ofNat 64 listOff).toNat = txBase.toNat + listOff :=
+    toNat_add_ofNat_lt txBase listOff hoverBase
+  have hl : ((txBase + BitVec.ofNat 64 listOff) + (lenW - innerW)).toNat =
+      txBase.toNat + listOff + (lenW - innerW).toNat := by
+    rw [BitVec.toNat_add, hlb]
+    have : (lenW - innerW).toNat < 2 ^ 64 := (lenW - innerW).isLt
+    omega
+  have hoverEnd : txBase.toNat +
+      (listOff + 1 + longListLol items + (encode.encodeItems items).length) < 2 ^ 64 := by
+    have h' : txBase.toNat + listOff +
+        (1 + longListLol items + (encode.encodeItems items).length) < 2 ^ 64 := by
+      simpa [hpay] using hoverSum
+    omega
+  have hr : (longListEndPtr txBase listOff items).toNat =
+      txBase.toNat +
+        (listOff + 1 + longListLol items + (encode.encodeItems items).length) := by
+    rw [longListEndPtr, toNat_add_ofNat_lt txBase _ hoverEnd]
+  rw [hl, hr, hpay]
+  omega
+
+/-- Creation type234 long: hoff0..5 under longListSrcOff. -/
+theorem extractSuccess_creation_type234_hoff_srcOff_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    longListSrcOff listOff items 0 < txBytes.length ∧
+    longListSrcOff listOff items 1 < txBytes.length ∧
+    longListSrcOff listOff items 2 < txBytes.length ∧
+    longListSrcOff listOff items 3 < txBytes.length ∧
+    longListSrcOff listOff items 4 < txBytes.length ∧
+    longListSrcOff listOff items 5 < txBytes.length := by
+  intro listOff
+  have hlen := extractSuccess_creation_type234_items_length_long txBytes h hcreFlag hge
+    items hdecL hlong
+  have henc := decodeListItems_eq_encode _ _ hdecL
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hn4 : (4 : Nat) < items.length := by omega
+  have hn5 : (5 : Nat) < items.length := by omega
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact longListSrcOff_lt_length txBytes listOff items 0 henc hlong hn0
+  · exact longListSrcOff_lt_length txBytes listOff items 1 henc hlong hn1
+  · exact longListSrcOff_lt_length txBytes listOff items 2 henc hlong hn2
+  · exact longListSrcOff_lt_length txBytes listOff items 3 henc hlong hn3
+  · exact longListSrcOff_lt_length txBytes listOff items 4 henc hlong hn4
+  · exact longListSrcOff_lt_length txBytes listOff items 5 henc hlong hn5
+
+/-- Creation type234 long: hover0..5. -/
+theorem extractSuccess_creation_type234_hover_srcOff_long
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    txBase.toNat + longListSrcOff listOff items 0 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 1 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 2 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 3 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 4 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 5 < 2 ^ 64 := by
+  intro listOff
+  have hoffs := extractSuccess_creation_type234_hoff_srcOff_long txBytes h hcreFlag hge
+    items hdecL hlong
+  obtain ⟨h0, h1, h2, h3, h4, h5⟩ := hoffs
+  exact ⟨hover_of_buffer_span txBase _ _ hover h0,
+    hover_of_buffer_span txBase _ _ hover h1,
+    hover_of_buffer_span txBase _ _ hover h2,
+    hover_of_buffer_span txBase _ _ hover h3,
+    hover_of_buffer_span txBase _ _ hover h4,
+    hover_of_buffer_span txBase _ _ hover h5⟩
+
+/-- Fields 0..4 have a following item under creation type234 long (≥6 items). -/
+theorem extractSuccess_creation_type234_hnext_fields04_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    (0 + 1 < items.length) ∧ (1 + 1 < items.length) ∧ (2 + 1 < items.length) ∧
+      (3 + 1 < items.length) ∧ (4 + 1 < items.length) := by
+  have hlen := extractSuccess_creation_type234_items_length_long txBytes h hcreFlag hge
+    items hdecL hlong
+  omega
+
+/-- `hss` for one long-list item that short-encodes (≤55). -/
+theorem hss_of_long_list_item
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < txBytes.length)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hnext : n + 1 < items.length ∨ 2 ≤ (encode (items[n]'hn)).length)
+    (hvalid1 : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (longListSrcOff listOff items n + 1)) = true) :
+    ¬ BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0x80 : Word) = true →
+      BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xb8 : Word) = true →
+      longListSrcOff listOff items n + 1 < txBytes.length ∧
+        txBase.toNat + (longListSrcOff listOff items n + 1) < 2 ^ 64 ∧
+        isValidByteAccess
+          (txBase + BitVec.ofNat 64 (longListSrcOff listOff items n + 1)) = true := by
+  intro hlo hhi
+  -- room: either next field or encode≥2
+  have hroom : longListSrcOff listOff items n + 1 < txBytes.length := by
+    cases hnext with
+    | inl hsucc =>
+      have hlt := longListSrcOff_lt_length txBytes listOff items (n + 1) henc hlong hsucc
+      have hs := longListSrcOff_succ listOff items n hn
+      -- srcOff+1 ≤ srcOff + encodeLen = srcOff'
+      have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+      omega
+    | inr hge2 =>
+      have hdrop := long_list_item_drop txBytes listOff items n henc hlong hn
+      have hlen_drop :
+          (txBytes.drop (longListSrcOff listOff items n)).length =
+            (encode (items[n]'hn)).length +
+              (encode.encodeItems (items.drop (n + 1))).length := by
+        have := congrArg List.length hdrop
+        simpa [longListSrcOff, List.length_append] using this
+      have hdl : (txBytes.drop (longListSrcOff listOff items n)).length =
+          txBytes.length - longListSrcOff listOff items n := by
+        simp [List.length_drop]
+      have hsrc : longListSrcOff listOff items n < txBytes.length := hoff
+      omega
+  have hover1 := hover_of_buffer_span txBase (longListSrcOff listOff items n + 1)
+    txBytes.length hover hroom
+  exact hss_pack_of_room_hover_valid txBytes txBase _ hroom hover1 hvalid1
+
+/-- Vacuous hls under long outer + item short-encode ≤55. -/
+theorem hls_vacuous_of_long_list_item
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < txBytes.length)
+    {P : Prop} :
+    ¬ BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xb8 : Word) = true →
+      BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true → P := by
+  intro hlo hhi
+  have hhead := encode_item_head_toNat_bounds (items[n]'hn) hitemLe
+  have hdrop := long_list_item_drop txBytes listOff items n henc hlong hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h (List.ne_nil_of_length_pos hpos)
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      txBytes.drop (longListSrcOff listOff items n) =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [longListSrcOff, heq, List.cons_append] using hdrop
+  obtain ⟨_, hb⟩ := getElem_of_drop_cons txBytes (longListSrcOff listOff items n) b _ hdrop'
+  have hb' : txBytes[longListSrcOff listOff items n]'hoff = b := by
+    simpa using hb
+  have hze : ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64).toNat =
+      b.toNat := by
+    rw [toNat_zeroExtend_byte, hb']
+  have hencHead : (encode (items[n]'hn))[0]'(encode_item_length_pos _) = b := by
+    simpa [heq] using (List.getElem_cons_zero (a := b) (as := rest))
+  rcases hhead with hlt | ⟨hgeC0, hltF8⟩
+  · -- head < 0xb8 contradicts ¬ult 0xb8
+    have hb8 : (0xb8 : Word).toNat = 0xb8 := by decide
+    have : BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xb8 : Word) = true :=
+      (BitVec.ult_iff_lt).2 (by
+        simp only [BitVec.lt_def, hze, hb8]
+        have : b.toNat = ((encode (items[n]'hn))[0]'(encode_item_length_pos _)).toNat := by
+          rw [hencHead]
+        omega)
+    exact absurd this hlo
+  · -- head ≥ 0xc0 contradicts ult 0xc0
+    have hc0 : (0xc0 : Word).toNat = 0xc0 := by decide
+    have hnot : ¬ BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true := by
+      intro hult
+      have := (BitVec.ult_iff_lt).1 hult
+      simp only [BitVec.lt_def, hze, hc0] at this
+      have : b.toNat = ((encode (items[n]'hn))[0]'(encode_item_length_pos _)).toNat := by
+        rw [hencHead]
+      omega
+    exact absurd hhi hnot
+
+/-- Vacuous hll under long outer + item short-encode ≤55. -/
+theorem hll_vacuous_of_long_list_item
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < txBytes.length)
+    {P : Prop} :
+    ¬ BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true → P := by
+  intro hlo
+  have hhead := encode_item_head_toNat_bounds (items[n]'hn) hitemLe
+  have hdrop := long_list_item_drop txBytes listOff items n henc hlong hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h (List.ne_nil_of_length_pos hpos)
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      txBytes.drop (longListSrcOff listOff items n) =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [longListSrcOff, heq, List.cons_append] using hdrop
+  obtain ⟨_, hb⟩ := getElem_of_drop_cons txBytes (longListSrcOff listOff items n) b _ hdrop'
+  have hb' : txBytes[longListSrcOff listOff items n]'hoff = b := by simpa using hb
+  have hze : ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64).toNat =
+      b.toNat := by rw [toNat_zeroExtend_byte, hb']
+  have hencHead : (encode (items[n]'hn))[0]'(encode_item_length_pos _) = b := by
+    simpa [heq] using (List.getElem_cons_zero (a := b) (as := rest))
+  have hf8 : (0xf8 : Word).toNat = 0xf8 := by decide
+  have hult : BitVec.ult ((txBytes[longListSrcOff listOff items n]'hoff).zeroExtend 64)
+      (0xf8 : Word) = true := by
+    apply (BitVec.ult_iff_lt).2
+    simp only [BitVec.lt_def, hze, hf8]
+    have : b.toNat = ((encode (items[n]'hn))[0]'(encode_item_length_pos _)).toNat := by
+      rw [hencHead]
+    rcases hhead with hlt | ⟨_, hltF8⟩
+    · omega
+    · omega
+  exact absurd hult hlo
+
+#print axioms longListSrcOff_lt_length
+#print axioms hinb_long_list_end
+#print axioms longWalkCursor_eq_srcOff0
+#print axioms longWalkEnd_eq_longListEndPtr
+#print axioms extractSuccess_creation_type234_hoff_srcOff_long
+#print axioms hss_of_long_list_item
+#print axioms hls_vacuous_of_long_list_item
+#print axioms hll_vacuous_of_long_list_item
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
