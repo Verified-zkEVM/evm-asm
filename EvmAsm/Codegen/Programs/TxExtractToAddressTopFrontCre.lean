@@ -196,7 +196,9 @@ theorem extractFrontAfterSaveCreation_then_epi
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     
     cpsTripleWithin
       (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
@@ -279,7 +281,7 @@ theorem extractFrontAfterSaveCreation_then_epi
       hoff3 hover3 hvalid3 hss3 hls3 hll3 (hok3 endPtr)
       hoff4 hover4 hvalid4 hss4 hls4 hll4 (hok4 endPtr)
       hoff5 hover5 hvalid5 hss5 hls5 hll5 (hok5 endPtr)
-      hnext1 hnext2 hnext3 hnext4 hnext5 hcre)
+      hnext1 hnext2 hnext3 hnext4 hnext5 (hcre endPtr))
   exact cpsTripleWithin_weaken
     (fun h hp => frontAfterSave_to_midJoinPre spC s txBase lenW
       toBuf isCreationPtr txBytes h hp)

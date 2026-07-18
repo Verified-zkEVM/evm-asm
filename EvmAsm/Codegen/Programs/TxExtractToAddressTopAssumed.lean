@@ -23,7 +23,7 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (nExtractSteps nTypeSteps nExtractStackDwords extractToBufOwn teaScratchOwn
     ExtractAssumed fullCode extractLinked_mono)
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
-open EvmAsm.Rv64.RLP (rlpWalkNextOk)
+open EvmAsm.Rv64.RLP (rlpWalkNextOk rlpItemDecode)
 
 theorem nFrontCreation_le_nExtract : nFrontCreationSteps ≤ nExtractSteps := by
   simp only [nFrontCreationSteps, nExtractSteps, nTypeSteps]
@@ -564,7 +564,9 @@ theorem extractAssumed_creation_under_honesty
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPre s.ra sp0 txBase lenW toBuf isCreationPtr
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes)
@@ -797,7 +799,9 @@ theorem extractAssumed_creation_fullCode
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPre s.ra sp0 txBase lenW toBuf isCreationPtr
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes)

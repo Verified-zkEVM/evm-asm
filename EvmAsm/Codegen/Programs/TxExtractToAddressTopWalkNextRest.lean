@@ -753,11 +753,19 @@ def wn5Common (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext5) **
     bytesRegion txBase txBytes
 
-def wn5OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+/-- OK regs under ambient (no pure). -/
+def wn5OkRegs (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
   wn5Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
     wn5Common txBase txBytes **
     (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+
+/-- OK concrete = regs + `rlpItemDecode` pure (for decode-gated hcre/hlen20). -/
+def wn5OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  wn5OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff **
+    ⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext5Prep_framed
@@ -885,12 +893,13 @@ theorem extractWalkNext5Call_type234
     exact hq) htemps
 
 set_option maxRecDepth 8000 in
+/-- BNE framed on regs only (pure is ambient for OkConcrete). -/
 theorem extractWalkNext5BneOk_framed
     (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) :
     cpsTripleWithin 1 LinkWalkNext5 AfterWalkNext5Bne extractLinkedCode
-      (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+      (wn5OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff)
+      (wn5OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
   have h0 := extractWalkNext5BneOk
   have hF := cpsTripleWithin_frameR
     (wn5Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
@@ -900,9 +909,9 @@ theorem extractWalkNext5BneOk_framed
         (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))
     (by pcf) h0
   refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn5OkConcrete, wn5Stable, wn5Common] at hp ⊢
+    simp only [wn5OkRegs, wn5Stable, wn5Common] at hp ⊢
     xperm_hyp hp) (fun _ hq => by
-    simp only [wn5OkConcrete, wn5Stable, wn5Common] at hq ⊢
+    simp only [wn5OkRegs, wn5Stable, wn5Common] at hq ⊢
     xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
@@ -913,9 +922,16 @@ theorem extractWalkNext5Ok_bne
       endPtr next len) :
     cpsTripleWithin 1 LinkWalkNext5 AfterWalkNext5Bne extractLinkedCode
       (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) :=
-  extractWalkNext5BneOk_framed txBase lenW typeW innerW endPtr next len
+      (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+  have hR := extractWalkNext5BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
+  have hF := cpsTripleWithin_frameR
+    (⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝) pcFree_pure hR
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn5OkConcrete] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      simp only [wn5OkConcrete] at hq ⊢; xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext5OkNested_bne
@@ -957,11 +973,15 @@ theorem extractWalkNext5OkNested_bne
       xperm_hyp hp)
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_pure_pre (fun hdec => ?_)
-  have h0 := extractWalkNext5Ok_bne txBase lenW typeW innerW endPtr next len
-    txBytes srcOff hdec
+  have h0 := extractWalkNext5BneOk_framed txBase lenW typeW innerW endPtr next len
+    txBytes srcOff
   refine cpsTripleWithin_weaken (fun h hp => by
-    simp only [wn5OkConcrete, wn5Common] at hp ⊢
-    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+    simp only [wn5OkRegs, wn5Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    -- post: OkRegs → OkConcrete with pure hdec
+    refine ⟨next, len, ?_⟩
+    simp only [wn5OkConcrete]
+    exact (sepConj_pure_right h).2 ⟨hq, hdec⟩) h0
 
 #print axioms extractWalkNext2Prep_framed
 #print axioms extractWalkNext2Call_type234
@@ -1017,9 +1037,13 @@ theorem extractType234ToHaveField_framed
     refine cpsTripleWithin_weaken (fun _ hp => by
       dsimp only [Pcore] at hp ⊢; xperm_hyp hp)
       (fun _ hq => by dsimp only [Q] at hq ⊢; xperm_hyp hq) hF
-  exact cpsTripleWithin_weaken (fun _ hp => by
-    dsimp only [Pcore, wn5OkConcrete, wn5Common, wn5Stable] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
+  -- Drop pure from OkConcrete, then match Pcore ** regOwn x31 (x31 in wn5Common).
+  exact cpsTripleWithin_weaken (fun h hp => by
+    simp only [wn5OkConcrete] at hp
+    obtain ⟨hpRegs, _hdec⟩ := (sepConj_pure_right h).mp hp
+    -- hpRegs : wn5OkRegs; reassoc to Pcore ** regOwn x31 (same as pre-pure OkConcrete)
+    dsimp only [Pcore, wn5OkRegs, wn5Common, wn5Stable] at hpRegs ⊢
+    xperm_hyp hpRegs) (fun _ hq => by
     dsimp only [Q] at hq ⊢; exact hq) htemps
 
 #print axioms extractType234ToHaveField_framed

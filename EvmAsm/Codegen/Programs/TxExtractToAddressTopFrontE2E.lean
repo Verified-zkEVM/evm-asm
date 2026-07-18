@@ -239,7 +239,9 @@ theorem extractFrontCreation_then_epi
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     cpsTripleWithin nFrontCreationSteps
       E s.ra extractLinkedCode
       ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **

@@ -20,7 +20,7 @@ open EvmAsm.Codegen
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (extractToBufOwn nExtractStackDwords)
 
-/-- AfterWalkNext5 with ∃ next5 len5, force len5=0 creation arm.
+/-- AfterWalkNext5 with ∃ next5 len5, force len5=0 creation arm via decode-gated hcre.
     Post keeps ∃ next5 for concrete x31 (next-0). -/
 private theorem wn5Exists_to_creation
     (sp0 spC : Word) (s : ExtractSaved)
@@ -28,7 +28,9 @@ private theorem wn5Exists_to_creation
     (txBytes : List (BitVec 8)) (srcOff5 : Nat)
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     cpsTripleWithin
       ((1 + 1) + ((1 + (1 + (1 + (1 + (1 + 1))))) + 11))
       AfterWalkNext5Bne s.ra extractLinkedCode
@@ -56,12 +58,20 @@ private theorem wn5Exists_to_creation
           creExtraTemps) h) := by
   refine cpsTripleWithin_exists_pre_gen (fun next5 => ?_)
   refine cpsTripleWithin_exists_pre_gen (fun len5 => ?_)
-  have hlen : len5 = (0 : Word) := hcre next5 len5
   have h := extractType234HaveFieldCreation_then_epi sp0 spC s txBase lenW
     typeW innerW endPtr next5 toBuf isCreationPtr s7 txBytes srcOff5 hspC hret
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [hlen] at hp ⊢
-    exact hp) (fun _ hq => ⟨next5, hq⟩) h
+  refine cpsTripleWithin_weaken (fun hst hp => by
+    -- hp : OkConcrete ** midOwned; extract pure decode → len5 = 0
+    obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+    -- unfold OkConcrete = OkRegs ** pure without naming OkRegs (may be private)
+    obtain ⟨hRegs, hdec⟩ := (sepConj_pure_right h1).mp (by
+      simpa only [wn5OkConcrete] using hOkC)
+    have hlen : len5 = (0 : Word) := hcre next5 len5 hdec
+    have hOk0 : wn5OkConcrete txBase lenW typeW innerW endPtr next5 (0 : Word)
+        txBytes srcOff5 h1 := by
+      simp only [wn5OkConcrete, hlen] at hRegs hdec ⊢
+      exact (sepConj_pure_right h1).mpr ⟨hRegs, hdec⟩
+    exact ⟨h1, h2, hd, hu, hOk0, hM⟩) (fun _ hq => ⟨next5, hq⟩) h
 
 set_option maxRecDepth 8000 in
 /-- type234 AfterSave → creation → ret under midOwned.
@@ -236,7 +246,9 @@ theorem extractType234AfterSaveCreation_then_epi
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hcre : ∀ (_next5 len5 : Word), len5 = (0 : Word)) :
+    (hcre : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) :
     cpsTripleWithin
       (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
             (((1 + (1 + 1)) + (1 + 87)) + 1)) +
