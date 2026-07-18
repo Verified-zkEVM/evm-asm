@@ -50,10 +50,11 @@
           **stack frame ambient DONE** + **frameSlotsSaved_imp_stackFree10 DONE**
           + **both HaveField exits→epi DONE**
           (`extractHaveFieldCreation_then_epi` + `extractHaveFieldCopy_then_epi`).
-          **midOwned frame type234→HaveField creation→epi DONE**
+          **midOwned frame type234→HaveField both exits→epi DONE**
           (`extractType234ToHaveField_owned` +
-           `extractType234HaveFieldCreation_then_epi`).
-          Residual: midOwned through full wn0..5 + copy path;
+           `extractType234HaveFieldCreation_then_epi` +
+           `extractType234HaveFieldCopy_then_epi`).
+          Residual: midOwned through full wn0..5;
           extractSuccess drop-fail pure; full mid seq → extractAssumed;
           fullCode∪extract (use extractLinkedCode first);
           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
