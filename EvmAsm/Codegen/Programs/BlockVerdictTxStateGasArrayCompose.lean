@@ -76,7 +76,7 @@
            pin x8,x9,x18–x23; array x23=endW concrete; loopIntrinsicFrame drops x23).
            **creationPost_to_assumed DONE** (KEEP s-regs; memIs→memOwn isCre/tea;
            regIs→regOwn temps; classical-3).
-           Residual: of_forall Assumed pre peels (stackFree10_eq_frameSlotsOwn +
+           Residual: of_forall Assumed pre peels (assumedPreConcrete_to_e2e DONE; +
            prologueAbiRest); extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
            extractAssumed_fullCode; fullCode∪extract;
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`

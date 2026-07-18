@@ -171,9 +171,60 @@ theorem creationPostEx_to_assumed
   exact creationPost_to_assumed sp0 s txBase toBuf isCreationPtr next5
     txBytes h hp
 
+/-- E2E entry pre (matches `extractFrontCreation_then_epi`). -/
+def creationE2EPre (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+    frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+    (prologueAbiRest txBase lenW toBuf isCreationPtr
+      old5 old6 old7 old14 old15 old16) **
+    extractToBufOwn toBuf ** memOwn isCreationPtr **
+    frontExtraAmbient txBase txBytes
+
+/-- Assumed pre with concrete temps (after of_forall peels). -/
+def assumedPreConcrete (ret sp0 : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8)) : Assertion :=
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+    stackFree sp0 nExtractStackDwords **
+    (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+    (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+    (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+    (Reg.x23 ↦ᵣ s.s7) **
+    (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
+    (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
+    bytesRegion txBase txBytes **
+    extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
+    (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+    (.x14 ↦ᵣ old14) ** (.x15 ↦ᵣ old15) ** (.x16 ↦ᵣ old16) **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    (.x0 ↦ᵣ (0 : Word))
+
+set_option maxRecDepth 8000 in
+theorem assumedPreConcrete_to_e2e
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12)) :
+    ∀ h, assumedPreConcrete s.ra sp0 s txBase lenW toBuf isCreationPtr
+        old5 old6 old7 old14 old15 old16 txBytes h →
+      creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
+        old5 old6 old7 old14 old15 old16 txBytes h := by
+  intro h hp
+  simp only [assumedPreConcrete, creationE2EPre, prologueAbiRest,
+    frontExtraAmbient, teaScratchOwn, regsAt_extractFrame s] at hp ⊢
+  have heq := stackFree10_eq_frameSlotsOwn sp0 spC hspC
+  simp only [heq] at hp
+  xperm_hyp hp
+
 #print axioms nFrontCreation_le_nExtract
 #print axioms nFrontCopy_le_nExtract
 #print axioms creationPost_to_assumed
 #print axioms creationPostEx_to_assumed
+#print axioms assumedPreConcrete_to_e2e
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
