@@ -318,16 +318,19 @@ structure A4gbrResiduals where
          wn0 BNE/OkNested ambient DONE; ToWn0Ok of_decode ambient DONE
            (`extractType234ToWn0Ok_owned_of_decode_ambient`);
          wn1..5 PrepCallOk ambient DONE (`extractWalkNext{k}PrepCallOk_owned_of_decode_ambient`);
-         ToWn5 chain ambient DONE (`extractType234ToWn5Ok_owned_of_decode_ambient`);
-         residual: MidJoin creation/copy ambient + fill ExtractAssumedAmbient
-           + HaveField → fill ExtractAssumedAmbient.success_flat general off
-       * TIS ambient callees + framed: extract/type/ets framed
-       * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
-       * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
-       * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-       Residual: finish MidChain/MidJoin ambient dual (BNE/wn1..5/join)
-         to fill ExtractAssumedAmbient.success_flat general off;
-         package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
+          ToWn5 chain ambient DONE (`extractType234ToWn5Ok_owned_of_decode_ambient`);
+          MidOwned creation ambient DONE
+            (`extractType234HaveFieldCreation_then_epi_ambient`);
+          MidJoin AfterSave→creation ambient DONE
+            (`extractType234AfterSaveCreation_then_epi_of_decode_ambient`);
+          residual: MidJoin copy ambient + Front/Assumed ambient path
+            → fill ExtractAssumedAmbient.success_flat general off
+        * TIS ambient callees + framed: extract/type/ets framed
+        * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
+        * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
+        * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
+        Residual: MidJoin copy ambient + Front E2E ambient Assumed fill;
+          package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
