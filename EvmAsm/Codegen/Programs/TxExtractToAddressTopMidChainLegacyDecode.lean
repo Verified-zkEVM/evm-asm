@@ -60,7 +60,7 @@ theorem legacyStartFrame_to_leg0CallPre
   have hx5' : regOwn .x5 hd' := ⟨(0 : Word), hx5⟩
   have hp2 : ((Core ** regOwn .x5) ** Tail) h :=
     ⟨ha, hb, hda, hua, ⟨hc, hd', hdc, huc, hCore, hx5'⟩, hTail⟩
-  simp only [hcur, legStable, Core, Tail] at hp2 ⊢
+  simp only [legStable, Core, Tail] at hp2 ⊢
   xperm_hyp hp2
 
 set_option maxRecDepth 8000 in
