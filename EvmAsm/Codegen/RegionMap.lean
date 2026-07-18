@@ -274,8 +274,11 @@ def schemeAAnchors : List GuestRegion :=
     EIP-7702 authorization net-nonce threading fix
     (`fix/auth-net-nonce`, #10456), which also split the auth-effect
     emitter out into `TxIntrinsicAuthEffects.lean` to clear the
-    1500-line file-size cap. -/
-def textSizeBytes : Nat := 0x5d1bc
+    1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
+    live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
+    #10457), mirroring the earlier beneficiary-balance overlay to fix
+    a phantom second-selfdestruct credit. -/
+def textSizeBytes : Nat := 0x5d204
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

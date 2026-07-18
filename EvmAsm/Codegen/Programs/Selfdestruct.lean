@@ -706,6 +706,19 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  sd x10, 128(sp); sd x12, 136(sp)\n" ++
   "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 64\n" ++
   "  jal ra, account_extract_balance\n" ++
+  -- The witness is block-pre state.  On a later transaction in the same block,
+  -- a prior SELFDESTRUCT may already have recorded this origin's balance as
+  -- zero; use that last committed effect before deciding whether there is a
+  -- transfer.  Without this overlay, the stale witness balance is transferred
+  -- a second time (selfdestruct_then_transfer_same_block).
+  "  sd zero, 96(sp); sd zero, 104(sp); sd zero, 112(sp); sd zero, 120(sp)\n" ++
+  "  la t0, sdai_origin_address; addi t1, sp, 96; li t2, 20\n" ++
+  ".L_sdbn_origin_key:\n" ++
+  "  beqz t2, .L_sdbn_origin_key_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_origin_key\n" ++
+  ".L_sdbn_origin_key_done:\n" ++
+  "  addi a0, sp, 96; addi a1, sp, 64\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
   "  ld t0, 64(sp); ld t1, 72(sp); or t0, t0, t1; ld t1, 80(sp); or t0, t0, t1; ld t1, 88(sp); or t0, t0, t1\n" ++
   "  beqz t0, .L_sdbn_restore\n" ++
   "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
