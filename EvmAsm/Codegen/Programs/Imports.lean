@@ -140,6 +140,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortConcretePure
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHdec
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalid
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedSrcOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHlsHll

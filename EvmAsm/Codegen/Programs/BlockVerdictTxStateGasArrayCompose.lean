@@ -173,8 +173,11 @@
                 **copy short concrete E2E DONE**
                 (`extractFrontAfterSaveCopy_then_epi_of_decode_short`,
                 `extractFrontCopy_then_epi_of_decode_short_concrete`).
-                Residual: Assumed pureHvalid for copy + fill
-                `ExtractAssumed.success_flat` (copy/legacy/t1/long case-split).
+                **copy Assumed short concrete DONE**
+                (`extractAssumed_copy_fullCode_of_decode_short_concrete`:
+                Assumed**contentDwords under honesty hyps). Residual: pure
+                wire for copy (hlen20/hnext_content/srcOff) + fill
+                `ExtractAssumed.success_flat` case-split.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
