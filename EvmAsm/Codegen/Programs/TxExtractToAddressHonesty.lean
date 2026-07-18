@@ -7113,7 +7113,6 @@ theorem extractSuccess_copy_type234_hvalid_srcOff_long
 #print axioms extractSuccess_copy_type234_hvalid_srcOff_long
 
 
-/-! ### Legacy long creation pure (field index 3, longListSrcOff) -/
 
 theorem extractSuccess_creation_legacy_field3_pfx80_long
     (txBytes : List (BitVec 8))
@@ -7394,6 +7393,286 @@ theorem extractSuccess_creation_legacy_hvalid_srcOff_long
 #print axioms extractSuccess_creation_legacy_hvalid_srcOff_long
 
 
+
+
+/-- Long-list copy legacy: field3 is 20B address with prefix 0x94. -/
+theorem extractSuccess_copy_legacy_field3_pfx94_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let off := longListSrcOff listOff items 3
+    (3 : Nat) < items.length ∧
+      (∃ content, items[3]? = some (.bytes content) ∧ content.length = 20) ∧
+      ∃ hoff : off < txBytes.length, txBytes[off]'hoff = (0x94 : BitVec 8) := by
+  intro listOff off
+  have hidx : toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat = 3 := by
+    simp only [htype0]
+    exact toFieldIndex_legacy
+  have htf := extractSuccess_copy_encode_addr20 txBytes h hcopyFlag
+  obtain ⟨items', content, hdec', hitem, hlen20, _henc94⟩ := htf
+  have hitems : items = items' := by
+    have : some items = some items' := hdec.symm.trans hdec'
+    exact Option.some.inj this
+  subst hitems
+  have hget : items[3]? = some (.bytes content) := by simpa [hidx] using hitem
+  have hn : (3 : Nat) < items.length := (List.getElem?_eq_some_iff.mp hget).1
+  have hval : items[3]'hn = .bytes content := (List.getElem?_eq_some_iff.mp hget).2
+  have hencFull := decodeListItems_eq_encode _ _ hdec
+  have hpfx := long_list_bytes20_pfx txBytes listOff items 3 hencFull hlong hn
+    content hval hlen20
+  exact ⟨hn, ⟨content, hget, hlen20⟩, hpfx⟩
+
+theorem extractSuccess_copy_legacy_items_length_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    4 ≤ items.length := by
+  have hf := extractSuccess_copy_legacy_field3_pfx94_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  exact Nat.succ_le_of_lt hf.1
+
+theorem extractSuccess_copy_legacy_hlen20_long
+    (txBytes : List (BitVec 8)) (txBase : Word) (srcOff3 : Nat)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hsrc : srcOff3 = longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 3) :
+    ∀ (endPtr next3 len3 : Word),
+      rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+        endPtr next3 len3 → len3 = (20 : Word) := by
+  have hf := extractSuccess_copy_legacy_field3_pfx94_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  obtain ⟨_hn, _hget, hpfx⟩ := hf
+  obtain ⟨hoff, hb⟩ := hpfx
+  intro endPtr next3 len3 hdec
+  have hoff' : srcOff3 < txBytes.length := by simpa [hsrc] using hoff
+  have hb' : txBytes[srcOff3]'hoff' = (0x94 : BitVec 8) := by simpa [hsrc] using hb
+  exact hlen20_decode_of_pfx94 txBytes srcOff3
+    (txBase + BitVec.ofNat 64 srcOff3) endPtr hoff' hb' next3 len3 hdec
+
+theorem extractSuccess_copy_legacy_hnext_content_long
+    (txBytes : List (BitVec 8)) (txBase contentPtr : Word) (srcOff3 : Nat)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hsrc : srcOff3 = longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 3)
+    (hcontent : contentPtr =
+      txBase + BitVec.ofNat 64 srcOff3 + (1 : Word)) :
+    ∀ (endPtr next3 len3 : Word),
+      rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+        endPtr next3 len3 → next3 = contentPtr + (20 : Word) := by
+  have hf := extractSuccess_copy_legacy_field3_pfx94_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  obtain ⟨_hn, _hget, hpfx⟩ := hf
+  obtain ⟨hoff, hb⟩ := hpfx
+  intro endPtr next3 len3 hdec
+  have hoff' : srcOff3 < txBytes.length := by simpa [hsrc] using hoff
+  have hb' : txBytes[srcOff3]'hoff' = (0x94 : BitVec 8) := by simpa [hsrc] using hb
+  exact hnext_content_decode_of_pfx94 txBytes srcOff3
+    (txBase + BitVec.ofNat 64 srcOff3) endPtr contentPtr
+    hoff' hb' hcontent next3 len3 hdec
+
+theorem extractSuccess_copy_legacy_hnext_hlen20_srcOff_long
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+          items hdecL hlong; omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+          items hdecL hlong; omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+          items hdecL hlong; omega))).length ≤ 55)
+    (hover0 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 0 < 2 ^ 64)
+    (hover1 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 1 < 2 ^ 64)
+    (hover2 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 2 < 2 ^ 64)
+    (hspan1 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 1 < 2 ^ 64)
+    (hspan2 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 2 < 2 ^ 64)
+    (hspan3 : txBase.toNat +
+        longListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 3 < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    (∀ (endPtr next len : Word),
+      rlpItemDecode txBytes (longListSrcOff listOff items 0)
+        (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 0))
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 (longListSrcOff listOff items 1)) ∧
+    (∀ (endPtr next len : Word),
+      rlpItemDecode txBytes (longListSrcOff listOff items 1)
+        (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 1))
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 (longListSrcOff listOff items 2)) ∧
+    (∀ (endPtr next len : Word),
+      rlpItemDecode txBytes (longListSrcOff listOff items 2)
+        (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 2))
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 (longListSrcOff listOff items 3)) ∧
+    (∀ (endPtr next3 len3 : Word),
+      rlpItemDecode txBytes (longListSrcOff listOff items 3)
+        (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 3))
+        endPtr next3 len3 → len3 = (20 : Word)) := by
+  intro listOff
+  have hencFull := decodeListItems_eq_encode _ _ hdecL
+  have hlen := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact packaging_hnext_longListSrcOff txBytes txBase listOff items 0 hn0
+      hencFull hlong hitem0 hover0 hspan1
+  · exact packaging_hnext_longListSrcOff txBytes txBase listOff items 1 hn1
+      hencFull hlong hitem1 hover1 hspan2
+  · exact packaging_hnext_longListSrcOff txBytes txBase listOff items 2 hn2
+      hencFull hlong hitem2 hover2 hspan3
+  · exact extractSuccess_copy_legacy_hlen20_long txBytes txBase
+      (longListSrcOff listOff items 3) h hcopyFlag htype0 items hdecL hlong rfl
+
+theorem extractSuccess_copy_legacy_hoff_srcOff_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    longListSrcOff listOff items 0 < txBytes.length ∧
+    longListSrcOff listOff items 1 < txBytes.length ∧
+    longListSrcOff listOff items 2 < txBytes.length ∧
+    longListSrcOff listOff items 3 < txBytes.length := by
+  intro listOff
+  have henc := decodeListItems_eq_encode _ _ hdecL
+  have hlen := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  exact ⟨
+    longListSrcOff_lt_length txBytes listOff items 0 henc hlong hn0,
+    longListSrcOff_lt_length txBytes listOff items 1 henc hlong hn1,
+    longListSrcOff_lt_length txBytes listOff items 2 henc hlong hn2,
+    longListSrcOff_lt_length txBytes listOff items 3 henc hlong hn3⟩
+
+theorem extractSuccess_copy_legacy_hover_srcOff_long
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    txBase.toNat + longListSrcOff listOff items 0 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 1 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 2 < 2 ^ 64 ∧
+    txBase.toNat + longListSrcOff listOff items 3 < 2 ^ 64 := by
+  intro listOff
+  have hoffs := extractSuccess_copy_legacy_hoff_srcOff_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  obtain ⟨h0, h1, h2, h3⟩ := hoffs
+  exact ⟨hover_of_buffer_span txBase _ _ hover h0,
+    hover_of_buffer_span txBase _ _ hover h1,
+    hover_of_buffer_span txBase _ _ hover h2,
+    hover_of_buffer_span txBase _ _ hover h3⟩
+
+theorem extractSuccess_copy_legacy_hnext_fields02_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    (0 + 1 < items.length) ∧ (1 + 1 < items.length) ∧ (2 + 1 < items.length) := by
+  have hlen := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  exact ⟨by omega, by omega, by omega⟩
+
+theorem extractSuccess_copy_legacy_hvalid_srcOff_long
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch txBytes).2.1 = (0 : Word))
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hge5 : 5 ≤ items.length)
+    (hvalidBuf : validByteRange txBase txBytes.length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 0)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 0 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 1 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 2)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 2 + 1)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 3)) = true ∧
+    isValidByteAccess (txBase + BitVec.ofNat 64 (longListSrcOff listOff items 3 + 1)) = true := by
+  intro listOff
+  have henc := decodeListItems_eq_encode _ _ hdecL
+  have hlen := extractSuccess_copy_legacy_items_length_long txBytes h hcopyFlag htype0
+    items hdecL hlong
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hlt0 := longListSrcOff_lt_length txBytes listOff items 0 henc hlong hn0
+  have hlt1 := longListSrcOff_lt_length txBytes listOff items 1 henc hlong hn1
+  have hlt2 := longListSrcOff_lt_length txBytes listOff items 2 henc hlong hn2
+  have hlt3 := longListSrcOff_lt_length txBytes listOff items 3 henc hlong hn3
+  have hr0 := longListSrcOff_succ_room txBytes listOff items 0 henc hlong (by omega)
+  have hr1 := longListSrcOff_succ_room txBytes listOff items 1 henc hlong (by omega)
+  have hr2 := longListSrcOff_succ_room txBytes listOff items 2 henc hlong (by omega)
+  have hr3 := longListSrcOff_succ_room txBytes listOff items 3 henc hlong (by omega)
+  exact ⟨
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hlt0,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hr0,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hlt1,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hr1,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hlt2,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hr2,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hlt3,
+    isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hr3⟩
+
+#print axioms extractSuccess_copy_legacy_field3_pfx94_long
+#print axioms extractSuccess_copy_legacy_hnext_hlen20_srcOff_long
+#print axioms extractSuccess_copy_legacy_hvalid_srcOff_long
 
 /-- Long-list creation t1: field4 empty 0x80 at longListSrcOff. -/
 theorem extractSuccess_creation_t1_field4_pfx80_long
