@@ -1254,6 +1254,13 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
   "  j .Lteanse_record\n" ++
   ".Lteanse_have_pre:\n" ++
+  -- Each authorization validates the authority's current nonce.  Earlier valid
+  -- tuples in this transaction already recorded the increment, so use that
+  -- latest effect when present instead of repeatedly comparing to header state.
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, teer_authority; la a1, teer_pre_acct\n" ++
+  "  jal ra, nonstorage_effect_latest_nonce\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
   ".Lteanse_record:\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
