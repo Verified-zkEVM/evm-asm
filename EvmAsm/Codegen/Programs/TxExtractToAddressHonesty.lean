@@ -2340,7 +2340,7 @@ theorem packaging_hcur_shortListSrcOff0
 def shortListEndPtr (txBase : Word) (listOff : Nat) (items : List RLPItem) : Word :=
   txBase + BitVec.ofNat 64 (listOff + 1 + (encode.encodeItems items).length)
 
-private theorem toNat_add_ofNat_lt (txBase : Word) (n : Nat)
+theorem toNat_add_ofNat_lt (txBase : Word) (n : Nat)
     (h : txBase.toNat + n < 2 ^ 64) :
     (txBase + BitVec.ofNat 64 n).toNat = txBase.toNat + n := by
   have hn : n < 2 ^ 64 := by omega
