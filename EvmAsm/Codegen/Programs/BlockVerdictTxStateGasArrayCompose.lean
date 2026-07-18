@@ -163,12 +163,13 @@
                 **pure hdec DONE** (`hdec_short_list_item` /
                 `extractAssumed_creation_shortConcrete_pureHdec(_fullCode)`).
                 **pureHvalid DONE** (`validByteRange` collapse;
-                `extractAssumed_creation_shortConcrete_pureHvalid(_fullCode)`):
-                hvalid*/hvalid1_*/hvalidTx0/hinvalid/hinover from validByteRange
-                + hover (+ hge7 field5+1 room). Residual static: validByteRange
-                + toBuf align/valid + txBase align/hover; path refinements
-                (creation/type234/short/hdecL/hge7). Fold static into
-                ExtractAssumed.success_flat; copy/legacy/t1 paths; long-list.
+                `extractAssumed_creation_shortConcrete_pureHvalid(_fullCode)`).
+                **ExtractAssumed static domain DONE** (txBase align/hover/
+                `validByteRange`; toBuf align/over/`isValidMemAccess`;
+                TIS derives type `hvalid0` via `validByteRange_head`).
+                Residual path refinements (creation/type234/short/hdecL/hge7)
+                + fill Assumed.success_flat without path hyps; copy/legacy/t1;
+                long-list.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
@@ -244,7 +245,9 @@ theorem intrinsic_discharge_off0_available
       (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    (hvalidBuf : EvmAsm.Rv64.SAsm.DualReadByteScan.validByteRange regionBase bs.length)
+    (htvalid : isValidMemAccess
+      (EvmAsm.Codegen.TxIntrinsicStateGasSpec.ToBufAddr + (16 : Word)) = true) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret TxIntrinsicStateGasSpec.fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -278,7 +281,7 @@ theorem intrinsic_discharge_off0_available
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0 asm hextract htype
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
-    old5 old6 old7 old13 old14 old15 old16 hret hlink hextractOk hsuccess halign hover hvalid0
+    old5 old6 old7 old13 old14 old15 old16 hret hlink hextractOk hsuccess halign hover hvalidBuf htvalid
 
 /-- Same as `intrinsic_discharge_off0_available` with regOwn temps
     (IntrinsicAssumed footprint). Multi-tx off≠0 still residual. -/
@@ -296,7 +299,9 @@ theorem intrinsic_discharge_off0_own_available
       (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    (hvalidBuf : EvmAsm.Rv64.SAsm.DualReadByteScan.validByteRange regionBase bs.length)
+    (htvalid : isValidMemAccess
+      (EvmAsm.Codegen.TxIntrinsicStateGasSpec.ToBufAddr + (16 : Word)) = true) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret TxIntrinsicStateGasSpec.fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -329,7 +334,7 @@ theorem intrinsic_discharge_off0_own_available
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0_own asm hextract htype
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
-    hret hlink hextractOk hsuccess halign hover hvalid0
+    hret hlink hextractOk hsuccess halign hover hvalidBuf htvalid
 
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available

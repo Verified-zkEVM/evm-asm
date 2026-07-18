@@ -904,6 +904,21 @@ theorem scan_spec
 
 end Scan
 
+/-- Buffer-wide byte validity: every offset `k < n` is a valid byte access. -/
+def validByteRange (base : Word) (n : Nat) : Prop :=
+  ∀ k, k < n → isValidByteAccess (base + BitVec.ofNat 64 k) = true
+
+theorem isValidByteAccess_of_validByteRange
+    (base : Word) (n i : Nat)
+    (h : validByteRange base n) (hi : i < n) :
+    isValidByteAccess (base + BitVec.ofNat 64 i) = true :=
+  h i hi
+
+theorem validByteRange_head
+    (base : Word) (n : Nat)
+    (h : validByteRange base n) (hn : 0 < n) :
+    isValidByteAccess (base + BitVec.ofNat 64 0) = true :=
+  h 0 hn
 
 end DualReadByteScan
 

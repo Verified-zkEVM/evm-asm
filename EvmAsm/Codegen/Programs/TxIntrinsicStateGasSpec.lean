@@ -40,6 +40,7 @@ namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
 open EvmAsm.Rv64.RLP
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
@@ -349,11 +350,13 @@ theorem pcFree_teaScratchOwn : teaScratchOwn.pcFree := by
 
     ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
     Success-domain only: `extractSuccess txBytes` (pure model).
+    Static domain (TypeDispatch-style): txBase align/hover/`validByteRange`,
+    toBuf align/over/`isValidMemAccess` for SW at +16.
     RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
     Stack: `addi sp,-80` → pin `x2` + `stackFree sp nExtractStackDwords`.
     Out buf: 3 dwords (`extractToBufOwn`); tea_* private type_dispatch cells.
     Callee-saved s0–s7 (x8,x9,x18–x23) pinned equal pre/post (9-slot frame).
-    Residual: Hoare packaging body under that domain. -/
+    Path refinements (creation/copy, type arm, short/long) stay outside Assumed. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
@@ -363,6 +366,12 @@ structure ExtractAssumed (cr : CodeReq) where
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
       TxExtractToAddressModel.extractSuccess txBytes →
+      txBase.toNat % 8 = 0 →
+      txBase.toNat + txBytes.length < 2 ^ 64 →
+      validByteRange txBase txBytes.length →
+      toBuf.toNat % 8 = 0 →
+      toBuf.toNat + 16 < 2 ^ 64 →
+      isValidMemAccess (toBuf + (16 : Word)) = true →
       cpsTripleWithin nExtractSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nExtractStackDwords **

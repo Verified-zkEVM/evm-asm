@@ -11,15 +11,20 @@
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEts
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 
 namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange validByteRange_head)
 open EvmAsm.Codegen
-open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
-open EvmAsm.Codegen.TxExtractToAddressModel (extractSuccess teerExtractToAddress)
+open EvmAsm.Codegen.TxTypeDispatchSpec
+  (teerTxTypeDispatch teer_success_implies_nonempty)
+open EvmAsm.Codegen.TxExtractToAddressModel
+  (extractSuccess teerExtractToAddress extractSuccess_type_ok)
 
 local macro "pcf" : tactic =>
   `(tactic| repeat
@@ -229,7 +234,11 @@ theorem tisExtractFramed
     (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
+    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     cpsTripleWithin (4 + (1 + nExtractSteps) + 1) (T + 56) AfterExtractBne fullCode
       (prologuePost spC s txBase lenW outPtr
         old5 old6 old7 old13 old14 old15 old16 **
@@ -242,6 +251,7 @@ theorem tisExtractFramed
         bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
   have hex0 := tisExtractSuccess asm hentry spC txBase lenW outPtr
     s.s3 s.s4 s.s5 s.s6 s7 txBytes s.ra outPtr old13 hlen hsuccess
+    halign hover hvalidBuf htvalid
   have hexF := cpsTripleWithin_frameR
     (bodyFrameAmbient spC s **
       memOwn TypeAddr ** memOwn InnerOffAddr **
@@ -672,7 +682,8 @@ theorem txIntrinsicStateGas_success_spec_within
     (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
     (halign : txBase.toNat % 8 = 0)
     (hover : txBase.toNat + txBytes.length < 2 ^ 64)
-    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true) :
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     cpsTripleWithin nTisTopSteps T s.ra fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt tisFrame (tisSavedVals s) **
         frameSlotsOwn tisFrame spC **
@@ -689,6 +700,8 @@ theorem txIntrinsicStateGas_success_spec_within
         stackFree spC nExtractStackDwords **
         bodyPayloadOk txBase txBytes outPtr **
         bodyScratch ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hne := teer_success_implies_nonempty txBytes hsuccess
+  have hvalid0 := validByteRange_head txBase txBytes.length hvalidBuf hne
   have hpro0 := prologue_full sp0 spC s txBase lenW outPtr
     old5 old6 old7 old13 old14 old15 old16 hspC
   have hpro := cpsTripleWithin_frameR
@@ -699,6 +712,7 @@ theorem txIntrinsicStateGas_success_spec_within
   have hex := tisExtractFramed asm.extract hextract spC s
     txBase lenW outPtr oldOut s7 txBytes
     old5 old6 old7 old13 old14 old15 old16 hlen hextractOk
+    halign hover hvalidBuf htvalid
   have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hex
   have hty := tisTypeFramed asm.typeDispatch htype spC s
     txBase lenW outPtr oldOut s7 txBytes hlen hsuccess halign hover hvalid0

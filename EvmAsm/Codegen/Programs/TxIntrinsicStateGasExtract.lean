@@ -8,6 +8,7 @@
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.AsmReloc
@@ -16,6 +17,7 @@ namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen
 
@@ -169,6 +171,12 @@ theorem extractCalleeP_pcFree (spVal txBase lenW : Word)
 
 set_option maxRecDepth 8000 in
 /-- Call extract under ExtractAssumed; success a0=0 at LinkExtract. -/
+private theorem toBufAddr_align : ToBufAddr.toNat % 8 = 0 := by
+  simp only [ToBufAddr]; decide
+
+private theorem toBufAddr_over : ToBufAddr.toNat + 16 < 2 ^ 64 := by
+  simp only [ToBufAddr]; decide
+
 theorem tisExtractCall
     (asm : ExtractAssumed fullCode)
     (hentry : asm.entry = ExtractEntry)
@@ -177,7 +185,11 @@ theorem tisExtractCall
     (txBytes : List (BitVec 8))
     (old1 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
+    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     cpsTripleWithin (1 + nExtractSteps) (T + 72) LinkExtract fullCode
       ((.x1 ↦ᵣ old1) **
         extractCalleeP spVal txBase lenW s0 s1 s2 s3 s4 s5 s6 s7 txBytes)
@@ -186,7 +198,9 @@ theorem tisExtractCall
   have hret : (LinkExtract &&& ~~~(1 : Word)) = LinkExtract := by
     simp only [LinkExtract, T]; decide
   have hcallee0 := asm.success_flat LinkExtract spVal txBase lenW
-    ToBufAddr IsCreationAddr s0 s1 s2 s3 s4 s5 s6 s7 txBytes hret hlen hsuccess
+    ToBufAddr IsCreationAddr s0 s1 s2 s3 s4 s5 s6 s7 txBytes
+    hret hlen hsuccess halign hover hvalidBuf
+    toBufAddr_align toBufAddr_over htvalid
   have hcallee0' : cpsTripleWithin nExtractSteps asm.entry LinkExtract fullCode
       ((.x1 ↦ᵣ LinkExtract) **
         extractCalleeP spVal txBase lenW s0 s1 s2 s3 s4 s5 s6 s7 txBytes)
@@ -247,7 +261,11 @@ theorem tisExtractSuccess
     (txBytes : List (BitVec 8))
     (old1 v12 v13 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
-    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
+    (hsuccess : TxExtractToAddressModel.extractSuccess txBytes)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     cpsTripleWithin (4 + (1 + nExtractSteps) + 1) (T + 56) AfterExtractBne fullCode
       ((.x1 ↦ᵣ old1) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
@@ -287,6 +305,7 @@ theorem tisExtractSuccess
       (.x0 ↦ᵣ (0 : Word))) (by pcf) hsetup
   have hcall := tisExtractCall asm hentry spVal txBase lenW
     txBase lenW outPtr s3 s4 s5 s6 s7 txBytes old1 hlen hsuccess
+    halign hover hvalidBuf htvalid
   have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     unfold extractCalleeP at *
     xperm_hyp hp) hsetupF hcall

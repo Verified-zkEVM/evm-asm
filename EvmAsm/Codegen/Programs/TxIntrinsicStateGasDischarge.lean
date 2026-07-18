@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -23,6 +24,7 @@ namespace EvmAsm.Codegen.TxIntrinsicStateGasSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel (pureIntrinsicStateGasSuccess)
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
@@ -210,7 +212,8 @@ theorem intrinsicAssumed_success_flat_off0
     (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -251,7 +254,7 @@ theorem intrinsicAssumed_success_flat_off0
     txIntrinsicStateGas_success_spec_within asm hextract htype
       spVal spC s regionBase lenW outPtr oldOut s7 bs
       old5 old6 old7 old13 old14 old15 old16
-      hspC hret hlen hlink hextractOk hsuccess halign hover hvalid0
+      hspC hret hlen hlink hextractOk hsuccess halign hover hvalidBuf htvalid
   have hle : nTisTopSteps ≤ nIntrinsicSteps := by
     simp only [nTisTopSteps, nExtractSteps, nTypeSteps, nIntrinsicSteps]
     omega
@@ -395,7 +398,8 @@ theorem intrinsicAssumed_success_flat_off0_own
     (hsuccess : (teerTxTypeDispatch bs).1 = (0 : Word))
     (halign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true) :
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htvalid : isValidMemAccess (ToBufAddr + (16 : Word)) = true) :
     let lenW := BitVec.ofNat 64 bs.length
     cpsTripleWithin nIntrinsicSteps T ret fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
@@ -465,7 +469,7 @@ theorem intrinsicAssumed_success_flat_off0_own
     have hf := intrinsicAssumed_success_flat_off0 asm hextract htype
       ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
       v5 v6 v7 v13 v14 v15 v16
-      hret hlink hextractOk hsuccess halign hover hvalid0
+      hret hlink hextractOk hsuccess halign hover hvalidBuf htvalid
     refine cpsTripleWithin_weaken (fun _ hp => by
       dsimp only [Pcore] at hp ⊢
       xperm_hyp hp) (fun _ hq => by

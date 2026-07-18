@@ -14,15 +14,21 @@ import EvmAsm.EL.RLP.Properties
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 import EvmAsm.Rv64.SAsm.LoopFuel
+import EvmAsm.Rv64.SAsm.DualReadByteScan
 
 namespace EvmAsm.Codegen.TxExtractToAddressHonesty
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
 open EvmAsm.Rv64.SAsm (toNat_zeroExtend_byte)
+open EvmAsm.Rv64.SAsm.DualReadByteScan
+  (validByteRange isValidByteAccess_of_validByteRange validByteRange_head)
 open EvmAsm.EL.RLP
 open EvmAsm.Codegen.TxExtractToAddressModel
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
+
+export EvmAsm.Rv64.SAsm.DualReadByteScan
+  (validByteRange isValidByteAccess_of_validByteRange validByteRange_head)
 
 /-- Empty short string `0x80` at `off` with fit ⇒ `rlpItemDecode` len=0
     (hcre pure half for creation). `hfit`: `0 < end-cursor` i.e. room for header. -/
@@ -2930,20 +2936,11 @@ theorem hdec_short_list_end
 
 /-! ## Buffer-wide byte validity (`validByteRange`)
 
-    RAM validity is static (address range), not pure-from-decode. Collapse
-    per-offset `hvalid*` / `hvalid1_*` packaging residuals into one
-    `validByteRange txBase length` hyp (DualReadByteScan pattern).
+    Defined in `DualReadByteScan` and re-exported above. RAM validity is
+    static (address range), not pure-from-decode. Collapse per-offset
+    `hvalid*` / `hvalid1_*` packaging residuals into one
+    `validByteRange txBase length` hyp.
 -/
-
-/-- Every offset in `[0, n)` is a valid byte address at `base + k`. -/
-def validByteRange (base : Word) (n : Nat) : Prop :=
-  ∀ k, k < n → isValidByteAccess (base + BitVec.ofNat 64 k) = true
-
-theorem isValidByteAccess_of_validByteRange
-    (base : Word) (n i : Nat)
-    (h : validByteRange base n) (hi : i < n) :
-    isValidByteAccess (base + BitVec.ofNat 64 i) = true :=
-  h i hi
 
 /-- Content offset of field `n` is ≤ start of field `n+1` by ≥1 (encode nonempty). -/
 theorem shortListSrcOff_add_one_le_succ
