@@ -1102,4 +1102,144 @@ theorem hnext_single_byte_of_pfx
 #print axioms rlpItemDecode_single_byte_next
 #print axioms hnext_single_byte_of_pfx
 
+/-- Each item's encode length is ≤ total `encodeItems` length. -/
+theorem encode_item_length_le_encodeItems (items : List RLPItem) (n : Nat)
+    (hn : n < items.length) :
+    (encode (items[n]'hn)).length ≤ (encode.encodeItems items).length := by
+  have hdrop := encodeItems_drop_at items n hn
+  have hlen := congrArg List.length hdrop
+  simp only [List.length_drop, List.length_append] at hlen
+  -- length (drop p xs) = length xs - p, so itemLen ≤ length xs - p ≤ length xs
+  have hsub :
+      (encode.encodeItems items).length - encodeItemsPrefixLen items n =
+        (encode (items[n]'hn)).length +
+          (encode.encodeItems (items.drop (n + 1))).length := hlen
+  have hle : (encode (items[n]'hn)).length ≤
+      (encode.encodeItems items).length - encodeItemsPrefixLen items n := by
+    omega
+  exact Nat.le_trans hle (Nat.sub_le _ _)
+
+/-- Short-list payload bound ⇒ each item encode length ≤ 55. -/
+theorem encode_item_length_le_55_of_short_list (items : List RLPItem) (n : Nat)
+    (hn : n < items.length)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    (encode (items[n]'hn)).length ≤ 55 :=
+  Nat.le_trans (encode_item_length_le_encodeItems items n hn) hshort
+
+/-- Cursor arithmetic helper used by packaging hnext. -/
+theorem txBase_add_srcOff_add_nat (txBase : Word) (srcOff k : Nat)
+    (hover : txBase.toNat + srcOff < 2 ^ 64)
+    (hspan : txBase.toNat + srcOff + k < 2 ^ 64) :
+    (txBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 k =
+      txBase + BitVec.ofNat 64 (srcOff + k) := by
+  apply BitVec.eq_of_toNat_eq
+  have hsrc' : srcOff < 2 ^ 64 := by omega
+  have hk' : k < 2 ^ 64 := by omega
+  have hsk : srcOff + k < 2 ^ 64 := by omega
+  have hsrc'' : (BitVec.ofNat 64 srcOff).toNat = srcOff := by
+    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsrc']
+  have hk'' : (BitVec.ofNat 64 k).toNat = k := by
+    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk']
+  have htb : (txBase + BitVec.ofNat 64 srcOff).toNat = txBase.toNat + srcOff := by
+    rw [BitVec.toNat_add, hsrc'']; omega
+  have hl : ((txBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 k).toNat =
+      txBase.toNat + srcOff + k := by
+    rw [BitVec.toNat_add, htb, hk'']; omega
+  have hr : (txBase + BitVec.ofNat 64 (srcOff + k)).toNat =
+      txBase.toNat + (srcOff + k) := by
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsk]; omega
+  omega
+
+/-- Single-byte field at `shortListSrcOff n` ⇒ packaging hnext to `shortListSrcOff (n+1)`. -/
+theorem hnext_single_matches_srcOff_succ
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat) (hn : n < items.length)
+    (b : Byte) (hb : b.toNat < 0x80)
+    (hitem : items[n]'hn = .bytes [b])
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + shortListSrcOff listOff items n < 2 ^ 64)
+    (hspan : txBase.toNat + shortListSrcOff listOff items (n + 1) < 2 ^ 64) :
+    let srcOff := shortListSrcOff listOff items n
+    let srcOff' := shortListSrcOff listOff items (n + 1)
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 srcOff' := by
+  intro srcOff srcOff' endPtr next len hdec
+  have henc1 : encode (.bytes [b]) = [b] := encode_bytes_single b hb
+  have hlen1 : (encode (.bytes [b])).length = 1 := by rw [henc1]; rfl
+  have hdrop := short_list_item_drop txBytes listOff items n henc hshort hn
+  have hdrop' : txBytes.drop srcOff = b :: encode.encodeItems (items.drop (n + 1)) := by
+    simpa [srcOff, shortListSrcOff, hitem, henc1] using hdrop
+  obtain ⟨hoff, hbp⟩ := getElem_of_drop_cons txBytes srcOff b _ hdrop'
+  have hover' : txBase.toNat + srcOff < 2 ^ 64 := by simpa [srcOff] using hover
+  have hsucc : srcOff' = srcOff + 1 := by
+    have h := shortListSrcOff_succ listOff items n hn
+    simpa [srcOff, srcOff', hitem, hlen1] using h
+  have hspan1 : txBase.toNat + srcOff + 1 < 2 ^ 64 := by
+    have hsp : txBase.toNat + srcOff' < 2 ^ 64 := by simpa [srcOff'] using hspan
+    rwa [hsucc] at hsp
+  have hnext := hnext_single_byte_of_pfx txBytes txBase srcOff hoff
+    (by simpa [hbp] using hb) hover' hspan1 endPtr next len hdec
+  rwa [← hsucc] at hnext
+
+/-- Creation type234 short: `srcOff5 = shortListSrcOff listOff items 5` packages hcre. -/
+theorem extractSuccess_creation_type234_hcre_srcOff
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let srcOff5 := shortListSrcOff listOff items 5
+    ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word) := by
+  intro listOff srcOff5
+  exact extractSuccess_creation_type234_hcre txBytes txBase srcOff5 h hcreFlag hge
+    items hdecL hshort rfl
+
+/-- Creation type234 short field-5 empty ⇒ packaging hnext from field 5 is +1 span
+    (useful when chaining past the `to` field after creation decode). -/
+theorem extractSuccess_creation_type234_hnext_field5
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 5 < 2 ^ 64)
+    (hspan : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 6 < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let srcOff5 := shortListSrcOff listOff items 5
+    let srcOff6 := shortListSrcOff listOff items 6
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 srcOff6 := by
+  intro listOff srcOff5 srcOff6 endPtr next len hdec
+  have hf := extractSuccess_creation_type234_field5_pfx80 txBytes h hcreFlag hge
+    items hdecL hshort
+  have hn : (5 : Nat) < items.length := hf.1
+  have hget : items[5]? = some (.bytes []) := hf.2.1
+  have hitem : items[5]'hn = .bytes [] := (List.getElem?_eq_some_iff.mp hget).2
+  have hencFull := decodeListItems_eq_encode _ _ hdecL
+  exact hnext_empty_matches_srcOff_succ txBytes txBase listOff items 5 hn hitem
+    hencFull hshort hover hspan endPtr next len hdec
+
+#print axioms encode_item_length_le_encodeItems
+#print axioms encode_item_length_le_55_of_short_list
+#print axioms txBase_add_srcOff_add_nat
+#print axioms hnext_single_matches_srcOff_succ
+#print axioms extractSuccess_creation_type234_hcre_srcOff
+#print axioms extractSuccess_creation_type234_hnext_field5
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty

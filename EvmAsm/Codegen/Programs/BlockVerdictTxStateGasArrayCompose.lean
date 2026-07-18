@@ -116,11 +116,17 @@
               txBase+shortListSrcOff(n+1)). Residual: wire packaging
               **decode-gated packaging hnext* DONE** (wn0..wn4 OkConcrete keep
               pure like wn5; MidChainDecode ToWn5 pure_pre + hnext decode→next;
-              Front/Assumed of_decode cascade). Residual: wire srcOffk:=shortListSrcOff
-              + discharge hnext via empty/single pure under extractSuccess;
-              pure ∃decode skips 0..4 (non-empty short/single-byte);
-              long-list (≥56); fill `ExtractAssumed.success_flat`;
-              copy-path Assumed; legacy/t1 E2E.
+              Front/Assumed of_decode cascade).
+              **pure packaging hnext helpers DONE**:
+              `encode_item_length_le_encodeItems` / `_le_55_of_short_list`,
+              `txBase_add_srcOff_add_nat`,
+              `hnext_single_matches_srcOff_succ`,
+              `extractSuccess_creation_type234_hcre_srcOff` /
+              `_hnext_field5` (srcOff:=shortListSrcOff under creation type234 short).
+              Residual: wire srcOffk:=shortListSrcOff into Assumed short creation
+              (discharge hnext0..4 via empty/single/bytes pure; multi-byte short);
+              pure ∃decode skips 0..4; long-list (≥56);
+              fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
