@@ -213,6 +213,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
+import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
@@ -297,9 +298,10 @@ structure A4gbrResiduals where
   /-- ExtractAssumed path Props bare DONE short+long all types; residual is
       ambient re-spec (bytesRegion regionBase blob) for multi-tx off≠0. -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
-  /-- Multi-tx ambient type_dispatch DONE classical-3:
-      `typeDispatchAssumedAmbient_fullCode` (general off/len under fullCode).
-      Residual: ExtractAssumed ambient re-spec; IntrinsicAssumed off≠0 discharge. -/
+  /-- Multi-tx ambient Option A progress classical-3:
+      * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
+      * extract ambient off0: `extractAssumedAmbient_off0_pkg` + `TisCalleeAssumptionsAmbient`
+      Residual: extract body ambient general off (LBU/LD/walks); Intrinsic off≠0. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
@@ -415,6 +417,10 @@ theorem intrinsic_discharge_off0_own_available
 /-- Multi-tx Option A: ambient TypeDispatchAssumed full off/len available. -/
 def type_dispatch_ambient_discharged :=
   TxTypeDispatchSpec.typeDispatchAssumedAmbient_fullCode
+
+/-- Multi-tx Option A: extract ambient off0 package (from any slice ExtractAssumed). -/
+def extract_ambient_off0_pkg :=
+  TxExtractToAddressSpec.extractAssumedAmbient_off0_pkg
 
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available
