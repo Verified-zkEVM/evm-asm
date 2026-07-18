@@ -313,13 +313,15 @@ structure A4gbrResiduals where
            (`extractWalkInitCall_short_toAfterSave_concrete_ambient`);
          split-base AfterSave frame + midJoin bridge DONE
            (`afterSaveFrameTyAmbient`, `frontAfterSavePostShortAmbient_to_midJoinPre`);
-         residual: MidChain/MidJoin walk_next dual (wn0Stable split loadPtr/regionBase)
-           + HaveField/copy → fill ExtractAssumedAmbient.success_flat general off
+         type234 AfterSave→WalkNext0 ambient DONE (`extractType234ToWalkNext0_ambient`);
+         wn0 call outcome ambient DONE (`extractWalkNext0Call_type234_outcome_ambient`);
+         residual: wn0 BNE/OkNested + wn1..5 MidSeq dual + MidJoin creation/copy ambient
+           + HaveField → fill ExtractAssumedAmbient.success_flat general off
        * TIS ambient callees + framed: extract/type/ets framed
        * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
        * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
        * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-       Residual: dualize MidChain/MidJoin (split x8=loadPtr vs bytesRegion regionBase)
+       Residual: finish MidChain/MidJoin ambient dual (BNE/wn1..5/join)
          to fill ExtractAssumedAmbient.success_flat general off;
          package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
