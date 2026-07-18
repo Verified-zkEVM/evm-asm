@@ -69,10 +69,12 @@
            **front AfterSave→copy→ret DONE** (`extractFrontAfterSaveCopy_then_epi`);
            **E→ret type234 creation DONE** (`extractFrontCreation_then_epi`);
            **E→ret type234 copy DONE** (`extractFrontCopy_then_epi`).
-           Residual: copy path front join; extractSuccess drop-fail pure
-           (hok/hnext/hcre/hlen20); E→ret under extractSuccess; extractAssumed;
-           fullCode∪extract (extractLinkedCode first);
-           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+           **nExtractSteps 512→1024** (covers E2E ≈949/956) + **nIntrinsicSteps
+           1024→1536** (covers nTisTopSteps ≈1333); mono lemmas
+           `nFrontCreation_le_nExtract` / `nFrontCopy_le_nExtract`.
+           Residual: extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
+           of_forall Assumed pre peels + post memIs→memOwn; extractAssumed_fullCode;
+           fullCode∪extract; ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)

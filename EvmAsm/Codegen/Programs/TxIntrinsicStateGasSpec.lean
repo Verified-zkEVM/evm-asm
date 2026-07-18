@@ -151,8 +151,9 @@ def tisSavedVals (s : TisSaved) : Reg → Word
   | .x22 => s.s6
   | _ => 0
 
-/-- Step budgets (over-approx; mono). -/
-def nExtractSteps : Nat := 512
+/-- Step budgets (over-approx; mono).
+    Extract E2E type234 creation/copy ≈ 949/956 steps under linked code. -/
+def nExtractSteps : Nat := 1024
 /-- Matches `nTxTypeDispatchSteps` (leaf top bound). -/
 def nTypeSteps : Nat := 256
 def nTisSuccessSteps : Nat := 64 + nExtractSteps + nTypeSteps + 16

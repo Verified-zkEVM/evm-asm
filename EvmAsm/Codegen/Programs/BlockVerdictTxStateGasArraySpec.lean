@@ -215,9 +215,8 @@ theorem txStateGasArray_snoc (teer : TeerApplied)
 -/
 
 /-- Step budgets for callees (over-approx; mono).
-    Intrinsic raised to cover the real framed 54-instr body + extract/type hyps
-    (~693 steps); was 256 when the leaf was still an abstract hyp. -/
-def nIntrinsicSteps : Nat := 1024
+    Covers nTisTopSteps after nExtractSteps=1024 (≈1333). -/
+def nIntrinsicSteps : Nat := 1536
 def nTeerSteps : Nat := 4096
 
 /-- Free-stack dwords the intrinsic carves: own frame 8 + nested extract 10.
