@@ -501,7 +501,6 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_legacy_args:\n" ++
   "  la a3, baap_storage_desc; la t0, baap_sc_out_count; ld a4, 0(t0); la a5, aps_newsroot\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
-  "  bnez a0, .Lbaap_fail_storage_apply\n" ++
   ".Lbaap_multi_set_account:\n" ++
   "  mv a0, s6; mv a1, s7; la a2, aps_newsroot; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
   "  jal ra, account_set_storage_root\n" ++

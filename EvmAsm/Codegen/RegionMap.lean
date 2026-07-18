@@ -277,8 +277,11 @@ def schemeAAnchors : List GuestRegion :=
     1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
     live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
     #10457), mirroring the earlier beneficiary-balance overlay to fix
-    a phantom second-selfdestruct credit. -/
-def textSizeBytes : Nat := 0x5d210
+    a phantom second-selfdestruct credit. Settled to `0x5d20c` after
+    merging main forward past #10458 (multi-tx caller-context staging
+    fix) and this PR's own baap=501 delete-walk bail removal, measured
+    via a fresh `readelf -SW`. -/
+def textSizeBytes : Nat := 0x5d20c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
