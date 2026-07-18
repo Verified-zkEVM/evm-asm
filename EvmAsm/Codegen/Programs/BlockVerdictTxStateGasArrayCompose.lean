@@ -96,6 +96,8 @@
              **short Front→AfterSave DONE** (`extractWalkInitCall_short_fromTypeLoad`
              + `_ok_framed_s5s6` + `extractFrontToAfterSave_short` — no universal
              walkInitOkFail_drop; short pure hyps only).
+             **concrete short AfterSave DONE** (`ShortOkRegs`, `frontAfterSavePostShort`,
+             `extractWalkInitCall_short_toAfterSave_concrete` — cursor/end pinned).
               Decode-gated hcre + hlen20 + hnext_content DONE
               (`wn5OkConcrete` keeps `rlpItemDecode`; hcre/hlen20/hnext_content
               are decode-gated via pfx80/pfx94; pure
