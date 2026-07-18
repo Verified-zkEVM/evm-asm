@@ -152,9 +152,124 @@ theorem extractSuccess_copy
     omega
   | inr hcopy => exact hcopy.2
 
+/-- Success ⇒ inner list at type-dispatch offset decodes. -/
+theorem extractSuccess_decode
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    ∃ items, decodeListItems
+        (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) = some items := by
+  have hty := extractSuccess_type_ok txBytes h
+  have hstat : (teerExtractToAddress txBytes).1 = (0 : Word) := h
+  unfold teerExtractToAddress at hstat
+  simp only [hty, ne_eq, not_true_eq_false, ↓reduceIte] at hstat
+  cases hdec : decodeListItems
+      (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) with
+  | none =>
+    simp only [hdec] at hstat
+    exact absurd hstat (by decide)
+  | some items =>
+    -- `cases hdec` rewrites the goal LHS to `some items`
+    exact ⟨items, rfl⟩
+
+/-- Success ⇒ `to` field is a bytes item at the type-dependent index. -/
+theorem extractSuccess_to_field
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    ∃ items content,
+      decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+        some items ∧
+      items[toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat]? =
+        some (.bytes content) ∧
+      ((content = [] ∧ (teerExtractToAddress txBytes).2.2 = (1 : Word)) ∨
+        (content.length = 20 ∧ (teerExtractToAddress txBytes).2.2 = (0 : Word))) := by
+  have hty := extractSuccess_type_ok txBytes h
+  have hstat : (teerExtractToAddress txBytes).1 = (0 : Word) := h
+  unfold teerExtractToAddress at hstat
+  simp only [hty, ne_eq, not_true_eq_false, ↓reduceIte] at hstat
+  cases hdec : decodeListItems
+      (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) with
+  | none =>
+    simp only [hdec] at hstat
+    exact absurd hstat (by decide)
+  | some items =>
+    simp only [hdec] at hstat
+    cases hitem : items[toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat]? with
+    | none =>
+      simp only [hitem] at hstat
+      exact absurd hstat (by decide)
+    | some item =>
+      cases item with
+      | list _ =>
+        simp only [hitem] at hstat
+        exact absurd hstat (by decide)
+      | bytes content =>
+        simp only [hitem] at hstat
+        by_cases h0 : content.length = 0
+        · have hcre : content = [] := List.eq_nil_of_length_eq_zero h0
+          subst hcre
+          simp only [List.length_nil, ↓reduceIte] at hstat
+          have hisCre : (teerExtractToAddress txBytes).2.2 = (1 : Word) := by
+            unfold teerExtractToAddress
+            simp only [hty, ne_eq, not_true_eq_false, ↓reduceIte, hdec, hitem,
+              List.length_nil, ↓reduceIte]
+          exact ⟨items, [], rfl, hitem, Or.inl ⟨rfl, hisCre⟩⟩
+        · by_cases h20 : content.length = 20
+          · simp only [if_neg h0, if_pos h20] at hstat
+            have hisCre : (teerExtractToAddress txBytes).2.2 = (0 : Word) := by
+              unfold teerExtractToAddress
+              simp only [hty, ne_eq, not_true_eq_false, ↓reduceIte, hdec, hitem,
+                if_neg h0, if_pos h20]
+            exact ⟨items, content, rfl, hitem, Or.inr ⟨h20, hisCre⟩⟩
+          · simp only [if_neg h0, if_neg h20] at hstat
+            exact False.elim ((by decide : ¬((2 : Word) = 0)) hstat)
+
+/-- Type-dispatch success type is one of 0..4 (legacy / 1..4). -/
+theorem teer_success_type_le4 (txBytes : List (BitVec 8))
+    (h : (teerTxTypeDispatch txBytes).1 = (0 : Word)) :
+    (teerTxTypeDispatch txBytes).2.1.toNat ≤ 4 := by
+  match txBytes with
+  | [] =>
+    simp only [teerTxTypeDispatch] at h
+    exact absurd h (by decide)
+  | b :: rest =>
+    simp only [teerTxTypeDispatch] at h ⊢
+    by_cases hleg : 192 ≤ b.toNat
+    · simp only [hleg, ↓reduceIte] at h ⊢
+      decide
+    · simp only [hleg, ↓reduceIte] at h ⊢
+      by_cases h1 : b = (1 : BitVec 8)
+      · simp only [h1, ↓reduceIte] at h ⊢; decide
+      · simp only [h1, ↓reduceIte] at h ⊢
+        by_cases h2 : b = (2 : BitVec 8)
+        · simp only [h2, ↓reduceIte] at h ⊢; decide
+        · simp only [h2, ↓reduceIte] at h ⊢
+          by_cases h3 : b = (3 : BitVec 8)
+          · simp only [h3, ↓reduceIte] at h ⊢; decide
+          · simp only [h3, ↓reduceIte] at h ⊢
+            by_cases h4 : b = (4 : BitVec 8)
+            · simp only [h4, ↓reduceIte] at h ⊢; decide
+            · simp only [h4, ↓reduceIte] at h
+              exact absurd h (by decide)
+
+/-- Success ⇒ type word ≤ 4. -/
+theorem extractSuccess_type_le4 (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes) :
+    (teerTxTypeDispatch txBytes).2.1.toNat ≤ 4 :=
+  teer_success_type_le4 txBytes (extractSuccess_type_ok txBytes h)
+
+/-- Creation path pure: empty to-bytes ⇒ length 0 (for hcre residual). -/
+theorem extractSuccess_creation_len
+    (txBytes : List (BitVec 8))
+    (hempty : (teerExtractToAddress txBytes).2.1 = []) :
+    (teerExtractToAddress txBytes).2.1.length = 0 := by
+  simp only [hempty, List.length_nil]
+
 #print axioms extractSuccess_type_ok
 #print axioms extractSuccess_outcome
 #print axioms extractSuccess_creation
 #print axioms extractSuccess_copy
+#print axioms extractSuccess_decode
+#print axioms extractSuccess_to_field
+#print axioms extractSuccess_type_le4
+#print axioms teer_success_type_le4
+#print axioms extractSuccess_creation_len
 
 end EvmAsm.Codegen.TxExtractToAddressModel
