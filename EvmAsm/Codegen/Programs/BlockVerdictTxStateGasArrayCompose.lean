@@ -217,6 +217,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
@@ -356,7 +357,9 @@ structure A4gbrResiduals where
               (`extractFrontCreation_then_epi_of_decode_short_concrete_legacy_ambient`)
           * Assumed packaging legacy short creation ambient DONE
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
-          Residual: legacy PureHvalid ambient path Prop;
+          * legacy PureHvalid ambient path Prop DONE
+              (`extractAssumed_success_flat_creation_legacy_short_ambient`)
+          Residual: legacy copy ambient; t1/long ambient arms;
             t1/long ambient arms;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
@@ -483,6 +486,9 @@ def type_dispatch_ambient_discharged :=
   TxTypeDispatchSpec.typeDispatchAssumedAmbient_fullCode
 
 /-- Multi-tx Option A: ambient ExtractAssumed short type234 creation path Prop. -/
+def extract_discharge_creation_legacy_short_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short_ambient
+
 def extract_discharge_creation_type234_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
 
@@ -497,6 +503,7 @@ def extract_discharge_copy_type234_short_ambient_available :=
 #print axioms type_dispatch_ambient_discharged
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_creation_type234_short_off0
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short_ambient
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short_ambient
 
