@@ -837,6 +837,8 @@ def blockVerdictFunction : String :=
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
+  "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, cd_destroyed_empty_hits; ld t0, 0(t0); beqz t0, .Lbv_dispatch_status_ready\n" ++
   "  li a0, 62\n" ++
   ".Lbv_dispatch_status_ready:\n" ++
@@ -1466,6 +1468,10 @@ def blockVerdictFunction : String :=
   "  j .Lbv_eip7778_block_gas_fail\n" ++
   ".Lbv_eip7778_gate_ok:\n" ++
   blockVerdictExactGasCheck ++
+  -- Fixed execution arenas are gas-bounded. Their producers latch an overflow
+  -- and return normally to preserve call frames; reject the incomplete record here.
+  "  la t0, create_nonce_table_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, exec_code_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
   blockVerdictReceiptsTail
 
 end EvmAsm.Codegen

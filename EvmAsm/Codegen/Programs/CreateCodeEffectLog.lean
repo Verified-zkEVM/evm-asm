@@ -49,8 +49,8 @@ open EvmAsm.Rv64
     records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
     cap therefore reserves 1.5 MiB (≈50% margin over the 1.0 MiB ceiling).
 
-    On overflow the producer sets `exec_code_effect_overflow` and the consumer
-    must stay conservative. -/
+    On overflow the producer sets `exec_code_effect_overflow`; block_verdict
+    consumes that flag as a rejection. -/
 def execCodeEffectLogCap : Nat := 1572864
 
 /-! ## create_record_code_effect
