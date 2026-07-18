@@ -171,6 +171,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwnedLTRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoinLegacyRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoinT1Region
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqLegacyDecode
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChainLegacyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoinLegacyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqT1Decode
