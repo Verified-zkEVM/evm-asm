@@ -49,6 +49,40 @@ theorem txSlice_off0 (bs : List (BitVec 8)) :
     txSlice bs 0 bs.length = bs := by
   simp only [txSlice, List.drop_zero, List.take_length]
 
+/-- Slice byte k equals ambient blob byte off+k. -/
+theorem txSlice_getElem (bs : List (BitVec 8)) (off len k : Nat)
+    (hk : k < len) (hbound : off + len ≤ bs.length) :
+    (txSlice bs off len)[k]'(by rw [txSlice_length bs off len hbound]; exact hk) =
+      bs[off + k]'(by omega) := by
+  simp only [txSlice, List.getElem_take, List.getElem_drop]
+
+/-- Absolute offset into ambient blob for a slice-relative index. -/
+def ambientAbsOff (off rel : Nat) : Nat := off + rel
+
+theorem ambientAbsOff_lt (bs : List (BitVec 8)) (off rel len : Nat)
+    (hrel : rel < len) (hbound : off + len ≤ bs.length) :
+    ambientAbsOff off rel < bs.length := by
+  simp only [ambientAbsOff]; omega
+
+/-- loadPtr + rel = regionBase + (off + rel) under hptr. -/
+theorem loadPtr_add_rel_eq (regionBase loadPtr : Word) (off rel : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hspan : regionBase.toNat + (off + rel) < 2 ^ 64) :
+    loadPtr + BitVec.ofNat 64 rel =
+      regionBase + BitVec.ofNat 64 (off + rel) := by
+  rw [hptr]
+  have h1 : regionBase.toNat + off < 2 ^ 64 := by omega
+  have h2 : (regionBase + BitVec.ofNat 64 off).toNat = regionBase.toNat + off := by
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat]
+    have : off % 2 ^ 64 = off := Nat.mod_eq_of_lt (by omega)
+    rw [this, Nat.mod_eq_of_lt h1]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, h2, BitVec.toNat_add, BitVec.toNat_ofNat]
+  have hr : rel % 2 ^ 64 = rel := Nat.mod_eq_of_lt (by omega)
+  have ho : (off + rel) % 2 ^ 64 = off + rel := Nat.mod_eq_of_lt (by omega)
+  rw [hr, ho, Nat.mod_eq_of_lt (by omega)]
+  omega
+
 /-- Ambient flat pre: a0=loadPtr, a1=len, full ambient region. -/
 def typeAmbientPre (raIn regionBase loadPtr lenW typePtr innerPtr
     t0Old t1Old typeOld innerOld : Word)
@@ -370,7 +404,9 @@ theorem txTypeDispatch_legacy_ambient
 #print axioms txTypeDispatch_legacy_ambient
 #print axioms txSlice_length
 #print axioms txSlice_getElem_zero
+#print axioms txSlice_getElem
 #print axioms txSlice_off0
+#print axioms loadPtr_add_rel_eq
 #print axioms teer_slice_cons
 
 end EvmAsm.Codegen.TxTypeDispatchSpec

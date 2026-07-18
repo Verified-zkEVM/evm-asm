@@ -215,6 +215,7 @@ import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
@@ -302,13 +303,16 @@ structure A4gbrResiduals where
   /-- Multi-tx ambient Option A progress classical-3:
       * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
       * extract ambient: `ExtractAssumedAmbient.success_flat` (general off residual body);
-        off0 lemma `extractAssumed_ambient_off0` from slice Assumed
+        off0 lemma `extractAssumed_ambient_off0` from slice Assumed;
+        off0 path package `extractAssumed_ambient_creation_type234_short_off0`;
+        pure bridges `txSlice_getElem` / `loadPtr_add_rel_eq` / `ambientAbsOff`;
+        walk leaves already ambient-capable (listBase=regionBase, abs listOff)
       * TIS ambient callees + framed: extract/type/ets framed
       * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
       * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
-        (under TisCalleeAssumptionsAmbient + path hyps extractSuccess/type/statics)
       * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-      Residual: fill ExtractAssumedAmbient.success_flat body (ambient re-spec extract);
+      Residual: dualize extract Top packaging (~offset-shift, not leaf rewrite)
+        to fill ExtractAssumedAmbient.success_flat general off;
         package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
@@ -437,5 +441,6 @@ def type_dispatch_ambient_discharged :=
 #print axioms typeDispatchAssumed_fullCode
 #print axioms type_dispatch_ambient_discharged
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
+#print axioms TxExtractToAddressSpec.extractAssumed_ambient_creation_type234_short_off0
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose

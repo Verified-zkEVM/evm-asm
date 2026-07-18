@@ -140,4 +140,18 @@ structure TisCalleeAssumptionsAmbient (cr : CodeReq) where
 
 #print axioms extractAssumed_ambient_off0
 
+/-- Dualization strategy for general-off ExtractAssumedAmbient body:
+
+    Walk leaves (`rlp_walk_init_*`, `rlp_walk_next_*`) are already ambient-capable:
+    they take `listBase`/`srcBase` with `% 8 = 0` + `bytesRegion base bs` + absolute
+    `listOff`/`srcOff` into the blob. Ambient packaging sets:
+      listBase := regionBase
+      listOff  := off + sliceRel   -- `ambientAbsOff`
+      a0       := loadPtr + sliceRel = regionBase + (off + sliceRel)
+    Pure models stay on `txSlice bs off len`; byte equality via `txSlice_getElem`.
+    Type call dual uses `typeDispatchAssumedAmbient_fullCode` (DONE).
+    Residual: dualize extract Top packaging chain (~124 files) by offset-shift
+    (not leaf rewrite); pure honesty shortListSrcOff → ambientAbsOff. -/
+def extractAmbientBodyDualStrategy : True := trivial
+
 end EvmAsm.Codegen.TxExtractToAddressSpec
