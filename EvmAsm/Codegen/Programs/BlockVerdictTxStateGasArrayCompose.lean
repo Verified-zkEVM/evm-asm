@@ -167,9 +167,12 @@
                 **ExtractAssumed static domain DONE** (txBase align/hover/
                 `validByteRange`; toBuf align/over/`isValidMemAccess`;
                 TIS derives type `hvalid0` via `validByteRange_head`).
-                Residual path refinements (creation/type234/short/hdecL/hge7)
-                + fill Assumed.success_flat without path hyps; copy/legacy/t1;
-                long-list.
+                **Assumed-shaped creation type234 short DONE**
+                (`extractAssumed_success_flat_creation_type234_short` under
+                `extractCreationType234ShortPath`; classical-3 fullCode).
+                Residual: fill `ExtractAssumed.success_flat` for all
+                extractSuccess arms (copy/legacy/t1/long-list; drop path
+                Prop into pure case-split).
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
@@ -185,6 +188,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
+import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -213,10 +217,16 @@ def bgvOffset_discharged : BgvOffsetAssumed fullCode :=
 def typeDispatch_discharged : TypeDispatchAssumed TxIntrinsicStateGasSpec.fullCode :=
   typeDispatchAssumed_fullCode
 
+/-- Assumed-shaped extract discharge for short type234 creation path.
+    Full `ExtractAssumed.success_flat` still residual (other success arms). -/
+def extract_discharge_creation_type234_short_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short
+
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
-  /-- Extract assumed still residual; type_dispatch discharged. -/
+  /-- Extract assumed still residual; type_dispatch discharged.
+      Path packaging: `extract_discharge_creation_type234_short_available`. -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
