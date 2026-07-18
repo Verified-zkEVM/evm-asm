@@ -193,7 +193,7 @@
                 **bare Assumed copy path Prop DONE**
                 (`extractAssumed_success_flat_copy_type234_short`,
                 gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
-                Residual: long-list (≥56); multi-tx Option A; Teer; gate.
+                Long type234 creation bare Assumed path Prop DONE (`extractAssumed_success_flat_creation_type234_long`). Residual: long copy / legacy-t1 long; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
@@ -244,6 +244,11 @@ def typeDispatch_discharged : TypeDispatchAssumed TxIntrinsicStateGasSpec.fullCo
     Full `ExtractAssumed.success_flat` still residual (other success arms). -/
 def extract_discharge_creation_type234_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short
+
+/-- Long type234 creation bare Assumed path Prop available under fullCode. -/
+def extract_discharge_creation_type234_long_available :=
+  @EvmAsm.Codegen.TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_long
+
 
 def extract_discharge_creation_legacy_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short
