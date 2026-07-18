@@ -185,8 +185,8 @@
                 Assumed**contentDwords). **type234 short creation bare Assumed path Prop DONE**; **type234 short copy Assumed**content path Prop DONE**. **legacy of_decode AfterSave→creation DONE** (`TopMidSeq/Chain/JoinLegacyDecode`). **legacy short creation bare Assumed path Prop DONE** (`extractAssumed_success_flat_creation_legacy_short` under `extractCreationLegacyShortPath`; classical-3). **t1 of_decode AfterSave→creation DONE** (`TopMidSeq/Chain/JoinT1Decode`; classical-3). **t1 short Front E2E+Assumed packaging DONE** (`TopFrontCreDecodeShortT1`/`E2EShortConcreteT1`/`AssumedShortConcreteT1`; classical-3). **t1 short creation bare Assumed path Prop DONE** (`extractAssumed_success_flat_creation_t1_short`).
                 **copy content-from-bytesRegion leaf DONE**
                 (`bytesRegion_dword_triple_at` + `extractCopyPath_region` classical-3;
-                split/rejoin partition, no additive contentDwords). Residual: cascade
-                bare copy Assumed (HaveField/MidJoin/Front without contentDwords;
+                split/rejoin partition, no additive contentDwords). HaveField/MidJoin/Front short bare copy region DONE classical-3.
+                Residual: Assumed bare path Prop for copy (no contentDwords);
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
