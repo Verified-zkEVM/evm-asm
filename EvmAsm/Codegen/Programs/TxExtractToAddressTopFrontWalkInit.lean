@@ -661,6 +661,59 @@ theorem extractWalkInitCall_short_toAfterSave_concrete
 #print axioms extractWalkInitBneSave_owned
 #print axioms extractWalkInitCall_short_toAfterSave_owned
 #print axioms extractWalkInitCall_short_toAfterSave_concrete
+
+set_option maxRecDepth 8000 in
+/-- E → AfterSave short path with concrete `frontAfterSavePostShort` (no ∃). -/
+theorem extractFrontToAfterSave_short_concrete
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hinover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hinvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hlistLen_ne : (lenW - (teerTxTypeDispatch txBytes).2.2) ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true)
+    (h_hi : BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true)
+    (h_exact : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) =
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (lenW - (teerTxTypeDispatch txBytes).2.2)) :
+    cpsTripleWithin
+      (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) +
+        ((1 + 15) + (1 + (1 + 1))))
+      E AfterSaveCursor extractLinkedCode
+      ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+        frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+        prologueAbiRest txBase lenW toBuf isCreationPtr
+          old5 old6 old7 old14 old15 old16 **
+        extractToBufOwn toBuf ** memOwn isCreationPtr **
+        frontExtraAmbient txBase txBytes)
+      (frontAfterSavePostShort spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have hF := extractFrontThenTypeLoad sp0 spC s txBase lenW toBuf isCreationPtr
+    old5 old6 old7 old14 old15 old16 txBytes
+    hspC htalign htover htvalid hlen hsuccess halign hover hvalid0
+  have hW := extractWalkInitCall_short_toAfterSave_concrete spC s
+    txBase lenW toBuf isCreationPtr txBytes
+    halign hoff hinover hinvalid hlistLen_ne h_ge h_hi h_exact
+  exact cpsTripleWithin_seq_same_cr hF hW
+
 #print axioms extractFrontToAfterSave_short
+#print axioms extractFrontToAfterSave_short_concrete
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

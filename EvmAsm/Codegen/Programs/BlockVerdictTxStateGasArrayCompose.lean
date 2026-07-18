@@ -146,14 +146,20 @@
               `short_walk_init_cursor_eq_srcOff0`, `packaging_short_endPtr`,
               `rlpItemDecode_single_byte` / `hdec_single_short_list_end`.
               **concrete short AfterSave→creation of_decode DONE**
-              (`frontAfterSavePostShort_to_midJoinPre`;
-              `extractFrontAfterSaveCreation_then_epi_of_decode_short` —
-              concrete hcur/hdec/hinb/hnext/hcre at shortWalkEnd, no ∀endPtr;
-              pure `shortWalkCursor_eq_srcOff0` / `shortWalkEnd_eq_shortListEndPtr`).
-              Residual: wire short concrete into Assumed/E2E (drop ∀endPtr there);
-              hvalid1; short-string/list hdec; fill Assumed;
-              pure ∃decode skips 0..4; long-list (≥56);
-              fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
+               (`frontAfterSavePostShort_to_midJoinPre`;
+               `extractFrontAfterSaveCreation_then_epi_of_decode_short` —
+               concrete hcur/hdec/hinb/hnext/hcre at shortWalkEnd, no ∀endPtr;
+               pure `shortWalkCursor_eq_srcOff0` / `shortWalkEnd_eq_shortListEndPtr`).
+               **short concrete E→ret + Assumed DONE**
+               (`extractFrontToAfterSave_short_concrete`;
+               `extractFrontCreation_then_epi_of_decode_short_concrete`;
+               `extractAssumed_creation_fullCode_of_decode_short_concrete` —
+               no ∀endPtr on hcur/hdec/hinb; still residual walk statics
+               hoff/hss/hdec concrete + hnext/hcre at shortWalkEnd).
+               Residual: discharge concrete hdec/hinb/hcur/hnext/hcre from
+               extractSuccess+shortListSrcOff pure; hvalid1; multi-byte hdec;
+               fill `ExtractAssumed.success_flat`; copy Assumed; long-list;
+               legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
