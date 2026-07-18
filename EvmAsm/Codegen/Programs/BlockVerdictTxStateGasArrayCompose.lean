@@ -182,7 +182,7 @@
                 **copy Assumed pure wire DONE**
                 (`extractAssumed_copy_shortConcrete_pure(_fullCode)`:
                 shortListSrcOff + hnext/hlen20/hnext_content pure;
-                Assumed**contentDwords). **type234 short creation bare Assumed path Prop DONE**; **type234 short copy Assumed**content path Prop DONE**. **legacy of_decode AfterSave→creation DONE** (`TopMidSeq/Chain/JoinLegacyDecode`). **legacy short concrete Front E2E+Assumed packaging DONE** (`extractFrontCreation_then_epi_of_decode_short_concrete_legacy`, `extractAssumed_creation_fullCode_of_decode_short_concrete_legacy` — honesty residuals remain). Residual: legacy pureHvalid/path Prop bare Assumed fill; t1/long + content-from-bytesRegion for copy; multi-tx ambient Option A; Teer prover1; gate a4gbr.1.
+                Assumed**contentDwords). **type234 short creation bare Assumed path Prop DONE**; **type234 short copy Assumed**content path Prop DONE**. **legacy of_decode AfterSave→creation DONE** (`TopMidSeq/Chain/JoinLegacyDecode`). **legacy short creation bare Assumed path Prop DONE** (`extractAssumed_success_flat_creation_legacy_short` under `extractCreationLegacyShortPath`; classical-3). Residual: t1/long + content-from-bytesRegion for copy; multi-tx ambient Option A; Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
@@ -231,6 +231,9 @@ def typeDispatch_discharged : TypeDispatchAssumed TxIntrinsicStateGasSpec.fullCo
     Full `ExtractAssumed.success_flat` still residual (other success arms). -/
 def extract_discharge_creation_type234_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short
+
+def extract_discharge_creation_legacy_short_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short
 
 /-- Copy path packaging under Assumed**contentDwords (not bare success_flat). -/
 def extract_discharge_copy_type234_short_available :=
