@@ -219,6 +219,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidT1Ambient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidT1Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
@@ -361,7 +362,8 @@ structure A4gbrResiduals where
           * t1 ambient Mid frames/walks/MidJoin cre+copy DONE
           * t1 short Front E2E + Assumed packaging ambient DONE
             * t1 short creation ambient PureHvalid path Prop DONE
-            Residual: t1 copy ambient;
+            * t1 short copy ambient PureHvalid path Prop DONE
+            Residual: long ambient;
             long ambient; Teer; gate
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
           * legacy PureHvalid ambient path Prop DONE
@@ -502,6 +504,10 @@ def extract_discharge_creation_legacy_short_ambient_available :=
 def extract_discharge_creation_t1_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_t1_short_ambient
 
+/-- Multi-tx Option A: ambient ExtractAssumed short t1 copy path Prop. -/
+def extract_discharge_copy_t1_short_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short_ambient
+
 /-- Residual discharge hook: ambient ExtractAssumed short legacy copy path Prop. -/
 def extract_discharge_copy_legacy_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short_ambient
@@ -523,6 +529,8 @@ def extract_discharge_copy_type234_short_ambient_available :=
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short_ambient
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_t1_short_ambient
 #print axioms extract_discharge_creation_t1_short_ambient_available
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short_ambient
+#print axioms extract_discharge_copy_t1_short_ambient_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short_ambient
 #print axioms extract_discharge_copy_legacy_short_ambient_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
