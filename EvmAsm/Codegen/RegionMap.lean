@@ -264,8 +264,10 @@ def schemeAAnchors : List GuestRegion :=
     overflow guard (#10448). Grew to `0x5cff4` for the net-deleted
     BAL-storage marker-scan fix (`fix/bal-netdeleted-storage`, #10452:
     demotes raw storage writes only when the account is recorded in
-    the transaction-scoped EIP-6780 same-tx deletion table). -/
-def textSizeBytes : Nat := 0x5cff4
+    the transaction-scoped EIP-6780 same-tx deletion table). Grew to
+    `0x5d078` for the nested-CREATE final-nonce retention fix
+    (`fix/create-final-nonce`, #10453). -/
+def textSizeBytes : Nat := 0x5d078
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

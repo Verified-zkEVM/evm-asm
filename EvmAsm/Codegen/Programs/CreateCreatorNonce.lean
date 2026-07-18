@@ -87,6 +87,31 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
+  -- Read the current (next-to-use) nonce for an already-seeded creator without
+  -- advancing the table.  A CREATE child uses this at return time: initcode can
+  -- itself CREATE, so the child final nonce is the table value rather than
+  -- necessarily the initial EIP-161 nonce 1.  A missing table entry is only a
+  -- standalone fallback and returns 1.
+  -- a0 = creator address ptr (20-byte big-endian); a0 = current nonce (or 1 on miss).
+  -- Clobbers t0-t6 and a0-a1; preserves s-registers.
+  "create_creator_nonce_current:\n" ++
+  "  mv t6, a0\n" ++
+  "  la t0, create_nonce_table; la t1, create_nonce_table_count; ld t1, 0(t1)\n" ++
+  "  li t2, 0\n" ++
+  ".Lccnc_loop:\n" ++
+  "  beq t2, t1, .Lccnc_miss\n" ++
+  "  li t3, 40; mul t3, t2, t3; add t3, t0, t3\n" ++
+  "  mv t4, t6; mv t5, t3; li a1, 20\n" ++
+  ".Lccnc_cmp:\n" ++
+  "  beqz a1, .Lccnc_found\n" ++
+  "  lbu a0, 0(t4); lbu t0, 0(t5); bne a0, t0, .Lccnc_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi a1, a1, -1; j .Lccnc_cmp\n" ++
+  ".Lccnc_next:\n" ++
+  "  addi t2, t2, 1; la t0, create_nonce_table; j .Lccnc_loop\n" ++
+  ".Lccnc_found:\n" ++
+  "  ld a0, 32(t3); ret\n" ++
+  ".Lccnc_miss:\n" ++
+  "  li a0, 1; ret\n" ++
   -- A successfully entered CREATE child is initialized with nonce 1 before
   -- its initcode executes (`process_create_message`). Seed/upsert that child
   -- as a potential creator so a recursive CREATE derives its first target

@@ -192,7 +192,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
       -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre balance captured
-      -- before the CREATE frame; post nonce=1, balance = C's FINAL balance). The target may already be
+      -- before the CREATE frame; post nonce is the initcode's final nonce, balance = C's FINAL balance). The target may already be
       -- present with a nonzero balance, so its pre balance is nse_create_pre_bal rather than a fabricated
       -- zero: updateBuilderFromTx records a balance change only when the actual block pre/post differ.
       -- The final balance is C's LIVE selfBalance (env+32),
@@ -207,7 +207,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
       "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n  sd x14, 24(sp)\n  sd x15, 32(sp)\n" ++
-      "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
+      -- The per-creator nonce table is seeded to 1 for this child and advances
+      -- for every inner CREATE. Do not use the generic effect log here: a later
+      -- value-transfer record can carry a header-derived nonce for a newly-created
+      -- account and is not the account's running CREATE nonce.
+      "  la a0, create_address_be\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
+      "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  ld x14, 24(sp)\n  ld x15, 32(sp)\n  addi sp, sp, 48\n" ++
       -- drj99.1 part 1: a SUCCESSFUL CREATE deposit must pass success=1 to frame_return so the child
