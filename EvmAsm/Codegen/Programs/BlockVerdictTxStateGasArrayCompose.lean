@@ -123,8 +123,14 @@
               `hnext_single_matches_srcOff_succ`,
               `extractSuccess_creation_type234_hcre_srcOff` /
               `_hnext_field5` (srcOff:=shortListSrcOff under creation type234 short).
+              **multi-byte short-string packaging hnext DONE**:
+              `encode_bytes_short_string` / `_length`,
+              `encode_bytes_long_length_gt`,
+              `bytes_data_length_le_55_of_encode_le`,
+              `hnext_short_string_matches_srcOff_succ`,
+              `hnext_bytes_matches_srcOff_succ` (unified empty/single/multi ≤55).
               Residual: wire srcOffk:=shortListSrcOff into Assumed short creation
-              (discharge hnext0..4 via empty/single/bytes pure; multi-byte short);
+              (discharge hnext0..4 via empty/single/bytes pure);
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
