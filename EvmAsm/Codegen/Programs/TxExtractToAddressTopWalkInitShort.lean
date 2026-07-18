@@ -32,8 +32,15 @@ private theorem regIs_imp_regOwn (r : Reg) (v : Word) :
     ∀ h, (r ↦ᵣ v) h → regOwn r h :=
   fun _ hx => ⟨v, hx⟩
 
+/-- Concrete short OK cursor/end from walk_init short leaf. -/
+def shortWalkCursor (txBase : Word) (listOff : Nat) : Word :=
+  (txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12)
+
+def shortWalkEnd (txBase listLen : Word) (listOff : Nat) : Word :=
+  (txBase + BitVec.ofNat 64 listOff) + listLen
+
 set_option maxRecDepth 8000 in
-/-- WalkInitJalPc → LinkWalkInit short path; post ambient ** common ** OK exists.
+/-- WalkInitJalPc → LinkWalkInit short path; post ambient ** common ** concrete OK regs.
     Short pure from extractSuccess_short_walkInit_guards (+ listLen = lenW − inner). -/
 theorem extractWalkInitCall_short_fromTypeLoad
     (txBase lenW : Word) (txBytes : List (BitVec 8))
@@ -72,9 +79,8 @@ theorem extractWalkInitCall_short_fromTypeLoad
       (walkInitAmbient txBase lenW
           (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
         extractWalkInitCommon txBase txBytes **
-        (fun st => ∃ cursor endPtr : Word,
-          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
-            (.x12 ↦ᵣ (0 : Word))) st)) := by
+        extractWalkInitShortOkRegs txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+          (teerTxTypeDispatch txBytes).2.2.toNat) := by
   set inner := (teerTxTypeDispatch txBytes).2.2 with h_inner
   set typeW := (teerTxTypeDispatch txBytes).2.1 with h_type
   set listOff := inner.toNat with h_listOff
@@ -196,7 +202,7 @@ theorem extractWalkInitCall_short_fromTypeLoad
       xperm_hyp hp) (fun _ hq => by
       simp only [walkInitAmbient] at hq ⊢
       xperm_hyp hq) hcallF
-  -- ShortPost → common (regOwn x30/x31) ** OK exists
+  -- ShortPost → common (regOwn x30/x31) ** concrete ShortOkRegs
   refine cpsTripleWithin_weaken (fun _ hp => by
     simp only [inner, typeW, listLen] at hp ⊢
     xperm_hyp hp) (fun h hq => by
@@ -206,9 +212,9 @@ theorem extractWalkInitCall_short_fromTypeLoad
           extractWalkInitShortPost txBase listLen txBytes listOff inner t6Old) h := by
       xperm_hyp hq
     obtain ⟨hA, hP, hd, hu, hamb, hpost⟩ := hq'
-    have hnest := extractWalkInitShortPost_to_okNested txBase listLen txBytes
+    have hconc := extractWalkInitShortPost_to_okConcrete txBase listLen txBytes
       listOff inner t6Old _ hpost
-    obtain ⟨hL, hR, hd2, hu2, htemps, hEx⟩ := hnest
+    obtain ⟨hL, hR, hd2, hu2, htemps, hRegs⟩ := hconc
     -- convert x30/x31 concrete → regOwn for extractWalkInitCommon
     have htemps' : (extractWalkInitCommon txBase txBytes) hL := by
       simp only [extractWalkInitCommon] at htemps ⊢
@@ -225,11 +231,14 @@ theorem extractWalkInitCall_short_fromTypeLoad
       xperm_hyp mtemps
     have hmid :
         (extractWalkInitCommon txBase txBytes **
-          (fun st => ∃ cursor endPtr : Word,
-            ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
-              (.x12 ↦ᵣ (0 : Word))) st)) hP :=
-      ⟨hL, hR, hd2, hu2, htemps', hEx⟩
-    exact ⟨hA, hP, hd, hu, hamb, hmid⟩) hcallW
+          extractWalkInitShortOkRegs txBase listLen listOff) hP :=
+      ⟨hL, hR, hd2, hu2, htemps', hRegs⟩
+    -- goal wants ShortOkRegs with teer inner / lenW-inner
+    have hmid' :
+        (extractWalkInitCommon txBase txBytes **
+          extractWalkInitShortOkRegs txBase (lenW - inner) inner.toNat) hP := by
+      simpa only [listLen, listOff, h_listLen, h_listOff, h_inner] using hmid
+    exact ⟨hA, hP, hd, hu, hamb, hmid'⟩) hcallW
 
 set_option maxRecDepth 8000 in
 /-- Frame s5/s6 through short call_fromTypeLoad. -/
@@ -271,9 +280,8 @@ theorem extractWalkInitCall_short_ok_framed_s5s6
       (walkInitAmbient txBase lenW
           (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
         extractWalkInitCommon txBase txBytes **
-        (fun st => ∃ cursor endPtr : Word,
-          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
-            (.x12 ↦ᵣ (0 : Word))) st) **
+        extractWalkInitShortOkRegs txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+          (teerTxTypeDispatch txBytes).2.2.toNat **
         regOwn .x21 ** regOwn .x22) := by
   have h0 := extractWalkInitCall_short_fromTypeLoad txBase lenW txBytes old1
     hsalign hoff hover hvalid hlen h_ge h_hi h_exact

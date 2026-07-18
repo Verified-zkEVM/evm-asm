@@ -450,6 +450,26 @@ theorem extractWalkInitBneOk :
   rw [hpc] at hnt
   exact hnt
 
+/-- Concrete short OK regs: cursor = list+1, end = list+listLen. -/
+def extractWalkInitShortOkRegs (txBase listLen : Word) (listOff : Nat) : Assertion :=
+  (.x10 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
+    (.x11 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + listLen)) **
+    (.x12 ↦ᵣ (0 : Word))
+
+/-- Short post → common temps/bytes + concrete OK regs (no ∃). -/
+theorem extractWalkInitShortPost_to_okConcrete
+    (txBase listLen : Word) (txBytes : List (BitVec 8))
+    (listOff : Nat) (t5Old t6Old : Word) :
+    ∀ h, extractWalkInitShortPost txBase listLen txBytes listOff t5Old t6Old h →
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkInit) **
+          bytesRegion txBase txBytes) **
+        extractWalkInitShortOkRegs txBase listLen listOff) h := by
+  intro h hp
+  simp only [extractWalkInitShortPost, extractWalkInitShortOkRegs] at hp ⊢
+  xperm_hyp hp
+
 /-- Short post → common temps/bytes + ∃ cursor,end a2=0 OK regs
     (honest replacement for universal `walkInitOkFail_drop` on short path). -/
 theorem extractWalkInitShortPost_to_okNested
@@ -464,26 +484,19 @@ theorem extractWalkInitShortPost_to_okNested
           ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
             (.x12 ↦ᵣ (0 : Word))) st)) h := by
   intro h hp
-  simp only [extractWalkInitShortPost] at hp
-  -- Reassoc flat short post → (temps/bytes) ** (x10 ** x11 ** x12)
-  have hp' :
-      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
-          (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkInit) **
-          bytesRegion txBase txBytes) **
-        ((.x10 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
-          (.x11 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + listLen)) **
-          (.x12 ↦ᵣ (0 : Word)))) h := by
-    xperm_hyp hp
-  obtain ⟨hL, hR, hd, hu, hRest, hRegs⟩ := hp'
+  have hpC := extractWalkInitShortPost_to_okConcrete txBase listLen txBytes
+    listOff t5Old t6Old h hp
+  obtain ⟨hL, hR, hd, hu, hRest, hRegs⟩ := hpC
   refine ⟨hL, hR, hd, hu, hRest, ?_⟩
-  exact ⟨(txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12),
-    (txBase + BitVec.ofNat 64 listOff) + listLen, hRegs⟩
+  refine ⟨(txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12),
+    (txBase + BitVec.ofNat 64 listOff) + listLen, ?_⟩
+  simpa only [extractWalkInitShortOkRegs] using hRegs
 
 #print axioms extractWalkInitPrest_pcFree
 #print axioms walkInitJalOff_resolves
 #print axioms extractWalkInitCall
 #print axioms extractWalkInitCall_short
+#print axioms extractWalkInitShortPost_to_okConcrete
 #print axioms extractWalkInitShortPost_to_okNested
 #print axioms extractWalkInitBneOk
 
