@@ -363,7 +363,8 @@ structure A4gbrResiduals where
           * t1 short Front E2E + Assumed packaging ambient DONE
             * t1 short creation ambient PureHvalid path Prop DONE
             * t1 short copy ambient PureHvalid path Prop DONE
-            Residual: long ambient;
+            * long walk_init Call_long ambient leaf DONE
+            Residual: long Front/Assumed ambient packaging;
             long ambient; Teer; gate
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
           * legacy PureHvalid ambient path Prop DONE
