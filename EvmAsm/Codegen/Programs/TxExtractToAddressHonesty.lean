@@ -101,6 +101,112 @@ theorem rlpItemDecode_addr20_short
     · rw [hlen20]
     · exact hlen20
 
+/-- Any successful decode with prefix `0x80` reports `len = 0` (decode-gated hcre). -/
+theorem rlpItemDecode_pfx80_imp_len0
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr next len : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x80 : BitVec 8))
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    len = (0 : Word) := by
+  obtain ⟨b, hb?, hforms⟩ := h
+  have heq : b = (0x80 : BitVec 8) := by
+    have hget : bytes[off]? = some (bytes[off]'hoff) := List.getElem?_eq_getElem hoff
+    rw [hget, hb] at hb?
+    exact Option.some.inj hb?.symm
+  subst heq
+  rcases hforms with h1 | h2 | h3 | h4 | h5
+  · have hult : BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0x80 : Word) = false := by
+      decide
+    have : BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0x80 : Word) = true := h1.1
+    rw [hult] at this
+    exact absurd this (by decide)
+  · exact h2.2.2.2.2.2
+  · have hult : BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := h3.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := h4.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x80 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := h5.1
+    exact absurd hult this
+
+/-- Any successful decode with prefix `0x94` reports `len = 20` (decode-gated hlen20). -/
+theorem rlpItemDecode_pfx94_imp_len20
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr next len : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x94 : BitVec 8))
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    len = (20 : Word) := by
+  obtain ⟨b, hb?, hforms⟩ := h
+  have heq : b = (0x94 : BitVec 8) := by
+    have hget : bytes[off]? = some (bytes[off]'hoff) := List.getElem?_eq_getElem hoff
+    rw [hget, hb] at hb?
+    exact Option.some.inj hb?.symm
+  subst heq
+  rcases hforms with h1 | h2 | h3 | h4 | h5
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0x80 : Word) = false := by
+      decide
+    have : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0x80 : Word) = true := h1.1
+    rw [hult] at this
+    exact absurd this (by decide)
+  · exact h2.2.2.2.2.2
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xb8 : Word) = true := h3.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xc0 : Word) = true := h4.1
+    exact absurd hult this
+  · have hult : BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := by
+      decide
+    have : ¬ BitVec.ult ((0x94 : BitVec 8).zeroExtend 64) (0xf8 : Word) = true := h5.1
+    exact absurd hult this
+
+/-- Decode-gated creation residual: prefix `0x80` ⇒ every decode has `len = 0`. -/
+theorem hcre_decode_of_pfx80
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x80 : BitVec 8)) :
+    ∀ (next len : Word),
+      rlpItemDecode bytes off cursor endPtr next len → len = (0 : Word) :=
+  fun next len h => rlpItemDecode_pfx80_imp_len0 bytes off cursor endPtr next len hoff hb h
+
+/-- Decode-gated copy residual: prefix `0x94` ⇒ every decode has `len = 20`. -/
+theorem hlen20_decode_of_pfx94
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x94 : BitVec 8)) :
+    ∀ (next len : Word),
+      rlpItemDecode bytes off cursor endPtr next len → len = (20 : Word) :=
+  fun next len h => rlpItemDecode_pfx94_imp_len20 bytes off cursor endPtr next len hoff hb h
+
+/-- Empty bytes item encodes as the single prefix `0x80`. -/
+theorem encode_bytes_empty : encode (.bytes []) = [BitVec.ofNat 8 0x80] := by
+  have h : (0 : Nat) ≤ 55 := by decide
+  simp only [encode, encodeBytes, List.length_nil, h, ↓reduceIte]
+  rfl
+
+/-- Successful creation path: `to` field is empty bytes (encode prefix `0x80`). -/
+theorem extractSuccess_creation_encode_empty
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hcre : (teerExtractToAddress txBytes).2.2 = (1 : Word)) :
+    ∃ items,
+      decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+        some items ∧
+      items[toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat]? =
+        some (.bytes []) ∧
+      encode (.bytes []) = [BitVec.ofNat 8 0x80] := by
+  obtain ⟨items, content, hdec, hitem, hcases⟩ := extractSuccess_to_field txBytes h
+  rcases hcases with ⟨hnil, _hisCre⟩ | ⟨_, hisCre0⟩
+  · subst hnil
+    exact ⟨items, hdec, hitem, encode_bytes_empty⟩
+  · exact absurd (hcre.symm.trans hisCre0) (by decide)
+
 /-- Successful `decodeListItems` recovers the canonical list encoding. -/
 theorem decodeListItems_eq_encode (bs : List Byte) (items : List RLPItem)
     (h : decodeListItems bs = some items) :
@@ -308,6 +414,12 @@ theorem extractSuccess_short_walkInit_guards
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
+#print axioms rlpItemDecode_pfx80_imp_len0
+#print axioms rlpItemDecode_pfx94_imp_len20
+#print axioms hcre_decode_of_pfx80
+#print axioms hlen20_decode_of_pfx94
+#print axioms encode_bytes_empty
+#print axioms extractSuccess_creation_encode_empty
 #print axioms decodeListItems_eq_encode
 #print axioms decodeListItems_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
