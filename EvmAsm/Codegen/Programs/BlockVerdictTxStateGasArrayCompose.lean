@@ -299,9 +299,9 @@ structure A4gbrResiduals where
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
-      Option A substrate: `TxTypeDispatchAmbient` — `type_dispatch_lbu_ambient`,
-      `txSlice`, `TypeDispatchAssumedAmbient` off0 pkg. Residual: ambient leaf
-      arms off≠0; ExtractAssumed ambient re-spec; IntrinsicAssumed general off. -/
+      Option A: ambient LBU + legacy/type1–4 arms DONE classical-3
+      (`txTypeDispatch_{legacy,type1..4}_ambient`). Residual: ambient top merge
+      success → AssumedAmbient full off/len; ExtractAssumed ambient; Intrinsic off≠0. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial

@@ -74,6 +74,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbient
+import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTyped
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressHonesty
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
