@@ -42,7 +42,7 @@ def midOwned (spC : Word) (s : ExtractSaved)
     extractToBufOwn toBuf ** memOwn isCreationPtr **
     (Reg.x23 ↦ᵣ s7)
 
-private theorem midOwned_pcFree (spC : Word) (s : ExtractSaved)
+theorem midOwned_pcFree (spC : Word) (s : ExtractSaved)
     (toBuf isCreationPtr s7 : Word) :
     (midOwned spC s toBuf isCreationPtr s7).pcFree := by
   unfold midOwned joinStackAmbient extractToBufOwn; pcf
