@@ -50,14 +50,13 @@
           **stack frame ambient DONE** + **frameSlotsSaved_imp_stackFree10 DONE**
           + **both HaveField exits→epi DONE**
           (`extractHaveFieldCreation_then_epi` + `extractHaveFieldCopy_then_epi`).
-          **midOwned frame type234→HaveField both exits→epi DONE**
-          (`extractType234ToHaveField_owned` +
-           `extractType234HaveFieldCreation_then_epi` +
-           `extractType234HaveFieldCopy_then_epi`).
-          Residual: midOwned through full wn0..5;
-          extractSuccess drop-fail pure; full mid seq → extractAssumed;
-          fullCode∪extract (use extractLinkedCode first);
-          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+           **midOwned through type234+legacy+t1 walks + type-branch DONE**;
+           **all three HaveField→epi under midOwned DONE**
+           (type234/legacy/t1 creation+copy → ret with stackFree10).
+           Residual: extractSuccess drop-fail pure;
+           full mid seq → extractAssumed under extractLinkedCode;
+           fullCode∪extract (use extractLinkedCode first);
+           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
