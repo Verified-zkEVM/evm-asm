@@ -20,8 +20,9 @@
 
   Residual set for "unconditional" a4gbr claim (honest):
   1. TeerAssumed ← prover1 teer top (modulo remaining input callees)
-  2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0) + CodeReq mono into
-     array fullCode (off=0 regOwn peel DONE)
+  2. IntrinsicAssumed ← multi-tx ambient (off ≠ 0): TypeDispatch ambient
+     Assumed DONE (`typeDispatchAssumedAmbient_fullCode`); residual
+     ExtractAssumed ambient + Intrinsic off≠0 discharge
    3. TisCalleeAssumptions ← ExtractAssumed: **Program convert DONE** +
        **stack honesty DONE** (`ExtractAssumed` pins `x2`+`stackFree 10`;
        `nIntrinsicStackDwords` 8→18; discharge `stackFree18_split`).
@@ -211,6 +212,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
+import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
@@ -292,16 +294,12 @@ def extract_discharge_copy_t1_long_region_available :=
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
-  /-- Extract assumed still residual; type_dispatch discharged.
-      Bare Assumed path Props DONE for creation+copy × type234/legacy/t1 × short+long
-      (`extract_discharge_*_{short,long}_*_available`). Residual: multi-tx ambient Option A;
-      Teer prover1; gate a4gbr.1. -/
+  /-- ExtractAssumed path Props bare DONE short+long all types; residual is
+      ambient re-spec (bytesRegion regionBase blob) for multi-tx off≠0. -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
-  /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
-      off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
-      Option A: ambient LBU + legacy/type1–4 arms DONE classical-3
-      (`txTypeDispatch_{legacy,type1..4}_ambient`). Residual: ambient top merge
-      success → AssumedAmbient full off/len; ExtractAssumed ambient; Intrinsic off≠0. -/
+  /-- Multi-tx ambient type_dispatch DONE classical-3:
+      `typeDispatchAssumedAmbient_fullCode` (general off/len under fullCode).
+      Residual: ExtractAssumed ambient re-spec; IntrinsicAssumed off≠0 discharge. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
@@ -414,9 +412,14 @@ theorem intrinsic_discharge_off0_own_available
     ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
     hret hlink hextractOk hsuccess halign hover hvalidBuf htvalid
 
+/-- Multi-tx Option A: ambient TypeDispatchAssumed full off/len available. -/
+def type_dispatch_ambient_discharged :=
+  TxTypeDispatchSpec.typeDispatchAssumedAmbient_fullCode
+
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available
 #print axioms bgvOffsetAssumed_fullCode
 #print axioms typeDispatchAssumed_fullCode
+#print axioms type_dispatch_ambient_discharged
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
