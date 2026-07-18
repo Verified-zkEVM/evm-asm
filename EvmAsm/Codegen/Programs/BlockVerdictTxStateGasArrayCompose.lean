@@ -323,13 +323,15 @@ structure A4gbrResiduals where
             (`extractType234HaveFieldCreation_then_epi_ambient`);
           MidJoin AfterSave→creation ambient DONE
             (`extractType234AfterSaveCreation_then_epi_of_decode_ambient`);
-          residual: MidJoin copy ambient + Front/Assumed ambient path
+          MidJoin AfterSave→copy region ambient DONE
+            (`extractType234AfterSaveCopy_then_epi_of_decode_region_ambient`);
+          residual: Front E2E ambient creation/copy + Assumed ambient path
             → fill ExtractAssumedAmbient.success_flat general off
         * TIS ambient callees + framed: extract/type/ets framed
         * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
         * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
         * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-        Residual: MidJoin copy ambient + Front E2E ambient Assumed fill;
+        Residual: Front E2E ambient Assumed fill;
           package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
