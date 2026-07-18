@@ -153,6 +153,149 @@ theorem extractWalkInitCall_fromFrontTypeLoad_owned
         (regIs_imp_regOwn .x22 s.s6)) h hnest
   xperm_hyp mtemps
 
+/-- AfterSave under walkFrame: ∃ cursor,end. -/
+def frontAfterSavePost (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8)) : Assertion :=
+  fun h => ∃ cursor endPtr : Word,
+    (walkFrameAmbient spC s toBuf isCreationPtr **
+      extractAfterSavePost txBase lenW
+        (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2
+        cursor endPtr txBytes) h
+
+set_option maxRecDepth 8000 in
+/-- OkNested BNE+save framed with walkFrameAmbient. -/
+theorem extractWalkInitOkNested_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8)) :
+    cpsTripleWithin (1 + (1 + 1)) LinkWalkInit AfterSaveCursor extractLinkedCode
+      (walkFrameAmbient spC s toBuf isCreationPtr **
+        walkInitAmbient txBase lenW
+          (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
+        extractWalkInitCommon txBase txBytes **
+        (fun st => ∃ cursor endPtr : Word,
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word))) st) **
+        regOwn .x21 ** regOwn .x22)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have h0 := extractWalkInitOkNested_bneSave txBase lenW
+    (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 txBytes
+  have hF := cpsTripleWithin_frameR
+    (walkFrameAmbient spC s toBuf isCreationPtr)
+    (walkFrameAmbient_pcFree spC s toBuf isCreationPtr) h0
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun h hq => by
+      -- frameR post: (∃ c e, afterSave) ** walkFrame
+      have hq' :
+          ((fun st => ∃ cursor endPtr : Word,
+              extractAfterSavePost txBase lenW
+                (teerTxTypeDispatch txBytes).2.1
+                (teerTxTypeDispatch txBytes).2.2
+                cursor endPtr txBytes st) **
+            walkFrameAmbient spC s toBuf isCreationPtr) h := by
+        xperm_hyp hq
+      obtain ⟨h1, h2, hd, hu, hEx, hW⟩ := hq'
+      obtain ⟨cursor, endPtr, hPost⟩ := hEx
+      -- rebuild walkFrame ** afterSave
+      have hgoal :
+          (walkFrameAmbient spC s toBuf isCreationPtr **
+            extractAfterSavePost txBase lenW
+              (teerTxTypeDispatch txBytes).2.1
+              (teerTxTypeDispatch txBytes).2.2
+              cursor endPtr txBytes) h :=
+        ⟨h2, h1, hd.symm,
+          by rw [PartialState.union_comm_of_disjoint hd.symm, hu],
+          hW, hPost⟩
+      exact ⟨cursor, endPtr, hgoal⟩) hF
+
+/-- Drop-fail: OkFail implies the a2=0 OK arm (honesty residual from extractSuccess). -/
+def walkInitOkFail_drop : Prop :=
+  ∀ h, extractWalkInitOkFail h →
+    ∃ cursor endPtr : Word,
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word))) h
+
+set_option maxRecDepth 8000 in
+/-- LinkWalkInit OkFail post → AfterSave under drop-fail + walkFrame. -/
+theorem extractWalkInitOkFail_toAfterSave_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hdrop : walkInitOkFail_drop) :
+    cpsTripleWithin (1 + (1 + 1)) LinkWalkInit AfterSaveCursor extractLinkedCode
+      (frontWalkInitOkFailPost spC s txBase lenW toBuf isCreationPtr txBytes)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have h0 := extractWalkInitOkNested_owned spC s txBase lenW
+    toBuf isCreationPtr txBytes
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq) h0
+  simp only [frontWalkInitOkFailPost] at hp
+  have hflat :
+      ((walkFrameAmbient spC s toBuf isCreationPtr **
+          walkInitAmbient txBase lenW
+            (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
+          extractWalkInitCommon txBase txBytes **
+          regOwn .x21 ** regOwn .x22) **
+        extractWalkInitOkFail) h := by
+    xperm_hyp hp
+  obtain ⟨hL, hR, hd, hu, hRest, hOkFail⟩ := hflat
+  have hOk := hdrop hR hOkFail
+  have h2 :
+      ((walkFrameAmbient spC s toBuf isCreationPtr **
+          walkInitAmbient txBase lenW
+            (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
+          extractWalkInitCommon txBase txBytes **
+          regOwn .x21 ** regOwn .x22) **
+        (fun st => ∃ cursor endPtr : Word,
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+            (.x12 ↦ᵣ (0 : Word))) st)) h :=
+    ⟨hL, hR, hd, hu, hRest, hOk⟩
+  xperm_hyp h2
+
+set_option maxRecDepth 8000 in
+/-- WalkInitJalPc → AfterSaveCursor under front ambient + drop-fail. -/
+theorem extractWalkInitCall_toAfterSave_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hll_len : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat
+        ≤ txBytes.length)
+    (hll_over : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      txBase.toNat + ((teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      ∀ k, k < ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat →
+        isValidByteAccess (txBase + BitVec.ofNat 64
+          ((teerTxTypeDispatch txBytes).2.2.toNat + 1 + k)) = true)
+    (hdrop : walkInitOkFail_drop) :
+    cpsTripleWithin ((1 + 81) + (1 + (1 + 1)))
+      WalkInitJalPc AfterSaveCursor extractLinkedCode
+      (frontTypeLoadPost spC s txBase lenW toBuf isCreationPtr txBytes)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have hCall := extractWalkInitCall_fromFrontTypeLoad_owned spC s
+    txBase lenW toBuf isCreationPtr txBytes
+    hsalign hoff hover hvalid hll_len hll_over hll_valid
+  have hSave := extractWalkInitOkFail_toAfterSave_owned spC s
+    txBase lenW toBuf isCreationPtr txBytes hdrop
+  exact cpsTripleWithin_seq_same_cr hCall hSave
+
 #print axioms extractWalkInitCall_fromFrontTypeLoad_owned
+#print axioms extractWalkInitOkNested_owned
+#print axioms extractWalkInitOkFail_toAfterSave_owned
+#print axioms extractWalkInitCall_toAfterSave_owned
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
