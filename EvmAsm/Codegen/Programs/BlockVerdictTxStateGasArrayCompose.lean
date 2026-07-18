@@ -317,7 +317,9 @@ structure A4gbrResiduals where
          wn0 call outcome ambient DONE (`extractWalkNext0Call_type234_outcome_ambient`);
          wn0 BNE/OkNested ambient DONE; ToWn0Ok of_decode ambient DONE
            (`extractType234ToWn0Ok_owned_of_decode_ambient`);
-         residual: wn1..5 MidSeq dual + MidJoin creation/copy ambient
+         wn1..5 PrepCallOk ambient DONE (`extractWalkNext{k}PrepCallOk_owned_of_decode_ambient`);
+         ToWn5 chain ambient DONE (`extractType234ToWn5Ok_owned_of_decode_ambient`);
+         residual: MidJoin creation/copy ambient + fill ExtractAssumedAmbient
            + HaveField → fill ExtractAssumedAmbient.success_flat general off
        * TIS ambient callees + framed: extract/type/ets framed
        * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
