@@ -332,16 +332,20 @@ structure A4gbrResiduals where
              (`extractAssumed_creation_fullCode_of_decode_short_concrete_ambient`);
            AmbientPureBridge DONE (cursor/end/hnext/hcre/hss/walk guards);
            AmbientShortConcretePure DONE classical-3;
-           AmbientPureHvalid + path Prop DONE classical-3
-             (`extractAssumed_success_flat_creation_type234_short_ambient`;
-              residual other arms: copy/legacy/t1/long ambient)
-         * TIS ambient callees + framed: extract/type/ets framed
-         * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
-         * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
-         * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-         Residual: remaining ambient path arms (copy/legacy/t1/long);
-           fill ExtractAssumedAmbient.success_flat case-split;
-           package IntrinsicAssumed structure; Teer; gate. -/
+            AmbientPureHvalid + path Prop DONE classical-3
+              (`extractAssumed_success_flat_creation_type234_short_ambient`);
+            Front E2E short copy region ambient DONE
+              (`extractFrontCopy_then_epi_of_decode_short_concrete_region_ambient`;
+               AfterSave copy: `extractFrontAfterSaveCopy_then_epi_of_decode_short_region_ambient`)
+          * TIS ambient callees + framed: extract/type/ets framed
+          * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
+          * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
+          * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
+          Residual: Assumed copy pureHvalid ambient path Prop;
+            legacy/t1/long ambient arms;
+            fill ExtractAssumedAmbient.success_flat case-split;
+            package IntrinsicAssumed structure; Teer; gate. -/
+
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
