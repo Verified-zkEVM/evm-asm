@@ -47,7 +47,7 @@ local macro "pcf" : tactic =>
 def nTisTopSteps : Nat := 14 + (4 + (1 + nExtractSteps) + 1) +
   (6 + (1 + nTypeSteps) + 1) + (5 + 2 + 1 + 1 + (1 + 4) + 1) + 10
 
-private theorem prologue_full
+theorem prologue_full
     (sp0 spC : Word) (s : TisSaved)
     (txBase txLenW outPtr : Word)
     (old5 old6 old7 old13 old14 old15 old16 : Word)
@@ -62,7 +62,7 @@ private theorem prologue_full
     (tisPrologue sp0 spC s txBase txLenW outPtr
       old5 old6 old7 old13 old14 old15 old16 hspC)
 
-private theorem epi_full
+theorem epi_full
     (sp0 spC : Word) (s cur : TisSaved) (a0v : Word)
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra) :
@@ -116,7 +116,7 @@ def bodyPayloadOk (txBase : Word) (txBytes : List (BitVec 8))
   memOwn TypeAddr ** memOwn InnerOffAddr ** teaScratchOwn **
   (outPtr ↦ₘ (0 : Word))
 
-private theorem pack6
+theorem pack6
     (v5 v6 v7 v14 v15 v16 : Word) :
     ∀ h, ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
       (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16)) h →

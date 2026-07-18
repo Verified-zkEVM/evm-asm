@@ -79,6 +79,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtractAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTypeAmbient
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTopAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressHonesty
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec

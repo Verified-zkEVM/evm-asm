@@ -303,9 +303,11 @@ structure A4gbrResiduals where
       * extract ambient: `ExtractAssumedAmbient.success_flat` (general off residual body);
         off0 lemma `extractAssumed_ambient_off0` from slice Assumed
       * TIS ambient callees: `tisExtractSuccessAmbient`, `tisTypeSuccessAmbient`
+      * TIS ambient framed: `tisExtractFramedAmbient`, `tisTypeFramedAmbient`
+        (bodyFrame=loadPtr; bodyPayloadAmbient=regionBase/bs)
       * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-      Residual: ambient TIS Top dualize + IntrinsicAssumed general off discharge;
-        fill extract ambient body (large). -/
+      Residual: ambient ets framed + success_spec_within_ambient compose;
+        IntrinsicAssumed general off discharge; fill extract ambient body. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
