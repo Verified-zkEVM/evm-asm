@@ -133,10 +133,10 @@
               `hnext_short_list_matches_srcOff_succ` +
               `hnext_item_matches_srcOff_succ` (bytes or nested short list under
               short outer list; covers all short-list fields).
-              **Assumed pureOff DONE** + **hss room** + **vacuous hls/hll**:
-              `hls_vacuous_of_short_list_item`, `hll_vacuous_of_short_list_item`
-              via encode head bounds under short list. Residual: full hss
-              (room+validity), hdec/hinb/hcur; fill Assumed;
+              **Assumed pureHlsHll DONE**:
+              `extractAssumed_creation_shortListSrcOff_pureHlsHll(_fullCode)`
+              discharges vacuous hls0..5/hll0..5 under short list. Residual:
+              full hss (room+validity), hdec/hinb/hcur; fill Assumed;
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
