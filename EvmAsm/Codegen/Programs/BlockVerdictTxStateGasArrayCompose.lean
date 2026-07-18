@@ -65,9 +65,10 @@
            model pure extractSuccess_outcome/creation/copy).
            **front E→AfterSave DONE** (`extractFrontToAfterSave` + drop-fail);
            **frontAfterSave→midJoinPre bridge DONE** (`frontAfterSave_to_midJoinPre`).
-           Residual: exists_pre into AfterSave→creation/copy; extractSuccess
-           drop-fail pure (hok/hnext/hcre/hlen20); E→ret under extractSuccess;
-           extractAssumed; fullCode∪extract (extractLinkedCode first);
+           **front AfterSave→creation→ret DONE** (`extractFrontAfterSaveCreation_then_epi`).
+           Residual: copy path front join; extractSuccess drop-fail pure
+           (hok/hnext/hcre/hlen20); E→ret under extractSuccess; extractAssumed;
+           fullCode∪extract (extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
