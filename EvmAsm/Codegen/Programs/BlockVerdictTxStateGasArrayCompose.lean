@@ -63,9 +63,11 @@
            hlen20/hnext_content residual).
            **front→WalkInitJalPc DONE** (`extractFrontThenTypeLoad`;
            model pure extractSuccess_outcome/creation/copy).
-           Residual: extractSuccess drop-fail pure (discharge hok/hnext/hcre/
-           hlen20/hnext_content); walk_init call OkFail under front ambient DONE; OK arm→AfterSave + drop-fail; extractAssumed;
-           fullCode∪extract (use extractLinkedCode first);
+           **front E→AfterSave DONE** (`extractFrontToAfterSave` + drop-fail);
+           **frontAfterSave→midJoinPre bridge DONE** (`frontAfterSave_to_midJoinPre`).
+           Residual: exists_pre into AfterSave→creation/copy; extractSuccess
+           drop-fail pure (hok/hnext/hcre/hlen20); E→ret under extractSuccess;
+           extractAssumed; fullCode∪extract (extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
