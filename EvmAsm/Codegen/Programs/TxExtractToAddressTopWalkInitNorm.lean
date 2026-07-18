@@ -5,6 +5,7 @@
 
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.SAsm.StmtSoundCall
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.ExtractPure
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
@@ -15,6 +16,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitOk
 namespace EvmAsm.Codegen.TxExtractToAddressSpec
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
@@ -195,8 +197,71 @@ theorem extractWalkInitOk_bneSave
     simp only [extractAfterSavePost] at hq ⊢
     xperm_hyp hq) h0
 
+set_option maxRecDepth 8000 in
+/-- OK-exists pre: outer ∃cursor,end → AfterSave with ∃ post. -/
+theorem extractWalkInitOkExists_bneSave
+    (txBase lenW typeW innerW : Word)
+    (txBytes : List (BitVec 8)) :
+    cpsTripleWithin (1 + (1 + 1)) LinkWalkInit AfterSaveCursor extractLinkedCode
+      (fun h => ∃ cursor endPtr : Word,
+        (extractWalkInitOkConcrete txBase lenW typeW innerW cursor endPtr txBytes **
+          regOwn .x21 ** regOwn .x22) h)
+      (fun h => ∃ cursor endPtr : Word,
+        extractAfterSavePost txBase lenW typeW innerW cursor endPtr txBytes h) := by
+  refine cpsTripleWithin_exists_pre_gen (fun cursor => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun endPtr => ?_)
+  have h0 := extractWalkInitOk_bneSave txBase lenW typeW innerW cursor endPtr txBytes
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => ⟨cursor, endPtr, hq⟩) h0
+
+/-- Pull `∃ c e, A c e` out of the left of a sep. -/
+private theorem exists2_sep_left
+    {A : Word → Word → Assertion} {R : Assertion} :
+    ∀ h, ((fun s => ∃ c e : Word, A c e s) ** R) h →
+      ∃ c e : Word, (A c e ** R) h := by
+  intro h ⟨h1, h2, hd, hu, ⟨c, e, hA⟩, hR⟩
+  exact ⟨c, e, h1, h2, hd, hu, hA, hR⟩
+
+set_option maxRecDepth 8000 in
+/-- Nested OkFail-OK arm + s5/s6 → AfterSave ∃. -/
+theorem extractWalkInitOkNested_bneSave
+    (txBase lenW typeW innerW : Word)
+    (txBytes : List (BitVec 8)) :
+    cpsTripleWithin (1 + (1 + 1)) LinkWalkInit AfterSaveCursor extractLinkedCode
+      (walkInitAmbient txBase lenW typeW innerW **
+        extractWalkInitCommon txBase txBytes **
+        (fun s => ∃ cursor endPtr : Word,
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word))) s) **
+        regOwn .x21 ** regOwn .x22)
+      (fun h => ∃ cursor endPtr : Word,
+        extractAfterSavePost txBase lenW typeW innerW cursor endPtr txBytes h) := by
+  have h0 := extractWalkInitOkExists_bneSave txBase lenW typeW innerW txBytes
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq) h0
+  have hp' :
+      ((walkInitAmbient txBase lenW typeW innerW **
+          extractWalkInitCommon txBase txBytes) **
+        ((fun s => ∃ cursor endPtr : Word,
+            ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+              (.x12 ↦ᵣ (0 : Word))) s) **
+          (regOwn .x21 ** regOwn .x22))) h := by
+    xperm_hyp hp
+  obtain ⟨h1, h2, hd, hu, hAC, hEO⟩ := hp'
+  obtain ⟨cursor, endPtr, hregsOwns⟩ := exists2_sep_left h2 hEO
+  -- hregsOwns : (regs ** (x21 ** x22)) h2
+  refine ⟨cursor, endPtr, ?_⟩
+  simp only [extractWalkInitOkConcrete]
+  have hgoal :
+      ((walkInitAmbient txBase lenW typeW innerW **
+          extractWalkInitCommon txBase txBytes) **
+        (((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word))) **
+          (regOwn .x21 ** regOwn .x22))) h :=
+    ⟨h1, h2, hd, hu, hAC, hregsOwns⟩
+  xperm_hyp hgoal
+
 #print axioms extractWalkInitPost_to_okFail
 #print axioms extractWalkInitCall_fromTypeLoad_okFail
 #print axioms extractWalkInitOk_bneSave
+#print axioms extractWalkInitOkExists_bneSave
+#print axioms extractWalkInitOkNested_bneSave
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
