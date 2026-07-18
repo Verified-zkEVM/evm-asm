@@ -330,15 +330,16 @@ structure A4gbrResiduals where
            Assumed ambient packaging under honesty DONE
              (`extractAssumed_creation_fullCode_of_decode_short_concrete_ambient`);
            AmbientPureBridge DONE (cursor/end/hnext/hcre/hss/walk guards);
-           AmbientShortConcretePure DONE classical-3
-             (`extractAssumed_creation_shortConcrete_pure_ambient_fullCode`;
-              residual hvalid*/hvalid1_*/hdec* like slice short pure)
+           AmbientShortConcretePure DONE classical-3;
+           AmbientPureHvalid + path Prop DONE classical-3
+             (`extractAssumed_success_flat_creation_type234_short_ambient`;
+              residual other arms: copy/legacy/t1/long ambient)
          * TIS ambient callees + framed: extract/type/ets framed
          * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
          * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
          * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-         Residual: PureHvalid ambient + path Prop → fill
-           ExtractAssumedAmbient.success_flat general off; copy Front ambient;
+         Residual: remaining ambient path arms (copy/legacy/t1/long);
+           fill ExtractAssumedAmbient.success_flat case-split;
            package IntrinsicAssumed structure; Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
@@ -461,6 +462,10 @@ theorem intrinsic_discharge_off0_own_available
 def type_dispatch_ambient_discharged :=
   TxTypeDispatchSpec.typeDispatchAssumedAmbient_fullCode
 
+/-- Multi-tx Option A: ambient ExtractAssumed short type234 creation path Prop. -/
+def extract_discharge_creation_type234_short_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
+
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available
 #print axioms bgvOffsetAssumed_fullCode
@@ -468,5 +473,6 @@ def type_dispatch_ambient_discharged :=
 #print axioms type_dispatch_ambient_discharged
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_creation_type234_short_off0
+#print axioms extract_discharge_creation_type234_short_ambient_available
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
