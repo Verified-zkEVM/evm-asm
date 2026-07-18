@@ -281,9 +281,9 @@ theorem extractSuccess_short_walkInit_guards
     exact List.length_pos_of_ne_nil hne
   have hguards := decodeListItems_short_walkInit_guards bs items hdec hshort hoff0
   have hbs0 : bs[0]'hoff0 = txBytes[listOff]'hinner := by
-    simp only [bs]
     have heq := List.getElem_drop (xs := txBytes) (i := listOff) (j := 0) (h := hoff0)
-    simp [Nat.add_zero] at heq
+    -- heq: (drop listOff)[0] = txBytes[listOff + 0]
+    simp [bs, Nat.add_zero] at heq ⊢
     exact heq
   refine ⟨hinner, ?_, ⟨hinner, ?_, ?_, ?_⟩⟩
   · intro hz
