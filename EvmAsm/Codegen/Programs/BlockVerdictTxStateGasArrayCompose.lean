@@ -218,6 +218,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidLegacyAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
@@ -490,6 +491,10 @@ def type_dispatch_ambient_discharged :=
 /-- Multi-tx Option A: ambient ExtractAssumed short type234 creation path Prop. -/
 def extract_discharge_creation_legacy_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short_ambient
+
+/-- Residual discharge hook: ambient ExtractAssumed short legacy copy path Prop. -/
+def extract_discharge_copy_legacy_short_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short_ambient
 
 def extract_discharge_creation_type234_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
