@@ -109,6 +109,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopEpilogue
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopJoinRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwned
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwnedRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwnedLT
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqLegacyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChainLegacyDecode
