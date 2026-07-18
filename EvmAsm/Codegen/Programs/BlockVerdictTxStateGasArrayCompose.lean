@@ -133,8 +133,12 @@
               `hnext_short_list_matches_srcOff_succ` +
               `hnext_item_matches_srcOff_succ` (bytes or nested short list under
               short outer list; covers all short-list fields).
-              Residual: wire srcOffk:=shortListSrcOff into Assumed short creation
-              (discharge hnext0..4 via `hnext_item_matches_srcOff_succ`);
+              **hnext+hcre srcOff chain packaging DONE**:
+              `packaging_hnext_shortListSrcOff`,
+              `extractSuccess_creation_type234_hnext_hcre_srcOff`
+              (discharges Assumed hnext1..5+hcre under shortListSrcOff).
+              Residual: wire into Assumed short creation (still needs hdec*/walk
+              statics / hinb*);
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;

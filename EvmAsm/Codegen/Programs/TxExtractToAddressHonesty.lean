@@ -1666,4 +1666,124 @@ theorem hnext_item_matches_srcOff_succ
 #print axioms hnext_short_list_matches_srcOff_succ
 #print axioms hnext_item_matches_srcOff_succ
 
+/-- Packaging form: decode-gated hnext at `shortListSrcOff k` → `shortListSrcOff (k+1)`. -/
+theorem packaging_hnext_shortListSrcOff
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (k : Nat) (hk : k < items.length)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + shortListSrcOff listOff items k < 2 ^ 64)
+    (hspan : txBase.toNat + shortListSrcOff listOff items (k + 1) < 2 ^ 64) :
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes (shortListSrcOff listOff items k)
+        (txBase + BitVec.ofNat 64 (shortListSrcOff listOff items k))
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 (shortListSrcOff listOff items (k + 1)) := by
+  intro endPtr next len hdec
+  exact hnext_item_matches_srcOff_succ txBytes txBase listOff items k hk
+    henc hshort hover hspan endPtr next len hdec
+
+/-- Creation type234 short: items has length ≥ 6 (field5 exists). -/
+theorem extractSuccess_creation_type234_items_length
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    6 ≤ items.length := by
+  have hf := extractSuccess_creation_type234_field5_pfx80 txBytes h hcreFlag hge
+    items hdecL hshort
+  omega
+
+/-- Creation type234 short: discharge packaging hnext1..5 + hcre with
+    `srcOff k = shortListSrcOff listOff items k`. -/
+theorem extractSuccess_creation_type234_hnext_hcre_srcOff
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover0 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 0 < 2 ^ 64)
+    (hover1 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 1 < 2 ^ 64)
+    (hover2 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 2 < 2 ^ 64)
+    (hover3 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 3 < 2 ^ 64)
+    (hover4 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 4 < 2 ^ 64)
+    (hover5 : txBase.toNat +
+        shortListSrcOff (teerTxTypeDispatch txBytes).2.2.toNat items 5 < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let srcOff0 := shortListSrcOff listOff items 0
+    let srcOff1 := shortListSrcOff listOff items 1
+    let srcOff2 := shortListSrcOff listOff items 2
+    let srcOff3 := shortListSrcOff listOff items 3
+    let srcOff4 := shortListSrcOff listOff items 4
+    let srcOff5 := shortListSrcOff listOff items 5
+    (∀ (endPtr next0 len0 : Word),
+      rlpItemDecode txBytes srcOff0 (txBase + BitVec.ofNat 64 srcOff0)
+        endPtr next0 len0 →
+      next0 = txBase + BitVec.ofNat 64 srcOff1) ∧
+    (∀ (endPtr next1 len1 : Word),
+      rlpItemDecode txBytes srcOff1 (txBase + BitVec.ofNat 64 srcOff1)
+        endPtr next1 len1 →
+      next1 = txBase + BitVec.ofNat 64 srcOff2) ∧
+    (∀ (endPtr next2 len2 : Word),
+      rlpItemDecode txBytes srcOff2 (txBase + BitVec.ofNat 64 srcOff2)
+        endPtr next2 len2 →
+      next2 = txBase + BitVec.ofNat 64 srcOff3) ∧
+    (∀ (endPtr next3 len3 : Word),
+      rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+        endPtr next3 len3 →
+      next3 = txBase + BitVec.ofNat 64 srcOff4) ∧
+    (∀ (endPtr next4 len4 : Word),
+      rlpItemDecode txBytes srcOff4 (txBase + BitVec.ofNat 64 srcOff4)
+        endPtr next4 len4 →
+      next4 = txBase + BitVec.ofNat 64 srcOff5) ∧
+    (∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word)) := by
+  intro listOff srcOff0 srcOff1 srcOff2 srcOff3 srcOff4 srcOff5
+  have hlen := extractSuccess_creation_type234_items_length txBytes h hcreFlag hge
+    items hdecL hshort
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hn4 : (4 : Nat) < items.length := by omega
+  have hn5 : (5 : Nat) < items.length := by omega
+  have hencFull := decodeListItems_eq_encode _ _ hdecL
+  refine ⟨?h1, ?h2, ?h3, ?h4, ?h5, ?hcre⟩
+  · intro endPtr next len hdec
+    exact packaging_hnext_shortListSrcOff txBytes txBase listOff items 0 hn0
+      hencFull hshort hover0 hover1 endPtr next len hdec
+  · intro endPtr next len hdec
+    exact packaging_hnext_shortListSrcOff txBytes txBase listOff items 1 hn1
+      hencFull hshort hover1 hover2 endPtr next len hdec
+  · intro endPtr next len hdec
+    exact packaging_hnext_shortListSrcOff txBytes txBase listOff items 2 hn2
+      hencFull hshort hover2 hover3 endPtr next len hdec
+  · intro endPtr next len hdec
+    exact packaging_hnext_shortListSrcOff txBytes txBase listOff items 3 hn3
+      hencFull hshort hover3 hover4 endPtr next len hdec
+  · intro endPtr next len hdec
+    exact packaging_hnext_shortListSrcOff txBytes txBase listOff items 4 hn4
+      hencFull hshort hover4 hover5 endPtr next len hdec
+  · -- hcre at field5; packaging endPtr quantifier matches Assumed
+    intro endPtr next5 len5 hdec
+    exact extractSuccess_creation_type234_hcre_srcOff txBytes txBase h hcreFlag hge
+      items hdecL hshort endPtr next5 len5 hdec
+
+#print axioms packaging_hnext_shortListSrcOff
+#print axioms extractSuccess_creation_type234_items_length
+#print axioms extractSuccess_creation_type234_hnext_hcre_srcOff
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
