@@ -9,6 +9,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNextRest
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext1
+import EvmAsm.Codegen.Programs.TxExtractToAddressHaveField
 
 namespace EvmAsm.Codegen.TxExtractToAddressSpec
 
@@ -974,5 +975,53 @@ theorem extractWalkNext5OkNested_bne
 #print axioms extractWalkNext5Prep_framed
 #print axioms extractWalkNext5Call_type234
 #print axioms extractWalkNext5OkNested_bne
+
+
+set_option maxRecDepth 8000 in
+theorem extractType234ToHaveField_framed
+    (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff5 : Nat) :
+    cpsTripleWithin (1 + 1) AfterWalkNext5Bne HaveField extractLinkedCode
+      (wn5OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff5)
+      (wn5Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff5) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext5) **
+        bytesRegion txBase txBytes **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x31 ↦ᵣ (next - len))) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff5
+  let Pcore : Assertion :=
+    wn5Stable txBase lenW typeW innerW endPtr cursor **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext5) **
+      bytesRegion txBase txBytes **
+      (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+  let Q : Assertion :=
+    wn5Stable txBase lenW typeW innerW endPtr cursor **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext5) **
+      bytesRegion txBase txBytes **
+      (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+      (.x31 ↦ᵣ (next - len))
+  have htemps : cpsTripleWithin (1 + 1) AfterWalkNext5Bne HaveField extractLinkedCode
+      (Pcore ** regOwn .x31) Q := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x31) (fun t6Old => ?_)
+    have h := extractType234ToHaveField next len t6Old
+    have hF := cpsTripleWithin_frameR
+      (wn5Stable txBase lenW typeW innerW endPtr cursor **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext5) **
+        bytesRegion txBase txBytes **
+        (.x11 ↦ᵣ (0 : Word)))
+      (by pcf) h
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by dsimp only [Q] at hq ⊢; xperm_hyp hq) hF
+  exact cpsTripleWithin_weaken (fun _ hp => by
+    dsimp only [Pcore, wn5OkConcrete, wn5Common, wn5Stable] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp only [Q] at hq ⊢; exact hq) htemps
+
+#print axioms extractType234ToHaveField_framed
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
