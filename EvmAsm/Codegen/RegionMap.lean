@@ -281,7 +281,7 @@ def schemeAAnchors : List GuestRegion :=
     merging main forward past #10458 (multi-tx caller-context staging
     fix) and this PR's own baap=501 delete-walk bail removal, measured
     via a fresh `readelf -SW`. -/
-def textSizeBytes : Nat := 0x5d20c
+def textSizeBytes : Nat := 0x5d2a4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -304,8 +304,10 @@ def dataSizeBytes : Nat := 0x5370
     (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
     200M-gas block can never over-reject on deployed-code volume. Grew by
     `0xe08000` when the bounded non-storage effect log capacity was raised
-    from 32768 to 65536 entries. -/
-def bssSizeBytes : Nat := 0x1b567360
+    from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
+    CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
+    capacity. -/
+def bssSizeBytes : Nat := 0x1b5a39e0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -326,12 +328,12 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; 0x5310-byte PROGBITS extent" }
+    evidence := "ELF -Tdata=0xa3000000; 0x5370-byte PROGBITS extent" }
 
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1a320e60-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b5a39e0-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf600000`). -/
