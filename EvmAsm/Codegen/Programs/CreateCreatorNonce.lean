@@ -31,13 +31,26 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Capacity (entries) of the per-creator nonce table — distinct creators per tx. -/
-def createNonceTableCap : Nat := 64
+/-- CREATE and CREATE2 each have a 32,000-gas base cost.  One nonce-table entry
+    is created only for a distinct creator that executes one of those opcodes,
+    so this protocol cost gives a consensus-enforced upper bound per supported
+    block. -/
+def createNonceTableGasPerCreator : Nat := 32000
+
+/-- Capacity (entries) of the per-creator nonce table.  Keep this derived from
+    the supported block gas limit: a valid 200M-gas block has at most 6,250
+    distinct CREATE creators.  At 40 bytes per entry this occupies 250,000
+    bytes (about 242 KiB), while remaining a fixed static arena. -/
+def createNonceTableCap : Nat :=
+  bsrStateRootBlockGasLimit / createNonceTableGasPerCreator
+
+#guard createNonceTableCap = 6250
 
 /-! ## create_creator_nonce_use
     a0 = creator address ptr (20-byte big-endian)
