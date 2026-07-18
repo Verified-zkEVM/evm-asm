@@ -179,8 +179,11 @@
                 **copy pure field5 0x94 DONE**
                 (`encode_bytes_len20_pfx`, `extractSuccess_copy_type234_field5_pfx94`,
                 `_hlen20`, `_hnext_content`, `_hnext_hlen20_srcOff` packaging).
-                Residual: pureHvalid-style Assumed wire for copy
-                (srcOffk:=shortListSrcOff into Assumed**content) + fill
+                **copy Assumed pure wire DONE**
+                (`extractAssumed_copy_shortConcrete_pure(_fullCode)`:
+                shortListSrcOff + hnext/hlen20/hnext_content pure;
+                Assumed**contentDwords). Residual: pureHvalid collapse
+                (hvalid from validByteRange) + fill
                 `ExtractAssumed.success_flat` case-split.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).

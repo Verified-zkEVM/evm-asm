@@ -3341,4 +3341,87 @@ theorem extractSuccess_copy_type234_hnext_content_srcOff
 
 #print axioms extractSuccess_copy_type234_hnext_content_srcOff
 
+
+/-- Copy type234 short: hoff0..5 from items.length ≥ 6. -/
+theorem extractSuccess_copy_type234_hoff_srcOff
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    shortListSrcOff listOff items 0 < txBytes.length ∧
+    shortListSrcOff listOff items 1 < txBytes.length ∧
+    shortListSrcOff listOff items 2 < txBytes.length ∧
+    shortListSrcOff listOff items 3 < txBytes.length ∧
+    shortListSrcOff listOff items 4 < txBytes.length ∧
+    shortListSrcOff listOff items 5 < txBytes.length := by
+  intro listOff
+  have hlen := extractSuccess_copy_type234_items_length txBytes h hcopyFlag hge
+    items hdecL hshort
+  have henc := decodeListItems_eq_encode _ _ hdecL
+  have hn0 : (0 : Nat) < items.length := by omega
+  have hn1 : (1 : Nat) < items.length := by omega
+  have hn2 : (2 : Nat) < items.length := by omega
+  have hn3 : (3 : Nat) < items.length := by omega
+  have hn4 : (4 : Nat) < items.length := by omega
+  have hn5 : (5 : Nat) < items.length := by omega
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact shortListSrcOff_lt_length txBytes listOff items 0 henc hshort hn0
+  · exact shortListSrcOff_lt_length txBytes listOff items 1 henc hshort hn1
+  · exact shortListSrcOff_lt_length txBytes listOff items 2 henc hshort hn2
+  · exact shortListSrcOff_lt_length txBytes listOff items 3 henc hshort hn3
+  · exact shortListSrcOff_lt_length txBytes listOff items 4 henc hshort hn4
+  · exact shortListSrcOff_lt_length txBytes listOff items 5 henc hshort hn5
+
+theorem extractSuccess_copy_type234_hover_srcOff
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    txBase.toNat + shortListSrcOff listOff items 0 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 1 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 2 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 3 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 4 < 2 ^ 64 ∧
+    txBase.toNat + shortListSrcOff listOff items 5 < 2 ^ 64 := by
+  intro listOff
+  have hoffs := extractSuccess_copy_type234_hoff_srcOff txBytes h hcopyFlag hge
+    items hdecL hshort
+  obtain ⟨h0, h1, h2, h3, h4, h5⟩ := hoffs
+  exact ⟨hover_of_buffer_span txBase _ _ hover h0,
+    hover_of_buffer_span txBase _ _ hover h1,
+    hover_of_buffer_span txBase _ _ hover h2,
+    hover_of_buffer_span txBase _ _ hover h3,
+    hover_of_buffer_span txBase _ _ hover h4,
+    hover_of_buffer_span txBase _ _ hover h5⟩
+
+theorem extractSuccess_copy_type234_hnext_fields04
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcopyFlag : (teerExtractToAddress txBytes).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    (0 + 1 < items.length) ∧ (1 + 1 < items.length) ∧ (2 + 1 < items.length) ∧
+      (3 + 1 < items.length) ∧ (4 + 1 < items.length) := by
+  have hlen := extractSuccess_copy_type234_items_length txBytes h hcopyFlag hge
+    items hdecL hshort
+  omega
+
+#print axioms extractSuccess_copy_type234_hoff_srcOff
+#print axioms extractSuccess_copy_type234_hover_srcOff
+#print axioms extractSuccess_copy_type234_hnext_fields04
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
