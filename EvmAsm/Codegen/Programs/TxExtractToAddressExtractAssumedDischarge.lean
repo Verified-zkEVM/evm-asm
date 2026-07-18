@@ -20,6 +20,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLegacyR
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidT1Region
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedLongConcretePureHvalid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedLongConcretePureHvalidLegacy
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedLongConcretePureHvalidT1
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
@@ -833,5 +834,125 @@ theorem extractAssumed_success_flat_creation_legacy_long_linked
 #print axioms extractAssumed_success_flat_creation_legacy_long_linked
 
 
+
+
+def extractCreationT1LongPath
+    (txBytes : List (BitVec 8)) (items : List EL.RLP.RLPItem) : Prop :=
+  extractSuccess txBytes ∧
+    (teerExtractToAddress txBytes).2.2 = (1 : Word) ∧
+    (teerTxTypeDispatch txBytes).2.1 = (1 : Word) ∧
+    decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items ∧
+    55 < (encode.encodeItems items).length ∧
+    6 ≤ items.length
+
+set_option maxRecDepth 8000 in
+/-- Assumed footprint under long t1 creation path (statics + path + item bounds).
+    classical-3. -/
+theorem extractAssumed_success_flat_creation_t1_long
+    (ret spVal txBase lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (txBytes : List (BitVec 8))
+    (items : List EL.RLP.RLPItem)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hpath : extractCreationT1LongPath txBytes items)
+    (hitem0 : (encode (items[0]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPre ret spVal txBase lenW toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes)
+      (extractAssumedPost ret spVal txBase toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes) := by
+  obtain ⟨hsuccess, hcreFlag, htype1, hdecL, hlong, hge6⟩ := hpath
+  let s : ExtractSaved :=
+    { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3
+      s4 := s4, s5 := s5, s6 := s6, s7 := s7 }
+  let spC : Word := spVal + signExtend12 (-80 : BitVec 12)
+  have hspC : spC = spVal + signExtend12 (-80 : BitVec 12) := rfl
+  have hsra : s.ra = ret := rfl
+  have hs0 : s.s0 = s0 := rfl
+  have hs1 : s.s1 = s1 := rfl
+  have hs2 : s.s2 = s2 := rfl
+  have hs3 : s.s3 = s3 := rfl
+  have hs4 : s.s4 = s4 := rfl
+  have hs5 : s.s5 = s5 := rfl
+  have hs6 : s.s6 = s6 := rfl
+  have hs7 : s.s7 = s7 := rfl
+  simpa only [hsra, hs0, hs1, hs2, hs3, hs4, hs5, hs6, hs7] using
+    extractAssumed_creation_longConcrete_pureHvalid_t1_fullCode
+      spVal spC s txBase lenW toBuf isCreationPtr txBytes items
+      hspC hret htalign htover htvalid hlen hsuccess hcreFlag htype1 hdecL hlong
+      halign hover hvalidBuf
+      hitem0 hitem1 hitem2 hitem3 hitem4 hge6
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_creation_t1_long_linked
+    (ret spVal txBase lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (txBytes : List (BitVec 8))
+    (items : List EL.RLP.RLPItem)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalidBuf : validByteRange txBase txBytes.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hpath : extractCreationT1LongPath txBytes items)
+    (hitem0 : (encode (items[0]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by
+        have := hpath.2.2.2.2.2; omega))).length ≤ 55) :
+    cpsTripleWithin nExtractSteps E ret extractLinkedCode
+      (extractAssumedPre ret spVal txBase lenW toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes)
+      (extractAssumedPost ret spVal txBase toBuf isCreationPtr
+        s0 s1 s2 s3 s4 s5 s6 s7 txBytes) := by
+  obtain ⟨hsuccess, hcreFlag, htype1, hdecL, hlong, hge6⟩ := hpath
+  let s : ExtractSaved :=
+    { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3
+      s4 := s4, s5 := s5, s6 := s6, s7 := s7 }
+  let spC : Word := spVal + signExtend12 (-80 : BitVec 12)
+  have hspC : spC = spVal + signExtend12 (-80 : BitVec 12) := rfl
+  have hsra : s.ra = ret := rfl
+  have hs0 : s.s0 = s0 := rfl
+  have hs1 : s.s1 = s1 := rfl
+  have hs2 : s.s2 = s2 := rfl
+  have hs3 : s.s3 = s3 := rfl
+  have hs4 : s.s4 = s4 := rfl
+  have hs5 : s.s5 = s5 := rfl
+  have hs6 : s.s6 = s6 := rfl
+  have hs7 : s.s7 = s7 := rfl
+  simpa only [hsra, hs0, hs1, hs2, hs3, hs4, hs5, hs6, hs7] using
+    extractAssumed_creation_longConcrete_pureHvalid_t1
+      spVal spC s txBase lenW toBuf isCreationPtr txBytes items
+      hspC hret htalign htover htvalid hlen hsuccess hcreFlag htype1 hdecL hlong
+      halign hover hvalidBuf
+      hitem0 hitem1 hitem2 hitem3 hitem4 hge6
+
+#print axioms extractAssumed_success_flat_creation_t1_long
+#print axioms extractAssumed_success_flat_creation_t1_long_linked
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

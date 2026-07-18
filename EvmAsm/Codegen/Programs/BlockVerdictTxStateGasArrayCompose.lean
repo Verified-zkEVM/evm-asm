@@ -254,6 +254,9 @@ def extract_discharge_creation_type234_long_available :=
 def extract_discharge_creation_legacy_long_available :=
   @EvmAsm.Codegen.TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_long
 
+def extract_discharge_creation_t1_long_available :=
+  @EvmAsm.Codegen.TxExtractToAddressSpec.extractAssumed_success_flat_creation_t1_long
+
 
 def extract_discharge_creation_legacy_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short
