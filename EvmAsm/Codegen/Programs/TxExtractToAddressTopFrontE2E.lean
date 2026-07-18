@@ -23,7 +23,7 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (extractToBufOwn nExtractStackDwords nTypeSteps)
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
-private def nFrontCreationSteps : Nat :=
+def nFrontCreationSteps : Nat :=
   (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) + ((1 + 81) + (1 + (1 + 1)))) +
     (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
             (((1 + (1 + 1)) + (1 + 87)) + 1)) +

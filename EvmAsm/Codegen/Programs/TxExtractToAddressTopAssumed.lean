@@ -24,16 +24,9 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
     ExtractAssumed)
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch)
 
-/-- Matches private `nFrontCreationSteps` in TopFrontE2E. -/
-def nFrontCreationSteps' : Nat :=
-  (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) + ((1 + 81) + (1 + (1 + 1)))) +
-    (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-        ((1 + 1) + ((1 + (1 + (1 + (1 + (1 + 1))))) + 11)))
+theorem nFrontCreation_le_nExtract : nFrontCreationSteps ≤ nExtractSteps := by
+  simp only [nFrontCreationSteps, nExtractSteps, nTypeSteps]
+  omega
 
 /-- Matches private `nFrontCopySteps` in TopFrontE2ECopy. -/
 def nFrontCopySteps' : Nat :=
@@ -46,10 +39,6 @@ def nFrontCopySteps' : Nat :=
             (((1 + (1 + 1)) + (1 + 87)) + 1)) +
         ((1 + 1) +
           ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)))
-
-theorem nFrontCreation_le_nExtract : nFrontCreationSteps' ≤ nExtractSteps := by
-  simp only [nFrontCreationSteps', nExtractSteps, nTypeSteps]
-  omega
 
 theorem nFrontCopy_le_nExtract : nFrontCopySteps' ≤ nExtractSteps := by
   simp only [nFrontCopySteps', nExtractSteps, nTypeSteps]
@@ -228,7 +217,7 @@ theorem extractAssumed_creation_concrete
     (old5 old6 old7 old14 old15 old16 : Word)
     (txBytes : List (BitVec 8))
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
-    (hE2E : cpsTripleWithin nFrontCreationSteps' E s.ra extractLinkedCode
+    (hE2E : cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
       (creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
         old5 old6 old7 old14 old15 old16 txBytes)
       (fun h => ∃ next5 : Word,
@@ -291,7 +280,7 @@ theorem extractAssumed_creation_temps
     (txBytes : List (BitVec 8))
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
     (hE2E : ∀ (old5 old6 old7 old14 old15 old16 : Word),
-      cpsTripleWithin nFrontCreationSteps' E s.ra extractLinkedCode
+      cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
         (creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
           old5 old6 old7 old14 old15 old16 txBytes)
         (fun h => ∃ next5 : Word,
@@ -323,6 +312,50 @@ theorem extractAssumed_creation_temps
     dsimp [Q] at hq ⊢; exact hq) htemps
 
 
+/-- FrontCreation pre is defeq to `creationE2EPre` (shared atom list). -/
+theorem frontCreation_pre_eq_e2e
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8)) :
+    ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+      frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+      prologueAbiRest txBase lenW toBuf isCreationPtr
+        old5 old6 old7 old14 old15 old16 **
+      extractToBufOwn toBuf ** memOwn isCreationPtr **
+      frontExtraAmbient txBase txBytes) =
+    creationE2EPre sp0 spC s txBase lenW toBuf isCreationPtr
+      old5 old6 old7 old14 old15 old16 txBytes := by
+  simp only [creationE2EPre]
+
+/-- Wire: Assumed pre/post under extractLinkedCode given FrontCreation E2E
+    for all temp olds (honesty residuals live on the E2E hyp). -/
+set_option maxRecDepth 8000 in
+theorem extractAssumed_creation_of_front
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hFront : ∀ (old5 old6 old7 old14 old15 old16 : Word),
+      cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
+        ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+          frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+          prologueAbiRest txBase lenW toBuf isCreationPtr
+            old5 old6 old7 old14 old15 old16 **
+          extractToBufOwn toBuf ** memOwn isCreationPtr **
+          frontExtraAmbient txBase txBytes)
+        (fun h => ∃ next5 : Word,
+          creationE2EPost sp0 s txBase toBuf isCreationPtr next5 txBytes h)) :
+    cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
+      (extractAssumedPre s.ra sp0 txBase lenW toBuf isCreationPtr
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes)
+      (extractAssumedPost s.ra sp0 txBase toBuf isCreationPtr
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes) :=
+  extractAssumed_creation_temps sp0 spC s txBase lenW toBuf isCreationPtr
+    txBytes hspC (fun old5 old6 old7 old14 old15 old16 => by
+      have h := hFront old5 old6 old7 old14 old15 old16
+      simpa only [creationE2EPre] using h)
+
 #print axioms nFrontCreation_le_nExtract
 #print axioms nFrontCopy_le_nExtract
 #print axioms creationPost_to_assumed
@@ -330,5 +363,6 @@ theorem extractAssumed_creation_temps
 #print axioms assumedPreConcrete_to_e2e
 #print axioms extractAssumed_creation_concrete
 #print axioms extractAssumed_creation_temps
+#print axioms extractAssumed_creation_of_front
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
