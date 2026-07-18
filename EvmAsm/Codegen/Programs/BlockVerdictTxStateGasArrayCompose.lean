@@ -192,8 +192,10 @@
                 `_fullCode_of_decode_short_concrete_region`).
                 **bare Assumed copy path Prop DONE**
                 (`extractAssumed_success_flat_copy_type234_short`,
-                gate `srcOff5+1=8*q`). Residual: long-list;
-                multi-tx Option A; Teer; gate.
+                gate `srcOff5+1=8*q`). **legacy/t1 MidJoin copy region DONE**
+                (`extractLegacy/T1AfterSaveCopy_then_epi_of_decode_region`).
+                Residual: legacy/t1 Front+Assumed bare copy path Prop;
+                long-list; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
