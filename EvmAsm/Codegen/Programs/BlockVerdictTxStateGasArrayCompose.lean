@@ -193,7 +193,7 @@
                 **bare Assumed copy path Prop DONE**
                 (`extractAssumed_success_flat_copy_type234_short`,
                 gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
-                Long type234 creation bare Assumed path Prop DONE (`extractAssumed_success_flat_creation_type234_long`). Residual: long copy / legacy-t1 long; multi-tx Option A; Teer; gate.
+                Long type234 creation bare Assumed DONE. Long type234 copy Front E2E+Assumed packaging DONE (`extractAssumed_copy_fullCode_of_decode_long_concrete_region`); pureHvalid+path Prop residual. Residual: long copy path Prop; legacy-t1 long; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
