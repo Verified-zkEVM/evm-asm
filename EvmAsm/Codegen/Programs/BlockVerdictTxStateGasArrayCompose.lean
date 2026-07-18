@@ -46,11 +46,14 @@
          **t1 ambient DONE** (`TopT1` walk0..4 + ToHaveField).
          **type234 HaveField join ambient DONE**; **HaveField creation/copy
          framed DONE** (`TopHaveField` → EpiRestore).
-         **epilogue linked+framed DONE** (`extractEpilogueSuccess_framed`).
-         Residual: extractSuccess drop-fail pure; full mid seq compose
-         (front→type→walks→HaveField→epi) → extractAssumed;
-         fullCode∪extract (use extractLinkedCode first);
-         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+          **epilogue linked+framed DONE** (`extractEpilogueSuccess_framed`).
+          **stack frame ambient on creation DONE** (`extractHaveFieldCreation_stack`)
+          + **frameSlotsSaved_imp_stackFree10 DONE**.
+          Residual: creation/copy → epi join (reshape post→epiPre);
+          frame stack through mid; extractSuccess drop-fail pure;
+          full mid seq compose → extractAssumed;
+          fullCode∪extract (use extractLinkedCode first);
+          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)

@@ -128,6 +128,39 @@ theorem stackFree10_eq_frameSlotsOwn (sp0 : Word)
   repeat rw [sepConj_assoc_eq]
   rfl
 
+/-- Saved slots imply owned slots (memIs → memOwn). -/
+private theorem frameSlotsSaved_imp_own (spC : Word) (s : ExtractSaved) :
+    ∀ h, frameSlotsSaved extractFrame spC (extractSavedVals s) h →
+      frameSlotsOwn extractFrame spC h := by
+  intro h hp
+  obtain ⟨e0, e8, e16, e24, e32, e40, e48, e56, e64, _e72⟩ := se12s_extract
+  simp only [extractFrame, frameSlotsSaved, frameSlotsOwn, extractSavedVals,
+    List.foldr_cons, List.foldr_nil, sepConj_emp_right',
+    e0, e8, e16, e24, e32, e40, e48, e56, e64] at hp ⊢
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn
+              (sepConj_mono memIs_implies_memOwn
+                (sepConj_mono memIs_implies_memOwn
+                  memIs_implies_memOwn))))))) h hp
+
+/-- Post: saved frame + spare rejoin to entry `stackFree sp0 10`. -/
+theorem frameSlotsSaved_imp_stackFree10 (sp0 spC : Word) (s : ExtractSaved)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12)) :
+    ∀ h,
+      (frameSlotsSaved extractFrame spC (extractSavedVals s) **
+        extractSpareSlot spC) h →
+      stackFree sp0 nExtractStackDwords h := by
+  intro h hp
+  have hown :=
+    sepConj_mono (frameSlotsSaved_imp_own spC s) (fun _ hh => hh) h hp
+  have heq := stackFree10_eq_frameSlotsOwn sp0 spC hspC
+  rw [heq]
+  exact hown
+
 /-- ABI args + temps carried through the prologue. -/
 def prologueAbiRest
     (txBase txLenW toBuf isCreationPtr : Word)
