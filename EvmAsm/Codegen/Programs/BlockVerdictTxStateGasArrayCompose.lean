@@ -91,11 +91,13 @@
             for short-list walk_init pure guards;
             `extractSuccess_short_walkInit_guards` Word-level short success pure
             under extractSuccess + hshort ≤55;
-            `extractWalkInitCall_short` + `extractWalkInitShortPost_to_okNested`
-            short leaf call under extractLinkedCode, a2=0 OK nested post).
-            Residual: wire short call through FrontWalkInit AfterSave (drop
-            universal walkInitOkFail_drop on short path); hok*/hnext*; long-list;
-            fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
+             `extractWalkInitCall_short` + `extractWalkInitShortPost_to_okNested`
+             short leaf call under extractLinkedCode, a2=0 OK nested post;
+             **short Front→AfterSave DONE** (`extractWalkInitCall_short_fromTypeLoad`
+             + `_ok_framed_s5s6` + `extractFrontToAfterSave_short` — no universal
+             walkInitOkFail_drop; short pure hyps only).
+             Residual: hok*/hnext* walk_next honesty; long-list (≥56);
+             fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`

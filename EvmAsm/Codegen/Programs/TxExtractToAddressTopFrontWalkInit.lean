@@ -8,6 +8,7 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitNorm
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitShort
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 
@@ -353,10 +354,182 @@ theorem extractFrontToAfterSave
     halign hoff hinover hinvalid hll_len hll_over hll_valid hdrop
   exact cpsTripleWithin_seq_same_cr hF hW
 
+set_option maxRecDepth 8000 in
+/-- Short-path walk_init from front typeLoad: LinkWalkInit OK exists (no hdrop). -/
+theorem extractWalkInitCall_short_fromFrontTypeLoad_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hlen : (lenW - (teerTxTypeDispatch txBytes).2.2) ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true)
+    (h_hi : BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true)
+    (h_exact : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) =
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (lenW - (teerTxTypeDispatch txBytes).2.2)) :
+    cpsTripleWithin (1 + 15) WalkInitJalPc LinkWalkInit extractLinkedCode
+      (frontTypeLoadPost spC s txBase lenW toBuf isCreationPtr txBytes)
+      (walkFrameAmbient spC s toBuf isCreationPtr **
+        walkInitAmbient txBase lenW
+          (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
+        extractWalkInitCommon txBase txBytes **
+        (fun st => ∃ cursor endPtr : Word,
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+            (.x12 ↦ᵣ (0 : Word))) st) **
+        regOwn .x21 ** regOwn .x22) := by
+  have h0 := extractWalkInitCall_short_ok_framed_s5s6 txBase lenW txBytes LinkType
+    hsalign hoff hover hvalid hlen h_ge h_hi h_exact
+  have hF := cpsTripleWithin_frameR
+    (walkFrameAmbient spC s toBuf isCreationPtr)
+    (walkFrameAmbient_pcFree spC s toBuf isCreationPtr) h0
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => by xperm_hyp hq) hF
+  -- frontTypeLoadPost → call pre ** walkFrame (same as full path)
+  have hp1 :
+      (walkFrameAmbient spC s toBuf isCreationPtr **
+        ((.x1 ↦ᵣ LinkType) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+          (.x5 ↦ᵣ TeaInnerAddr) **
+          (.x10 ↦ᵣ (txBase + (teerTxTypeDispatch txBytes).2.2)) **
+          (.x11 ↦ᵣ (lenW - (teerTxTypeDispatch txBytes).2.2)) **
+          (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+          (.x30 ↦ᵣ (teerTxTypeDispatch txBytes).2.2) **
+          bytesRegion txBase txBytes **
+          (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+          (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
+          regOwn .x6 ** regOwn .x7 **
+          regOwn .x12 ** regOwn .x13 **
+          regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x31 **
+          (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6))) h := by
+    simp only [frontTypeLoadPost, typeMidAmbient, walkFrameAmbient,
+      extractToBufOwn] at hp ⊢
+    xperm_hyp hp
+  have hnest :
+      ((walkFrameAmbient spC s toBuf isCreationPtr **
+          ((.x1 ↦ᵣ LinkType) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+            (.x5 ↦ᵣ TeaInnerAddr) **
+            (.x10 ↦ᵣ (txBase + (teerTxTypeDispatch txBytes).2.2)) **
+            (.x11 ↦ᵣ (lenW - (teerTxTypeDispatch txBytes).2.2)) **
+            (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+            (.x30 ↦ᵣ (teerTxTypeDispatch txBytes).2.2) **
+            bytesRegion txBase txBytes **
+            (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+            (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
+            regOwn .x6 ** regOwn .x7 **
+            regOwn .x12 ** regOwn .x13 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x31)) **
+        (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6)) h := by
+    xperm_hyp hp1
+  have mtemps :=
+    sepConj_mono (fun _ x => x)
+      (sepConj_mono (regIs_imp_regOwn .x21 s.s5)
+        (regIs_imp_regOwn .x22 s.s6)) h hnest
+  xperm_hyp mtemps
+
+set_option maxRecDepth 8000 in
+/-- Short path: WalkInitJalPc → AfterSaveCursor (no universal hdrop). -/
+theorem extractWalkInitCall_short_toAfterSave_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8))
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hlen : (lenW - (teerTxTypeDispatch txBytes).2.2) ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true)
+    (h_hi : BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true)
+    (h_exact : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) =
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (lenW - (teerTxTypeDispatch txBytes).2.2)) :
+    cpsTripleWithin ((1 + 15) + (1 + (1 + 1)))
+      WalkInitJalPc AfterSaveCursor extractLinkedCode
+      (frontTypeLoadPost spC s txBase lenW toBuf isCreationPtr txBytes)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have hCall := extractWalkInitCall_short_fromFrontTypeLoad_owned spC s
+    txBase lenW toBuf isCreationPtr txBytes
+    hsalign hoff hover hvalid hlen h_ge h_hi h_exact
+  have hSave := extractWalkInitOkNested_owned spC s txBase lenW
+    toBuf isCreationPtr txBytes
+  exact cpsTripleWithin_seq_same_cr hCall hSave
+
+set_option maxRecDepth 8000 in
+/-- E → AfterSaveCursor short path (no universal hdrop). -/
+theorem extractFrontToAfterSave_short
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (txBytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hlen : lenW = BitVec.ofNat 64 txBytes.length)
+    (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
+    (halign : txBase.toNat % 8 = 0)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hinover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hinvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hlistLen_ne : (lenW - (teerTxTypeDispatch txBytes).2.2) ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xc0 : Word) = true)
+    (h_hi : BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true)
+    (h_exact : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) =
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) +
+        (lenW - (teerTxTypeDispatch txBytes).2.2)) :
+    cpsTripleWithin
+      (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) +
+        ((1 + 15) + (1 + (1 + 1))))
+      E AfterSaveCursor extractLinkedCode
+      ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+        frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+        prologueAbiRest txBase lenW toBuf isCreationPtr
+          old5 old6 old7 old14 old15 old16 **
+        extractToBufOwn toBuf ** memOwn isCreationPtr **
+        frontExtraAmbient txBase txBytes)
+      (frontAfterSavePost spC s txBase lenW toBuf isCreationPtr txBytes) := by
+  have hF := extractFrontThenTypeLoad sp0 spC s txBase lenW toBuf isCreationPtr
+    old5 old6 old7 old14 old15 old16 txBytes
+    hspC htalign htover htvalid hlen hsuccess halign hover hvalid0
+  have hW := extractWalkInitCall_short_toAfterSave_owned spC s
+    txBase lenW toBuf isCreationPtr txBytes
+    halign hoff hinover hinvalid hlistLen_ne h_ge h_hi h_exact
+  exact cpsTripleWithin_seq_same_cr hF hW
+
 #print axioms extractWalkInitCall_fromFrontTypeLoad_owned
 #print axioms extractWalkInitOkNested_owned
 #print axioms extractWalkInitOkFail_toAfterSave_owned
 #print axioms extractWalkInitCall_toAfterSave_owned
 #print axioms extractFrontToAfterSave
+#print axioms extractWalkInitCall_short_fromFrontTypeLoad_owned
+#print axioms extractWalkInitCall_short_toAfterSave_owned
+#print axioms extractFrontToAfterSave_short
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
