@@ -1,6 +1,6 @@
 /-
   Extract HaveField body (idx 121+): MV t2; BEQ creation; LI/BNE len=20;
-  creation path; copy leaves (compose residual).
+  creation path; 20B copy path compose → EpiRestore.
 -/
 
 import EvmAsm.Rv64.CPSSpec
@@ -483,6 +483,409 @@ theorem extractCopySw16
         (by rw [extract_length]; decide) rfl
         (by rw [extract_length]; decide) a i hi)) h
 
+set_option maxRecDepth 8000 in
+/-- Copy path AfterBne20Nt → EpiRestore: 20B content → toBuf, is_creation=0, a0=0. -/
+theorem extractCopyPath
+    (contentPtr toBuf isCreationPtr t0Old a0Old w0 w1 w2 old16 : Word)
+    (hcalign : contentPtr.toNat % 8 = 0)
+    (hcover : contentPtr.toNat + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin
+      (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))))
+      AfterBne20Nt EpiRestore extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+  -- ld0
+  have h0F : cpsTripleWithin 1 AfterBne20Nt (E + 504) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w0) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractCopyLd0 contentPtr t0Old w0
+    have hF := cpsTripleWithin_frameR
+      ((.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- sd0
+  have h1F : cpsTripleWithin 1 (E + 504) (E + 508) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w0) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w0) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractCopySd0 toBuf w0
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- ld8
+  have h2F : cpsTripleWithin 1 (E + 508) (E + 512) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w0) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w1) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractCopyLd8 contentPtr w0 w1
+    have hF := cpsTripleWithin_frameR
+      ((.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- sd8
+  have h3F : cpsTripleWithin 1 (E + 512) (E + 516) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w1) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w1) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractCopySd8 toBuf w1
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** (toBuf ↦ₘ w0) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- lwu16
+  have h4F : cpsTripleWithin 1 (E + 516) (E + 520) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ w1) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractCopyLwu16 contentPtr w1 w2 hcalign hcover hcvalid
+    have hF := cpsTripleWithin_frameR
+      ((.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- sw16
+  have h5F : cpsTripleWithin 1 (E + 520) (E + 524) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        memOwn isCreationPtr) := by
+    have h := extractCopySw16 toBuf
+      ((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) old16
+      htalign htover htvalid
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- sd is_creation=0
+  have h6F : cpsTripleWithin 1 (E + 524) (E + 528) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        memOwn isCreationPtr)
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+    have h := extractCopySdIsCre0 isCreationPtr
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)))
+      (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- li a0,0
+  have h7F : cpsTripleWithin 1 (E + 528) (E + 532) extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word)))
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+    have h := extractCopyLiA0 a0Old
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  -- j ret
+  have h8F : cpsTripleWithin 1 (E + 532) EpiRestore extractLinkedCode
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word)))
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+    have h := extractCopyJalRet
+    have hF := cpsTripleWithin_frameR
+      ((.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by
+        simpa only [sepConj_emp_left'] using hp)
+      (fun _ hq => by simpa only [sepConj_emp_left'] using hq) hF
+  exact cpsTripleWithin_seq_same_cr h0F
+    (cpsTripleWithin_seq_same_cr h1F
+      (cpsTripleWithin_seq_same_cr h2F
+        (cpsTripleWithin_seq_same_cr h3F
+          (cpsTripleWithin_seq_same_cr h4F
+            (cpsTripleWithin_seq_same_cr h5F
+              (cpsTripleWithin_seq_same_cr h6F
+                (cpsTripleWithin_seq_same_cr h7F h8F)))))))
+
+set_option maxRecDepth 8000 in
+/-- HaveField 20B success: MV; BEQ nt; LI 20; BNE nt; copy → EpiRestore. -/
+theorem extractHaveFieldCopy
+    (contentPtr toBuf isCreationPtr t2Old t1Old t0Old a0Old
+      w0 w1 w2 old16 : Word)
+    (hcalign : contentPtr.toNat % 8 = 0)
+    (hcover : contentPtr.toNat + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess (contentPtr + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin
+      (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))))))))
+      HaveField EpiRestore extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+  have hmF : cpsTripleWithin 1 HaveField AfterHaveMv extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractHaveMv (20 : Word) t2Old
+    have hF := cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ t1Old) ** (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** memOwn toBuf ** memOwn (toBuf + 8) **
+        ((toBuf + 16) ↦ₘ old16) ** memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  have hbF : cpsTripleWithin 1 AfterHaveMv AfterHaveBeqzNt extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractHaveBeqzNt (20 : Word) (by decide)
+    -- leaf owns x7+x0; do not re-frame them
+    have hF := cpsTripleWithin_frameR
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ t1Old) ** (.x31 ↦ᵣ contentPtr) **
+        (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) ** (.x5 ↦ᵣ t0Old) **
+        (.x10 ↦ᵣ a0Old) ** (contentPtr ↦ₘ w0) **
+        ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  have hlF : cpsTripleWithin 1 AfterHaveBeqzNt AfterLi20 extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractHaveLi20 t1Old
+    -- leaf owns x6+x0
+    have hF := cpsTripleWithin_frameR
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x31 ↦ᵣ contentPtr) **
+        (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) ** (.x5 ↦ᵣ t0Old) **
+        (.x10 ↦ᵣ a0Old) ** (contentPtr ↦ₘ w0) **
+        ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  have hnF : cpsTripleWithin 1 AfterLi20 AfterBne20Nt extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) := by
+    have h := extractHaveBne20Nt
+    -- leaf owns x7+x6
+    have hF := cpsTripleWithin_frameR
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+        ((contentPtr + 16) ↦ₘ w2) ** memOwn toBuf ** memOwn (toBuf + 8) **
+        ((toBuf + 16) ↦ₘ old16) ** memOwn isCreationPtr) (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  have hcF : cpsTripleWithin
+      (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))))
+      AfterBne20Nt EpiRestore extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+    have h := extractCopyPath contentPtr toBuf isCreationPtr t0Old a0Old
+      w0 w1 w2 old16 hcalign hcover hcvalid htalign htover htvalid
+    have hF := cpsTripleWithin_frameR
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)))
+      (by pcf) h
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hF
+  exact cpsTripleWithin_seq_same_cr hmF
+    (cpsTripleWithin_seq_same_cr hbF
+      (cpsTripleWithin_seq_same_cr hlF
+        (cpsTripleWithin_seq_same_cr hnF hcF)))
+
 #print axioms extractHaveMv
 #print axioms extractHaveBeqzNt
 #print axioms extractHaveBeqzTaken
@@ -495,5 +898,7 @@ theorem extractCopySw16
 #print axioms extractCopyLwu16
 #print axioms extractCopySw16
 #print axioms extractCopyJalRet
+#print axioms extractCopyPath
+#print axioms extractHaveFieldCopy
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
