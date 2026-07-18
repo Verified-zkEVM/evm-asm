@@ -80,10 +80,8 @@ def bodyFrame (spC : Word) (s : TisSaved) (txBase lenW outPtr : Word) : Assertio
   (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
   frameSlotsSaved tisFrame spC (tisSavedVals s)
 
-/-- Across extract: extract owns x2+stackFree+x18; frame s-regs + saved slots only. -/
-def bodyFrameNoX18 (spC : Word) (s : TisSaved) (txBase lenW : Word) : Assertion :=
-  (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
-  (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+/-- Across extract: extract owns live s-regs (Assumed pin); only saved slots ambient. -/
+def bodyFrameAmbient (spC : Word) (s : TisSaved) : Assertion :=
   frameSlotsSaved tisFrame spC (tisSavedVals s)
 
 def bodyFrameAfterEts (spC : Word) (s : TisSaved)
@@ -148,23 +146,27 @@ private theorem pack_ets_temps (isC outPtr : Word) :
 
 private theorem prologue_to_extractPre
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word) :
     ∀ h,
       (prologuePost spC s txBase lenW outPtr
           old5 old6 old7 old13 old14 old15 old16 **
         stackFree spC nExtractStackDwords **
-        bodyPayload txBase txBytes outPtr oldOut) h →
+        bodyPayload txBase txBytes outPtr oldOut **
+        (Reg.x23 ↦ᵣ s7)) h →
       (((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ spC) ** stackFree spC nExtractStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+          (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
-          (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) ** (.x18 ↦ᵣ outPtr) **
+          (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) **
           bytesRegion txBase txBytes **
           extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word))) **
-        (bodyFrameNoX18 spC s txBase lenW **
+        (bodyFrameAmbient spC s **
           memOwn TypeAddr ** memOwn InnerOffAddr **
           (outPtr ↦ₘ oldOut))) h := by
   intro h hp
@@ -173,15 +175,15 @@ private theorem prologue_to_extractPre
       (((.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
           (.x14 ↦ᵣ old14) ** (.x15 ↦ᵣ old15) ** (.x16 ↦ᵣ old16)) **
         ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ spC) ** stackFree spC nExtractStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+          (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
-          (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) ** (.x18 ↦ᵣ outPtr) **
+          (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ old13) **
           bytesRegion txBase txBytes **
           extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)) **
-          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
-          (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) **
-          (.x22 ↦ᵣ s.s6) **
           frameSlotsSaved tisFrame spC (tisSavedVals s) **
           memOwn TypeAddr ** memOwn InnerOffAddr **
           (outPtr ↦ₘ oldOut))) h := by
@@ -189,31 +191,33 @@ private theorem prologue_to_extractPre
   have hp2 :=
     sepConj_mono (pack6 old5 old6 old7 old14 old15 old16)
       (fun _ hh => hh) h hp1
-  unfold bodyFrameNoX18
+  unfold bodyFrameAmbient
   xperm_hyp hp2
 
 private theorem extractPost_to_body
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8)) :
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8)) :
     ∀ h,
       ((((.x1 ↦ᵣ LinkExtract) ** (.x2 ↦ᵣ spC) ** stackFree spC nExtractStackDwords **
+          (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ outPtr) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+          (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x18 ↦ᵣ outPtr) **
           bytesRegion txBase txBytes **
           extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
-        (bodyFrameNoX18 spC s txBase lenW **
+        (bodyFrameAmbient spC s **
           memOwn TypeAddr ** memOwn InnerOffAddr **
           (outPtr ↦ₘ oldOut))) h) →
       ((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch) h := by
+        bodyScratch ** (Reg.x23 ↦ᵣ s7)) h := by
   intro h hp
-  unfold bodyFrameNoX18 at hp
+  unfold bodyFrameAmbient at hp
   unfold bodyFrame bodyPayload bodyScratch
   xperm_hyp hp
 
@@ -222,7 +226,7 @@ theorem tisExtractFramed
     (asm : ExtractAssumed fullCode)
     (hentry : asm.entry = ExtractEntry)
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
     (hsuccess : TxExtractToAddressModel.extractSuccess txBytes) :
@@ -230,25 +234,26 @@ theorem tisExtractFramed
       (prologuePost spC s txBase lenW outPtr
         old5 old6 old7 old13 old14 old15 old16 **
         stackFree spC nExtractStackDwords **
-        bodyPayload txBase txBytes outPtr oldOut)
+        bodyPayload txBase txBytes outPtr oldOut **
+        (Reg.x23 ↦ᵣ s7))
       ((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch) := by
-  have hex0 := tisExtractSuccess asm hentry spC txBase lenW outPtr txBytes
-    s.ra outPtr old13 hlen hsuccess
+        bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
+  have hex0 := tisExtractSuccess asm hentry spC txBase lenW outPtr
+    s.s3 s.s4 s.s5 s.s6 s7 txBytes s.ra outPtr old13 hlen hsuccess
   have hexF := cpsTripleWithin_frameR
-    (bodyFrameNoX18 spC s txBase lenW **
+    (bodyFrameAmbient spC s **
       memOwn TypeAddr ** memOwn InnerOffAddr **
       (outPtr ↦ₘ oldOut))
-    (by unfold bodyFrameNoX18; pcf) hex0
+    (by unfold bodyFrameAmbient; pcf) hex0
   exact cpsTripleWithin_weaken
-    (prologue_to_extractPre spC s txBase lenW outPtr oldOut txBytes
+    (prologue_to_extractPre spC s txBase lenW outPtr oldOut s7 txBytes
       old5 old6 old7 old13 old14 old15 old16)
-    (extractPost_to_body spC s txBase lenW outPtr oldOut txBytes) hexF
+    (extractPost_to_body spC s txBase lenW outPtr oldOut s7 txBytes) hexF
 
 private def typePreConcrete (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (v11 v12 v13 : Word) : Assertion :=
   (.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
   bodyFrame spC s txBase lenW outPtr **
@@ -256,13 +261,14 @@ private def typePreConcrete (spC : Word) (s : TisSaved)
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
   regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
-  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (Reg.x23 ↦ᵣ s7)
 
 private theorem typeCore
     (asm : TypeDispatchAssumed fullCode)
     (hentry : asm.entry = TypeEntry)
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (v11 v12 v13 : Word)
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
     (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
@@ -270,16 +276,17 @@ private theorem typeCore
     (hover : txBase.toNat + txBytes.length < 2 ^ 64)
     (hvalid0 : isValidByteAccess (txBase + BitVec.ofNat 64 0) = true) :
     cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
-      (typePreConcrete spC s txBase lenW outPtr oldOut txBytes v11 v12 v13)
+      (typePreConcrete spC s txBase lenW outPtr oldOut s7 txBytes v11 v12 v13)
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch) := by
+        bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
   have hty0 := tisTypeSuccess asm hentry txBase lenW outPtr txBytes
     LinkExtract 0 v11 v12 v13 hlen hsuccess halign hover hvalid0
   have htyF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** stackFree spC nExtractStackDwords **
       (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+      (Reg.x23 ↦ᵣ s7) **
       frameSlotsSaved tisFrame spC (tisSavedVals s) **
       extractToBufOwn ToBufAddr ** memOwn IsCreationAddr ** teaScratchOwn **
       (outPtr ↦ₘ oldOut))
@@ -292,12 +299,13 @@ private theorem typeCore
       unfold bodyFrame bodyPayload bodyScratch at *
       xperm_hyp hq) htyF
 
+
 set_option maxRecDepth 8000 in
 theorem tisTypeFramed
     (asm : TypeDispatchAssumed fullCode)
     (hentry : asm.entry = TypeEntry)
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word) (txBytes : List (BitVec 8))
+    (txBase lenW outPtr oldOut s7 : Word) (txBytes : List (BitVec 8))
     (hlen : lenW = BitVec.ofNat 64 txBytes.length)
     (hsuccess : (teerTxTypeDispatch txBytes).1 = (0 : Word))
     (halign : txBase.toNat % 8 = 0)
@@ -307,13 +315,13 @@ theorem tisTypeFramed
       ((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch)
+        bodyScratch ** (Reg.x23 ↦ᵣ s7))
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch) := by
+        bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
   have hcore (v11 v12 v13 : Word) :=
-    typeCore asm hentry spC s txBase lenW outPtr oldOut txBytes v11 v12 v13 hlen hsuccess halign hover hvalid0
+    typeCore asm hentry spC s txBase lenW outPtr oldOut s7 txBytes v11 v12 v13 hlen hsuccess halign hover hvalid0
   -- rightmost peels: x13, then x12, then x11
   have h13 : cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
       (((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -322,12 +330,13 @@ theorem tisTypeFramed
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 **
           regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
-          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (Reg.x23 ↦ᵣ s7)) **
         regOwn .x13)
       ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         bodyFrame spC s txBase lenW outPtr **
         bodyPayload txBase txBytes outPtr oldOut **
-        bodyScratch) := by
+        bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
     refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x13) (fun v13 => ?_)
     have h12 : cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
         (((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -337,12 +346,13 @@ theorem tisTypeFramed
             regOwn .x11 **
             regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+            (Reg.x23 ↦ᵣ s7) **
             (.x13 ↦ᵣ v13)) **
           regOwn .x12)
         ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
           bodyFrame spC s txBase lenW outPtr **
           bodyPayload txBase txBytes outPtr oldOut **
-          bodyScratch) := by
+          bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
       refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x12) (fun v12 => ?_)
       have h11 : cpsTripleWithin (6 + (1 + nTypeSteps) + 1) AfterExtractBne AfterTypeBne fullCode
           (((.x1 ↦ᵣ LinkExtract) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -351,12 +361,13 @@ theorem tisTypeFramed
               regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
               regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
               regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+              (Reg.x23 ↦ᵣ s7) **
               (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13)) **
             regOwn .x11)
           ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
             bodyFrame spC s txBase lenW outPtr **
             bodyPayload txBase txBytes outPtr oldOut **
-            bodyScratch) := by
+            bodyScratch ** (Reg.x23 ↦ᵣ s7)) := by
         refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x11) (fun v11 => ?_)
         exact cpsTripleWithin_weaken
           (fun _ hp => by
@@ -369,7 +380,7 @@ theorem tisTypeFramed
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => hq) h12
   exact cpsTripleWithin_weaken
-    (fun _ hp => by unfold bodyScratch at hp; xperm_hyp hp)
+    (fun _ hp => by unfold bodyScratch at hp; xperm_hyp hp)  -- s7 pin alongside
     (fun _ hq => hq) h13
 
 /-- Ets core under concrete isC + temps. -/
@@ -623,17 +634,19 @@ def etsCurSaved (s : TisSaved) (txBase lenW outPtr : Word) : TisSaved :=
 /-- Reshape ets post → epi pre (regsAt cur + payload). -/
 private theorem etsPost_to_epiPre
     (spC : Word) (s : TisSaved)
-    (txBase lenW outPtr : Word) (txBytes : List (BitVec 8)) :
+    (txBase lenW outPtr s7 : Word) (txBytes : List (BitVec 8)) :
     ∀ h,
-      ((.x1 ↦ᵣ LinkEts) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
-        bodyFrameAfterEts spC s txBase lenW outPtr **
-        bodyPayloadOk txBase txBytes outPtr **
-        bodyScratch) h →
+      -- frameR shape: (ets core post) ** x23
+      (((.x1 ↦ᵣ LinkEts) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+          bodyFrameAfterEts spC s txBase lenW outPtr **
+          bodyPayloadOk txBase txBytes outPtr **
+          bodyScratch) ** (Reg.x23 ↦ᵣ s7)) h →
       (((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ spC) **
           regsAt tisFrame (tisSavedVals (etsCurSaved s txBase lenW outPtr)) **
           frameSlotsSaved tisFrame spC (tisSavedVals s)) **
         (stackFree spC nExtractStackDwords **
           bodyPayloadOk txBase txBytes outPtr ** bodyScratch **
+          (Reg.x23 ↦ᵣ s7) **
           (.x0 ↦ᵣ (0 : Word)))) h := by
   intro h hp
   unfold bodyFrameAfterEts bodyPayloadOk bodyScratch at hp
@@ -648,7 +661,7 @@ theorem txIntrinsicStateGas_success_spec_within
     (hextract : asm.extract.entry = ExtractEntry)
     (htype : asm.typeDispatch.entry = TypeEntry)
     (sp0 spC : Word) (s : TisSaved)
-    (txBase lenW outPtr oldOut : Word)
+    (txBase lenW outPtr oldOut s7 : Word)
     (txBytes : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
@@ -665,11 +678,13 @@ theorem txIntrinsicStateGas_success_spec_within
         frameSlotsOwn tisFrame spC **
         stackFree spC nExtractStackDwords **
         prologueAbiRest txBase lenW outPtr old5 old6 old7 old13 old14 old15 old16 **
-        bodyPayload txBase txBytes outPtr oldOut)
+        bodyPayload txBase txBytes outPtr oldOut **
+        (Reg.x23 ↦ᵣ s7))
       ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
         (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
         (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
         (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (Reg.x23 ↦ᵣ s7) **
         frameSlotsSaved tisFrame spC (tisSavedVals s) **
         stackFree spC nExtractStackDwords **
         bodyPayloadOk txBase txBytes outPtr **
@@ -678,25 +693,28 @@ theorem txIntrinsicStateGas_success_spec_within
     old5 old6 old7 old13 old14 old15 old16 hspC
   have hpro := cpsTripleWithin_frameR
     (stackFree spC nExtractStackDwords **
-      bodyPayload txBase txBytes outPtr oldOut)
+      bodyPayload txBase txBytes outPtr oldOut **
+      (Reg.x23 ↦ᵣ s7))
     (by unfold bodyPayload; pcf) hpro0
   have hex := tisExtractFramed asm.extract hextract spC s
-    txBase lenW outPtr oldOut txBytes
+    txBase lenW outPtr oldOut s7 txBytes
     old5 old6 old7 old13 old14 old15 old16 hlen hextractOk
   have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hex
   have hty := tisTypeFramed asm.typeDispatch htype spC s
-    txBase lenW outPtr oldOut txBytes hlen hsuccess halign hover hvalid0
+    txBase lenW outPtr oldOut s7 txBytes hlen hsuccess halign hover hvalid0
   have c02 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hty
-  have hets := tisEtsFramed spC s txBase lenW outPtr oldOut txBytes hlink
+  have hets0 := tisEtsFramed spC s txBase lenW outPtr oldOut txBytes hlink
+  have hets := cpsTripleWithin_frameR (Reg.x23 ↦ᵣ s7) (by exact pcFree_regIs) hets0
   have c03 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 hets
   have hepi0 := epi_full sp0 spC s (etsCurSaved s txBase lenW outPtr) 0 hspC hret
+  -- frame order must match etsPost_to_epiPre nested free: stack**payload**scratch**x23**x0
   have hepi := cpsTripleWithin_frameR
     (stackFree spC nExtractStackDwords **
       bodyPayloadOk txBase txBytes outPtr ** bodyScratch **
-      (.x0 ↦ᵣ (0 : Word)))
+      (Reg.x23 ↦ᵣ s7) ** (.x0 ↦ᵣ (0 : Word)))
     (by unfold bodyPayloadOk bodyScratch; pcf) hepi0
   have c04 := cpsTripleWithin_seq_perm_same_cr
-    (etsPost_to_epiPre spC s txBase lenW outPtr txBytes) c03 hepi
+    (etsPost_to_epiPre spC s txBase lenW outPtr s7 txBytes) c03 hepi
   have hle : 14 + (4 + (1 + nExtractSteps) + 1) + (6 + (1 + nTypeSteps) + 1) +
       (5 + 2 + 1 + 1 + (1 + 4) + 1) + 10 ≤ nTisTopSteps := by
     simp only [nTisTopSteps]; omega

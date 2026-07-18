@@ -72,9 +72,12 @@
            **nExtractSteps 512→1024** (covers E2E ≈949/956) + **nIntrinsicSteps
            1024→1536** (covers nTisTopSteps ≈1333); mono lemmas
            `nFrontCreation_le_nExtract` / `nFrontCopy_le_nExtract`.
+           **callee-saved s0–s7 pin DONE** (`ExtractAssumed` + `IntrinsicAssumed`
+           pin x8,x9,x18–x23; array x23=endW concrete; loopIntrinsicFrame drops x23).
            Residual: extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
-           of_forall Assumed pre peels + post memIs→memOwn; extractAssumed_fullCode;
-           fullCode∪extract; ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+           of_forall Assumed pre peels + post memIs→memOwn (KEEP s-regs);
+           extractAssumed_fullCode; fullCode∪extract;
+           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
@@ -137,7 +140,7 @@ theorem intrinsic_discharge_off0_available
     (hextract : asm.extract.entry = ExtractEntry)
     (htype : asm.typeDispatch.entry = TypeEntry)
     (ret spVal regionBase outPtr oldOut : Word)
-    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (bs : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
@@ -154,7 +157,7 @@ theorem intrinsic_discharge_off0_available
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ regionBase) **
         (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -169,7 +172,7 @@ theorem intrinsic_discharge_off0_available
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion regionBase bs **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -180,7 +183,7 @@ theorem intrinsic_discharge_off0_available
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0 asm hextract htype
-    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
     old5 old6 old7 old13 old14 old15 old16 hret hlink hextractOk hsuccess halign hover hvalid0
 
 /-- Same as `intrinsic_discharge_off0_available` with regOwn temps
@@ -190,7 +193,7 @@ theorem intrinsic_discharge_off0_own_available
     (hextract : asm.extract.entry = ExtractEntry)
     (htype : asm.typeDispatch.entry = TypeEntry)
     (ret spVal regionBase outPtr oldOut : Word)
-    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (bs : List (BitVec 8))
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
@@ -206,7 +209,7 @@ theorem intrinsic_discharge_off0_own_available
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ regionBase) **
         (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -220,7 +223,7 @@ theorem intrinsic_discharge_off0_own_available
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion regionBase bs **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -231,7 +234,7 @@ theorem intrinsic_discharge_off0_own_available
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x0 ↦ᵣ (0 : Word))) :=
   intrinsicAssumed_success_flat_off0_own asm hextract htype
-    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
     hret hlink hextractOk hsuccess halign hover hvalid0
 
 #print axioms intrinsic_discharge_off0_available

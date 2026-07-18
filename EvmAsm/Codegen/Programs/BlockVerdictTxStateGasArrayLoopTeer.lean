@@ -1286,7 +1286,7 @@ theorem bvtIterIntrinsic_preserveCell
         tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
@@ -1301,7 +1301,7 @@ theorem bvtIterIntrinsic_preserveCell
         tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **
@@ -1368,7 +1368,7 @@ theorem bvtIterBal0FromIntrinsic
         tisScratchOwn **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
         bytesRegion txBase txBlob **
         wordArray outBase outVals **

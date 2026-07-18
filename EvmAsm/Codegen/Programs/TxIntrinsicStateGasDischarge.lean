@@ -201,7 +201,7 @@ theorem intrinsicAssumed_success_flat_off0
     (hextract : asm.extract.entry = ExtractEntry)
     (htype : asm.typeDispatch.entry = TypeEntry)
     (ret spVal regionBase outPtr oldOut : Word)
-    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (bs : List (BitVec 8))
     (old5 old6 old7 old13 old14 old15 old16 : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
@@ -217,7 +217,7 @@ theorem intrinsicAssumed_success_flat_off0
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ regionBase) **
         (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -232,7 +232,7 @@ theorem intrinsicAssumed_success_flat_off0
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion regionBase bs **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -249,7 +249,7 @@ theorem intrinsicAssumed_success_flat_off0
   have hlen : lenW = BitVec.ofNat 64 bs.length := rfl
   have htop0 :=
     txIntrinsicStateGas_success_spec_within asm hextract htype
-      spVal spC s regionBase lenW outPtr oldOut bs
+      spVal spC s regionBase lenW outPtr oldOut s7 bs
       old5 old6 old7 old13 old14 old15 old16
       hspC hret hlen hlink hextractOk hsuccess halign hover hvalid0
   have hle : nTisTopSteps ≤ nIntrinsicSteps := by
@@ -270,14 +270,16 @@ theorem intrinsicAssumed_success_flat_off0
           stackFree spC nExtractStackDwords **
           prologueAbiRest regionBase lenW outPtr
             old5 old6 old7 old13 old14 old15 old16 **
-          bodyPayload regionBase bs outPtr oldOut) h := by
+          bodyPayload regionBase bs outPtr oldOut **
+          (Reg.x23 ↦ᵣ s7)) h := by
       have hp' :
           ((.x2 ↦ᵣ spVal) **
             regsAt tisFrame (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
             stackFree spVal nIntrinsicStackDwords **
             prologueAbiRest regionBase lenW outPtr
               old5 old6 old7 old13 old14 old15 old16 **
-            bodyPayload regionBase bs outPtr oldOut) h := by
+            bodyPayload regionBase bs outPtr oldOut **
+            (Reg.x23 ↦ᵣ s7)) h := by
         rw [regsAt_savedOf]
         unfold prologueAbiRest bodyPayload extractToBufOwn teaScratchOwn
           ToBufAddr IsCreationAddr TypeAddr InnerOffAddr
@@ -293,7 +295,8 @@ theorem intrinsicAssumed_success_flat_off0
             stackFree spC nExtractStackDwords **
             prologueAbiRest regionBase lenW outPtr
               old5 old6 old7 old13 old14 old15 old16 **
-            bodyPayload regionBase bs outPtr oldOut) h := by
+            bodyPayload regionBase bs outPtr oldOut **
+            (Reg.x23 ↦ᵣ s7)) h := by
         -- s = savedOf ...
         change
           ((.x2 ↦ᵣ spVal) **
@@ -302,7 +305,8 @@ theorem intrinsicAssumed_success_flat_off0
             stackFree spC nExtractStackDwords **
             prologueAbiRest regionBase lenW outPtr
               old5 old6 old7 old13 old14 old15 old16 **
-            bodyPayload regionBase bs outPtr oldOut) h
+            bodyPayload regionBase bs outPtr oldOut **
+            (Reg.x23 ↦ᵣ s7)) h
         -- reassoc (A ** (B ** C)) → (A ** B ** C) via xperm
         xperm_hyp hp'
       exact hp''
@@ -313,6 +317,7 @@ theorem intrinsicAssumed_success_flat_off0
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) **
         (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (Reg.x23 ↦ᵣ s7) **
         frameSlotsSaved tisFrame spC
           (tisSavedVals (savedOf ret s0 s1 s2 s3 s4 s5 s6)) **
         stackFree spC nExtractStackDwords **
@@ -326,6 +331,7 @@ theorem intrinsicAssumed_success_flat_off0
             (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
             (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) **
             (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+            (Reg.x23 ↦ᵣ s7) **
             bodyPayloadOk regionBase bs outPtr **
             bodyScratch ** (.x0 ↦ᵣ (0 : Word)))) h := by
       xperm_hyp hq
@@ -381,7 +387,7 @@ theorem intrinsicAssumed_success_flat_off0_own
     (hextract : asm.extract.entry = ExtractEntry)
     (htype : asm.typeDispatch.entry = TypeEntry)
     (ret spVal regionBase outPtr oldOut : Word)
-    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (bs : List (BitVec 8))
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts)
@@ -396,7 +402,7 @@ theorem intrinsicAssumed_success_flat_off0_own
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ regionBase) **
         (.x11 ↦ᵣ lenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -410,7 +416,7 @@ theorem intrinsicAssumed_success_flat_off0_own
         stackFree spVal nIntrinsicStackDwords **
         (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion regionBase bs **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -426,7 +432,7 @@ theorem intrinsicAssumed_success_flat_off0_own
       stackFree spVal nIntrinsicStackDwords **
       (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
       (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
       (.x10 ↦ᵣ regionBase) **
       (.x11 ↦ᵣ lenW) **
       (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -439,7 +445,7 @@ theorem intrinsicAssumed_success_flat_off0_own
       stackFree spVal nIntrinsicStackDwords **
       (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
       (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
       (.x10 ↦ᵣ (0 : Word)) **
       bytesRegion regionBase bs **
       (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -457,7 +463,7 @@ theorem intrinsicAssumed_success_flat_off0_own
         Qown := by
     refine of_forall_intrinsic_temps (fun v5 v6 v7 v13 v14 v15 v16 => ?_)
     have hf := intrinsicAssumed_success_flat_off0 asm hextract htype
-      ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+      ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 s7 bs
       v5 v6 v7 v13 v14 v15 v16
       hret hlink hextractOk hsuccess halign hover hvalid0
     refine cpsTripleWithin_weaken (fun _ hp => by

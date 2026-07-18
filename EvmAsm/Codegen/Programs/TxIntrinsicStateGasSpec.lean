@@ -186,13 +186,15 @@ theorem pcFree_teaScratchOwn : teaScratchOwn.pcFree := by
     ABI: a0=txBase, a1=len, a2=to_buf, a3=is_creation_out → a0=0 on success.
     Success-domain only: `extractSuccess txBytes` (pure model).
     RO tx blob ambient; scratch out-cells owned (side effects unconstrained).
-    **Stack:** real leaf does `addi sp,-80` → pin `x2` + `stackFree sp nExtractStackDwords`.
-    **Out buf:** 3 dwords (`extractToBufOwn`); **tea_*** private type_dispatch cells.
+    Stack: `addi sp,-80` → pin `x2` + `stackFree sp nExtractStackDwords`.
+    Out buf: 3 dwords (`extractToBufOwn`); tea_* private type_dispatch cells.
+    Callee-saved s0–s7 (x8,x9,x18–x23) pinned equal pre/post (9-slot frame).
     Residual: Hoare packaging body under that domain. -/
 structure ExtractAssumed (cr : CodeReq) where
   entry : Word
   success_flat :
     ∀ (ret spVal txBase lenW toBuf isCreationPtr : Word)
+      (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
       (txBytes : List (BitVec 8)),
       (ret &&& ~~~(1 : Word)) = ret →
       lenW = BitVec.ofNat 64 txBytes.length →
@@ -200,6 +202,9 @@ structure ExtractAssumed (cr : CodeReq) where
       cpsTripleWithin nExtractSteps entry ret cr
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nExtractStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
           bytesRegion txBase txBytes **
@@ -210,6 +215,9 @@ structure ExtractAssumed (cr : CodeReq) where
           (.x0 ↦ᵣ (0 : Word)))
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nExtractStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBytes **
           extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **

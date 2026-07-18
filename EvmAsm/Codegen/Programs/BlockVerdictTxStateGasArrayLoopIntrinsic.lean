@@ -53,9 +53,8 @@ def loopIntrinsicFrame (spC _txBase _outBase balBase chainIdW _nW _iW
     _startW endW _lenW : Word)
     (csaved : Saved) (balBytes : List (BitVec 8)) (balEnabled : Bool)
     : Assertion :=
-  -- x8/x9/x18–x22 are in IntrinsicAssumed (leaf save/restore); not here.
+  -- x8/x9/x18–x22/x23 are in IntrinsicAssumed (leaf save/restore); not here.
   -- teerScratchOwn is teer-only global scratch; frame across intrinsic.
-  (.x23 ↦ᵣ endW) **
   (.x24 ↦ᵣ balBase) ** (.x25 ↦ᵣ BitVec.ofNat 64 balBytes.length) **
   (.x26 ↦ᵣ chainIdW) ** regOwn .x27 **
   regOwn .x17 **
@@ -98,7 +97,7 @@ theorem bvtIterIntrinsic
         (.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ oldOut) **
@@ -113,7 +112,7 @@ theorem bvtIterIntrinsic
         (.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -131,14 +130,14 @@ theorem bvtIterIntrinsic
   have hlenW : txLenW = BitVec.ofNat 64 len := by
     simp only [txLenW, htxLen]
   have hflat0 := hintr.success_flat LinkIntrinsic spC txBase txPtr outPtr oldOut
-    txBase bodyLenW nW outBase nW iW startW
+    txBase bodyLenW nW outBase nW iW startW endW
     txBlob off len hret hload hlen
   have hflatLen : cpsTripleWithin nIntrinsicSteps hintr.entry LinkIntrinsic fullCode
       ((.x1 ↦ᵣ LinkIntrinsic) ** (.x2 ↦ᵣ spC) **
         stackFree spC nIntrinsicStackDwords **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) **
         (.x12 ↦ᵣ outPtr) ** bytesRegion txBase txBlob **
         (outPtr ↦ₘ oldOut) **
@@ -151,7 +150,7 @@ theorem bvtIterIntrinsic
         stackFree spC nIntrinsicStackDwords **
         (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
         (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+        (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
         (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion txBase txBlob **
         (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
@@ -171,7 +170,7 @@ theorem bvtIterIntrinsic
         ((.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
           (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
           (.x10 ↦ᵣ txPtr) ** (.x11 ↦ᵣ txLenW) ** (.x12 ↦ᵣ outPtr) **
           bytesRegion txBase txBlob ** (outPtr ↦ₘ oldOut) **
           tisScratchOwn **
@@ -185,7 +184,7 @@ theorem bvtIterIntrinsic
         ((.x2 ↦ᵣ spC) ** stackFree spC nIntrinsicStackDwords **
           (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ bodyLenW) **
           (.x18 ↦ᵣ nW) ** (.x19 ↦ᵣ outBase) ** (.x20 ↦ᵣ nW) **
-          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) **
+          (.x21 ↦ᵣ iW) ** (.x22 ↦ᵣ startW) ** (Reg.x23 ↦ᵣ endW) **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion txBase txBlob **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **

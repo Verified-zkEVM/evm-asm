@@ -177,8 +177,12 @@ theorem pcFree_teaScratchOwn : teaScratchOwn.pcFree := by
 
 /-- Assumed-shaped success pre (sp + free stack + scratch owns; RO blob). -/
 def extractAssumedPre (ret spVal txBase lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+    (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+    (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+    (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
     (.x10 ↦ᵣ txBase) ** (.x11 ↦ᵣ lenW) **
     (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
     bytesRegion txBase txBytes **
@@ -188,10 +192,14 @@ def extractAssumedPre (ret spVal txBase lenW toBuf isCreationPtr : Word)
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
     (.x0 ↦ᵣ (0 : Word))
 
-/-- Assumed-shaped success post (a0=0; sp restored; scratch owns; RO blob). -/
+/-- Assumed-shaped success post (a0=0; sp+s0–s7 restored; scratch owns; RO blob). -/
 def extractAssumedPost (ret spVal txBase toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (txBytes : List (BitVec 8)) : Assertion :=
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) ** stackFree spVal nExtractStackDwords **
+    (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+    (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+    (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
     (.x10 ↦ᵣ (0 : Word)) **
     bytesRegion txBase txBytes **
     extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **

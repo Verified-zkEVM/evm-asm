@@ -312,10 +312,12 @@ structure IntrinsicAssumed (cr : CodeReq) where
   /-- Success-path framed contract: writes pure model 0 into `outPtr`.
       `loadPtr = regionBase + ofNat off` with `off + len ≤ bs.length`.
       `spVal` is the caller's current sp; callee restores it.
-      `s0`–`s6` are the caller's callee-saved values (restored on exit). -/
+      `s0`–`s6` are the caller's callee-saved values (restored on exit).
+      `s7` (`x23`) is preserved: nested extract saves/restores it; array
+      uses `x23` as end pointer so Assumed pins it concrete (not regOwn). -/
   success_flat :
     ∀ (ret spVal regionBase loadPtr outPtr oldOut : Word)
-      (s0 s1 s2 s3 s4 s5 s6 : Word)
+      (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
       (bs : List (BitVec 8)) (off len : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
       loadPtr = regionBase + BitVec.ofNat 64 off →
@@ -325,7 +327,7 @@ structure IntrinsicAssumed (cr : CodeReq) where
           stackFree spVal nIntrinsicStackDwords **
           (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
           (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ loadPtr) **
           (.x11 ↦ᵣ BitVec.ofNat 64 len) **
           (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
@@ -339,7 +341,7 @@ structure IntrinsicAssumed (cr : CodeReq) where
           stackFree spVal nIntrinsicStackDwords **
           (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
           (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
-          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
           (.x10 ↦ᵣ (0 : Word)) **
           bytesRegion regionBase bs **
           (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
