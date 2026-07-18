@@ -355,6 +355,73 @@ theorem typeDispatch_assumed_ambient_flat_typeCode
     dsimp only [Qassumed] at hq ⊢
     exact hq) hpeel
 
+set_option maxRecDepth 8000 in
+/-- Value-carrying ambient success (post pins teer type/inner as memIs).
+    For extract body loads of tea_type/tea_inner_off under multi-tx. -/
+theorem typeDispatch_success_values_ambient_flat_typeCode
+    (ret regionBase loadPtr lenW typePtr innerPtr : Word)
+    (bs : List (BitVec 8)) (off len : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlen : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid : isValidByteAccess (regionBase + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin nTypeSteps D ret typeCode
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+        bytesRegion regionBase bs **
+        memOwn typePtr ** memOwn innerPtr **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion regionBase bs **
+        (typePtr ↦ₘ (teerTxTypeDispatch (txSlice bs off len)).2.1) **
+        (innerPtr ↦ₘ (teerTxTypeDispatch (txSlice bs off len)).2.2) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) := by
+  let Pcore : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+      (.x12 ↦ᵣ typePtr) ** (.x13 ↦ᵣ innerPtr) **
+      bytesRegion regionBase bs ** (.x0 ↦ᵣ (0 : Word)) ** typeStableScratch
+  let Qvals : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ (0 : Word)) **
+      bytesRegion regionBase bs **
+      (typePtr ↦ₘ (teerTxTypeDispatch (txSlice bs off len)).2.1) **
+      (innerPtr ↦ₘ (teerTxTypeDispatch (txSlice bs off len)).2.2) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ (0 : Word))
+  have hpeel :
+      cpsTripleWithin nTypeSteps D ret typeCode
+        (Pcore ** memOwn typePtr ** memOwn innerPtr ** regOwn .x5 ** regOwn .x6)
+        Qvals := by
+    refine of_forall_type_dispatch_owns_amb (typePtr := typePtr) (innerPtr := innerPtr)
+      (fun typeOld innerOld t0Old t1Old => ?_)
+    have hf := txTypeDispatch_success_ambient_framed ret regionBase loadPtr typePtr
+      innerPtr t0Old t1Old typeOld innerOld bs off len hret hptr hsuccess
+      halign hbound hover hvalid
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, typeStableScratch] at hp ⊢
+      simp only [hlen] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp only [typeStableScratch, Qvals] at hq ⊢
+      xperm_hyp hq) hf
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    dsimp only [Pcore, typeStableScratch] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp only [Qvals] at hq ⊢
+    exact hq) hpeel
+
 /-- Full ambient Assumed under fullCode (general off/len). -/
 structure TypeDispatchAssumedAmbientFull (cr : CodeReq) where
   entry : Word
@@ -398,6 +465,7 @@ def typeDispatchAssumedAmbient_fullCode : TypeDispatchAssumedAmbientFull fullCod
 
 #print axioms txTypeDispatch_success_ambient
 #print axioms typeDispatch_assumed_ambient_flat_typeCode
+#print axioms typeDispatch_success_values_ambient_flat_typeCode
 #print axioms typeDispatchAssumedAmbient_fullCode
 
 end EvmAsm.Codegen.TxTypeDispatchSpec
