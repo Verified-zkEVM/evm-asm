@@ -104,6 +104,37 @@ theorem rlpItemDecode_txSlice_to_abs_short
   · -- long list — excluded by hshort
     exact False.elim (hshort ⟨b, hb, Or.inr h5.1⟩)
 
+/-- Short-form abs→slice transfer. `hroom1` covers short-string canonicity byte. -/
+theorem rlpItemDecode_abs_to_txSlice_short
+    (bs : List (BitVec 8)) (off len rel : Nat)
+    (cursor endPtr next lenW : Word)
+    (hbound : off + len ≤ bs.length) (hrel : rel < len)
+    (hroom1 : rel + 1 < len)
+    (h : rlpItemDecode bs (ambientAbsOff off rel) cursor endPtr next lenW)
+    (hshort : ¬ (∃ b, bs[off + rel]? = some b ∧
+      ((¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+          BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true) ∨
+        ¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true))) :
+    rlpItemDecode (txSlice bs off len) rel cursor endPtr next lenW := by
+  simp only [rlpItemDecode, ambientAbsOff] at h ⊢
+  obtain ⟨b, hb, hrest⟩ := h
+  have hb' : (txSlice bs off len)[rel]? = some b := by
+    rw [txSlice_getElem? bs off len rel hbound hrel]; exact hb
+  refine ⟨b, hb', ?_⟩
+  rcases hrest with h1 | h2 | h3 | h4 | h5
+  · exact Or.inl h1
+  · rcases h2 with ⟨hu80, huB8, hcan, hfit, hnext, hlen⟩
+    refine Or.inr (Or.inl ⟨hu80, huB8, ?_, hfit, hnext, hlen⟩)
+    intro hlen1
+    obtain ⟨c, hc, hcc⟩ := hcan hlen1
+    refine ⟨c, ?_, hcc⟩
+    have hge := txSlice_getElem? bs off len (rel + 1) hbound hroom1
+    have hc' : bs[off + (rel + 1)]? = some c := by simpa [Nat.add_assoc] using hc
+    exact hge.symm ▸ hc'
+  · exact False.elim (hshort ⟨b, hb, Or.inl ⟨h3.1, h3.2.1⟩⟩)
+  · exact Or.inr (Or.inr (Or.inr (Or.inl h4)))
+  · exact False.elim (hshort ⟨b, hb, Or.inr h5.1⟩)
+
 /-- Lift decode-gated hnext: slice next equation → ambient abs next equation. -/
 theorem hnext_ambient_of_loadPtr
     (regionBase loadPtr : Word) (off rel' : Nat)
@@ -115,12 +146,51 @@ theorem hnext_ambient_of_loadPtr
   simp only [ambientAbsOff]
   rw [hnext, loadPtr_add_rel_eq regionBase loadPtr off rel' hptr hspan]
 
+/-- Packaging hnext on loadPtr/txSlice lifts to regionBase/bs abs offsets (short forms). -/
+theorem packaging_hnext_ambient
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len rel rel' : Nat)
+    (endPtr : Word)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (hrel : rel < len) (hroom1 : rel + 1 < len)
+    (hspan_rel : regionBase.toNat + (off + rel) < 2 ^ 64)
+    (hspan_rel' : regionBase.toNat + (off + rel') < 2 ^ 64)
+    (hshort_abs : ¬ (∃ b, bs[off + rel]? = some b ∧
+      ((¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+          BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true) ∨
+        ¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true)))
+    (hnext_sl : ∀ (next lenW : Word),
+      rlpItemDecode (txSlice bs off len) rel
+        (loadPtr + BitVec.ofNat 64 rel) endPtr next lenW →
+      next = loadPtr + BitVec.ofNat 64 rel') :
+    ∀ (next lenW : Word),
+      rlpItemDecode bs (ambientAbsOff off rel)
+        (regionBase + BitVec.ofNat 64 (ambientAbsOff off rel)) endPtr next lenW →
+      next = regionBase + BitVec.ofNat 64 (ambientAbsOff off rel') := by
+  intro next lenW hdec_abs
+  have hcur :
+      loadPtr + BitVec.ofNat 64 rel =
+        regionBase + BitVec.ofNat 64 (ambientAbsOff off rel) := by
+    simpa [ambientAbsOff] using
+      loadPtr_add_rel_eq regionBase loadPtr off rel hptr hspan_rel
+  have hdec_sl :
+      rlpItemDecode (txSlice bs off len) rel
+        (loadPtr + BitVec.ofNat 64 rel) endPtr next lenW := by
+    rw [hcur]
+    exact rlpItemDecode_abs_to_txSlice_short bs off len rel
+      (regionBase + BitVec.ofNat 64 (ambientAbsOff off rel)) endPtr next lenW
+      hbound hrel hroom1 hdec_abs hshort_abs
+  have hnext0 := hnext_sl next lenW hdec_sl
+  exact hnext_ambient_of_loadPtr regionBase loadPtr off rel' next hptr hspan_rel' hnext0
+
 #print axioms shortWalkCursor_loadPtr_eq
 #print axioms shortWalkEnd_loadPtr_eq
 #print axioms txSlice_getElem?
 #print axioms txSlice_drop
 #print axioms txSlice_drop_take
 #print axioms rlpItemDecode_txSlice_to_abs_short
+#print axioms rlpItemDecode_abs_to_txSlice_short
 #print axioms hnext_ambient_of_loadPtr
+#print axioms packaging_hnext_ambient
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
