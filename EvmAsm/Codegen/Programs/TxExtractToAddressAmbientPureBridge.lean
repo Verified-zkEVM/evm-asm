@@ -10,6 +10,7 @@ import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.EL.RLP.Basic
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitShort
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitLongAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressHonesty
 
 namespace EvmAsm.Codegen.TxExtractToAddressSpec
@@ -722,6 +723,375 @@ theorem walk_init_exact_ambient
   rw [← heq, hcur] at h
   exact h
 
+/-- Bridge long walk end: loadPtr-relative = regionBase + abs. -/
+theorem longWalkEnd_loadPtr_eq
+    (regionBase loadPtr listLen : Word) (off listOff : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hspan : regionBase.toNat + (off + listOff) < 2 ^ 64) :
+    longWalkEndAmbient loadPtr listLen listOff =
+      longWalkEndAmbient regionBase listLen (ambientAbsOff off listOff) := by
+  simp only [longWalkEndAmbient, ambientAbsOff]
+  have h := loadPtr_add_rel_eq regionBase loadPtr off listOff hptr hspan
+  rw [h]
+
+/-- Bridge long walk cursor when list header byte is shared via getElem. -/
+theorem longWalkCursor_loadPtr_eq
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (hoff_sl : listOff < (txSlice bs off len).length)
+    (hspan : regionBase.toNat + (off + listOff) < 2 ^ 64)
+    (hoff_bs : ambientAbsOff off listOff < bs.length) :
+    longWalkCursorAmbient loadPtr (txSlice bs off len) listOff hoff_sl =
+      longWalkCursorAmbient regionBase bs (ambientAbsOff off listOff) hoff_bs := by
+  have hlen := txSlice_length bs off len hbound
+  have hrel : listOff < len := by rwa [hlen] at hoff_sl
+  have heq :
+      (txSlice bs off len)[listOff]'hoff_sl =
+        bs[ambientAbsOff off listOff]'hoff_bs := by
+    simpa [ambientAbsOff] using
+      (txSlice_getElem_eq bs off len listOff hbound hrel hoff_sl hoff_bs)
+  have hcur :
+      loadPtr + BitVec.ofNat 64 listOff =
+        regionBase + BitVec.ofNat 64 (ambientAbsOff off listOff) := by
+    simpa [ambientAbsOff] using
+      loadPtr_add_rel_eq regionBase loadPtr off listOff hptr hspan
+  simp only [longWalkCursorAmbient]
+  rw [hcur, heq]
+
+theorem long_list_item_head_eq
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hoff : longListSrcOff listOff items n < txBytes.length) :
+    txBytes[longListSrcOff listOff items n]'hoff =
+      (encode (items[n]'hn))[0]'(encode_item_length_pos _) := by
+  set srcOff := longListSrcOff listOff items n
+  have hdrop := long_list_item_drop txBytes listOff items n henc hlong hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h (List.ne_nil_of_length_pos hpos)
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      txBytes.drop srcOff =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [srcOff, longListSrcOff, heq] using hdrop
+  obtain ⟨_, hb'⟩ := getElem_of_drop_cons txBytes srcOff b _ hdrop'
+  simpa [heq] using hb'
+
+theorem hshort_abs_at_long_list_field
+    (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem) (n : Nat)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < (txSlice bs off len).length) :
+    ¬ (∃ b, bs[off + longListSrcOff listOff items n]? = some b ∧
+      ((¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+          BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true) ∨
+        ¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true)) := by
+  intro hEx
+  obtain ⟨b, hb, hlongForm⟩ := hEx
+  set slice := txSlice bs off len
+  set rel := longListSrcOff listOff items n
+  have hrel : rel < len := by
+    have hlen := txSlice_length bs off len hbound
+    have : rel < slice.length := hoff
+    rwa [hlen] at this
+  have hbsl : slice[rel]? = some b := by
+    rw [txSlice_getElem? bs off len rel hbound hrel]; exact hb
+  have hhead := long_list_item_head_eq slice listOff items n henc hlong hn hoff
+  have hpos := encode_item_length_pos (items[n]'hn)
+  have hb0 : b = (encode (items[n]'hn))[0]'hpos := by
+    have hget : slice[rel]'hoff = b := by
+      rw [List.getElem?_eq_getElem hoff] at hbsl
+      exact Option.some.inj hbsl
+    rw [← hget, hhead]
+  rcases hlongForm with hls | hll
+  · have hnot := encode_item_head_not_long_string (items[n]'hn) hitemLe
+    exact hnot ⟨by simpa [hb0] using hls.1, by simpa [hb0] using hls.2⟩
+  · have hlt := encode_item_head_lt_f8 (items[n]'hn) hitemLe
+    have : BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true := by simpa [hb0] using hlt
+    exact hll this
+
+theorem packaging_hnext_ambient_field_long
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem) (n n' : Nat) (endPtr : Word)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < (txSlice bs off len).length)
+    (hspan_rel : regionBase.toNat +
+        (off + longListSrcOff listOff items n) < 2 ^ 64)
+    (hspan_rel' : regionBase.toNat +
+        (off + longListSrcOff listOff items n') < 2 ^ 64)
+    (hroom1 : longListSrcOff listOff items n + 1 < (txSlice bs off len).length)
+    (hnext_sl : ∀ (next lenW : Word),
+      rlpItemDecode (txSlice bs off len) (longListSrcOff listOff items n)
+        (loadPtr + BitVec.ofNat 64 (longListSrcOff listOff items n))
+        endPtr next lenW →
+      next = loadPtr + BitVec.ofNat 64 (longListSrcOff listOff items n')) :
+    ∀ (next lenW : Word),
+      rlpItemDecode bs (ambientAbsOff off (longListSrcOff listOff items n))
+        (regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items n)))
+        endPtr next lenW →
+      next = regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items n')) := by
+  let rel := longListSrcOff listOff items n
+  let rel' := longListSrcOff listOff items n'
+  have hlen := txSlice_length bs off len hbound
+  have hrel : rel < len := by
+    have : rel < (txSlice bs off len).length := hoff
+    rwa [hlen] at this
+  have hroom1' : rel + 1 < len := by
+    have : rel + 1 < (txSlice bs off len).length := hroom1
+    rwa [hlen] at this
+  have hshort_abs :=
+    hshort_abs_at_long_list_field bs off len listOff items n
+      hbound henc hlong hn hitemLe hoff
+  exact packaging_hnext_ambient regionBase loadPtr bs off len rel rel' endPtr
+    hptr hbound hrel hroom1' hspan_rel hspan_rel' hshort_abs hnext_sl
+
+theorem hcre_ambient_of_slice_long
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem) (n : Nat) (endPtr : Word)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff : longListSrcOff listOff items n < (txSlice bs off len).length)
+    (hspan : regionBase.toNat + (off + longListSrcOff listOff items n) < 2 ^ 64)
+    (hroom1 : longListSrcOff listOff items n + 1 < (txSlice bs off len).length)
+    (hcre_sl : ∀ (next lenW : Word),
+      rlpItemDecode (txSlice bs off len) (longListSrcOff listOff items n)
+        (loadPtr + BitVec.ofNat 64 (longListSrcOff listOff items n))
+        endPtr next lenW →
+      lenW = (0 : Word)) :
+    ∀ (next lenW : Word),
+      rlpItemDecode bs (ambientAbsOff off (longListSrcOff listOff items n))
+        (regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items n)))
+        endPtr next lenW →
+      lenW = (0 : Word) := by
+  intro next lenW hdec_abs
+  set rel := longListSrcOff listOff items n
+  have hlen := txSlice_length bs off len hbound
+  have hrel : rel < len := by
+    have : rel < (txSlice bs off len).length := hoff
+    rwa [hlen] at this
+  have hroom1' : rel + 1 < len := by
+    have : rel + 1 < (txSlice bs off len).length := hroom1
+    rwa [hlen] at this
+  have hshort_abs :=
+    hshort_abs_at_long_list_field bs off len listOff items n
+      hbound henc hlong hn hitemLe hoff
+  have hcur :
+      loadPtr + BitVec.ofNat 64 rel =
+        regionBase + BitVec.ofNat 64 (ambientAbsOff off rel) := by
+    simpa [ambientAbsOff] using
+      loadPtr_add_rel_eq regionBase loadPtr off rel hptr hspan
+  have hdec_sl :
+      rlpItemDecode (txSlice bs off len) rel
+        (loadPtr + BitVec.ofNat 64 rel) endPtr next lenW := by
+    rw [hcur]
+    exact rlpItemDecode_abs_to_txSlice_short bs off len rel
+      (regionBase + BitVec.ofNat 64 (ambientAbsOff off rel)) endPtr next lenW
+      hbound hrel hroom1' hdec_abs hshort_abs
+  exact hcre_sl next lenW hdec_sl
+
+theorem hcur_ambient_long_srcOff0
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hencBound : (encode.encodeItems items).length < 256 ^ 8)
+    (hoff_sl : listOff < (txSlice bs off len).length)
+    (hoff_bs : ambientAbsOff off listOff < bs.length)
+    (hspan_list : regionBase.toNat + (off + listOff) < 2 ^ 64)
+    (hspan_src0 : regionBase.toNat +
+        (off + (listOff + 1 + longListLol items)) < 2 ^ 64) :
+    longWalkCursorAmbient regionBase bs (ambientAbsOff off listOff) hoff_bs =
+      regionBase + BitVec.ofNat 64
+        (ambientAbsOff off (longListSrcOff listOff items 0)) := by
+  have hoverC : loadPtr.toNat + (listOff + 1 + longListLol items) < 2 ^ 64 := by
+    have hlp : loadPtr.toNat = regionBase.toNat + off := by
+      have hoffN : off < 2 ^ 64 := by omega
+      rw [hptr, BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hoffN,
+        Nat.mod_eq_of_lt (by omega : regionBase.toNat + off < 2 ^ 64)]
+    omega
+  have hcur_sl :
+      longWalkCursorAmbient loadPtr (txSlice bs off len) listOff hoff_sl =
+        loadPtr + BitVec.ofNat 64 (longListSrcOff listOff items 0) := by
+    simpa [longWalkCursorAmbient] using
+      longWalkCursor_eq_srcOff0 (txSlice bs off len) loadPtr listOff items
+        henc hlong hencBound hoff_sl hoverC
+  have hcur_eq :=
+    longWalkCursor_loadPtr_eq regionBase loadPtr bs off len listOff
+      hptr hbound hoff_sl hspan_list hoff_bs
+  have hnext :=
+    loadPtr_add_rel_eq regionBase loadPtr off (longListSrcOff listOff items 0)
+      hptr (by simp only [longListSrcOff_zero]; exact hspan_src0)
+  calc
+    longWalkCursorAmbient regionBase bs (ambientAbsOff off listOff) hoff_bs
+        = longWalkCursorAmbient loadPtr (txSlice bs off len) listOff hoff_sl :=
+          hcur_eq.symm
+    _ = loadPtr + BitVec.ofNat 64 (longListSrcOff listOff items 0) := hcur_sl
+    _ = regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items 0)) := by
+        simpa [ambientAbsOff] using hnext
+
+theorem hinb_ambient_long_list_end
+    (regionBase : Word) (off listOff : Nat) (items : List RLPItem) (k : Nat)
+    (hn : k < items.length)
+    (hoverEnd : regionBase.toNat +
+        (off + (listOff + 1 + longListLol items +
+          (encode.encodeItems items).length)) < 2 ^ 64)
+    (endPtr : Word)
+    (hend : endPtr =
+      regionBase + BitVec.ofNat 64
+        (ambientAbsOff off (listOff + 1 + longListLol items +
+          (encode.encodeItems items).length))) :
+    BitVec.ult
+        (regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items k)))
+        endPtr = true := by
+  have hlt := encodeItemsPrefixLen_lt_total items k hn
+  have hsrc : longListSrcOff listOff items k =
+      listOff + 1 + longListLol items + encodeItemsPrefixLen items k := rfl
+  have hendN : endPtr.toNat =
+      regionBase.toNat +
+        (off + (listOff + 1 + longListLol items +
+          (encode.encodeItems items).length)) := by
+    rw [hend, ambientAbsOff, toNat_add_ofNat_lt regionBase _ hoverEnd]
+  have hcurN :
+      (regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (longListSrcOff listOff items k))).toNat =
+        regionBase.toNat + ambientAbsOff off (longListSrcOff listOff items k) := by
+    have hover' : regionBase.toNat +
+        ambientAbsOff off (longListSrcOff listOff items k) < 2 ^ 64 := by
+      simp only [ambientAbsOff, hsrc]; omega
+    exact toNat_add_ofNat_lt regionBase _ hover'
+  apply (BitVec.ult_iff_lt).mpr
+  rw [BitVec.lt_def, hcurN, hendN]
+  simp only [ambientAbsOff, hsrc]
+  omega
+
+theorem hss_ambient_of_long_list_field
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem) (n : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitemLe : (encode (items[n]'hn)).length ≤ 55)
+    (hoff_sl : longListSrcOff listOff items n < (txSlice bs off len).length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hnext : n + 1 < items.length ∨ 2 ≤ (encode (items[n]'hn)).length)
+    (hvalid1 : isValidByteAccess
+      (regionBase + BitVec.ofNat 64
+        (ambientAbsOff off (longListSrcOff listOff items n) + 1)) = true)
+    (hoff_bs : ambientAbsOff off (longListSrcOff listOff items n) < bs.length) :
+    ¬ BitVec.ult
+        ((bs[ambientAbsOff off (longListSrcOff listOff items n)]'hoff_bs
+          ).zeroExtend 64)
+        (0x80 : Word) = true →
+      BitVec.ult
+        ((bs[ambientAbsOff off (longListSrcOff listOff items n)]'hoff_bs
+          ).zeroExtend 64)
+        (0xb8 : Word) = true →
+      ambientAbsOff off (longListSrcOff listOff items n) + 1 < bs.length ∧
+        regionBase.toNat +
+            (ambientAbsOff off (longListSrcOff listOff items n) + 1) < 2 ^ 64 ∧
+        isValidByteAccess
+          (regionBase + BitVec.ofNat 64
+            (ambientAbsOff off (longListSrcOff listOff items n) + 1)) = true := by
+  intro hlo hhi
+  set slice := txSlice bs off len
+  set rel := longListSrcOff listOff items n
+  set absOff := ambientAbsOff off rel
+  have hlen := txSlice_length bs off len hbound
+  have hrel : rel < len := by
+    have : rel < slice.length := hoff_sl
+    rwa [hlen] at this
+  have heq :
+      bs[absOff]'hoff_bs = slice[rel]'hoff_sl := by
+    simp only [absOff, ambientAbsOff]
+    exact (txSlice_getElem_eq bs off len rel hbound hrel hoff_sl hoff_bs).symm
+  have hlo_sl :
+      ¬ BitVec.ult ((slice[rel]'hoff_sl).zeroExtend 64) (0x80 : Word) = true := by
+    have hlo' := hlo
+    rw [heq] at hlo'
+    exact hlo'
+  have hhi_sl :
+      BitVec.ult ((slice[rel]'hoff_sl).zeroExtend 64) (0xb8 : Word) = true := by
+    have hhi' := hhi
+    rw [heq] at hhi'
+    exact hhi'
+  have hlp : loadPtr.toNat = regionBase.toNat + off := by
+    have hoffN : off < 2 ^ 64 := by omega
+    rw [hptr, BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hoffN,
+      Nat.mod_eq_of_lt (by omega : regionBase.toNat + off < 2 ^ 64)]
+  have hover_sl : loadPtr.toNat + slice.length < 2 ^ 64 := by
+    rw [hlen, hlp]; omega
+  have hspan1 : regionBase.toNat + (off + (rel + 1)) < 2 ^ 64 := by
+    have hroom : rel + 1 < slice.length := by
+      cases hnext with
+      | inl hsucc =>
+        have hlt := longListSrcOff_lt_length slice listOff items (n + 1)
+          henc hlong hsucc
+        have hs := longListSrcOff_succ listOff items n hn
+        have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+        omega
+      | inr hge2 =>
+        have hdrop := long_list_item_drop slice listOff items n henc hlong hn
+        have hlen_drop :
+            (slice.drop rel).length =
+              (encode (items[n]'hn)).length +
+                (encode.encodeItems (items.drop (n + 1))).length := by
+          have := congrArg List.length hdrop
+          simpa [rel, longListSrcOff, List.length_append] using this
+        have hdl : (slice.drop rel).length = slice.length - rel := by
+          simp [List.length_drop]
+        omega
+    rw [hlen] at hroom; omega
+  have heqAddr :
+      loadPtr + BitVec.ofNat 64 (rel + 1) =
+        regionBase + BitVec.ofNat 64 (absOff + 1) := by
+    have h := loadPtr_add_rel_eq regionBase loadPtr off (rel + 1) hptr hspan1
+    have habs : absOff + 1 = off + (rel + 1) := by
+      simp only [absOff, ambientAbsOff]; omega
+    simpa [habs] using h
+  have hvalid1_sl : isValidByteAccess
+      (loadPtr + BitVec.ofNat 64 (rel + 1)) = true := by
+    rwa [heqAddr]
+  have hss_sl :=
+    hss_of_long_list_item slice loadPtr listOff items n henc hlong hn hitemLe
+      hoff_sl hover_sl hnext hvalid1_sl
+  have hss' := hss_sl hlo_sl hhi_sl
+  refine ⟨?_, ?_, ?_⟩
+  · have hr : rel + 1 < slice.length := hss'.1
+    have hr' : rel + 1 < len := by rwa [hlen] at hr
+    simp only [absOff, ambientAbsOff]
+    omega
+  · have hr : loadPtr.toNat + (rel + 1) < 2 ^ 64 := hss'.2.1
+    simp only [absOff, ambientAbsOff, hlp] at hr ⊢
+    omega
+  · exact hvalid1
+
 #print axioms shortWalkCursor_loadPtr_eq
 #print axioms shortWalkEnd_loadPtr_eq
 #print axioms txSlice_getElem?
@@ -744,5 +1114,14 @@ theorem walk_init_exact_ambient
 #print axioms hnext_content_ambient_of_slice
 #print axioms walk_init_ge_hi_ambient
 #print axioms walk_init_exact_ambient
+#print axioms longWalkEnd_loadPtr_eq
+#print axioms longWalkCursor_loadPtr_eq
+#print axioms long_list_item_head_eq
+#print axioms hshort_abs_at_long_list_field
+#print axioms packaging_hnext_ambient_field_long
+#print axioms hcre_ambient_of_slice_long
+#print axioms hcur_ambient_long_srcOff0
+#print axioms hinb_ambient_long_list_end
+#print axioms hss_ambient_of_long_list_field
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
