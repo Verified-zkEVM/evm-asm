@@ -50,8 +50,8 @@ theorem extractLegacyHaveFieldCopy_then_epi_region_ambient
     (htover : toBuf.toNat + 16 < 2 ^ 64)
     (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
     let contentPtr := regionBase + BitVec.ofNat 64 (8 * q)
-    let _w0 := (contentWordsAt bs q).1
-    let _w1 := (contentWordsAt bs q).2.1
+    let w0 := (contentWordsAt bs q).1
+    let w1 := (contentWordsAt bs q).2.1
     let w2 := (contentWordsAt bs q).2.2
     cpsTripleWithin
       ((1 + 1) +
@@ -79,7 +79,8 @@ theorem extractLegacyHaveFieldCopy_then_epi_region_ambient
         (.x0 ↦ᵣ (0 : Word)) **
         regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
-  intro contentPtr _w0 _w1 w2
+  intro contentPtr w0 w1 w2
+  have _ := w0; have _ := w1
   let cursor := regionBase + BitVec.ofNat 64 absOff3
   have hsub : next - (20 : Word) = contentPtr := by
     rw [hnext]; exact BitVec.add_sub_cancel contentPtr (20 : Word)
