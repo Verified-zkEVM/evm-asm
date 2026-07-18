@@ -39,8 +39,9 @@
          classical-3). **walk_init 9-way→OkFail DONE** + **OK exists_pre
          bneSave DONE** + **s5/s6 frame through call DONE** + **type234
          AfterSave→WalkNext0 framed DONE** (`extractType234ToWalkNext0`).
-         **wn0 call_type234 + OkFail DONE** (`extractWalkNext0Call_type234`).
-         Residual: wn0 OK exists_pre→BNE; wn1..5 ambient; legacy/t1 same;
+         **wn0 call_type234 + OkFail DONE** (`extractWalkNext0Call_type234`) +
+         **wn0 OK exists_pre→BNE DONE** (`extractWalkNext0OkNested_bne`).
+         Residual: wn1..5 ambient; legacy/t1 same;
          extractSuccess drop-fail pure; HaveField+epilogue top → extractAssumed;
          fullCode∪extract (use extractLinkedCode first);
          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`

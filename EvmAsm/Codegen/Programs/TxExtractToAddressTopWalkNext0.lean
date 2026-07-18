@@ -5,6 +5,7 @@
 
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.SAsm.StmtSoundCall
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNext
@@ -14,6 +15,7 @@ namespace EvmAsm.Codegen.TxExtractToAddressSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
+open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 
 local macro "pcf" : tactic => `(tactic|
@@ -286,10 +288,79 @@ theorem extractWalkNext0Ok_bne
   exact extractWalkNext0BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
 
+set_option maxRecDepth 8000 in
+/-- From ambient ** common ** `rlpWalkNextOk`, float ∃+pure and BNE not-taken
+    → AfterWalkNext0Bne with ∃ next,len concrete OK regs. -/
+theorem extractWalkNext0OkNested_bne
+    (txBase lenW typeW innerW endPtr : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) :
+    cpsTripleWithin 1 LinkWalkNext0 AfterWalkNext0Bne extractLinkedCode
+      (wn0Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        wn0Common txBase txBytes **
+        rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes srcOff)
+      (fun h => ∃ next len : Word,
+        wn0OkConcrete txBase lenW typeW innerW endPtr next len
+          txBytes srcOff h) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff
+  -- Float ∃ next,len out of rlpWalkNextOk.
+  refine cpsTripleWithin_weaken
+    (P := fun h => ∃ next len : Word,
+      (wn0Stable txBase lenW typeW innerW endPtr cursor **
+        wn0Common txBase txBytes **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+          ⌜rlpItemDecode txBytes srcOff cursor endPtr next len⌝)) h)
+    (fun h hp => by
+      obtain ⟨h1, h2, hd, hu, hSt, hCR⟩ := hp
+      obtain ⟨hC, hR, hdc, huc, hCom, hOk⟩ := hCR
+      obtain ⟨next, len, hw⟩ := hOk
+      exact ⟨next, len, h1, h2, hd, hu, hSt, hC, hR, hdc, huc, hCom, hw⟩)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_exists_pre_gen (fun next => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun len => ?_)
+  -- pure front for pure_pre (HeaderFields style).
+  refine cpsTripleWithin_weaken
+    (P := ⌜rlpItemDecode txBytes srcOff cursor endPtr next len⌝ **
+      (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (wn0Stable txBase lenW typeW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkWalkNext0) **
+          bytesRegion txBase txBytes **
+          (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))))
+    (fun h hp => by
+      -- hp : stable ** common ** (x10 ** x11 ** x12 ** pure)
+      simp only [wn0Common] at hp
+      xperm_hyp hp)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hdec => ?_)
+  -- Rest is wn0OkConcrete after xperm (x11/x0 with stable/common/regs).
+  have h0 := extractWalkNext0Ok_bne txBase lenW typeW innerW endPtr next len
+    txBytes srcOff hdec
+  refine cpsTripleWithin_weaken (fun h hp => by
+    simp only [wn0OkConcrete, wn0Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+
+set_option maxRecDepth 8000 in
+/-- Alias: OK arm of OkFail under ambient → BNE → After ∃. -/
+theorem extractWalkNext0OkFail_ok_bne
+    (txBase lenW typeW innerW endPtr : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) :
+    cpsTripleWithin 1 LinkWalkNext0 AfterWalkNext0Bne extractLinkedCode
+      (wn0Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        wn0Common txBase txBytes **
+        rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes srcOff)
+      (fun h => ∃ next len : Word,
+        wn0OkConcrete txBase lenW typeW innerW endPtr next len
+          txBytes srcOff h) :=
+  extractWalkNext0OkNested_bne txBase lenW typeW innerW endPtr txBytes srcOff
+
 #print axioms wn0Outcome_to_okFail
 #print axioms extractWalkNext0Post_to_commonOutcome
 #print axioms extractWalkNext0Call_type234
 #print axioms extractWalkNext0BneOk_framed
 #print axioms extractWalkNext0Ok_bne
+#print axioms extractWalkNext0OkNested_bne
+#print axioms extractWalkNext0OkFail_ok_bne
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
