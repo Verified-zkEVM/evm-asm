@@ -164,6 +164,144 @@ theorem extractCopyPath_region
     rw [hbr] at hq2
     xperm_hyp hq2) hF
 
+set_option maxRecDepth 8000 in
+/-- HaveField → EpiRestore 20B copy with content partitioned from `bytesRegion`. -/
+theorem extractHaveFieldCopy_region
+    (txBase toBuf isCreationPtr t2Old t1Old t0Old a0Old old16 : Word)
+    (txBytes : List (BitVec 8)) (q : Nat)
+    (hq : 8 * q + 16 < txBytes.length)
+    (halign : txBase.toNat % 8 = 0)
+    (hcover : txBase.toNat + 8 * q + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess
+      (txBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    let contentPtr := txBase + BitVec.ofNat 64 (8 * q)
+    let w0 := (contentWordsAt txBytes q).1
+    let w1 := (contentWordsAt txBytes q).2.1
+    let w2 := (contentWordsAt txBytes q).2.2
+    cpsTripleWithin
+      (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))))))))
+      HaveField EpiRestore extractLinkedCode
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr)
+      ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) := by
+  intro contentPtr w0 w1 w2
+  have hptr : contentPtr = txBase + BitVec.ofNat 64 (8 * q) := rfl
+  have hw0 : w0 = packBytes ((txBytes.drop (8 * q)).take 8) := rfl
+  have hw1 : w1 = packBytes ((txBytes.drop (8 * q + 8)).take 8) := rfl
+  have hw2 : w2 = packBytes ((txBytes.drop (8 * q + 16)).take 8) := rfl
+  obtain ⟨front, rest, hf, hr, heq⟩ :=
+    bytesRegion_dword_triple_at txBase txBytes q hq
+  have hbase_q : txBase.toNat + 8 * q < 2 ^ 64 := by omega
+  have hcalign : contentPtr.toNat % 8 = 0 := by
+    rw [hptr]; exact contentPtr_align txBase q halign hbase_q
+  have hcover' : contentPtr.toNat + 16 < 2 ^ 64 := by
+    rw [hptr, contentPtr_toNat txBase q hbase_q]; omega
+  have hcvalid' : isValidMemAccess (contentPtr + (16 : Word)) = true := by
+    simpa [hptr, BitVec.add_assoc] using hcvalid
+  have ha8 : txBase + BitVec.ofNat 64 (8 * q + 8) = contentPtr + 8 := by
+    rw [hptr, contentPtr_add8 txBase q (by omega)]
+  have ha16 : txBase + BitVec.ofNat 64 (8 * q + 16) = contentPtr + 16 := by
+    rw [hptr, contentPtr_add16 txBase q hcover]
+  have hsplit :
+      bytesRegion txBase txBytes =
+        (front ** ((contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+          ((contentPtr + 16) ↦ₘ w2) ** rest)) := by
+    rw [heq, hw0, hw1, hw2, ← hptr, ha8, ha16]
+  have hleaf := extractHaveFieldCopy contentPtr toBuf isCreationPtr t2Old t1Old
+    t0Old a0Old w0 w1 w2 old16 hcalign hcover' hcvalid' htalign htover htvalid
+  have hF := cpsTripleWithin_frameR (front ** rest)
+    (pcFree_sepConj hf hr) hleaf
+  refine cpsTripleWithin_weaken (fun st hp => by
+    rw [hsplit] at hp
+    xperm_hyp hp) (fun st hq => by
+    have hq' :
+        (((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+          (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+          (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+          ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+            (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+          (isCreationPtr ↦ₘ (0 : Word))) **
+          (front ** rest)) st := by
+      xperm_hyp hq
+    have hq2 :
+        ((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+          (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+          (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+          ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+            (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+          (isCreationPtr ↦ₘ (0 : Word)) **
+          (front ** ((contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+            ((contentPtr + 16) ↦ₘ w2) ** rest))) st := by
+      xperm_hyp hq'
+    have hbr :
+        (front ** ((contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) **
+          ((contentPtr + 16) ↦ₘ w2) ** rest)) = bytesRegion txBase txBytes := hsplit.symm
+    rw [hbr] at hq2
+    xperm_hyp hq2) hF
+
+set_option maxRecDepth 8000 in
+/-- Frame stable s-regs/tea around region HaveField copy (no bytesRegion in frame). -/
+theorem extractHaveFieldCopy_region_frame
+    (txBase toBuf isCreationPtr t2Old t1Old t0Old a0Old old16 : Word)
+    (txBytes : List (BitVec 8)) (q : Nat)
+    (R : Assertion) (hR : R.pcFree)
+    (hq : 8 * q + 16 < txBytes.length)
+    (halign : txBase.toNat % 8 = 0)
+    (hcover : txBase.toNat + 8 * q + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess
+      (txBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    let contentPtr := txBase + BitVec.ofNat 64 (8 * q)
+    let w0 := (contentWordsAt txBytes q).1
+    let w1 := (contentWordsAt txBytes q).2.1
+    let w2 := (contentWordsAt txBytes q).2.2
+    cpsTripleWithin
+      (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))))))))
+      HaveField EpiRestore extractLinkedCode
+      (((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        memOwn toBuf ** memOwn (toBuf + 8) ** ((toBuf + 16) ↦ₘ old16) **
+        memOwn isCreationPtr) ** R)
+      (((.x12 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) ** (.x6 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) ** (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        (toBuf ↦ₘ w0) ** ((toBuf + 8) ↦ₘ w1) **
+        ((toBuf + 16) ↦ₘ replaceWord32 old16 ((byteOffset (toBuf + 16)) / 4)
+          (((extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64).truncate 32)) **
+        (isCreationPtr ↦ₘ (0 : Word))) ** R) := by
+  intro contentPtr w0 w1 w2
+  exact cpsTripleWithin_frameR R hR
+    (extractHaveFieldCopy_region txBase toBuf isCreationPtr t2Old t1Old
+      t0Old a0Old old16 txBytes q hq halign hcover hcvalid htalign htover htvalid)
+
 #print axioms extractCopyPath_region
+#print axioms extractHaveFieldCopy_region
+#print axioms extractHaveFieldCopy_region_frame
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
