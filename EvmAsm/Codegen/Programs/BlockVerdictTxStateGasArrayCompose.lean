@@ -212,6 +212,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -263,6 +264,9 @@ def extract_discharge_copy_type234_short_available :=
 /-- Bare Assumed copy path (region partition; dword-aligned content). -/
 def extract_discharge_copy_type234_short_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short
+
+def extract_discharge_copy_type234_long_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_long
 
 def extract_discharge_copy_legacy_short_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short
