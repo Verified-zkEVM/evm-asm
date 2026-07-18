@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_EIP7825_MAX_REFUND_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP7825_MAX_REFUND_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7825_MAX_REFUND_RUN_DIR:-gen-out/eest-eip7825-maximum-gas-refund}"

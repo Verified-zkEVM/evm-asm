@@ -11,8 +11,8 @@
   (shift=0).  Step toward `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOffMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FullShift0Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5ShapeToNopShared
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
 import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod

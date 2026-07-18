@@ -179,6 +179,19 @@ semantics only; **no RV64 subroutine is proven to produce the EVM result**:
   beyond) are explicitly outside the kernel-checked core. Drift is *fenced* by
   build-time `#guard` round-trip tests (`Codegen/RoundTripTests.lean`) and the
   conformance floor (`check-conformance-floor.sh`), not *proven*.
+- **Handler glue is proven per-opcode, not universally.** Each opcode is
+  `.proven` on its verified *body* spec, but the subroutine the codegen emits,
+  `h_<OP>`, wraps that body in glue — a stack-underflow guard prologue, any
+  `preBody` clobber-saves / `la` address loads, and the advance-`x10`/`ret`
+  tail — that the body spec does not cover. This handler glue is separately
+  kernel-proven (guard + body + tail, both underflow and no-underflow paths)
+  for `ADD` (`Codegen.Proofs.evmAddGuardedHandlerSpec`) and `CALLDATALOAD`
+  (`Codegen.Proofs.evm_calldataload_staged_guarded_handler_spec`); for the other
+  `.proven` opcodes (`MOD`, `EXP`, `ADDMOD`, …) the preBody glue is **not yet
+  proven**. The final tie from the proven Program to the emitted ELF bytes is
+  machine-checked for `h_ADD` only (`scripts/check_guarded_handler_bytes.py`);
+  for `CALLDATALOAD` the `la` targets are proven relative to reconstruction
+  hypotheses, with the byte-tie deferred.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
@@ -189,6 +202,13 @@ semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 - **Gas / memory cost modeling.** Per-opcode `cpsTripleWithin N` bounds are a
   verified *step-count surrogate*; the EVM gas schedule mapping is modeled, not
   proven equivalent to the yellow-paper schedule.
+- **Per-opcode handler glue.** Even for `.proven` opcodes, the handler
+  `preBody`/tail glue around the verified subroutine — gas accounting
+  (`copyWordGasAsm`), MSIZE / memory-expansion bookkeeping
+  (`updateActiveMemorySizeAsm`), OOG guards, and offset normalization — is
+  unverified `.custom` asm (the CALLDATACOPY #9880 convention). A dedicated
+  gas-glue verification track is deferred work; until it lands, the `.proven`
+  tier certifies the opcode's data effect, not its gas/expansion glue.
 - **Trusted axiom base.** Only the three classical axioms
   (`propext`, `Classical.choice`, `Quot.sound`); `native_decide`/`bv_decide`
   trust axioms are forbidden (CI-gated by `check-axioms.sh` /

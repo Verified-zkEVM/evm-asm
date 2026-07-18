@@ -12,7 +12,7 @@
   remainder correctness (`n3_shift0_remainder_word_eq_mod_lane`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FullShift0Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShiftNzMod
 import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.CallablePost

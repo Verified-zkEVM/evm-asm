@@ -19,7 +19,6 @@
   wrapper fall-through path.
 -/
 
-import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
@@ -39,20 +38,12 @@ def evm_smod_save_ra_block (savedRaReg : Reg) : Program :=
 theorem evm_smod_save_ra_block_length (savedRaReg : Reg) :
     (evm_smod_save_ra_block savedRaReg).length = 1 := rfl
 
-theorem evm_smod_save_ra_block_byte_length (savedRaReg : Reg) :
-    4 * (evm_smod_save_ra_block savedRaReg).length = 4 := by
-  rw [evm_smod_save_ra_block_length]
-
 /-- Return to the address saved before the nested MOD call. -/
 def evm_smod_saved_ra_ret_block (savedRaReg : Reg) : Program :=
   JALR .x0 savedRaReg 0
 
 theorem evm_smod_saved_ra_ret_block_length (savedRaReg : Reg) :
     (evm_smod_saved_ra_ret_block savedRaReg).length = 1 := rfl
-
-theorem evm_smod_saved_ra_ret_block_byte_length (savedRaReg : Reg) :
-    4 * (evm_smod_saved_ra_ret_block savedRaReg).length = 4 := by
-  rw [evm_smod_saved_ra_ret_block_length]
 
 /-- The executable SMOD wrapper, excluding the appended unsigned MOD callable.
 
@@ -77,22 +68,6 @@ def evm_smod_wrapper : Program :=
   evm_smod_saved_ra_ret_block .x18
 
 theorem evm_smod_wrapper_length : evm_smod_wrapper.length = 71 := by
-  decide
-
-theorem evm_smod_wrapper_byte_length :
-    4 * evm_smod_wrapper.length = 284 := by
-  rw [evm_smod_wrapper_length]
-
-theorem evm_smod_call_target_byte_offset :
-    4 *
-      ((evm_smod_save_ra_block .x18).length +
-       (evm_sdiv_sign_bit_block .x12 .x8 evm_smodDividendTopLimbOff).length +
-       (ADDI .x13 .x8 0).length +
-       (evm_sdiv_sign_bit_block .x12 .x9 evm_smodDivisorTopLimbOff).length +
-       (evm_sdiv_cond_negate_256_block .x12 .x8 .x10 .x7 .x11 0 8 16 24).length +
-       (evm_sdiv_cond_negate_256_block .x12 .x9 .x10 .x7 .x11 32 40 48 56).length) +
-      signExtend21 evm_smodCallOff =
-    4 * evm_smod_wrapper.length := by
   decide
 
 /-- Legacy SMOD code region. The wrapper returns via `x18`; the appended
@@ -130,24 +105,8 @@ theorem evm_smod_length : evm_smod.length = 414 := by
   simp only [evm_smod, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
     evm_smod_wrapper_length, evm_mod_callable_v4_length]
 
-theorem evm_smod_v4_length : evm_smod_v4.length = 414 := by
-  simp only [evm_smod_v4, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
-    evm_smod_wrapper_length, evm_mod_callable_v4_length]
-
 theorem evm_smod_v5_length : evm_smod_v5.length = 424 := by
   simp only [evm_smod_v5, EvmAsm.Rv64.seq, EvmAsm.Rv64.Program.length_append,
     evm_smod_wrapper_length, evm_mod_callable_v5_length]
-
-theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1560 := by
-  rw [evm_smod_legacy_length]
-
-theorem evm_smod_byte_length : 4 * evm_smod.length = 1656 := by
-  rw [evm_smod_length]
-
-theorem evm_smod_v4_byte_length : 4 * evm_smod_v4.length = 1656 := by
-  rw [evm_smod_v4_length]
-
-theorem evm_smod_v5_byte_length : 4 * evm_smod_v5.length = 1696 := by
-  rw [evm_smod_v5_length]
 
 end EvmAsm.Evm64

@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
+import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -155,6 +157,38 @@ def statelessGuestValidatorPipeline : String :=
 def statelessGuestEpilogue : String :=
   statelessGuestValidatorPipeline ++ "\n" ++
   ".Lsg_hash:\n" ++
+  "  # Match execution-specs run_stateless_guest: deserialize the schema-\n" ++
+  "  # prefixed SSZ input before computing any NPR root. Decode failures return\n" ++
+  "  # _default_failed_stateless_output(), whose root is zero and whose\n" ++
+  "  # ChainConfig is Frontier/empty. These guards cover the malformed EEST\n" ++
+  "  # statelessInputBytes fixtures: bad schema, non-canonical outer offset,\n" ++
+  "  # and fixed-size public key list length not divisible by 65.\n" ++
+  "  li t0, 0x40000008; ld t6, 0(t0)      # host blob len includes schema id\n" ++
+  "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
+  "  li t4, 0x15; bne t2, t4, .Lsg_default_failed_output  # fork index (Amsterdam = 0x15)\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_default_failed_output     # schema revision\n" ++
+  "  addi t6, t6, -2                     # SSZ_len\n" ++
+  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_default_failed_output\n" ++
+  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
+  "  bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  sub t5, t6, t3                      # public_keys section length\n" ++
+  "  li t4, 65; remu t5, t5, t4\n" ++
+  "  bnez t5, .Lsg_default_failed_output\n" ++
   "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
   "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
   "  # field roots:\n" ++
@@ -219,7 +253,7 @@ def statelessGuestEpilogue : String :=
   "  li a3, 20                  # list capacity log2 (MAX_TRANSACTIONS_PER_PAYLOAD)\n" ++
   "  la a4, npr_dynamic_tx_root\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  # --- block_access_list_root = hash_tree_root(ByteList[2^24]) ---\n" ++
+  "  # --- block_access_list_root = hash_tree_root(ByteList[2^30]) ---\n" ++
   "  # bal section ends at exec_payload end = NPR + versioned_hashes_offset.\n" ++
   "  addi a0, s6, 588           # &block_access_list_offset (exec_payload+528)\n" ++
   "  jal ra, sg_load_u32le\n" ++
@@ -232,7 +266,7 @@ def statelessGuestEpilogue : String :=
   "  addi t1, s6, 16            # NPR_addr\n" ++
   "  add t1, t1, s8             # exec_payload_end = NPR + versioned_hashes_offset\n" ++
   "  sub a1, t1, a0             # bal_len\n" ++
-  "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
+  "  li a2, 25                  # chunk-cap log2 (2^30 / 32)\n" ++
   "  la a3, npr_dynamic_bal_root\n" ++
   "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  # --- versioned_hashes_root = hash_tree_root(List[Bytes32, 4096]) ---\n" ++
@@ -793,25 +827,26 @@ def statelessGuestEpilogue : String :=
   "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
   -- b2ov4: enforce STATELESS_INPUT_SCHEMA_ID before emitting a successful
   -- validation. The spec's deserialize_stateless_input (amsterdam
-  -- stateless_guest.py:31-40) reads the leading 2 bytes big-endian and RAISES
-  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x0001,
-  -- stateless_ssz.py:64) BEFORE any SSZ decode/verify. The guest reads the SSZ
+  -- stateless_guest.py:35-50) reads the leading 2 bytes big-endian and RAISES
+  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x1501 at
+  -- tests-zkevm@v0.6.0: fork index 0x15 || revision 0x01, stateless_ssz.py:91)
+  -- BEFORE any SSZ decode/verify. The guest reads the SSZ
   -- body unconditionally from SSZ_BASE = INPUT+18, never consulting the 2-byte
   -- schema prefix at INPUT+16, so a wrong-schema-but-otherwise-valid input would
   -- decode and could reach succ=01 -- a false-accept of input the Python entry
   -- point rejects. Gate it here (a0 = verdict bit; force 0 on a schema mismatch).
-  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x00, [INPUT+17]=0x01.
-  -- Every real fixture carries 0x0001, so this is transparent to passing rows.
+  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x15, [INPUT+17]=0x01.
+  -- Every real fixture carries 0x1501, so this is transparent to passing rows.
   "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
-  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x00)\n" ++
+  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x15)\n" ++
   "  lbu t3, 1(t1)                        # schema_id lo byte (must be 0x01)\n" ++
-  "  bnez t2, .Lsg_bad_input\n" ++
+  "  li t4, 0x15; bne t2, t4, .Lsg_bad_input\n" ++
   "  li t4, 1; bne t3, t4, .Lsg_bad_input\n" ++
   -- b2ov4.1: canonical SszStatelessInput outer-offset gate. The spec decodes the
   -- SSZ via remerkleable, which raises on non-canonical offsets BEFORE the verdict
   -- reads any derived field. SszStatelessInput has 4 variable-length fields
   -- (new_payload_request, witness, chain_config, public_keys -- chain_config is
-  -- variable via active_fork.blob_schedule = SszOptionalBlobSchedule), so the fixed
+  -- variable via active_fork.activation = SszForkActivation), so the fixed
   -- part is 4*4 = 16 bytes and the 4 u32-LE offsets live at SSZ_BASE+0/4/8/12.
   -- Canonical SSZ requires: offset[0] == 16 (no gap before the first field),
   -- offsets non-decreasing, and offset[3] (last field start) <= the SSZ section
@@ -846,6 +881,16 @@ def statelessGuestEpilogue : String :=
   "  ld t1, 0(t1)\n" ++
   "  sd t1, 0(t0)\n" ++
   "  j .Lsg_done\n" ++
+  ".Lsg_default_failed_output:\n" ++
+  "  li t0, 0xa0010000; la t1, default_failed_stateless_output; li t2, 0\n" ++
+  ".Lsg_dfo_copy:\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1; li t3, 61; bltu t2, t3, .Lsg_dfo_copy\n" ++
+  "  li t4, 0\n" ++
+  ".Lsg_dfo_zero_tail:\n" ++
+  "  add t3, t0, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1; li t3, 112; bltu t2, t3, .Lsg_dfo_zero_tail\n" ++
+  "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
   -- SSZ merkleization helpers for the dynamic transactions_root /
   -- block_access_list_root (zkvm_sha256 already emitted just above, so it
@@ -859,26 +904,12 @@ def statelessGuestEpilogue : String :=
   -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
   -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
   "sg_load_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret\n" ++
+  emitProgram SgLoadU32leSAsm.sgLoadU32le_prog ++ "\n" ++
   -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
   -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
   -- preserves all s-registers and ra.
   "sg_memcpy:\n" ++
-  ".Lsgmc_loop:\n" ++
-  "  beqz a2, .Lsgmc_done\n" ++
-  "  lbu t0, 0(a1)\n" ++
-  "  sb  t0, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lsgmc_loop\n" ++
-  ".Lsgmc_done:\n" ++
-  "  ret\n" ++
+  emitProgram SgMemcpySAsm.sgMemcpy_prog ++ "\n" ++
   -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
   -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
   -- fixed 44-byte container; its root = merkleize([index|pad,
@@ -936,8 +967,9 @@ def statelessGuestEpilogue : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n" ++
   -- ===== execution_requests hash_tree_root (SszExecutionRequests) =====
-  -- Container of 3 List[Container] fields {deposits, withdrawals,
-  -- consolidations}; root = merkleize([htr(each list)], limit_log2=2).
+  -- Container of 5 List[Container] fields {deposits, withdrawals,
+  -- consolidations, builder_deposits, builder_exits}; root = merkleize
+  -- ([htr(each list)], limit_log2=3).
   -- Built from reusable pieces (all alignment-safe via sg_memcpy; all
   -- save/restore the s-registers they use, and the nested ssz_merkleize
   -- saves s0-s6, so deep nesting is register-safe). Verified byte-for-byte
@@ -1001,6 +1033,30 @@ def statelessGuestEpilogue : String :=
   "  addi a0, s0, 68; la a1, er_leaf_buf; addi a1, a1, 64; jal ra, sg_htr_bv48\n" ++            -- leaf2 target_pubkey
   "  la a0, er_leaf_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(BuilderDepositRequest): 184B {pubkey BV48, wc Bytes32,
+  -- amount u64, signature BV96}; four leaves at limit_log2=2.
+  "sg_htr_bd:\n" ++                          -- a0=w(184), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  mv a0, s0; la a1, er_leaf_buf; jal ra, sg_htr_bv48\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 32; addi a1, s0, 48; li a2, 32; jal ra, sg_memcpy\n" ++
+  "  la t0, er_leaf_buf; sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 64; addi a1, s0, 80; li a2, 8; jal ra, sg_memcpy\n" ++
+  "  addi a0, s0, 88; la a1, er_leaf_buf; addi a1, a1, 96; jal ra, sg_htr_bv96\n" ++
+  "  la a0, er_leaf_buf; li a1, 4; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(BuilderExitRequest): 68B {source_address BV20, pubkey BV48};
+  -- two leaves at limit_log2=1.
+  "sg_htr_be:\n" ++                          -- a0=w(68), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la t0, er_leaf_buf; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la a0, er_leaf_buf; mv a1, s0; li a2, 20; jal ra, sg_memcpy\n" ++
+  "  addi a0, s0, 20; la a1, er_leaf_buf; addi a1, a1, 32; jal ra, sg_htr_bv48\n" ++
+  "  la a0, er_leaf_buf; li a1, 2; li a2, 1; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
   -- hash_tree_root(List[FixedContainer, cap]) via a per-element htr fn ptr.
   --   a0=body, a1=section_len, a2=elem_size, a3=elem_htr_fn, a4=limit_log2,
   --   a5=32-byte out. root = merkleize(child_roots, limit) + mix_in_length(N).
@@ -1026,22 +1082,27 @@ def statelessGuestEpilogue : String :=
   "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); addi sp,sp,64; ret\n" ++
   -- hash_tree_root(SszExecutionRequests): a0=section, a1=section_len, a2=out.
-  -- 3 u32 offsets (deposits/withdrawals/consolidations) at section+0/+4/+8;
-  -- each list body is fixed-size containers (no inner offset table).
+  -- 5 u32 offsets (deposits/withdrawals/consolidations/builder_deposits/
+  -- builder_exits) at section+0/+4/+8/+12/+16; each list body is fixed-size
+  -- containers (no inner offset table).
   "ssz_htr_execution_requests:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0; mv s2, a1; mv s1, a2\n" ++
   "  mv a0, s0; jal ra, sg_load_u32le; mv s3, a0          # deposits offset\n" ++
   "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s4, a0     # withdrawals offset\n" ++
   "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s5, a0     # consolidations offset\n" ++
+  "  addi a0, s0, 12; jal ra, sg_load_u32le; mv s6, a0    # builder deposits offset\n" ++
+  "  addi a0, s0, 16; jal ra, sg_load_u32le; mv s7, a0    # builder exits offset\n" ++
   "  add a0, s0, s3; sub a1, s4, s3; li a2, 192; la a3, sg_htr_deposit; li a4, 13; la a5, er_outer_buf; jal ra, sg_htr_clist\n" ++
   "  add a0, s0, s4; sub a1, s5, s4; li a2, 76;  la a3, sg_htr_wr;      li a4, 4;  la a5, er_outer_buf; addi a5, a5, 32; jal ra, sg_htr_clist\n" ++
-  "  add a0, s0, s5; sub a1, s2, s5; li a2, 116; la a3, sg_htr_cr;      li a4, 1;  la a5, er_outer_buf; addi a5, a5, 64; jal ra, sg_htr_clist\n" ++
-  "  la a0, er_outer_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  add a0, s0, s5; sub a1, s6, s5; li a2, 116; la a3, sg_htr_cr;      li a4, 1;  la a5, er_outer_buf; addi a5, a5, 64; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s6; sub a1, s7, s6; li a2, 184; la a3, sg_htr_bd;      li a4, 6;  la a5, er_outer_buf; addi a5, a5, 96; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s7; sub a1, s2, s7; li a2, 68;  la a3, sg_htr_be;      li a4, 4;  la a5, er_outer_buf; addi a5, a5, 128; jal ra, sg_htr_clist\n" ++
+  "  la a0, er_outer_buf; li a1, 5; li a2, 3; mv a3, s1; jal ra, ssz_merkleize\n" ++
   "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
-  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
+  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); ld s7,64(sp); addi sp,sp,80; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++

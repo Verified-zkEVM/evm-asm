@@ -6,7 +6,7 @@
   *same* ziskemu-framed fixture inputs produced by
   `scripts/eest-stateless-to-input.py` (the fixture set
   `scripts/codegen-eest-stateless-check.sh` exercises) and writes the
-  105-byte `StatelessValidationResult` for the harness
+  69-byte `StatelessValidationResult` for the harness
   (`scripts/eest-specref-check.sh`) to compare against the fixture's
   `statelessOutputBytes`.
 
@@ -14,10 +14,12 @@
   stateless-guest Python spec. This driver ties it to the canonical EEST
   conformance fixtures so regressions in the port's SSZ codec / NPR-root
   hashing / header / chain-config / witness-assembly path surface without
-  spinning up ziskemu. The execution seam is the placeholder
-  `executeAlwaysOk`, so only the pre-execution output regions (NPR root,
-  chain-config echo) are expected to match; the `succ` bit diverges on
-  fixtures whose real EVM execution failed — see the harness doc.
+  spinning up ziskemu. The execution seam is the DEFAULT
+  (`elExecuteHybrid`, `s1d19.5`): the full ported `elExecute`, falling
+  back to the sound-for-accepts static shell only on contact with a
+  not-yet-ported precompile — so the `succ` bit is a real verdict and
+  is expected to match, alongside the pre-execution regions (NPR root,
+  chain-config echo).
 
   This module lives under `EvmAsm/Tests/` (the unverified escape-hatch
   layer) and is consumed only by the `specref-eest-check` exe; it is never
@@ -75,8 +77,8 @@ def unpackZiskemuInput (packed : Bytes) : Except String Bytes := do
 -- CLI
 -- ============================================================================
 -- `specref-eest-check <input_file> <output_file>`
---   exit 0 + writes the 105-byte result to <output_file> on success.
---   exit 2 + stderr message on a malformed framing or a SpecError.
+--   exit 0 + writes the 69-byte result to <output_file> on success.
+--   exit 2 + stderr message on malformed framing.
 
 def usage : String :=
   "usage: specref-eest-check <input_file> <output_file>"
@@ -91,13 +93,9 @@ def main (args : List String) : IO UInt32 := do
       IO.eprintln s!"specref-eest-check: framing error ({inputFile}): {msg}"
       return 2
     | .ok blob =>
-      match run_stateless_guest blob with  -- default seam = executeAlwaysOk
-      | .error _ =>
-        IO.eprintln s!"specref-eest-check: SpecError ({inputFile})"
-        return 2
-      | .ok out =>
-        IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
-        return 0
+      let out := run_stateless_guest blob
+      IO.FS.writeBinFile ⟨outputFile⟩ (byteArrayOfBytes out)
+      return 0
   | _ =>
     IO.eprintln usage
     return 1

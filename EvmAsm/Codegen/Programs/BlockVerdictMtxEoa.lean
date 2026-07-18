@@ -4,7 +4,9 @@
   Multi-tx EOA recipient settlement fragment for block_verdict.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
 namespace EvmAsm.Codegen
 
@@ -44,6 +46,38 @@ def blockVerdictMtxEoaSettlement : String :=
   "  jal ra, access_list_count\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_eoa_access_ready:\n" ++
+  -- Mirror dispatch_tx_runtime_code's EIP-7702 setup. The low-level EOA STOP
+  -- shortcut still runs process_message_call semantics: authorization intrinsic
+  -- charges, state refill, ACCOUNT_WRITE refund, and recovered-authority warming
+  -- must therefore be staged before runtime_dispatcher_call as well.
+  "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t6, bv_mtx_ctx; ld t0, 160(t6); li t1, 4; bne t0, t1, .Lbv_mtx_eoa_auth_ready\n" ++
+  "  ld a0, 176(t6); ld a1, 184(t6); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item; bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t6, bv_mtx_ctx; ld t0, 176(t6); la t1, dtrc_auth_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_auth_list_ptr; sd t2, 0(t0); la t1, dtrc_auth_len; ld t2, 0(t1); la t0, runtime_tx_auth_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; la t1, eip7702_warm_recovered_authorities; sd t1, 0(t0)\n" ++
+  "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
+  "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
+  "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  -- v0.6.0: pools driven by WOULD-BE charges (C8 charge-point OOG).
+  "  la t1, teer_wouldbe_state; ld t1, 0(t1); la t0, runtime_tx_auth_state_refund; sd t1, 0(t0)\n" ++
+  "  la t1, teer_wouldbe_regular; ld t1, 0(t1); la t0, runtime_tx_auth_regular_refund; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
+  "  la t0, teer_auth_count; ld t1, 0(t0); la t0, runtime_tx_auth_count; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_eoa_auth_ready:\n" ++
+  -- This shortcut calls the low-level STOP dispatcher directly, bypassing the
+  -- full dispatch_tx_runtime_code setup reset. Reset the per-tx gas cells here
+  -- so EIP-8037 state-gas accounting starts from this transaction's state, not
+  -- the previous user/system call.
+  "  la t0, evm_refund_acc; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
@@ -80,7 +114,54 @@ def blockVerdictMtxEoaSettlement : String :=
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_eoa_tl7708_skip:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
+  topLevelValueRecipientStateGasAsm "bv_mtx_eoa" "bv_mtx_ctx" ++
+  -- execution-specs charges this top-level NEW_ACCOUNT state gas against the
+  -- transaction's CURRENT state. If an earlier tx in this block already created
+  -- the same recipient, the header-state predicate still says absent, so suppress
+  -- the repeat using the shortcut's created-recipient table.
+  "  beqz t0, .Lbv_mtx_eoa_state_done\n" ++
+  "  la t1, bv_mtx_created_recipient_count; ld t2, 0(t1); li t3, 0\n" ++
+  ".Lbv_mtx_eoa_created_scan:\n" ++
+  "  beq t3, t2, .Lbv_mtx_eoa_created_not_found\n" ++
+  "  slli t4, t3, 5; la t5, bv_mtx_created_recipient_table; add t5, t5, t4\n" ++
+  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 20\n" ++
+  ".Lbv_mtx_eoa_created_cmp:\n" ++
+  "  beqz a0, .Lbv_mtx_eoa_created_found\n" ++
+  "  lbu a1, 0(t5); lbu a2, 0(t6); bne a1, a2, .Lbv_mtx_eoa_created_next\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_mtx_eoa_created_cmp\n" ++
+  ".Lbv_mtx_eoa_created_next:\n" ++
+  "  addi t3, t3, 1; j .Lbv_mtx_eoa_created_scan\n" ++
+  ".Lbv_mtx_eoa_created_found:\n" ++
+  "  li t0, 0; j .Lbv_mtx_eoa_state_done\n" ++
+  ".Lbv_mtx_eoa_created_not_found:\n" ++
+  "  li t4, " ++ toString bvMtxFullTxCap ++ "; bgeu t2, t4, .Lbv_mtx_eoa_state_charge_ready\n" ++
+  "  slli t4, t2, 5; la t5, bv_mtx_created_recipient_table; add t5, t5, t4\n" ++
+  "  sd zero, 0(t5); sd zero, 8(t5); sd zero, 16(t5); sd zero, 24(t5)\n" ++
+  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 20\n" ++
+  ".Lbv_mtx_eoa_created_copy:\n" ++
+  "  beqz a0, .Lbv_mtx_eoa_created_stored\n" ++
+  "  lbu a1, 0(t6); sb a1, 0(t5); addi t6, t6, 1; addi t5, t5, 1; addi a0, a0, -1; j .Lbv_mtx_eoa_created_copy\n" ++
+  ".Lbv_mtx_eoa_created_stored:\n" ++
+  "  addi t2, t2, 1; la t1, bv_mtx_created_recipient_count; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_charge_ready:\n" ++
+  "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
+  "  bgeu t2, t0, .Lbv_mtx_eoa_state_res\n" ++
+  "  sub t3, t0, t2; sd x0, 0(t1)\n" ++
+  -- v0.6.0 (C8): a prepare_dispatch charge that exceeds the pools halts
+  -- the frame WITHOUT dispatching -- a failed tx burning all gas, not a
+  -- conservative bail.
+  "  la t4, evm_env; ld t2, 568(t4); bltu t2, t3, .Lbv_mtx_eoa_state_oog\n" ++
+  "  sub t2, t2, t3; sd t2, 568(t4); j .Lbv_mtx_eoa_state_used\n" ++
+  ".Lbv_mtx_eoa_state_res:\n" ++
+  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_used:\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbv_mtx_eoa_state_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  j .Lbv_mtx_eoa_settled\n" ++
+  ".Lbv_mtx_eoa_state_oog:\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
+  ".Lbv_mtx_eoa_settled:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++

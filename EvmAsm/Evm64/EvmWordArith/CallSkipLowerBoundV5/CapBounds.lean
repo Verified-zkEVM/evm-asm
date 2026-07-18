@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 
@@ -56,12 +57,5 @@ theorem algorithmQ0cV5_lt_pow32 (uHi uLo vTop : Word) :
   · simp only [h, if_false]
     rw [v5_capCap_toNat]
     omega
-
-/-- Bridge: `divKTrialCallV5Q0c` (the irreducible) inherits Q0c's cap
-    bound via the `_eq_algorithm` equation. -/
-theorem divKTrialCallV5Q0c_lt_pow32 (uHi uLo vTop : Word) :
-    (divKTrialCallV5Q0c uHi uLo vTop).toNat < 2^32 := by
-  rw [divKTrialCallV5Q0c_eq_algorithm]
-  exact algorithmQ0cV5_lt_pow32 uHi uLo vTop
 
 end EvmAsm.Evm64

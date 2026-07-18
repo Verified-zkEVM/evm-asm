@@ -7,6 +7,8 @@
 
 import EvmAsm.Evm64.DivMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
+import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
 
 open EvmAsm.Rv64.Tactics
 
@@ -162,7 +164,7 @@ private theorem clz_init_sub_noNop_v4 {base : Word} :
 -- Stage 5 (last): K=63, M_a=1,   index 21
 
 /-- CLZ result function: compute (count, shifted_val) from a 6-stage binary search. -/
-def clzResult (val : Word) : Word × Word :=
+private def clzResult_legacy (val : Word) : Word × Word :=
   -- Stage 0: check top 32 bits
   let v0 := if val >>> (32 : BitVec 6).toNat ≠ 0 then val else val <<< (32 : BitVec 6).toNat
   let c0 := if val >>> (32 : BitVec 6).toNat ≠ 0 then signExtend12 (0 : BitVec 12)

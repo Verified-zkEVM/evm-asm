@@ -499,9 +499,7 @@ def vec_selfdestruct_balance_transfer():
          account_encode(3, 0, sroot, chash),
          account_encode(4, 123456798, b"\x33" * 32, b"\x44" * 32)),
         ("sdbt_same_keep", same, same, 1, 0, same, same),
-        ("sdbt_same_burn", same, same, 1, 1,
-         account_encode(5, 0, sroot, chash),
-         account_encode(5, 0, sroot, chash)),
+        ("sdbt_same_created_keep", same, same, 1, 1, same, same),
     ]
     return [dict(name=name, origin=src, beneficiary=dst,
                  same_address=same_flag, created_in_tx=created_flag,

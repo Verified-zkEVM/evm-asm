@@ -15,6 +15,8 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3
+import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 open EvmAsm.Rv64.Tactics

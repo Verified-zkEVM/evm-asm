@@ -9,7 +9,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge
@@ -321,6 +321,8 @@ def ziskTxGasSenderBalLookupPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_nonce/_balance decode via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++

@@ -10,7 +10,6 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -347,12 +346,38 @@ def ziskCommittedStorageSnapshotUpsertProbeUnit : BuildUnit := {
     upsert helper, but its ABI treats a4/a5 as global counts over the contiguous
     chunk pages. Existing keys update in place across page boundaries; new
     unique keys append at the global count and overflow only when total chunked
-    capacity is exhausted. -/
+    capacity is exhausted.
+
+    Only live entries owned by the recipient are threaded: an entry whose
+    addrHash (plain LE-numeric form, memory byte k = canonical address byte
+    19-k, high 12 bytes zero) does not match the recipient is skipped. The
+    live log also carries callee/system-write/sender-marker seeds for other
+    addresses, and both readers (`bv_mtx_committed_chunked_latest_value` call
+    sites) only ever query the recipient — without the filter, foreign seeds
+    were re-keyed to the recipient and clobbered the recipient's own threaded
+    values (last-wins), e.g. the EIP-2935 system-write seed overwrote the
+    recipient's slot0 original in bal_cross_tx-style blocks. -/
 def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
   [ .LI .x5 (0 : Word),
-    .BEQ .x5 .x12 (320 : BitVec 13),
+    .BEQ .x5 .x12 (384 : BitVec 13),
     .SLLI .x6 .x5 (7 : BitVec 6),
     .ADD .x6 .x11 .x6,
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (40 : BitVec 13),
+    .ADD .x30 .x6 .x29,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .LI .x31 (19 : Word),
+    .SUB .x31 .x31 .x29,
+    .ADD .x31 .x10 .x31,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (308 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .LWU .x30 .x6 (20 : BitVec 12),
+    .BNE .x30 .x0 (292 : BitVec 13),
+    .LD .x30 .x6 (24 : BitVec 12),
+    .BNE .x30 .x0 (284 : BitVec 13),
     .LI .x7 (0 : Word),
     .BEQ .x7 .x14 (112 : BitVec 13),
     .SLLI .x28 .x7 (7 : BitVec 6),
@@ -424,7 +449,7 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .LD .x29 .x6 (120 : BitVec 12),
     .SD .x28 .x29 (120 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-296 : BitVec 21),
+    .JAL .x0 (-360 : BitVec 21),
     .LI .x5 (1 : Word),
     .SD .x16 .x5 (0 : BitVec 12),
     .MV .x10 .x14,
@@ -445,12 +470,13 @@ theorem committedStorageChunkedSnapshotUpsertFunction_eq_prog :
     committedStorageChunkedSnapshotUpsertFunction = "bv_mtx_committed_chunked_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog := rfl
 
 #guard committedStorageChunkedSnapshotUpsertFunction.startsWith "bv_mtx_committed_chunked_snapshot_upsert:\n"
-#guard bvMtxCommittedChunkedSnapshotUpsert_prog.length = 84
+#guard bvMtxCommittedChunkedSnapshotUpsert_prog.length = 100
 /-- `zisk_mtx_committed_chunked_snapshot_upsert`: focused probe.
     Input after ziskemu's length wrapper:
       +8 mode: 0 zero-live, 1 129 unique inserts, 2 duplicate update across
           chunk boundary, 3 exact full-capacity fill, 4 overflow one unique
-          beyond full capacity
+          beyond full capacity, 5 single foreign-addrHash entry skipped,
+          6 first entry threaded + second foreign entry skipped
     Output:
       +0 returned count
       +8 returned status
@@ -471,7 +497,7 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   "  la t0, cscsu_live; li t2, 0\n" ++
   ".Lcscsup_seed_live_loop:\n" ++
   "  li t3, 129; beq t2, t3, .Lcscsup_seed_live_done\n" ++
-  "  addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
+  "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 19(t0); addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
   "  addi t0, t0, 128; addi t2, t2, 1; j .Lcscsup_seed_live_loop\n" ++
   ".Lcscsup_seed_live_done:\n" ++
   "  li a2, 0; li a4, 0; li a5, 512\n" ++
@@ -479,6 +505,8 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   "  li t0, 1; beq s1, t0, .Lcscsup_129_unique\n" ++
   "  li t0, 2; beq s1, t0, .Lcscsup_cross_duplicate\n" ++
   "  li t0, 3; beq s1, t0, .Lcscsup_full_fill\n" ++
+  "  li t0, 5; beq s1, t0, .Lcscsup_foreign_skip\n" ++
+  "  li t0, 6; beq s1, t0, .Lcscsup_mixed_skip\n" ++
   "  j .Lcscsup_overflow\n" ++
   ".Lcscsup_129_unique:\n  li a2, 129; j .Lcscsup_call\n" ++
   ".Lcscsup_cross_duplicate:\n" ++
@@ -496,6 +524,13 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   ".Lcscsup_overflow:\n" ++
   "  la t0, cscsu_live; li t1, 513; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x55; sd t1, 96(t0)\n" ++
   "  li a2, 1; li a4, 512\n" ++
+  "  j .Lcscsup_call\n" ++
+  ".Lcscsup_foreign_skip:\n" ++
+  "  la t0, cscsu_live; li t1, 0xCC; sb t1, 0(t0)\n" ++
+  "  li a2, 1; li a4, 0; j .Lcscsup_call\n" ++
+  ".Lcscsup_mixed_skip:\n" ++
+  "  la t0, cscsu_live; li t1, 0xCC; sb t1, 128(t0)\n" ++
+  "  li a2, 2; li a4, 0; j .Lcscsup_call\n" ++
   ".Lcscsup_call:\n" ++
   "  la a0, cscsu_recipient; la a1, cscsu_live; la a3, cscsu_table; la a6, cscsu_status\n" ++
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++

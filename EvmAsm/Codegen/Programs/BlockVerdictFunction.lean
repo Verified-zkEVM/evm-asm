@@ -19,14 +19,21 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.BlockVerdictMtxRuntime
 import EvmAsm.Codegen.Programs.BlockVerdictEip7702SenderAuth
 import EvmAsm.Codegen.Programs.BlockVerdictCreateCollision
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPrecompileGas
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
+import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
+import EvmAsm.Codegen.Programs.BlockVerdictWithdrawalEffects
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
 
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
 def blockVerdictFunction : String :=
+  simpleTransferIntrinsicGasFunction ++
   "block_verdict:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -54,6 +61,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_eip4788_current_fast_seen; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_recipient_credit_flag; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_created_recipient_count; sd zero, 0(t0)\n" ++
   "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n  la t0, bv_runtime_completeness_status; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
@@ -82,160 +90,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_withdrawals_root_valid; sd a1, 0(t0)\n" ++
   "  bnez a0, .Lbv_withdrawals_root_fail\n" ++
   "  beqz a1, .Lbv_withdrawals_root_fail\n" ++
-  -- bmvmx.1.4.4: precompute the supported single-tx EOA settlement scalars BEFORE
-  -- block_state_root so .4.1/.4.2 can build execution-derived sender/coinbase leaves.
-  -- ADDITIVE (no consumer reads bmvmx_* yet) -> verdict byte-identical. exec_p = 0(s0)
-  -- (= bv_exec_p). All bv_* writes here are idempotent with the post-348 tx preamble,
-  -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
-  "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
-  "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvReceiptsShapeClear ++  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  "  addi t4, s3, 60; la t0, bv_exec_p; sd t4, 0(t0)\n" ++         -- exec_p = ssz_base(s3)+60 (block_state_root's bsr_exec_p derivation; 0(s0) is NOT populated pre-348)
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 504; jal ra, bgv_u32le\n" ++       -- transactions_offset
-  "  la t0, bmvmx_txoff; sd a0, 0(t0)\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 508; jal ra, bgv_u32le\n" ++       -- withdrawals_offset
-  "  la t0, bmvmx_txoff; ld t1, 0(t0)\n" ++
-  "  bleu a0, t1, .Lbmvmx_done\n" ++                                -- no transactions
-  "  sub t5, a0, t1\n" ++                                           -- tx list byte length
-  "  li t6, 4; bltu t5, t6, .Lbmvmx_done\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); add t6, t4, t1; la t0, bv_tx_list_ptr; sd t6, 0(t0)\n" ++
-  "  la t0, bv_tx_list_len; sd t5, 0(t0)\n" ++
-  "  la t0, bv_tx_list_ptr; ld a0, 0(t0); jal ra, bgv_u32le\n" ++  -- offset[0] = 4*tx_count
-  "  andi t0, a0, 3; bnez t0, .Lbmvmx_done\n" ++
-  "  srli t1, a0, 2; la t0, bv_tx_count; sd t1, 0(t0)\n" ++
-  "  li t0, 1; bne t1, t0, .Lbmvmx_done\n" ++                       -- single-tx class only
-  "  la a0, bmvmx_ctx; li a1, 0; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bmvmx_ctx; ld t1, 0(t0); bnez t1, .Lbmvmx_done; ld t1, 48(t0); bnez t1, .Lbmvmx_done\n" ++   -- unsupported/creation tx shape
-  -- bmvmx.1.4.3.1 envelope (cheap half): restrict the exec-derived balance compare to a
-  -- LEGACY (type-0, no access list) single tx. Outside legacy, stay conservative: jump to
-  -- .Lbmvmx_done (skip the whole inert compute; bmvmx_avail stays 0, so .4.3.2's gate never
-  -- fires). The remaining envelope conditions gate the per-compare bmvmx_*_checked flags:
-  -- sender/recipient/coinbase distinctness is enforced below; the EOA-recipient check (so
-  -- gas_used==21000 is exact) is DEFERRED to .4.3.2's reject path, since that MPT+keccak
-  -- lookup would otherwise burden every single-tx block's verdict (proving-cost sensitive).
-  "  la t0, bmvmx_ctx; ld t0, 160(t0); bnez t0, .Lbmvmx_done\n" ++  -- non-legacy (2930/1559/4844/7702) -> conservative
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 440; la t2, bmvmx_basefee_be; li t3, 0\n" ++   -- base_fee LE->BE (32B)
-  ".Lbmvmx_rev:\n" ++
-  "  li t0, 32; beq t3, t0, .Lbmvmx_rev_done\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_rev\n" ++
-  ".Lbmvmx_rev_done:\n" ++
-  "  la t0, bmvmx_ctx; ld a0, 8(t0); ld a1, 16(t0)\n" ++           -- tx bytes ptr/len
-  "  la a2, bmvmx_basefee_be; la a3, bmvmx_eff_gas_price; la a4, bmvmx_priority_fee\n" ++
-  "  jal ra, tx_effective_gas_pricing\n" ++
-  "  bnez a0, .Lbmvmx_done\n" ++                                    -- pricing failed -> stay unavailable
-  "  la t1, bmvmx_ctx; addi t1, t1, 96; la t2, bmvmx_value; li t3, 0\n" ++   -- copy value (32B)
-  ".Lbmvmx_vcopy:\n" ++
-  "  li t0, 32; beq t3, t0, .Lbmvmx_vdone\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_vcopy\n" ++
-  ".Lbmvmx_vdone:\n" ++
-  "  la t0, bmvmx_gas_used; li t1, 21000; sd t1, 0(t0)\n" ++       -- EOA intrinsic gas_used
-  -- bmvmx.1.4.1: execution-derived sender balance debit = gas_used*eff_gas_price + value
-  -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
-  "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
-  "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
-  -- bmvmx.1.4.1 compare (additive; sets bmvmx_sender_match only -> verdict byte-identical):
-  -- assert the BAL sender post balance == sender_pre - bmvmx_sender_debit. Sender address is
-  -- derived from the selected public key (pubkeys = SSZ_BASE(s3) + offsets[3]@s3+12; 65-byte
-  -- SEC1 key 0x04||x||y -> address_from_pubkey(key+1)). Reuses bmvmx_acct/bmvmx_cb_* scratch.
-  "  la t0, bmvmx_sender_match; sd zero, 0(t0)\n" ++
-  "  addi a0, s3, 12; jal ra, bgv_u32le\n" ++                          -- offsets[3] (public_keys offset)
-  "  add t0, s3, a0; addi a0, t0, 1\n" ++                              -- pubkey[0] x||y (skip 0x04 prefix)
-  "  la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lbmvmx_sd_preok\n" ++
-  "  li t0, 1; bne a0, t0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
-  ".Lbmvmx_sd_preok:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_sender_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
-  "  jal ra, bal_account_post_fields\n" ++
-  "  bnez a0, .Lbmvmx_sd_skip\n" ++
-  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_sd_skip\n" ++
-  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++
-  ".Lbmvmx_sd_ra:\n" ++
-  "  beq t6, t1, .Lbmvmx_sd_rad\n" ++
-  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_sd_ra\n" ++
-  ".Lbmvmx_sd_rad:\n" ++
-  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_sender_debit; la a2, bmvmx_cb_expected; jal ra, u256_sub_be\n" ++   -- expected = pre - debit
-  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_sender_match; sd a0, 0(t0)\n" ++                     -- match = (pre - debit == BAL post)
-  "  la t0, bmvmx_sender_checked; li t1, 1; sd t1, 0(t0)\n" ++          -- bmvmx.1.4.3.1: sender compare PERFORMED in-envelope (distinctness cleared below)
-  ".Lbmvmx_sd_skip:\n" ++
-  -- bmvmx.1.4.2: execution-derived coinbase fee credit = priority_fee_per_gas * gas_used
-  -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
-  -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
-  "  la a0, bmvmx_priority_fee; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_coinbase_credit; jal ra, u256_mul_u64_be\n" ++
-  -- bmvmx.1.4.2 compare (additive; sets bmvmx_coinbase_match only -> verdict byte-identical):
-  -- assert the BAL coinbase post balance == coinbase_pre + bmvmx_coinbase_credit. Any miss /
-  -- not-found / overlap (coinbase==sender/recipient) / absent leaves match=0 (conservative).
-  "  la t0, bmvmx_coinbase_match; sd zero, 0(t0)\n" ++
-  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 32; la t2, bmvmx_coinbase_addr; li t3, 0\n" ++   -- coinbase = fee_recipient (exec_p+32)
-  ".Lbmvmx_cbaddr:\n" ++
-  "  li t0, 20; beq t3, t0, .Lbmvmx_cbaddr_d\n" ++
-  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_cbaddr\n" ++
-  ".Lbmvmx_cbaddr_d:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_coinbase_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lbmvmx_cb_preok\n" ++                                  -- 0 = found (pre = bmvmx_acct+8)
-  "  li t0, 1; bne a0, t0, .Lbmvmx_cb_skip\n" ++                       -- not 'not-found' -> parse err, skip
-  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
-  ".Lbmvmx_cb_preok:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_coinbase_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbmvmx_cb_skip\n" ++                                    -- coinbase absent in BAL / err -> conservative
-  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
-  "  jal ra, bal_account_post_fields\n" ++
-  "  bnez a0, .Lbmvmx_cb_skip\n" ++
-  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++   -- zero, then right-align
-  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_cb_skip\n" ++   -- absent (UINT64_MAX) / >32 -> skip
-  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++   -- dst offset = 32 - len
-  ".Lbmvmx_cb_ra:\n" ++
-  "  beq t6, t1, .Lbmvmx_cb_rad\n" ++
-  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_cb_ra\n" ++
-  ".Lbmvmx_cb_rad:\n" ++
-  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_coinbase_credit; la a2, bmvmx_cb_expected; jal ra, u256_add_be\n" ++
-  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_coinbase_match; sd a0, 0(t0)\n" ++                   -- match = (pre+credit == BAL post)
-  "  la t0, bmvmx_coinbase_checked; li t1, 1; sd t1, 0(t0)\n" ++       -- bmvmx.1.4.3.1: coinbase compare PERFORMED in-envelope (distinctness cleared below)
-  ".Lbmvmx_cb_skip:\n" ++
-  "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
-  bvReceiptsShapeSet 1 true ++  -- Distinctness clears the performed sender/coinbase checks when value/fee effects overlap.
-  "  la a0, bmvmx_sender_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_s_vs_cb\n" ++                                    -- sender == recipient -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_s_vs_cb:\n" ++
-  "  la a0, bmvmx_sender_addr; la a1, bmvmx_coinbase_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_cb_vs_s\n" ++                                    -- sender == coinbase -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_cb_vs_s:\n" ++
-  "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_sender_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_cb_vs_r\n" ++                                    -- coinbase == sender -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_cb_vs_r:\n" ++
-  "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
-  "  bnez a0, .Lbmvmx_dist_done\n" ++                                  -- coinbase == recipient -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
-  ".Lbmvmx_dist_done:\n" ++
-  "  j .Lbmvmx_done\n" ++
-  -- local helper: a0,a1 = 20-byte address ptrs; returns a0 = 1 if they differ, 0 if equal.
-  -- Reached only via jal (clobbers t0..t2); callers do not rely on ra after.
-  ".Lbmvmx_addr20_ne:\n" ++
-  "  li t2, 0\n" ++
-  ".Lbmvmx_a20_loop:\n" ++
-  "  li t0, 20; beq t2, t0, .Lbmvmx_a20_eq\n" ++
-  "  add t0, a0, t2; lbu t0, 0(t0); add t1, a1, t2; lbu t1, 0(t1)\n" ++
-  "  bne t0, t1, .Lbmvmx_a20_ne\n" ++
-  "  addi t2, t2, 1; j .Lbmvmx_a20_loop\n" ++
-  ".Lbmvmx_a20_ne:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lbmvmx_a20_eq:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lbmvmx_done:\n" ++
+  blockVerdictBmvMxPrecomputePrefix ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
@@ -253,8 +108,11 @@ def blockVerdictFunction : String :=
   "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
   "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
   "  # positive. tx list is empty iff transactions_offset == withdrawals_offset.\n" ++
-  "  ld t4, 0(s0)                # exec_payload from extracted params\n" ++
-  "  la t5, bv_exec_p; sd t4, 0(t5)\n" ++
+  -- `blockVerdictBmvMxPrecomputePrefix` has already initialized `bv_exec_p`
+  -- to `s3 + 60`, the execution-payload SSZ base.  `0(s0)` is not populated
+  -- until the later extracted-params stage; overwriting the global here made
+  -- the no-transaction gas gate read an unrelated zero word.
+  "  la t5, bv_exec_p; ld t4, 0(t5)\n" ++
   "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
   "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
@@ -353,6 +211,14 @@ def blockVerdictFunction : String :=
   -- and bv_chain_id (captured by chain_config_valid).
   "  jal ra, verify_public_keys_match_senders\n" ++
   "  bnez a0, .Lbv_public_keys_sender_fail\n" ++
+  -- evm-asm-7zzfv (v0.6.0 item 8): per-tx chain-id-vs-block gate,
+  -- fork.py:1051-1055 process_transaction: reject the block when chain_id(tx)
+  -- is present and != block_env.chain_id (WrongChainIdError). Typed txs embed
+  -- their own chain id in the signing hash, so the sender recovery above
+  -- succeeds regardless of the block chain id -- without this gate a
+  -- wrong-chain typed tx was a verdict false-accept.
+  "  jal ra, block_verdict_chain_id_gate\n" ++
+  "  bnez a0, .Lbv_chain_id_gate_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++
@@ -414,10 +280,16 @@ def blockVerdictFunction : String :=
   "  # pre-account record table materialized by block_state_root.\n" ++
   blockVerdictMtxRuntimeLoop ++
   ".Lbv_singletx:\n" ++
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  -- The type-4 authorization classifier runs on both the direct EOA path and
+  -- the later gas-result pass. Publish the recovered transaction sender before
+  -- either path so a self-sponsored authorization observes the transaction
+  -- nonce increment exactly as `process_transaction` does.
+  "  ld a0, 24(t2); la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
@@ -449,6 +321,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_cd_eoa_restore        # code-hash lookup failed -> conservative EOA path\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_cd_same_block_delegation\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
@@ -458,8 +331,9 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
-  "  bnez a0, .Lbv_cd_eoa_restore\n" ++
+  "  bnez a0, .Lbv_cd_eoa_confirmed\n" ++
   ".Lbv_cd_same_block_delegation:\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, bv_tx_recipient_code_hash\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
@@ -467,28 +341,11 @@ def blockVerdictFunction : String :=
   "  j .Lbv_contract_dispatch\n" ++
   ".Lbv_cd_eoa_restore:\n" ++
   "  la t2, bv_simple_transfer_tx        # restore t2 for the EOA path (jal clobbered it)\n" ++
-  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # EOA calldata not staged here\n" ++
-  "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
-  "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
-  "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
-  "  ld t0, 120(t2); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_tx_gas_precharge_nonzero_value:\n" ++
-  "  # The post-balance verifier below models an EOA simple transfer: sender\n" ++
-  "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
-  "  # transfers into contracts, bytecode execution spends additional gas, so\n" ++
-  "  # leave the verdict to the state-root/BAL checks instead.\n" ++
-  "  # Direct transfers to active precompiles also execute code despite having\n" ++
-  "  # no state-trie code hash; skip this 21k-only verifier for them too.\n" ++
-  "  mv t0, t2; addi t0, t0, 72; li t1, 0\n" ++
-  ".Lbv_tx_gas_precharge_pc_prefix:\n" ++
-  "  li t3, 18; beq t1, t3, .Lbv_tx_gas_precharge_pc_low16\n" ++
-  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
-  "  addi t1, t1, 1; j .Lbv_tx_gas_precharge_pc_prefix\n" ++
-  ".Lbv_tx_gas_precharge_pc_low16:\n" ++
-  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
-  "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
-  "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
-  "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # unresolved code hash with calldata: conservative skip\n" ++
+  ".Lbv_cd_eoa_confirmed:\n" ++
+  "  la t2, bv_simple_transfer_tx        # confirmed empty-code recipient\n" ++
+  blockVerdictSimpleTransferPrecompileGasAsm ++
+  blockVerdictSimpleTransferPublishAsm ++
   ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
@@ -498,14 +355,43 @@ def blockVerdictFunction : String :=
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
-  "  ld t0, 160(t2); li t1, 3; beq t0, t1, .Lbv_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
-  "  li t1, 4; beq t0, t1, .Lbv_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  "  ld t0, 160(t2); li t1, 3; bne t0, t1, .Lbv_stx_not_blob_skip_runtime_gas\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
+  ".Lbv_stx_not_blob_skip_runtime_gas:\n" ++
+  "  li t1, 4; bne t0, t1, .Lbv_stx_regular_gas_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
+  ".Lbv_stx_regular_gas_verify:\n" ++
+  "  ld t0, 64(t2); beqz t0, .Lbv_stx_legacy_21k_verify\n" ++
+  "  li t6, 0; j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge  # empty-code calldata uses EIP-7623 floor, not the legacy 21k verifier\n" ++
+  ".Lbv_stx_legacy_21k_verify:\n" ++
+  "  la t1, tgbpv_failed_oog; sd zero, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd zero, 0(t1)\n" ++
+  topLevelValueRecipientStateGasAsm "bv_tgbpv" "bv_simple_transfer_tx" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_top_state_gas; ld t6, 0(t1)\n" ++
+  "  add t0, a1, a3\n" ++
+  "  bgeu t0, a2, .Lbv_stx_intrinsic_used_ready\n" ++
+  "  mv t0, a2\n" ++
+  ".Lbv_stx_intrinsic_used_ready:\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t4, 40(t2); add t5, t0, t6; bgeu t4, t5, .Lbv_stx_not_failed_oog\n" ++
+  "  la t1, tgbpv_failed_oog; li t3, 1; sd t3, 0(t1)\n" ++
+  "  la t1, tgbpv_skip_value; sd t3, 0(t1)\n" ++
+  "  mv t0, t4; j .Lbv_stx_gas_used_ready\n" ++
+  ".Lbv_stx_not_failed_oog:\n" ++
+  "  add t0, t0, t6\n" ++
+  ".Lbv_stx_gas_used_ready:\n" ++
+  "  la t1, tgbpv_simple_transfer_gas_used; sd t0, 0(t1)\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
   "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
   "  jal ra, tx_gas_bal_post_verify\n" ++
-  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); li t1, 39; beq t0, t1, .Lbv_st_sender_coinbase_maybe\n" ++
+  "  bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  ".Lbv_st_sender_bal_ok:\n" ++
   "  # Non-overlapping EOA simple transfers must also expose recipient and\n" ++
   "  # fee-recipient BAL post balances matching value and priority-fee effects.\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
@@ -516,20 +402,10 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_recipient_distinct\n" ++
   "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_recipient_sender_cmp\n" ++
   ".Lbv_st_recipient_distinct:\n" ++
-  "  # Skip the strict recipient BAL balance check when the simple-transfer\n" ++
-  "  # recipient is the block coinbase: that account's BAL post balance also\n" ++
-  "  # folds in the priority fee (transaction_fee), so pre+value != post and\n" ++
-  "  # the EIP-7708 coinbase-recipient case would false-reject even though the\n" ++
-  "  # recomputed post-state root still anchors the coinbase balance. Mirrors\n" ++
-  "  # the fee-recipient coinbase-overlap skip below.\n" ++
-  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
-  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n" ++
-  "  li t5, 20\n" ++
-  ".Lbv_st_recipient_coinbase_cmp:\n" ++
-  "  beqz t5, .Lbv_st_skip_recipient_overlap\n" ++
-  "  lbu t6, 0(t0); lbu a0, 0(t1); bne t6, a0, .Lbv_st_recipient_do_verify\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t5, t5, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
+  "  # Recipient==coinbase is verified by folding the priority-fee credit into\n" ++
+  "  # strv_wd_credit below, so the strict check uses the full post balance.\n" ++
   ".Lbv_st_recipient_do_verify:\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lbv_st_skip_recipient_overlap\n" ++
   "  # EIP-7928/4895 (evm-asm-ouis9): like the fee-recipient skip below, the strict\n" ++
   "  # recipient post-balance check models recipient_post = recipient_pre + value.\n" ++
   "  # When the block has withdrawals the recipient may ALSO receive a withdrawal\n" ++
@@ -548,6 +424,20 @@ def blockVerdictFunction : String :=
   "  la a3, strv_wd_credit\n" ++
   "  jal ra, bv_sum_withdrawals_to_address\n" ++
   ".Lbv_st_recipient_wd_done:\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
+  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_st_recipient_coinbase_cmp:\n" ++
+  "  beqz t2, .Lbv_st_recipient_add_fee_credit\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_st_recipient_extra_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
+  ".Lbv_st_recipient_add_fee_credit:\n" ++
+  "  la a0, txup_priority_fee; la t0, tgbpv_simple_transfer_gas_used; ld a1, 0(t0); la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_simple_transfer_recipient_fail\n" ++
+  "  la a0, strv_wd_credit; la a1, bv_upfront_blob_cost; la a2, strv_wd_credit\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_simple_transfer_recipient_fail\n" ++
+  ".Lbv_st_recipient_extra_done:\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; addi a1, t2, 96\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
@@ -650,6 +540,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   bvReceiptsShapeSet 2 true ++  ".Lbv_tl7708_ready:\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lbv_tl7708_skip\n" ++
   "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_tl7708_skip\n" ++
   -- EIP-7708 self-suppression: emit the transfer log ONLY to a DIFFERENT account. The spec
@@ -686,23 +577,82 @@ def blockVerdictFunction : String :=
   -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (now incl. the Part 2 top-level
   -- transfer log above), to be threaded into the per-tx receipt record.
   "  jal ra, block_log_window_snapshot\n" ++
-  -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
-  -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
-  "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
-  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
+  -- EOA/simple-transfer execution does not run runtime dispatcher setup, so
+  -- publish gas from the same tx-context intrinsic helper used by the direct
+  -- shortcut. The resulting before-refund value is regular + state, which the
+  -- exact EIP-8037 block-gas check later splits back into its two dimensions.
+  topLevelValueRecipientStateGasAsm "bv_st_direct" "bv_simple_transfer_tx" ++
+  "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
+  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_direct_oog; sd zero, 0(t1)\n" ++
+  "  la t0, tgbpv_top_state_gas; ld t0, 0(t0)\n" ++
+  "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_direct_state_publish_ok\n" ++
+  "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
+  ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
+  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  -- `topLevelValueRecipientStateGasAsm` is a callable composition and may
+  -- clobber a1/a3. `simple_transfer_intrinsic_gas` has already published the
+  -- intrinsic regular and net intrinsic state components in these cells; reload
+  -- them to form the same combined pre-refund charge that execution-specs uses
+  -- for `tx.gas - gas_left - state_gas_left`.
+  "  la t1, runtime_tx_intrinsic_regular; ld t4, 0(t1)\n" ++
+  "  la t1, bv_runtime_intrinsic_state_gas; ld t3, 0(t1)\n" ++
+  "  la t1, bv_simple_transfer_tx; ld t5, 40(t1); add t6, t4, t3; add t6, t6, t0\n" ++
+  "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
+  "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
+  ".Lbv_simple_transfer_direct_gas_exhausted:\n" ++
+  -- v0.6.0 (C8): charge-point OOG -- failed tx, all gas burned, all
+  -- prep state charges refill (exec state 0).
+  "  li t5, 0\n" ++
+  "  la t4, tgbpv_direct_oog; li t6, 1; sd t6, 0(t4)\n" ++
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n" ++
+  ".Lbv_simple_transfer_direct_gas_have_left:\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_direct_status_success\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
+  ".Lbv_simple_transfer_direct_status_success:\n" ++
+  "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_std_status_one\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
+  ".Lbv_std_status_one:\n" ++
+  "  li t5, 1\n" ++
+  ".Lbv_simple_transfer_direct_status_store:\n" ++
+  "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
-  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
-  "  j .Lbv_after_tx_gas_precharge       # EOA runtime done; skip the contract-dispatch block\n" ++
+  -- Direct EOA settlement has completed the transaction effects, but historically
+  -- jumped past the body-effect reconciliation below.  That let a forged payload
+  -- omit a withdrawal while retaining its BAL/state-root credit.  Enter at the
+  -- non-storage seam: it materializes only authenticated body withdrawals and
+  -- compares them with BAL, while avoiding the contract-only recipient/storage
+  -- state that the EOA path does not initialize.
+  "  j .Lbv_eoa_body_effect_reconcile\n" ++
+  ".Lbv_st_sender_coinbase_maybe:\n" ++
+  "  la t0, bv_tx_gas_precharge; addi t0, t0, 104; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
+  ".Lbv_st_sender_coinbase_cmp:\n" ++
+  "  beqz t2, .Lbv_st_sender_coinbase_credit\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_tx_gas_precharge_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_st_sender_coinbase_cmp\n" ++
+  ".Lbv_st_sender_coinbase_credit:\n" ++
+  "  la a0, txup_priority_fee; la t0, tgbpv_simple_transfer_gas_used; ld a1, 0(t0); la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la a0, bv_tx_gas_precharge; addi a0, a0, 128; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_tx_gas_precharge; addi a1, a1, 160\n" ++
+  "  jal ra, u256_eq\n" ++
+  "  beqz a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  j .Lbv_st_sender_bal_ok\n" ++
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.1: contract-recipient execution. Reached only
   -- from the early contract-vs-EOA branch. The runtime gas-measurement tail (stage
   -- bytecode + BAL recipient storage preload, run the callable dispatcher, read
@@ -738,7 +688,13 @@ def blockVerdictFunction : String :=
   "  la a2, bv_tx_recipient_code_hash\n" ++
   "  la a3, bv_cf_code_off; la a4, bv_cf_code_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lbv_code_preimage_fail            # current-frame code preimage absent -> reject\n" ++
+  "  beqz a0, .Lbv_cf_code_preimage_ok\n" ++
+  "  la t0, bsbd_code_from_bal; ld t0, 0(t0); beqz t0, .Lbv_code_preimage_fail\n" ++
+  -- EIP-7702 pointer-to-pointer: same-block BAL code_changes bytes are
+  -- executed raw, matching execution-specs' non-recursive delegation.
+  "  la t0, cahsr_code_offset; ld t1, 0(t0); la t2, bv_cf_code_off; sd t1, 0(t2)\n" ++
+  "  la t0, cahsr_code_length; ld t1, 0(t0); la t2, bv_cf_code_len; sd t1, 0(t2)\n" ++
+  ".Lbv_cf_code_preimage_ok:\n" ++
   -- bmvmx.5 (single-tx CONTRACT-recipient nonce/balance lower bound): a non-self-contained
   -- contract recipient bails inside dispatch_tx_runtime_code (structured nonzero reason codes)
   -- -> skips the @1020 sender checks, so a single value-moving tx to such a recipient with a bad
@@ -1011,7 +967,30 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_rnc_sender_guard\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bacc_finals; jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lbv_rnc_sender_guard; la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbv_rnc_sender_guard\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  -- EIP-7702 NULL delegation is the dual of installing a 23-byte marker: the
+  -- authenticated authority's BAL code change is present but empty, and its
+  -- nonce advances from the signed authorization nonce by exactly one. Skip
+  -- the local unchanged-recipient shortcut only for that precise effect; the
+  -- all-account code/nonstorage comparators still validate the BAL row.
+  "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0; la t3, teer_success_table\n" ++
+  ".Lbv_rnc_clear_find:\n" ++
+  "  beq t2, t1, .Lbv_rnc_marker_check\n" ++
+  "  mv t4, t3; la t5, bv_simple_transfer_tx; addi t5, t5, 72; li t6, 20\n" ++
+  ".Lbv_rnc_clear_addr_cmp:\n" ++
+  "  beqz t6, .Lbv_rnc_clear_addr_match\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbv_rnc_clear_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbv_rnc_clear_addr_cmp\n" ++
+  ".Lbv_rnc_clear_addr_match:\n" ++
+  "  lw t4, 20(t3); beqz t4, .Lbv_rnc_clear_next\n" ++
+  "  la t4, bacc_finals; ld t5, 56(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 72(t4); bnez t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 40(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 48(t4); ld t6, 24(t3); addi t6, t6, 1; bne t5, t6, .Lbv_rnc_marker_check\n" ++
+  "  j .Lbv_recipient_nc_done\n" ++
+  ".Lbv_rnc_clear_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lbv_rnc_clear_find\n" ++
+  ".Lbv_rnc_marker_check:\n" ++
+  "  la t0, bacc_finals; ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbv_rnc_sender_guard; lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbv_rnc_sender_guard\n" ++
   "  lbu t3, 2(t2); bnez t3, .Lbv_rnc_sender_guard; j .Lbv_recipient_nc_done\n" ++
   ".Lbv_rnc_sender_guard:\n" ++
@@ -1073,25 +1052,25 @@ def blockVerdictFunction : String :=
   ".Lbv_recipient_code_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
+  "  bnez a2, .Lbv_bal_recipient_field_fail           # malformed -> reject (fail-closed)\n" ++
   "  la t0, bv_rcf_off; sd a0, 0(t0); la t0, bv_rcf_len; sd a1, 0(t0)\n" ++
   "  # Walk to item 5 = code_changes.\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done\n" ++
   "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbv_bal_recipient_field_fail\n" ++
   "  jal ra, rlp_walk_next\n" ++
-  "  li t0, 2; beq a1, t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t0, 2; beq a1, t0, .Lbv_recipient_nc_done\n" ++
   "  j .Lbv_bal_recipient_field_fail\n" ++
   -- bmvmx.1.6.4.3: all-accounts storage exec-vs-BAL. Every NON-recipient BAL account's
   -- storage_changes must match the exec log — forward (every claimed change reproduced) AND
@@ -1109,11 +1088,16 @@ def blockVerdictFunction : String :=
   ".Lbv_storage_skip_sys_o:\n  li t2, 20\n" ++
   ".Lbv_storage_skip_sys_i:\n  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lbv_storage_skip_sys_i\n" ++
   "  addi t0, t0, 12; addi t4, t4, -1; bnez t4, .Lbv_storage_skip_sys_o\n" ++
-  -- If runtime replay could not materialize a complete gas/effect arena,
-  -- the execution storage log is incomplete. The authenticated state-root
-  -- recompute remains binding, so skip these redundant storage/tuple checks
-  -- rather than false-rejecting BAL rows against a partial replay.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_storage_tuple_checks\n" ++
+  -- rgtkz (bmvmx): run the all-accounts exec-vs-BAL storage/tuple checks only when the
+  -- execution storage log is COMPLETE for the block's writes: exactly one user tx AND its
+  -- dispatch completed. On multi-tx blocks the live log holds only the LAST tx's writes
+  -- (it resets per dispatch), so these checks would false-reject; multi-tx coverage stays
+  -- with the MtxTail comparators (durable stores). The previous arena-count guard skipped
+  -- the checks on every single-tx block (the gas arena is published later), leaving the
+  -- BAL-driven state-root recompute as the only link -- and that root is attacker-
+  -- recomputable (FA rgtkz). Dispatch-failed/partial flows keep the old skip posture.
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_after_storage_tuple_checks\n" ++
+  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_after_storage_tuple_checks\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
@@ -1143,10 +1127,14 @@ def blockVerdictFunction : String :=
   -- inert until CREATE activation (.8c-3) and conservative (parse fail / omitted account -> reject).
   -- NOTE for .8c-3: add a per-tx reset of exec_code_effect_count (not reset today; harmless while the
   -- log is empty, but REQUIRED once CREATE writes it so stale records don't carry across txs).
+  -- Like the forward code comparator below, this reverse check needs a materialized runtime
+  -- gas/effect arena; otherwise it is reading partial effect evidence and can false-reject.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_code_covers\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_code_covers\n" ++
   "  bnez a0, .Lbv_bal_code_covers_fail\n" ++
+  ".Lbv_after_code_covers:\n" ++
   -- i3djw.3: all-accounts NON-STORAGE exec-vs-BAL (FORWARD). Every non-{sender,recipient,
   -- coinbase} BAL account that declares a balance/nonce change must be reproduced by an exec
   -- non-storage effect record (the i3djw.1 CALL-value producer + i3djw.2 CREATE producer
@@ -1158,6 +1146,7 @@ def blockVerdictFunction : String :=
   -- coinbase} are gas/value-coupled (pinned on the gas path); set unconditionally above
   -- (bv_simple_transfer_tx+72, bmvmx_sender_addr, bmvmx_coinbase_addr). 32-byte-strided,
   -- address in the first 20 bytes.
+  ".Lbv_eoa_body_effect_reconcile:\n" ++
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
@@ -1188,11 +1177,14 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
-  -- If contract replay could not materialize a complete runtime gas/effect arena,
-  -- the final state-root recompute is still the binding authenticated check. Do not
-  -- false-reject such rows in the redundant exec-vs-BAL non-storage comparator with
-  -- an incomplete execution log (observed on same-tx SELFDESTRUCT-via-CALL rows).
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_nonstorage_covers\n" ++
+  -- 7rbp3: EIP-4895 body credits are authenticated non-storage effects too.
+  -- Materialize them before aggregation so the existing 44/45 comparators check
+  -- both BAL->effect consistency and effect->BAL coverage.
+  "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- Run the all-account comparison even when replay produced no transaction arena:
+  -- the reverse arm must reject a BAL balance credit with no corresponding body
+  -- withdrawal (or execution) effect. The modeled-system accounts remain skipped.
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
@@ -1200,6 +1192,11 @@ def blockVerdictFunction : String :=
   -- >1 value effect in the tx. Aggregating to last-post fixes that, matches the multi-tx path,
   -- and yields a SORTED agg (enables a future binary-search comparator). Behavior-preserving for
   -- the single-touch common case (0-regress). The helper resets agg_count + preserves s-regs.
+  -- Fail closed if an effect producer overflowed its bounded log. The multi-tx
+  -- validation tail applies the same rule; comparing a truncated prefix would
+  -- otherwise leave later execution effects outside both directions of the
+  -- authenticated BAL reconciliation.
+  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_bal_nonstorage_fail\n" ++
   "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
   "  jal ra, nonstorage_effect_aggregate\n" ++
@@ -1273,7 +1270,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after
   -- value-move gates (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT, no withdrawals,
-  -- non-coinbase sender). Status 40 is a clean mismatch; other statuses skip.
+  -- status 40 is a clean mismatch; other statuses skip.
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
   ".Lbv_sbc_scan:\n" ++
@@ -1301,7 +1298,7 @@ def blockVerdictFunction : String :=
   "  la a6, basr_records; la a7, bv_sender_bal_check\n" ++
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
   "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
-  "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  "  li t1, 40; beq t0, t1, .Lbv_sender_bal_fail\n" ++          -- clean balance mismatch -> reject
   -- bmvmx.4: status 50 = check_transaction fee invalid (max_fee < base_fee, or
   -- priority_fee > max_fee); the runtime verify detected it and the spec REJECTS
   -- (InsufficientMaxFeePerGasError / PriorityFeeGreaterThanMaxFeeError), so reject
@@ -1386,15 +1383,11 @@ def blockVerdictFunction : String :=
   -- BALANCE reads are self-contained-rejected (0x47/0x31), so no executed callee reads a stale own
   -- balance. Positive validation of the multi-account value deltas (caller debited / callee credited
   -- by the nested CALL) against the BAL is bmvmx.1.6.4's all-accounts exec-vs-BAL compare.
-  -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the coinbase (its
-  -- post also folds the priority fee) or the sender (self-transfer nets gas -- the sender slice owns
-  -- it); withdrawals are already excluded above. A clean post mismatch (status 32) is a prover lie.
-  "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; ld t6, 0(s0); addi t6, t6, 32; li a0, 20\n" ++
-  ".Lbv_rbc_cb_cmp:\n" ++
-  "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == coinbase -> skip
-  "  lbu t3, 0(t5); lbu t4, 0(t6); bne t3, t4, .Lbv_rbc_not_cb\n" ++
-  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_rbc_cb_cmp\n" ++
-  ".Lbv_rbc_not_cb:\n" ++
+  -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the
+  -- sender (self-transfer nets gas -- the sender slice owns it); withdrawals are already
+  -- excluded above. Do not skip recipient==coinbase; a missing fee-credit model must
+  -- surface as a clean mismatch. A clean post mismatch (status 32) is a prover lie.
+
   "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; la t6, bv_sender_bal_check; addi t6, t6, 8; li a0, 20\n" ++
   ".Lbv_rbc_self_cmp:\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == sender (self-transfer) -> skip
@@ -1407,24 +1400,21 @@ def blockVerdictFunction : String :=
   "  jal ra, simple_transfer_recipient_bal_verify\n" ++
   "  la t0, bv_simple_transfer_recipient; ld t0, 0(t0); li t1, 32; beq t0, t1, .Lbv_recipient_bal_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_sbc_bal_mismatch:\n" ++
-  -- Clean value mismatch. Skip when the sender IS the coinbase (its post also folds the fee).
-  "  la t0, bv_sender_bal_check; addi t0, t0, 8; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
-  ".Lbv_sbc_cb_cmp:\n" ++
-  "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
+
   blockVerdictCreateCollisionBranch ++
   bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
   bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
+  -- Exact block-gas settlement needs one runtime result for every transaction.
+  -- Creation and otherwise unsupported execution shapes deliberately leave that
+  -- arena incomplete; their pre-execution EIP-8037 admission was already checked
+  -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
-  -- remaining-block-gas check below can apply the spec's 2D REGULAR test
-  -- min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) (amsterdam fork.py:591) instead of the
-  -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
+  -- remaining-block-gas check below can apply the spec's 2D regular admission
+  -- test min(TX_MAX_GAS_LIMIT, tx.gas). block_verdict_tx_state_gas_array depends only on the
   -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
   -- same conservative skip. (Moved up from just below the EIP-7778 check.)
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
@@ -1446,6 +1436,20 @@ def blockVerdictFunction : String :=
   "  beq t4, t3, .Lbv_state_gas_filled\n" ++
   "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_state_gas_zero\n" ++
   ".Lbv_state_gas_filled:\n" ++
+  -- 0w05f.17.2: materialize the v0.6 per-tx settlement identity (fork.py:1174)
+  --   tx_state_gas = intrinsic.state + executed state gas
+  -- into bvgr_tx_total_state_gas BEFORE the EIP-7778 gate, so the per-tx
+  -- regular increment below can subtract it (fork.py:1176-1181). The executed
+  -- component was captured per tx by dispatcher_capture_exec_state_gas; on the
+  -- tx_state_gas_array bail above the intrinsic component is zero (the legacy
+  -- over-approximation, reject-conservative as before).
+  "  la a0, bvgr_tx_state_gas\n" ++
+  "  la a1, bvgr_tx_exec_state_gas\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_tx_total_state_gas\n" ++
+  "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
+  "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
+  "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++
@@ -1453,20 +1457,13 @@ def blockVerdictFunction : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t2, bvgr_arena_tx_count; ld a5, 0(t2)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
-  "  la a7, bvgr_tx_state_gas    # .57.11.6.5.2: per-tx intrinsic.state -> spec 2D regular test\n" ++
+  "  la a7, bvgr_tx_total_state_gas   # 0w05f.17.2: per-tx intrinsic+executed state -> tx_regular = max(before_refund - state, floor)\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
   "  beqz a0, .Lbv_eip7778_gate_ok\n" ++
-  -- WIP: two Amsterdam storage-clear multi-tx rows have complete runtime gas results but the
-  -- remaining-block-gas helper is one gas too strict on tx2. Keep this exact signature moving
-  -- while the EIP-7778 per-tx increment accounting is repaired.
-  "  li t0, 1; bne a0, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  li t0, 2; bne a1, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  li t0, 71057; bne a2, t0, .Lbv_eip7778_block_gas_fail\n" ++
-  "  la t0, bvgr_block_gas_increments; ld t1, 8(t0); li t2, 21064; beq t1, t2, .Lbv_eip7778_gate_ok\n" ++
-  "  li t2, 21000; bne t1, t2, .Lbv_eip7778_block_gas_fail\n" ++
+  "  j .Lbv_eip7778_block_gas_fail\n" ++
   ".Lbv_eip7778_gate_ok:\n" ++
   blockVerdictExactGasCheck ++
   blockVerdictReceiptsTail

@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.MptBoundedSort
 -- .63.1.6.2.3 (slice B): full-receipt encoder + combined root+bloom validator
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptList
@@ -20,6 +21,7 @@ import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
@@ -141,6 +143,13 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanTuplesFunction ++ "\n" ++
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
+    -- Keep the standalone verdict-debug ELF's multi-tx closure in lockstep
+    -- with the guest closure: the runtime dispatcher reaches this whitelist
+    -- gate, and the post-dispatch verdict reaches the withdrawal effect walk.
+    -- These are diagnostic-only emissions; verdict code is unchanged.
+    brpsfAddr20EqFunction ++ "\n" ++
+    balStorageWhitelistCleanFunction ++ "\n" ++
+    blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
     rlpFieldToU64Function ++ "\n" ++
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
@@ -153,8 +162,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     deriveBlockSystemRequestsFunction ++ "\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
+    deriveBuilderDepositRequestsFunction ++ "\n" ++
+    deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
+    blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
+    blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
     materializeLogRecordsFunction ++ "\n" ++
@@ -188,6 +201,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     "ssc_saved_s0:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
+    builderContractAddrData ++
     deriveBlockSystemRequestsData ++ "\n" ++
     ".balign 8\n" ++
     "pdr_deposit_addr:\n" ++
@@ -273,6 +287,12 @@ def statelessVerdictV2GuestClosure : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
+  mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
@@ -337,6 +357,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -372,6 +393,7 @@ def statelessVerdictV2GuestClosure : String :=
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
+  blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
@@ -464,15 +486,17 @@ def statelessVerdictV2GuestClosure : String :=
   btiScanTuplesFunction ++ "\n" ++
   btiScanStorageChangesFunction ++ "\n" ++
   balTxsIndependentFunction ++ "\n" ++
+  -- bmvmx.5.5.10: whitelist-v0 gate for the sequential lane (request-predeploy
+  -- storage rows -> conservative bail until the comparator learns the side arena)
+  brpsfAddr20EqFunction ++ "\n" ++
+  balStorageWhitelistCleanFunction ++ "\n" ++
   multiTxNthContextFunction ++ "\n" ++
   -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
   -- block_verdict's block_state-gas floor check. tx_extract_to_address /
   -- tx_type_dispatch / rlp_list_nth_item / rlp_list_count_items / bgv_u32le are
-  -- already in this closure; only these EIP-8037/type-4 bodies are new.
+  -- already in this closure; only the EIP-8037 state-gas bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
-  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
-  blockVerdictFailedType4AuthRegularAdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
@@ -489,10 +513,10 @@ def statelessVerdictV2GuestClosure : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
-  multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
+  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
@@ -503,6 +527,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++

@@ -51,16 +51,17 @@ checks = [
     ('A stack/success pack',            (1 << 32) | 192),
     ('B running bloom word0 (revert restore)', 0x123456789abcdef0),
     ('A evm_call_depth',                0),
-    ('B mem/env delta pack',            (0x38400 << 32) | 0),
+    ('B mem/env delta pack',            (0x18400 << 32) | 0),
     ('B running bloom word31 (revert restore)',0x0fedcba987654321),
     ('B x12 - &fr_pstack2 (netpop)',    160),
     ('B success word (REVERT)',         0),
     ('B evm_call_depth',                1),
     ('B copied returndata byte',        0xab),
     ('A cur_stack_top - &evm_stack_top',     0),
-    ('B cur_stack_top - &call_frame_arena',  0x28200),
+    ('B cur_stack_top - &call_frame_arena',  0x8200),
     ('A returndata size (STOP, none)',       0),
-    ('B returndata size (retlen)',           4),
+    # High half witnesses staging past the old 256-byte cap (evm-asm-pwqhw).
+    ('B data[299]<<32 | size pack',          (0x5a << 32) | 300),
     ('B returndata data[0]',                 0xab),
     ('A gas refund (100+50)',                150),
     ('B gas refund (200+30)',                230),
@@ -68,7 +69,12 @@ checks = [
     # REVERT restores them to the child-env snapshot (incorporate_child_on_error).
     ('A state_gas_left (success: unchanged)', 1000),
     ('A state_gas_used (success: unchanged)', 2000),
-    ('B state_gas_left (revert: restored)',   555),
+    # LIFO refill (nxio8.4.1): on child error the child's non-spilled used
+    # allocation (used - used0 = 100) rolls back into left: 444 + 100 = 544.
+    # (Was 555 under the pre-refill full-snapshot-restore semantics; the probe
+    # could not link after later frame_return additions, so the expectation
+    # went stale unnoticed.)
+    ('B state_gas_left (revert: refilled)',   544),
     ('B state_gas_used (revert: restored)',   666),
     # nxio8.4.2: SUCCESS leaves the refund accumulator; REVERT discards the child's
     # additions by restoring evm_refund_acc to the child-env snapshot.

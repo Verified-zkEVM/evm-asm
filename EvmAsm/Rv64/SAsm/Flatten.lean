@@ -68,6 +68,11 @@ def flatten (addr : Word) : Stmt → List Instr
   | «while» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
+  | whileHeader _ h c _ _ b =>
+      h.flatten addr ++
+        c.neg.toInstr (brOfs (b.size + 2))
+          :: (b.flatten (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
+              ++ [.JAL .x0 (jBack (h.size + b.size + 1))])
   | «whileS» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
@@ -77,10 +82,33 @@ def flatten (addr : Word) : Stmt → List Instr
             ++ breakCond.toInstr (brOfs (ba.size + 2))
             :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
                 ++ [.JAL .x0 (jBack (bb.size + ba.size + 2))]))
+  | while2BreakJoin _ guard _ _ _ before breakA breakB step selA selB =>
+      guard.neg.toInstr (brOfs (before.size + step.size + 4)) ::
+        (before.flatten (addr + 4) ++
+          breakA.toInstr (brOfs (step.size + 3)) ::
+          breakB.toInstr (brOfs (step.size + selA.size + 3)) ::
+          (step.flatten (addr + BitVec.ofNat 64 (4 * (before.size + 3))) ++
+            [.JAL .x0 (jBack (before.size + step.size + 3))] ++
+            selA.flatten (addr + BitVec.ofNat 64 (4 * (before.size + step.size + 4))) ++
+            [.JAL .x0 (jFwd (selB.size + 1))] ++
+            selB.flatten (addr + BitVec.ofNat 64 (4 * (before.size + step.size + selA.size + 5)))))
+  | «doWhileBreak» _ _ _ _ bb breakCond ba =>
+      bb.flatten addr
+        ++ breakCond.toInstr (brOfs (ba.size + 2))
+        :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 1)))
+            ++ [.JAL .x0 (jBack (bb.size + ba.size + 1))])
   | «doWhile» _ guard _ _ b =>
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
   | «doWhileS» _ guard _ _ b =>
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
+  | «retWhileBreak» _ guard _ _ bb breakCond ba gt bt =>
+      guard.neg.toInstr (brOfs (bb.size + ba.size + 3))
+        :: (bb.flatten (addr + 4)
+            ++ breakCond.toInstr (brOfs (ba.size + gt.size + 2))
+            :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+                ++ .JAL .x0 (jBack (bb.size + ba.size + 2))
+                :: (gt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
+                    ++ bt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3))))))
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
@@ -113,14 +141,25 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | readAt _ _ _ _ => rfl
   | «while» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
+  | whileHeader _ h c fuel inv b ihh ihb =>
+      simp [flatten, size, ihh, ihb]; omega
   | «whileS» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
   | «whileBreak» _ guard fuel inv post bb breakCond ba ihbb ihba =>
+      simp [flatten, size, ihbb, ihba]; omega
+  | while2BreakJoin _ guard fuel inv post before breakA breakB step selA selB ihBefore ihStep ihSelA ihSelB =>
+      simp [flatten, size, ihBefore, ihStep, ihSelA, ihSelB]
+      omega
+  | «doWhileBreak» _ fuel inv post bb breakCond ba ihbb ihba =>
       simp [flatten, size, ihbb, ihba]; omega
   | «doWhile» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
   | «doWhileS» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
+  | «retWhileBreak» _ guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      simp only [flatten, size, List.length_cons, List.length_append,
+        ihbb, ihba, ihgt, ihbt]
+      omega
   | call _ callee => rfl
   | callReg _ _ _ => rfl
   | callRegS _ _ _ => rfl
@@ -152,6 +191,11 @@ def offsetsOk : Stmt → Bool
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
            && b.offsetsOk
+  | whileHeader _ h c _ _ b =>
+      c.wf && decide (4 * (b.size + 2) < 2^12)
+           && decide (0 < h.size + b.size + 1)
+           && decide (4 * (h.size + b.size + 1) ≤ 2^20)
+           && h.offsetsOk && b.offsetsOk
   | «whileS» _ c _ _ b =>
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
@@ -162,10 +206,26 @@ def offsetsOk : Stmt → Bool
            && decide (4 * (ba.size + 2) < 2^12)
            && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
            && bb.offsetsOk && ba.offsetsOk
+  | while2BreakJoin _ guard _ _ _ before breakA breakB step selA selB =>
+      guard.wf && breakA.wf && breakB.wf
+        && decide (4 * (before.size + step.size + 4) < 2^12)
+        && decide (4 * (step.size + 3) < 2^12)
+        && decide (4 * (step.size + selA.size + 3) < 2^12)
+        && decide (0 < before.size + step.size + 3)
+        && decide (4 * (before.size + step.size + 3) ≤ 2^20)
+        && decide (4 * (selB.size + 1) < 2^20)
+        && before.offsetsOk && step.offsetsOk && selA.offsetsOk && selB.offsetsOk
+  | «doWhileBreak» _ _ _ _ bb breakCond ba =>
+      breakCond.wf
+           && decide (4 * (ba.size + 2) < 2^12)
+           && decide (0 < bb.size + ba.size + 1)
+           && decide (4 * (bb.size + ba.size + 1) ≤ 2^20)
+           && bb.offsetsOk && ba.offsetsOk
   | «doWhile» _ guard _ _ b =>
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
   | «doWhileS» _ guard _ _ b =>
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
+  | «retWhileBreak» _ _ _ _ _ _ _ _ _ => false
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -181,6 +241,13 @@ def retOffsetsOk : Stmt → Bool
   | retIf _ c t e =>
       c.wf && decide (4 * (e.size + 1) < 2^12)
            && t.retOffsetsOk && e.retOffsetsOk
+  | «retWhileBreak» _ guard _ _ bb breakCond ba gt bt =>
+      guard.wf && breakCond.wf
+        && decide (4 * (bb.size + ba.size + 3) < 2^12)
+        && decide (4 * (ba.size + gt.size + 2) < 2^12)
+        && decide (0 < bb.size + ba.size + 2)
+        && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
+        && bb.offsetsOk && ba.offsetsOk && gt.retOffsetsOk && bt.retOffsetsOk
   | _ => false
 
 /-- Address-aware side conditions of the call sites of a statement placed at
@@ -202,12 +269,27 @@ def callsOk : Stmt → Word → Prop
   | blockAt _ _ _ _, _ => True
   | readAt _ _ _ _, _ => True
   | «while» _ _ _ _ b, addr => b.callsOk (addr + 4)
+  | whileHeader _ h _ _ _ b, addr =>
+      h.callsOk addr ∧ b.callsOk (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
   | «whileS» _ _ _ _ b, addr => b.callsOk (addr + 4)
   | «whileBreak» _ _ _ _ _ bb _ ba, addr =>
       bb.callsOk (addr + 4)
         ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB, addr =>
+      before.callsOk (addr + 4) ∧
+      step.callsOk (addr + BitVec.ofNat 64 (4 * (before.size + 3))) ∧
+      selA.callsOk (addr + BitVec.ofNat 64 (4 * (before.size + step.size + 4))) ∧
+      selB.callsOk (addr + BitVec.ofNat 64 (4 * (before.size + step.size + selA.size + 5)))
+  | «doWhileBreak» _ _ _ _ bb _ ba, addr =>
+      bb.callsOk addr
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 1)))
   | «doWhile» _ _ _ _ b, addr => b.callsOk addr
   | «doWhileS» _ _ _ _ b, addr => b.callsOk addr
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt, addr =>
+      bb.callsOk (addr + 4)
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+        ∧ gt.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + 3)))
+        ∧ bt.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + gt.size + 3)))
   | call _ f, addr =>
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4

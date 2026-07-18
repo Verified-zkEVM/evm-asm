@@ -16,7 +16,12 @@
   3. Unified call-path per-iteration specs for j=3, j=2, j=1, and j=0
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1
+import EvmAsm.Evm64.DivMod.N1MaxChain
+import EvmAsm.Evm64.DivMod.N1CallBase
+import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq
+import EvmAsm.Evm64.DivMod.LoopIterN1.CallBeq
 
 open EvmAsm.Rv64.Tactics
 

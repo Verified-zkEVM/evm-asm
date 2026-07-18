@@ -3,7 +3,7 @@
 
   Runtime storage-key warmth table for EIP-2929 SLOAD/SSTORE gas.
   The dispatcher already charges the 100-gas warm/static floor for
-  SLOAD and SSTORE; this helper charges the missing 2000-gas cold
+  SLOAD and SSTORE; this helper charges the missing 2900-gas cold
   storage-key delta on first touch and records the key as warm.
 -/
 
@@ -16,13 +16,23 @@ open EvmAsm.Rv64
 
 /-- Maximum `(address, slot)` storage access keys tracked by the runtime
     opcode harness. Each entry is 64 bytes: 32-byte address token followed
-    by the 32-byte storage slot in EVM stack order. EEST all-opcode
-    fixtures can touch hundreds of distinct slots in one transaction, and
-    EIP-7928 access-list descriptors need matching outcome capacity. -/
-def storageAccessGasMaxKeys : Nat := 512
-def storageAccessOutcomeMaxRecords : Nat := 512
+    by the 32-byte storage slot in EVM stack order.
+
+    This must not be a small implementation cap: access-list seeding can place
+    up to `TX_MAX_GAS_LIMIT / ACCESS_LIST_STORAGE_KEY_COST` keys in the warm
+    set, and execution can add further cold keys. The persistent storage log is
+    already proved and fail-closed at 16,384 rows, which also safely covers the
+    maximum combined seeded/runtime unique-key count under Amsterdam's
+    16,777,216 regular-gas limit. -/
+def storageAccessGasMaxKeys : Nat := 16384
+
+/-- Per-op storage-access outcomes used by the EIP-7928 descriptor path.
+    A warm SLOAD/SSTORE has a 100-gas floor, so `ceil(TX_MAX_GAS_LIMIT / 100)`
+    is a conservative per-transaction record bound even before accounting for
+    the gas of stack setup and the opcode itself. -/
+def storageAccessOutcomeMaxRecords : Nat := 167773
 def storageAccessOutcomeRecordSize : Nat := 96
-def storageAccessColdDeltaGas : Nat := 2000
+def storageAccessColdDeltaGas : Nat := 2900
 
 /-- Data labels consumed by `evm_storage_access_charge_key`. -/
 def storageAccessGasData : String :=
@@ -112,19 +122,19 @@ def storageAccessKeyInsertAsm (doneLabel : String) : String :=
       a2 input  : gasRemaining cell ptr.
       a0 output : status:
                     0 = already warm, no gas charged;
-                    1 = cold, charged 2000 and inserted;
+                    1 = cold, charged 2900 and inserted;
                     2 = out of gas, table unchanged;
                     3 = table full, table/gas unchanged.
 
     The dispatcher's opcode table charges SLOAD/SSTORE 100 before the
     handler runs, so this helper only charges the EIP-2929 cold delta
-    (`COLD_SLOAD_COST - WARM_STORAGE_READ_COST = 2100 - 100 = 2000`).
+    (`COLD_STORAGE_ACCESS - WARM_ACCESS = 3000 - 100 = 2900`).
 
     Register note: the charged gas delta is held in `a4` (recorded into the
     access-outcome log), NOT `a3` — because `a3` is the dispatcher's per-frame
     memory base (`x13`) and SLOAD/SSTORE call this helper from the dispatch tail
     WITHOUT saving x13 (they save only x1/x10/x12, the regs the arg setup
-    clobbers). Using `a3` for the delta would corrupt x13 to 0/2000, so any
+    clobbers). Using `a3` for the delta would corrupt x13 to 0/2900, so any
     SLOAD/SSTORE followed by a memory-touching opcode (MLOAD/MSTORE/CREATE/CALL)
     would read/write at the bogus base (e.g. the double-CREATE ziskemu panic,
     fhsxz.2.4.2.61.8.3.4). a4 is caller-saved and not a dispatcher invariant.

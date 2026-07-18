@@ -77,19 +77,18 @@ PY
 }
 
 fail=0
-# Amsterdam schedule: the regular gas has NO EIP-2200 SET split (a zero-origin
-# creation charges 2900 like any clean-changing write; the 97,920 EIP-8037 state
-# gas is the CALLER's charge, surfaced only via the credit flag on zero-restore),
-# and the restore refund is uniformly 2800.
+# Amsterdam schedule: regular gas is access cost plus STORAGE_WRITE for the
+# first change; the 97,920 EIP-8037 state gas is the caller's charge, surfaced
+# only via the credit flag on zero-restore. Restore refund is STORAGE_WRITE.
 # warm original/current/new -> gas, refund_delta, changed, state_credit
-run_case warm_set_zero_to_nonzero 1 0 0 1 2900 0 1 0 || fail=1
-run_case cold_set_zero_to_nonzero 0 0 0 1 5000 0 1 0 || fail=1
-run_case warm_reset_nonzero       1 5 5 7 2900 0 1 0 || fail=1
+run_case warm_set_zero_to_nonzero 1 0 0 1 10100 0 1 0 || fail=1
+run_case cold_set_zero_to_nonzero 0 0 0 1 13000 0 1 0 || fail=1
+run_case warm_reset_nonzero       1 5 5 7 10100 0 1 0 || fail=1
 run_case warm_noop                1 5 5 5 100 0 0 0 || fail=1
-run_case warm_clear_refund        1 5 5 0 2900 4800 1 0 || fail=1
-run_case warm_reverse_clear       1 5 0 7 100 -4800 1 0 || fail=1
-run_case warm_restore_zero        1 0 7 0 100 2800 1 1 || fail=1
-run_case warm_restore_nonzero     1 5 7 5 100 2800 1 0 || fail=1
+run_case warm_clear_refund        1 5 5 0 10100 12480 1 0 || fail=1
+run_case warm_reverse_clear       1 5 0 7 100 -12480 1 0 || fail=1
+run_case warm_restore_zero        1 0 7 0 100 10000 1 1 || fail=1
+run_case warm_restore_nonzero     1 5 7 5 100 10000 1 0 || fail=1
 
 [[ "$fail" -eq 0 ]] && echo "==> PASS: SSTORE gas/refund outcome matches reference cases" \
   || { echo "==> FAIL"; exit 1; }

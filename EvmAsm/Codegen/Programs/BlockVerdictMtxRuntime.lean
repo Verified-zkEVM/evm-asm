@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 
 namespace EvmAsm.Codegen
 
@@ -33,9 +34,30 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
+  "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
+  "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
+  "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
+  -- bmvmx.5.5.10 whitelist v0: an interacting non-deposit block enters the full
+  -- sequential lane only when every BAL account with storage_changes rows is
+  -- whitelisted (the four request predeploys, EIP-2935/4788 modeled-system,
+  -- EIP-6110 deposit contract). Block-end system writes live in
+  -- bv_system_storage_log and per-tx user SSTOREs in bv_user_storage_log,
+  -- both consulted by the storage/tuple comparators. Any other interaction
+  -- shape keeps today's posture: conservative bail (fail-closed).
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_storage_whitelist_clean\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  j .Lbv_mtx_independence_ok\n" ++
+  ".Lbv_mtx_independent_deposit_check:\n" ++
+  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
+  "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
+  ".Lbv_mtx_deposit_capture_mark:\n" ++
+  "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
+  ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted sender index once from public keys. The exact per-tx nonce
   -- check below binary-searches this table and mutates the count field as the
   -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
@@ -191,6 +213,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_mtx_is_contract\n" ++
   blockVerdictMtxEoaSettlement ++
@@ -207,9 +230,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
   "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
   -- bmvmx.7.2: multi-tx contract-recipient top-level EIP-7708 value-transfer log.
-  -- Emit before runtime dispatch so the block log window preserves spec order: top-level
-  -- value move first, then logs produced by the recipient code. If append overflows, leave
-  -- the completeness flag unset and let the receipts gate stay conservative.
+  -- Stage before runtime dispatch and let dispatcher_reemit_pending_tl append it after
+  -- the dispatcher resets per-tx event logs, preserving spec order: top-level value
+  -- move first, then logs produced by recipient code.
   "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_mtx_tl7708_skip\n" ++
   "  la t0, bv_mtx_sender_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
@@ -218,7 +241,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_tl_notself\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_tl_selfcmp\n" ++
   ".Lbv_mtx_tl_notself:\n" ++
-  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
   "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
   "  la t1, bv_mtx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
   ".Lbv_mtx_tl_from:\n  beqz t3, .Lbv_mtx_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_tl_from\n" ++
@@ -230,11 +252,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, eip7708_tl_val32\n  la t1, bv_mtx_ctx; addi t1, t1, 127; mv t2, t0; li t3, 32\n" ++
   ".Lbv_mtx_tl_val:\n  beqz t3, .Lbv_mtx_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_tl_val\n" ++
   ".Lbv_mtx_tl_val_d:\n" ++
-  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
-  "  jal ra, eip7708_append_transfer_log\n" ++
-  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
-  "  bnez a0, .Lbv_mtx_tl7708_skip\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
+  "  la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_tl7708_skip:\n" ++
   -- bbow4.8: snapshot per-tx exec effect logs before the multi-tx runtime
   -- dispatch. A top-level tx that reverts/aborts discards its value-transfer /
@@ -245,6 +264,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
@@ -270,7 +290,22 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  -- OOG/exceptional depth-0 exits do not pass through frame_return's REVERT
+  -- truncation. Restore the persistent SSTORE log to the exact pre-dispatch
+  -- count before publishing committed storage for the next transaction.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
+  -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
+  -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
+  -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
+  -- (mirrors state clearing), so capture only on success. Rows are captured from
+  -- index 0: the preload rows (addrHash=0) are inert in every consumer scan.
+  -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
+  "  beqz a4, .Lbv_mtx_user_capture_done\n" ++
+  "  la t0, callee_seed_count; ld a0, 0(t0); la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_user_capture_done:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
   -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
@@ -285,12 +320,47 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxCoinbaseFeeEffect ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
+  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
+  "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
+  -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
+  -- them to the common exact-gas/EIP-7778 and receipt gates just like the
+  -- ordinary multi-transaction lane.
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_publish:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   blockVerdictMtxValidationTail ++
   ".Lbv_mtx_creation_unsupported:\n" ++
+  -- A creation transaction is not yet dispatched by this loop, but every
+  -- preceding transaction has an exact settled runtime result in the strided
+  -- arrays.  Do not discard that information: execution-specs checks the next
+  -- transaction's declared regular reservation against the regular gas already
+  -- consumed by the settled prefix.  This catches an invalid transaction after
+  -- an otherwise supported prefix without guessing the creation transaction's
+  -- execution result.  Any parse/result failure remains the conservative bail.
+  "  la t0, bv_mtx_i; ld a5, 0(t0); beqz a5, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_exec_p; ld a0, 0(t0); la a1, bvgr_tx_gas_limits; li a2, " ++ toString bvMtxFullTxCap ++ "; jal ra, block_verdict_tx_gas_limits\n" ++
+  "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_exec_p; ld t0, 0(t0); addi a0, t0, 412; jal ra, bgv_u64le\n" ++
+  "  la a1, bvgr_tx_gas_limits; la a2, bv_mtx_gas_left; la a3, bv_mtx_refund; la a4, bv_mtx_calldata\n" ++
+  "  la t0, bv_mtx_i; ld a5, 0(t0); la a6, bvgr_block_gas_increments; li a7, 0\n" ++
+  "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
+  "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; sd a2, 0(t0)\n" ++
+  "  la t1, bv_exec_p; ld t1, 0(t1); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
+  "  la t0, bv_mtx_creation_prefix_used; ld t0, 0(t0)\n" ++
+  "  bltu a0, t0, .Lbv_eip8037_gas_fail\n" ++
+  "  sub t1, a0, t0; la t0, bv_mtx_ctx; ld t2, 40(t0); li t3, 16777216; bleu t2, t3, .Lbv_mtx_creation_cap_done; mv t2, t3\n" ++
+  ".Lbv_mtx_creation_cap_done:\n" ++
+  "  bgtu t2, t1, .Lbv_eip8037_gas_fail\n" ++
+  ".Lbv_mtx_creation_prefix_done:\n" ++
   bvReceiptsShapeSet 60 false ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_dispatch_unsupported:\n" ++

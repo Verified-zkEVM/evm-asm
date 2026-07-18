@@ -1,32 +1,65 @@
 header_extract_state_root:
-  addi sp, sp, -32
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)
-  mv s0, a0
-  mv s1, a1
-  mv s2, a2
-  mv a0, s0; mv a1, s1; li a2, 3
-  la a3, hesr_offset; la a4, hesr_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lhesr_parse_fail
-  la t0, hesr_length; ld t1, 0(t0)
-  li t2, 32
-  bne t1, t2, .Lhesr_size_fail
-  la t0, hesr_offset; ld t1, 0(t0)
-  add t3, s0, t1
-  ld t4,  0(t3); sd t4,  0(s2)
-  ld t4,  8(t3); sd t4,  8(s2)
-  ld t4, 16(t3); sd t4, 16(s2)
-  ld t4, 24(t3); sd t4, 24(s2)
-  li a0, 0
-  j .Lhesr_ret
-.Lhesr_parse_fail:
-  li a0, 1
-  j .Lhesr_ret
-.Lhesr_size_fail:
-  li a0, 2
-.Lhesr_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)
-  addi sp, sp, 32
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x10, x8
+  mv x11, x9
+  jal x1, rlp_walk_init
+  bne x12, x0, .+192
+  sd x10, 32(x2)
+  sd x11, 40(x2)
+  ld x10, 32(x2)
+  ld x11, 40(x2)
+  jal x1, rlp_walk_next
+  bne x11, x0, .+168
+  sd x10, 32(x2)
+  ld x10, 32(x2)
+  ld x11, 40(x2)
+  jal x1, rlp_walk_next
+  bne x11, x0, .+148
+  sd x10, 32(x2)
+  ld x10, 32(x2)
+  ld x11, 40(x2)
+  jal x1, rlp_walk_next
+  bne x11, x0, .+128
+  sd x10, 32(x2)
+  ld x10, 32(x2)
+  ld x11, 40(x2)
+  jal x1, rlp_walk_next
+  bne x11, x0, .+108
+  sub x6, x10, x12
+  sub x6, x6, x8
+  la x5, hesr_offset
+  sd x6, 0(x5)
+  la x5, hesr_length
+  sd x12, 0(x5)
+  jal x0, .+4
+  la x5, hesr_length
+  ld x6, 0(x5)
+  li x7, 32
+  bne x6, x7, .+60
+  la x5, hesr_offset
+  ld x28, 0(x5)
+  add x28, x8, x28
+  lbu x29, 0(x28)
+  sb x29, 0(x18)
+  addi x28, x28, 1
+  addi x18, x18, 1
+  addi x6, x6, -1
+  bne x6, x0, .-20
+  li x10, 0
+  jal x0, .+16
+  li x10, 1
+  jal x0, .+8
+  li x10, 2
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)

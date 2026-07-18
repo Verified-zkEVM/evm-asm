@@ -163,6 +163,11 @@ inductive Stmt where
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
+  /-- Bounded top-guarded loop with a reloaded header block before every guard
+      evaluation.  It byte-matches `header; B¬guard -> exit; body; JAL -> header`.
+      The invariant holds after the header has run, at the guard evaluation. -/
+  | whileHeader (label : String) (header : Stmt) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
   /-- Bounded loop with an *entry-snapshot-parameterized* invariant
       (docs/sasm-design.md §3.10): `inv rf₀ ws₀ A₀ i` must hold at the i-th
       evaluation of the header, where `(rf₀, ws₀, A₀)` is the symbolic state
@@ -194,6 +199,24 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (post : RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+  /-- Bounded scan loop with two mid-body break branches that select one of two
+      short tails before reconverging at the following statement.  It byte-matches
+      `guard; before; breakA; breakB; step; JAL -> guard; selA; JAL -> join; selB`.
+      The node post is after either selector has run and control is at the join. -/
+  | while2BreakJoin (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (post : RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakA breakB : Cond) (bodyStep selectA selectB : Stmt)
+  /-- Bottom-entry loop with a **mid-body break** and no top guard.  Each
+      iteration starts by running `bodyBefore`; if `breakCond` holds, the
+      synthesized branch exits to `post`, otherwise `bodyAfter` runs and a
+      synthesized `JAL x0` jumps back to the loop entry.  `inv i` holds at the
+      i-th entry to `bodyBefore`.  This byte-matches loops whose only exit test
+      is in the middle of the body, after required side effects such as stores. -/
+  | «doWhileBreak» (label : String) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (post : RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
   /-- Bottom-test (`do`-`while`) loop: `body` runs unconditionally, then the
       trailing branch loops back to the body's start while `guard` holds, at
       most `fuel` iterations — the machine idiom `body ++ [B guard → Lbody]`
@@ -222,6 +245,16 @@ inductive Stmt where
            (inv : RegFile → List (BitVec 8) → Assertion →
              Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (body : Stmt)
+  /-- Bounded return-terminating loop with two distinct return tails.  The
+      header exits to `guardTail` when `guard` fails; after `bodyBefore`,
+      `breakCond` exits to `breakTail`; otherwise `bodyAfter` runs and the
+      synthesized `JAL x0` jumps back to the header.  Both tails must be
+      accepted by `retOffsetsOk`, so the whole statement exits through `ra`
+      rather than through the legacy single-exit `Fn.Spec` path. -/
+  | «retWhileBreak» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+           (guardTail breakTail : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -288,10 +321,15 @@ def size : Stmt → Nat
   | blockAt _ _ _ is  => is.length
   | readAt _ _ _ is   => is.length
   | «while» _ _ _ _ b   => b.size + 2
+  | whileHeader _ h _ _ _ b => h.size + b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB =>
+      before.size + step.size + selA.size + selB.size + 5
+  | «doWhileBreak» _ _ _ _ bb _ ba => bb.size + ba.size + 2
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
@@ -315,10 +353,16 @@ def callFree : Stmt → Bool
   | blockAt _ _ _ _   => true
   | readAt _ _ _ _    => true
   | «while» _ _ _ _ b => b.callFree
+  | whileHeader _ h _ _ _ b => h.callFree && b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
+  | while2BreakJoin _ _ _ _ _ before _ _ step selA selB =>
+      before.callFree && step.callFree && selA.callFree && selB.callFree
+  | «doWhileBreak» _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhile» _ _ _ _ b => b.callFree
   | «doWhileS» _ _ _ _ b => b.callFree
+  | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
+      bb.callFree && ba.callFree && gt.callFree && bt.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false

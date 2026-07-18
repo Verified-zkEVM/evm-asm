@@ -87,22 +87,24 @@ private theorem winRw_wf : winRw.wf := by
   intro k hk
   rw [winBase]
   show isValidMemAddr (BitVec.ofNat 64 GuestAddrs.bnf_le_a + BitVec.ofNat 64 k) = true
-  rw [show GuestAddrs.bnf_le_a = 3142584624 from rfl]
-  have : (BitVec.ofNat 64 3142584624 + BitVec.ofNat 64 k).toNat = 3142584624 + k := by
+
+  rw [show GuestAddrs.bnf_le_a = 2734690016 from rfl]
+  have : (BitVec.ofNat 64 2734690016 + BitVec.ofNat 64 k).toNat = 2734690016 + k := by
     rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
-    have h1 : (3142584624 : Nat) < 2 ^ 64 := by decide
+    have h1 : (2734690016 : Nat) < 2 ^ 64 := by decide
     have h2 : k < 2 ^ 64 := by omega
-    have h3 : (3142584624 + k : Nat) < 2 ^ 64 := by omega
+    have h3 : (2734690016 + k : Nat) < 2 ^ 64 := by omega
     rw [Nat.mod_eq_of_lt h2, Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h3]
-  show isValidMemAddr (BitVec.ofNat 64 3142584624 + BitVec.ofNat 64 k) = true
+  show isValidMemAddr (BitVec.ofNat 64 2734690016 + BitVec.ofNat 64 k) = true
   unfold isValidMemAddr
-  have : (BitVec.ofNat 64 3142584624 + BitVec.ofNat 64 k).toNat = 3142584624 + k := this
+  have : (BitVec.ofNat 64 2734690016 + BitVec.ofNat 64 k).toNat = 2734690016 + k := this
   rw [this]
-  have h1 : decide (Rv64.RAM_MEM_START ≤ 3142584624 + k) = true := by
-    show decide (2684354560 ≤ 3142584624 + k) = true
+  have h1 : decide (Rv64.RAM_MEM_START ≤ 2734690016 + k) = true := by
+    show decide (2684354560 ≤ 2734690016 + k) = true
     exact decide_eq_true_iff.mpr (by omega)
-  have h2 : decide (3142584624 + k ≤ Rv64.RAM_MEM_END) = true := by
-    show decide (3142584624 + k ≤ 3221225472) = true
+  have h2 : decide (2734690016 + k ≤ Rv64.RAM_MEM_END) = true := by
+    show decide (2734690016 + k ≤ 3221225472) = true
+
     exact decide_eq_true_iff.mpr (by omega)
   simp only [h1, h2, Bool.true_and, Bool.or_true]
 

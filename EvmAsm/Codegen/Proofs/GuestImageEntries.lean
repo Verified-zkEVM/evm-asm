@@ -41,6 +41,7 @@ import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -48,11 +49,13 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasGate
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Bloom
@@ -142,6 +145,7 @@ import EvmAsm.Codegen.Programs.TxDecode7702
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -359,6 +363,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_mtx_committed_chunked_snapshot_upsert, bvMtxCommittedChunkedSnapshotUpsert_prog),
   (GuestAddrs.bv_mtx_committed_chunked_latest_value, bvMtxCommittedChunkedLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
+  (GuestAddrs.bal_storage_reads_in_exec_log, balStorageReadsInExecLog_prog),
   (GuestAddrs.bal_all_accounts_code_covers, balAllAccountsCodeCovers_prog),
   (GuestAddrs.bal_all_accounts_code_consistent, balAllAccountsCodeConsistent_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
@@ -368,6 +373,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
   (GuestAddrs.bti_scan_storage_changes, btiScanStorageChanges_prog),
+  (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
   (GuestAddrs.block_verdict_tx_state_gas_array, blockVerdictTxStateGasArray_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
@@ -379,12 +385,16 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_sum_withdrawals_to_address, bvSumWithdrawalsToAddress_prog),
   (GuestAddrs.access_list_count, accessListCount_prog),
   (GuestAddrs.intrinsic_gas_amsterdam_counts, intrinsicGasAmsterdamCounts_prog),
+  (GuestAddrs.eip8037_state_used_before_tx, eip8037StateUsedBeforeTx_prog),
+  (GuestAddrs.eip8037_prior_state_used_exact, eip8037PriorStateUsedExact_prog),
+  (GuestAddrs.eip8037_tx_gas_gate, eip8037TxGasGate_prog),
   (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
   (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
   (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
+  (GuestAddrs.tx_eip7702_existing_authority_refund, txEip7702ExistingAuthorityRefund_prog),
   (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array, blockVerdictEip7702AuthNonstorageEffectsArray_prog),
   (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
   (GuestAddrs.b1_sender_table_find, b1SenderTableFind_prog),
@@ -402,6 +412,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.tx_pubkey_recover_raw, txPubkeyRecoverRaw_prog),
   (GuestAddrs.tx_pubkey_public_key_matches, txPubkeyPublicKeyMatches_prog),
   (GuestAddrs.verify_public_keys_match_senders, verifyPublicKeysMatchSenders_prog),
+  (GuestAddrs.block_verdict_chain_id_gate, blockVerdictChainIdGate_prog),
   (GuestAddrs.nonce_at_header_state_root, nonceAtHeaderStateRoot_prog),
   (GuestAddrs.account_exists_at_header_state_root, accountExistsAtHeaderStateRoot_prog),
   (GuestAddrs.account_is_empty_at_header_state_root, accountIsEmptyAtHeaderStateRoot_prog),
@@ -519,6 +530,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 358
+#guard guestImageEntries.length = 365
 
 end EvmAsm.Codegen

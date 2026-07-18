@@ -294,22 +294,76 @@ def bn254ChargeGateAsm (tag : String) : String :=
     resumes the dispatch loop. Only reachable via branches. -/
 def failedPrecompileCallNewAccountStateGasAsm (tag : String) : String :=
   if tag != "call_target" then "" else
-    "  ld t0, 64(x12)\n" ++
-    "  ld t1, 72(x12)\n  or t0, t0, t1\n" ++
-    "  ld t1, 80(x12)\n  or t0, t0, t1\n" ++
-    "  ld t1, 88(x12)\n  or t0, t0, t1\n" ++
-    "  beqz t0, .L" ++ tag ++ "_fp_nacc_done\n" ++
-    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
-    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
-    "  bgeu t2, t0, .L" ++ tag ++ "_fp_nacc_res\n" ++
-    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
-    "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
-    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .L" ++ tag ++ "_fp_nacc_used\n" ++
-    ".L" ++ tag ++ "_fp_nacc_res:\n" ++
-    "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
-    ".L" ++ tag ++ "_fp_nacc_used:\n" ++
-    "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
-    ".L" ++ tag ++ "_fp_nacc_done:\n"
+    -- execution-specs charges NEW_ACCOUNT before entering the child. On a
+    -- precompile error, generic_call refunds that recorded provisional charge
+    -- exactly once, restoring spill first and then the state-gas reservoir.
+    "  la t5, cd_new_account_charged_current
+  ld t4, 0(t5)
+  beqz t4, .L" ++ tag ++ "_fp_call_nacc_done
+  sd x0, 0(t5)
+" ++
+    "  ld t6, 64(x12)
+" ++
+    "  ld t5, 72(x12)
+  or t6, t6, t5
+" ++
+    "  ld t5, 80(x12)
+  or t6, t6, t5
+" ++
+    "  ld t5, 88(x12)
+  or t6, t6, t5
+" ++
+    "  beqz t6, .L" ++ tag ++ "_fp_call_nacc_done
+" ++
+    "  la t0, evm_state_gas_used
+  ld t1, 0(t0)
+  li t2, 183600
+" ++
+    "  bltu t1, t2, .L" ++ tag ++ "_fp_call_nacc_done
+" ++
+    "  li t2, 183600
+" ++
+    "  la t0, evm_state_gas_spilled
+  ld t1, 0(t0)
+  li t3, 0
+" ++
+    "  beqz t1, .L" ++ tag ++ "_fp_call_nacc_no_spill
+" ++
+    "  mv t3, t1
+  bleu t1, t2, .L" ++ tag ++ "_fp_call_nacc_spill_le
+  mv t3, t2
+" ++
+    ".L" ++ tag ++ "_fp_call_nacc_spill_le:
+" ++
+    "  sub t1, t1, t3
+  sd t1, 0(t0)
+  ld t4, 568(x20)
+  add t4, t4, t3
+  sd t4, 568(x20)
+  sub t2, t2, t3
+" ++
+    ".L" ++ tag ++ "_fp_call_nacc_no_spill:
+" ++
+    "  beqz t2, .L" ++ tag ++ "_fp_call_nacc_used
+" ++
+    "  la t0, evm_state_gas_left
+  ld t1, 0(t0)
+  add t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".L" ++ tag ++ "_fp_call_nacc_used:
+" ++
+    "  la t0, evm_state_gas_used
+  ld t1, 0(t0)
+  li t2, 183600
+" ++
+    "  bltu t1, t2, .L" ++ tag ++ "_fp_call_nacc_done
+" ++
+    "  sub t1, t1, t2
+  sd t1, 0(t0)
+" ++
+    ".L" ++ tag ++ "_fp_call_nacc_done:
+"
 
 def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   -- Entry for failures detected BEFORE the charge gate parked the

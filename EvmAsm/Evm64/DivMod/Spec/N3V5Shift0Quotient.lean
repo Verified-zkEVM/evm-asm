@@ -15,7 +15,7 @@
   (N2V5Shift0Quotient).  Bead `evm-asm-wbc4i.9.3.3.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
+import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
 
 namespace EvmAsm.Evm64
 

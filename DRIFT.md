@@ -50,7 +50,10 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-
+| `SLOAD` | stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan (byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, length cell env+448) is proven to replace the stack top in place with persistentLookup — the `current` of the most-recent committedStorageIs entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` because the miss→0 branch is EVM-sound only RELATIVE to the committedStorageIs snapshot supplied in the precondition; full MPT-witness verification that the snapshot faithfully reflects state root is deferred to stage-2 (post-Phase-10). Structural clone of the proven TLOAD reverse scan on the transient log. |
+| `RETURN` | full standalone (depthAware=false) return-data window + halt core, from the post-gas handler entry through the RETURN-only system_call_mode capture block and the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). The front now covers all system_call_mode cases: zero skips capture; nonzero with size>4096 skips conservatively; nonzero with size<=4096 stores system_call_returndata_len:=size and copies the full returndata window to system_call_returndata. `.conditional` remains because the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary, so the theorem still carries the post-gas memory-domain hyps (hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
+| `REVERT` | full standalone (depthAware=false) return-data window + rollback + halt core, from the post-gas handler entry through the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + halt core verbatim (only the code layout shifts down 80 bytes with no capture block, the kind-store value is 2, and the rollback is appended). `.conditional` NOT because of a system_call_mode gate (REVERT has no capture block — that is kind==1/RETURN-only — so it is strictly more general than RETURN) but because (1) the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and (2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict the input domain, exactly as in RETURN. The four `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
+| `SELFDESTRUCT` | halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, x1:=.Ldispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). The two `la`s (`evm_halt_flag`, `.Ldispatch_resume`) are RESOLVED via `la_resolve` (#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial effects body BEFORE this tail that is framed OUT as the residual: cold-access gas (with its own .exit_outofgas branch), new-account surcharge, EIP-6780 created-in-tx detection, balance transfer to the beneficiary, EIP-7708 log, beneficiary nonstorage record, and the CREATE-child frame_return path. A larger residual than RETURN/REVERT's gas-only preBody; a future phase proves it against `EL/SelfdestructEffects` to earn `.proven`. |
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
 
@@ -62,18 +65,16 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 31 opcodes have executable-spec / handler / host-bridge
+These 14 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-STOP, KECCAK256, BALANCE, CODESIZE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RETURNDATACOPY, EXTCODEHASH, BLOCKHASH, BLOBHASH, BLOBBASEFEE, SLOAD, SSTORE, JUMP, JUMPI, PC, GAS, JUMPDEST, LOG0..4, CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, INVALID, SELFDESTRUCT.
+KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, RETURNDATACOPY, EXTCODEHASH, SSTORE, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `TLOAD` | EIP-1153 (Cancun); not in EvmOpcode enum |
-| `TSTORE` | EIP-1153 (Cancun); not in EvmOpcode enum |
-| `MCOPY` | EIP-5656 (Cancun); not in EvmOpcode enum |
+
 
 ## Trust boundaries (unverified by design)
 
@@ -82,6 +83,19 @@ STOP, KECCAK256, BALANCE, CODESIZE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDA
   beyond) are explicitly outside the kernel-checked core. Drift is *fenced* by
   build-time `#guard` round-trip tests (`Codegen/RoundTripTests.lean`) and the
   conformance floor (`check-conformance-floor.sh`), not *proven*.
+- **Handler glue is proven per-opcode, not universally.** Each opcode is
+  `.proven` on its verified *body* spec, but the subroutine the codegen emits,
+  `h_<OP>`, wraps that body in glue — a stack-underflow guard prologue, any
+  `preBody` clobber-saves / `la` address loads, and the advance-`x10`/`ret`
+  tail — that the body spec does not cover. This handler glue is separately
+  kernel-proven (guard + body + tail, both underflow and no-underflow paths)
+  for `ADD` (`Codegen.Proofs.evmAddGuardedHandlerSpec`) and `CALLDATALOAD`
+  (`Codegen.Proofs.evm_calldataload_staged_guarded_handler_spec`); for the other
+  `.proven` opcodes (`MOD`, `EXP`, `ADDMOD`, …) the preBody glue is **not yet
+  proven**. The final tie from the proven Program to the emitted ELF bytes is
+  machine-checked for `h_ADD` only (`scripts/check_guarded_handler_bytes.py`);
+  for `CALLDATALOAD` the `la` targets are proven relative to reconstruction
+  hypotheses, with the byte-tie deferred.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
@@ -92,6 +106,13 @@ STOP, KECCAK256, BALANCE, CODESIZE, CODECOPY, EXTCODESIZE, EXTCODECOPY, RETURNDA
 - **Gas / memory cost modeling.** Per-opcode `cpsTripleWithin N` bounds are a
   verified *step-count surrogate*; the EVM gas schedule mapping is modeled, not
   proven equivalent to the yellow-paper schedule.
+- **Per-opcode handler glue.** Even for `.proven` opcodes, the handler
+  `preBody`/tail glue around the verified subroutine — gas accounting
+  (`copyWordGasAsm`), MSIZE / memory-expansion bookkeeping
+  (`updateActiveMemorySizeAsm`), OOG guards, and offset normalization — is
+  unverified `.custom` asm (the CALLDATACOPY #9880 convention). A dedicated
+  gas-glue verification track is deferred work; until it lands, the `.proven`
+  tier certifies the opcode's data effect, not its gas/expansion glue.
 - **Trusted axiom base.** Only the three classical axioms
   (`propext`, `Classical.choice`, `Quot.sound`); `native_decide`/`bv_decide`
   trust axioms are forbidden (CI-gated by `check-axioms.sh` /

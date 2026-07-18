@@ -19,7 +19,9 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+import EvmAsm.Evm64.EvmWordArith.Common
+import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
 namespace EvmAsm.Evm64
 

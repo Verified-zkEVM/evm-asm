@@ -47,8 +47,9 @@ def secfZero32Body : Stmt :=
 def secfZero32Fn (dst : Word) (orig : List (BitVec 8)) : Fn where
   name := "secfZero32"
   rw := ⟨dst, 32⟩
-  pre := fun rf ws _ => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 32
-  post := fun _ ws _ => ws = List.replicate 32 (0 : BitVec 8)
+  pre := fun rf ws A => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 32 ∧
+    A = empAssertion
+  post := fun _ ws A => ws = List.replicate 32 (0 : BitVec 8) ∧ A = empAssertion
   body := secfZero32Body
 
 def secfZero32_verified : Program := secfZero32Body.flatten 0
@@ -145,13 +146,13 @@ theorem secfZero32Fn_spec (dst : Word) (orig : List (BitVec 8))
   vcgen
   case region => exact ⟨Region.empty_wf, hwf⟩
   case secfZero32.z.mem =>
-    rintro rf ws A hlen ⟨hx10, -, -⟩
+    rintro rf ws A hlen ⟨hx10, -, -, -⟩
     exact zero_blockVCs _ dst rf ws hx10 hlen
   case secfZero32.post =>
-    rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨hx10, hwseq, hlenorig⟩, hrfeq, hwseq2⟩
+    rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨hx10, hwseq, hlenorig, hA⟩, hrfeq, hwseq2⟩
     subst ws₀
     rw [hwseq2]
-    exact congrArg Prod.snd (zero_engine _ dst rf₀ orig hx10 hlenorig)
+    exact ⟨congrArg Prod.snd (zero_engine _ dst rf₀ orig hx10 hlenorig), hA⟩
 
 -- ============================================================================
 -- secfCopy32 : copy the 32 bytes at a0 (ro) into a1 (rw)

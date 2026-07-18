@@ -32,9 +32,9 @@ lake exe codegen --program zisk_intrinsic_gas_amsterdam_counts --halt linux93 \
 
 REPO_ROOT="$(pwd)"
 
-# run_case <name> <gas_limit> <is_creation> <access_addrs> <access_slots> <auths> <data_hex>
+# run_case <name> <gas_limit> <is_creation> <access_addrs> <access_slots> <auths> <value_nonzero> <is_self_transfer> <data_hex>
 run_case() {
-  local name="$1" gas_limit="$2" is_creation="$3" access_addrs="$4" access_slots="$5" auths="$6" data_hex="$7"
+  local name="$1" gas_limit="$2" is_creation="$3" access_addrs="$4" access_slots="$5" auths="$6" value_nonzero="$7" is_self_transfer="$8" data_hex="$9"
 
   local in_file="$REPO_ROOT/gen-out/zisk_intrinsic_gas_amsterdam_counts_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_intrinsic_gas_amsterdam_counts_${name}.output"
@@ -48,10 +48,10 @@ if spec.startswith('repeat:'):
 else:
     b = bytes.fromhex(spec)
 with open(sys.argv[1], 'wb') as f:
-    for x in (len(b), $is_creation, $gas_limit, $access_addrs, $access_slots, $auths):
+    for x in (len(b), $is_creation, $gas_limit, $access_addrs, $access_slots, $auths, $value_nonzero, $is_self_transfer):
         f.write(struct.pack('<Q', x))
     f.write(b)
-    pad = (-(48 + len(b))) % 8
+    pad = (-(64 + len(b))) % 8
     if pad:
         f.write(b'\\x00' * pad)
 " "$in_file"
@@ -89,13 +89,19 @@ zeros = b.count(0)
 nz = len(b) - zeros
 calldata_tokens = zeros + 4 * nz
 access_tokens = 80 * $access_addrs + 128 * $access_slots
-intrinsic = 21000 + 4 * calldata_tokens
+intrinsic = 12000 + 4 * calldata_tokens
 if $is_creation:
-    intrinsic += 9000 + 2 * ((len(b) + 31) // 32)
-intrinsic += 2400 * $access_addrs + 1900 * $access_slots
+    intrinsic += 11000 + 2 * ((len(b) + 31) // 32)
+    if $value_nonzero:
+        intrinsic += 1756
+elif not $is_self_transfer:
+    intrinsic += 3000
+    if $value_nonzero:
+        intrinsic += 6000
+intrinsic += 3000 * $access_addrs + 3000 * $access_slots
 intrinsic += 16 * access_tokens
-intrinsic += 7500 * $auths
-floor = 21000 + 16 * (4 * len(b) + access_tokens)
+intrinsic += 15816 * $auths
+floor = 12000 + 16 * (4 * len(b) + access_tokens)
 required = max(intrinsic, floor)
 status = 0 if required <= $gas_limit and required <= 16777216 else 1
 # EIP-8037 intrinsic state gas: create_state_gas + auth_state_gas
@@ -118,17 +124,21 @@ print(status, intrinsic, floor, state)
 }
 
 FAILED=0
-run_case "empty_call"             21000 0 0 0 0 "" || FAILED=1
-run_case "mixed_calldata"         22000 0 0 0 0 "00ff00ff" || FAILED=1
-run_case "creation_len33"         60000 1 0 0 0 "$(python3 -c "print('ab' * 33)")" || FAILED=1
-run_case "access_list_one_slot"   30000 0 1 1 0 "" || FAILED=1
-run_case "access_list_many_slots" 50000 0 2 5 0 "0001" || FAILED=1
-run_case "authorization_one"      50000 0 0 0 1 "" || FAILED=1
-run_case "authorization_two"      80000 0 0 0 2 "ff" || FAILED=1
-run_case "creation_and_auth"      90000 1 0 0 1 "00ab" || FAILED=1
-run_case "floor_dominates"        26000 0 0 0 0 "$(python3 -c "print('ff' * 200)")" || FAILED=1
-run_case "txmax_floor_cap"        20000000 0 0 0 0 "repeat:ff:262000" || FAILED=1
-run_case "one_gas_short"          20999 0 0 0 0 "" || FAILED=1
+run_case "empty_call"             21000 0 0 0 0 0 0 "" || FAILED=1
+run_case "self_empty_call"        12000 0 0 0 0 0 1 "" || FAILED=1
+run_case "value_call"             21000 0 0 0 0 1 0 "" || FAILED=1
+run_case "self_value_call"        12000 0 0 0 0 1 1 "" || FAILED=1
+run_case "mixed_calldata"         22000 0 0 0 0 0 0 "00ff00ff" || FAILED=1
+run_case "creation_len33"         60000 1 0 0 0 0 0 "$(python3 -c "print('ab' * 33)")" || FAILED=1
+run_case "creation_value"         26000 1 0 0 0 1 0 "" || FAILED=1
+run_case "access_list_one_slot"   30000 0 1 1 0 0 0 "" || FAILED=1
+run_case "access_list_many_slots" 50000 0 2 5 0 0 0 "0001" || FAILED=1
+run_case "authorization_one"      50000 0 0 0 1 0 0 "" || FAILED=1
+run_case "authorization_two"      80000 0 0 0 2 0 0 "ff" || FAILED=1
+run_case "creation_and_auth"      90000 1 0 0 1 0 0 "00ab" || FAILED=1
+run_case "floor_dominates"        26000 0 0 0 0 0 0 "$(python3 -c "print('ff' * 200)")" || FAILED=1
+run_case "txmax_floor_cap"        20000000 0 0 0 0 0 0 "repeat:ff:262000" || FAILED=1
+run_case "one_gas_short"          14999 0 0 0 0 0 0 "" || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

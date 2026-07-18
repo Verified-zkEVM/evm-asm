@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.CallExtraGas
 
 namespace EvmAsm.Codegen
 
@@ -150,25 +151,19 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
     Calling convention:  a0 = is_cold, a1 = value_nonzero  ->  a0 = extra_gas.
     Clobbers t0/t1. -/
 def callExtraGasFunction : String :=
-  "call_extra_gas:\n" ++
-  "  li t0, 100\n" ++               -- WARM_ACCESS
-  "  beqz a0, .Lceg_warm\n" ++      -- is_cold == 0 -> warm
-  "  li t0, 2600\n" ++              -- COLD_ACCOUNT_ACCESS
-  ".Lceg_warm:\n" ++
-  "  beqz a1, .Lceg_done\n" ++      -- value_nonzero == 0 -> no transfer
-  "  li t1, 9000\n" ++              -- CALL_VALUE
-  "  add t0, t0, t1\n" ++
-  ".Lceg_done:\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+  "call_extra_gas:\n" ++ emitProgram callExtraGas_prog
 
+theorem callExtraGasFunction_eq_prog :
+    callExtraGasFunction = "call_extra_gas:\n" ++ emitProgram callExtraGas_prog := rfl
+
+#guard callExtraGasFunction.startsWith "call_extra_gas:\n"
 /-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
     value_nonzero) cases.
     Output:
       +0  warm, no value   (expect 100)
-      +8  cold, no value   (expect 2600)
-      +16 warm, value      (expect 9100)
-      +24 cold, value      (expect 11600) -/
+      +8  cold, no value   (expect 3000)
+      +16 warm, value      (expect 10400)
+      +24 cold, value      (expect 13300) -/
 def ziskCallExtraGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++

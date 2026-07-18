@@ -4,7 +4,7 @@
   Pure stack-argument record for CALLDATACOPY (GH #104).
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 import EvmAsm.Evm64.MemoryGas
 
 namespace EvmAsm.Evm64

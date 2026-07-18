@@ -6,10 +6,11 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
 
@@ -92,18 +93,29 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  bnez a0, .Lstrv_malformed\n" ++
   "  la t0, strv_count; ld s6, 0(t0) # BAL row count\n" ++
   "  li s7, 0                    # row index\n" ++
+  -- Walk the BAL rows once.  `s8`/`s9` hold the cursor/end while `s10`/`s11`
+  -- retain the current row for the downstream account/post-field checks.
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstrv_malformed\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
   ".Lstrv_row_loop:\n" ++
   "  bgeu s7, s6, .Lstrv_missing\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s7; la a3, strv_row_off; la a4, strv_row_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstrv_malformed\n" ++
-  "  la t0, strv_row_off; ld t1, 0(t0); add s8, s2, t1\n" ++
-  "  la t0, strv_row_len; ld s9, 0(t0)\n" ++
-  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, strv_addr_off; la a4, strv_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstrv_malformed\n" ++
-  "  la t0, strv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lstrv_next_row\n" ++
-  "  la t0, strv_addr_off; ld t0, 0(t0); add t0, s8, t0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstrv_malformed\n" ++
+  "  mv s8, a0; sub s10, a0, a2; mv s11, a2       # current row ptr/len\n" ++
+  "  la t0, strv_row_off; sd s10, 0(t0)           # preserve row for post-field call\n" ++
+  "  la t0, strv_row_len; sd s11, 0(t0)\n" ++
+  -- The address is row field 0; walk the row once instead of restarting K20.
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstrv_malformed\n" ++
+  "  la t0, strv_addr_off; sd a0, 0(t0)           # row-field cursor\n" ++
+  "  la t0, strv_addr_len; sd a1, 0(t0)           # row-field end\n" ++
+  "  la t0, strv_addr_off; ld a0, 0(t0)\n" ++
+  "  la t0, strv_addr_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstrv_malformed\n" ++
+  "  sub t0, a0, a2; mv t1, a2                   # address bytes ptr/len\n" ++
+  "  li t2, 20; bne t1, t2, .Lstrv_next_row\n" ++
   "  mv t1, s0; li t2, 20\n" ++
   ".Lstrv_cmp_addr:\n" ++
   "  beqz t2, .Lstrv_found\n" ++
@@ -122,16 +134,23 @@ def simpleTransferRecipientBalVerifyFunction : String :=
   "  mv a0, t2; mv a1, t3; addi a2, s5, 80\n" ++
   "  jal ra, account_extract_balance\n" ++
   "  bnez a0, .Lstrv_pre_balance_fail\n" ++
+  "  la t0, tgbpv_skip_value; ld t0, 0(t0); bnez t0, .Lstrv_skip_value_credit\n" ++
   "  addi a0, s5, 80; mv a1, s1; addi a2, s5, 144\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lstrv_overflow\n" ++
+  "  j .Lstrv_after_value_credit\n" ++
+  ".Lstrv_skip_value_credit:\n" ++
+  "  ld t0, 80(s5); sd t0, 144(s5); ld t0, 88(s5); sd t0, 152(s5); ld t0, 96(s5); sd t0, 160(s5); ld t0, 104(s5); sd t0, 168(s5)\n" ++
+  ".Lstrv_after_value_credit:\n" ++
   "  # uyu11.1: fold the EIP-4895 withdrawal credit (0 unless the caller set it)\n" ++
   "  # into expected = pre + value so the strict recipient check stays sound on\n" ++
   "  # withdrawal blocks (PR #8484 false-accept fix).\n" ++
   "  addi a0, s5, 144; la a1, strv_wd_credit; addi a2, s5, 144\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lstrv_overflow\n" ++
-  "  mv a0, s8; mv a1, s9; la a2, strv_post_raw; la a3, strv_post_len\n" ++
+  "  la t0, strv_row_off; ld a0, 0(t0)\n" ++
+  "  la t0, strv_row_len; ld a1, 0(t0)\n" ++
+  "  la a2, strv_post_raw; la a3, strv_post_len\n" ++
   "  la a4, strv_nonce_raw; la a5, strv_nonce_len\n" ++
   "  jal ra, bal_account_post_fields\n" ++
   "  bnez a0, .Lstrv_post_fail\n" ++
@@ -209,9 +228,9 @@ def ziskSimpleTransferRecipientBalVerifyPrologue : String :=
   "  li a5, 0xa0010000\n" ++
   "  jal ra, simple_transfer_recipient_bal_verify\n" ++
   "  j .Lstrvp_done\n" ++
-  rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
@@ -223,6 +242,7 @@ def ziskSimpleTransferRecipientBalVerifyDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
+  "tgbpv_skip_value:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "strv_wd_credit:\n  .zero 32\n" ++   -- uyu11.1: EIP-4895 withdrawal credit (0 unless caller set)
   "strv_row_off:\n  .zero 8\n" ++

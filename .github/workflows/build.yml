@@ -12,13 +12,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  source-checks:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
       - name: Forbidden-tactic guard (no bv_decide / native_decide / TCB expanders)
         run: scripts/check-forbidden-tactics.sh
+      - name: Symbolic guest-PC guard (SAsm wrappers follow GuestAddrs)
+        run: scripts/check-no-hardcoded-guest-pc.sh
       - name: File-size guardrail
         run: scripts/check-file-size.sh
       - name: Unimported-file check
@@ -39,6 +41,12 @@ jobs:
       - name: Naming convention scan (advisory)
         if: ${{ github.event_name == 'pull_request' }}
         run: scripts/check-naming.sh --base "origin/${{ github.base_ref }}"
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
       # Restore the lake build cache. The key matches lean-action@v1's scheme
       # so we keep compatibility with caches it has already saved on main.
       - name: Restore lake cache
@@ -71,57 +79,20 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
-      # The `codegen` exe (root `Main`) is NOT part of defaultTargets, so the
-      # plain `lake build` above does not build it. Build it explicitly as its
-      # own gate: this is the closure the Docker image build compiles, so a
-      # codegen-only break (e.g. a registry/program edit that the EvmAsm lib
-      # never imports) is caught on the PR path instead of at image-build time.
-      # The downstream link-check reuses this build via the lake cache.
-      - name: Build codegen executable
-        run: lake build codegen
+      # These executables are not defaultTargets. Build them before launching
+      # their independent checks concurrently, avoiding concurrent Lake writes.
+      - name: Build CI executables
+        run: lake build codegen progress-report arith-diff-check
 
       - name: Install RISC-V binutils for codegen link checks
         run: |
           sudo apt-get update
           sudo apt-get install -y binutils-riscv64-unknown-elf
 
-      - name: Build codegen and link stateless_guest.elf
-        run: scripts/codegen-stateless-link-check.sh
-
-      - name: Region-map / link-layout drift (RegionMap sizes + symbol-addresses.tsv match ELF)
-        run: scripts/check-region-map.sh
-
-      # Byte-tie (bead evm-asm-vgyg9 = .49.a): the verified guarded ADD handler
-      # Program (GuardedHandlerSpecs.lean) must be byte-identical to the emitted
-      # h_ADD subroutine at the dispatch-table address. Keeps the verified handle
-      # bytes honest against the EMITTED guest image.
-      - name: Guarded-handler byte-tie (verified Program == emitted h_ADD)
-        run: scripts/check-guarded-handler-bytes.sh
-
-      - name: Progress-report drift check
-        run: scripts/check-progress.sh
-
-      - name: DRIFT.md ledger drift check
-        run: scripts/check-drift.sh
-
-      # Kernel-truth trust-base audit: any bv_decide OR native_decide trust
-      # axiom (or sorry) reaching a witnessed proof fails. Both were fully
-      # eliminated (bv_decide 290->0, native_decide 206->0) and tightened to
-      # FORBIDDEN (2026-06-02; see scripts/check-axioms.sh); scripts/axiom-allow.txt
-      # is an empty burndown — any NEW such owner fails. Needs oleans → runs after build.
-      - name: Axiom audit (no bv_decide / native_decide trust axioms; classical-only TCB)
-        run: scripts/check-axioms.sh
-
-      - name: Conformance-vector floor (monotonic ratchet)
-        run: scripts/check-conformance-floor.sh
-
-      # DIV-class defense PR fast-path: fuzz the six arithmetic opcodes
-      # against an independent Nat/Int reference + re-verify the permanent
-      # corpus still matches its frozen execution-specs verdict. Pure Lean,
-      # deterministic, no submodule/Python (the heavy execution-specs
-      # differential runs nightly in fuzz-arith.yml). Needs the built exe.
-      - name: Arithmetic differential fuzz (PR fast-path)
-        run: scripts/fuzz-arith-diff.sh
+      # Run independent post-build gates concurrently. The codegen/link group
+      # stays ordered because the byte-tie consumes the region-map ELF.
+      - name: Post-build verification gates
+        run: scripts/check-build-parallel.sh
 
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.

@@ -10,8 +10,11 @@
 #      against the fixture's recorded `statelessOutputBytes`.
 #
 # Fixtures come from the release tarball fetched by
-# scripts/eest-fetch-fixtures.sh (NOT re-filled locally); the EEST repo is
-# vendored as the `execution-spec-tests` submodule for provenance.
+# scripts/eest-fetch-fixtures.sh (NOT re-filled locally). zkevm stateless
+# fixtures are published from ethereum/execution-specs releases. If a requested
+# fixture tag's upstream release/asset has not been published yet, the fetch
+# script records `.not-available`; this harness reports that as a neutral skip
+# instead of a regression.
 #
 # Conformance metrics reported per run -- the 105-byte
 # SszStatelessValidationResult decomposes into three independently
@@ -23,9 +26,9 @@
 #               a concrete unsupported field/path rather than a blanket
 #               "static list roots" limitation.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
-#   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
-#               chain_config (echoed from the input by the encoder).
-#   * full   -- all 105 bytes match (root AND succ AND tail).
+#   * tail   -- bytes after the success bit match the expected SSZ tail
+#               (normally u32 offset + chain_config; shorter for decode failures).
+#   * full   -- exact fixture output bytes match (105 bytes for normal Amsterdam outputs; 73 bytes for the deserialize-failure sentinel).
 #   * BUDGET -- the run exhausted the ziskemu --steps budget before halting
 #               (e.g. a sha256-heavy NPR-root merkleization). This is NOT a
 #               correctness failure (the guest never produced an answer to
@@ -53,11 +56,12 @@
 #     --budget-retry-min-gas N
 #                        only retry BUDGET rows whose manifest gas_limit is at
 #                        least N (default $EEST_BUDGET_RETRY_MIN_GAS or 100000000)
-#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
+#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto,
+#                        capped by the automatic memory/CPU cap).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
 #                        first-case warmup (see below) they are relaxed and the
-#                        job count is recomputed up to the same --max-jobs cap.
+#                        job count is recomputed up to the same automatic cap.
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
@@ -80,9 +84,6 @@
 #                        $EEST_SPIKE_JOB_MEM_MIB or 1024 MiB.
 #                        CPU cap uses one core/job on patched ziskemu/spike and
 #                        four cores/job on stock ziskemu unless EEST_JOB_CPU_THREADS is set.
-#     --max-jobs N       cap parallel guest-emulator jobs after memory/CPU auto-cap
-#                        (default $EEST_MAX_JOBS or 2; set higher explicitly
-#                        when this host is not sharing ziskemu capacity).
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
@@ -92,6 +93,8 @@
 #     --verify-execution-spec-input
 #                        decode the same guest-visible bytes through
 #                        execution-specs run_stateless_guest's input path
+#     --specref-oracle   also run SpecRef on each input and fail on any
+#                        byte-for-byte guest↔SpecRef divergence
 #     --random           shuffle fixtures into a random order before applying
 #                        --limit; use to sample a different subset on each run
 #                        and discover failures outside the default first-N fixtures
@@ -101,7 +104,7 @@
 #                        surface failures hiding at the tail of the default
 #                        first-N selection without shuffling. Applied after
 #                        --random when both are given (reverses the shuffle).
-#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
 #
 # Environment:
 #   EEST_RUN_DIR         explicit conversion/result directory. When unset, each
@@ -111,6 +114,7 @@
 #
 # Exit:
 #   0 -- ran to completion (baseline mode), or all --min-* thresholds met
+#   0 -- fixtures not available upstream for TAG yet (neutral skip)
 #   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
 set -euo pipefail
 
@@ -156,7 +160,6 @@ BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
 # differently; a non-match safely falls through to ERROR.
 STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget|EmulationNoCompleted)}"
 JOBS="${EEST_JOBS:-auto}"
-MAX_JOBS="${EEST_MAX_JOBS:-2}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
@@ -169,13 +172,16 @@ BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
+DEFAULT_TAG="${DEFAULT_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
+TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
 USER_GUEST_ELF="${GUEST_ELF:-}"
 VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
+SPECREF_ORACLE="${EEST_SPECREF_ORACLE:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
@@ -196,7 +202,7 @@ Options:
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
   --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
-  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
+  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by the automatic memory/CPU cap);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
   --max-failures N         stop after N FAIL/ERROR results
@@ -208,7 +214,6 @@ Options:
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
-  --max-jobs N             cap parallel guest-emulator jobs after memory/CPU auto-cap
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
@@ -216,7 +221,9 @@ Options:
   --no-verify-input-parity skip the default input parity check
   --verify-execution-spec-input
                            additionally decode guest bytes via execution-specs
-  --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  --specref-oracle         compare every guest output byte-for-byte with SpecRef;
+                           classify verdict differences as false-accept/reject
+  --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 shuffle fixtures into a random order before --limit; run
@@ -250,7 +257,6 @@ while [[ $# -gt 0 ]]; do
     --budget-retry-steps) require_arg "$1" "${2:-}"; BUDGET_RETRY_STEPS="$2"; shift 2 ;;
     --budget-retry-min-gas) require_arg "$1" "${2:-}"; BUDGET_RETRY_MIN_GAS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
-    --max-jobs) require_arg "$1" "${2:-}"; MAX_JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
@@ -264,6 +270,7 @@ while [[ $# -gt 0 ]]; do
     --verify-input-parity) VERIFY_INPUT_PARITY=1; shift ;;
     --no-verify-input-parity) VERIFY_INPUT_PARITY=0; shift ;;
     --verify-execution-spec-input) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1; shift ;;
+    --specref-oracle) SPECREF_ORACLE=1; shift ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
@@ -287,10 +294,6 @@ if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
-  exit 1
-fi
-if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || [[ "$MAX_JOBS" -lt 1 ]]; then
-  echo "--max-jobs/EEST_MAX_JOBS must be a positive integer (got: $MAX_JOBS)" >&2
   exit 1
 fi
 if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; }; then
@@ -333,6 +336,10 @@ case "$VERIFY_EXECUTION_SPEC_INPUT" in
   1|true|yes) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1 ;;
   *) VERIFY_EXECUTION_SPEC_INPUT=0 ;;
 esac
+if [[ "$SPECREF_ORACLE" != "0" && "$SPECREF_ORACLE" != "1" ]]; then
+  echo "EEST_SPECREF_ORACLE must be 0 or 1 (got: $SPECREF_ORACLE)" >&2
+  exit 1
+fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
@@ -506,13 +513,10 @@ compute_job_cap() {
 CPUS="$(nproc 2>/dev/null || echo 1)"
 JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
-if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
-  JOB_CAP="$MAX_JOBS"
-fi
 if [[ "$JOBS" == "auto" ]]; then
   JOBS="$JOB_CAP"
 elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
   JOBS="$JOB_CAP"
 fi
 
@@ -534,30 +538,35 @@ recalibrate_jobs_for_rom_cache() {
   [[ "$JOB_MEM_MIB_AUTO" -eq 1 ]] && JOB_MEM_MIB="$ZISKEMU_CACHED_JOB_MEM_MIB"
   [[ "$JOB_CPU_THREADS_AUTO" -eq 1 ]] && JOB_CPU_THREADS="$ZISKEMU_CACHED_JOB_CPU_THREADS"
   new_cap="$(compute_job_cap)"
-  [[ "$new_cap" -gt "$MAX_JOBS" ]] && new_cap="$MAX_JOBS"
   if [[ "$JOBS_REQUESTED" == "auto" ]]; then
     JOBS="$new_cap"
   else
     JOBS="$JOBS_REQUESTED"
     [[ "$JOBS" -gt "$new_cap" ]] && JOBS="$new_cap"
   fi
-  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS, max_jobs=$MAX_JOBS)"
+  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)"
 }
 
 if [[ "$BACKEND" == "ziskemu" ]]; then
   echo "==> backend: ziskemu"
   echo "    ziskemu: $ZISKEMU"
   echo "    version: $ZISKEMU_VERSION"
-  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 else
   echo "==> backend: spike"
   echo "    spike_run: $SPIKE_RUN"
-  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 fi
 
 # --- locate fixtures --------------------------------------------------------
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 if [[ ! -d "$FX" ]]; then
+  unavailable_marker="$REPO_ROOT/gen-out/eest-fixtures/$TAG/.not-available"
+  if [[ -f "$unavailable_marker" ]]; then
+    echo "EEST fixtures not available for $TAG (upstream release not published yet) -- skipping" >&2
+    sed 's/^/  /' "$unavailable_marker" >&2
+    exit 0
+  fi
   echo "EEST fixtures not found at: $FX" >&2
   echo "  run: scripts/eest-fetch-fixtures.sh '$TAG'" >&2
   exit 1
@@ -632,13 +641,16 @@ patch_bsr_caps_and_relink() {
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-    --section-start=.sszscratch=0xbf500000 \
+    --section-start=.bss=0xa4000000 \
+    --section-start=.sszscratch=0xbf600000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
 if [[ "$NO_BUILD" -eq 0 ]]; then
-  echo "==> lake build codegen"
-  lake build codegen
+  build_targets=(codegen)
+  [[ "$SPECREF_ORACLE" -eq 1 ]] && build_targets+=(specref-eest-check)
+  echo "==> lake build ${build_targets[*]}"
+  lake build "${build_targets[@]}"
 
   if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
     cap_note=""
@@ -989,7 +1001,8 @@ ensure_verdict_debug_probe() {
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-      --section-start=.sszscratch=0xbf500000 \
+      --section-start=.bss=0xa4000000 \
+      --section-start=.sszscratch=0xbf600000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2
@@ -1089,8 +1102,27 @@ run_case() {
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
-  local tmp_result="$result.tmp.$$"
+  # `run_case` runs in background workers.  `$$` remains the parent shell's
+  # PID in those workers, so it races when several cases finish together.
+  # `BASHPID` is unique to each worker subshell and keeps the final rename
+  # atomic without letting one case publish another case's result.
+  local tmp_result="$result.tmp.$BASHPID"
   local actual_hex run_steps
+
+  run_specref_oracle() {
+    [[ "$SPECREF_ORACLE" -eq 1 ]] || return 0
+    local oracle_out="$RUN_DIR/$label.specref.output"
+    local oracle_log="$RUN_DIR/$label.specref.log"
+    local oracle_hex
+    if ! lake exe specref-eest-check "$input" "$oracle_out" >"$oracle_log" 2>&1; then
+      printf 'ERROR\tspecref\n' > "$tmp_result"
+      mv "$tmp_result" "$result"
+      return 1
+    fi
+    oracle_hex="$(xxd -p "$oracle_out" 2>/dev/null | tr -d '\n' || true)"
+    printf 'OK\t%s\t%s\n' "$actual_hex" "$oracle_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  }
 
   run_steps="$STEPS"
   run_emulator_case() {
@@ -1128,16 +1160,21 @@ run_case() {
       return 0
     fi
   fi
-  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-  if [[ "${#actual_hex}" -lt 210 ]]; then
+  local expected_bytes=$(( ${#expected_hex} / 2 ))
+  actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+  if [[ "${#actual_hex}" -lt "${#expected_hex}" ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
     if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
       if retry_budget_case; then
-        actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-        if [[ "${#actual_hex}" -ge 210 ]]; then
-          printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-          mv "$tmp_result" "$result"
+        actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
+        if [[ "${#actual_hex}" -ge "${#expected_hex}" ]]; then
+          if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+            run_specref_oracle || true
+          else
+            printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+            mv "$tmp_result" "$result"
+          fi
           return 0
         fi
       fi
@@ -1152,8 +1189,12 @@ run_case() {
     mv "$tmp_result" "$result"
     return 0
   fi
-  printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-  mv "$tmp_result" "$result"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    run_specref_oracle || true
+  else
+    printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  fi
 }
 
 wait_for_one_worker() {
@@ -1166,14 +1207,16 @@ wait_for_one_worker() {
 }
 
 # --- classify ---------------------------------------------------------------
-# The 105-byte SszStatelessValidationResult decomposes into three
-# independently-checkable regions, so we report each separately to show
-# exactly where the guest stands (not just full-vs-not):
+# Most successful Amsterdam SszStatelessValidationResult values are 105 bytes,
+# but execution-specs' deserialize-failure sentinel is 73 bytes. Compare the
+# exact fixture-provided length; the region counters below still classify the
+# common 105-byte layout where present.
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
-#   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
+#   tail [33:]    = remaining expected SSZ tail (hex 66..)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
+oracleMatch=0 oracleDiff=0 guestFalseAccept=0 guestFalseReject=0
 # Progress tracking (--progress): RUN_START is stamped just before the run loop;
 # lastProgressTotal suppresses duplicate lines when `total` has not advanced.
 RUN_START=0
@@ -1212,7 +1255,7 @@ print_progress() {
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
+  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex oracle_hex exp r s t
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
@@ -1230,7 +1273,7 @@ classify_case_result() {
   fi
   classifiedLabels["$label"]=1
   total=$((total + 1))
-  IFS=$'\t' read -r status actual_hex < "$result"
+  IFS=$'\t' read -r status actual_hex oracle_hex < "$result"
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
@@ -1246,7 +1289,21 @@ classify_case_result() {
     esac
     return 0
   fi
-  exp="${expected_hex:0:210}"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    if [[ "$actual_hex" == "$oracle_hex" ]]; then
+      oracleMatch=$((oracleMatch + 1))
+    else
+      oracleDiff=$((oracleDiff + 1))
+      local guest_verdict="${actual_hex:64:2}" oracle_verdict="${oracle_hex:64:2}" oracle_class="output"
+      if [[ "$guest_verdict" == "01" && "$oracle_verdict" == "00" ]]; then
+        guestFalseAccept=$((guestFalseAccept + 1)); oracle_class="guest-false-accept"
+      elif [[ "$guest_verdict" == "00" && "$oracle_verdict" == "01" ]]; then
+        guestFalseReject=$((guestFalseReject + 1)); oracle_class="guest-false-reject"
+      fi
+      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath") (succ guest=$guest_verdict specref=$oracle_verdict)"
+    fi
+  fi
+  exp="$expected_hex"
 
   # Per-region matches.
   [[ "${actual_hex:0:64}"   == "${exp:0:64}"   ]] && { root=$((root + 1)); r=root; } || r=----
@@ -1429,14 +1486,20 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
+  echo "  fail:        $fail"
   echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
-  echo "  full match:    $full   (all 105 bytes)"
+  echo "  full match:    $full   (exact fixture output bytes)"
   echo "  root match:    $root   (bytes 0:32  = new_payload_request_root)"
   echo "  succ match:    $succ   (byte 32     = successful_validation)"
-  echo "  tail match:    $tail   (bytes 33:105 = offset + chain_config)"
+  echo "  tail match:    $tail   (bytes after successful_validation)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
-  echo "  fail:          $fail"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    echo "  oracle match:  $oracleMatch   (exact guest↔SpecRef bytes)"
+    echo "  oracle diff:   $oracleDiff"
+    echo "    guest false-accept: $guestFalseAccept"
+    echo "    guest false-reject: $guestFalseReject"
+  fi
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
@@ -1444,6 +1507,9 @@ cp "$BASELINE" "$REPO_ROOT/gen-out/eest-baseline.txt"
 echo "==> updated latest baseline: $REPO_ROOT/gen-out/eest-baseline.txt"
 
 rc=0
+if [[ "$SPECREF_ORACLE" -eq 1 && "$oracleDiff" -gt 0 ]]; then
+  echo "==> ORACLE REGRESSION: $oracleDiff guest↔SpecRef divergence(s)" >&2; rc=1
+fi
 if [[ -n "$MIN_SUCC" && "$succ" -lt "$MIN_SUCC" ]]; then
   echo "==> REGRESSION: succ match $succ < --min-succ $MIN_SUCC" >&2; rc=1
 fi

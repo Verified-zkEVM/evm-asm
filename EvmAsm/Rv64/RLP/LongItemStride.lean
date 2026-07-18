@@ -18,13 +18,12 @@
 -/
 
 import EvmAsm.EL.RLP.Properties
-import EvmAsm.Rv64.AddrNorm
+import EvmAsm.Rv64.Instructions
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
 open EvmAsm.EL.RLP
-open EvmAsm.Rv64.AddrNorm (se12_1)
 
 /-- `(BitVec.ofNat 8 k).toNat = k` for a byte-sized `k`. -/
 private theorem toNat_ofNat8 {k : Nat} (h : k < 256) : (BitVec.ofNat 8 k).toNat = k := by
@@ -174,7 +173,8 @@ theorem long_payloadPtr_add_len (v13 : Word) (lenOfLen payloadCount : Nat) :
     (v13 + signExtend12 (1 : BitVec 12) + BitVec.ofNat 64 lenOfLen)
         + BitVec.ofNat 64 payloadCount
       = v13 + BitVec.ofNat 64 (1 + lenOfLen + payloadCount) := by
-  rw [se12_1]
+  have hse : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  rw [hse]
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod_mod, Nat.mod_add_mod,
     show (1 : Word).toNat = 1 from rfl]

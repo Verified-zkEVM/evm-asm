@@ -124,6 +124,18 @@ def sgMemcpy_verified : Program :=
 #guard (sgMemcpy_verified : List Instr).length = 7
 #guard (sgMemcpyBody 0 0 0 [] []).flatten 0 = (sgMemcpyBody 0 0 0 [] []).flatten 0x80000000
 
+/-- The complete verified forward-copy routine, including its leaf `ret`. -/
+def sgMemcpy_prog : Program :=
+  (sgMemcpyBody 0 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+
+/-- Kernel correspondence between the structured loop and emitted routine. -/
+theorem sgMemcpy_body_eq_prog :
+    (sgMemcpyBody 0 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = sgMemcpy_prog := by
+  rfl
+
+#guard sgMemcpy_prog.length = 8
+
 /-- An `LBU` that misses the writable window reads the read-only region. -/
 theorem execInstrRF_lbu_ro (ro : Region) (rwBase : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12)
@@ -326,6 +338,7 @@ theorem sgMemcpyFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8))
     subst hi_len
     show ws = bs.take i
     rw [hwin, copyWin_len_eq bs orig i hol hlb]
+
 
 end SgMemcpySAsm
 

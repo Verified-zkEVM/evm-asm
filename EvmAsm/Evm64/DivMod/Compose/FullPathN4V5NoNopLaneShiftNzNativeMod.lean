@@ -13,7 +13,7 @@
   `evm_div_n4_shiftNz_cert_of_shape_native` is reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNative
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfCondsNativeMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackMod
 

@@ -20,7 +20,6 @@
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Address
-import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -159,7 +158,7 @@ def ziskCreateDescendPrologue : String :=
 def ziskCreateDescendDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
-  "evm_memory:\n  .zero 0x10000\n" ++
+  "evm_memory:\n  .zero 0x20000\n" ++
   ".balign 8\n" ++
   "evm_env:\n  .zero 656\n" ++
   ".balign 8\n" ++
@@ -254,7 +253,7 @@ def ziskCreate2DescendPrologue : String :=
 def ziskCreate2DescendDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
-  "evm_memory:\n  .zero 0x10000\n" ++
+  "evm_memory:\n  .zero 0x20000\n" ++
   ".balign 8\n" ++
   "evm_env:\n  .zero 656\n" ++
   ".balign 8\n" ++

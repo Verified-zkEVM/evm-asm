@@ -12,7 +12,9 @@
 
 import EvmAsm.Evm64.EvmWordArith.DivAccumulate
 import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
 import EvmAsm.Evm64.DivMod.LoopSemantic
+import Mathlib.Tactic.FinCases
 
 namespace EvmAsm.Evm64
 
@@ -36,10 +38,6 @@ theorem val256_div_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) 
       ≤ (2^256 - 1) / val256 b0 b1 b2 b3 := Nat.div_le_div_right (by omega)
     _ ≤ (2^256 - 1) / 2^192 := Nat.div_le_div_left hb_ge (by omega)
     _ = 2^64 - 1 := by norm_num
-
-/-- signExtend12 4095 as Word has toNat = 2^64 - 1. -/
-theorem signExtend12_4095_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by
-  decide
 
 theorem add_signExtend12_4095_toNat (q : Word) (hq : 1 ≤ q.toNat) :
     (q + signExtend12 (4095 : BitVec 12)).toNat = q.toNat - 1 := by

@@ -10,7 +10,7 @@
 #                                        # written. Used by CI.
 #
 # Design notes:
-#   * Sections A.2 (opcode coverage) and B.5 (conformance count) are
+#   * Sections A.2 (opcode coverage) is
 #     emitted by `lake exe progress-report` — Lean-side, kernel-checked.
 #   * Sections C.1 (cycle bounds), D.1 (codegen registry), and the
 #     git/standards/toolchain pins are grepped here.
@@ -55,16 +55,10 @@ EXEC_SPECS_SHA="$(git ls-tree HEAD execution-specs | awk '{print $3}')"
 LEAN_TOOLCHAIN="$(cat lean-toolchain)"
 
 # --------------------------------------------------------------------
-# Lean-emitted sections (A.2 coverage, B.5 conformance)
+# Lean-emitted sections (A.2 coverage)
 # --------------------------------------------------------------------
 
 LEAN_OUT="$(lake exe progress-report 2>/dev/null)"
-
-# Conformance vector count — pull directly from the kernel-checked
-# theorem. The theorem `allConformanceVectorCount_eq` has the literal
-# count on its statement line (indented continuation of the theorem).
-CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
-  EvmAsm/EL/Conformance/All.lean | head -1 | grep -oE '[0-9]+')"
 
 # --------------------------------------------------------------------
 # Section C.1 cycle bounds are carried in the registry's typed
@@ -168,7 +162,6 @@ cat <<EOF
 | \`sorry\` count in \`EvmAsm/\` | $(sorry_count) |
 | literal \`axiom\` declarations in \`EvmAsm/\` | $(axiom_count) |
 | trust axioms in witnessed proofs (kernel \`#print axioms\`) | \`bv_decide\` and \`native_decide\` both forbidden and fully eliminated (trusted base = \`propext\`, \`Classical.choice\`, \`Quot.sound\` only) — $(nd_grandfathered_count) pre-existing owner(s) remain in [\`scripts/axiom-allow.txt\`](scripts/axiom-allow.txt) (burndown → 0), audited by [\`scripts/check-axioms.sh\`](scripts/check-axioms.sh) |
-| Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} (floor in [\`scripts/conformance-baseline.txt\`](scripts/conformance-baseline.txt), gated by \`check-conformance-floor.sh\`) |
 | Build CI guardrails | \`check-no-warnings.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\`, \`check-progress.sh\`, \`check-drift.sh\`, \`check-axioms.sh\`, \`check-conformance-floor.sh\` |
 
 EOF

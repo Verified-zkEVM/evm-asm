@@ -6,9 +6,13 @@
 # runtime execution, from the stateless witness.headers section. It counts the
 # CONTIGUOUS recent ancestors [cur-1, cur-2, ...] present in the witness (stopping
 # at the first gap), clamped to min(256, cur), and writes block_hashes[i] =
-# keccak256(header for block cur-count+i).
+# keccak256(header for block cur-count+i) as a 32-byte EVM stack word (numeric,
+# low limb first — the raw digest byte-reversed), matching the evm_block_hashes
+# table contract and the payload-trailer convention (parse_block_hashes in
+# scripts/pack-bytecode.py).
 #
-# Output (112 bytes): cur@0, count@8, block_hashes[0..2]@16/+48/+80.
+# Output (112 bytes): cur@0, count@8, block_hashes[0..2]@16/+48/+80 (stack-word
+# byte order).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -81,11 +85,12 @@ count = 0
 while count < window and (cur - (count + 1)) in present:
     count += 1
 
-# block_hashes[i] = keccak256(header for block cur-count+i)
+# block_hashes[i] = keccak256(header for block cur-count+i), byte-reversed into
+# the EVM stack-word layout (numeric, low limb first) the table contract uses.
 exp = struct.pack('<Q', cur) + struct.pack('<Q', count)
 for i in range(3):
     if i < count:
-        exp += k256(header_with_number(cur - count + i))
+        exp += k256(header_with_number(cur - count + i))[::-1]
     else:
         exp += b'\\x00' * 32
 

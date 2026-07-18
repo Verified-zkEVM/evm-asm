@@ -45,7 +45,9 @@ callee-first order, against the separation-logic state-assertion vocabulary.
    pick-next rules, recipe table).
 3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
    `docs/agents/verified-replacement-strategy.md` (what to prove, spec shape,
-   what to do when a callee doesn't expose enough).
+   what to do when a callee doesn't expose enough); **sp-frame routines**
+   (stack frame + callee-saved regs, loops, cross-calls) →
+   `docs/porting-sp-frame-routines.md` (FramePort tactics, tiered recipe).
 4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
 5. Reviewing a PR → `docs/agents/review-playbook.md`.
 
@@ -100,6 +102,12 @@ EvmAsm.lean            -- root umbrella (see Common Pitfalls: new files must
    goals).
 4. When stuck, route by symptom: `docs/sasm-howto.md` §8 →
    `docs/agents/proof-patterns.md` → `GRIND.md`.
+5. For converter callees that feed larger callers, do not export only a numeric
+   equality if the loop invariant proves exact output bytes. Put the exact byte
+   list in the callee `Fn` post and derive the numeric equality from it; callers
+   need the bytes to reassemble larger output records. Keep `#print axioms` in
+   proof files, and keep `scripts/port-check.sh` filtering classical-only axiom
+   print output rather than removing the audit line.
 
 ### Proof-tier rubric (`EvmAsm/Progress.lean`)
 
@@ -148,8 +156,8 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   requires the two 32-byte ranges to be disjoint.
 
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
-- **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
-- If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
+- **`set_option maxRecDepth` may be raised per-file up to `8000`.** It is a build-checked recursion-depth limit — not a performance/fragility smell and not a TCB/soundness concern — so a raise up to `8000` is fine and is NOT worth removing; do not split a proof chain solely to avoid a `maxRecDepth` at or below `8000`. **Above `8000`, bring it back down to `8000`:** first try simply lowering the `set_option` to `8000` (if the file still builds, keep `8000`); if the proof genuinely cannot build at `8000`, restructure it (split into lemmas, intermediate `have` bindings, or an `@[irreducible]` bundled Post) so it fits within `8000` rather than leaving a higher limit. A lingering `maxRecDepth > 8000` is a to-reduce item, not an accepted state. The global default stays in `lakefile.toml`; per-file raises up to `8000` are permitted.
+- If a proof TIMES OUT (heartbeats), restructure it (split into smaller lemmas, use intermediate `have` bindings) rather than raising `maxHeartbeats` — a large heartbeat budget almost always masks the real issue (a unification mismatch, wrong argument order, or missing address canonicalization). (Recursion-depth is different: a `maxRecDepth` up to `8000` is fine — see the note above; only reduce raises that exceed `8000`.)
 - **Do not bump `maxHeartbeats` to make a slow proof compile.** Large heartbeat budgets just slow experiments — and the effect compounds: every retry, every edit, every CI run pays the cost. Needing monitors or `sleep` loops to wait for a build is itself a symptom that `maxHeartbeats` is too big. If a proof legitimately needs more than the default, it is too complicated — diagnose what is actually slow (a failing `rfl`, a stuck `xperm_hyp`, an accidentally false goal, or an `xperm` target with too many conjuncts) and simplify by:
   1. Splitting the proof into smaller named lemmas.
   2. Marking expensive intermediate definitions `@[irreducible]` and proving a small set of lemmas about them, so later proofs unfold via those lemmas instead of re-reducing the body each time.
@@ -158,6 +166,9 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   5. In `vcgen` post cases, avoid closing large final-state equalities with bare `rfl`. Nontrivial definitional equality can timeout instead of failing clearly. Prove a small execution/engine lemma for the flattened body, rewrite the post target with it, then bridge to the semantic postcondition with an explicit list/value lemma.
   6. For byte-identical bottom-test loops (`Stmt.doWhile`), remember that `inv i` is after the `(i+1)`-th body execution. In the `inv_init` VC, `vcgen` may expose the loop-entry writable bytes under a generated local witness rather than the theorem parameter name; destruct the `sp` hypothesis and use that local witness. In the final post, use the failed guard to prove the exact terminal index, not just the fuel bound.
   7. In SAsm memory VCs, if the hypothesis is `ws.length = (someFn ...).rw.len`, prefer `change ws.length = <literal> at h_len` when the literal is known. `simpa [someFn] using h_len` can unfold the whole `Fn` (including body/post) and hit recursion limits for no useful reason.
+  8. When scaling byte-dispersal converter proofs (`*_le_to_be`) to a wider field element, audit all width-coupled constants together: `rw.len`, `frameOk`, outer-loop fuel/terminal guard, destination base offset (`len - 1`), slice offset (`len - 8`), source limb list in the post, and the final byte-list split. If the old proof got `ring` transitively from a sibling converter import, add `Mathlib.Tactic.Ring` explicitly before deleting that import.
+
+- **SAsm fixed byte loops:** for bottom-test byte loops like `blk2_st_le64`, keep the window post as a simple prefix/suffix splice (`targetBytes.take i ++ orig.drop i`) and split three lemmas before `vcgen`: one-byte splice, symbolic `execBlock` engine, and counter-nonzero bound. In `inv_step`, derive the `i + 1 < fuel` bound from the loop guard before calling the engine; otherwise `omega` sees only `i < fuel` and the final iteration looks reachable.
 - **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
   posts, `extract_pure`/`drop_pure` struggles): fold posts behind
   `@[irreducible]` helpers and extract pures one layer at a time — full
@@ -180,6 +191,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ### SAsm Proof Repair Notes
 
+- When adapting a verified leaf for use through `Fn.retSpecFlat`, ensure the leaf `Fn.pre` and `Fn.post` pin the ambient assertion (`A = empAssertion`) and that loop invariants preserve that ambient equality. Otherwise the leaf may build standalone, but the flat caller adapter cannot discharge its `hpostEmp` side condition; this came up when reusing the secp256k1 BE/LE converters inside `secf_mul_mod_p`.
 - When `rfl` on a generated SAsm equality times out or spins, assume the equality
   is nontrivial before increasing budgets. Split the proof into named helper
   lemmas that expose the exact register/memory update being used, then rewrite
@@ -194,6 +206,56 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   reduce `(fn ...).region`/`rw.base` before rewriting with an engine lemma;
   a mismatch between `(fn ...).region` and `{ base := ..., bytes := ... }` can
   make an otherwise exact rewrite fail.
+- For top-tested `whileHeader` loops whose counter is decremented in the body,
+  derive the final pre-step bound from the taken guard (`Cond.holds`) and the
+  counter invariant before calling `omega`. The fuel bound alone may still
+  admit the exhausted state, producing impossible goals one iteration too late.
+- For SAsm loops that read immutable `Fn.region` bytes with `LBU` and have an
+  empty writable region, `execInstrRF_lbu_byte` is the wrong helper: it models
+  reads routed through `rw`. Use a small read-only `LBU` helper that rewrites
+  through `Region.byteAt` after proving `¬ inRw` for the empty `rw` window.
+- Descending pointer loops can have a terminal wrapped pointer (`src - 1`) even
+  when all loaded byte offsets are natural numbers. Avoid invariants of the
+  form `src + BitVec.ofNat _ (7 - k)` at the final state; use an explicit
+  finite offset helper and prove the load-address and post-step-pointer lemmas
+  separately.
+- When adapting a proven SAsm loop to a larger buffer, do not globally replace
+  numeric substrings. Buffer counts like 12/24 are ghost/spec constants, but
+  instruction immediates still use `BitVec 12` and `signExtend12`; changing those
+  silently produces bad imports or non-RISC-V-width instructions.
+- For byte-zero loops, prove the byte window step with `setBytes_singleton`
+  and make the tail append explicit before rewriting `List.replicate`. The
+  stable shape is `(replicate i 0 ++ [0]) ++ tail`, then
+  `← List.replicate_append_replicate`; using `List.replicate_succ` rewrites to
+  the head-cons form and does not match the window suffix proof.
+- For byte-copy loops, distinguish writable-window byte loads from read-only
+  source loads. `execInstrRF_lbu_byte` is for `LBU` inside the writable region;
+  source-copy loops normally need a local `execInstrRF_lbu_ro` miss lemma plus
+  `execInstrRF_sb_byte` and `truncate_zeroExtend_byte` for the store. For
+  one-byte window steps, `List.take_add` and `List.take_one_drop_eq_of_lt_length`
+  avoid brittle deprecated `take_succ` rewrites.
+- For straight-line copy ports, avoid proving the semantic engine by repeatedly
+  reassociating appended instruction chunks unless the append lemma is already
+  a local simplifier. A failed append rewrite can leave huge nested `execBlock`
+  projections. The stable pattern is explicit per-pair `LD`/`SD` rewrites plus
+  a separate semantic fold lemma (`copyFold64`-style) that rewrites the nested
+  `setBytes` chain to the source bytes.
+- For straight-line SAsm store blocks, the final instruction's `blockVCs` tail is
+  `True`, so rewriting that last `execInstrRF` in the memory-VC simp set is often
+  unused and trips the warning gate. For post proofs, rewrite each store with
+  `execInstrRF_sd_dword`, then run `simp only` to collapse pair projections
+  before applying the semantic `setBytes` lemma. Avoid `subst` on huge
+  `execBlock` equalities; rewrite with the equality instead.
+- For branchy ABI-frame callers whose arms return with different current `ra`
+  values, avoid forcing the standard body post into exact saved-register values.
+  A stable pattern is to merge the branch arms into a post with `regOwn .x1`,
+  then prove the restore/deallocate/ret tail directly with `loadSeq_spec`; the
+  restore sequence needs ownership of the saved registers, not their current
+  branch-specific values.
+- For large caller/callee branch merges, keep compare-branch framing, each arm's
+  semantic adapter, and the final `cpsBranchWithin_merge_same_cr` as separate
+  named lemmas. Padding step bounds only at the tiny final merge avoids `whnf`
+  timeouts from elaborating one monolithic branch theorem type.
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
 2. **Simp lemmas**: Mark key lemmas with `@[simp]` for automatic application
@@ -242,6 +304,7 @@ hard-gate noisy heuristics):
 | Gate | Invariant enforced |
 |------|--------------------|
 | `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
+| `check-no-hardcoded-guest-pc.sh` | SAsm wrappers reference linked PCs through `GuestAddrs.*`, with one literal anchor guard per routine |
 | `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
 | `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
 | `check-conformance-floor.sh` | conformance-vector count never silently drops |

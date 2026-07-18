@@ -4,7 +4,7 @@
   Irreducible precondition for the SDIV dividend absolute-value block.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
+import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

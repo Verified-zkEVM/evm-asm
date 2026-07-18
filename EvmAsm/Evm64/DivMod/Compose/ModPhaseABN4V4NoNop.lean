@@ -6,6 +6,9 @@
 
 import EvmAsm.Evm64.DivMod.Compose.V4Code
 import EvmAsm.Evm64.DivMod.Compose.ModCLZ
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
 
 open EvmAsm.Rv64.Tactics
 

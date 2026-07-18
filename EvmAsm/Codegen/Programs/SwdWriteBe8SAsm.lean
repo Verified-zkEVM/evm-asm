@@ -16,9 +16,10 @@
   Post pins ALL eight destination bytes to the big-endian encoding of `a0`
   (`ws = beBytes a0`, independent of the incoming `orig` bytes).
 
-  Byte-identity to the emitted routine is kernel-pinned below
-  (`swdWriteBe8Body … .flatten 0 ++ [ret] = swdWriteBe8_prog`).  Spec-only
-  module (no emitted-code change) — no EEST A/B required.
+  The emitted routine is re-emitted from the verified structured loop.  Exact
+  identity is kernel-pinned below
+  (`swdWriteBe8Body … .flatten 0 ++ [ret] = swdWriteBe8_prog`).  This changes
+  the old back-edge displacement from `-40` to `-36`, so EEST A/B is required.
 -/
 
 import EvmAsm.Rv64.SAsm.MultiDword
@@ -117,24 +118,17 @@ def swdWriteBe8_verified : Program :=
 #guard (swdWriteBe8_verified : List Instr).length = 12
 #guard (swdWriteBe8Body 0 0 []).flatten 0 = (swdWriteBe8Body 0 0 []).flatten 0x80000000
 
--- Emitted instructions, pinned exactly.  This is `swdWriteBe8_prog` (sans its
--- trailing `ret`) EXCEPT the loop back-edge: the hand-written routine
--- redundantly re-loads `x6 := 8` on every iteration, so its `JAL` is `-40`
--- (target = the `LI x6 8` at index 1); the structured `while` back-edge is
--- `-36` (target = the `BEQ` guard), since the invariant already carries
--- `x6 = 8`.  Same 12 instructions, identical semantics; byte-identity to the
--- emitted `_prog` is therefore intentionally NOT claimed (single-field
--- divergence in the back-`JAL` offset, documented for review).
+-- Emitted instructions, pinned exactly.  The verified structured loop targets
+-- the guard directly on its back-edge; `swdWriteBe8_prog` is re-emitted with
+-- that `-36` displacement instead of the old hand-written `-40` displacement.
 #guard (swdWriteBe8Body 0 0 []).flatten 0 =
   [.LI .x5 0, .LI .x6 8,
    .BEQ .x5 .x6 (40 : BitVec 13),
    .LI .x7 56, .SLLI .x28 .x5 3, .SUB .x7 .x7 .x28, .SRL .x29 .x10 .x7,
    .ANDI .x29 .x29 255, .ADD .x30 .x11 .x5, .SB .x30 .x29 0, .ADDI .x5 .x5 1,
    .JAL .x0 (-36 : BitVec 21)]
--- For reference, the emitted routine (`swdWriteBe8_prog`, 13 instrs incl. ret)
--- is identical to the above except index 11 is `.JAL .x0 (-40)` and it has the
--- trailing `.JALR .x0 .x1 0`.
-#guard swdWriteBe8_prog.length = 13
+#guard (swdWriteBe8Body 0 0 []).flatten 0 ++ [Instr.JALR .x0 .x1 0] =
+  swdWriteBe8_prog
 
 /-- The register file after one loop body (the six ALU results plus the
     counter bump; the store leaves registers unchanged). -/
@@ -266,6 +260,7 @@ theorem swdWriteBe8Fn_spec (v dst : Word) (orig : List (BitVec 8))
       omega
     subst hi8
     exact writeBe8Win_8_eq v orig hlen
+
 
 end SwdWriteBe8SAsm
 

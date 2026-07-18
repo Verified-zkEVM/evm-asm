@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 FILTER="${1:-eip4895}"; LIMIT="${2:-12}"
 ZISKEMU="${ZISKEMU:-}"
 if [[ -z "$ZISKEMU" ]]; then

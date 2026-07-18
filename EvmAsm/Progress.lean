@@ -47,32 +47,54 @@ import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.MptCorrespondence
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
+import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
-import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
-import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.SpecShared
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 import EvmAsm.Evm64.SDiv.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.Compose.StackSpecV5
 import EvmAsm.Evm64.SMod.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.SpecAllCase
-import EvmAsm.Evm64.AddMod.Spec
-import EvmAsm.Evm64.AddMod.LiveStackPost
-import EvmAsm.Evm64.AddMod.Compose.ResultStack
+import EvmAsm.Evm64.AddMod.ResultTotalShared
 import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 import EvmAsm.Evm64.Exp.Spec
 import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
+import EvmAsm.Evm64.Code.SizeSpec
+import EvmAsm.Evm64.ControlFlow.PcSpec
+import EvmAsm.Evm64.ControlFlow.JumpSpec
+import EvmAsm.Evm64.ControlFlow.JumpiSpec
+import EvmAsm.Evm64.GasOpcode.Spec
+import EvmAsm.Evm64.ReturnData.SizeSpec
+import EvmAsm.Evm64.BlobBaseFee.Spec
+import EvmAsm.Evm64.BlobHash.Spec
+import EvmAsm.Evm64.BlockHash.Spec
+import EvmAsm.Evm64.Code.CopyLoopSpec
+import EvmAsm.Evm64.ControlFlow.Jumpdest
 import EvmAsm.Evm64.Calldata.StageSpec
 import EvmAsm.Evm64.Calldata.CopySpec
 import EvmAsm.Evm64.Calldata.CopyLoopSpec
+import EvmAsm.Evm64.Terminating.StopSpec
+import EvmAsm.Evm64.Terminating.InvalidSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.ReturnCaptureSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltResolved
+import EvmAsm.Evm64.Terminating.RevertSpec
+import EvmAsm.Evm64.Terminating.SelfdestructSpec
+import EvmAsm.Evm64.Terminating.SelfdestructHaltResolved
+import EvmAsm.Evm64.Transient.StoreSpec
+import EvmAsm.Evm64.Transient.LoadSpec
+import EvmAsm.Evm64.Storage.LoadSpec
+import EvmAsm.Evm64.Mcopy.Spec
 
 namespace EvmAsm.Progress
 
@@ -143,8 +165,14 @@ def entry (name : String) (tier : ProofTier) (proofRef : Option String)
     with `EvmAsm.Evm64.EvmOpcode.byte?`. -/
 def registry : List OpcodeEntry := [
   -- Stop and arithmetic (0x00..0x0b)
-  entry "STOP" .execSpec none
-      "executable-spec only; `Termination.lean` + `TerminatingArgs.lean`",
+  entry "STOP" .proven (some "evm_stop_stack_spec_within")
+      ("halt-triple over the verified `evm_stop` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 1` tail): sets `evm_halt_flag := 1`, points "
+       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. First terminating/halt opcode — shape for INVALID/RETURN/"
+       ++ "REVERT/SELFDESTRUCT")
+      (cycleBound := some 7),
   entry "ADD" .proven (some "evm_add_stack_spec_within") (cycleBound := some 30),
   entry "MUL" .proven (some "evm_mul_stack_spec_within") (cycleBound := some 63),
   entry "SUB" .proven (some "evm_sub_stack_spec_within") (cycleBound := some 30),
@@ -223,7 +251,7 @@ def registry : List OpcodeEntry := [
 
   -- Environment (0x30..0x3e)
   entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within"),
-  entry "BALANCE" .execSpec none "not in EvmOpcode enum yet",
+  entry "BALANCE" .execSpec none "witness-backed account read",
   entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within"),
   entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
   entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
@@ -233,18 +261,20 @@ def registry : List OpcodeEntry := [
       (some "Calldata.evm_calldatasize_stack_spec_within"),
   entry "CALLDATACOPY" .proven
       (some "Calldata.evm_calldatacopy_stack_spec_within"),
-  entry "CODESIZE" .execSpec none "env read in Code/Basic.lean",
-  entry "CODECOPY" .execSpec none "Code/CopyExec.lean + CopyMemory.lean",
+  entry "CODESIZE" .proven (some "Code.evm_codesize_stack_spec_within"),
+  entry "CODECOPY" .proven (some "Code.evm_codecopy_stack_spec_within")
+      "copy-loop body proven (mirror of CALLDATACOPY); preBody gas/MSIZE glue unverified per DRIFT",
   entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within"),
-  entry "EXTCODESIZE" .execSpec none "not in EvmOpcode enum yet",
-  entry "EXTCODECOPY" .execSpec none "not in EvmOpcode enum yet",
-  entry "RETURNDATASIZE" .execSpec none
-      "ReturnDataHandlers.lean; table dispatch only",
+  entry "EXTCODESIZE" .execSpec none "witness-backed account read",
+  entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
+  entry "RETURNDATASIZE" .proven
+      (some "ReturnData.evm_returndatasize_stack_spec_within"),
   entry "RETURNDATACOPY" .execSpec none "ReturnData/CopyExec + CopyMemory",
-  entry "EXTCODEHASH" .execSpec none "not in EvmOpcode enum yet",
+  entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
-  entry "BLOCKHASH" .execSpec none "env-bridge level",
+  entry "BLOCKHASH" .proven (some "BlockHash.evm_blockhash_stack_spec_within")
+      (cycleBound := some 24),
   entry "COINBASE" .proven (some "Env.evm_coinbase_stack_spec_within"),
   entry "TIMESTAMP" .proven (some "Env.evm_timestamp_stack_spec_within"),
   entry "NUMBER" .proven (some "Env.evm_number_stack_spec_within"),
@@ -253,27 +283,54 @@ def registry : List OpcodeEntry := [
   entry "CHAINID" .proven (some "Env.evm_chainid_stack_spec_within"),
   entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within"),
   entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within"),
-  entry "BLOBHASH" .execSpec none "env-bridge level",
-  entry "BLOBBASEFEE" .execSpec none "env-bridge level",
+  entry "BLOBHASH" .proven (some "BlobHash.evm_blobhash_stack_spec_within")
+      (cycleBound := some 20),
+  entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within"),
 
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
   entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
   entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
-      "aligned spec proven; unaligned _public variants in progress",
+      ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
+       "trailing guard band supplies the pair-read tail"),
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
       "aligned spec proven; unaligned _public variants in progress",
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
-  entry "SLOAD" .execSpec none "Storage*.lean; ECALL → host",
+  entry "SLOAD" .conditional (some "Storage.evm_sload_stack_spec_within")
+      ("stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan " ++
+       "(byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, " ++
+       "length cell env+448) is proven to replace the stack top in place with " ++
+       "persistentLookup — the `current` of the most-recent committedStorageIs " ++
+       "entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` " ++
+       "because the miss→0 branch is EVM-sound only RELATIVE to the " ++
+       "committedStorageIs snapshot supplied in the precondition; full MPT-" ++
+       "witness verification that the snapshot faithfully reflects state root " ++
+       "is deferred to stage-2 (post-Phase-10). Structural clone of the proven " ++
+       "TLOAD reverse scan on the transient log.")
+      (coverRef := some "sload_precondition_reachable"),
   entry "SSTORE" .execSpec none "Storage*.lean; ECALL → host",
-  entry "JUMP" .execSpec none "handled by interpreter PC update",
-  entry "JUMPI" .execSpec none "handled by interpreter PC update",
-  entry "PC" .execSpec none "reads EVM PC from EvmState",
+  entry "JUMP" .proven (some "ControlFlow.evm_jump_stack_spec_within")
+      (cycleBound := some 13),
+  entry "JUMPI" .proven (some "ControlFlow.evm_jumpi_stack_spec_within")
+      (cycleBound := some 21),
+  entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within"),
   entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
-  entry "GAS" .execSpec none "reads remaining gas from EvmState",
-  entry "JUMPDEST" .execSpec none "no-op opcode; gas-only",
-  entry "TLOAD" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "TSTORE" .notStarted none "EIP-1153 (Cancun); not in EvmOpcode enum",
-  entry "MCOPY" .notStarted none "EIP-5656 (Cancun); not in EvmOpcode enum",
+  entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within"),
+  entry "JUMPDEST" .proven (some "ControlFlow.evm_jumpdest_stack_spec_within")
+      (cycleBound := some 0),
+  entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within"),
+  entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within"),
+  entry "MCOPY" .proven (some "Mcopy.evm_mcopy_stack_spec_within")
+      ("EIP-5656 (Cancun) overlap-aware memmove copy core proven "
+       ++ "(Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean): "
+       ++ "byte-identical body-as-Program of the h_MCOPY handler tail (verified "
+       ++ "against riscv64-elf-as), TOTAL over all (destOff,srcOff,len) — the two "
+       ++ "BGEU offset comparisons dispatch to a forward (low→high) or backward "
+       ++ "(high→low) byte loop, both proven to land on the same direction-"
+       ++ "independent mcopyResult (memmove: dst window ← original src slice) via "
+       ++ "a single evolving evmMemoryIs slab with a read-sees-original invariant "
+       ++ "per direction. Stack decode + gas/MSIZE/range-guard glue unverified per "
+       ++ "DRIFT (same as CALLDATACOPY/CODECOPY). First memory→memory / overlap-"
+       ++ "aware opcode; first two-directional loop proof."),
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
@@ -296,14 +353,69 @@ def registry : List OpcodeEntry := [
   entry "CREATE" .execSpec none
       "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
   entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
-  entry "CALLCODE" .execSpec none "not in EvmOpcode enum yet",
-  entry "RETURN" .execSpec none "TerminatingArgs + TerminatingExecutionBridge",
+  entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
+  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within_with_capture")
+      ("full standalone (depthAware=false) return-data window + halt core, from " ++
+       "the post-gas handler entry through the RETURN-only system_call_mode " ++
+       "capture block and the 0xa0010000 descriptor (header/22-dword-body " ++
+       "zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core " ++
+       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). The front now " ++
+       "covers all system_call_mode cases: zero skips capture; nonzero with " ++
+       "size>4096 skips conservatively; nonzero with size<=4096 stores " ++
+       "system_call_returndata_len:=size and copies the full returndata window " ++
+       "to system_call_returndata. `.conditional` remains because the memory-gas " ++
+       "`preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB " ++
+       "boundary, so the theorem still carries the post-gas memory-domain hyps " ++
+       "(hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven " ++
+       "`la` immediates stay as reconstruction hyps (shared deferred byte-check, " ++
+       "as in the halt core).")
+      (coverRef := some "return_capture_nondegenerate"),
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
   entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
-  entry "REVERT" .execSpec none "TerminatingArgs",
-  entry "INVALID" .execSpec none "TerminatingArgs",
-  entry "SELFDESTRUCT" .execSpec none "SelfdestructEffects + terminating bridge",
+  entry "REVERT" .conditional (some "Terminating.evm_revert_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + rollback + halt " ++
+       "core, from the post-gas handler entry through the 0xa0010000 descriptor " ++
+       "(header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores " ++
+       "on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared " ++
+       "dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to " ++
+       "resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + " ++
+       "halt core verbatim (only the code layout shifts down 80 bytes with no " ++
+       "capture block, the kind-store value is 2, and the rollback is appended). " ++
+       "`.conditional` NOT because of a system_call_mode gate (REVERT has no " ++
+       "capture block — that is kind==1/RETURN-only — so it is strictly more " ++
+       "general than RETURN) but because (1) the memory-gas `preBody` (its " ++
+       ".exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and " ++
+       "(2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict " ++
+       "the input domain, exactly as in RETURN. The four `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+      (coverRef := some "revert_window_nondegenerate"),
+  entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
+      ("halt-triple over the verified `evm_invalid` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
+       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. Direct STOP clone with routing code 3 (`.exit_invalid_op`)")
+      (cycleBound := some 7),
+  entry "SELFDESTRUCT" .conditional (some "Terminating.evm_selfdestruct_stack_spec_resolved")
+      ("halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, " ++
+       "x1:=.Ldispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` " ++
+       "program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). " ++
+       "The two `la`s (`evm_halt_flag`, `.Ldispatch_resume`) are RESOLVED via `la_resolve` " ++
+       "(#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` " ++
+       "unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — " ++
+       "because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial " ++
+       "effects body BEFORE this tail that is framed OUT as the residual: cold-access gas " ++
+       "(with its own .exit_outofgas branch), new-account surcharge, EIP-6780 created-in-tx " ++
+       "detection, balance transfer to the beneficiary, EIP-7708 log, beneficiary nonstorage " ++
+       "record, and the CREATE-child frame_return path. A larger residual than RETURN/REVERT's " ++
+       "gas-only preBody; a future phase proves it against `EL/SelfdestructEffects` to earn " ++
+       "`.proven`.")
+      (cycleBound := some 7),
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -319,11 +431,11 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 51 := by decide
+theorem provenCount_eq      : provenCount      = 67 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
-theorem conditionalCount_eq : conditionalCount = 0  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 31 := by decide
-theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
+theorem conditionalCount_eq : conditionalCount = 4  := by decide
+theorem execSpecCount_eq    : execSpecCount    = 14 := by decide
+theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
 /-! ## Byte-code counts
@@ -353,11 +465,11 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 111 := by decide
+theorem provenBytes_eq      : provenBytes      = 127 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 35  := by decide
-theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
+theorem conditionalBytes_eq : conditionalBytes = 4   := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 18  := by decide
+theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
 /-! ## Witness `abbrev`s
@@ -417,6 +529,56 @@ private noncomputable abbrev _calldatasize_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
 private noncomputable abbrev _calldatacopy_witness :=
   @EvmAsm.Evm64.Calldata.evm_calldatacopy_stack_spec_within
+private noncomputable abbrev _codesize_witness :=
+  @EvmAsm.Evm64.Code.evm_codesize_stack_spec_within
+private noncomputable abbrev _pc_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_pc_stack_spec_within
+private noncomputable abbrev _gas_witness :=
+  @EvmAsm.Evm64.GasOpcode.evm_gas_stack_spec_within
+private noncomputable abbrev _blobbasefee_witness :=
+  @EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
+private noncomputable abbrev _jumpdest_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jumpdest_stack_spec_within
+private noncomputable abbrev _jump_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jump_stack_spec_within
+private noncomputable abbrev _jumpi_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jumpi_stack_spec_within
+private noncomputable abbrev _blobhash_witness :=
+  @EvmAsm.Evm64.BlobHash.evm_blobhash_stack_spec_within
+private noncomputable abbrev _blockhash_witness :=
+  @EvmAsm.Evm64.BlockHash.evm_blockhash_stack_spec_within
+private noncomputable abbrev _codecopy_witness :=
+  @EvmAsm.Evm64.Code.evm_codecopy_stack_spec_within
+private noncomputable abbrev _returndatasize_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
+private noncomputable abbrev _tload_witness :=
+  @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
+private noncomputable abbrev _sload_witness :=
+  @EvmAsm.Evm64.Storage.evm_sload_stack_spec_within
+private noncomputable abbrev _sload_cover :=
+  @EvmAsm.Evm64.Storage.sload_precondition_reachable
+private noncomputable abbrev _tstore_witness :=
+  @EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
+private noncomputable abbrev _stop_witness :=
+  @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
+private noncomputable abbrev _invalid_witness :=
+  @EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
+-- Shared RETURN/REVERT halt core (`dispatchHaltRet 2` → `.exit_no_epilogue`).
+private noncomputable abbrev _return_halt_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
+-- Full RETURN (0xf3) return-data window + halt core (see the registry note).
+private noncomputable abbrev _return_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within_with_capture
+private noncomputable abbrev _return_cover :=
+  @EvmAsm.Evm64.Terminating.return_capture_nondegenerate
+-- Full REVERT (0xfd) return-data window + rollback + halt core (see the note).
+private noncomputable abbrev _revert_witness :=
+  @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within
+private noncomputable abbrev _revert_cover :=
+  @EvmAsm.Evm64.Terminating.revert_window_nondegenerate
+-- SELFDESTRUCT (0xff) halt tail with the two `la`s resolved (see the registry note).
+private noncomputable abbrev _selfdestruct_witness :=
+  @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
@@ -436,13 +598,15 @@ private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack
     assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
 
 private noncomputable abbrev _evm_memory_is_mload_witness :=
-  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+  @EvmAsm.Evm64.evm_mload_stack_spec_within
 private noncomputable abbrev _evm_memory_is_peel_witness :=
   @EvmAsm.Evm64.evmMemoryIs_peel_window64
 private noncomputable abbrev _mpt_node_kind_spec_witness :=
   @EvmAsm.Evm64.mptNodeKindSpec_rlp
 private noncomputable abbrev _hp_roundtrip_witness :=
   @EvmAsm.Evm64.hpDecode_hpEncode
+private noncomputable abbrev _rlp_to_mutable_node_witness :=
+  @EvmAsm.Evm64.rlpToMutableNode_rlp
 private noncomputable abbrev _node_db_snoc_witness :=
   @EvmAsm.Evm64.nodeDbIs_snoc
 private noncomputable abbrev _node_db_lookup_spec_witness :=

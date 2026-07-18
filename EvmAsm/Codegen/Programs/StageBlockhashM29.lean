@@ -13,10 +13,18 @@
   the `count` most-recent contiguous ancestors: `block_hashes[i]` = hash of block
   `cur-count+i`.
 
+  The table entries are 32-byte EVM stack words (numeric value, low limb
+  first) — NOT the canonical big-endian digest byte order — matching the
+  payload-trailer boundary convention (cf. `parse_block_hashes` in
+  scripts/pack-bytecode.py, which reverses each hash) and the verified
+  `evm_blockhash` spec, which models the table as `List EvmWord`.
+
   This helper reconstructs that table from `witness.headers` (the SSZ
   `[N×u32 inner offsets][concat header bytes]` section), via
   `blockhash_from_witness_headers` (BlockHashPredicates.lean) which finds the
   header whose RLP NUMBER field equals a target and returns `keccak256(header)`.
+  Pass 2 reverses each raw digest in place before publishing it, converting
+  canonical digest order into the stack-word order the table contract expects.
 
   Pure / fully parameterized (no global coupling): the caller supplies the output
   table base + the cur/count out-ptrs. The `.3b` wiring will pass the dispatcher's
@@ -43,7 +51,8 @@ open EvmAsm.Rv64
     a0 = exec ptr (block NUMBER at +404)
     a1 = witness.headers section ptr
     a2 = witness.headers section length (0 ⇒ count stays 0)
-    a3 = output block-hash table base (≥ 256×32 bytes; written block_hashes[i])
+    a3 = output block-hash table base (≥ 256×32 bytes; written block_hashes[i],
+         each a 32-byte EVM stack word — numeric, low limb first)
     a4 = u64 out ptr for `cur` (the current block number)
     a5 = u64 out ptr for `count` (number of contiguous recent ancestors found)
     a0 (output) = 0. -/
@@ -89,8 +98,20 @@ def stageBlockhashM29Function : String :=
   "  sub t0, s5, s4             # idx = count - age\n" ++
   "  slli t0, t0, 5             # idx * 32\n" ++
   "  add a3, s6, t0             # a3 = &block_hashes[idx]\n" ++
+  "  mv s3, a3                  # keep the slot ptr across the call (s3 dead after count store)\n" ++
   "  la a4, m29_off_tmp; la a5, m29_len_tmp\n" ++
   "  jal ra, blockhash_from_witness_headers\n" ++
+  -- The callee returns the raw keccak digest in canonical big-endian byte-string
+  -- order; the table contract is the EVM stack-word layout (numeric, low limb
+  -- first). Reverse the 32 bytes in place before publishing the entry.
+  "  mv t0, s3                  # lo ptr\n" ++
+  "  addi t1, s3, 31            # hi ptr\n" ++
+  "  li t2, 16                  # pair count\n" ++
+  ".Lsbm_rev:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1)\n" ++
+  "  sb t4, 0(t0); sb t3, 0(t1)\n" ++
+  "  addi t0, t0, 1; addi t1, t1, -1\n" ++
+  "  addi t2, t2, -1; bnez t2, .Lsbm_rev\n" ++
   "  addi s4, s4, 1\n" ++
   "  j .Lsbm_fill\n" ++
   ".Lsbm_done:\n" ++
@@ -133,6 +154,7 @@ def ziskStageBlockhashM29Prologue : String :=
   "  j .Lsbm_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   blockhashFromWitnessHeadersFunction ++ "\n" ++

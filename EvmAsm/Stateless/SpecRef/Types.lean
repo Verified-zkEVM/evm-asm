@@ -31,6 +31,7 @@ abbrev Root := Bytes
 abbrev Address := Bytes
 abbrev Bloom := Bytes
 abbrev VersionedHash := Bytes
+abbrev Bytes32 := Bytes
 
 /-! ## Distinct failure reasons
 
@@ -49,8 +50,6 @@ inductive SpecError where
   | sszError (why : String)
   /-- `stateless_input_to_ssz`: a transaction public key ≠ 65 bytes. -/
   | publicKeyWrongLength (len : Nat)
-  /-- `_ssz_to_protocol_fork`: enum value out of range. -/
-  | unknownProtocolFork (value : Nat)
   /-- `validate_headers`: more than 256 witness headers. -/
   | tooManyHeaders (count : Nat)
   /-- `_decode_header`: RLP decode failed for both current and previous fork. -/
@@ -63,59 +62,95 @@ inductive SpecError where
   /-- `validate_chain_config`: active fork not active for the payload
       (`InactiveForkConfigError`). -/
   | inactiveForkConfig
-  /-- `validate_chain_config`: fork ≠ Amsterdam or blob schedule mismatch
-      (`UnsupportedForkConfigError`). -/
-  | unsupportedForkConfig (why : String)
   /-- `_decode_account_from_leaf`: leaf RLP is not a 4-item list. -/
   | accountLeafMalformed
   /-- `_trie_lookup`: hit an unresolved `HashedNode`. -/
   | unresolvedHashedNode
+  /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the
+      witness does not contain the trie's root node. -/
+  | witnessRootMissing
+  /-- `fork.py` / `execution_engine/new_payload.py`: any `InvalidBlock`
+      raised by the pre-checks or the `execute_block` frame. -/
+  | invalidBlock (why : String)
+  /-- Modeling-only: contact with a precompile whose implementation is
+      not yet ported (`Precompiles.lean`).  The hybrid seam catches
+      exactly this and falls back to the sound-for-accepts shell. -/
+  | unimplementedPrecompile (name : String)
+  /-- `state_tracker.py`: an `AssertionError` on the state layer
+      (`set_storage` on a missing account, `move_ether` underflow). -/
+  | stateError (why : String)
+  /-- `transactions.py` `validate_transaction`:
+      `InsufficientTransactionGasError` / `NonceOverflowError` /
+      `InitCodeTooLargeError`. -/
+  | invalidTransaction (why : String)
+  /-- `transactions.py` signature validation / recovery:
+      `InvalidSignatureError`. -/
+  | invalidSignature (why : String)
+  /-- `transactions.py` `decode_transaction` / `rlp.decode_to`: any
+      `DecodingError`, `TransactionTypeError`, or `IndexError` while
+      decoding a transaction envelope. -/
+  | txDecodeError (why : String)
+  /-- `incremental_mpt.py` write side (`mpt_set`/`mpt_get`/`mpt_root`/
+      `build_mpt` and helpers): any `AssertionError` raised on the
+      insert/delete/encode/traverse path — e.g. touching an unresolved
+      `HashedNode`, `_split_extension` collision, unencodable value. -/
+  | mptWriteError (why : String)
+  /-- `WitnessState.get_code`: `self._code_db[code_hash]` raised `KeyError` —
+      the witness does not contain the bytecode for a non-empty code hash. -/
+  | codeHashMissing
+  /-- `WitnessState.get_storage`: `rlp.decode(leaf)` raised `DecodingError`
+      on a storage-trie leaf value. -/
+  | storageLeafMalformed
+  /-- `_decode_witness_node` / `_resolve_child_ref` / `compact_to_nibbles`:
+      any `AssertionError` / `IndexError` / RLP `DecodingError` raised while
+      decoding a witness trie node (all folded into rejection by the
+      `verify_stateless_new_payload` `try`). -/
+  | witnessNodeMalformed (why : String)
   /-- Execution seam (`execute_new_payload_request`) rejected the payload. -/
   | executionRejected (why : String)
   deriving Repr, BEq, DecidableEq
 
-/-! ## Protocol forks (`stateless.py:83` `ProtocolFork`) -/
+/-! ## Protocol forks (`stateless.py:81` `ProtocolFork`) -/
 
-/-- Semantic execution-layer fork names understood by stateless inputs.
-    Constructor order MUST match Python declaration order, because
-    `_protocol_fork_to_ssz` uses `tuple(ProtocolFork).index(fork)`. -/
+/-- Stable execution-layer fork identifiers used by stateless schemas.
+    v0.6.0 turns this into an `IntEnum` (`Frontier = 0x01` …
+    `Amsterdam = 0x15`); the value no longer travels in the SSZ payload —
+    its only wire use is the schema-id prefix
+    (`STATELESS_INPUT_SCHEMA_FORK_INDEX`, `stateless_ssz.py:89`). -/
 inductive ProtocolFork where
   | Frontier | Homestead | DAOFork | TangerineWhistle | SpuriousDragon
-  | Byzantium | Constantinople | ConstantinopleFix | Istanbul | MuirGlacier
-  | Berlin | London | ArrowGlacier | GrayGlacier | Paris | Shanghai | Cancun
-  | Prague | Osaka | BPO1 | BPO2 | BPO3 | BPO4 | BPO5 | Amsterdam
+  | Byzantium | StPetersburg | Istanbul | MuirGlacier | Berlin | London
+  | ArrowGlacier | GrayGlacier | Paris | Shanghai | Cancun | Prague | Osaka
+  | BPO1 | BPO2 | Amsterdam
   deriving Repr, BEq, DecidableEq
 
-/-- `tuple(ProtocolFork)` — the SSZ enum ordering (`stateless_ssz.py:225`). -/
-def protocolForks : List ProtocolFork :=
-  [.Frontier, .Homestead, .DAOFork, .TangerineWhistle, .SpuriousDragon,
-   .Byzantium, .Constantinople, .ConstantinopleFix, .Istanbul, .MuirGlacier,
-   .Berlin, .London, .ArrowGlacier, .GrayGlacier, .Paris, .Shanghai, .Cancun,
-   .Prague, .Osaka, .BPO1, .BPO2, .BPO3, .BPO4, .BPO5, .Amsterdam]
+/-- The `IntEnum` value of a fork (`stateless.py:86`–`106`): declaration
+    index + 1, spelled out to keep each value visibly tied to the spec. -/
+def ProtocolFork.value : ProtocolFork → Nat
+  | .Frontier => 0x01 | .Homestead => 0x02 | .DAOFork => 0x03
+  | .TangerineWhistle => 0x04 | .SpuriousDragon => 0x05 | .Byzantium => 0x06
+  | .StPetersburg => 0x07 | .Istanbul => 0x08 | .MuirGlacier => 0x09
+  | .Berlin => 0x0A | .London => 0x0B | .ArrowGlacier => 0x0C
+  | .GrayGlacier => 0x0D | .Paris => 0x0E | .Shanghai => 0x0F
+  | .Cancun => 0x10 | .Prague => 0x11 | .Osaka => 0x12
+  | .BPO1 => 0x13 | .BPO2 => 0x14 | .Amsterdam => 0x15
 
-/-! ## Chain-config dataclasses (`stateless.py:139`–`183`) -/
+/-! ## Chain-config dataclasses (`stateless.py:126`–`160`) -/
 
-/-- `ForkActivation` (`stateless.py:141`). -/
+/-- `ForkActivation` (`stateless.py:130`). -/
 structure ForkActivation where
   blockNumber : Option U64
   timestamp : Option U64
   deriving Repr, BEq, DecidableEq
 
-/-- `BlobSchedule` (`stateless.py:152`). -/
-structure BlobSchedule where
-  target : U64
-  max : U64
-  baseFeeUpdateFraction : U64
-  deriving Repr, BEq, DecidableEq
-
-/-- `ForkConfig` (`stateless.py:164`). -/
+/-- `ForkConfig` (`stateless.py:142`). v0.6.0 drops the `fork` and
+    `blob_schedule` fields: fork identity is carried by the schema id
+    and the blob schedule is compiled into the guest. -/
 structure ForkConfig where
-  fork : ProtocolFork
   activation : ForkActivation
-  blobSchedule : Option BlobSchedule
   deriving Repr, BEq, DecidableEq
 
-/-- `ChainConfig` (`stateless.py:176`). -/
+/-- `ChainConfig` (`stateless.py:153`). -/
 structure ChainConfig where
   chainId : U64
   activeFork : ForkConfig
@@ -178,11 +213,27 @@ structure ConsolidationRequest where
   targetPubkey : Bytes
   deriving Repr, BEq, DecidableEq
 
+/-- `BuilderDepositRequest` (`execution_engine/requests.py:67`). -/
+structure BuilderDepositRequest where
+  pubkey : Bytes
+  withdrawalCredentials : Bytes
+  amount : U64
+  signature : Bytes
+  deriving Repr, BEq, DecidableEq
+
+/-- `BuilderExitRequest` (`execution_engine/requests.py:78`). -/
+structure BuilderExitRequest where
+  sourceAddress : Address
+  pubkey : Bytes
+  deriving Repr, BEq, DecidableEq
+
 /-- `ExecutionRequests` (`execution_engine/requests.py:67`). -/
 structure ExecutionRequests where
   deposits : List DepositRequest
   withdrawals : List WithdrawalRequest
   consolidations : List ConsolidationRequest
+  builderDeposits : List BuilderDepositRequest
+  builderExits : List BuilderExitRequest
   deriving Repr, BEq, DecidableEq
 
 /-- `NewPayloadRequest` (`execution_engine/types.py:63`). -/
@@ -263,14 +314,5 @@ structure Header where
   /-- amsterdam-only (`0` when `isCurrentFork = false`). -/
   slotNumber : U64
   deriving Repr, BEq, DecidableEq
-
-/-! ## Amsterdam-compiled constants (`vm/gas.py`) -/
-
-/-- `BLOB_SCHEDULE_TARGET` (`vm/gas.py:106`). -/
-def blobScheduleTarget : U64 := 14
-/-- `BLOB_SCHEDULE_MAX` (`vm/gas.py:109`). -/
-def blobScheduleMax : U64 := 21
-/-- `BLOB_BASE_FEE_UPDATE_FRACTION` (`vm/gas.py:111`). -/
-def blobBaseFeeUpdateFraction : Uint := 11684671
 
 end EvmAsm.Stateless.SpecRef

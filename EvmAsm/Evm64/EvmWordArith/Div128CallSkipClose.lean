@@ -21,10 +21,13 @@
 -/
 
 -- Both `Div128KnuthLower` and `Div128FinalAssembly` transitively reach
--- `Div128QuotientBounds → KnuthTheoremB`, which imports `MaxTrialVacuity`
--- (→ `Compose.FullPathN4`) and `DivN4Overestimate` (→ `DivMod.LoopSemantic`).
+-- `Div128QuotientBounds → KnuthTheoremB` and `DivN4Overestimate`
+-- (→ `DivMod.LoopSemantic`). The n=4 path predicates are imported directly.
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
+import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+import EvmAsm.Evm64.DivMod.LoopSemantic
+import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 
 namespace EvmAsm.Evm64
 
@@ -480,30 +483,6 @@ theorem div128Quot_call_skip_le_val256_div
   simp only [] at h_mul
   exact (Nat.le_div_iff_mul_le hv_pos).mpr h_mul
 
-/-- **Direct call-skip KB-6 upper bound.**
-
-    Wrapper around the stronger skip-borrow result
-    `div128Quot_call_skip_le_val256_div`. This is the direct #1337 follow-up
-    surface for callers that need the Knuth-B `+2` shape without going through
-    the false `Div128(All)PhasesNoWrapInv` bridge. -/
-theorem div128Quot_call_skip_le_q_true_plus_two_direct
-    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0)
-    (hskip : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    let shift := (clzResult b3).1.toNat % 64
-    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
-    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
-    let u4 := a3 >>> antiShift
-    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
-    (div128Quot u4 u3 b3').toNat ≤
-      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
-  intro shift antiShift b3' u4 u3
-  have h := div128Quot_call_skip_le_val256_div
-    a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hskip
-  simp only [] at h
-  exact Nat.le_trans h (Nat.le_add_right _ _)
-
 -- ============================================================================
 -- Pure-Nat digit-tightness utilities (used downstream by Phase 1/2 tight)
 -- ============================================================================
@@ -537,57 +516,6 @@ theorem digit_tight_of_le_and_ge {q1 q0 q_true_1 q_true_0 : Nat}
   refine ⟨h_q1_eq, ?_⟩
   rw [h_q1_eq] at h_le
   omega
-
-/-- **q_true_full digit lower bound (pure Nat).** The full 2-digit true
-    quotient is at least `q_true_1 * 2^32`, where `q_true_1` is the Phase 1
-    abstract first digit. Proof: multiply Phase 1 Euclidean by `2^32`,
-    bound `div_un0 ≥ 0`. -/
-theorem q_true_full_ge_q_true_1_mul_pow32_nat
-    {uHi div_un1 div_un0 dHi dLo : Nat}
-    (hvTop_pos : 0 < dHi * 2^32 + dLo) :
-    (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) * 2^32 ≤
-      (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) := by
-  set vTop_nat := dHi * 2^32 + dLo
-  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat
-  have h_euc : q_true_1 * vTop_nat ≤ uHi * 2^32 + div_un1 :=
-    Nat.div_mul_le_self _ _
-  have h_le : q_true_1 * 2^32 * vTop_nat ≤
-      uHi * 2^64 + div_un1 * 2^32 + div_un0 := by
-    have h_rearr : q_true_1 * 2^32 * vTop_nat = q_true_1 * vTop_nat * 2^32 := by ring
-    have h_mul : q_true_1 * vTop_nat * 2^32 ≤ (uHi * 2^32 + div_un1) * 2^32 :=
-      Nat.mul_le_mul_right _ h_euc
-    have h_expand : (uHi * 2^32 + div_un1) * 2^32 =
-        uHi * 2^64 + div_un1 * 2^32 := by ring
-    linarith
-  exact (Nat.le_div_iff_mul_le hvTop_pos).mpr h_le
-
-/-- **q_true_full digit upper bound (pure Nat).** The full 2-digit true
-    quotient is strictly less than `(q_true_1 + 1) * 2^32`. Proof: from
-    `Nat.lt_mul_div_succ`, `vTop * (q_true_1 + 1) > uHi * 2^32 + div_un1`;
-    multiply by `2^32` and bound `div_un0 < 2^32`. -/
-theorem q_true_full_lt_q_true_1_succ_mul_pow32_nat
-    {uHi div_un1 div_un0 dHi dLo : Nat}
-    (hvTop_pos : 0 < dHi * 2^32 + dLo)
-    (hdiv_un0_lt : div_un0 < 2^32) :
-    (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) <
-      ((uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) + 1) * 2^32 := by
-  set vTop_nat := dHi * 2^32 + dLo
-  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat
-  have h_lt : uHi * 2^32 + div_un1 < vTop_nat * (q_true_1 + 1) :=
-    Nat.lt_mul_div_succ _ hvTop_pos
-  have h_num_lt : uHi * 2^64 + div_un1 * 2^32 + div_un0 <
-      vTop_nat * (q_true_1 + 1) * 2^32 := by
-    have h_plus_one : uHi * 2^32 + div_un1 + 1 ≤ vTop_nat * (q_true_1 + 1) := h_lt
-    have : (uHi * 2^32 + div_un1 + 1) * 2^32 ≤
-        vTop_nat * (q_true_1 + 1) * 2^32 :=
-      Nat.mul_le_mul_right _ h_plus_one
-    have h_expand_lhs : (uHi * 2^32 + div_un1 + 1) * 2^32 =
-        uHi * 2^64 + div_un1 * 2^32 + 2^32 := by ring
-    linarith
-  have h_eq_rearr : vTop_nat * (q_true_1 + 1) * 2^32 =
-      ((q_true_1 + 1) * 2^32) * vTop_nat := by ring
-  rw [h_eq_rearr] at h_num_lt
-  exact (Nat.div_lt_iff_lt_mul hvTop_pos).mpr h_num_lt
 
 /-- **CLZ-normalized strict KB-6d**: `div128Quot ≤ val256(a)/val256(b) + 2`
     in the call-trial CLZ-normalized form, under the all-phases no-wrap

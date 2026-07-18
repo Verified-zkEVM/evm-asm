@@ -5,6 +5,7 @@
   prefix.
 -/
 
+import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPre
 
 namespace EvmAsm.Evm64.SDiv.Compose

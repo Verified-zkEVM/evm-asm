@@ -15,11 +15,10 @@
   region `⟨a1, 32⟩` (no read-only region; loop-1 stores the hardwired `x0`,
   loop-2's value comes from register `a0`).
 
-  BYTE-IDENTITY NOTE (see the flatten `#guard` comment): as in `swd_write_be8`,
-  each emitted loop's back-`JAL` re-runs its `LI x6, <limit>` re-init, so a
-  structured `while` (back-edge to the guard) cannot be byte-identical.  The
-  explicit structured flatten is pinned; full `flatten = _prog` is not claimed.
-  Spec-only module (no emitted-code change) — no EEST A/B.
+  The emitted routine is re-emitted from these verified structured loops. Each
+  back-`JAL` now targets its guard rather than redundantly re-running the limit
+  initialization. Exact flatten identity is kernel-pinned below. This changes
+  two JAL immediates, so EEST A/B is required.
 -/
 
 import EvmAsm.Rv64.SAsm.MultiDword
@@ -166,13 +165,8 @@ def swdWriteBe32U64_verified : Program :=
 #guard (swdWriteBe32U64Body 0 0 []).flatten 0
   = (swdWriteBe32U64Body 0 0 []).flatten 0x80000000
 
--- Emitted instructions, pinned exactly.  This is `swdWriteBe32U64_prog` (sans
--- its trailing `ret`) EXCEPT each loop's back-`JAL`: the hand-written routine
--- re-loads the limit register on every iteration (`JAL -20`/`-44`, targeting
--- the `LI x6, <limit>`), whereas a structured `while` back-edge targets the
--- guard (`JAL -16`/`-40`), since each invariant already carries `x6`.  Same 20
--- instructions, identical semantics; byte-identity to `_prog` is therefore not
--- claimed (single-field divergence in the two back-`JAL` offsets, documented).
+-- Emitted instructions, pinned exactly. Both verified structured-loop
+-- back-edges target their guards (`-16` and `-40`).
 #guard (swdWriteBe32U64Body 0 0 []).flatten 0 =
   [.LI .x5 0, .LI .x6 32,
    .BEQ .x5 .x6 (20 : BitVec 13),
@@ -182,7 +176,8 @@ def swdWriteBe32U64_verified : Program :=
    .LI .x7 56, .SLLI .x28 .x5 3, .SUB .x7 .x7 .x28, .SRL .x29 .x10 .x7,
    .ANDI .x29 .x29 255, .ADDI .x30 .x11 24, .ADD .x30 .x30 .x5,
    .SB .x30 .x29 0, .ADDI .x5 .x5 1, .JAL .x0 (-40 : BitVec 21)]
-#guard swdWriteBe32U64_prog.length = 21
+#guard (swdWriteBe32U64Body 0 0 []).flatten 0 ++ [Instr.JALR .x0 .x1 0] =
+  swdWriteBe32U64_prog
 
 -- ============================================================================
 -- Engines (own heartbeat budget)
@@ -406,6 +401,7 @@ theorem swdWriteBe32U64Fn_spec (v dst : Word) (orig : List (BitVec 8))
       omega
     subst hi8
     exact beWin32_8_eq v
+
 
 end SwdWriteBe32U64SAsm
 

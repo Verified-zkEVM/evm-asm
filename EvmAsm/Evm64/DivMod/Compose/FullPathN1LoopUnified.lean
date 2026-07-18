@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1Loop
+import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas

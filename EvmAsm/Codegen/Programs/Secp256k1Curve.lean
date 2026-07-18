@@ -52,12 +52,12 @@ def secp256k1CurveDataSection : String :=
   "secp256k1_generator_2:\n" ++
   generator2PointAsm ++
   ".balign 8\n" ++
-  "secc_point_tmp:\n  .zero 64\n" ++
+  "secc_point_tmp:\n  .fill 64, 1, 0\n" ++
   -- Little-endian limb staging for the ziskemu Secp256k1Add/Dbl accelerators
   -- (x||y, four u64 limbs per coordinate, least-significant limb first) plus
   -- the static Secp256k1Add parameter block {&p1, &p2}; the result lands in p1.
-  "secc_le_p1:\n  .zero 64\n" ++
-  "secc_le_p2:\n  .zero 64\n" ++
+  "secc_le_p1:\n  .fill 64, 1, 0\n" ++
+  "secc_le_p2:\n  .fill 64, 1, 0\n" ++
   "secc_add_params:\n  .quad secc_le_p1, secc_le_p2\n"
 
 /-- Double an affine point. a0=input x||y, a1=output x||y. Returns 1 for infinity. -/

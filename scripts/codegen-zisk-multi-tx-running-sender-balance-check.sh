@@ -32,7 +32,7 @@ distinct_spec() {
   python3 - "$n" <<'PY'
 import sys
 n = int(sys.argv[1])
-print(','.join(f'{i + 1}:100:1' for i in range(n)))
+print(','.join(f'{i + 1}:100:1:1' for i in range(n)))
 PY
 }
 
@@ -56,8 +56,8 @@ def sender(seed: int) -> bytes:
 
 rows = []
 for raw in filter(None, spec.split(",")):
-    seed_s, pre_s, debit_s = raw.split(":")
-    rows.append(sender(int(seed_s)) + u256(int(pre_s)) + u256(int(debit_s)))
+    seed_s, pre_s, upfront_s, debit_s = raw.split(":")
+    rows.append(sender(int(seed_s)) + u256(int(pre_s)) + u256(int(upfront_s)) + u256(int(debit_s)))
 
 payload = struct.pack("<Q", len(rows)) + b"".join(rows)
 with open(in_path, "wb") as f:
@@ -102,13 +102,14 @@ PY
 }
 
 FAILED=0
-run_case "same_sender_valid" "1:100:30,1:999:40" 0 1 "1:30" || FAILED=1
-run_case "distinct_senders" "1:100:30,2:80:10" 0 2 "1:70,2:70" || FAILED=1
-run_case "distinct_17" "1:100:1,2:100:1,3:100:1,4:100:1,5:100:1,6:100:1,7:100:1,8:100:1,9:100:1,10:100:1,11:100:1,12:100:1,13:100:1,14:100:1,15:100:1,16:100:1,17:100:1" 0 17 "COUNT_ONLY" || FAILED=1
+run_case "same_sender_valid" "1:100:50:30,1:999:50:40" 0 1 "1:30" || FAILED=1
+run_case "distinct_senders" "1:100:50:30,2:80:40:10" 0 2 "1:70,2:70" || FAILED=1
+run_case "distinct_17" "1:100:1:1,2:100:1:1,3:100:1:1,4:100:1:1,5:100:1:1,6:100:1:1,7:100:1:1,8:100:1:1,9:100:1:1,10:100:1:1,11:100:1:1,12:100:1:1,13:100:1:1,14:100:1:1,15:100:1:1,16:100:1:1,17:100:1:1" 0 17 "COUNT_ONLY" || FAILED=1
 run_case "distinct1024" "$(distinct_spec 1024)" 0 1024 "COUNT_ONLY" || FAILED=1
 run_case "distinct1025" "$(distinct_spec 1025)" 0 1025 "COUNT_ONLY" || FAILED=1
-run_case "same_sender_underflow" "1:50:30,1:999:25" 1 1 "1:20" || FAILED=1
-run_case "first_sender_underflow" "3:10:11" 1 0 "" || FAILED=1
+run_case "same_sender_upfront" "1:50:30:30,1:999:25:25" 1 1 "1:20" || FAILED=1
+run_case "first_sender_upfront" "3:10:11:1" 1 0 "" || FAILED=1
+run_case "settled_debit_underflow" "4:10:5:11" 2 0 "" || FAILED=1
 
 echo
 if [[ "$FAILED" -eq 0 ]]; then

@@ -1088,8 +1088,8 @@ def ziskMptDeleteAccDataSection : String :=
   "mxne_cursor:\n  .zero 8\n" ++
   "mxne_total_payload:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "mdacc_leaf_path:\n  .zero 128\n" ++
-  "mdacc_collapsed_path:\n  .zero 128\n" ++
+  "mdacc_leaf_path:\n  .zero 2048\n" ++
+  "mdacc_collapsed_path:\n  .zero 4096\n" ++
   "mxne_hp_buf:\n  .zero 1024\n" ++
   "mxne_payload_buf:\n  .zero 16384\n" ++
   ".balign 32\n" ++

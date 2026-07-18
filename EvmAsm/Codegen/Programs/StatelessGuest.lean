@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
@@ -70,12 +71,16 @@ def statelessGuestUnit : BuildUnit := {
     deriveBlockSystemRequestsFunction ++ "\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
+    deriveBuilderDepositRequestsFunction ++ "\n" ++
+    deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     -- 8uld3.2.3.2 (B): link the EIP-6110 deposit-request derivation (parse_deposit_requests
     -- scans block receipts for DEPOSIT_CONTRACT_ADDRESS logs -> type-0 deposit bodies, +
     -- extract_deposit_data). Self-contained (no dispatcher deps). Additive — unused until .C
     -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
+    blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
+    blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
     materializeLogRecordsFunction ++ "\n" ++
@@ -109,6 +114,7 @@ def statelessGuestUnit : BuildUnit := {
     "ssc_saved_s0:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
+    builderContractAddrData ++
     deriveBlockSystemRequestsData ++ "\n" ++
     -- 8uld3.2.3.2 (B): deposit-derivation data (DEPOSIT_CONTRACT_ADDRESS, deposit event sig,
     -- pdr_out body buffer, pdr_status). None present in the guest/dispatcher data.

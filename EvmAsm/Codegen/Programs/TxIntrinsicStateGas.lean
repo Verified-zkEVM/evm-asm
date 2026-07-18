@@ -3,23 +3,10 @@
 
   `tx_intrinsic_state_gas`: per-tx EIP-8037 intrinsic state-gas helper (g8zeq.1.4.3.1).
 
-  In the BAL-replay-only guest there is no opcode-level `state_gas_used` /
-  `state_refund`, so a transaction's `tx_state_gas` reduces to its
-  `intrinsic_state_gas` (eip8037_tx_state_gas with state_gas_used = state_refund =
-  error = 0). This helper computes that per-tx value from the encoded tx alone:
-
-    intrinsic_state_gas = (is_creation ? NEW_ACCOUNT_STATE_GAS : 0)
-                        + authorization_count * AUTH_STATE_GAS_PER_AUTH
-
-  It composes existing, verified building blocks:
-    - tx_extract_to_address  (K101)  -> is_creation, handling per-type `to` index
-    - tx_type_dispatch       (K40)   -> tx type + inner-RLP offset (for the type-4 auth list)
-    - RlpWalk / rlp_list_count_items -> EIP-7702 authorization_list count
-    - eip8037_tx_state_gas   (g8zeq.1.3) -> the canonical settlement (intrinsic + 0 - 0)
-
-  It is intentionally standalone and UNWIRED: g8zeq.1.4.3 will call it per-tx to
-  fill the `bvgr_tx_state_gas` array in a separate arena pass, WITHOUT modifying
-  the wired `block_verdict_tx_gas_limits` (zero regression risk).
+  Computes the per-transaction EIP-8037 intrinsic-state-gas contribution from
+  encoded transaction bytes.  Its byte-tied Program and focused probe live in
+  `TxIntrinsicStateGasProg`; this module retains the BAL-aware EIP-7702 helper
+  and its array callers.
 -/
 
 import EvmAsm.Rv64.Program
@@ -36,27 +23,12 @@ import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
+import EvmAsm.Codegen.Programs.TxIntrinsicAuthEffects
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
-
-private def repeatAsm : Nat -> String -> String
-  | 0, _ => ""
-  | n + 1, s => s ++ repeatAsm n s
-
-private def rlpWalkSkipAsm (failLabel : String) (n : Nat) (cursorReg endReg : String) : String :=
-  repeatAsm n <|
-    "  mv a0, " ++ cursorReg ++ "; mv a1, " ++ endReg ++
-    "; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++
-    "; mv " ++ cursorReg ++ ", a0\n"
-
-private def rlpWalkFieldAsm
-    (failLabel : String) (n : Nat) (cursorReg endReg ptrReg lenReg : String) : String :=
-  rlpWalkSkipAsm failLabel n cursorReg endReg ++
-  "  mv a0, " ++ cursorReg ++ "; mv a1, " ++ endReg ++
-  "; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "\n" ++
-  "  sub " ++ ptrReg ++ ", a0, a2; mv " ++ lenReg ++ ", a2\n"
 
 /-! ## tx_intrinsic_state_gas
 
@@ -75,707 +47,1010 @@ private def rlpWalkFieldAsm
     Scratch: tis_to_buf (20B `to`, unused output), tis_is_creation, tis_type,
     tis_inner_off, tis_auth_count, plus the tea_*
     slots consumed internally by tx_extract_to_address. -/
-def txIntrinsicStateGasFunction : String :=
-  "tx_intrinsic_state_gas:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # tx_ptr\n" ++
-  "  mv s1, a1                   # tx_len\n" ++
-  "  mv s2, a2                   # out ptr\n" ++
-  "  # is_creation via K101 (handles per-type `to` field index)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tis_to_buf; la a3, tis_is_creation\n" ++
-  "  jal ra, tx_extract_to_address\n" ++
-  "  bnez a0, .Ltisg_fail1\n" ++
-  "  # tx type + inner-RLP offset (for the EIP-7702 authorization_list)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tis_type; la a3, tis_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Ltisg_fail2\n" ++
-  "  li s3, 0                    # authorization_count\n" ++
-  "  la t0, tis_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Ltisg_no_auth\n" ++
-  "  # type 4 (EIP-7702): authorization_list is inner field index 9\n" ++
-  "  la t0, tis_inner_off; ld t1, 0(t0)\n" ++
-  "  add a0, s0, t1              # inner RLP ptr\n" ++
-  "  sub a1, s1, t1              # inner RLP len\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Ltisg_fail2\n" ++
-  "  mv s5, a0; mv s6, a1\n" ++
-  rlpWalkFieldAsm ".Ltisg_fail2" 9 "s5" "s6" "a0" "a1" ++
-  "  la a2, tis_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Ltisg_fail2\n" ++
-  "  la t0, tis_auth_count; ld s3, 0(t0)\n" ++
-  ".Ltisg_no_auth:\n" ++
-  "  li s4, 0                    # intrinsic_state_gas accumulator\n" ++
-  "  la t0, tis_is_creation; ld t1, 0(t0); beqz t1, .Ltisg_after_create\n" ++
-  liAmsterdamNewAccountStateGas "t2" ++
-  "  add s4, s4, t2\n" ++
-  ".Ltisg_after_create:\n" ++
-  "  beqz s3, .Ltisg_after_auth\n" ++
-  liAmsterdamAuthStateGasPerAuth "t2" ++
-  "  mul t3, s3, t2; add s4, s4, t3\n" ++
-  ".Ltisg_after_auth:\n" ++
-  "  # tx_state_gas = eip8037_tx_state_gas(intrinsic, 0, 0, error=0, is_creation)\n" ++
-  "  mv a0, s4; li a1, 0; li a2, 0; li a3, 0\n" ++
-  "  la t0, tis_is_creation; ld a4, 0(t0)\n" ++
-  "  mv a5, s2\n" ++
-  "  jal ra, eip8037_tx_state_gas\n" ++
-  "  j .Ltisg_ret\n" ++
-  ".Ltisg_fail1:\n" ++
-  "  li a0, 1; sd zero, 0(s2); j .Ltisg_ret\n" ++
-  ".Ltisg_fail2:\n" ++
-  "  li a0, 2; sd zero, 0(s2)\n" ++
-  ".Ltisg_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
 
-/-- `zisk_tx_intrinsic_state_gas`: focused probe.
-    Input (after the ziskemu length wrapper at 0x40000000):
-      bytes 8..16  : tx_len
-      bytes 16..   : encoded tx bytes
-    Output:
-      bytes 0.. 8  : status
-      bytes 8..16  : tx_state_gas (= intrinsic_state_gas) -/
-def ziskTxIntrinsicStateGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx ptr\n" ++
-  "  li a2, 0xa0010008           # tx_state_gas out (OUTPUT + 8)\n" ++
-  "  jal ra, tx_intrinsic_state_gas\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Ltisg_pdone\n" ++
-  txIntrinsicStateGasFunction ++ "\n" ++
-  txExtractToAddressFunction ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  eip8037TxStateGasFunction ++ "\n" ++
-  ".Ltisg_pdone:"
+/-! ## bal_account_nonce_before_index
 
-def ziskTxIntrinsicStateGasDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "tea_type:\n  .zero 8\n" ++
-  "tea_inner_off:\n  .zero 8\n" ++
-  "tea_field_off:\n  .zero 8\n" ++
-  "tea_field_len:\n  .zero 8\n" ++
-  "tis_to_buf:\n  .zero 32\n" ++
-  "tis_is_creation:\n  .zero 8\n" ++
-  "tis_type:\n  .zero 8\n" ++
-  "tis_inner_off:\n  .zero 8\n" ++
-  "tis_auth_count:\n  .zero 8"
+    Return the latest BAL nonce value for an account strictly before a block
+    access index.  `nonce_changes` is AccountChanges item 4 and contains
+    `[block_access_index, post_nonce]` tuples.
 
-def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxIntrinsicStateGasPrologue
-  dataAsm     := ziskTxIntrinsicStateGasDataSection
-}
-
+    a0 = AccountChanges ptr, a1 = length, a2 = current block_access_index
+    a0 output = 0 found, 1 no earlier change, 2 malformed; a1 = nonce when found. -/
+def balAccountNonceBeforeIndexFunction : String :=
+  "bal_account_nonce_before_index:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li a2, 4; addi a3, sp, 72; addi a4, sp, 80\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add s3, s0, t0; ld s4, 80(sp)\n" ++
+  "  mv a0, s3; mv a1, s4; addi a2, sp, 88; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s4, 88(sp); li s5, 0; li s6, 0; li s7, 0; sd zero, 104(sp)\n" ++
+  ".Lbanbi_loop:\n" ++
+  "  beq s5, s4, .Lbanbi_done_scan\n" ++
+  "  mv a0, s3; ld a1, 80(sp); mv a2, s5; addi a3, sp, 72; addi a4, sp, 88\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)\n" ++
+  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next\n" ++
+  "  bltu t0, s6, .Lbanbi_next\n" ++
+  "  mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbanbi_malformed\n" ++
+  "  ld s7, 72(sp); li t0, 1; sd t0, 104(sp)\n" ++
+  ".Lbanbi_next:\n" ++
+  "  addi s5, s5, 1; j .Lbanbi_loop\n" ++
+  ".Lbanbi_done_scan:\n" ++
+  "  ld t0, 104(sp); beqz t0, .Lbanbi_none\n" ++
+  "  li a0, 0; mv a1, s7; j .Lbanbi_return\n" ++
+  ".Lbanbi_none:\n" ++
+  "  li a0, 1; li a1, 0; j .Lbanbi_return\n" ++
+  ".Lbanbi_malformed:\n" ++
+  "  li a0, 2; li a1, 0\n" ++
+  ".Lbanbi_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 112; ret\n"
 
 /-! ## tx_eip7702_existing_authority_refund
 
     Bridge for the EIP-7702 existing-authority state-gas refund. For type-4
     authorizations that pass basic chain/nonce/target parsing, this recovers the
-    authority address, finds the authority's BAL AccountChanges row, and only
-    subtracts the refund when BAL records the matching 0xef0100||target
-    delegation marker. Callers pass BAL ptr 0 to keep the older intrinsic-only
-    behavior.
+    authority address, finds the authority's BAL AccountChanges row, and subtracts
+    the NEW_ACCOUNT refund when the authority existed in pre-state and BAL shows
+    the authorization nonce increment. It separately subtracts AUTH_BASE only when
+    the authority code was already a delegation marker. Callers pass BAL ptr 0 to
+    keep the older intrinsic-only behavior.
+
+    v0.6.0 (tests-zkevm@v0.6.0, EIP-2780/7702 rework): this helper now
+    computes the EXACT set_delegation CHARGES (the v0.5.0 worst-case
+    refund model is gone with the intrinsic worst-case charges):
+
+      state  charge = per valid auth:
+                        NEW_ACCOUNT iff the authority leaf did not
+                          pre-exist (block is_insert record) and no
+                          earlier auth this tx materialized it
+                      + AUTH_BASE iff a net-new delegation indicator is
+                          written (non-NULL target, no prior non-NULL
+                          set this tx, not delegated in pre-state)
+      regular charge = ACCOUNT_WRITE per valid auth whose authority is
+                       written for the first time this tx (not the
+                       sender, not the value-receiving recipient, no
+                       prior auth for it).
 
     Calling convention:
       a0 = encoded tx ptr, a1 = encoded tx len
       a2 = BAL ptr gate (0 disables), a3 = BAL length
       a4 = block chain id
       a5 = current tx block_access_index (tx index + 1)
-      a0 output = refund amount (u64). Parse failures for an individual
-                  authorization conservatively contribute zero. -/
+      a0 output = state CHARGE amount (u64). Parse failures for an
+                  individual authorization contribute zero.
+      a1 output = regular CHARGE amount (u64), applied to the top-frame
+                  gas before dispatch. -/
+def txEip7702ExistingAuthorityRefund_prog : Program :=
+  [ .ADDI .x2 .x2 (-160 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .SD .x2 .x15 (104 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x26 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 84)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 96)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_predelegated_count (GuestAddrs.tx_eip7702_existing_authority_refund + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_predelegated_count (GuestAddrs.tx_eip7702_existing_authority_refund + 108)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 120)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .BEQ .x18 .x0 (2724 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.teer_type (GuestAddrs.tx_eip7702_existing_authority_refund + 144)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_type (GuestAddrs.tx_eip7702_existing_authority_refund + 144)),
+    .AUIPC .x13 (laHi GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 152)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.tx_eip7702_existing_authority_refund + 160)),
+    .BNE .x10 .x0 (2692 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_type (GuestAddrs.tx_eip7702_existing_authority_refund + 168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_type (GuestAddrs.tx_eip7702_existing_authority_refund + 168)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (4 : Word),
+    .BNE .x6 .x7 (2672 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 188)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x21 .x8 .x6,
+    .SUB .x22 .x9 .x6,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip7702_existing_authority_refund + 216)),
+    .BNE .x12 .x0 (2636 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x25 .x11,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 240)),
+    .BNE .x11 .x0 (2612 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 260)),
+    .BNE .x11 .x0 (2592 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 280)),
+    .BNE .x11 .x0 (2572 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 300)),
+    .BNE .x11 .x0 (2552 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 320)),
+    .BNE .x11 .x0 (2532 : BitVec 13),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 340)),
+    .BNE .x11 .x0 (2512 : BitVec 13),
+    .SUB .x30 .x10 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.teer_recipient_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 352)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_recipient_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 352)),
+    .SD .x5 .x30 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_recipient_len (GuestAddrs.tx_eip7702_existing_authority_refund + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_recipient_len (GuestAddrs.tx_eip7702_existing_authority_refund + 364)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .MV .x24 .x10,
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 388)),
+    .BNE .x11 .x0 (2464 : BitVec 13),
+    .SLTU .x30 .x0 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.teer_value_nonzero (GuestAddrs.tx_eip7702_existing_authority_refund + 400)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_value_nonzero (GuestAddrs.tx_eip7702_existing_authority_refund + 400)),
+    .SD .x5 .x30 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_inner_off (GuestAddrs.tx_eip7702_existing_authority_refund + 412)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x21 .x8 .x6,
+    .SUB .x22 .x9 .x6,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip7702_existing_authority_refund + 440)),
+    .BNE .x12 .x0 (2412 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 464)),
+    .BNE .x11 .x0 (2388 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 484)),
+    .BNE .x11 .x0 (2368 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 504)),
+    .BNE .x11 .x0 (2348 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 524)),
+    .BNE .x11 .x0 (2328 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 544)),
+    .BNE .x11 .x0 (2308 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 564)),
+    .BNE .x11 .x0 (2288 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 584)),
+    .BNE .x11 .x0 (2268 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 604)),
+    .BNE .x11 .x0 (2248 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 624)),
+    .BNE .x11 .x0 (2228 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 644)),
+    .BNE .x11 .x0 (2208 : BitVec 13),
+    .SUB .x21 .x10 .x12,
+    .MV .x22 .x12,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.teer_auth_count (GuestAddrs.tx_eip7702_existing_authority_refund + 668)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_auth_count (GuestAddrs.tx_eip7702_existing_authority_refund + 668)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.tx_eip7702_existing_authority_refund + 676)),
+    .BNE .x10 .x0 (2176 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_auth_count (GuestAddrs.tx_eip7702_existing_authority_refund + 684)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_auth_count (GuestAddrs.tx_eip7702_existing_authority_refund + 684)),
+    .LD .x23 .x5 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip7702_existing_authority_refund + 704)),
+    .BNE .x12 .x0 (2148 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .LI .x24 (0 : Word),
+    .BEQ .x24 .x23 (2132 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 736)),
+    .BNE .x11 .x0 (2116 : BitVec 13),
+    .MV .x21 .x10,
+    .SUB .x25 .x10 .x12,
+    .SD .x2 .x12 (136 : BitVec 12),
+    .MV .x10 .x25,
+    .LD .x11 .x2 (136 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip7702_existing_authority_refund + 764)),
+    .BNE .x12 .x0 (2080 : BitVec 13),
+    .SD .x2 .x10 (112 : BitVec 12),
+    .SD .x2 .x11 (120 : BitVec 12),
+    .LD .x10 .x2 (112 : BitVec 12),
+    .LD .x11 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 788)),
+    .BNE .x11 .x0 (2056 : BitVec 13),
+    .SD .x2 .x10 (112 : BitVec 12),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.tx_eip7702_existing_authority_refund + 808)),
+    .BNE .x11 .x0 (2036 : BitVec 13),
+    .MV .x6 .x10,
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .BNE .x6 .x20 (1020 : BitVec 13),
+    .LD .x10 .x2 (112 : BitVec 12),
+    .LD .x11 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 836)),
+    .BNE .x11 .x0 (2008 : BitVec 13),
+    .SD .x2 .x10 (112 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x12 .x7 (1996 : BitVec 13),
+    .SUB .x27 .x10 .x12,
+    .LD .x10 .x2 (112 : BitVec 12),
+    .LD .x11 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_existing_authority_refund + 868)),
+    .BNE .x11 .x0 (1976 : BitVec 13),
+    .SD .x2 .x10 (112 : BitVec 12),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.tx_eip7702_existing_authority_refund + 888)),
+    .BNE .x11 .x0 (1956 : BitVec 13),
+    .MV .x6 .x10,
+    .LI .x7 (-1 : Word),
+    .BEQ .x6 .x7 (940 : BitVec 13),
+    .SD .x2 .x6 (144 : BitVec 12),
+    .MV .x10 .x25,
+    .LD .x11 .x2 (136 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 920)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 920)),
+    .AUIPC .x13 (laHi GuestAddrs.teer_recover_scratch (GuestAddrs.tx_eip7702_existing_authority_refund + 928)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.teer_recover_scratch (GuestAddrs.tx_eip7702_existing_authority_refund + 928)),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_authorization_recover_address (GuestAddrs.tx_eip7702_existing_authority_refund + 936)),
+    .BNE .x10 .x0 (904 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 944)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 944)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 956)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 956)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 968)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 968)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (0 : Word),
+    .BEQ .x7 .x6 (132 : BitVec 13),
+    .SLLI .x28 .x7 (5 : BitVec 6),
+    .AUIPC .x29 (laHi GuestAddrs.teer_success_table (GuestAddrs.tx_eip7702_existing_authority_refund + 992)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.teer_success_table (GuestAddrs.tx_eip7702_existing_authority_refund + 992)),
+    .ADD .x28 .x28 .x29,
+    .AUIPC .x29 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1004)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1004)),
+    .MV .x30 .x28,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (32 : BitVec 13),
+    .LBU .x16 .x29 (0 : BitVec 12),
+    .LBU .x17 .x30 (0 : BitVec 12),
+    .BNE .x16 .x17 (76 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .LD .x30 .x2 (144 : BitVec 12),
+    .BEQ .x29 .x30 (784 : BitVec 13),
+    .AUIPC .x29 (laHi GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 1064)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 1064)),
+    .LD .x30 .x29 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LW .x29 .x28 (20 : BitVec 12),
+    .BNE .x29 .x0 (20 : BitVec 13),
+    .AUIPC .x29 (laHi GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 1092)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 1092)),
+    .LI .x30 (1 : Word),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-128 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1124)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1124)),
+    .AUIPC .x13 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1132)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1132)),
+    .AUIPC .x14 (laHi GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1140)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1140)),
+    .JAL .x1 (jalOff GuestAddrs.bal_find_account_by_address (GuestAddrs.tx_eip7702_existing_authority_refund + 1148)),
+    .BNE .x10 .x0 (324 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1156)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1168)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 1180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 1180)),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_nonstorage_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 1188)),
+    .BNE .x10 .x0 (1656 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1196)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1196)),
+    .SD .x7 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_records_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_records_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1208)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (56 : BitVec 13),
+    .AUIPC .x6 (laHi GuestAddrs.bfa_index (GuestAddrs.tx_eip7702_existing_authority_refund + 1224)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bfa_index (GuestAddrs.tx_eip7702_existing_authority_refund + 1224)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .SLLI .x7 .x6 (4 : BitVec 6),
+    .SLLI .x28 .x6 (3 : BitVec 6),
+    .ADD .x7 .x7 .x28,
+    .ADD .x7 .x5 .x7,
+    .LD .x28 .x7 (16 : BitVec 12),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1260)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1260)),
+    .LI .x28 (1 : Word),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_tx_count (GuestAddrs.tx_eip7702_existing_authority_refund + 1276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_tx_count (GuestAddrs.tx_eip7702_existing_authority_refund + 1276)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BNE .x5 .x6 (556 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1296)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .BEQ .x13 .x0 (540 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1312)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1324)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1336)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1336)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1344)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1344)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1356)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1368)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.tx_eip7702_existing_authority_refund + 1380)),
+    .BNE .x10 .x0 (464 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 1388)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 1388)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (448 : BitVec 13),
+    .LI .x7 (23 : Word),
+    .BNE .x6 .x7 (436 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1412)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 1424)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 1424)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (396 : BitVec 13),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (384 : BitVec 13),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (376 : BitVec 13),
+    .JAL .x0 (376 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1476)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1488)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1500)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1500)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .BEQ .x13 .x0 (1336 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1516)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1516)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1528)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1528)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1540)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1540)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1548)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1548)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1560)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1560)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1572)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1572)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.tx_eip7702_existing_authority_refund + 1584)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 1592)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 1592)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (72 : BitVec 13),
+    .LI .x7 (23 : Word),
+    .BNE .x6 .x7 (1236 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1616)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1616)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 1628)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 1628)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (1196 : BitVec 13),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (1184 : BitVec 13),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (1176 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1676)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1688)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1688)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1700)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1700)),
+    .LI .x13 (20 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1712)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1712)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1724)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1724)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x16 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1736)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1736)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root (GuestAddrs.tx_eip7702_existing_authority_refund + 1744)),
+    .BEQ .x10 .x0 (52 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (1092 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1760)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1760)),
+    .LI .x28 (1 : Word),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 1776)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 1776)),
+    .LI .x28 (1 : Word),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .LI .x6 (0 : Word),
+    .JAL .x0 (224 : BitVec 21),
+    .AUIPC .x7 (laHi GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1800)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 1800)),
+    .SD .x7 .x0 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 1812)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 1812)),
+    .LI .x28 (1 : Word),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1828)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1828)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (180 : BitVec 21),
+    .JAL .x0 (1004 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1848)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1848)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1860)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1860)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LD .x12 .x2 (104 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_nonce_before_index (GuestAddrs.tx_eip7702_existing_authority_refund + 1876)),
+    .BEQ .x10 .x0 (136 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (212 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1892)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1892)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (196 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1908)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1908)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1920)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1920)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1932)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 1932)),
+    .LI .x13 (20 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1944)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 1944)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1956)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 1956)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x16 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1968)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 1968)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root (GuestAddrs.tx_eip7702_existing_authority_refund + 1976)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (112 : BitVec 13),
+    .LI .x6 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 2000)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.tx_eip7702_existing_authority_refund + 2000)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x6 .x11,
+    .AUIPC .x7 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2020)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2020)),
+    .AUIPC .x28 (laHi GuestAddrs.bv_stx_sender_addr (GuestAddrs.tx_eip7702_existing_authority_refund + 2028)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bv_stx_sender_addr (GuestAddrs.tx_eip7702_existing_authority_refund + 2028)),
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (32 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (24 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2076)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2076)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .LD .x7 .x2 (144 : BitVec 12),
+    .BNE .x6 .x7 (-252 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (56 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 2116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 2116)),
+    .LD .x6 .x5 (40 : BitVec 12),
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 2132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_finals (GuestAddrs.tx_eip7702_existing_authority_refund + 2132)),
+    .LD .x6 .x5 (48 : BitVec 12),
+    .LD .x7 .x2 (144 : BitVec 12),
+    .BLTU .x7 .x6 (20 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 2152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 2152)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_prior_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2168)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (204 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_absent (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .BEQ .x28 .x0 (16 : BitVec 13),
+    .LUI .x28 (45 : BitVec 20),
+    .ADDIW .x28 .x28 (-720 : BitVec 12),
+    .ADD .x26 .x26 .x28,
+    .AUIPC .x7 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)),
+    .AUIPC .x28 (laHi GuestAddrs.bv_stx_sender_addr (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bv_stx_sender_addr (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)),
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (152 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_value_nonzero (GuestAddrs.tx_eip7702_existing_authority_refund + 2264)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_value_nonzero (GuestAddrs.tx_eip7702_existing_authority_refund + 2264)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_recipient_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2280)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_recipient_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2280)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2300)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2300)),
+    .AUIPC .x5 (laHi GuestAddrs.teer_recipient_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_recipient_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2308)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (60 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 2356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 2356)),
+    .LD .x29 .x5 (0 : BitVec 12),
+    .LUI .x28 (2 : BitVec 20),
+    .ADDIW .x28 .x28 (-192 : BitVec 12),
+    .ADD .x29 .x29 .x28,
+    .SD .x5 .x29 (0 : BitVec 12),
+    .MV .x7 .x27,
+    .LI .x28 (20 : Word),
+    .LI .x29 (0 : Word),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .OR .x29 .x29 .x30,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .BEQ .x29 .x0 (288 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 2424)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_prior_set_flag (GuestAddrs.tx_eip7702_existing_authority_refund + 2424)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (272 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.svf_tx_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2440)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_tx_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2440)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BNE .x5 .x6 (200 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2460)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2460)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .BEQ .x13 .x0 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2476)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2488)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2500)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2500)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2508)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2520)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2520)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2532)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2532)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.tx_eip7702_existing_authority_refund + 2544)),
+    .BNE .x10 .x0 (148 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 2552)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.tx_eip7702_existing_authority_refund + 2552)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (23 : Word),
+    .BNE .x5 .x6 (128 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2572)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2572)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 2584)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.tx_eip7702_existing_authority_refund + 2584)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (88 : BitVec 13),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (76 : BitVec 13),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_predelegated_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2632)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_predelegated_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2632)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (56 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2656)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_ptr (GuestAddrs.tx_eip7702_existing_authority_refund + 2656)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2668)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_acct_len (GuestAddrs.tx_eip7702_existing_authority_refund + 2668)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LD .x12 .x2 (104 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_nonce_before_index (GuestAddrs.tx_eip7702_existing_authority_refund + 2684)),
+    .BNE .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (16 : BitVec 21),
+    .LUI .x28 (9 : BitVec 20),
+    .ADDIW .x28 .x28 (-1674 : BitVec 12),
+    .ADD .x26 .x26 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2708)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_success_count (GuestAddrs.tx_eip7702_existing_authority_refund + 2708)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1060 : Word),
+    .BGEU .x6 .x7 (124 : BitVec 13),
+    .SLLI .x7 .x6 (5 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.teer_success_table (GuestAddrs.tx_eip7702_existing_authority_refund + 2732)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.teer_success_table (GuestAddrs.tx_eip7702_existing_authority_refund + 2732)),
+    .ADD .x7 .x7 .x28,
+    .AUIPC .x28 (laHi GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2744)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.teer_authority (GuestAddrs.tx_eip7702_existing_authority_refund + 2744)),
+    .MV .x29 .x7,
+    .LI .x30 (20 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SW .x7 .x0 (20 : BitVec 12),
+    .MV .x28 .x27,
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (24 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x30 .x0 (24 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x28 (1 : Word),
+    .SW .x7 .x28 (20 : BitVec 12),
+    .LD .x28 .x2 (144 : BitVec 12),
+    .SD .x7 .x28 (24 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .ADDI .x24 .x24 (1 : BitVec 12),
+    .JAL .x0 (-2128 : BitVec 21),
+    .MV .x10 .x26,
+    .AUIPC .x5 (laHi GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 2860)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_regular_refund (GuestAddrs.tx_eip7702_existing_authority_refund + 2860)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_wouldbe_state (GuestAddrs.tx_eip7702_existing_authority_refund + 2872)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_wouldbe_state (GuestAddrs.tx_eip7702_existing_authority_refund + 2872)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_wouldbe_regular (GuestAddrs.tx_eip7702_existing_authority_refund + 2884)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_wouldbe_regular (GuestAddrs.tx_eip7702_existing_authority_refund + 2884)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 2896)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_rolled_back (GuestAddrs.tx_eip7702_existing_authority_refund + 2896)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (160 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txEip7702ExistingAuthorityRefund_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip7702ExistingAuthorityRefund_relocs : RelocTable :=
+  [ (21, .la .x5 "teer_regular_refund"),
+    (24, .la .x5 "teer_success_count"),
+    (27, .la .x5 "teer_predelegated_count"),
+    (30, .la .x5 "teer_rolled_back"),
+    (36, .la .x12 "teer_type"),
+    (38, .la .x13 "teer_inner_off"),
+    (40, .jal .x1 "tx_type_dispatch"),
+    (42, .la .x5 "teer_type"),
+    (47, .la .x5 "teer_inner_off"),
+    (54, .jal .x1 "rlp_walk_init"),
+    (60, .jal .x1 "rlp_walk_next"),
+    (65, .jal .x1 "rlp_walk_next"),
+    (70, .jal .x1 "rlp_walk_next"),
+    (75, .jal .x1 "rlp_walk_next"),
+    (80, .jal .x1 "rlp_walk_next"),
+    (85, .jal .x1 "rlp_walk_next"),
+    (88, .la .x5 "teer_recipient_ptr"),
+    (91, .la .x5 "teer_recipient_len"),
+    (97, .jal .x1 "rlp_walk_next"),
+    (100, .la .x5 "teer_value_nonzero"),
+    (103, .la .x5 "teer_inner_off"),
+    (110, .jal .x1 "rlp_walk_init"),
+    (116, .jal .x1 "rlp_walk_next"),
+    (121, .jal .x1 "rlp_walk_next"),
+    (126, .jal .x1 "rlp_walk_next"),
+    (131, .jal .x1 "rlp_walk_next"),
+    (136, .jal .x1 "rlp_walk_next"),
+    (141, .jal .x1 "rlp_walk_next"),
+    (146, .jal .x1 "rlp_walk_next"),
+    (151, .jal .x1 "rlp_walk_next"),
+    (156, .jal .x1 "rlp_walk_next"),
+    (161, .jal .x1 "rlp_walk_next"),
+    (167, .la .x12 "teer_auth_count"),
+    (169, .jal .x1 "rlp_list_count_items"),
+    (171, .la .x5 "teer_auth_count"),
+    (176, .jal .x1 "rlp_walk_init"),
+    (184, .jal .x1 "rlp_walk_next"),
+    (191, .jal .x1 "rlp_walk_init"),
+    (197, .jal .x1 "rlp_walk_next"),
+    (202, .jal .x1 "rlp_content_to_u64"),
+    (209, .jal .x1 "rlp_walk_next"),
+    (217, .jal .x1 "rlp_walk_next"),
+    (222, .jal .x1 "rlp_content_to_u64"),
+    (230, .la .x12 "teer_authority"),
+    (232, .la .x13 "teer_recover_scratch"),
+    (234, .jal .x1 "eip7702_authorization_recover_address"),
+    (236, .la .x5 "teer_prior_count"),
+    (239, .la .x5 "teer_prior_set_flag"),
+    (242, .la .x5 "teer_success_count"),
+    (248, .la .x29 "teer_success_table"),
+    (251, .la .x29 "teer_authority"),
+    (266, .la .x29 "teer_prior_count"),
+    (273, .la .x29 "teer_prior_set_flag"),
+    (281, .la .x12 "teer_authority"),
+    (283, .la .x13 "teer_acct_ptr"),
+    (285, .la .x14 "teer_acct_len"),
+    (287, .jal .x1 "bal_find_account_by_address"),
+    (289, .la .x5 "teer_acct_ptr"),
+    (292, .la .x5 "teer_acct_len"),
+    (295, .la .x12 "teer_finals"),
+    (297, .jal .x1 "bal_account_nonstorage_finals"),
+    (299, .la .x7 "teer_acct_absent"),
+    (302, .la .x5 "teer_records_ptr"),
+    (306, .la .x6 "bfa_index"),
+    (315, .la .x7 "teer_acct_absent"),
+    (319, .la .x5 "svf_tx_count"),
+    (324, .la .x5 "bv_witness_state_ptr"),
+    (328, .la .x5 "sv_pre_rlp_ptr"),
+    (331, .la .x5 "sv_pre_rlp_len"),
+    (334, .la .x12 "teer_authority"),
+    (336, .la .x5 "bv_witness_state_len"),
+    (339, .la .x5 "svf_codes_ptr"),
+    (342, .la .x5 "svf_codes_len"),
+    (345, .jal .x1 "code_at_header_state_root"),
+    (347, .la .x5 "cahsr_code_length"),
+    (353, .la .x5 "svf_codes_ptr"),
+    (356, .la .x6 "cahsr_code_offset"),
+    (369, .la .x5 "teer_acct_ptr"),
+    (372, .la .x5 "teer_acct_len"),
+    (375, .la .x5 "bv_witness_state_ptr"),
+    (379, .la .x5 "sv_pre_rlp_ptr"),
+    (382, .la .x5 "sv_pre_rlp_len"),
+    (385, .la .x12 "teer_authority"),
+    (387, .la .x5 "bv_witness_state_len"),
+    (390, .la .x5 "svf_codes_ptr"),
+    (393, .la .x5 "svf_codes_len"),
+    (396, .jal .x1 "code_at_header_state_root"),
+    (398, .la .x5 "cahsr_code_length"),
+    (404, .la .x5 "svf_codes_ptr"),
+    (407, .la .x6 "cahsr_code_offset"),
+    (419, .la .x5 "sv_pre_rlp_ptr"),
+    (422, .la .x5 "sv_pre_rlp_len"),
+    (425, .la .x12 "teer_authority"),
+    (428, .la .x5 "bv_witness_state_ptr"),
+    (431, .la .x5 "bv_witness_state_len"),
+    (434, .la .x16 "teer_pre_acct"),
+    (436, .jal .x1 "account_at_header_state_root"),
+    (440, .la .x7 "teer_acct_absent"),
+    (444, .la .x7 "teer_rolled_back"),
+    (450, .la .x7 "teer_acct_absent"),
+    (453, .la .x7 "teer_rolled_back"),
+    (457, .la .x5 "teer_pre_acct"),
+    (462, .la .x5 "teer_acct_ptr"),
+    (465, .la .x5 "teer_acct_len"),
+    (469, .jal .x1 "bal_account_nonce_before_index"),
+    (473, .la .x5 "bv_witness_state_ptr"),
+    (477, .la .x5 "sv_pre_rlp_ptr"),
+    (480, .la .x5 "sv_pre_rlp_len"),
+    (483, .la .x12 "teer_authority"),
+    (486, .la .x5 "bv_witness_state_ptr"),
+    (489, .la .x5 "bv_witness_state_len"),
+    (492, .la .x16 "teer_pre_acct"),
+    (494, .jal .x1 "account_at_header_state_root"),
+    (500, .la .x5 "teer_pre_acct"),
+    (505, .la .x7 "teer_authority"),
+    (507, .la .x28 "bv_stx_sender_addr"),
+    (519, .la .x7 "teer_prior_count"),
+    (525, .la .x5 "teer_acct_ptr"),
+    (529, .la .x5 "teer_finals"),
+    (533, .la .x5 "teer_finals"),
+    (538, .la .x5 "teer_rolled_back"),
+    (542, .la .x5 "teer_prior_count"),
+    (546, .la .x5 "teer_acct_absent"),
+    (553, .la .x7 "teer_authority"),
+    (555, .la .x28 "bv_stx_sender_addr"),
+    (566, .la .x5 "teer_value_nonzero"),
+    (570, .la .x5 "teer_recipient_len"),
+    (575, .la .x7 "teer_authority"),
+    (577, .la .x5 "teer_recipient_ptr"),
+    (589, .la .x5 "teer_regular_refund"),
+    (606, .la .x5 "teer_prior_set_flag"),
+    (610, .la .x5 "svf_tx_count"),
+    (615, .la .x5 "bv_witness_state_ptr"),
+    (619, .la .x5 "sv_pre_rlp_ptr"),
+    (622, .la .x5 "sv_pre_rlp_len"),
+    (625, .la .x12 "teer_authority"),
+    (627, .la .x5 "bv_witness_state_len"),
+    (630, .la .x5 "svf_codes_ptr"),
+    (633, .la .x5 "svf_codes_len"),
+    (636, .jal .x1 "code_at_header_state_root"),
+    (638, .la .x5 "cahsr_code_length"),
+    (643, .la .x5 "svf_codes_ptr"),
+    (646, .la .x6 "cahsr_code_offset"),
+    (658, .la .x5 "teer_predelegated_count"),
+    (664, .la .x5 "teer_acct_ptr"),
+    (667, .la .x5 "teer_acct_len"),
+    (671, .jal .x1 "bal_account_nonce_before_index"),
+    (677, .la .x5 "teer_success_count"),
+    (683, .la .x28 "teer_success_table"),
+    (686, .la .x28 "teer_authority"),
+    (715, .la .x5 "teer_regular_refund"),
+    (718, .la .x5 "teer_wouldbe_state"),
+    (721, .la .x5 "teer_wouldbe_regular"),
+    (724, .la .x5 "teer_rolled_back") ]
+
 def txEip7702ExistingAuthorityRefundFunction : String :=
-  "tx_eip7702_existing_authority_refund:\n" ++
-  "  addi sp, sp, -160\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  sd a5, 104(sp)              # current block_access_index\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # BAL ptr\n" ++
-  "  mv s3, a3                   # reserved\n" ++
-  "  mv s4, a4                   # chain id\n" ++
-  "  li s10, 0                   # accumulated refund\n" ++
-  "  beqz s2, .Lteer_done\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lteer_done\n" ++
-  "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteer_done\n" ++
-  "  la t0, teer_inner_off; ld t1, 0(t0); add s5, s0, t1; sub s6, s1, t1\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_done\n" ++
-  "  mv s5, a0; mv s6, a1\n" ++
-  rlpWalkFieldAsm ".Lteer_done" 9 "s5" "s6" "s5" "s6" ++
-  "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lteer_done\n" ++
-  "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
-  "  li t0, 1; bgtu s7, t0, .Lteer_same_authority_try\n" ++
-  ".Lteer_single_loop_setup:\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_done\n" ++
-  "  mv s5, a0; mv s6, a1; li s8, 0\n" ++
-  ".Lteer_loop:\n" ++
-  "  beq s8, s7, .Lteer_done\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_done\n" ++
-  "  mv s5, a0; sub s9, a0, a2; sd a2, 136(sp)\n" ++
-  "  mv a0, s9; ld a1, 136(sp); jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_next\n" ++
-  "  sd a0, 112(sp); sd a1, 120(sp)\n" ++
-  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_next\n" ++
-  "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_next\n" ++
-  "  mv t1, a0; beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_next\n" ++
-  ".Lteer_chain_ok:\n" ++
-  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_next\n" ++
-  "  sd a0, 112(sp); li t2, 20; bne a2, t2, .Lteer_next\n" ++
-  "  sub s11, a0, a2\n" ++
-  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_next\n" ++
-  "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_next\n" ++
-  "  mv t1, a0; li t2, -1; beq t1, t2, .Lteer_next\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
-  "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
-  "  li t3, 23; bne t2, t3, .Lteer_next\n" ++
-  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_next\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_next\n" ++
-  "  lbu t3, 2(t2); bnez t3, .Lteer_next\n" ++
-  "  addi t2, t2, 3; mv t4, s11; li t5, 20\n" ++
-  ".Lteer_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_marker_match\n" ++
-  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
-  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
-  ".Lteer_marker_match:\n" ++
-  "  # execution-specs set_delegation refunds the NEW_ACCOUNT state component when\n" ++
-  "  # the recovered authority account already exists in pre-state. When block_verdict\n" ++
-  "  # provides teer_records_ptr, use the matched BAL row index to read that pre-record flag.\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
-  liAmsterdamNewAccountStateGas "t3" ++
-  "  add s10, s10, t3\n" ++
-  ".Lteer_existing_code_check:\n" ++
-  "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
-  "  # BLOCK -- its delegation indicator is in the PRE-state, not this block's BAL. Spec\n" ++
-  "  # set_delegation reads authority_code via get_code and refunds when is_valid_delegation.\n" ++
-  "  # Resolve the authority's pre-state code; a 23-byte ef0100 marker => refund AUTH_BASE\n" ++
-  "  # and skip the BAL (prior-tx-same-block) path below to avoid double-counting.\n" ++
-  "  # code_at_header_state_root preserves callee-saved s-regs (s10 refund accumulator).\n" ++
-  "  # SOUNDNESS gate: only trust pre-state code when it equals the LIVE authority code at\n" ++
-  "  # set_delegation time -- i.e. single-tx blocks (no earlier tx in this block can have\n" ++
-  "  # un-delegated the authority, which would make a pre-state marker a stale over-refund\n" ++
-  "  # = under-charge = false-accept). Multi-tx falls to the BAL (prior-tx) path below.\n" ++
-  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_prestate_no\n" ++
-  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_prestate_no\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, teer_authority\n" ++
-  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lteer_prestate_no\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_prestate_no\n" ++
-  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_prestate_no\n" ++
-  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_prestate_no\n" ++
-  "  lbu t1, 2(t0); bnez t1, .Lteer_prestate_no\n" ++
-  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  add s10, s10, t3; j .Lteer_next\n" ++
-  ".Lteer_prestate_no:\n" ++
-  "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
-  "  # AUTH_BASE is refunded only when a prior transaction already installed delegation code;\n" ++
-  "  # this tx's own set_delegation write is not pre-existing authority_code.\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0)\n" ++
-  "  li a2, 5; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; la a2, c2nsf_cnt\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_cnt; ld t3, 0(t0); beqz t3, .Lteer_next\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; mv a2, t3; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
-  "  la t0, c2nsf_toff; ld t3, 0(t0); add a0, t1, t3\n" ++
-  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  li a2, 0; addi a3, sp, 128\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  ld t0, 128(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
-  ".Lteer_refund_match:\n" ++
-  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  add s10, s10, t3; j .Lteer_next\n" ++
+  "tx_eip7702_existing_authority_refund:\n" ++ emitProgramR txEip7702ExistingAuthorityRefund_prog txEip7702ExistingAuthorityRefund_relocs
 
-  ".Lteer_next:\n" ++
-  "  addi s8, s8, 1; j .Lteer_loop\n" ++
-  ".Lteer_same_authority_try:\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 112(sp); sd a1, 120(sp); li s8, 0\n" ++
-  ".Lteer_same_loop:\n" ++
-  "  beq s8, s7, .Lteer_same_after_scan\n" ++
-  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 112(sp); sub s9, a0, a2; sd a2, 136(sp)\n" ++
-  "  mv a0, s9; ld a1, 136(sp); jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sd a1, 144(sp)\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  mv t1, a0; beqz t1, .Lteer_same_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
-  ".Lteer_same_chain_ok:\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); li t2, 20; bne a2, t2, .Lteer_single_loop_setup\n" ++
-  "  sub s11, a0, a2; sd s11, 152(sp)\n" ++
-  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteer_single_loop_setup\n" ++
-  "  mv t2, a0; beqz s8, .Lteer_same_first_nonce_check\n" ++
-  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; bne t2, t1, .Lteer_single_loop_setup\n" ++
-  "  j .Lteer_same_nonce_ok\n" ++
-  ".Lteer_same_first_nonce_check:\n" ++
-  "  li t1, -1; beq t2, t1, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_first_nonce; sd t2, 0(t0)\n" ++
-  ".Lteer_same_nonce_ok:\n" ++
-  "  bnez s8, .Lteer_same_recover_current\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_first_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  j .Lteer_same_next\n" ++
-  ".Lteer_same_recover_current:\n" ++
-  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
-  ".Lteer_same_authority_cmp:\n" ++
-  "  beqz t2, .Lteer_same_next\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_authority_cmp\n" ++
-  ".Lteer_same_next:\n" ++
-  "  addi s8, s8, 1; j .Lteer_same_loop\n" ++
-  ".Lteer_same_after_scan:\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 2(t2); bnez t3, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 3; ld t4, 152(sp); li t5, 20\n" ++
-  ".Lteer_same_final_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_same_compute_refund\n" ++
-  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
-  ".Lteer_same_compute_refund:\n" ++
-  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_single_loop_setup\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
-  "  ld t3, 16(t2)\n" ++
-  liAmsterdamNewAccountStateGas "t4" ++
-  "  mul s10, s7, t4\n" ++
-  "  beqz t3, .Lteer_same_have_new_refund\n" ++
-  "  sub s10, s10, t4\n" ++
-  ".Lteer_same_have_new_refund:\n" ++
-  "  addi t5, s7, -1\n" ++
-  "  li t4, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
-  "  mul t5, t5, t4\n" ++
-  "  add s10, s10, t5\n" ++
-  "  j .Lteer_done\n" ++
-  ".Lteer_done:\n" ++
-  "  mv a0, s10\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 160\n" ++
-  "  ret"
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip7702ExistingAuthorityRefund_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEip7702ExistingAuthorityRefundFunction_eq_prog :
+    txEip7702ExistingAuthorityRefundFunction = "tx_eip7702_existing_authority_refund:\n" ++ emitProgramR txEip7702ExistingAuthorityRefund_prog txEip7702ExistingAuthorityRefund_relocs := rfl
 
-
-/-! ## block_verdict_receipt_gas_eip8037_adjust
-
-    Repair EIP-7702 type-4 receipt gas increments when the runtime arena only
-    recorded regular execution gas. Amsterdam receipts use
-    `tx_gas_used_after_refund`; EIP-8037 block-state gas is tracked separately
-    and must not be folded into non-type-4 receipt cumulative gas. Decode
-    failures are non-gating: the helper leaves that tx's receipt gas at the
-    runtime value. -/
-def blockVerdictReceiptGasEip8037AdjustFunction : String :=
-  "block_verdict_receipt_gas_eip8037_adjust:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # tx list ptr\n" ++
-  "  mv s1, a1                   # tx list len\n" ++
-  "  mv s2, a2                   # tx count\n" ++
-  "  mv s3, a3                   # receipt gas increments\n" ++
-  "  mv s4, a4                   # intrinsic state gas array\n" ++
-  "  mv s5, a5                   # block gas increments (skip if receipt already includes state gas)\n" ++
-  "  sd a6, 104(sp)              # executed state gas array (optional)\n" ++
-  "  beqz s2, .Lbvrga_done\n" ++
-  "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
-  "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
-  "  bgtu s7, s1, .Lbvrga_done\n" ++
-  "  li s6, 0\n" ++
-  ".Lbvrga_loop:\n" ++
-  "  beq s6, s2, .Lbvrga_done\n" ++
-  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
-  "  mv s8, a0\n" ++
-  "  bltu s8, s7, .Lbvrga_next\n" ++
-  "  bgtu s8, s1, .Lbvrga_next\n" ++
-  "  addi t0, s6, 1; beq t0, s2, .Lbvrga_last\n" ++
-  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le\n" ++
-  "  mv s9, a0; j .Lbvrga_have_next\n" ++
-  ".Lbvrga_last:\n" ++
-  "  mv s9, s1\n" ++
-  ".Lbvrga_have_next:\n" ++
-  "  bltu s9, s8, .Lbvrga_next\n" ++
-  "  bgtu s9, s1, .Lbvrga_next\n" ++
-  "  add s10, s0, s8\n" ++
-  "  sub s11, s9, s8\n" ++
-  "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbvrga_next\n" ++
-  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_next\n" ++
-  "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvrga_next\n" ++
-  "  add a0, s10, t0; sub a1, s11, t0; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbvrga_next\n" ++
-  "  mv s8, a0; mv s9, a1\n" ++
-  rlpWalkFieldAsm ".Lbvrga_next" 9 "s8" "s9" "a0" "a1" ++
-  "  la a2, bvrga_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbvrga_next\n" ++
-  -- bbow4.7: full-gas-consumption type-4 rows can be floor-dominated. When
-  -- before_refund is still within the calldata floor plus the missing auth-base
-  -- margin, the consensus receipt gas is before_refund, not before_refund+auth.
-  -- huo4a: compute the type-4 receipt cumulative_gas SPEC-EXACTLY as the two
-  -- EIP-8037 block dimensions, replacing the prior per-shape +42690/+35190/2500
-  -- reconstruction. The runtime's regular pool omits the EIP-7702 per-auth
-  -- regular intrinsic (PER_AUTH_BASE_COST=7500/auth) and the auth-state intrinsic,
-  -- so the raw `bvgr_before_refund` (= tx.gas - (gas_left+state_gas_left)) is the
-  -- regular-execution + state-execution consumed but MISSING those intrinsics.
-  -- The spec receipt = tx_regular_gas + tx_state_gas (verified: msdfw 38509+133110
-  -- =171619). tx_state_gas is already correct in `bvgr_tx_total_state_gas` (net of
-  -- the new-account state refund); tx_regular_gas = (before_refund - exec_state) +
-  -- PER_AUTH_BASE_COST*auth_count. So the corrected pre-refund combined gas =
-  --   before_refund[i] - tx_exec_state_gas[i] + tx_total_state_gas[i] + 7500*auth_count
-  -- then apply the EIP-3529 gas refund (min(combined//5, refund_counter[i])) and the
-  -- EIP-7623 calldata floor (amsterdam fork.py:1132-1144). All inputs are verdict-
-  -- side arrays; no runtime change (the EIP-8037 2D-gas runtime stays as-is, 249/250).
-  "  slli t1, s6, 3\n" ++
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0)\n" ++
-  "  la t0, bvrga_auth_count; ld t5, 0(t0); li t6, 7500; mul t5, t5, t6; add t5, t4, t5\n" ++
-  "  bleu t3, t5, .Lbvrga_type4_store_before_refund\n" ++
-  -- huo4a: dimension reconstruction = before_refund + tx_total_state_gas + 7500*auth_count,
-  -- THEN subtract tx_exec_state_gas. Add-before-subtract + saturate avoids the unsigned
-  -- UNDERFLOW that bit reverted txs (jouwf): a reverted SSTORE leaves bvgr_tx_exec_state_gas
-  -- holding the pre-revert state gas (large) while before_refund is small, so the old
-  -- `before_refund - exec_state` first step wrapped to ~2^64. When exec_state exceeds the
-  -- base the dimension is invalid (reverted), so saturate to 0 and let the max below recover
-  -- before_refund.
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
-  "  add t0, s4, t1; ld t4, 0(t0); mv t6, t4; add t3, t3, t4\n" ++   -- t3 += tx_total_state_gas[i], keep total in t6
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 = before_refund + tot + 7500*auth
-  "  mv a0, t4\n" ++                                                 -- a0 = authbase_total before t4 is reused
-  "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0)\n" ++              -- t4 = tx_exec_state_gas[i]
-  -- For legitimate txs base = before_refund+tot+7500 >= exec_state (before_refund already
-  -- includes the state charged to the pool). exec_state > base only happens on a REVERT,
-  -- where bvgr_tx_exec_state_gas holds the stale pre-revert state gas: the state was reverted
-  -- (state_used=0), so the correct exec_state contribution is 0 -> keep base, skip the
-  -- subtraction (verified: set_code_to_sstore revert receipt = before_refund 33221 + tot
-  -- 35190 + 7500 = 75911 = spec). This also avoids the unsigned underflow (jouwf).
-  -- bbow4.2.5.7: when the executed type-4 auth state gas equals the net tx state
-  -- gas (no existing-authority state refund), receipts must include that state
-  -- dimension. Subtract exec_state only when it is strictly larger than the net
-  -- state dimension, i.e. when the runtime pool included state that the refund
-  -- path removed from tx_total_state_gas.
-  -- bbow4.2.4: failed high-gas auth rows that reach this path have already paid
-  -- the per-auth regular intrinsic in `before_refund`; their receipt adds only
-  -- the EIP-8037 state dimension. Low failed rows still land in the floor/auth
-  -- margin branch below and add both dimensions there.
-  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); bnez t0, .Lbvrga_type4_authbase_ok\n" ++
-  "  sub t3, t3, a0\n" ++
-  ".Lbvrga_type4_authbase_ok:\n" ++
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t5, 0(t0)\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld a0, 0(t0); bne t5, a0, .Lbvrga_type4_subchk\n" ++
-  "  li a0, 21000; bne t5, a0, .Lbvrga_type4_subchk\n" ++
-  "  bleu t4, t6, .Lbvrga_type4_dimmaxchk\n" ++                       -- floor-only auth tx: keep state in receipt
-  ".Lbvrga_type4_subchk:\n" ++
-  "  bltu t3, t4, .Lbvrga_type4_dimmaxchk\n" ++                       -- exec_state > base (revert): keep base
-  "  sub t3, t3, t4\n" ++                                            -- t3 -= exec_state (no underflow)
-  ".Lbvrga_type4_dimmaxchk:\n" ++
-  -- max(dimension, before_refund): when the runtime under-charged the per-auth intrinsic
-  -- (set_code_to_self_destruct, gas_left>0) the dimension is the larger, correct value; when
-  -- before_refund already reflects the full charge (set_code_to_sstore exhausting gas, or a
-  -- revert) before_refund is the larger, correct value. #8989 omitted this and regressed
-  -- set_code_to_sstore[tx_value_1].
-  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t4, 0(t0)\n" ++   -- t4 = before_refund[i] (reload)
-  "  bgeu t3, t4, .Lbvrga_type4_dimmax\n" ++
-  "  mv t3, t4\n" ++
-  ".Lbvrga_type4_dimmax:\n" ++
-  "  li t4, 5; divu t5, t3, t4\n" ++                                 -- t5 = combined // 5
-  "  la t0, bvgr_refund_counter; add t0, t0, t1; ld t6, 0(t0)\n" ++  -- t6 = refund_counter[i]
-  "  bleu t6, t5, .Lbvrga_type4_refmin\n" ++
-  "  mv t6, t5\n" ++
-  ".Lbvrga_type4_refmin:\n" ++
-  "  sub t3, t3, t6\n" ++                                            -- t3 = combined - refund
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0)\n" ++  -- t4 = calldata_floor[i]
-  "  bgeu t3, t4, .Lbvrga_type4_store_final\n" ++
-  "  mv t3, t4\n" ++
-  ".Lbvrga_type4_store_final:\n" ++
-  "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
-  "  j .Lbvrga_next\n" ++
-  ".Lbvrga_type4_store_before_refund:\n" ++
-  -- bbow4.2.5.7 / EIP-7976: successful authorization-only transactions can land
-  -- here because before_refund equals the calldata floor while the dispatcher
-  -- omitted both PER_AUTH_BASE_COST and the EIP-8037 state dimension from the
-  -- receipt increment. The floor is not always 21000 after EIP-7976; for any exact
-  -- floor hit, the receipt is the net state dimension plus the calldata-floor
-  -- regular dimension plus PER_AUTH_BASE_COST per authorization.
-  -- bbow4.2.4: failed type-4 rows can spend a few VM gas above the calldata
-  -- floor before failing, but the consensus receipt still includes the auth
-  -- state-gas dimension plus PER_AUTH_BASE_COST. Gate that repair on the stored
-  -- tx status so successful full-gas rows keep the pre-existing floor behavior.
-  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t4, 0(t0); bnez t4, .Lbvrga_type4_store_before_refund_success\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); li t0, 21000; bne t4, t0, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  j .Lbvrga_type4_store_before_refund_with_dims\n" ++
-  ".Lbvrga_type4_store_before_refund_success:\n" ++
-  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  li t5, 7500; mul t4, t4, t5; add t3, t3, t4\n" ++
-  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
-  "  j .Lbvrga_type4_store_before_refund_raw\n" ++
-  ".Lbvrga_type4_store_before_refund_with_dims:\n" ++
-  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++
-  ".Lbvrga_type4_store_before_refund_raw:\n" ++
-  "  add t2, s3, t1; sd t3, 0(t2)\n" ++
-  "  j .Lbvrga_next\n" ++
-  ".Lbvrga_next:\n" ++
-  "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
-  ".Lbvrga_done:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret"
-
-/-! ## block_verdict_failed_type4_auth_regular_adjust
-
-    The runtime gas-result arena records post-dispatch gas usage, while
-    Amsterdam block regular gas for type-4 transactions also includes the
-    per-authorization regular intrinsic cost. This helper reconstructs the block
-    regular increment for ALL type-4 rows (the early success skip was removed for
-    jteei):
-
-    - SUCCESSFUL type-4: if `before_refund[i]` is already the calldata floor,
-      keep the floor. Otherwise repair missing per-authorization
-      regular intrinsic as `regular_inc[i] = max(before_refund[i]
-      + 7500*auth_count - exec_state[i], calldata_floor[i])`. The floor guard
-      avoids over-counting full-gas-consumption rows where EIP-7623/7976 floor is
-      the consensus gas-used value; the repair remains for non-floor-dominated
-      rows where generic normalization over-subtracts AUTH_BASE + the per-auth
-      regular intrinsic for existing-authority delegations (jteei).
-    - FAILED type-4 (REVERT/exceptional status 0): if `before_refund[i]` is
-      within the calldata floor plus the missing auth-base margin, keep the
-      floor. Otherwise raises
-      `regular_inc[i]` to at least `before_refund[i] + 7500*auth_count`, except
-      when exact-gas normalization has already produced
-      `before_refund[i] - tx_state_gas[i]` for an OOG path.
-
-    Decode failures are non-gating: the caller keeps the previous regular
-    increment. (Name retained for stability though it now also covers success.) -/
-def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
-  "block_verdict_failed_type4_auth_regular_adjust:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # tx list ptr\n" ++
-  "  mv s1, a1                   # tx list len\n" ++
-  "  mv s2, a2                   # tx count\n" ++
-  "  mv s3, a3                   # regular increments\n" ++
-  "  mv s4, a4                   # before-refund increments\n" ++
-  "  mv s5, a5                   # tx status array\n" ++
-  "  sd a6, 104(sp)              # tx_state_gas array (optional)\n" ++
-  "  beqz s2, .Lbvf4ar_done\n" ++
-  "  li t0, 4; bltu s1, t0, .Lbvf4ar_done\n" ++
-  "  slli s7, s2, 2\n" ++
-  "  bgtu s7, s1, .Lbvf4ar_done\n" ++
-  "  li s6, 0\n" ++
-  ".Lbvf4ar_loop:\n" ++
-  "  beq s6, s2, .Lbvf4ar_done\n" ++
-  -- jteei: process BOTH successful and failed type-4 txs. The early success skip
-  -- was removed; the status branch below (after auth_count is known) routes
-  -- successful rows to the spec-exact block-regular reconstruction.
-  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
-  "  mv s8, a0\n" ++
-  "  bltu s8, s7, .Lbvf4ar_next\n" ++
-  "  bgtu s8, s1, .Lbvf4ar_next\n" ++
-  "  addi t0, s6, 1; beq t0, s2, .Lbvf4ar_last\n" ++
-  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le\n" ++
-  "  mv s9, a0; j .Lbvf4ar_have_next\n" ++
-  ".Lbvf4ar_last:\n" ++
-  "  mv s9, s1\n" ++
-  ".Lbvf4ar_have_next:\n" ++
-  "  bltu s9, s8, .Lbvf4ar_next\n" ++
-  "  bgtu s9, s1, .Lbvf4ar_next\n" ++
-  "  add s10, s0, s8\n" ++
-  "  sub s11, s9, s8\n" ++
-  "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbvf4ar_next\n" ++
-  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvf4ar_next\n" ++
-  "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvf4ar_next\n" ++
-  "  add a0, s10, t0; sub a1, s11, t0; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbvf4ar_next\n" ++
-  "  mv s8, a0; mv s9, a1\n" ++
-  rlpWalkFieldAsm ".Lbvf4ar_next" 9 "s8" "s9" "a0" "a1" ++
-  "  la a2, bvrga_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbvf4ar_next\n" ++
-  "  slli t0, s6, 3\n" ++
-  -- jteei: branch on tx status. SUCCESSFUL type-4 txs normally use the block
-  -- regular reconstruction (mirrors block_verdict_receipt_gas_eip8037_adjust,
-  -- minus the receipt's +tx_state and gas-refund step):
-  --   tx_regular_gas = before_refund + 7500*auth_count - exec_state
-  -- The runtime gas pool omits the per-auth regular intrinsic (PER_AUTH_BASE_COST
-  -- =7500/auth) and the auth-state intrinsic, while the generic normalization
-  -- subtracted max(tx_state_gas, tot_state) -> for an existing-authority delegation
-  -- (NEW_ACCOUNT refund) that over-subtracted AUTH_BASE + per-auth regular (jteei:
-  -- pointer_to_static sender_is_auth_signer=False, bv_fail=41, 42690 = 35190+7500).
-  -- bbow4.7: when before_refund is within the calldata floor plus the missing
-  -- auth-base margin, the floor is the consensus block-regular value; do not let
-  -- the auth repair raise it.
-  "  add t1, s5, t0; ld t1, 0(t1); beqz t1, .Lbvf4ar_failed\n" ++
-  "  add t1, s4, t0; ld t2, 0(t1)          # before_refund[i]\n" ++
-  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t3, 0(t1)\n" ++
-  "  bne t2, t3, .Lbvf4ar_succ_not_floor\n" ++
-  "  ld t1, 104(sp); beqz t1, .Lbvf4ar_succ_store\n" ++
-  "  add t1, t1, t0; ld t1, 0(t1); bnez t1, .Lbvf4ar_succ_store\n" ++
-  "  la t1, bvrga_auth_count; ld t1, 0(t1); beqz t1, .Lbvf4ar_succ_store\n" ++
-  "  li t3, 7500; mul t1, t1, t3; add t2, t2, t1; j .Lbvf4ar_succ_store\n" ++
-  ".Lbvf4ar_succ_not_floor:\n" ++
-  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3; add t2, t2, t1\n" ++
-  "  la t1, bvgr_tx_exec_state_gas; add t1, t1, t0; ld t3, 0(t1)   # exec_state[i]\n" ++
-  "  bltu t2, t3, .Lbvf4ar_succ_floor      # base < exec_state (anomaly): keep base\n" ++
-  "  sub t2, t2, t3                        # before_refund + 7500*auth - exec_state\n" ++
-  ".Lbvf4ar_succ_floor:\n" ++
-  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t3, 0(t1)\n" ++
-  "  bgeu t2, t3, .Lbvf4ar_succ_store\n" ++
-  "  mv t2, t3                             # max(.., calldata_floor)\n" ++
-  ".Lbvf4ar_succ_store:\n" ++
-  "  add t1, s3, t0; sd t2, 0(t1)          # regular_inc[i]\n" ++
-  "  j .Lbvf4ar_next\n" ++
-  ".Lbvf4ar_failed:\n" ++
-  "  add t1, s4, t0; ld t2, 0(t1)          # before_refund increment\n" ++
-  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t4, 0(t1)\n" ++
-  "  la t1, bvrga_auth_count; ld t5, 0(t1); li t6, 7500; mul t5, t5, t6; add t5, t4, t5\n" ++
-  "  bleu t2, t5, .Lbvf4ar_failed_floor_store # floor-dominated failed tx: keep floor\n" ++
-  "  add t1, s3, t0; ld t3, 0(t1)          # current normalized regular increment\n" ++
-  "  ld t4, 104(sp); beqz t4, .Lbvf4ar_compute_floor\n" ++
-  "  bltu t2, t3, .Lbvf4ar_compute_floor\n" ++
-  "  sub t5, t2, t3\n" ++
-  "  add t4, t4, t0; ld t4, 0(t4)          # tx_state_gas\n" ++
-  "  beq t5, t4, .Lbvf4ar_restore_before   # OOG path normalized as before_refund - state\n" ++
-  ".Lbvf4ar_compute_floor:\n" ++
-  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3\n" ++
-  "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
-  "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
-  "  sd t2, 0(t1)\n" ++
-  "  j .Lbvf4ar_next\n" ++
-  ".Lbvf4ar_restore_before:\n" ++
-  "  add t1, s3, t0; sd t2, 0(t1)\n" ++
-  "  j .Lbvf4ar_next\n" ++
-  ".Lbvf4ar_failed_floor_store:\n" ++
-  "  add t1, s3, t0; sd t4, 0(t1)\n" ++
-  ".Lbvf4ar_next:\n" ++
-  "  addi s6, s6, 1; j .Lbvf4ar_loop\n" ++
-  ".Lbvf4ar_done:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret"
-
-/-! ## block_verdict_tx_state_gas_array  (g8zeq.1.4.3)
-
-    Fill a per-tx `tx_state_gas` array from the SSZ transactions section, the
-    state-gas counterpart of the `bvgr_block_gas_increments` regular-gas array.
-    Iterates the SSZ `List[Transaction]` offset table exactly like
-    `block_verdict_tx_gas_limits` and calls `tx_intrinsic_state_gas` per tx, so
-    `out[i] = tx_state_gas(tx i)` for `i in [0, count)`.
-
-    Generic in its output pointer and a SEPARATE pass — it does NOT modify the
-    wired `block_verdict_tx_gas_limits`. g8zeq.1.4.2 calls it with
-    `bvgr_tx_state_gas` once the runtime arena is complete (count == tx_count),
-    then feeds both arrays to `eip8037_block_gas_used`.
-
-    Calling convention:
-      a0 (input)  : SSZ transactions-section ptr (offset table + tx bodies)
-      a1 (input)  : section byte length
-      a2 (input)  : expected transaction count (arena consistency)
-      a3 (input)  : u64 out array ptr (>= 8*count bytes)
-      a4 (input)  : optional BAL ptr (0 disables existing-authority refunds)
-      a5 (input)  : BAL length
-      a6 (input)  : block chain id
-      ra (input)  : return
-      a0 (output) :
-        0 : success (out[0..count) populated)
-        1 : malformed transactions section / offset table
-        2 : tx count disagrees with expected count
-        3 : a per-tx tx_intrinsic_state_gas call failed -/
+#guard txEip7702ExistingAuthorityRefundFunction.startsWith "tx_eip7702_existing_authority_refund:\n"
+#guard txEip7702ExistingAuthorityRefund_prog.length = 745
 def blockVerdictTxStateGasArray_prog : Program :=
   [ .ADDI .x2 .x2 (-112 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -844,9 +1119,9 @@ def blockVerdictTxStateGasArray_prog : Program :=
     .SLLI .x5 .x21 (3 : BitVec 6),
     .ADD .x6 .x19 .x5,
     .LD .x7 .x6 (0 : BitVec 12),
-    .BLTU .x7 .x10 (16 : BitVec 13),
-    .SUB .x7 .x7 .x10,
+    .ADD .x7 .x7 .x10,
     .SD .x6 .x7 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
     .JAL .x0 (8 : BitVec 21),
     .SD .x6 .x0 (0 : BitVec 12),
     .ADDI .x21 .x21 (1 : BitVec 12),
@@ -897,117 +1172,6 @@ theorem blockVerdictTxStateGasArrayFunction_eq_prog :
 
 #guard blockVerdictTxStateGasArrayFunction.startsWith "block_verdict_tx_state_gas_array:\n"
 #guard blockVerdictTxStateGasArray_prog.length = 96
-/-! ## block_verdict_eip7702_auth_nonstorage_effects
-
-    EIP-7702 set_delegation increments each successfully authorized authority's
-    nonce before message execution. That nonce change is not produced by CALL /
-    CREATE execution, so append a nonce-only non-storage effect for every auth
-    tuple whose recovered authority is present in the BAL and whose pre-state
-    nonce matches the signed nonce. Code changes remain covered by the existing
-    7702 code-comparator exception; this helper supplies only the balance/nonce
-    effect used by the all-accounts non-storage comparators. -/
-def eip7702AuthNonstorageEffectsFunction : String :=
-  "eip7702_auth_nonstorage_effects:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # BAL ptr\n" ++
-  "  mv s3, a3                   # BAL len\n" ++
-  "  mv s4, a4                   # chain id\n" ++
-  "  beqz s2, .Lteanse_done\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lteanse_done\n" ++
-  "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteanse_done\n" ++
-  "  la t0, teer_inner_off; ld t1, 0(t0); bgtu t1, s1, .Lteanse_done; add s5, s0, t1; sub s6, s1, t1\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteanse_done\n" ++
-  "  mv s5, a0; mv s6, a1\n" ++
-  rlpWalkFieldAsm ".Lteanse_done" 9 "s5" "s6" "s5" "s6" ++
-  "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lteanse_done\n" ++
-  "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteanse_done\n" ++
-  "  mv s5, a0; mv s6, a1; li s8, 0\n" ++
-  ".Lteanse_loop:\n" ++
-  "  beq s8, s7, .Lteanse_done\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteanse_done\n" ++
-  "  mv s5, a0; sub s9, a0, a2; mv s10, a2\n" ++
-  "  mv a0, s9; mv a1, s10; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lteanse_next\n" ++
-  "  sd a0, 104(sp); sd a1, 112(sp)\n" ++
-  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteanse_next\n" ++
-  "  sd a0, 104(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteanse_next\n" ++
-  "  mv t1, a0; beqz t1, .Lteanse_chain_ok; bne t1, s4, .Lteanse_next\n" ++
-  ".Lteanse_chain_ok:\n" ++
-  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteanse_next\n" ++
-  "  sd a0, 104(sp); li t2, 20; bne a2, t2, .Lteanse_next\n" ++
-  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lteanse_next\n" ++
-  "  sd a0, 104(sp); sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lteanse_next\n" ++
-  "  mv s11, a0; li t2, -1; beq s11, t2, .Lteanse_next\n" ++
-  "  mv a0, s9; mv a1, s10; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteanse_next\n" ++
-  "  ld t1, 48(t0); addi t2, s11, 1; bltu t1, t2, .Lteanse_next\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lteanse_have_pre\n" ++
-  "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++
-  "  bnez s11, .Lteanse_next\n" ++
-  "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
-  "  j .Lteanse_record\n" ++
-  ".Lteanse_have_pre:\n" ++
-  "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
-  ".Lteanse_record:\n" ++
-  "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
-  "  jal ra, record_nonstorage_effect\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteanse_next\n" ++
-  "  ld t1, 72(t0); bnez t1, .Lteanse_next\n" ++
-  "  la t0, exec_code_effect_next; ld t1, 0(t0); addi t2, t1, 48; li t3, " ++ toString execCodeEffectLogCap ++ "; bgtu t2, t3, .Lteanse_code_overflow\n" ++
-  "  la t3, exec_code_effect_log; add t3, t3, t1\n" ++
-  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
-  "  la t4, teer_authority; mv t5, t3; li t6, 20\n" ++
-  ".Lteanse_code_addr:\n" ++
-  "  beqz t6, .Lteanse_code_addr_done\n" ++
-  "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lteanse_code_addr\n" ++
-  ".Lteanse_code_addr_done:\n" ++
-  "  li t4, 1; sd t4, 32(t3); sd zero, 40(t3)\n" ++
-  "  la t0, exec_code_effect_count; ld t4, 0(t0); addi t4, t4, 1; sd t4, 0(t0)\n" ++
-  "  la t0, exec_code_effect_next; sd t2, 0(t0); j .Lteanse_next\n" ++
-  ".Lteanse_code_overflow:\n" ++
-  "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lteanse_next:\n" ++
-  "  addi s8, s8, 1; j .Lteanse_loop\n" ++
-  ".Lteanse_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret"
 
 def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
   [ .ADDI .x2 .x2 (-88 : BitVec 12),
@@ -1120,6 +1284,7 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbvtsg_pdone\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
@@ -1164,6 +1329,9 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_type:\n  .zero 8\n" ++
   "teer_inner_off:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_regular_refund:\n  .zero 8\n" ++
+  "teer_predelegated_count:\n  .zero 8\n" ++
+  "teer_existing_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
@@ -1171,6 +1339,16 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_invalid_auth_count:\n  .zero 8\n" ++
+  "teer_recipient_ptr:\n  .zero 8\n" ++
+  "teer_recipient_len:\n  .zero 8\n" ++
+  "teer_value_nonzero:\n  .zero 8\n" ++
+  "teer_prior_count:\n  .zero 8\n" ++
+  "teer_prior_set_flag:\n  .zero 8\n" ++
+  "teer_acct_absent:\n  .zero 8\n" ++
+  "teer_rolled_back:\n  .zero 8\n" ++
+  "teer_wouldbe_state:\n  .zero 8\n" ++
+  "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
@@ -1196,7 +1374,10 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "bfa_alen:\n  .zero 8\n" ++
   "bfa_doff:\n  .zero 8\n" ++
   "bfa_dlen:\n  .zero 8\n" ++
-  "teer_data_end:\n  .zero 8"
+  "teer_data_end:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "teer_success_count:\n  .zero 8\n" ++
+  "teer_success_table:\n  .zero " ++ toString (teerSuccessfulAuthCapacity * 32) ++ "\n"
 
 def ziskBlockVerdictTxStateGasArrayProbeUnit : BuildUnit := {
   body        := NOP

@@ -20,10 +20,101 @@ namespace EvmAsm.Codegen
     `mcopyActiveMemorySizeOff` in `EvmMcopyGas.lean`.) -/
 def activeMemorySizeOff : Nat := 488
 
-/-- Runtime EVM memory arena size for root and child frames. Keep in sync with
-    `runtimeMemoryBytes` in `Dispatch.lean` and the frame offsets in
-    `CallFrameBase.lean`. -/
+/-!
+### Memory-affordability invariant (which gas limit bounds EVM memory?)
+
+This was under-documented and is easy to get wrong, because v0.6.0 has THREE
+distinct "gas limits" and only ONE of them bounds EVM memory:
+
+* **Per-tx REGULAR gas ≤ `TX_MAX_GAS_LIMIT = 16_777_216 = 2^24`.** The spec
+  caps a transaction's regular-gas dimension at this value
+  (`execution-specs amsterdam/transactions.py:63` + the `intrinsic.regular >
+  TX_MAX_GAS_LIMIT` reject at `:624`; the guest enforces the same bound in
+  `BlockVerdictGasGate` — `li …, 16777216`). Memory-expansion gas
+  (`calculate_memory_gas_cost`, `3·w + w²/512` words) is charged against the
+  REGULAR dimension, so **this is the only limit that bounds EVM memory.**
+* **Per-tx STATE gas** (EIP-7778/8037): a separate dimension; does NOT pay for
+  memory.
+* **Block gas limit** (`header.gas_limit`, ~200M–500M in the SSZ sizing notes
+  `stateless_ssz.py:57-81`): the TOTAL block budget (all txs, both dimensions)
+  used for BAL / tx-count array sizing. It does **not** bound a single frame's
+  memory — do not size memory arenas against it.
+
+Consequences (numbers from `3·w + w²/512 ≤ 2^24`):
+* Max affordable memory in ONE frame ≈ **92_681 words ≈ 2.90 MiB** — a memory
+  offset whose expansion needs more than that is **legitimately OOG**, NOT a
+  false-reject. So `rootRuntimeMemoryArenaLimitBytes = 4 MiB` genuinely covers
+  every affordable depth-0 expansion, and anything past it is correctly
+  rejected.
+* Because CALL forwards ≤ 63/64 of remaining gas per descent, the affordable
+  memory PER FRAME decays with depth; the affordable memory summed over ALL
+  live frames on the call stack is bounded by `sum(wᵢ²/512) ≤ 2^24 ⇒`
+  **≈ 90 MiB total-live** (k = 1024).
+
+Design impact (see `docs/memory-arena-gas-bound.md`): nested memory was
+under-served before the pool (fixed 128 KiB dense arena plus a 4096-word sparse
+store). The shared `evm_memory_pool` now serves the full affordable
+~2.90 MiB/frame, bounded by the ~70 MiB joint total-live invariant; an access
+beyond the 96 MiB pool is therefore a legitimate OOG. -/
+
+/-- Runtime EVM memory arena size for nested call/create frames. This remains
+    tied to the preallocated call-frame layout. NOTE (evm-asm-274cr): 128 KiB
+    under-serves the ~2.90 MiB a nested frame can legitimately afford under the
+    `TX_MAX_GAS_LIMIT = 2^24` regular-gas cap — see the invariant note above and
+    `docs/memory-arena-gas-bound.md`. -/
 def runtimeMemoryArenaLimitBytes : Nat := 0x20000
+
+/-- Runtime EVM memory arena size for the depth-0 frame. Four MiB covers every
+    memory expansion affordable under the `TX_MAX_GAS_LIMIT = 16_777_216 = 2^24`
+    per-tx REGULAR-gas cap (spec `transactions.py:63,624`): the quadratic term
+    `w²/512` alone exceeds `2^24` above ≈ 2.90 MiB, so a larger depth-0 offset is
+    legitimately OOG (not a false-reject). Memory is bounded by this regular-gas
+    cap, NOT by the block gas limit — see the invariant note above. Keeping a
+    rounded margin avoids rejecting valid high-memory RETURN/CALL programs while
+    leaving nested frame slots at their fixed 128 KiB capacity. -/
+def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
+
+-- Frontier's large identity-precompile case expands a 1,000,000-byte CALL
+-- input window before the child call itself fails for insufficient gas.
+#guard 1000000 ≤ rootRuntimeMemoryArenaLimitBytes
+
+/-- Sparse high-memory backing for 32-byte MSTORE/MLOAD windows that exceed the
+    materialized per-frame arena. This preserves execution-specs memory-expansion
+    gas/MSIZE behavior for high offsets without treating the guest's dense arena
+    limit as an EVM OOG condition. Entries are append-only per dispatch; MLOAD
+    scans backward so later writes shadow earlier ones. Depth epochs prevent
+    stale entries from a reused child-frame slot from becoming visible to a
+    later frame at the same depth. The stored payload is the EVM stack-word limb
+    representation, which is exactly what a matching MLOAD reconstructs from the
+    big-endian byte layout of MSTORE. -/
+def sparseMemoryWordCapacity : Nat := 4096
+
+/-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
+
+    Must be ≥ the largest length any staging path can write at `+8`, so the
+    full returndata is always staged and RETURNDATACOPY's
+    `start + size ≤ retlen` guard alone keeps reads inside staged bytes
+    (matching execution-specs, with no implementation cap and no reads of
+    unstaged bytes). The bound is architectural: a child RETURN/REVERT is
+    limited to `runtimeMemoryArenaLimitBytes` by `returnRevertMemoryGasAsm`,
+    and the IDENTITY precompile echoes an input bounded by the caller's arena
+    — up to `rootRuntimeMemoryArenaLimitBytes` when called from depth 0 —
+    which dominates (MODEXP ≤ 1024, all other precompiles ≤ 256). -/
+def precompileFrameReturndataCapBytes : Nat := rootRuntimeMemoryArenaLimitBytes
+
+/-- Load the frame-relative materialized memory bound into `limitReg`.
+    Depth 0 uses its 4 MiB root arena. Nested frames receive the remaining
+    shared pool capacity, `evm_memory_pool_end - x13`. -/
+def memoryArenaLimitAsm (tag limitReg : String) : String :=
+  "  la " ++ limitReg ++ ", evm_call_depth\n" ++
+  "  ld " ++ limitReg ++ ", 0(" ++ limitReg ++ ")\n" ++
+  "  beqz " ++ limitReg ++ ", .Lmemlimit_root_" ++ tag ++ "\n" ++
+  "  la " ++ limitReg ++ ", evm_memory_pool_end\n" ++
+  "  sub " ++ limitReg ++ ", " ++ limitReg ++ ", x13\n" ++
+  "  j .Lmemlimit_have_" ++ tag ++ "\n" ++
+  ".Lmemlimit_root_" ++ tag ++ ":\n" ++
+  "  li " ++ limitReg ++ ", " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+  ".Lmemlimit_have_" ++ tag ++ ":\n"
 
 /-- Inline asm that updates the runtime `MSIZE` high-water mark from one
     memory access `(offset, length)` (low u64 limbs) and — when
@@ -78,6 +169,17 @@ def updateActiveMemorySizeAsm
     "  sub " ++ maskReg ++ ", " ++ maskReg ++ ", " ++ gasTmpReg ++ "\n" ++
     "  sd " ++ maskReg ++ ", 568(x20)\n"
    else "") ++
+  -- Fresh-zero exactly the newly expanded interval. Both endpoints are
+  -- 32-byte multiples, so aligned 8-byte stores cover [old, new) exactly.
+  "  ld " ++ currentReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+  "  add " ++ maskReg ++ ", x13, " ++ currentReg ++ "\n" ++
+  "  add " ++ gasTmpReg ++ ", x13, " ++ roundedReg ++ "\n" ++
+  ".Lmemsize_" ++ tag ++ "_zero:\n" ++
+  "  beq " ++ maskReg ++ ", " ++ gasTmpReg ++ ", .Lmemsize_" ++ tag ++ "_zero_done\n" ++
+  "  sd zero, 0(" ++ maskReg ++ ")\n" ++
+  "  addi " ++ maskReg ++ ", " ++ maskReg ++ ", 8\n" ++
+  "  j .Lmemsize_" ++ tag ++ "_zero\n" ++
+  ".Lmemsize_" ++ tag ++ "_zero_done:\n" ++
   "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
   ".Lmemsize_" ++ tag ++ "_done:\n"
 
@@ -98,7 +200,7 @@ def updateActiveMemorySizeAsm
     turn a should-OOG access from a trivial charge into the correct OOG, so it
     never lowers gas_used (no false-accept). -/
 def memConstOffsetOogGuardAsm
-    (offsetReg scratchReg : String) (length : Nat) : String :=
+    (tag offsetReg scratchReg : String) (length : Nat) : String :=
   "  ld " ++ scratchReg ++ ", 8(x12)\n" ++
   "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
   "  ld " ++ scratchReg ++ ", 16(x12)\n" ++
@@ -107,8 +209,45 @@ def memConstOffsetOogGuardAsm
   "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
   "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "\n" ++
   "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
-  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+  memoryArenaLimitAsm ("const_" ++ tag) "x6" ++
   "  bltu x6, " ++ scratchReg ++ ", .exit_outofgas\n"
+
+
+/-- Constant-length memory guard that rejects non-u64 offsets and low-limb
+    wraparound, but deliberately does not enforce the materialized dense arena
+    bound. Sparse high-memory handlers use this before charging memory expansion
+    and routing the actual load/store to sparse backing when the dense arena is
+    too small. -/
+def memConstOffsetWrapOogGuardAsm
+    (_tag offsetReg scratchReg : String) (length : Nat) : String :=
+  "  ld " ++ scratchReg ++ ", 8(x12)
+" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas
+" ++
+  "  ld " ++ scratchReg ++ ", 16(x12)
+" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas
+" ++
+  "  ld " ++ scratchReg ++ ", 24(x12)
+" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas
+" ++
+  "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "
+" ++
+  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas
+"
+
+/-- `updateActiveMemorySizeAsm` for sparse-capable constant accesses. It charges
+    memory expansion and updates MSIZE exactly like the dense helper, but leaves
+    the dense-arena bound to the caller so out-of-arena accesses can use sparse
+    backing instead of becoming implementation-limit OOG. -/
+def updateActiveMemorySizeConstSparseAsm
+    (tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg : String)
+    (chargeGas : Bool) (length : Nat) : String :=
+  (if length == 0 then "" else memConstOffsetWrapOogGuardAsm tag offsetReg maskReg length) ++
+  "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "
+" ++
+  updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg chargeGas
 
 /-- Runtime memory arena guard for a dynamic memory range `(offset, length)`
     whose low u64 limbs are already loaded. Zero-length ranges are no-ops and
@@ -121,9 +260,33 @@ def memDynamicArenaOogGuardAsm
   "  beqz " ++ lengthReg ++ ", .Lmemarena_" ++ tag ++ "_done\n" ++
   "  add " ++ endReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
   "  bltu " ++ endReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
-  "  li " ++ limitReg ++ ", " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+  memoryArenaLimitAsm ("arena_" ++ tag) limitReg ++
   "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
   ".Lmemarena_" ++ tag ++ "_done:\n"
+
+/-- Reject COPY-family memory ranges that cannot be represented by the
+    runtime's low-u64 `(destination, size)` registers. The full words remain on
+    the EVM stack. A nonzero high size limb always means an enormous nonzero
+    range and therefore OOG. Only after proving the full size is nonzero do we
+    inspect the destination high limbs: EVM copy operations ignore every
+    destination bit for a genuinely zero-size range. -/
+def memDynamicU256RangeOogGuardAsm
+    (tag baseReg lengthReg scratchReg tmpReg : String)
+    (destinationOff sizeOff : Nat) : String :=
+  "  ld " ++ scratchReg ++ ", " ++ toString (sizeOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (sizeOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  beqz " ++ lengthReg ++ ", .Lmemu256_" ++ tag ++ "_done\n" ++
+  "  ld " ++ scratchReg ++ ", " ++ toString (destinationOff + 8) ++ "(" ++ baseReg ++ ")\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 16) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  ld " ++ tmpReg ++ ", " ++ toString (destinationOff + 24) ++ "(" ++ baseReg ++ ")\n" ++
+  "  or " ++ scratchReg ++ ", " ++ scratchReg ++ ", " ++ tmpReg ++ "\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  ".Lmemu256_" ++ tag ++ "_done:\n"
 
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.
@@ -138,7 +301,7 @@ def memDynamicArenaOogGuardAsm
 def updateActiveMemorySizeConstAsm
     (tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg : String)
     (chargeGas : Bool) (length : Nat) : String :=
-  (if length == 0 then "" else memConstOffsetOogGuardAsm offsetReg maskReg length) ++
+  (if length == 0 then "" else memConstOffsetOogGuardAsm tag offsetReg maskReg length) ++
   "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
   updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg chargeGas
 
@@ -167,12 +330,24 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
     this charges only memory expansion over `(offset, size)` before the
     terminating data copy. Zero-size ranges do not expand memory, matching
     execution-specs. Nonzero ranges with high offset/size limbs, low-limb
-    wraparound, or an end past the current 128 KiB runtime memory arena route
+    wraparound, or an end past the current materialized runtime memory arena route
     to `.exit_outofgas` before any return/revert output is emitted.
 
     Stack layout before RETURN/REVERT body: `offset` at `0(x12)`, `size` at
-    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered. -/
-def returnRevertMemoryGasAsm (tag : String) : String :=
+    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered.
+
+    `sparseWindows = true` (call-frame guest only, evm-asm-0w05f.13): a
+    depth-1+ CALL frame's window is valid iff its quadratic expansion gas is
+    affordable, independent of the dense arena — `updateActiveMemorySizeAsm`
+    charges the exact spec delta and the tail materializes the beyond-dense
+    bytes from the sparse word store (`sparse_window_read`). The depth-0 root
+    guard is preserved verbatim, and a CREATE child frame
+    (`create_frame_flag[depth] = 1`) keeps the conservative dense bail: its
+    RETURN deposits code via a raw `x13+offset` read (no sparse
+    materialization), so out-of-arena initcode windows must still burn.
+    `sparseWindows = false` keeps the original arena bail byte-identical
+    (standalone probes; no `create_frame_flag` symbol dependency). -/
+def returnRevertMemoryGasAsm (tag : String) (sparseWindows : Bool := false) : String :=
   -- Any non-zero high size limb means size is non-zero but not representable.
   "  ld x18, 40(x12)\n" ++
   "  bnez x18, .exit_outofgas\n" ++
@@ -192,8 +367,25 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
   "  ld x14, 0(x12)\n" ++
   "  add x18, x14, x15\n" ++
   "  bltu x18, x14, .exit_outofgas\n" ++
-  "  li x19, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
-  "  bltu x19, x18, .exit_outofgas\n" ++
+  (if sparseWindows then
+    "  la x19, evm_call_depth\n" ++
+    "  ld x19, 0(x19)\n" ++
+    "  bnez x19, .Lrrmem_nested_" ++ tag ++ "\n" ++
+    "  li x19, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x19, x18, .exit_outofgas\n" ++
+    "  j .Lrrmem_guard_done_" ++ tag ++ "\n" ++
+    ".Lrrmem_nested_" ++ tag ++ ":\n" ++
+    "  la x16, create_frame_flag\n" ++
+    "  slli x17, x19, 3\n" ++
+    "  add x16, x16, x17\n" ++
+    "  ld x16, 0(x16)\n" ++
+    "  beqz x16, .Lrrmem_guard_done_" ++ tag ++ "\n" ++
+    "  li x19, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x19, x18, .exit_outofgas\n" ++
+    ".Lrrmem_guard_done_" ++ tag ++ ":\n"
+   else
+    memoryArenaLimitAsm ("return_" ++ tag) "x19" ++
+    "  bltu x19, x18, .exit_outofgas\n") ++
   updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
   ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
 
@@ -205,11 +397,24 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
     `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
     offset limbs are tolerated when the corresponding low size limb is zero.
     Non-zero high size limbs, high offsets for non-zero sizes, low-limb
-    offset+size wraparound, and ranges past the 128 KiB per-frame memory arena
-    route to `.exit_outofgas`. -/
+    offset+size wraparound, and ranges past the current materialized memory arena
+    route to `.exit_outofgas`.
+
+    `sparseWindows = true` (call-frame guest only, evm-asm-0w05f.13 surface 3):
+    the OUT window of a depth-1+ frame is charge-only — validity is decided by
+    the quadratic expansion charge, and the write-back into the beyond-dense
+    part is served by `sparse_window_write` at the child's RETURN/REVERT tail
+    (frame descend path). The depth-0 root guard is kept verbatim. The IN
+    window keeps the dense bail at every depth: child calldata is ALIASED into
+    the parent's live memory (`call_frame_set_calldata`), so a beyond-dense
+    args window has no materialized backing for the child's lifetime —
+    conservative, and no known fixture needs it. The precompile dispatch
+    branch re-imposes the dense OUT bound (`basicPrecompileCallTail`), since
+    precompile outputs are written raw to `x13 + outoff`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
-    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
+    (sparseWindows : Bool := false) : String :=
   "  ld x15, " ++ toString inSizeOff ++ "(x12)\n" ++
   "  beqz x15, .Lcallmem_" ++ tag ++ "_out\n" ++
   "  ld x5, " ++ toString (inSizeOff + 8) ++ "(x12)\n" ++
@@ -227,7 +432,7 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
+  memoryArenaLimitAsm ("call_" ++ tag ++ "_in") "x6" ++
   "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_out:\n" ++
@@ -248,13 +453,21 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
-  "  bltu x6, x5, .exit_outofgas\n" ++
+  (if sparseWindows then
+    "  la x6, evm_call_depth\n" ++
+    "  ld x6, 0(x6)\n" ++
+    "  bnez x6, .Lcallmem_" ++ tag ++ "_out_nested\n" ++
+    "  li x6, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    "  bltu x6, x5, .exit_outofgas\n" ++
+    ".Lcallmem_" ++ tag ++ "_out_nested:\n"
+   else
+    memoryArenaLimitAsm ("call_" ++ tag ++ "_out") "x6" ++
+    "  bltu x6, x5, .exit_outofgas\n") ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
 
 /-- CREATE-family initcode dynamic gas. The dispatch loop already charges
-    `OPCODE_CREATE_BASE = 9000`; this charges the EIP-3860 initcode word
+    `CREATE_ACCESS = 11000`; this charges the EIP-3860 initcode word
     cost `2 * ceil32(size) / 32`, and for CREATE2 also the EIP-1014 hashcost
     `6 * ceil32(size) / 32`. Memory expansion is handled separately by
     `updateActiveMemorySizeAsm` over the same initcode range.

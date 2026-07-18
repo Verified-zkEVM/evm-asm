@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
 
 open EvmAsm.Rv64.Tactics

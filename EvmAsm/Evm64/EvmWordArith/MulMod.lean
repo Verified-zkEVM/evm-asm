@@ -20,7 +20,7 @@
   See `docs/91-addmod-mulmod-survey.md` §1.3, §3, §4 for context.
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 import EvmAsm.Evm64.EvmWordArith.MulHigh
 
 namespace EvmAsm.Evm64

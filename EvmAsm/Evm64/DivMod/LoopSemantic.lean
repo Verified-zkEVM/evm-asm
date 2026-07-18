@@ -10,7 +10,10 @@
 -/
 
 -- `LoopDefs → LoopDefs.Post → LoopDefs.Iter → Compose.Base → DivMod.AddrNorm`.
-import EvmAsm.Evm64.DivMod.LoopDefs
+import EvmAsm.Evm64.DivMod.LoopDefs.Bundle
+import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+import EvmAsm.Evm64.DivMod.LoopDefs.Post
+import EvmAsm.Evm64.DivMod.AddrNorm
 import EvmAsm.Evm64.EvmWordArith.DivMulSubCarry
 import EvmAsm.Evm64.EvmWordArith.DivAddbackCarry
 

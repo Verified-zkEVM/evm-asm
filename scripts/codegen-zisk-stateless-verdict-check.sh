@@ -26,7 +26,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 FILTER="eip4895"
 SKIP=0
 LIMIT=30
@@ -163,7 +163,8 @@ PYPATCH
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-    --section-start=.sszscratch=0xbf500000 \
+    --section-start=.bss=0xa4000000 \
+    --section-start=.sszscratch=0xbf600000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 

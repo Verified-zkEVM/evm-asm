@@ -6,7 +6,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_TRANSACTION_COLLISION_EMPTY_CODE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_TRANSACTION_COLLISION_EMPTY_CODE_STEPS:-${EEST_STEPS:-1000000000}}"
 FILTER="transaction_collision_to_empty_but_code"

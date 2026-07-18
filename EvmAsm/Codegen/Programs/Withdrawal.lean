@@ -430,12 +430,12 @@ def withdrawalDecode_prog : Program :=
     .LD .x28 .x5 (0 : BitVec 12),
     .ADD .x28 .x8 .x28,
     .ADDI .x29 .x18 (16 : BitVec 12),
-    .LD .x30 .x28 (0 : BitVec 12),
-    .SD .x29 .x30 (0 : BitVec 12),
-    .LD .x30 .x28 (8 : BitVec 12),
-    .SD .x29 .x30 (8 : BitVec 12),
-    .LWU .x30 .x28 (16 : BitVec 12),
-    .SW .x29 .x30 (16 : BitVec 12),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .LI .x12 (3 : Word),
@@ -502,6 +502,7 @@ def ziskWithdrawalDecodePrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lwd_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   ".Lwd_pdone:"

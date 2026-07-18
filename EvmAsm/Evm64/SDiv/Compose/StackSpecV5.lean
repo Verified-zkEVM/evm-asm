@@ -11,8 +11,8 @@
   `(regOwn .x9 ** memOwn (sp+3936))` in the post.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallReturnHandoffV5
-import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.V5ReturnShared
+import EvmAsm.Evm64.SDiv.SpecShared
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

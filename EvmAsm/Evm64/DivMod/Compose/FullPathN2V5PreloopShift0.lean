@@ -10,7 +10,7 @@
   branch (`divK_phaseC2_taken_spec_within_v5_noNop`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
 import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
 

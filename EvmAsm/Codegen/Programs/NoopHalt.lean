@@ -16,12 +16,59 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- v0.6 (evm-asm-0w05f.17.2): `generic_create` credits NEW_ACCOUNT state gas on
+    child error ONLY when it charged it (`if new_account_charged:
+    credit_state_gas_refund`, system.py:157-159) — an alive target skipped the
+    conditional charge site, so its failed create must not credit anything.
+    Stash the by-depth alive flag (recorded by the CREATE tail after
+    `create_frame_descend`) into `create_failed_refund_skip` BEFORE
+    `frame_return` pops the depth; `createFailedStateGasRefundAsm` tests it. -/
+private def createFailedStateGasRefundStashAsm : String :=
+  "  la t0, evm_call_depth\n  ld t1, 0(t0)\n" ++
+  "  la t0, create_target_alive_flag\n  slli t1, t1, 3\n  add t0, t0, t1\n  ld t1, 0(t0)\n" ++
+  "  la t0, create_failed_refund_skip\n  sd t1, 0(t0)\n"
+
+private def createFailedStateGasRefundAsm (site : String) : String :=
+  -- execution-specs `generic_create` credits NEW_ACCOUNT state gas on child error.
+  -- `credit_state_gas_refund` is LIFO: refund gas_left spill first, then the
+  -- state-gas reservoir. Gated on the charge having actually been made (target
+  -- NOT alive): `create_failed_refund_skip` was stashed pre-`frame_return`.
+  "  la t0, create_failed_refund_skip\n  ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lcr_failed_refund_done_" ++ site ++ "\n" ++
+  "  li t2, 183600\n" ++
+  "  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n" ++
+  "  beqz t1, .Lcr_failed_refund_no_spill_" ++ site ++ "\n" ++
+  "  mv t3, t1\n" ++
+  "  bleu t1, t2, .Lcr_failed_refund_spill_le_" ++ site ++ "\n" ++
+  "  mv t3, t2\n" ++
+  ".Lcr_failed_refund_spill_le_" ++ site ++ ":\n" ++
+  "  sub t1, t1, t3\n  sd t1, 0(t0)\n" ++
+  "  ld t4, 568(x20)\n  add t4, t4, t3\n  sd t4, 568(x20)\n" ++
+  "  sub t2, t2, t3\n" ++
+  ".Lcr_failed_refund_no_spill_" ++ site ++ ":\n" ++
+  "  beqz t2, .Lcr_failed_refund_used_" ++ site ++ "\n" ++
+  "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n" ++
+  "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_used_" ++ site ++ ":\n" ++
+  "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+  "  li t2, 183600\n" ++
+  "  bltu t1, t2, .Lcr_failed_refund_done_" ++ site ++ "\n" ++
+  "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+  ".Lcr_failed_refund_done_" ++ site ++ ":\n"
+
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
     `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
-    surface at `OUTPUT_ADDR+64/+72/+248`. -/
+    surface at `OUTPUT_ADDR+64/+72/+248`.
+
+    `sparseWindows` (guest only, evm-asm-0w05f.13): a depth-1+ CALL frame
+    whose returndata window extends past the dense arena materializes it via
+    `sparse_window_read` into `evm_precompile_frame+16` before `frame_return`
+    (pairs with the depth-1+ arena-bail relaxation in
+    `returnRevertMemoryGasAsm`). CREATE frames are unaffected (their windows
+    are still dense-bounded by the preBody guard). -/
 private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
-    (depthAware : Bool := false) : String :=
+    (depthAware : Bool := false) (sparseWindows : Bool := false) : String :=
   "  ld x14, 0(x12)\n" ++
   "  ld x15, 32(x12)\n" ++
   -- Depth-aware (guest only): a child frame's RETURN/REVERT returns to the parent
@@ -44,17 +91,20 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, .Lrr_call_" ++ toString kind ++ "\n" ++
     "  sd x0, 0(t1)\n" ++
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
+      createFailedStateGasRefundStashAsm ++
       "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE new-account state gas (183600) after frame_return.
-      -- Flag was cleared above so CallFrameReturn's credit doesn't fire; apply here.
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crrev_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ("revert_" ++ toString kind) ++
       ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n"
      else
@@ -93,23 +143,59 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- state gas under-counted -> EIP-7778/8037 state budget too lenient (false-accept on state-heavy
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
-      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
+      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x10000) so x15*1530 cannot overflow u64.
       "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
-      "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0
-      "  ld t2, 568(x20)\n  bgeu t2, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
-      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: consume all child gas, CREATE fails
+      "  sub t3, t0, t2\n" ++                                             -- reservoir short: spill = charge - reservoir
+      "  ld t4, 568(x20)\n  bgeu t4, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
+      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: charge_state_gas raises before mutating reservoir/used
       ".Lrr_csg_spill_" ++ toString kind ++ ":\n" ++
-      "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
+      "  sd x0, 0(t1)\n" ++                                                -- reservoir = 0 only after sufficiency is known
+      "  sub t4, t4, t3\n  sd t4, 568(x20)\n" ++
+      "  la t1, evm_state_gas_spilled\n  ld t2, 0(t1)\n  add t2, t2, t3\n  sd t2, 0(t1)\n" ++
+      "  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
       ".Lrr_csg_res_" ++ toString kind ++ ":\n" ++
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+      -- Capture execution-specs generic_create target_alive current-tx evidence BEFORE
+      -- appending this CREATE's own code-effect record. A previous same-tx CREATE deposit
+      -- leaves a code-effect record even if the block-pre balance is zero; the later refund
+      -- decision combines this flag with nse_create_pre_bal.
+      "  la t0, create_target_alive_current_tx
+  sd x0, 0(t0)
+" ++
+      "  addi sp, sp, -16
+  sd x10, 0(sp)
+  sd x12, 8(sp)
+" ++
+      "  la a0, exec_code_effect_log
+  la t0, exec_code_effect_count
+  ld a1, 0(t0)
+  la a2, create_address_be
+" ++
+      "  jal ra, find_code_effect_by_address
+" ++
+      "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
+" ++
+      "  la t0, create_target_alive_current_tx
+  li t1, 1
+  sd t1, 0(t0)
+" ++
+      ".Lrr_cralive_scan_done_" ++ toString kind ++ ":
+" ++
+      "  ld x10, 0(sp)
+  ld x12, 8(sp)
+  addi sp, sp, 16
+" ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
-      -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre absent 0/0;
-      -- post nonce=1, balance = C's FINAL balance). The final balance is C's LIVE selfBalance (env+32),
+      -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre balance captured
+      -- before the CREATE frame; post nonce is the initcode's final nonce, balance = C's FINAL balance). The target may already be
+      -- present with a nonzero balance, so its pre balance is nse_create_pre_bal rather than a fabricated
+      -- zero: updateBuilderFromTx records a balance change only when the actual block pre/post differ.
+      -- The final balance is C's LIVE selfBalance (env+32),
       -- NOT the CALLVALUE endowment: the initcode may CALL value out, so the created account ends at
       -- E - net_out. env+32 was credited the endowment at create_frame_descend (drj99.1 part 2) and
       -- debited by each byte-order-correct outgoing value-CALL (drj99.1 part 4), so it holds the true
@@ -121,7 +207,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
       "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n  sd x14, 24(sp)\n  sd x15, 32(sp)\n" ++
-      "  la a0, create_address_be\n  la a1, nse_zero_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
+      -- The per-creator nonce table is seeded to 1 for this child and advances
+      -- for every inner CREATE. Do not use the generic effect log here: a later
+      -- value-transfer record can carry a header-derived nonce for a newly-created
+      -- account and is not the account's running CREATE nonce.
+      "  la a0, create_address_be\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
+      "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  ld x14, 24(sp)\n  ld x15, 32(sp)\n  addi sp, sp, 48\n" ++
       -- drj99.1 part 1: a SUCCESSFUL CREATE deposit must pass success=1 to frame_return so the child
@@ -133,8 +224,14 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- A successful CREATE exposes empty returndata to the parent (execution-specs
       -- generic_create sets return_data = b"" after incorporate_child_on_success);
       -- the returned constructor bytes were already consumed as deployed code above.
+      "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+      "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+      "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
+      -- v0.6.0 (C11): no target-alive success refund -- an alive target
+      -- was never charged (the conditional charge site skipped it).
+
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
       "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
@@ -166,24 +263,130 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- exceptional CREATE failure. execution-specs process_create_message
       -- restores the child state snapshot and sets child gas_left = 0 before
       -- incorporate_child_on_error, so the parent does not get the forwarded
-      -- gas back through frame_return.
+      -- gas back through frame_return. Refill the child frame's state gas
+      -- into the global reservoir in LIFO order, but burn the gas-left portion
+      -- by keeping env+568 at zero before frame_return observes it.
+      "  ld t0, 632(x20)                 # used0\n" ++
+      "  la t1, evm_state_gas_used; ld t2, 0(t1)\n" ++
+      "  la t1, evm_state_gas_left; ld t3, 0(t1)\n" ++
+      "  la t1, evm_state_gas_spilled; ld t4, 0(t1)\n" ++
+      "  ld t5, 760(x20)                 # spilled0\n" ++
+      "  bleu t4, t5, .Lrr_crinv_no_spill_delta_" ++ toString kind ++ "\n" ++
+      "  sub t4, t4, t5\n" ++
+      "  j .Lrr_crinv_have_spill_delta_" ++ toString kind ++ "\n" ++
+      ".Lrr_crinv_no_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  li t4, 0\n" ++
+      ".Lrr_crinv_have_spill_delta_" ++ toString kind ++ ":\n" ++
+      "  bleu t2, t0, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t0\n" ++
+      "  bleu t2, t4, .Lrr_crinv_refill_done_" ++ toString kind ++ "\n" ++
+      "  sub t2, t2, t4\n" ++
+      "  add t3, t3, t2\n" ++
+      ".Lrr_crinv_refill_done_" ++ toString kind ++ ":\n" ++
+      "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
+      "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+      "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)\n" ++
       "  sd x0, 568(x20)\n" ++
+      createFailedStateGasRefundStashAsm ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      -- coc3g.9.3.4: refund CREATE state gas (same as REVERT path above).
-      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
-      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
-      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
-      "  bltu t1, t2, .Lrr_crinv_cr_" ++ toString kind ++ "\n" ++
-      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      createFailedStateGasRefundAsm ("invalid_" ++ toString kind) ++
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
-    "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
-    "  add a1, x13, x14\n" ++
-    "  mv a2, x15\n" ++
-    "  jal ra, frame_return\n" ++
-    dispatchContinueRet ++ "\n" ++
+    (if sparseWindows then
+      -- evm-asm-0w05f.13: materialize only a window that ends beyond this
+      -- frame's actual dense capacity. Under the shared pool that capacity is
+      -- frame-relative (`pool_end - x13`), not the retired 128 KiB slot size.
+      -- Using the old constant routed affordable pool windows through the
+      -- sparse store and returned zeros (ck36u). The staging-cap guard remains
+      -- defense-in-depth. x10/x12/ra are dead here (frame_return restores the
+      -- parent's); the retdata src/len are carried in x18/x19 across helpers.
+      "  mv x19, x15                    # retlen (survives the helper calls)\n" ++
+      -- A ZERO-SIZE window never touches memory (the preBody skipped all
+      -- guards/charges for it, matching the spec), so the offset may be any
+      -- huge in-u64 value (stMemoryStressTest return_bounds: RETURN with a
+      -- 2^35..2^255-shaped offset and size 0). Route it to the dense path —
+      -- frame_return copies and stages min(outsize, 0) = 0 bytes, never
+      -- dereferencing the pointer — instead of tripping the staging-cap
+      -- guard on offset+0.
+      "  beqz x15, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
+      "  add t0, x14, x15\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, x13                # frame-relative pool capacity\n" ++
+      "  bgeu t1, t0, .Lrr_call_dense_" ++ toString kind ++ "\n" ++
+      "  li t1, " ++ toString precompileFrameReturndataCapBytes ++ "\n" ++
+      "  bltu t1, t0, .exit_outofgas\n" ++
+      "  la a0, evm_precompile_frame\n" ++
+      "  addi a0, a0, 16\n" ++
+      "  mv a1, x14\n" ++
+      "  mv a2, x15\n" ++
+      -- a3 IS x13 (the dense memory base) already; no move needed.
+      "  jal ra, sparse_window_read\n" ++
+      "  mv x18, a0                     # retdata src = staging\n" ++
+      "  j .Lrr_call_havesrc_" ++ toString kind ++ "\n" ++
+      ".Lrr_call_dense_" ++ toString kind ++ ":\n" ++
+      "  add x18, x13, x14              # retdata src = dense child memory\n" ++
+      ".Lrr_call_havesrc_" ++ toString kind ++ ":\n" ++
+      -- 0w05f.13 surface 2: when the PARENT's saved out-window
+      -- (frame_call_ctx[d]: outoff_abs/outsize) ends past the PARENT's
+      -- frame-relative pool capacity, frame_return's raw copy would write
+      -- outside the pool. Perform the write-back here instead via
+      -- sparse_window_write (dense prefix raw + word entries keyed to the
+      -- parent depth d-1), then zero ctx.outsize so frame_return skips its
+      -- copy. A depth-1 child's parent is the root frame (4 MiB dense,
+      -- affordability-bounded) — skip. The spec copies
+      -- output[:memory_output_size] for RETURN and REVERT alike, so this
+      -- runs for both kinds.
+      "  la t0, evm_call_depth\n" ++
+      "  ld t0, 0(t0)\n" ++
+      "  li t1, 1\n" ++
+      "  bgeu t1, t0, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  la t3, frame_call_ctx\n" ++
+      "  slli t4, t0, 5\n" ++
+      "  add t3, t3, t4                 # ctx ptr (child depth d)\n" ++
+      "  ld t4, 16(t3)                  # outsize\n" ++
+      "  beqz t4, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  bgeu x19, t4, .Lrr_call_wb_n_" ++ toString kind ++ "\n" ++
+      "  mv t4, x19                     # n = min(outsize, retlen)\n" ++
+      ".Lrr_call_wb_n_" ++ toString kind ++ ":\n" ++
+      "  beqz t4, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++
+      "  la t5, frame_parent_bases\n" ++
+      "  slli t6, t0, 4\n" ++
+      "  add t5, t5, t6\n" ++
+      "  ld t5, 0(t5)                   # parent memory base\n" ++
+      "  ld t6, 8(t3)                   # outoff_abs\n" ++
+      "  sub t6, t6, t5                 # raw parent out offset\n" ++
+      "  add t0, t6, t4\n" ++
+      "  la t1, evm_memory_pool_end\n" ++
+      "  sub t1, t1, t5                 # parent-relative pool capacity\n" ++
+      "  bgeu t1, t0, .Lrr_call_wb_done_" ++ toString kind ++ "\n" ++   -- in-frame: frame_return's raw copy is exact
+      "  mv a0, x18                     # src = retdata bytes\n" ++
+      "  mv a1, t6                      # raw parent offset\n" ++
+      "  mv a2, t4                      # n\n" ++
+      "  mv a3, t5                      # parent memory base\n" ++
+      "  la a4, evm_call_depth\n" ++
+      "  ld a4, 0(a4)\n" ++
+      "  addi a4, a4, -1                # target = parent depth\n" ++
+      "  jal ra, sparse_window_write\n" ++
+      "  la t0, evm_call_depth\n" ++
+      "  ld t0, 0(t0)\n" ++
+      "  la t3, frame_call_ctx\n" ++
+      "  slli t4, t0, 5\n" ++
+      "  add t3, t3, t4\n" ++
+      "  sd x0, 16(t3)                  # ctx.outsize = 0: frame_return skips its raw copy\n" ++
+      ".Lrr_call_wb_done_" ++ toString kind ++ ":\n" ++
+      "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
+      "  mv a1, x18\n" ++
+      "  mv a2, x19\n" ++
+      "  jal ra, frame_return\n" ++
+      dispatchContinueRet ++ "\n"
+     else
+      "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
+      "  add a1, x13, x14\n" ++
+      "  mv a2, x15\n" ++
+      "  jal ra, frame_return\n" ++
+      dispatchContinueRet ++ "\n") ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
   -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
@@ -192,7 +395,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   -- txs so the halt path stays byte-identical. x13=mem base, x14=offset, x15=size (read-only).
   (if kind == 1 then
     "  la t0, system_call_mode\n  ld t0, 0(t0)\n  beqz t0, .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    "  li t1, 4096\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
+    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
     "  la t1, system_call_returndata_len\n  sd x15, 0(t1)\n" ++
     "  add t2, x13, x14\n  la t3, system_call_returndata\n  mv t4, x15\n" ++
     ".Lrr_capz_" ++ toString kind ++ ":\n" ++
@@ -288,12 +491,14 @@ private def selfdestructTailAsm : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
-  -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (2600) for a COLD beneficiary and 0
+  -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (3000) for a COLD beneficiary and 0
+
   -- when warm (spec amsterdam vm/instructions/system.py:646-650; unlike CALL, it
   -- adds NO warm-access cost). runtime_access_account_charge only debited the
-  -- 2500 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
+
+  -- 2900 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
   -- SELFDESTRUCT's 5000 base lacks), so add the missing 100 ONLY on the cold path
-  -- (helper a0==1) to reach the full 2600; a warm beneficiary stays at 0. Without
+  -- (helper a0==1) to reach the full 3000; a warm beneficiary stays at 0. Without
   -- this the cold-beneficiary SELFDESTRUCT under-charged regular gas by 100,
   -- corrupting the type-4 receipt cumulative (bv_fail=53). Check a0 before the
   -- x10 restore clobbers it.
@@ -314,10 +519,11 @@ private def selfdestructTailAsm : String :=
   -- exec_code_effect_log (the CREATE deposit recorded the deployed code there); on a hit set
   -- evm_selfdestruct_created_in_tx=1 so the downstream balance-transfer / EIP-7708 log / beneficiary
   -- nonstorage record (Selfdestruct.lean) take the created-in-tx paths (emit a Burn for self-destruct
-  -- to-self; record the child's deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
-  -- built sdai_origin_address = env.ADDRESS (BE) only when an account-witness ctx (584(x20)) is present;
-  -- guard on that. find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
-  "  ld t0, 584(x20)\n  beqz t0, .L_selfdestruct_created_in_tx_done\n" ++
+  -- to-self; record the child deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
+  -- now always builds sdai_origin_address = env.ADDRESS (BE), even when the header witness ctx
+  -- is absent, so the same-tx code-effect cleanup can still run on unsupported runtime rows.
+  -- find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
+
   -- coc3g.6.2: a contract whose constructor SELFDESTRUCTs (initcode `..ff`) NEVER deposits code,
   -- so exec_code_effect_log has NO record for it and find_code_effect_by_address below would MISS
   -- -> created_in_tx stays 0 -> the SD took the witness-present path which BAILS (the child is
@@ -362,6 +568,7 @@ private def selfdestructTailAsm : String :=
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
   selfdestructBeneficiaryNonstorageAsm ++
+  selfdestructRecordSeenOriginAsm ++
   -- coc3g.6.2: a CREATE child frame that halts via SELFDESTRUCT (constructor `..ff`) goes to
   -- .exit_selfdestruct, which (unlike RETURN/REVERT/STOP) does NOT clear create_frame_flag[depth].
   -- Now that the created-in-tx detection above CONSUMES this flag, a stale 1 left in this depth's
@@ -379,8 +586,26 @@ private def selfdestructTailAsm : String :=
   -- which is itself depth-aware).
   dispatchHaltRet 4 ++ "\n" ++
   ".L_sd_create_return:\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_address_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_address_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_sender_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_sender_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_value_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+  "  la t1, create_value_be; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_nonce_by_depth; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  la t1, create_nonce; ld t2, 0(t0); sd t2, 0(t1)\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
+  -- v0.6.0 (C11): no target-alive success refund (alive targets are not
+  -- charged at the conditional charge site).
+
   "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
   ".L_sd_create_addr_loop:\n" ++
   "  beqz t3, .L_sd_create_addr_done\n" ++
@@ -392,17 +617,17 @@ private def selfdestructTailAsm : String :=
     return to the parent frame (via `frame_return`) when `evm_call_depth > 0`
     instead of halting — used by the call-frame guest registry; the standalone
     dispatch probes pass `false` (byte-identical halt, no `frame_return` link). -/
-def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
+def haltHandlers (depthAware : Bool) (sparseWindows : Bool := false) : List OpcodeHandlerSpec :=
   [ { label   := "h_RETURN"
     , opcodes := [0xf3]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 returnRevertMemoryGasAsm "return"
+                 returnRevertMemoryGasAsm "return" sparseWindows
     , body    := []
-    , tail    := .custom (returnRevertTail 1 "" depthAware) }
+    , tail    := .custom (returnRevertTail 1 "" depthAware sparseWindows) }
   , { label   := "h_REVERT"
     , opcodes := [0xfd]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 returnRevertMemoryGasAsm "revert"
+                 returnRevertMemoryGasAsm "revert" sparseWindows
     , body    := []
     , tail    := .custom <|
         returnRevertTail 2
@@ -410,7 +635,7 @@ def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
            "  sd x17, 448(x20)\n" ++
            "  sd x0, 464(x20)\n" ++
            "  ld x17, 480(x20)\n" ++
-           "  sd x17, 472(x20)\n") depthAware }
+           "  sd x17, 472(x20)\n") depthAware sparseWindows }
   , { label := "h_INVALID", opcodes := [0xfe]
     , body := []
     , tail := .custom (dispatchHaltRet 3) }

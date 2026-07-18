@@ -19,6 +19,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopComposeN1
+import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
 open EvmAsm.Rv64.Tactics
 

@@ -21,8 +21,7 @@
   Bead `evm-asm-wbc4i.4.7`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
 
@@ -36,12 +35,6 @@ open EvmWord EvmAsm.Rv64
 def DivKTrialCallV5QHatLeFloorPlusOne (uHi uLo vTop : Word) : Prop :=
   (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
     (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1
-
-theorem DivKTrialCallV5QHatLeFloorPlusOne_unfold (uHi uLo vTop : Word) :
-    DivKTrialCallV5QHatLeFloorPlusOne uHi uLo vTop ↔
-      (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
-        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 :=
-  Iff.rfl
 
 /-- **The V5 payoff** (v5 analog of the impossible v4 bead `7.1.4.1`):
     `divKTrialCallV5QHat ≤ (uHi·2^64 + uLo)/vTop + 1` discharged

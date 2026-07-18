@@ -10,7 +10,7 @@
   `fullModN2RemainderWordV5_eq_mod_lane_of_shape` (N2V5QuotientLaneShapeMod).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5ModRemainder
+import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
 
 namespace EvmAsm.Evm64
 

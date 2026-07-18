@@ -13,7 +13,7 @@
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopIterN3NoNop
+import EvmAsm.Evm64.DivMod.LoopComposeN3
 
 open EvmAsm.Rv64.Tactics
 

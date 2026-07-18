@@ -5,7 +5,7 @@ The EEST zkevm fixtures (release line ``zkevm@vX.Y.Z``, targeting the
 Amsterdam / Glamsterdam fork) are ``blockchain_tests`` whose blocks each
 carry two extra hex fields:
 
-  * ``statelessInputBytes``  -- the schema-prefixed (``0x0001...``) SSZ
+  * ``statelessInputBytes``  -- the schema-prefixed (``0x1501...``) SSZ
     ``StatelessInput`` that ``run_stateless_guest`` consumes.
   * ``statelessOutputBytes`` -- the canonical SSZ
     ``StatelessValidationResult`` the guest is expected to produce.
@@ -114,10 +114,15 @@ def iter_blocks(fixture_path: Path):
             try:
                 ib = bytes.fromhex(sib[2:] if sib.startswith("0x") else sib)
                 ob = bytes.fromhex(sob[2:] if sob.startswith("0x") else sob)
-                gas_limit = stateless_input_block_gas_limit(ib)
             except ValueError as exc:
                 print(f"  warn: bad hex in {fixture_path}: {exc}", file=sys.stderr)
                 continue
+            try:
+                gas_limit = stateless_input_block_gas_limit(ib)
+            except ValueError:
+                # Malformed inputs are guest test cases in v0.5.0:
+                # `run_stateless_guest` returns a failed sentinel for them.
+                gas_limit = 0
             label = sanitize(f"{short}#b{bi}")
             yield label, ib, ob, gas_limit
 

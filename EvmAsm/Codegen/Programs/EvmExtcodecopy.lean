@@ -50,6 +50,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++         -- memory_start_index
     "  ld x15, 96(x12)
 " ++         -- size
+    memDynamicU256RangeOogGuardAsm
+      "extcodecopy" "x12" "x15" "x16" "x17" 32 96 ++
     -- eccob.1: both EXTCODECOPY copy paths consume only the low 64-bit code offset.
     -- If any high limb is nonzero, or the low limb is at/above the deployed-code cap,
     -- normalize to 32768 so the existing zero-padded copy loops cannot wrap the source index.
@@ -142,8 +144,19 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 32
 " ++
+    "  ld t0, 568(x20)
+" ++
+    "  li t1, 100
+" ++
+    "  bltu t0, t1, .exit_outofgas
+" ++
+    "  sub t0, t0, t1
+" ++
+    "  sd t0, 568(x20)
+" ++
     "  ld x14, 32(x12)
 " ++
+
     "  ld x15, 96(x12)
 " ++
     "  add x19, x13, x14

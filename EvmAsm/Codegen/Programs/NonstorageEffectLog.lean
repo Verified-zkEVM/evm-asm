@@ -38,28 +38,29 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
-    Set to 32768 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
+    Set to 65536 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
     comparators are linear — the FORWARD binary-searches the sorted agg (#9018) and the REVERSE
     _covers uses a matched-bitmap over the sorted agg (#9021) — there is no remaining super-linear
     consumer, so the cap can cover the full 200M-gas worst case.
 
-    Worst-case bound: record_nonstorage_effect APPENDS one raw record per value-bearing CALL /
-    CREATE-created / SELFDESTRUCT-beneficiary. The cheapest record-producing op is a value-CALL to
-    an EXISTING WARM account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(9000) = 9100 REGULAR gas
-    (Amsterdam vm/gas.py:50, vm/instructions/system.py:424/465 — value transfer is charged via
-    charge_gas, NOT the EIP-8037 state-gas dimension; CREATE 32000 / SELFDESTRUCT-redeploy ~37000
-    are dearer). So a 200M-gas block emits at most 200_000_000 / 9100 ≈ 21_978 raw records. 32768
-    covers that with ~49% margin (≈298M gas), so the effect log NEVER overflows under the 200M
-    block-gas envelope — i.e. the overflow→skip path (multi-tx BlockVerdictMtxTail) and the
-    single-tx silent-truncation are both UNREACHABLE within scope, closing the conservative skip.
+    Worst-case bound: a nonzero value-CALL appends TWO raw records, the caller debit and the callee
+    credit (ChildFrameHandlers .61.6.8), while its cheapest regular-gas charge is an existing warm
+    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus the raw-record upper bound
+    from the 200M block regular-gas limit is
+      2 * floor(200_000_000 / 10400) = 38_460.
+    CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
+    separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
+    separate block budget and cannot reduce this bound. 65536 therefore covers the full raw stream
+    with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
+    verdict assumption.
 
     Cost: the aggregate radix-sort and both comparators iterate over the live `count`, never `cap`,
-    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 14.7 MiB + cap-byte covered[]), comfortably
+    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 28 MiB + cap-byte covered[]), comfortably
     inside the ~206 MiB .data→.sszscratch slack (CallFrameLayout). Zero runtime cost for normal
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 32768
+def nonstorageEffectLogCap : Nat := 65536
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
@@ -167,12 +168,56 @@ theorem nonstorageEffectLatestBalanceFunction_eq_prog :
 
 #guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
 #guard nonstorageEffectLatestBalance_prog.length = 36
+
+/-- `nonstorage_effect_latest_nonce`: bmvmx.5.5.10 — nonce analog of
+`nonstorage_effect_latest_balance`. Sequential multi-tx CREATE address
+derivation seeds `create_nonce` from the PRE-state witness
+(`nonce_at_header_state_root`, ChildFrameCreateTail), and the per-tx
+`create_creator_nonce_table` resets at every dispatch (`.61.8a`), so a
+contract that CREATEs in tx i and again in tx j would re-derive with the
+pre-state nonce. The non-storage effect log already records every creator
+nonce bump (NoopHalt drj99.1 5a: pre=create_nonce, post=+1) and every
+created-account record (post_nonce=1); the log persists across txs on the
+mtx lane (truncated only for FAILED txs, whose nonce bumps revert per
+protocol). This reader returns the log's latest post_nonce for an address
+(last-write-wins over the whole log); the CREATE seed site consults it
+between the witness seed and `create_creator_nonce_use`, so a hit overrides
+the pre-state seed and a miss keeps today's behavior. ABI: a0 = address
+pointer (only the first 20 bytes are compared — the log record's addr
+field is 20B + 12 zero pad), a1 = out-u64 pointer; returns a0 = 1 + latest
+post_nonce stored, or 0 when the log has no record. Clobbers a0-a2/t0-t6
+(caller saves x10/x12/x13 per the ChildFrameCreateTail idiom). Plain
+string (no `_eq_prog` guard): mirrors `nonstorageEffectLatestBalance_prog`'s
+scan, last-write-wins by writing on every match. -/
+def nonstorageEffectLatestNonceFunction : String :=
+  "# a0 = addr ptr (20B compared), a1 = out u64 ptr -> a0 = 1/0\n" ++
+  "nonstorage_effect_latest_nonce:\n" ++
+  "  la t0, exec_nonstorage_effect_log\n" ++
+  "  la t1, exec_nonstorage_effect_count\n  ld t1, 0(t1)\n" ++
+  "  li t2, 112\n  mul t1, t1, t2\n  add t1, t0, t1\n" ++
+  "  li a2, 0\n" ++
+  ".Lneln_scan:\n" ++
+  "  beq t0, t1, .Lneln_done\n" ++
+  "  ld t3, 0(t0); ld t4, 0(a0); bne t3, t4, .Lneln_next\n" ++
+  "  ld t3, 8(t0); ld t4, 8(a0); bne t3, t4, .Lneln_next\n" ++
+  "  lw t3, 16(t0); lw t4, 16(a0); bne t3, t4, .Lneln_next\n" ++
+  "  ld t3, 104(t0); sd t3, 0(a1)\n" ++
+  "  li a2, 1\n" ++
+  ".Lneln_next:\n" ++
+  "  addi t0, t0, 112\n" ++
+  "  j .Lneln_scan\n" ++
+  ".Lneln_done:\n" ++
+  "  mv a0, a2\n" ++
+  "  ret\n"
+
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=
   ".balign 8\n" ++
   "exec_nonstorage_effect_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  -- bmvmx.5.5.10: out cell for nonstorage_effect_latest_nonce (CREATE seed consult).
+  "create_nonce_latest:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "exec_nonstorage_effect_log:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n"
 

@@ -11,7 +11,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopUnifiedPost
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCCBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMMBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCMBorrowCarryMod

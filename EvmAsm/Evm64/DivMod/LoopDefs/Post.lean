@@ -14,6 +14,7 @@
 
 import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
 

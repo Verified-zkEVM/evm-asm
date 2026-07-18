@@ -17,7 +17,7 @@
     .63 track the uncovered ranges — `.64` needs the FULL image).
 
   * `guestFraming : GuestFraming` — the scratch/residue bundle: the `**`
-    of `anyBytes` havoc over the six writable (`zone = .ram`) regions of
+    of `anyBytes` havoc over the seven writable (`zone = .ram`) regions of
     `RegionMap.guestRegionMap` (`guestScratch_matches_regionMap` pins the
     bundle to the map, so a region-map change breaks the build here), with
     the `scratch_sat` non-vacuity witness built from the `Rv64.MemSat`
@@ -49,7 +49,7 @@ def guestImageCodeReq : CodeReq := CodeReq.ofEntries guestImageEntries
 /-- End of the guest `.text` (by name, so layout regens flow through). -/
 def guestTextEnd : Nat := RegionMap.textRegion.base + RegionMap.textSizeBytes
 
-set_option maxRecDepth 100000 in
+set_option maxRecDepth 8000 in
 /-- The ONE kernel-checked disjointness fact for the whole image: the
     entries' byte extents are ascending and non-overlapping inside
     `.text = [0x80000000, guestTextEnd)`. -/
@@ -73,10 +73,10 @@ theorem guestImage_block_sub :
 def regionScratch (r : RegionMap.GuestRegion) : Assertion :=
   anyBytes (BitVec.ofNat 64 r.base) r.size
 
-/-- The guest's working-state ownership at entry: the six writable
+/-- The guest's working-state ownership at entry: the seven writable
     (`zone = .ram`) regions of the emitted-reality map, ascending —
     `zisk_system ** OUTPUT ** guest_stack ** state_tracker_live **
-    .data ** .sszscratch`.  (The `.data` tile contains the
+    .data ** .bss ** .sszscratch`.  (The `.bss` tile contains the
     `call_frame_arena`; `CallFramePhase.phaseDView` is a sub-tile split
     of it via `anyBytes_add`, so phase-view consumers frame out of this
     same resource.) -/
@@ -86,9 +86,10 @@ def guestScratch : Assertion :=
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
   regionScratch RegionMap.dataRegion **
+  regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.sszScratchRegion
 
-/-- Drift pin: the six tiles of `guestScratch` are EXACTLY the writable
+/-- Drift pin: the seven tiles of `guestScratch` are EXACTLY the writable
     regions of `guestRegionMap`, in map order.  Adding/renaming a `.ram`
     region breaks this `decide`, forcing the bundle to follow. -/
 theorem guestScratch_matches_regionMap :
@@ -97,7 +98,8 @@ theorem guestScratch_matches_regionMap :
       = [RegionMap.ziskSystemRegion.name, RegionMap.outputRegion.name,
          RegionMap.guestStackRegion.name,
          RegionMap.stateTrackerLiveRegion.name,
-         RegionMap.dataRegion.name, RegionMap.sszScratchRegion.name] := by
+         RegionMap.dataRegion.name, RegionMap.bssRegion.name,
+         RegionMap.sszScratchRegion.name] := by
   decide
 
 /-! ### The `scratch_sat` witness
@@ -186,19 +188,29 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     satWithin_ramRegion 0xa0630000 0x200000 (by omega) (by omega)
       (by omega) (by omega)
   have t5 : (regionScratch RegionMap.dataRegion).SatWithin
-      0xa3000000 0xbc5156d0 :=
-    satWithin_ramRegion 0xa3000000 0x195156d0 (by omega) (by omega)
+      0xa3000000 0xa3005370 :=
+    satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
-  have t6 : (regionScratch RegionMap.sszScratchRegion).SatWithin
-      0xbf500000 0xbfb80000 :=
-    satWithin_ramRegion 0xbf500000 0x680000 (by omega) (by omega)
+  have t6 : (regionScratch RegionMap.bssRegion).SatWithin
+      0xa4000000 0xbf567360 :=
+    satWithin_ramRegion 0xa4000000 0x1b567360 (by omega) (by omega)
       (by omega) (by omega)
-  have hs : guestScratch.SatWithin 0xa0000000 0xbfb80000 :=
+  have t6' : (regionScratch RegionMap.bssRegion).SatWithin
+      0xa3005370 0xbf567360 :=
+    t6.mono (by omega) (le_refl _)
+  have t7 : (regionScratch RegionMap.sszScratchRegion).SatWithin
+      0xbf600000 0xbfc80000 :=
+    satWithin_ramRegion 0xbf600000 0x680000 (by omega) (by omega)
+      (by omega) (by omega)
+  have hs : guestScratch.SatWithin 0xa0000000 0xbfc80000 :=
     t1.sepConj
       (t2.sepConj
         (t3.sepConj
           ((t4.mono (by omega) (by omega)).sepConj
-            (t5.sepConj (t6.mono (by omega) (le_refl _))
+            (t5.sepConj
+              (t6'.sepConj
+                (t7.mono (by omega) (le_refl _))
+                (by omega) (by omega))
               (by omega) (by omega))
             (by omega) (by omega))
           (by omega) (by omega))
@@ -264,6 +276,7 @@ def guestResidue : Assertion :=
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
   regionScratch RegionMap.dataRegion **
+  regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.sszScratchRegion
 
 /-- **The retiling identity `.64` consumes**: the entry scratch is

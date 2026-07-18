@@ -210,6 +210,63 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
+  -- execution-specs applies the EIP-2935 and EIP-4788 system transactions before user
+  -- transactions. Nested-callee seeds otherwise contain the authenticated
+  -- parent-state value and make calls into the history / beacon-roots contracts observe
+  -- stale storage. Overlay the current-block system writes here, just as
+  -- the direct-recipient preload does below. This changes storage contents
+  -- only; it does not seed EIP-2929 warmth (system-call warmth is discarded
+  -- before the user transaction).
+  "  la t0, csce_addrp; ld t0, 0(t0); la t1, bsr_addr_2935; li t2, 20\n" ++
+  ".Lscs_2935_acmp:\n" ++
+  "  beqz t2, .Lscs_2935_addr_match\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_2935_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_2935_acmp\n" ++
+  ".Lscs_2935_addr_match:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_2935_slot; li t2, 32\n" ++
+  ".Lscs_2935_slot_cmp:\n" ++
+  "  beqz t2, .Lscs_2935_use_value\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_2935_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_2935_slot_cmp\n" ++
+  ".Lscs_2935_use_value:\n" ++
+  "  la t0, swd_2935_val; la t1, swd_2935_vlen; ld t2, 0(t1)\n" ++
+  "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
+  "  beqz t2, .Lscs_2935_overlay_done\n" ++
+  "  add t0, t0, t2; addi t0, t0, -1; addi t1, t4, 64\n" ++
+  ".Lscs_2935_value_loop:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lscs_2935_value_loop\n" ++
+  ".Lscs_2935_overlay_done:\n" ++
+  "  la t0, csce_addrp; ld t0, 0(t0); la t1, bsr_addr_4788; li t2, 20\n" ++
+  ".Lscs_4788_acmp:\n" ++
+  "  beqz t2, .Lscs_4788_addr_match\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_acmp\n" ++
+  ".Lscs_4788_addr_match:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_4788_slot; li t2, 32\n" ++
+  ".Lscs_4788_slot_cmp:\n" ++
+  "  beqz t2, .Lscs_4788_use_timestamp\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_try_root\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_slot_cmp\n" ++
+  ".Lscs_4788_try_root:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t1, t1, 5; la t0, csce_keys; add t0, t0, t1\n" ++
+  "  la t1, swd_4788_root_slot; li t2, 32\n" ++
+  ".Lscs_4788_root_cmp:\n" ++
+  "  beqz t2, .Lscs_4788_use_root\n" ++
+  "  lbu t3, 0(t0); lbu t5, 0(t1); bne t3, t5, .Lscs_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lscs_4788_root_cmp\n" ++
+  ".Lscs_4788_use_timestamp:\n" ++
+  "  la t0, swd_4788_val; la t1, swd_4788_vlen; ld t2, 0(t1); j .Lscs_4788_copy_value\n" ++
+  ".Lscs_4788_use_root:\n" ++
+  "  la t0, swd_4788_root_val; la t1, swd_4788_root_vlen; ld t2, 0(t1)\n" ++
+  ".Lscs_4788_copy_value:\n" ++
+  "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
+  "  beqz t2, .Lscs_4788_overlay_done\n" ++
+  "  add t0, t0, t2; addi t0, t0, -1; addi t1, t4, 64\n" ++
+  ".Lscs_4788_value_loop:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lscs_4788_value_loop\n" ++
+  ".Lscs_4788_overlay_done:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lscs_slot_next:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_slot_loop\n" ++
@@ -221,30 +278,90 @@ def seedCalleeStorageFunction : String :=
   "  addi sp, sp, 56\n" ++
   "  ret"
 
+/-- v0.6.0 (C7): whether a delegated code target is WARM at
+    prepare_dispatch time — origin, recipient, or a tx access-list
+    address (the pre-execution accessed set; authorities are warmed by
+    set_delegation and covered by the recovered-authority seed).
+    a0 = delegate address ptr, a1 = tx context ptr.
+    Returns a0 = 1 warm / 0 cold. Emitted as a prefix of
+    `dispatch_tx_runtime_code` (same compilation unit). -/
 def dispatchTxRuntimeCodeFunction : String :=
+  "dtrc_delegate_warm_probe:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s5, 8(sp); sd s6, 16(sp); sd s7, 24(sp); sd s8, 32(sp)\n" ++
+  "  mv s5, a0\n" ++
+  "  mv s6, a1\n" ++
+  "  la t0, bv_stx_sender_addr; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_org_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_org_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_org_cmp\n" ++
+  ".Ldwp_org_diff:\n" ++
+  "  addi t0, s6, 72; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_rcp_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_rcp_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_rcp_cmp\n" ++
+  ".Ldwp_rcp_diff:\n" ++
+  "  ld t0, 160(s6); beqz t0, .Ldwp_cold\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Ldwp_field\n" ++
+  "  li a2, 8\n" ++
+  ".Ldwp_field:\n" ++
+  "  ld a0, 176(s6); ld a1, 184(s6); la a3, dwp_al_off; la a4, dwp_al_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ldwp_cold\n" ++
+  "  ld t0, 176(s6); la t1, dwp_al_off; ld t1, 0(t1); add s7, t0, t1\n" ++
+  "  la t1, dwp_al_len; ld s8, 0(t1)\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ldwp_cold\n" ++
+  "  mv s7, a0; mv s8, a1\n" ++
+  ".Ldwp_item_loop:\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Ldwp_cold\n" ++
+  "  mv s7, a0; sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ldwp_item_loop\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Ldwp_item_loop\n" ++
+  "  li t2, 20; bne a2, t2, .Ldwp_item_loop\n" ++
+  "  sub t0, a0, a2; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_al_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_item_loop\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_al_cmp\n" ++
+  ".Ldwp_warm:\n" ++
+  "  li a0, 1; j .Ldwp_ret\n" ++
+  ".Ldwp_cold:\n" ++
+  "  li a0, 0\n" ++
+  ".Ldwp_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s5, 8(sp); ld s6, 16(sp); ld s7, 24(sp); ld s8, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n" ++
+  "\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
-  -- fhsxz.2.4.2.57.11.6.5: resolve the witness-lookup header ONCE (mtx-gated). Default
-  -- (dtrc_use_pre_header=0, single-tx) = sv_this_rlp (this block's POST-state header,
-  -- whose root is NOT in the pre-rooted witness -> lookups bail -> conservative, byte-
-  -- identical to #8686). The mtx loop sets the flag=1 to use the PRE-state (parent)
-  -- header whose root IS the witness root, enabling real multi-tx contract dispatch.
-  "  la t0, dtrc_use_pre_header; ld t0, 0(t0); bnez t0, .Ldtrc_hdr_pre\n" ++
-  "  la t1, sv_this_rlp; la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
-  "  la t0, sv_this_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
-  "  j .Ldtrc_hdr_done\n" ++
-  ".Ldtrc_hdr_pre:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
+  -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
+  -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
+  -- the post-state header makes CREATE see its own target after deployment and falsely collide.
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
-  ".Ldtrc_hdr_done:\n" ++
   "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
+  -- evm-asm-uzb6b: a4 = the codes base this top-level path re-adds at
+  -- `.Ldtrc_have_code` (*svf_codes_ptr); the resolver re-bases cahsr_code_offset
+  -- against it (top-level x20 is evm_env scratch, NOT a runtime env).
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
@@ -273,6 +390,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz t6, .Ldtrc_deleg_copied\n" ++
   "  lbu t2, 0(t5); sb t2, 0(t1); addi t5, t5, 1; addi t1, t1, 1; addi t6, t6, -1; j .Ldtrc_deleg_copy\n" ++
   ".Ldtrc_deleg_copied:\n" ++
+  -- v0.6.0 (C7): warm (100) vs cold (3000) delegated-code access by
+  -- pre-execution accessed-set membership.
+  "  la a0, dtrc_deleg_target; mv a1, s2\n" ++
+  "  jal ra, dtrc_delegate_warm_probe\n" ++
+  "  li t1, 3000; beqz a0, .Ldtrc_prior_access_cold\n" ++
+  "  li t1, 100\n" ++
+  ".Ldtrc_prior_access_cold:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   -- Re-resolve the TARGET's code against the same header the recipient resolved under.
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  la a2, dtrc_deleg_target\n" ++
@@ -286,7 +411,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
   "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_same_block_empty_code:\n" ++
+  "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
+  "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
+  "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
+  -- v0.6.0 (C7): warm/cold by accessed-set membership (delegate address
+  -- exported by bal_same_block_delegation_code_resolve).
+  "  la a0, bsbd_deleg_target; mv a1, s2\n" ++
+  "  jal ra, dtrc_delegate_warm_probe\n" ++
+  "  li t1, 3000; beqz a0, .Ldtrc_sb_access_cold\n" ++
+  "  li t1, 100\n" ++
+  ".Ldtrc_sb_access_cold:\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++
@@ -364,6 +501,44 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
   "  add t2, t4, t6; addi t2, t2, 32; sb zero, 0(t2); addi t6, t6, 1; j .Ldtrc_vzloop\n" ++
   ".Ldtrc_vdone:\n" ++
+  -- The EIP-4788 system transaction runs before every user transaction.  Its
+  -- timestamp/root writes are therefore part of the current block state even
+  -- though they are absent from the parent-state witness used above.  Overlay
+  -- those two staged values into a matching top-level recipient preload, just
+  -- as execution-specs applies process_unchecked_system_transaction before the
+  -- transaction loop.  Other recipients and slots retain the authenticated
+  -- witness value.
+  "  addi t0, s2, 72; la t1, bsr_addr_4788; li t2, 20\n" ++
+  ".Ldtrc_4788_addr_cmp:\n" ++
+  "  beqz t2, .Ldtrc_4788_key_setup\n" ++
+  "  lbu t3, 0(t0); lbu t6, 0(t1); bne t3, t6, .Ldtrc_4788_overlay_done\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_4788_addr_cmp\n" ++
+  ".Ldtrc_4788_key_setup:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
+  "  la t0, swd_4788_slot; li t1, 32\n" ++
+  ".Ldtrc_4788_ts_key_cmp:\n" ++
+  "  beqz t1, .Ldtrc_4788_ts_value\n" ++
+  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_root_key_setup\n" ++
+  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_ts_key_cmp\n" ++
+  ".Ldtrc_4788_root_key_setup:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
+  "  la t0, swd_4788_root_slot; li t1, 32\n" ++
+  ".Ldtrc_4788_root_key_cmp:\n" ++
+  "  beqz t1, .Ldtrc_4788_root_value\n" ++
+  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_overlay_done\n" ++
+  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_root_key_cmp\n" ++
+  ".Ldtrc_4788_ts_value:\n" ++
+  "  la t0, swd_4788_val; la t1, swd_4788_vlen; ld t1, 0(t1); j .Ldtrc_4788_value_copy_setup\n" ++
+  ".Ldtrc_4788_root_value:\n" ++
+  "  la t0, swd_4788_root_val; la t1, swd_4788_root_vlen; ld t1, 0(t1)\n" ++
+  ".Ldtrc_4788_value_copy_setup:\n" ++
+  "  la t2, bvcd_i; ld t2, 0(t2); slli t2, t2, 6; la t3, bvcd_preload; add t3, t3, t2; addi t3, t3, 32\n" ++
+  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
+  "  beqz t1, .Ldtrc_4788_overlay_done\n" ++
+  "  add t0, t0, t1; addi t0, t0, -1\n" ++
+  ".Ldtrc_4788_value_copy:\n" ++
+  "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, -1; addi t3, t3, 1; addi t1, t1, -1; bnez t1, .Ldtrc_4788_value_copy\n" ++
+  ".Ldtrc_4788_overlay_done:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
   -- value for (recipient, slotKey), stage that committed value as this slot's preload
   -- (original==current). The helper bounds the table count by the named committed-storage
@@ -567,7 +742,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a3, 20; mv a4, s0; mv a5, s1\n" ++       -- addr len + witness state ptr/len
   "  la a6, csce_bal_struct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
-  "  bnez a0, .Ldtrc_no_selfbal\n" ++             -- lookup miss/error -> leave SELFBALANCE 0
+  "  bnez a0, .Ldtrc_selfbal_base_zero\n" ++       -- lookup miss/error -> start from zero
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 32\n" ++                   -- t2 = &SELFBALANCE word (env_base+32)
@@ -581,6 +756,33 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t3, csce_bal_struct; addi t3, t3, 39; mv t4, t2; li t5, 32\n" ++
   ".Ldtrc_selfbal_rev:\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
+  "  la t0, csce_bal_struct; addi t0, t0, 8; la t1, bv_pending_recipient_pre\n" ++
+  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, csce_bal_struct; ld t2, 0(t0); la t1, bv_pending_recipient_nonce; sd t2, 0(t1)\n" ++
+  "  j .Ldtrc_selfbal_base_ready\n" ++
+  ".Ldtrc_selfbal_base_zero:\n" ++
+  "  la t0, bv_pending_recipient_pre; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, bv_pending_recipient_nonce; sd zero, 0(t0)\n" ++
+  ".Ldtrc_selfbal_base_ready:\n" ++
+  -- Multi-tx execution starts each transaction from the world state produced by
+  -- earlier transactions, not always the block-start trie. Mirror the nested
+  -- frame live-balance overlay: if a prior value-flow record touched this
+  -- recipient, use its latest post-balance for top-level SELFBALANCE and as the
+  -- base for this tx's recipient-credit record.
+  "  la t0, bv_pending_recipient_addr; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  addi t1, s2, 72; li t2, 20\n" ++
+  ".Ldtrc_selfbal_addr_copy:\n" ++
+  "  beqz t2, .Ldtrc_selfbal_addr_done\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_selfbal_addr_copy\n" ++
+  ".Ldtrc_selfbal_addr_done:\n" ++
+  "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
+  "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
+  "  la t3, bv_pending_recipient_pre; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  ".Ldtrc_selfbal_live_rev:\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_live_rev\n" ++
+  ".Ldtrc_selfbal_live_done:\n" ++
   -- Stage the top-level recipient value credit into the live non-storage log after
   -- runtime setup resets it. This lets BALANCE(recipient) observe tx.value during
   -- recipient execution. Self-transfers are already represented by the sender
@@ -598,12 +800,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz t2, .Ldtrc_recipient_addr_done\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_recipient_addr_copy\n" ++
   ".Ldtrc_recipient_addr_done:\n" ++
-  "  la t0, csce_bal_struct; addi t0, t0, 8; la t1, bv_pending_recipient_pre\n" ++
-  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   "  la a0, bv_pending_recipient_pre; addi a1, s2, 96; la a2, bv_pending_recipient_post\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Ldtrc_recipient_credit_done\n" ++
-  "  la t0, csce_bal_struct; ld t2, 0(t0); la t1, bv_pending_recipient_nonce; sd t2, 0(t1)\n" ++
   "  li t2, 1; la t1, bv_pending_recipient_credit_flag; sd t2, 0(t1)\n" ++
   ".Ldtrc_recipient_credit_done:\n" ++
   ".Ldtrc_no_selfbal:\n" ++
@@ -665,6 +864,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
   "  ld t0, 160(s2); li t1, 4; bne t0, t1, .Ldtrc_auth_done\n" ++
   "  ld a0, 176(s2); ld a1, 184(s2); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -682,17 +882,32 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
-  -- message state-gas reservoir when the recovered authority already exists.
-  -- The callable dispatcher resets its state-gas cells during setup, so compute
-  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
+  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
+  -- the recovered authority already exists. The callable dispatcher resets its
+  -- state-gas cells during setup, so compute both refunds here and stage them.
   "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
+  "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
+  "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_create_state_charge; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_auth_regular_refund; sd zero, 0(t4)\n" ++
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+  -- v0.6.0: the runtime pools are driven by the WOULD-BE charges (a
+  -- rolled-back prep still charges up to its OOG point); the APPLIED
+  -- a0/a1 returns feed only the block-state arrays.
+  "  la t5, teer_wouldbe_state; ld t5, 0(t5); la t4, runtime_tx_auth_state_refund; sd t5, 0(t4)\n" ++
+  "  la t5, teer_wouldbe_regular; ld t5, 0(t5); la t4, runtime_tx_auth_regular_refund; sd t5, 0(t4)\n" ++
+  "  la t4, runtime_tx_top_frame_regular_gas; ld t6, 0(t4); add t6, t6, t5; sd t6, 0(t4)\n" ++
+  "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
+  "  addi t5, t5, -1; slli t5, t5, 3\n" ++
+  "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
+  "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
+  ".Ldtrc_auth_predelegated_stored:\n" ++
+  "  la t4, teer_auth_count; ld t5, 0(t4); la t4, runtime_tx_auth_count; sd t5, 0(t4)\n" ++
   -- The callable dispatcher will reread calldata_len at payload+8+round8(code_len)
   -- before it has any verdict-side bounds context. If later staging accidentally
   -- clobbers that word, ziskemu panics on the derived slot-count address instead
@@ -709,15 +924,6 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
-  -- The callable staged payload carries the account-witness header length in
-  -- the trailer word that overlaps env.eventLogLength in the live env layout.
-  -- If execution produced no log data and the live count is exactly that header
-  -- length, normalize it back to the empty receipt-log window before materializing
-  -- receipts. Real LOG/EIP-7708 paths either advance the count or capture data.
-  "  la t0, evm_log_data_used; ld t0, 0(t0); bnez t0, .Ldtrc_log_count_ready\n" ++
-  "  la t0, evm_env; ld t1, 472(t0); la t2, dtrc_hdr_len; ld t2, 0(t2); bne t1, t2, .Ldtrc_log_count_ready\n" ++
-  "  sd x0, 472(t0); sd x0, 480(t0)\n" ++
-  ".Ldtrc_log_count_ready:\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
@@ -726,7 +932,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv s0, a0                    # effective gas_left\n" ++
-  "  mv s1, a1                    # effective refund_counter\n" ++
+  "  mv s1, a1                    # effective refund_counter (v0.6.0: no auth regular-refund credit)\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
@@ -762,7 +968,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a0, 7\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret"
 

@@ -13,10 +13,13 @@ header_extended_decode:
   mv s3, a0; bnez a1, .Lhed_fail
   li t0, 32; bne a2, t0, .Lhed_fail
   sub t3, a0, a2
-  ld t4,  0(t3); sd t4,  0(s2)
-  ld t4,  8(t3); sd t4,  8(s2)
-  ld t4, 16(t3); sd t4, 16(s2)
-  ld t4, 24(t3); sd t4, 24(s2)
+  mv t4, s2
+  li t0, 32
+.Lhed_parent_hash_loop:
+  lbu t1, 0(t3); sb t1, 0(t4)
+  addi t3, t3, 1; addi t4, t4, 1
+  addi t0, t0, -1
+  bnez t0, .Lhed_parent_hash_loop
   # fields 1..2: skip
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
@@ -27,10 +30,13 @@ header_extended_decode:
   mv s3, a0; bnez a1, .Lhed_fail
   li t0, 32; bne a2, t0, .Lhed_fail
   sub t3, a0, a2
-  ld t4,  0(t3); sd t4, 32(s2)
-  ld t4,  8(t3); sd t4, 40(s2)
-  ld t4, 16(t3); sd t4, 48(s2)
-  ld t4, 24(t3); sd t4, 56(s2)
+  addi t4, s2, 32
+  li t0, 32
+.Lhed_state_root_loop:
+  lbu t1, 0(t3); sb t1, 0(t4)
+  addi t3, t3, 1; addi t4, t4, 1
+  addi t0, t0, -1
+  bnez t0, .Lhed_state_root_loop
   # fields 4..7: skip
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail

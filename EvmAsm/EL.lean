@@ -3,7 +3,20 @@
 
   Root import file for the Execution Layer (EL) specifications.
 -/
-import EvmAsm.EL.RLP
+import EvmAsm.EL.RLP.ByteStringDecodeBridge
+import EvmAsm.EL.RLP.FullDecode
+import EvmAsm.EL.RLP.ListDecode
+import EvmAsm.EL.RLP.ListDecodeBridge
+import EvmAsm.EL.RLP.LongForm
+import EvmAsm.EL.RLP.LongFormDecodeBridge
+import EvmAsm.EL.RLP.Prefix
+import EvmAsm.EL.RLP.PrefixDecode
+import EvmAsm.EL.RLP.Program
+import EvmAsm.EL.RLP.ProgramSpec
+import EvmAsm.EL.RLP.Properties
+import EvmAsm.EL.RLP.ReadLength
+import EvmAsm.EL.RLP.ReadLengthBridge
+import EvmAsm.EL.RLP.Scalar
 import EvmAsm.EL.Create
 import EvmAsm.EL.CreateAddress
 import EvmAsm.EL.CreateAddressExecutableBridge
@@ -128,7 +141,6 @@ import EvmAsm.EL.Conformance.All
 import EvmAsm.EL.WorldState
 import EvmAsm.EL.WorldStateAccount
 import EvmAsm.EL.WorldStateFrame
-import EvmAsm.EL.Storage
 import EvmAsm.EL.StorageAccessBridge
 import EvmAsm.EL.StorageStackBridge
 import EvmAsm.EL.StorageEcallBridge

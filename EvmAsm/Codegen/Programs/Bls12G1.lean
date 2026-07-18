@@ -35,7 +35,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
 import EvmAsm.Codegen.Programs.Bls12Field
+import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 
 namespace EvmAsm.Codegen
 
@@ -156,18 +158,20 @@ theorem bls12G1LeToBeFunction_eq_prog :
 
 #guard bls12G1LeToBeFunction.startsWith "blsg_le_to_be:\n"
 #guard blsgLeToBe_prog.length = 19
-/-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf. -/
+/-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf.
+    Re-emitted drop-in: verified single-exit SAsm body, same 12-instruction
+    length as the original two-exit byte scan. -/
 def blsgIsZeroN_prog : Program :=
-  [ .MV .x6 .x10,
-    .MV .x5 .x11,
-    .BEQ .x5 .x0 (24 : BitVec 13),
-    .LBU .x7 .x6 (0 : BitVec 12),
-    .BNE .x7 .x0 (24 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LBU .x7 .x5 (0 : BitVec 12),
+    .BNE .x7 .x0 (16 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
     .JAL .x0 (-20 : BitVec 21),
     .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
+    .BEQ .x6 .x0 (8 : BitVec 13),
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -183,23 +187,17 @@ theorem bls12G1IsZeroFunction_eq_prog :
 
 #guard bls12G1IsZeroFunction.startsWith "blsg_is_zero_n:\n"
 #guard blsgIsZeroN_prog.length = 12
-/-- a0 = 1 iff the two 48-byte buffers at a0 / a1 are equal. Leaf. -/
+
+/-- The local generated Program block is the verified SAsm drop-in. -/
+theorem blsgIsZeroN_prog_eq_verified :
+    blsgIsZeroN_prog = Bls12G1IsZeroNSAsm.blsgIsZeroN_prog := rfl
+
+/-- a0 = 1 iff the two 48-byte buffers at a0 / a1 are equal. Leaf helper.
+
+    Re-emitted drop-in: the verified `Bls12G1Eq48SAsm.blsgEq48Body`
+    flatten + `ret` (15 instructions, same length as the pre-drop-in two-exit compare). -/
 def blsgEq48_prog : Program :=
-  [ .LI .x5 (48 : Word),
-    .MV .x6 .x10,
-    .MV .x7 .x11,
-    .BEQ .x5 .x0 (32 : BitVec 13),
-    .LBU .x28 .x6 (0 : BitVec 12),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x28 .x29 (28 : BitVec 13),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x5 .x5 (-1 : BitVec 12),
-    .JAL .x0 (-28 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+  Bls12G1Eq48SAsm.blsgEq48_prog
 
 def bls12G1Eq48Function : String :=
   "blsg_eq48:\n" ++ emitProgram blsgEq48_prog

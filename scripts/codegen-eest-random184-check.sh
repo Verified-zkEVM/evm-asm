@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+TAG="${EEST_FIXTURE_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 JOBS="${EEST_RANDOM184_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_RANDOM184_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_RANDOM184_RUN_DIR:-gen-out/eest-random184}"

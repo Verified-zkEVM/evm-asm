@@ -2,7 +2,7 @@
 
 A faithful, executable Lean reference model of the Amsterdam stateless-guest
 Python spec, ported line-for-line against
-`execution-specs @ tests-zkevm@v0.4.0` (the project's canonical conformance
+`execution-specs @ tests-zkevm@v0.5.0` (the project's canonical conformance
 target). This is a **reference model only** — no proofs, no theorems about the
 RV64 guest. It is the scaffolding bead `evm-asm-4ch8f.8` (the top-level spec
 *statement*) can consume regardless of the trust-boundary / one-sided-vs-two-sided
@@ -14,11 +14,11 @@ Code lives under `EvmAsm/Stateless/SpecRef/`, imported via
 ## Reading the source on the right ref
 
 The spec does **not** live on execution-specs master or `origin/forks/amsterdam`.
-It is on the `tests-zkevm@v0.4.0` tag (checked out as the in-repo `execution-specs`
+It is on the `tests-zkevm@v0.5.0` tag (checked out as the in-repo `execution-specs`
 submodule). Read files with:
 
 ```
-git -C execution-specs show 'tests-zkevm@v0.4.0:src/ethereum/forks/amsterdam/<file>'
+git -C execution-specs show 'bd8c673:src/ethereum/forks/amsterdam/<file>'
 ```
 
 ## Modeling choices
@@ -53,8 +53,8 @@ doc-only contracts under `EvmAsm/Stateless/SSZ/`):
 
 ## The execution seam
 
-`verify_stateless_new_payload` (`stateless.py:344`) calls
-`execute_new_payload_request` (`stateless.py:378`) — full stateful block
+`verify_stateless_new_payload` (`stateless.py:368`) calls
+`execute_new_payload_request` (`stateless.py:402`) — full stateful block
 re-execution (`execution_engine.new_payload`, the whole EVM). We cut **exactly**
 at that call:
 
@@ -71,8 +71,9 @@ at that call:
   into `successful_validation = false`, as the Python `try/except Exception`
   does).
 - `executeAlwaysOk` is a placeholder instantiation so the shell is
-  `#eval`-runnable end-to-end. Bead `4ch8f.8` decides the real instantiation
-  against the RV64 guest.
+  `#eval`-runnable end-to-end. The v0.5.0 work extends this only along the
+  concrete call graph reached by `run_stateless_guest`; SpecRef is not a
+  general-purpose EVM port.
 
 `WitnessState`'s read/write methods (`get_account_optional`, `get_storage`,
 `get_code`, `compute_state_root_and_trie_changes`) and `decode_witness_to_mpt`
@@ -81,39 +82,40 @@ consumed by execution, plus `incremental_mpt.py`).
 
 ## Python ↔ Lean mapping
 
-All line numbers are `@tests-zkevm@v0.4.0`. Lean names are in
+All line numbers are `@tests-zkevm@v0.5.0` (`bd8c673`). Lean names are in
 `namespace EvmAsm.Stateless.SpecRef`.
 
 ### `stateless_guest.py` → `Guest.lean`
 
 | Python (line) | Lean |
 |---|---|
-| `serialize_stateless_output` (21) | `serialize_stateless_output` |
-| `deserialize_stateless_input` (29) | `deserialize_stateless_input` |
-| `run_stateless_guest` (47) | `run_stateless_guest` |
+| `serialize_stateless_output` (28) | `serialize_stateless_output` |
+| `deserialize_stateless_input` (36) | `deserialize_stateless_input` |
+| `_default_failed_stateless_output` (54) | `_default_failed_stateless_output` |
+| `run_stateless_guest` (75) | `run_stateless_guest` |
 
 ### `stateless.py` → `Stateless.lean` (+ types in `Types.lean`)
 
 | Python (line) | Lean |
 |---|---|
-| `ExecutionWitness` (34) | `ExecutionWitness` (Types) |
-| `ProtocolFork` (83) | `ProtocolFork` + `protocolForks` (Types) |
-| `ForkActivation`/`BlobSchedule`/`ForkConfig`/`ChainConfig` (139–183) | same names (Types) |
-| `StatelessInput` (185) / `StatelessValidationResult` (216) | same names (Types) |
-| `compute_new_payload_request_root` (231) | `compute_new_payload_request_root` |
-| `_decode_header` (246) | `_decode_header` (+ `mkHeader`, `rlpBytes?`) |
-| `validate_headers` (257) | `validate_headers` |
-| `_is_activation_active` (280) | `_is_activation_active` |
-| `_expected_amsterdam_blob_schedule` (305) | `_expected_amsterdam_blob_schedule` |
-| `validate_chain_config` (316) | `validate_chain_config` |
-| `verify_stateless_new_payload` (344) | `verify_stateless_new_payload` |
+| `ExecutionWitness` (35) | `ExecutionWitness` (Types) |
+| `ProtocolFork` (86) | `ProtocolFork` + `protocolForks` (Types) |
+| `ForkActivation`/`BlobSchedule`/`ForkConfig`/`ChainConfig` (141–179) | same names (Types) |
+| `StatelessInput` (191) / `StatelessValidationResult` (223) | same names (Types) |
+| `compute_new_payload_request_root` (255) | `compute_new_payload_request_root` |
+| `_decode_header` (270) | `_decode_header` (+ `mkHeader`, `rlpBytes?`) |
+| `validate_headers` (281) | `validate_headers` |
+| `_is_activation_active` (304) | `_is_activation_active` |
+| `_expected_amsterdam_blob_schedule` (329) | `_expected_amsterdam_blob_schedule` |
+| `validate_chain_config` (340) | `validate_chain_config` |
+| `verify_stateless_new_payload` (368) | `verify_stateless_new_payload` |
 
 The `Header`/`PreviousForkHeader` union is collapsed into one `Header` record
 with an `isCurrentFork` tag (see simplifications below).
 
 ### `stateless_ssz.py` → `Ssz.lean` (engine in `SszCodec.lean`)
 
-Constants `MAX_*` (41–61), `STATELESS_INPUT_SCHEMA_ID{,_SIZE}` (64–65) ported
+Constants `MAX_*` (46–85), `STATELESS_INPUT_SCHEMA_ID{,_SIZE}` (88–89) ported
 verbatim. Each `class SszX(Container)` → `sszXType : SszType`. Each `_x_to_ssz` →
 `xToSsz`, each `_ssz_to_x` → `sszToX` (34 conversions total):
 `_protocol_fork_to_ssz`/`_ssz_to_protocol_fork`, `_withdrawal_*`, `_payload_*`,
@@ -153,7 +155,8 @@ verbatim. Each `class SszX(Container)` → `sszXType : SszType`. Each `_x_to_ssz
 - **Guest** (`Guest.lean`): end-to-end schema-prefixed
   `StatelessInput` round-trip, wrong-schema and too-short rejection, and a full
   `run_stateless_guest` run whose decoded output carries `successful_validation =
-  true` and the matching NPR root (under the placeholder seam).
+  true` and the matching NPR root (under the placeholder seam), plus the v0.5.0
+  malformed-input sentinel output.
 
 ## Known simplifications / spec ambiguities
 
@@ -180,7 +183,7 @@ side). If a future audit surfaces one, file a P1 bead per standing project polic
 
 ## EEST conformance harness
 
-`scripts/eest-specref-check.sh` ties SpecRef to the *same* EEST `zkevm@v0.4.0`
+`scripts/eest-specref-check.sh` ties SpecRef to the *same* EEST `zkevm@v0.5.0`
 conformance fixtures exercised by `scripts/codegen-eest-stateless-check.sh`,
 so regressions in the port's SSZ codec / NPR-root hashing / header /
 chain-config / witness-assembly path surface without spinning up ziskemu.
@@ -188,8 +191,9 @@ chain-config / witness-assembly path surface without spinning up ziskemu.
 - **Driver**: `lake exe specref-eest-check <input_file> <output_file>`
   (`MainSpecRefEestCheck.lean` → `EvmAsm.Tests.SpecRefEestCheck`). It reads a
   ziskemu-framed input, strips the host transport (inverse of
-  `pack_ziskemu_input`), runs `SpecRef.run_stateless_guest` (default seam
-  `executeAlwaysOk`), and writes the 105-byte `StatelessValidationResult`.
+  `pack_ziskemu_input`), runs `SpecRef.run_stateless_guest` (default seam:
+  the full `elExecute`, `s1d19.5`), and writes the 105-byte
+  `StatelessValidationResult`.
   It lives under `EvmAsm/Tests/` (the unverified escape-hatch layer); no proof
   imports it.
 - **Fixture selection** is identical to the ziskemu harness
@@ -199,20 +203,21 @@ chain-config / witness-assembly path surface without spinning up ziskemu.
 ### The three-region verdict
 
 The 105-byte `SszStatelessValidationResult` decomposes into three
-independently-checkable regions. SpecRef's execution seam is the placeholder
-`executeAlwaysOk`, while the Python reference runs the real EVM, so only the
-pre-execution regions are expected to match:
+independently-checkable regions.  Since `s1d19.5` the execution seam is the
+full ported `elExecute` (`PrecompilesTable.lean`), so ALL THREE regions are
+expected to match:
 
 | region | bytes | meaning | gateable? |
 |---|---|---|---|
 | `root` | 0:32 | `new_payload_request_root` (pre-execution hashing) | yes — `--min-root` |
-| `succ` | 32 | `successful_validation` | no — diverges on fixtures whose real EVM execution failed (placeholder seam); reported separately as `succ diverg` |
+| `succ` | 32 | `successful_validation` | yes — `--min-succ`; un-allowlisted divergence fails the run |
 | `tail` | 33:105 | u32 offset + 68-byte chain-config echo | yes — `--min-tail` |
 | `full` | all 105 | exact guest output | informational |
 
-A per-case line shows which regions matched, e.g. `[root/succ(div:execution-seam)/tail]`
-means root + tail matched but the succ bit diverged (expected); `[----/----/----]`
-means the pre-execution path itself disagreed with the fixture — a real SpecRef
-bug worth a P1 bead. `--min-succ` / `--min-full` are deliberately **not** offered
-until the execution seam is real (bead `4ch8f.8`); the harness is advisory-only
-and not wired into CI for the same reason.
+A per-case line shows which regions matched; `[----/----/----]` means the
+pre-execution path itself disagreed with the fixture — a real SpecRef bug worth
+a P1 bead.  A succ divergence is a FAILURE unless the fixture is listed in
+`scripts/eest-succ-allow.txt` (fixture-vs-pinned-spec inconsistencies with
+recorded evidence; burndown discipline — the goal is an empty file).  The
+`--min-succ` gate exists since the seam became real (`s1d19`, closing the
+`4ch8f.8` placeholder era).

@@ -51,6 +51,14 @@
     becomes the corresponding `Accel.*` Nat-modular function of the
     *entry* window's decoded operands, so aliasing needs no side
     conditions (the pilot's load-bearing discovery).
+  - **The Sha256f handle** (bead 4ch8f.18.1): `wsDwords` (the dword-LIST
+    window view for u32-packed operands, with `_setBytes_low/high` and
+    write-back-decode locality lemmas), `csrs_sha256Compress_spec_within`
+    / `csrs_sha256Compress_ret_spec` / `sha256CompressHandle` — CSR
+    `0x805`, param block `[state*, input*]`, state := the real
+    `Accel.sha256Compress` of the entry window's decoded state/block
+    (`sha256Dwords`/`sha256Bytes`).  Unblocks the `zkvm_sha256` port
+    (bead 4ch8f.18).
 -/
 
 import EvmAsm.Rv64.ZiskAccel
@@ -68,6 +76,12 @@ namespace SAsm
 /-- The dword packed at byte offset `k` of a window. -/
 def wsDword (ws : List (BitVec 8)) (k : Nat) : Word :=
   packBytes ((ws.drop k).take 8)
+
+/-- Decode one raw SHA-256 message dword.  The accelerator's state words are
+    LE-u32 packed, but its message block is the FIPS wire image: each 4-byte
+    word is big-endian. -/
+def wsDwordBE (ws : List (BitVec 8)) (k : Nat) : Word :=
+  Accel.dwordBE (wsDword ws k)
 
 /-- The 256-bit little-endian natural at byte offset `k` of a window
     (4 LE u64 limbs — exactly what `Accel.arith256Mod` consumes through
@@ -1886,6 +1900,293 @@ def cxHandle (f : Fp2Id) (o : CxOp) (entry : Word) (rs1 : Reg)
   post := cxPost f o q1Off q2Off
   sound := cxHandle_sound f o entry rs1 hrs1 ro B len hrw
     pOff q1Off q2Off h8p hpfit h8q1 hq1fit h8q2 hq2fit
+
+-- ============================================================================
+-- The Sha256f compression handle (0x805)
+-- ============================================================================
+
+/-- The `n`-dword window slice at byte offset `k` — the `List Word` view
+    `readWords` decodes over a framed window
+    (`holdsFor_bytesRegion_readWords`).  The Sha256f operands are dword
+    LISTS (u32-packed state/block), not `wsNat` naturals. -/
+def wsDwords (n : Nat) (ws : List (BitVec 8)) (k : Nat) : List Word :=
+  (List.range n).map fun i => wsDword ws (k + 8 * i)
+
+def wsDwordsBE (n : Nat) (ws : List (BitVec 8)) (k : Nat) : List Word :=
+  (List.range n).map fun i => wsDwordBE ws (k + 8 * i)
+
+@[simp] theorem length_wsDwords (n : Nat) (ws : List (BitVec 8)) (k : Nat) :
+    (wsDwords n ws k).length = n := by
+  simp [wsDwords]
+
+@[simp] theorem length_wsDwordsBE (n : Nat) (ws : List (BitVec 8)) (k : Nat) :
+    (wsDwordsBE n ws k).length = n := by
+  simp [wsDwordsBE]
+
+theorem readWordsBE_eq_wsDwordsBE {b : Word} {bs : List (BitVec 8)}
+    {R : Assertion} {s : MachineState}
+    (hPR : ((bytesRegion b bs) ** R).holdsFor s)
+    (n k : Nat) (h8 : 8 ∣ k) (hfit : k + 8 * n ≤ bs.length) :
+    Accel.dwordsToU32sBE (s.readWords (b + BitVec.ofNat 64 k) n) =
+      Accel.dwordsToU32s (wsDwordsBE n bs k) := by
+  unfold Accel.dwordsToU32sBE
+  rw [holdsFor_bytesRegion_readWords hPR n k h8 hfit]
+  rw [List.map_map]
+  unfold wsDwordsBE wsDwordBE
+  rfl
+
+/-- Reading a dword slice strictly below a splice is unchanged. -/
+theorem wsDwords_setBytes_low {n : Nat} {bs ns : List (BitVec 8)} {j k : Nat}
+    (h : k + 8 * n ≤ j) :
+    wsDwords n (setBytes bs j ns) k = wsDwords n bs k := by
+  unfold wsDwords
+  apply List.map_congr_left
+  intro i hi
+  rw [List.mem_range] at hi
+  exact wsDword_setBytes_low (by omega)
+
+/-- Reading a dword slice entirely above a splice is unchanged. -/
+theorem wsDwords_setBytes_high {n : Nat} {bs ns : List (BitVec 8)} {j k : Nat}
+    (h : j + ns.length ≤ k) :
+    wsDwords n (setBytes bs j ns) k = wsDwords n bs k := by
+  unfold wsDwords
+  apply List.map_congr_left
+  intro i hi
+  exact wsDword_setBytes_high (by omega)
+
+/-- Decoding a freshly spliced dword payload recovers it (the dword-list
+    sibling of `wsNat_setBytes_leBytesN`). -/
+theorem wsDwords_setBytes_flatMap {bs : List (BitVec 8)} {j : Nat}
+    {payload : List Word} (hfit : j + 8 * payload.length ≤ bs.length) :
+    wsDwords payload.length (setBytes bs j (payload.flatMap dwordBytes)) j
+      = payload := by
+  have hslot : ((setBytes bs j (payload.flatMap dwordBytes)).drop j).take
+      (8 * payload.length) = payload.flatMap dwordBytes := by
+    have := setBytes_slot bs (payload.flatMap dwordBytes) j
+      (by rw [length_flatMap_dwordBytes]; omega)
+    rwa [length_flatMap_dwordBytes] at this
+  have hlimb : ∀ t : Nat, t < payload.length →
+      wsDword (setBytes bs j (payload.flatMap dwordBytes)) (j + 8 * t)
+        = payload.getD t 0 := by
+    intro t ht
+    unfold wsDword
+    have hs8 : (((setBytes bs j (payload.flatMap dwordBytes)).drop j).drop
+        (8 * t)).take 8 = ((payload.flatMap dwordBytes).drop (8 * t)).take 8 := by
+      conv_rhs => rw [← hslot]
+      rw [List.drop_take, List.take_take, Nat.min_eq_left (by omega)]
+    rw [show j + 8 * t = j + (8 * t) from rfl, ← List.drop_drop, hs8,
+      flatMap_dwordBytes_slice payload t ht, packBytes_dwordBytes]
+  unfold wsDwords
+  rw [List.map_congr_left (fun i hi => hlimb i (List.mem_range.mp hi))]
+  exact map_getD_range payload 0
+
+/-- The compressed state the Sha256f accelerator writes back, as dwords:
+    the REAL `Accel.sha256Compress` over the u32 views of the window's
+    8-u32 state slice (at `stOff`) and 16-u32 block slice (at `inOff`). -/
+def sha256Dwords (ws : List (BitVec 8)) (stOff inOff : Nat) : List Word :=
+  Accel.u32sToDwords (Accel.sha256Compress
+    (Accel.dwordsToU32s (wsDwords 4 ws stOff))
+    (Accel.dwordsToU32s (wsDwordsBE 8 ws inOff)))
+
+@[simp] theorem length_sha256Dwords (ws : List (BitVec 8)) (stOff inOff : Nat) :
+    (sha256Dwords ws stOff inOff).length = 4 := by
+  have h8 : (Accel.dwordsToU32s (wsDwords 4 ws stOff)).length = 8 := by
+    rw [Accel.length_dwordsToU32s, length_wsDwords]
+  rw [sha256Dwords, Accel.length_u32sToDwords,
+    Accel.sha256Compress_length _ _ (by omega)]
+
+/-- The 32-byte wire image of the compressed state. -/
+def sha256Bytes (ws : List (BitVec 8)) (stOff inOff : Nat) : List (BitVec 8) :=
+  (sha256Dwords ws stOff inOff).flatMap dwordBytes
+
+@[simp] theorem length_sha256Bytes (ws : List (BitVec 8)) (stOff inOff : Nat) :
+    (sha256Bytes ws stOff inOff).length = 32 := by
+  rw [sha256Bytes, length_flatMap_dwordBytes, length_sha256Dwords]
+
+/-- The `csrsValid` arm selected by CSR id `0x805` (definitional). -/
+private theorem csrsValid_sha256 (s : MachineState) (rs1 : Reg) :
+    s.csrsValid 0x805 rs1
+      = (MachineState.validDwordRange (s.getReg rs1) 2 &&
+         MachineState.validDwordRange (s.getMem (s.getReg rs1)) 4 &&
+         MachineState.validDwordRange (s.getMem (s.getReg rs1 + 8)) 8) := rfl
+
+/-- The `csrsWrite` arm selected by CSR id `0x805` (definitional). -/
+private theorem csrsWrite_sha256 (s : MachineState) (rs1 : Reg) :
+    s.csrsWrite 0x805 rs1
+      = (s.getMem (s.getReg rs1), Accel.u32sToDwords (Accel.sha256Compress
+          (Accel.dwordsToU32s (s.readWords (s.getMem (s.getReg rs1)) 4))
+          (Accel.dwordsToU32sBE
+            (s.readWords (s.getMem (s.getReg rs1 + 8)) 8)))) := rfl
+
+/-- The Sha256f compression step: `csrs 0x805, rs1` with `rs1` pointing
+    at a `[state*, input*]` parameter block whose two pointers land inside
+    the window; the 32-byte state buffer becomes the REAL
+    `Accel.sha256Compress` of the entry window's decoded state/block
+    (`sha256Dwords`), and nothing else moves — not even a register.
+    Preconditions are exactly the accelerator's `csrsValid` (the operand
+    blocks are valid dword ranges; Sha256f has no value-domain guard). -/
+theorem csrs_sha256Compress_spec_within
+    (base : Word) (rs1 : Reg) (hrs1 : Reg.isExposed rs1 = true)
+    (B : Word) (len : Nat) (ws : List (BitVec 8)) (rf : RegFile)
+    (hwslen : ws.length = len)
+    (hb8 : B.toNat % 8 = 0)
+    (hvalid : ∀ j, j < len → isValidMemAddr (B + BitVec.ofNat 64 j) = true)
+    (pOff stOff inOff : Nat)
+    (hp : rf.get rs1 = B + BitVec.ofNat 64 pOff)
+    (h8p : 8 ∣ pOff) (hpfit : pOff + 16 ≤ len)
+    (h8st : 8 ∣ stOff) (hstfit : stOff + 32 ≤ len)
+    (h8in : 8 ∣ inOff) (hinfit : inOff + 64 ≤ len)
+    (hpst : wsDword ws pOff = B + BitVec.ofNat 64 stOff)
+    (hpin : wsDword ws (pOff + 8) = B + BitVec.ofNat 64 inOff) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.CSRS 0x805 rs1))
+      ((regFileIs rf) ** bytesRegion B ws)
+      ((regFileIs rf) ** bytesRegion B
+        (setBytes ws stOff (sha256Bytes ws stOff inOff))) := by
+  have hmain := csrs_step_spec_within 0x805 rs1 base B ws rf stOff
+    (sha256Dwords ws stOff inOff) h8st
+    (by rw [length_sha256Dwords]; omega) ?_
+  · rw [show (sha256Dwords ws stOff inOff).flatMap dwordBytes
+        = sha256Bytes ws stOff inOff from rfl] at hmain
+    exact hmain
+  intro R s hPR
+  rw [sepConj_assoc'] at hPR
+  have hregs : s.getReg rs1 = rf.get rs1 :=
+    holdsFor_regFileIs_getReg hPR hrs1
+  have hMem := hPR
+  rw [sepConj_left_comm] at hMem
+  have hsrs1 : s.getReg rs1 = B + BitVec.ofNat 64 pOff := by rw [hregs, hp]
+  have hslot : ∀ j : Nat, 8 ∣ j → j + 8 ≤ len →
+      s.getMem (B + BitVec.ofNat 64 j) = wsDword ws j := fun j h8j hjfit =>
+    holdsFor_bytesRegion_getMem hMem h8j (by omega)
+  have hgSt : s.getMem (s.getReg rs1) = B + BitVec.ofNat 64 stOff := by
+    rw [hsrs1, hslot pOff h8p (by omega), hpst]
+  have hgIn : s.getMem (s.getReg rs1 + 8) = B + BitVec.ofNat 64 inOff := by
+    rw [show (8 : Word) = BitVec.ofNat 64 8 from rfl, hsrs1, add_ofNat_add,
+      hslot (pOff + 8) (by omega) (by omega), hpin]
+  have hrdSt : s.readWords (s.getMem (s.getReg rs1)) 4
+      = wsDwords 4 ws stOff := by
+    rw [hgSt, holdsFor_bytesRegion_readWords hMem 4 stOff h8st (by omega)]
+    rfl
+  have hrdIn : Accel.dwordsToU32sBE
+      (s.readWords (s.getMem (s.getReg rs1 + 8)) 8)
+      = Accel.dwordsToU32s (wsDwordsBE 8 ws inOff) := by
+    rw [hgIn, readWordsBE_eq_wsDwordsBE hMem 8 inOff h8in (by omega)]
+  have hvrange : ∀ (k n : Nat), 8 ∣ k → k + 8 * n ≤ len →
+      MachineState.validDwordRange (B + BitVec.ofNat 64 k) n = true :=
+    fun k n h8k hkfit => validDwordRange_of_window hb8 hvalid h8k hkfit
+  refine ⟨?_, ?_⟩
+  · rw [csrsValid_sha256 s rs1]
+    simp only [Bool.and_eq_true]
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · rw [hsrs1]; exact hvrange pOff 2 h8p (by omega)
+    · rw [hgSt]; exact hvrange stOff 4 h8st (by omega)
+    · rw [hgIn]; exact hvrange inOff 8 h8in (by omega)
+  · rw [csrsWrite_sha256 s rs1, hrdSt, hrdIn, hgSt]
+    rfl
+
+/-- The Sha256f wrapper triple in the C-ABI calling shape
+    (`FnHandleS.sound`'s core): one compression, then `jalr x0, ra, 0` —
+    back at `ret` in 2 steps with the state buffer rewritten and
+    everything else (registers, the rest of the window, the ambient `A`)
+    intact. -/
+theorem csrs_sha256Compress_ret_spec
+    (entry : Word) (rs1 : Reg) (hrs1 : Reg.isExposed rs1 = true)
+    (B : Word) (len : Nat) (ws : List (BitVec 8)) (rf : RegFile)
+    (hwslen : ws.length = len)
+    (hb8 : B.toNat % 8 = 0)
+    (hvalid : ∀ j, j < len → isValidMemAddr (B + BitVec.ofNat 64 j) = true)
+    (pOff stOff inOff : Nat)
+    (hp : rf.get rs1 = B + BitVec.ofNat 64 pOff)
+    (h8p : 8 ∣ pOff) (hpfit : pOff + 16 ≤ len)
+    (h8st : 8 ∣ stOff) (hstfit : stOff + 32 ≤ len)
+    (h8in : 8 ∣ inOff) (hinfit : inOff + 64 ≤ len)
+    (hpst : wsDword ws pOff = B + BitVec.ofNat 64 stOff)
+    (hpin : wsDword ws (pOff + 8) = B + BitVec.ofNat 64 inOff)
+    (A : Assertion) (hA : A.pcFree)
+    (ret : Word) (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin 2 entry ret
+      (CodeReq.ofProg entry (csrsRetProgram 0x805 rs1))
+      ((.x1 ↦ᵣ ret) ** (((regFileIs rf) ** bytesRegion B ws) ** A))
+      ((.x1 ↦ᵣ ret) ** (((regFileIs rf) ** bytesRegion B
+        (setBytes ws stOff (sha256Bytes ws stOff inOff))) ** A)) :=
+  csrs_ret_spec_of_step
+    (csrs_sha256Compress_spec_within entry rs1 hrs1 B len ws rf hwslen hb8
+      hvalid pOff stOff inOff hp h8p hpfit h8st hstfit h8in hinfit hpst hpin)
+    A hA ret halign
+
+/-- Call-site obligation of the Sha256f wrapper: `rs1` holds the
+    `[state*, input*]` block pointer and the two pointers land at the
+    given window offsets.  No value-domain conditions — the accelerator's
+    `csrsValid` only checks the operand ranges.  The static side
+    conditions (alignment, fit) live in the handle constructor. -/
+def sha256CompressPre (B : Word) (rs1 : Reg)
+    (pOff stOff inOff : Nat) : Reach :=
+  fun rf ws _ =>
+    rf.get rs1 = B + BitVec.ofNat 64 pOff
+    ∧ wsDword ws pOff = B + BitVec.ofNat 64 stOff
+    ∧ wsDword ws (pOff + 8) = B + BitVec.ofNat 64 inOff
+
+/-- Snapshot-parameterized guarantee of the Sha256f wrapper: the state
+    buffer becomes `Accel.sha256Compress` of the *entry* window's decoded
+    state/block; registers and the ambient assertion untouched. -/
+def sha256CompressPost (stOff inOff : Nat) :
+    RegFile → List (BitVec 8) → Assertion → Reach :=
+  fun rf₀ ws₀ A₀ rf ws A =>
+    rf = rf₀ ∧ A = A₀
+    ∧ ws = setBytes ws₀ stOff (sha256Bytes ws₀ stOff inOff)
+
+/-- The Sha256f handle's calling contract, standalone. -/
+theorem sha256CompressHandle_sound (entry : Word) (rs1 : Reg)
+    (hrs1 : Reg.isExposed rs1 = true)
+    (ro : Region) (B : Word) (len : Nat)
+    (hrw : (RwRegion.mk B len).wf)
+    (pOff stOff inOff : Nat)
+    (h8p : 8 ∣ pOff) (hpfit : pOff + 16 ≤ len)
+    (h8st : 8 ∣ stOff) (hstfit : stOff + 32 ≤ len)
+    (h8in : 8 ∣ inOff) (hinfit : inOff + 64 ≤ len) :
+    ∀ (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion),
+      ws₀.length = len → A₀.pcFree →
+      sha256CompressPre B rs1 pOff stOff inOff rf₀ ws₀ A₀ →
+      ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
+      cpsTripleWithin 2 entry ret
+        (CodeReq.ofProg entry (csrsRetProgram 0x805 rs1))
+        ((.x1 ↦ᵣ ret) ** asrtM ro ⟨B, len⟩ (Reach.exact rf₀ ws₀ A₀))
+        ((.x1 ↦ᵣ ret) ** asrtM ro ⟨B, len⟩
+          (sha256CompressPost stOff inOff rf₀ ws₀ A₀)) :=
+  csrs_handleS_sound entry 0x805 rs1 ro B len
+    (sha256CompressPre B rs1 pOff stOff inOff)
+    (fun ws => setBytes ws stOff (sha256Bytes ws stOff inOff))
+    (fun ws hws => by rw [length_setBytes]; exact hws)
+    (fun rf₀ ws₀ hlen hex => by
+      obtain ⟨A₀, hp, hpst, hpin⟩ := hex
+      exact csrs_sha256Compress_spec_within entry rs1 hrs1 B len ws₀ rf₀ hlen
+        hrw.1 hrw.2.2 pOff stOff inOff hp h8p hpfit h8st hstfit h8in hinfit
+        hpst hpin)
+
+/-- **The Sha256f seam handle** (bead 4ch8f.18.1): the `csrs 0x805, rs1`
+    compression wrapper packaged as a snapshot-parameterized callee, in
+    the same shape as `arithModHandle`/`curveDblHandle`.  Unblocks the
+    `zkvm_sha256` port (bead 4ch8f.18) and the sha256/keccak
+    accelerator-consumer family.  `ro` is the caller's read-only region
+    (framed; the wrapper never touches it). -/
+def sha256CompressHandle (entry : Word) (rs1 : Reg)
+    (hrs1 : Reg.isExposed rs1 = true)
+    (ro : Region) (B : Word) (len : Nat)
+    (hrw : (RwRegion.mk B len).wf)
+    (pOff stOff inOff : Nat)
+    (h8p : 8 ∣ pOff) (hpfit : pOff + 16 ≤ len)
+    (h8st : 8 ∣ stOff) (hstfit : stOff + 32 ≤ len)
+    (h8in : 8 ∣ inOff) (hinfit : inOff + 64 ≤ len) : FnHandleS where
+  entry := entry
+  code := CodeReq.ofProg entry (csrsRetProgram 0x805 rs1)
+  nSteps := 2
+  region := ro
+  rw := ⟨B, len⟩
+  pre := sha256CompressPre B rs1 pOff stOff inOff
+  post := sha256CompressPost stOff inOff
+  sound := sha256CompressHandle_sound entry rs1 hrs1 ro B len hrw
+    pOff stOff inOff h8p hpfit h8st hstfit h8in hinfit
 
 end SAsm
 end EvmAsm.Rv64

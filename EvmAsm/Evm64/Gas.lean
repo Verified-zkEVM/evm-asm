@@ -31,6 +31,7 @@ inductive EvmOpcode where
   | SIGNEXTEND
   | KECCAK256
   | ADDRESS
+  | BALANCE
   | ORIGIN
   | CALLER
   | CALLVALUE
@@ -58,14 +59,20 @@ inductive EvmOpcode where
   | PC
   | GAS
   | JUMPDEST
+  | TLOAD
+  | TSTORE
+  | MCOPY
   | CALLDATALOAD
   | CALLDATASIZE
   | CALLDATACOPY
   | CODESIZE
   | CODECOPY
   | GASPRICE
+  | EXTCODESIZE
+  | EXTCODECOPY
   | RETURNDATASIZE
   | RETURNDATACOPY
+  | EXTCODEHASH
   | BLOCKHASH
   | COINBASE
   | TIMESTAMP
@@ -82,6 +89,7 @@ inductive EvmOpcode where
   | CREATE
   | CREATE2
   | CALL
+  | CALLCODE
   | DELEGATECALL
   | STATICCALL
   | RETURN
@@ -127,6 +135,7 @@ def byte? : EvmOpcode → Option Nat
   | SIGNEXTEND => some 0x0b
   | KECCAK256 => some 0x20
   | ADDRESS => some 0x30
+  | BALANCE => some 0x31
   | ORIGIN => some 0x32
   | CALLER => some 0x33
   | CALLVALUE => some 0x34
@@ -154,14 +163,20 @@ def byte? : EvmOpcode → Option Nat
   | PC => some 0x58
   | GAS => some 0x5a
   | JUMPDEST => some 0x5b
+  | TLOAD => some 0x5c
+  | TSTORE => some 0x5d
+  | MCOPY => some 0x5e
   | CALLDATALOAD => some 0x35
   | CALLDATASIZE => some 0x36
   | CALLDATACOPY => some 0x37
   | CODESIZE => some 0x38
   | CODECOPY => some 0x39
   | GASPRICE => some 0x3a
+  | EXTCODESIZE => some 0x3b
+  | EXTCODECOPY => some 0x3c
   | RETURNDATASIZE => some 0x3d
   | RETURNDATACOPY => some 0x3e
+  | EXTCODEHASH => some 0x3f
   | BLOCKHASH => some 0x40
   | COINBASE => some 0x41
   | TIMESTAMP => some 0x42
@@ -178,6 +193,7 @@ def byte? : EvmOpcode → Option Nat
   | CREATE => some 0xf0
   | CREATE2 => some 0xf5
   | CALL => some 0xf1
+  | CALLCODE => some 0xf2
   | DELEGATECALL => some 0xf4
   | STATICCALL => some 0xfa
   | RETURN => some 0xf3
@@ -207,6 +223,7 @@ def staticGasCost : EvmOpcode → Nat
   | SIGNEXTEND => 5
   | KECCAK256 => 30
   | ADDRESS => 2
+  | BALANCE => 700
   | ORIGIN => 2
   | CALLER => 2
   | CALLVALUE => 2
@@ -234,14 +251,20 @@ def staticGasCost : EvmOpcode → Nat
   | PC => 2
   | GAS => 2
   | JUMPDEST => 1
+  | TLOAD => 100
+  | TSTORE => 100
+  | MCOPY => 3
   | CALLDATALOAD => 3
   | CALLDATASIZE => 2
   | CALLDATACOPY => 3
   | CODESIZE => 2
   | CODECOPY => 3
   | GASPRICE => 2
+  | EXTCODESIZE => 700
+  | EXTCODECOPY => 700
   | RETURNDATASIZE => 2
   | RETURNDATACOPY => 3
+  | EXTCODEHASH => 700
   | BLOCKHASH => 20
   | COINBASE => 2
   | TIMESTAMP => 2
@@ -258,6 +281,7 @@ def staticGasCost : EvmOpcode → Nat
   | CREATE => 32000
   | CREATE2 => 32000
   | CALL => 700
+  | CALLCODE => 700
   | DELEGATECALL => 700
   | STATICCALL => 700
   | RETURN => 0

@@ -12,9 +12,9 @@
   postcondition defs live in `LoopDefs.Post`; precondition bundles in `LoopDefs.Bundle`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-
-open EvmAsm.Rv64.Tactics
+import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.Compose.Offsets
+import EvmAsm.Evm64.DivMod.LoopDefs.Div128Phase2b
 
 namespace EvmAsm.Evm64
 

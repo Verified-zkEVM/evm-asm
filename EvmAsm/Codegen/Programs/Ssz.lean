@@ -1160,21 +1160,21 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  lwu s4, 4(s0)               # off_codes\n" ++
   "  lwu s5, 8(s0)               # off_headers\n" ++
   "  add s6, s0, s1              # section_end\n" ++
-  "  # Field 0: state (List[ByteList[2^20], 2^20]; byte_log2=15, count_log2=20)\n" ++
+  "  # Field 0: state (List[ByteList[2^10], 2^22]; byte_log2=5, count_log2=22)\n" ++
   "  add a0, s0, s3              # state_start\n" ++
   "  add t0, s0, s4              # state_end\n" ++
   "  sub a1, t0, a0\n" ++
-  "  li a2, 15\n" ++
-  "  li a3, 20\n" ++
+  "  li a2, 5\n" ++
+  "  li a3, 22\n" ++
   "  la a4, ssz_ew_field_roots\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
   "  bnez a0, .Lszew_ret\n" ++
-  "  # Field 1: codes (List[ByteList[2^24], 2^16]; byte_log2=19, count_log2=16)\n" ++
+  "  # Field 1: codes (List[ByteList[2^16], 2^18]; byte_log2=11, count_log2=18)\n" ++
   "  add a0, s0, s4              # codes_start\n" ++
   "  add t0, s0, s5              # codes_end\n" ++
   "  sub a1, t0, a0\n" ++
-  "  li a2, 19\n" ++
-  "  li a3, 16\n" ++
+  "  li a2, 11\n" ++
+  "  li a3, 18\n" ++
   "  la a4, ssz_ew_field_roots\n" ++
   "  addi a4, a4, 32\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++

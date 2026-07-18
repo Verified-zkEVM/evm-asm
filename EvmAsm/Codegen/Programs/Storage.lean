@@ -63,6 +63,9 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Evm64.Transient.StoreProgram
+import EvmAsm.Evm64.Transient.LoadProgram
+import EvmAsm.Evm64.Storage.LoadProgram
 
 namespace EvmAsm.Codegen
 
@@ -79,17 +82,20 @@ open EvmAsm.Rv64
     Clobbers `x5`, `x6`, `x9`, `x14`-`x17`. Jumps to `.exit_outofgas` if the
     additional debit cannot be paid. The static dispatch table already charged
     100 gas for SSTORE, and `evm_storage_access_charge_key` already charged the
-    2000 cold delta, so this computes the remaining debit to match Amsterdam's
+    2900 cold delta, so this computes the remaining debit to match Amsterdam's
     `vm/instructions/storage.py`:
-    - clean-changing (original == current ≠ new): +2800 warm, +2900 cold
-      (Amsterdam dropped the legacy EIP-2200 SET split — COLD_STORAGE_WRITE -
-      COLD_STORAGE_ACCESS = 2900 regardless of the original being zero); when
+
+    - clean-changing (original == current ≠ new): +10000 STORAGE_WRITE; when
+
       the original is zero this is a state CREATION, so it additionally charges
       the EIP-8037 state gas STATE_BYTES_PER_STORAGE_SET(64) ×
       COST_PER_STATE_BYTE(1530) = 97,920 via the charge_state_gas rule: drain
       `evm_state_gas_left` first, spill the remainder into env.gasRemaining,
       OOG when both are short; `evm_state_gas_used` accumulates the charge.
-    - dirty/noop branch: +0 warm, +100 cold
+
+    - dirty/noop branch: +0; the access charge is already fully covered by the
+      dispatch warm floor plus storage-access helper.
+
     Refund-counter updates are handled by `sstore_gas_refund_outcome` below. -/
 def sstoreValueTransitionGasAsm : String :=
   -- x14 = OR of the new value limbs. For a missing slot, original=current=0.
@@ -150,26 +156,21 @@ def sstoreValueTransitionGasAsm : String :=
   "  bnez x15, .Lsstore_clean_changing\n" ++
   "  li x9, 1\n" ++
   ".Lsstore_clean_changing:\n" ++
-  "  li x14, 2800\n" ++              -- COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS - warm floor
-  "  beqz x19, .Lsstore_charge_delta\n" ++
-  "  li x14, 2900\n" ++
+  "  li x14, 10000\n" ++             -- STORAGE_WRITE
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_missing_slot:\n" ++
   "  li x9, 0\n" ++
   "  bnez x14, .Lsstore_missing_nonzero\n" ++
-  "  beqz x19, .Lsstore_gas_done\n" ++
-  "  li x14, 100\n" ++
-  "  j .Lsstore_charge_delta\n" ++
+  "  j .Lsstore_gas_done\n" ++
   ".Lsstore_missing_nonzero:\n" ++   -- missing slot = original = current = 0: creation
   "  li x9, 1\n" ++
-  "  li x14, 2800\n" ++
-  "  beqz x19, .Lsstore_charge_delta\n" ++
-  "  li x14, 2900\n" ++
+
+  "  li x14, 10000\n" ++             -- STORAGE_WRITE
+
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_dirty_or_noop:\n" ++
   "  li x9, 0\n" ++
-  "  beqz x19, .Lsstore_gas_done\n" ++
-  "  li x14, 100\n" ++
+  "  j .Lsstore_gas_done\n" ++
   ".Lsstore_charge_delta:\n" ++
   "  ld x15, 568(x20)\n" ++
   "  bltu x15, x14, .exit_outofgas\n" ++
@@ -189,6 +190,10 @@ def sstoreValueTransitionGasAsm : String :=
   "  sd x0, 0(x15)\n" ++
   "  sub x17, x17, x14\n" ++
   "  sd x17, 568(x20)\n" ++
+  "  la x15, evm_state_gas_spilled\n" ++
+  "  ld x16, 0(x15)\n" ++
+  "  add x16, x16, x14\n" ++
+  "  sd x16, 0(x15)\n" ++
   "  j .Lsstore_state_charged\n" ++
   ".Lsstore_state_from_reservoir:\n" ++
   "  sub x16, x16, x14\n" ++
@@ -211,7 +216,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         stackUnderflowGuardAsm 1 ++ "\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SLOAD's 100 warm floor, so the helper only charges the
-        -- 2000 cold delta on first touch. Preserve handler return address
+        -- 2900 cold delta on first touch. Preserve handler return address
         -- plus dispatcher PC / stack registers across the ABI a0/a1/a2 call.
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
@@ -231,62 +236,12 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 2\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  li x15, 3\n" ++
-        "  beq x14, x15, .exit_outofgas\n" ++
-        "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
-        "  beqz x15, 4f\n" ++             -- empty log → return 0
-        "  li x14, 0xa0630000\n" ++       -- x14 = log base
-        "  slli x16, x15, 7\n" ++         -- x16 = log_length * 128
-        "  add x14, x14, x16\n" ++        -- x14 = past last entry
-        "1:\n" ++                         -- scan loop iter
-        "  addi x14, x14, -128\n" ++      -- x14 = &entry[i]
-        -- Compare addrHash [x14+0..x14+32] vs current frame env.ADDRESS [x20+0..x20+32].
-        -- Per-frame keying isolates each contract's storage in the exec log (a
-        -- nested callee must NOT read a different contract's slot of the same key).
-        "  ld x16, 0(x14)\n" ++
-        "  ld x17, 0(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 8(x14)\n" ++
-        "  ld x17, 8(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 16(x14)\n" ++
-        "  ld x17, 16(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 24(x14)\n" ++
-        "  ld x17, 24(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        -- Compare slotKey [x14+32..x14+64] vs stack key [x12+0..x12+32]
-        "  ld x16, 32(x14)\n" ++
-        "  ld x17, 0(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 40(x14)\n" ++
-        "  ld x17, 8(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 48(x14)\n" ++
-        "  ld x17, 16(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 56(x14)\n" ++
-        "  ld x17, 24(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        -- Match: copy current [x14+96..x14+128] → [x12..x12+32]
-        "  ld x16, 96(x14)\n" ++
-        "  sd x16, 0(x12)\n" ++
-        "  ld x16, 104(x14)\n" ++
-        "  sd x16, 8(x12)\n" ++
-        "  ld x16, 112(x14)\n" ++
-        "  sd x16, 16(x12)\n" ++
-        "  ld x16, 120(x14)\n" ++
-        "  sd x16, 24(x12)\n" ++
-        "  j 5f\n" ++
-        "3:\n" ++                         -- no match this entry — advance
-        "  addi x15, x15, -1\n" ++
-        "  bnez x15, 1b\n" ++
-        "4:\n" ++                         -- not found — write zeros
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "5:"
-    , body    := []
+        "  beq x14, x15, .exit_outofgas\n"
+      -- Verified reverse-scan core (byte-identical re-encoding of the former
+      -- inline label-based scan on the persistent log; see the `#guard` pin
+      -- below). Witnessed at tier `.conditional` by
+      -- `EvmAsm.Evm64.Storage.evm_sload_stack_spec_within`.
+    , body    := EvmAsm.Evm64.Storage.evm_sload .x20
     , tail    := .advanceAndRet 1 }
   , -- M24 real SSTORE. Scan persistent log from end; if found, save
     -- &found.original for the append step. Then ALWAYS append a new
@@ -311,7 +266,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  bltu x14, x15, .exit_outofgas\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SSTORE's 100 warm floor, so this helper only charges
-        -- the 2000 cold delta on first key touch. Run before the scan /
+        -- the 2900 cold delta on first key touch. Run before the scan /
         -- append path so out-of-gas cannot mutate the storage log.
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
@@ -383,10 +338,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         sstoreValueTransitionGasAsm ++
         -- bmvmx.1.6.3: accumulate this SSTORE's EIP-3529 refund delta into evm_refund_acc
         -- (signed). x18 = &found.original (or 0 -> original==current==0). sstore_gas_refund_outcome
-        -- clobbers a0-a4 (= x10/x12/x13/...) + ra, so save the dispatcher regs x10/x12/x13 + x1;
-        -- x18/x19 are s-regs (preserved by the call). Refund delta = signed i64 at out+8.
-        "  addi sp, sp, -32\n" ++
-        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp)\n" ++
+        -- clobbers a0-a4 (= x10/x12/x13/...) + ra, so save the dispatcher regs x10/x12/x13 + x1.
+        -- Keep x18 (&found.original) stable across the local zero-restore state-gas refund path too.
+        "  addi sp, sp, -48\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x18, 32(sp)\n" ++
         "  beqz x18, 8f\n" ++
         "  mv a0, x18; addi a1, x18, 32\n" ++          -- original = entry+64, current = entry+96
         "  j 9f\n" ++
@@ -413,9 +368,34 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv x15, x16\n" ++                            -- applied = min(97920, used)
         "10:\n" ++
         "  ld x16, 0(x14); sub x16, x16, x15; sd x16, 0(x14)\n" ++
-        "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x15; sd x16, 0(x14)\n" ++
+        "  la x14, evm_state_gas_spilled; ld x18, 0(x14)\n" ++
+        "  mv x17, x15\n" ++
+        "  bleu x18, x17, .Lsstore_refund_spill_le\n" ++
+        "  mv x16, x17\n" ++
+        "  j .Lsstore_refund_spill_have\n" ++
+        ".Lsstore_refund_spill_le:\n" ++
+        "  mv x16, x18\n" ++
+        ".Lsstore_refund_spill_have:\n" ++
+        "  sub x18, x18, x16; sd x18, 0(x14)\n" ++
+        "  ld x18, 568(x20); add x18, x18, x16; sd x18, 568(x20)\n" ++
+        "  sub x17, x17, x16\n" ++
+        "  beqz x17, 11f\n" ++
+        "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x17; sd x16, 0(x14)\n" ++
         "11:\n" ++
-        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); addi sp, sp, 32\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x18, 32(sp); addi sp, sp, 48\n" ++
+        -- Value-unchanged rewrites (found entry's current == new) append nothing:
+        -- the found entry already records exactly this state, so last-write-wins
+        -- reads, the end-of-tx commit, and the BAL change-set are all identical
+        -- without a new entry. Skipping the append keeps long loops that rewrite
+        -- the same value (e.g. a success flag per CALL iteration) from exhausting
+        -- the 16384-entry exec-log arena and halting on the capacity guard.
+        "  beqz x18, .Lsstore_append_entry\n" ++
+        "  ld x16, 32(x18); ld x17, 32(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 40(x18); ld x17, 40(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 48(x18); ld x17, 48(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 56(x18); ld x17, 56(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  j .Lsstore_append_done\n" ++
+        ".Lsstore_append_entry:\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
@@ -467,7 +447,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
-        "  sd x15, 448(x20)"
+        "  sd x15, 448(x20)\n" ++
+        ".Lsstore_append_done:\n"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail    := .advanceAndRet 1 }
   , -- M24 real TLOAD. Scan transient log from end; copy matching
@@ -475,59 +456,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
     -- but base 0xa0830000 and length env+464.
     { label   := "h_TLOAD"
     , opcodes := [0x5c]
-    , preBody :=
-        stackUnderflowGuardAsm 1 ++ "\n" ++
-        "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
-        "  beqz x15, 4f\n" ++
-        "  li x14, 0xa0830000\n" ++       -- x14 = transient log base
-        "  slli x16, x15, 7\n" ++
-        "  add x14, x14, x16\n" ++
-        "1:\n" ++
-        "  addi x14, x14, -128\n" ++
-        -- Per-frame addrHash compare (see SLOAD): isolate this contract's slots.
-        "  ld x16, 0(x14)\n" ++
-        "  ld x17, 0(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 8(x14)\n" ++
-        "  ld x17, 8(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 16(x14)\n" ++
-        "  ld x17, 16(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 24(x14)\n" ++
-        "  ld x17, 24(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 32(x14)\n" ++
-        "  ld x17, 0(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 40(x14)\n" ++
-        "  ld x17, 8(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 48(x14)\n" ++
-        "  ld x17, 16(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 56(x14)\n" ++
-        "  ld x17, 24(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 96(x14)\n" ++
-        "  sd x16, 0(x12)\n" ++
-        "  ld x16, 104(x14)\n" ++
-        "  sd x16, 8(x12)\n" ++
-        "  ld x16, 112(x14)\n" ++
-        "  sd x16, 16(x12)\n" ++
-        "  ld x16, 120(x14)\n" ++
-        "  sd x16, 24(x12)\n" ++
-        "  j 5f\n" ++
-        "3:\n" ++
-        "  addi x15, x15, -1\n" ++
-        "  bnez x15, 1b\n" ++
-        "4:\n" ++
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "5:"
-    , body    := []
+    , preBody := stackUnderflowGuardAsm 1
+      -- Verified reverse-scan core (byte-identical re-encoding of the former
+      -- inline label-based scan; see the `#guard` pin below). Witnessed by
+      -- `EvmAsm.Evm64.Transient.evm_tload_stack_spec_within`.
+    , body    := EvmAsm.Evm64.Transient.evm_tload .x20
     , tail    := .advanceAndRet 1 }
   , -- M24 real TSTORE. Append-only (no scan). Transient storage has
     -- no gas refund logic, so we never need to track / preserve
@@ -537,43 +470,129 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x5d]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
-        staticContextWriteGuardAsm ++
-        "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
-        "  li x14, 0xa0830000\n" ++
-        "  slli x16, x15, 7\n" ++
-        "  add x14, x14, x16\n" ++        -- x14 = append target
-        -- addrHash = current frame env.ADDRESS [x20+0..x20+32] (per-frame keying).
-        "  ld x16, 0(x20)\n  sd x16, 0(x14)\n" ++
-        "  ld x16, 8(x20)\n  sd x16, 8(x14)\n" ++
-        "  ld x16, 16(x20)\n  sd x16, 16(x14)\n" ++
-        "  ld x16, 24(x20)\n  sd x16, 24(x14)\n" ++
-        -- slotKey from stack
-        "  ld x16, 0(x12)\n" ++
-        "  sd x16, 32(x14)\n" ++
-        "  ld x16, 8(x12)\n" ++
-        "  sd x16, 40(x14)\n" ++
-        "  ld x16, 16(x12)\n" ++
-        "  sd x16, 48(x14)\n" ++
-        "  ld x16, 24(x12)\n" ++
-        "  sd x16, 56(x14)\n" ++
-        -- original = 0 (unused for transient)
-        "  sd x0, 64(x14)\n" ++
-        "  sd x0, 72(x14)\n" ++
-        "  sd x0, 80(x14)\n" ++
-        "  sd x0, 88(x14)\n" ++
-        -- current from stack [x12+32..x12+64]
-        "  ld x16, 32(x12)\n" ++
-        "  sd x16, 96(x14)\n" ++
-        "  ld x16, 40(x12)\n" ++
-        "  sd x16, 104(x14)\n" ++
-        "  ld x16, 48(x12)\n" ++
-        "  sd x16, 112(x14)\n" ++
-        "  ld x16, 56(x12)\n" ++
-        "  sd x16, 120(x14)\n" ++
-        -- increment transient log_length
-        "  addi x15, x15, 1\n" ++
-        "  sd x15, 464(x20)"
-    , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+        staticContextWriteGuardAsm
+      -- Verified append core (byte-identical reorder of the former inline
+      -- preBody append text + the `addi x12, x12, 64` pop). Witnessed by
+      -- `EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within`.
+    , body    := EvmAsm.Evm64.Transient.evm_tstore .x20
     , tail    := .advanceAndRet 1 } ]
+
+/- **Byte-identity pin for the TSTORE body-as-Program rewire.**
+
+   The verified `evm_tstore` body emits exactly the append instruction stream
+   that used to live inline in the `h_TSTORE` `preBody`, followed by the
+   `addi x12, x12, 64` pop that used to be the handler `body`. This `#guard`
+   pins that emission so any future change to `evm_tstore` is caught. The only
+   textual difference from the former inline text is the transient-log-base
+   `li` immediate, now rendered in decimal (`2692939776`) rather than hex
+   (`0xa0830000`) — the same numeric value, so the assembler produces
+   byte-identical machine code (region map / symbol addresses unchanged). -/
+#guard emitProgram (EvmAsm.Evm64.Transient.evm_tstore .x20) =
+  "  ld x15, 464(x20)\n" ++
+  "  li x14, 2692939776\n" ++
+  "  slli x16, x15, 7\n" ++
+  "  add x14, x14, x16\n" ++
+  "  ld x16, 0(x20)\n  sd x16, 0(x14)\n" ++
+  "  ld x16, 8(x20)\n  sd x16, 8(x14)\n" ++
+  "  ld x16, 16(x20)\n  sd x16, 16(x14)\n" ++
+  "  ld x16, 24(x20)\n  sd x16, 24(x14)\n" ++
+  "  ld x16, 0(x12)\n  sd x16, 32(x14)\n" ++
+  "  ld x16, 8(x12)\n  sd x16, 40(x14)\n" ++
+  "  ld x16, 16(x12)\n  sd x16, 48(x14)\n" ++
+  "  ld x16, 24(x12)\n  sd x16, 56(x14)\n" ++
+  "  sd x0, 64(x14)\n  sd x0, 72(x14)\n  sd x0, 80(x14)\n  sd x0, 88(x14)\n" ++
+  "  ld x16, 32(x12)\n  sd x16, 96(x14)\n" ++
+  "  ld x16, 40(x12)\n  sd x16, 104(x14)\n" ++
+  "  ld x16, 48(x12)\n  sd x16, 112(x14)\n" ++
+  "  ld x16, 56(x12)\n  sd x16, 120(x14)\n" ++
+  "  addi x15, x15, 1\n" ++
+  "  sd x15, 464(x20)\n" ++
+  "  addi x12, x12, 64"
+
+/- **Byte-identity pin for the TLOAD body-as-Program rewire.**
+
+   The verified `evm_tload` body emits exactly the scan instruction stream
+   that used to live inline in the `h_TLOAD` `preBody`, with two purely
+   textual re-encodings that assemble to byte-identical machine code
+   (verified against `riscv64-elf-as`: both forms produce the same `.text`):
+
+   - the numeric local labels (`1:`/`3:`/`4:`/`5:`) become the PC-relative
+     offsets the assembler resolved them to (`.+N`/`.-N`; `beqz`/`bnez`/`j`
+     are the canonical `beq`/`bne`/`jal x0` spellings of the same encodings);
+   - `li x14, 0xa0830000` becomes its exact GNU-as expansion
+     `lui x14, 0xa ; addiw x14, x14, 131 ; slli x14, x14, 16`, so the Lean
+     `Program` layout (4 bytes/instruction) equals the machine layout and
+     every branch offset is the real encoded offset.
+
+   This `#guard` pins that emission so any future change to `evm_tload` is
+   caught (region map / symbol addresses unchanged). -/
+#guard emitProgram (EvmAsm.Evm64.Transient.evm_tload .x20) =
+  "  ld x15, 464(x20)\n" ++
+  "  beq x15, x0, .+168\n" ++
+  "  lui x14, 0xa\n" ++
+  "  addiw x14, x14, 131\n" ++
+  "  slli x14, x14, 16\n" ++
+  "  slli x16, x15, 7\n" ++
+  "  add x14, x14, x16\n" ++
+  "  addi x14, x14, -128\n" ++
+  "  ld x16, 0(x14)\n  ld x17, 0(x20)\n  bne x16, x17, .+124\n" ++
+  "  ld x16, 8(x14)\n  ld x17, 8(x20)\n  bne x16, x17, .+112\n" ++
+  "  ld x16, 16(x14)\n  ld x17, 16(x20)\n  bne x16, x17, .+100\n" ++
+  "  ld x16, 24(x14)\n  ld x17, 24(x20)\n  bne x16, x17, .+88\n" ++
+  "  ld x16, 32(x14)\n  ld x17, 0(x12)\n  bne x16, x17, .+76\n" ++
+  "  ld x16, 40(x14)\n  ld x17, 8(x12)\n  bne x16, x17, .+64\n" ++
+  "  ld x16, 48(x14)\n  ld x17, 16(x12)\n  bne x16, x17, .+52\n" ++
+  "  ld x16, 56(x14)\n  ld x17, 24(x12)\n  bne x16, x17, .+40\n" ++
+  "  ld x16, 96(x14)\n  sd x16, 0(x12)\n" ++
+  "  ld x16, 104(x14)\n  sd x16, 8(x12)\n" ++
+  "  ld x16, 112(x14)\n  sd x16, 16(x12)\n" ++
+  "  ld x16, 120(x14)\n  sd x16, 24(x12)\n" ++
+  "  jal x0, .+28\n" ++
+  "  addi x15, x15, -1\n" ++
+  "  bne x15, x0, .-140\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)"
+
+/- **Byte-identity pin for the SLOAD body-as-Program rewire.**
+
+   The verified `evm_sload` body emits exactly the persistent-log scan
+   instruction stream that used to live inline in the `h_SLOAD` `preBody`, with
+   the same two purely textual re-encodings as the TLOAD pin (numeric local
+   labels → PC-relative offsets; `li x14, 0xa0630000` → its exact GNU-as
+   expansion `lui x14, 0xa ; addiw x14, x14, 99 ; slli x14, x14, 16`), which
+   assemble to byte-identical machine code (region map / symbol addresses
+   unchanged). The scan is structurally identical to TLOAD's; only the log base
+   (`0xa0630000` vs `0xa0830000`) and length-cell offset (`448` vs `464`)
+   differ. -/
+#guard emitProgram (EvmAsm.Evm64.Storage.evm_sload .x20) =
+  "  ld x15, 448(x20)\n" ++
+  "  beq x15, x0, .+168\n" ++
+  "  lui x14, 0xa\n" ++
+  "  addiw x14, x14, 99\n" ++
+  "  slli x14, x14, 16\n" ++
+  "  slli x16, x15, 7\n" ++
+  "  add x14, x14, x16\n" ++
+  "  addi x14, x14, -128\n" ++
+  "  ld x16, 0(x14)\n  ld x17, 0(x20)\n  bne x16, x17, .+124\n" ++
+  "  ld x16, 8(x14)\n  ld x17, 8(x20)\n  bne x16, x17, .+112\n" ++
+  "  ld x16, 16(x14)\n  ld x17, 16(x20)\n  bne x16, x17, .+100\n" ++
+  "  ld x16, 24(x14)\n  ld x17, 24(x20)\n  bne x16, x17, .+88\n" ++
+  "  ld x16, 32(x14)\n  ld x17, 0(x12)\n  bne x16, x17, .+76\n" ++
+  "  ld x16, 40(x14)\n  ld x17, 8(x12)\n  bne x16, x17, .+64\n" ++
+  "  ld x16, 48(x14)\n  ld x17, 16(x12)\n  bne x16, x17, .+52\n" ++
+  "  ld x16, 56(x14)\n  ld x17, 24(x12)\n  bne x16, x17, .+40\n" ++
+  "  ld x16, 96(x14)\n  sd x16, 0(x12)\n" ++
+  "  ld x16, 104(x14)\n  sd x16, 8(x12)\n" ++
+  "  ld x16, 112(x14)\n  sd x16, 16(x12)\n" ++
+  "  ld x16, 120(x14)\n  sd x16, 24(x12)\n" ++
+  "  jal x0, .+28\n" ++
+  "  addi x15, x15, -1\n" ++
+  "  bne x15, x0, .-140\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)"
 
 end EvmAsm.Codegen
