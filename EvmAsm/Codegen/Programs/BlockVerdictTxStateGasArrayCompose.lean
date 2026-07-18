@@ -105,9 +105,12 @@
               **MidChain of_decode DONE** (`TopMidChainDecode` ToWn5).
               **MidJoin+Front AfterSave of_decode DONE** (creation+copy;
               hdec+hinb ∀endPtr). **FrontE2E of_decode DONE** (E→ret creation;
-              no hok*). **E2ECopy of_decode DONE**. **Assumed creation short+of_decode fullCode DONE** (no hdrop). Residual: pure hdec/hnext/hcre; copy Assumed;
-              pure ∃decode from extractSuccess item
-              offsets; hnext* from decode next; long-list (≥56); fill
+              no hok*). **E2ECopy of_decode DONE**. **Assumed creation short+of_decode fullCode DONE** (no hdrop).
+              **Pure field5+hcre DONE**: encodeItems offset algebra;
+              `extractSuccess_creation_type234_field5_pfx80` /
+              `_hcre` / fit-gated `_hdec5`. Residual: wire srcOff0..5 =
+              listOff+1+prefixLen k; hnext* from decode spans; pure
+              ∃decode skips 0..4; long-list (≥56); fill
               `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).

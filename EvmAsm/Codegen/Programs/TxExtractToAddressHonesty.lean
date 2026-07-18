@@ -651,6 +651,77 @@ theorem extractSuccess_creation_type234_field5_pfx80
   have hpfx := short_list_empty_bytes_pfx txBytes listOff items 5 hencFull hshort hn hval
   exact ⟨hn, hget, hpfx⟩
 
+/-- Packaging `hcre` for creation type234 short: when `srcOff5` is the field-5
+    prefix offset, every successful walk_next decode has `len = 0`. -/
+theorem extractSuccess_creation_type234_hcre
+    (txBytes : List (BitVec 8)) (txBase : Word) (srcOff5 : Nat)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hsrc : srcOff5 =
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 + encodeItemsPrefixLen items 5) :
+    ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word) := by
+  have hf := extractSuccess_creation_type234_field5_pfx80 txBytes h hcreFlag hge
+    items hdecL hshort
+  obtain ⟨_hn, _hget, hpfx⟩ := hf
+  obtain ⟨hoff, hb⟩ := hpfx
+  have hsrc' : srcOff5 =
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 + encodeItemsPrefixLen items 5 := hsrc
+  intro endPtr next5 len5 hdec
+  have hoff' : srcOff5 < txBytes.length := by
+    simpa [hsrc'] using hoff
+  have hb' : txBytes[srcOff5]'hoff' = (0x80 : BitVec 8) := by
+    simpa [hsrc'] using hb
+  exact hcre_decode_of_pfx80 txBytes srcOff5
+    (txBase + BitVec.ofNat 64 srcOff5) endPtr hoff' hb' next5 len5 hdec
+
+/-- Fit-gated `hdec5` for empty short field: prefix `0x80` + room for header
+    ⇒ ∃ next,len with `rlpItemDecode` (honest replacement for universal ∃decode). -/
+theorem hdec_empty_short_of_pfx80
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr : Word)
+    (hoff : off < bytes.length)
+    (hb : bytes[off]'hoff = (0x80 : BitVec 8))
+    (hfit : BitVec.ult (0 : Word) (endPtr - cursor) = true) :
+    ∃ next len : Word, rlpItemDecode bytes off cursor endPtr next len :=
+  ⟨cursor + signExtend12 (1 : BitVec 12), (0 : Word),
+    rlpItemDecode_empty_short bytes off cursor endPtr hoff hb hfit⟩
+
+/-- Creation type234 short: field-5 offset + fit ⇒ packaging-shaped ∃decode. -/
+theorem extractSuccess_creation_type234_hdec5
+    (txBytes : List (BitVec 8)) (txBase endPtr : Word) (srcOff5 : Nat)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hsrc : srcOff5 =
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 + encodeItemsPrefixLen items 5)
+    (hfit : BitVec.ult (0 : Word)
+      (endPtr - (txBase + BitVec.ofNat 64 srcOff5)) = true) :
+    ∃ next5 len5 : Word,
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 := by
+  have hf := extractSuccess_creation_type234_field5_pfx80 txBytes h hcreFlag hge
+    items hdecL hshort
+  obtain ⟨_hn, _hget, hpfx⟩ := hf
+  obtain ⟨hoff, hb⟩ := hpfx
+  have hsrc' : srcOff5 =
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 + encodeItemsPrefixLen items 5 := hsrc
+  have hoff' : srcOff5 < txBytes.length := by
+    simpa [hsrc'] using hoff
+  have hb' : txBytes[srcOff5]'hoff' = (0x80 : BitVec 8) := by
+    simpa [hsrc'] using hb
+  exact hdec_empty_short_of_pfx80 txBytes srcOff5
+    (txBase + BitVec.ofNat 64 srcOff5) endPtr hoff' hb' hfit
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
@@ -673,5 +744,8 @@ theorem extractSuccess_creation_type234_field5_pfx80
 #print axioms short_list_item_drop
 #print axioms short_list_empty_bytes_pfx
 #print axioms extractSuccess_creation_type234_field5_pfx80
+#print axioms extractSuccess_creation_type234_hcre
+#print axioms hdec_empty_short_of_pfx80
+#print axioms extractSuccess_creation_type234_hdec5
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
