@@ -269,7 +269,7 @@ def extract_discharge_copy_t1_short_region_available :=
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
   /-- Extract assumed still residual; type_dispatch discharged.
-      Path packaging: creation/copy short bare for type234+legacy+t1 (`extract_discharge_*_short_*_available`). Long-list pure walk_init guards DONE (`extractSuccess_long_walkInit_guards`); Call_long + Assumed long packaging residual. -/
+      Path packaging: creation/copy short bare for type234+legacy+t1 (`extract_discharge_*_short_*_available`). Long-list pure guards + `extractWalkInitCall_long` DONE classical-3; Front/Assumed long packaging residual (h_llz/h_min/h_match pure wire). -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
