@@ -101,6 +101,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext1
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNextRest
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopLegacy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopT1
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopHaveField
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
