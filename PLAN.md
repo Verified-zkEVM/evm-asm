@@ -643,18 +643,43 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     `stepResult_ok_iff`, `isMisalignedAccess_imp_step_none`) connects it to the
     `step`/`stepN` corpus. Axiom-clean (`propext`/`Quot.sound`), 0 sorry, full
     `EvmAsm.Rv64` builds untouched.
-  - **Remaining.** (1) A uniform `step_sail_equiv` dispatching via `InstrMap.lean`
-    over a decoded instruction (composes the per-class results via
-    `step_of_execute`; blocked on the memory class below, since it must cover
-    LD/SD). (2) **Memory: the
-    `MemProofs.lean` stubs.** Every load/store is a `*_sail_equiv_stub` that
-    *assumes* an `h_exec` hypothesis (Sail `execute_LOAD/STORE` already succeeds +
-    lands in `StateRel`); discharge it by reducing Sail `vmem_read`/`vmem_write` in
-    bare mode (Machine priv, `satp=0`, aligned). Per maintainer: prove the
-    **forward** direction (evm-asm ⇒ riscv-sail) — always valid since evm-asm
-    issues no misaligned accesses; full both-directions holds only under the
-    alignment precondition `Rv64.step` already enforces
-    (`isValidDwordAccess`/`isValidMemAccess`).
+  - **Memory equivalence (DONE — Tiers A+B, PR #10071).** All 11 load/store
+    `*_sail_equiv` theorems are **unconditional**; every `h_exec` hypothesis
+    (which assumed Sail `execute_LOAD/STORE` succeeds) is discharged by reducing
+    Sail `vmem_read`/`vmem_write` in bare mode (`BareModeInv`: Machine priv,
+    `satp=0`, PMPs off, aligned — the alignment `Rv64.step` already enforces).
+    Layout: loads `ld` in `VmemReduction.lean` (Tier A), `lw/lwu/lh/lhu/lb/lbu`
+    in `VmemReductionLoads.lean`; stores `sd/sw/sh/sb` in
+    `VmemReductionStores.lean`, with the store-side reduction chain
+    (`translateAddr_bare_store` → `pmpCheck_machine_off_store` →
+    `pmaCheck_store_ok` → `checked_mem_write_store_N` → raw `writeBytes{8,4,2,1}`)
+    in `VmemWriteReduction.lean`. The old `MemProofs.lean` `*_sail_equiv_stub`s
+    are deleted. `StepSim.lean` folds everything into the step-level simulation
+    theorems `step_execute_sail_sim_uncond` / `step_execute_sail_sim`.
+    `VmemConstruction.lean` adds construction witnesses (`sailRamWitness_*`,
+    `sailInitMainMemoryRegion_{readable,writable}`, `zeroPmpcfgs_off`) so
+    `BareModeInv` is non-vacuous. Gotchas for future memory work: `*i`
+    identifiers lex as a single token in Sail-generated code, `extractLsb` has
+    dependent indices (rewrite widths first), and `getD_insert` chains need
+    per-address case splits.
+  - **Initializer tie-in (BLOCKED — model regen needed, not proof work).**
+    Deriving `BareModeInv` from the model's own boot routine is *provably
+    impossible* on the current vendored model: `sail_model_init` errors for
+    every state (kernel-checked `sail_model_init_run_none`) because module
+    scoping `{main, I_insts, M_insts}` dropped the `currentlyEnabled` clauses
+    for Zicsr/Zkr/Zicbo/Zicntr/Zfh that `main`'s CSR postlude still calls. Full
+    analysis + fix options in `docs/sail-init-scoping-defect.md`. Fix =
+    re-scope/full-model regen (maintainer decision pending). No existing lemma
+    is affected — all take `BareModeInv` as a hypothesis.
+  - **Remaining (next up).** A uniform `step_sail_equiv` dispatching via
+    `InstrMap.lean` over a decoded instruction — compose the 49 per-class
+    `*_sail_equiv` results via `step_of_execute` (`StepProofs.lean`), covering
+    the now-unconditional memory class. This was blocked on the memory tier and
+    is now unblocked. Start from `step_execute_sail_sim` (`StepSim.lean`), which
+    already folds the execute layer; what's missing is the decode tie
+    (`toSailInstr?`/`InstrMap.lean` — note the bits-vs-bytes LOAD/STORE width
+    convention there, fixed once already) connecting `Rv64` decode to Sail's
+    AST so the fold can be stated over raw instruction words.
 
 ---
 
