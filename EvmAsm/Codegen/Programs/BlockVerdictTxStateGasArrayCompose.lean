@@ -170,9 +170,11 @@
                 **Assumed-shaped creation type234 short DONE**
                 (`extractAssumed_success_flat_creation_type234_short` under
                 `extractCreationType234ShortPath`; classical-3 fullCode).
-                Residual: fill `ExtractAssumed.success_flat` for all
-                extractSuccess arms (copy/legacy/t1/long-list; drop path
-                Prop into pure case-split).
+                **copy short concrete E2E DONE**
+                (`extractFrontAfterSaveCopy_then_epi_of_decode_short`,
+                `extractFrontCopy_then_epi_of_decode_short_concrete`).
+                Residual: Assumed pureHvalid for copy + fill
+                `ExtractAssumed.success_flat` (copy/legacy/t1/long case-split).
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
