@@ -142,6 +142,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoinDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInitLong
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCre
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCreDecode
