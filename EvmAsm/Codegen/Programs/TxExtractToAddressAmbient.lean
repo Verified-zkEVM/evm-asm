@@ -6,8 +6,8 @@
   `loadPtr = regionBase + off` (SSZ offs 4-align, not 8) — cannot peel via
   `bytesRegion_split`. Ambient re-spec (BgvOffset-style) keeps the full region.
 
-  This file: ambient Assumed structure + off=0 recovery from slice ExtractAssumed.
-  Residual: general off/len extract body ambient packaging (LBU/LD/walks/type call).
+  General `success_flat` is the ambient Assumed hyp (body packaging residual).
+  off=0 recovers from slice ExtractAssumed.
 -/
 
 import EvmAsm.Rv64.CPSSpec
@@ -28,26 +28,29 @@ open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec
   (nExtractSteps nExtractStackDwords ExtractAssumed extractToBufOwn teaScratchOwn
-    fullCode TypeDispatchAssumed)
+    fullCode)
 open EvmAsm.Codegen.TxExtractToAddressModel (extractSuccess)
 open EvmAsm.Codegen.TxTypeDispatchSpec
-  (txSlice TypeDispatchAssumedAmbientFull typeDispatchAssumedAmbient_fullCode)
+  (txSlice txSlice_off0 TypeDispatchAssumedAmbientFull
+    typeDispatchAssumedAmbient_fullCode)
 
 /-- Ambient Assumed success contract for extract (multi-tx Option A).
 
-    off=0 arm recovers slice ExtractAssumed (loadPtr = regionBase, full blob).
-    General off/len residual (extract body ambient re-spec). -/
+    ABI: a0=loadPtr, a1=len, a2=to_buf, a3=is_creation → a0=0 on success.
+    Owns ambient `bytesRegion regionBase bs`; pure model on `txSlice bs off len`.
+    General off/len body packaging residual; off=0 filled from slice Assumed. -/
 structure ExtractAssumedAmbient (cr : CodeReq) where
   entry : Word
-  /-- Slice-eq-ambient: off=0, len=bs.length, loadPtr=regionBase. -/
-  success_flat_off0 :
-    ∀ (ret spVal regionBase lenW toBuf isCreationPtr : Word)
+  success_flat :
+    ∀ (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
       (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
-      (bs : List (BitVec 8)),
+      (bs : List (BitVec 8)) (off len : Nat),
       (ret &&& ~~~(1 : Word)) = ret →
-      lenW = BitVec.ofNat 64 bs.length →
-      extractSuccess bs →
+      loadPtr = regionBase + BitVec.ofNat 64 off →
+      lenW = BitVec.ofNat 64 len →
+      extractSuccess (txSlice bs off len) →
       regionBase.toNat % 8 = 0 →
+      off + len ≤ bs.length →
       regionBase.toNat + bs.length < 2 ^ 64 →
       validByteRange regionBase bs.length →
       toBuf.toNat % 8 = 0 →
@@ -59,7 +62,7 @@ structure ExtractAssumedAmbient (cr : CodeReq) where
           (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
           (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
           (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
-          (.x10 ↦ᵣ regionBase) ** (.x11 ↦ᵣ lenW) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
           (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
           bytesRegion regionBase bs **
           extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
@@ -81,30 +84,60 @@ structure ExtractAssumedAmbient (cr : CodeReq) where
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)))
 
-/-- off=0 ambient Assumed from any slice ExtractAssumed. classical-3. -/
-def extractAssumedAmbient_off0_pkg (asm : ExtractAssumed fullCode) :
-    ExtractAssumedAmbient fullCode where
-  entry := asm.entry
-  success_flat_off0 := fun ret spVal regionBase lenW toBuf isCreationPtr
-      s0 s1 s2 s3 s4 s5 s6 s7 bs
-      hret hlen hextractOk halign hover hvalidBuf htalign htover htvalid =>
-    asm.success_flat ret spVal regionBase lenW toBuf isCreationPtr
-      s0 s1 s2 s3 s4 s5 s6 s7 bs
-      hret hlen hextractOk halign hover hvalidBuf htalign htover htvalid
+/-- off=0 ambient application from slice ExtractAssumed. classical-3. -/
+theorem extractAssumed_ambient_off0
+    (asm : ExtractAssumed fullCode)
+    (ret spVal regionBase lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8))
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : lenW = BitVec.ofNat 64 bs.length)
+    (hextractOk : extractSuccess bs)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin nExtractSteps asm.entry ret fullCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nExtractStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
+        (.x10 ↦ᵣ regionBase) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ toBuf) ** (.x13 ↦ᵣ isCreationPtr) **
+        bytesRegion regionBase bs **
+        extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nExtractStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (Reg.x23 ↦ᵣ s7) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion regionBase bs **
+        extractToBufOwn toBuf ** memOwn isCreationPtr ** teaScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) :=
+  asm.success_flat ret spVal regionBase lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs
+    hret hlen hextractOk halign hover hvalidBuf htalign htover htvalid
 
-/-- Combined ambient callee assumptions for multi-tx intrinsic discharge. -/
+/-- Combined ambient callee assumptions for multi-tx intrinsic discharge.
+
+    `extract.success_flat` general off is residual body packaging;
+    `typeDispatch` is discharged (`typeDispatchAssumedAmbient_fullCode`). -/
 structure TisCalleeAssumptionsAmbient (cr : CodeReq) where
   extract : ExtractAssumedAmbient cr
   typeDispatch : TypeDispatchAssumedAmbientFull cr
 
-/-- Package ambient callees from slice extract Assumed + ambient type full. -/
-def tisCalleeAssumptionsAmbient_off0
-    (hextract : ExtractAssumed fullCode) :
-    TisCalleeAssumptionsAmbient fullCode where
-  extract := extractAssumedAmbient_off0_pkg hextract
-  typeDispatch := typeDispatchAssumedAmbient_fullCode
-
-#print axioms extractAssumedAmbient_off0_pkg
-#print axioms tisCalleeAssumptionsAmbient_off0
+#print axioms extractAssumed_ambient_off0
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

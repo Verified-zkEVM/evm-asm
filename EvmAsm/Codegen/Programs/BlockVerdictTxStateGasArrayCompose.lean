@@ -300,8 +300,10 @@ structure A4gbrResiduals where
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient Option A progress classical-3:
       * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
-      * extract ambient off0: `extractAssumedAmbient_off0_pkg` + `TisCalleeAssumptionsAmbient`
-      Residual: extract body ambient general off (LBU/LD/walks); Intrinsic off≠0. -/
+      * extract ambient: `ExtractAssumedAmbient.success_flat` (general off residual body);
+        off0 lemma `extractAssumed_ambient_off0` from slice Assumed
+      * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
+      Residual: fill extract ambient general off; Intrinsic ambient top under it. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
@@ -418,14 +420,11 @@ theorem intrinsic_discharge_off0_own_available
 def type_dispatch_ambient_discharged :=
   TxTypeDispatchSpec.typeDispatchAssumedAmbient_fullCode
 
-/-- Multi-tx Option A: extract ambient off0 package (from any slice ExtractAssumed). -/
-def extract_ambient_off0_pkg :=
-  TxExtractToAddressSpec.extractAssumedAmbient_off0_pkg
-
 #print axioms intrinsic_discharge_off0_available
 #print axioms intrinsic_discharge_off0_own_available
 #print axioms bgvOffsetAssumed_fullCode
 #print axioms typeDispatchAssumed_fullCode
 #print axioms type_dispatch_ambient_discharged
+#print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
