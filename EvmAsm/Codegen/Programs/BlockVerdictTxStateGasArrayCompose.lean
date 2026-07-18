@@ -214,6 +214,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Region
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -285,11 +286,16 @@ def extract_discharge_copy_legacy_short_region_available :=
 def extract_discharge_copy_t1_short_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short
 
+def extract_discharge_copy_t1_long_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_long
+
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
   /-- Extract assumed still residual; type_dispatch discharged.
-      Path packaging: creation/copy short bare for type234+legacy+t1 (`extract_discharge_*_short_*_available`). Long-list pure + Call_long + leaf_hyps + fromTypeLoad/framed_s5s6 + Front long AfterSave + E2E creation concrete + Assumed long packaging + **longConcrete_pure** (`extractAssumed_creation_longConcrete_pure(_fullCode)`; longListSrcOff + walk guards + hnext/hcre; residual hvalid/hdec/hlover/hlvalid) DONE classical-3; pureHvalid long + path Prop residual. -/
+      Bare Assumed path Props DONE for creation+copy × type234/legacy/t1 × short+long
+      (`extract_discharge_*_{short,long}_*_available`). Residual: multi-tx ambient Option A;
+      Teer prover1; gate a4gbr.1. -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
