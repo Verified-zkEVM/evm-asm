@@ -100,12 +100,11 @@
               (`wn5OkConcrete` keeps `rlpItemDecode`; hcre/hlen20/hnext_content
               are decode-gated via pfx80/pfx94; pure
               `hnext_content_decode_of_pfx94` when contentPtr=cursor+1).
-              **Honest hok path DONE (wn5 template)**: `wn0Outcome_drop_fail_of_decode`
-              (pure ∃decode + in-bounds kills fail arms) +
-              `extractWalkNext5PrepCallOk_owned_of_decode` (Outcome post, no
-              universal OkFail→Ok). Residual: wire of_decode through wn0..4 /
-              MidChain (replace hok hyps); pure ∃decode from extractSuccess
-              item offsets; hnext* from decode next; long-list (≥56); fill
+              **Honest hok path DONE wn0..wn5**: `wn0Outcome_drop_fail_of_decode`
+              + `*CallOk/*PrepCallOk_owned_of_decode` (Outcome post, no
+              universal OkFail→Ok). Residual: wire of_decode into MidChain
+              (replace hok hyps); pure ∃decode from extractSuccess item
+              offsets; hnext* from decode next; long-list (≥56); fill
               `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
