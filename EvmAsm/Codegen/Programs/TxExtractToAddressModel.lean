@@ -262,6 +262,93 @@ theorem extractSuccess_creation_len
     (teerExtractToAddress txBytes).2.1.length = 0 := by
   simp only [hempty, List.length_nil]
 
+/-- `to` field index by type. -/
+theorem toFieldIndex_legacy : toFieldIndex 0 = 3 := rfl
+theorem toFieldIndex_t1 : toFieldIndex 1 = 4 := rfl
+theorem toFieldIndex_type234 (ty : Nat) (h2 : 2 ≤ ty) (_h4 : ty ≤ 4) :
+    toFieldIndex ty = 5 := by
+  unfold toFieldIndex
+  have hne0 : ty ≠ 0 := by omega
+  have hne1 : ty ≠ 1 := by omega
+  simp only [hne0, ↓reduceIte, hne1, ↓reduceIte]
+
+/-- Success ⇒ type is 0..4 with matching `to` field index. -/
+theorem extractSuccess_toFieldIndex
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat =
+      (if (teerTxTypeDispatch txBytes).2.1.toNat = 0 then 3
+       else if (teerTxTypeDispatch txBytes).2.1.toNat = 1 then 4
+       else 5) := by
+  have _hle := extractSuccess_type_le4 txBytes h
+  rfl
+
+/-- Successful list decode implies nonempty buffer. -/
+theorem decodeListItems_some_ne_nil {bs : List Byte} {items : List RLPItem}
+    (h : decodeListItems bs = some items) : bs ≠ [] := by
+  intro hnil
+  subst hnil
+  -- decodeListItems [] unfolds to match decode [] = none
+  simp only [decodeListItems, decode, decodeAux] at h
+  exact (nomatch h : False)
+
+/-- `drop n ≠ []` ⇒ `n < length`. -/
+private theorem drop_ne_nil_lt_length {α : Type _} (l : List α) (n : Nat)
+    (hne : l.drop n ≠ []) : n < l.length := by
+  by_contra hge
+  have hle : l.length ≤ n := Nat.le_of_not_gt hge
+  have hnil : l.drop n = [] := List.drop_eq_nil_of_le hle
+  exact hne hnil
+
+/-- Success ⇒ type-dispatch inner offset is in bounds (walk_init `hoff`). -/
+theorem extractSuccess_inner_lt
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes) :
+    (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length := by
+  obtain ⟨items, hdec⟩ := extractSuccess_decode txBytes h
+  have hne := decodeListItems_some_ne_nil hdec
+  exact drop_ne_nil_lt_length txBytes _ hne
+
+/-- Success ⇒ type234 path uses field index 5 (six walk_nexts: skip 0..4, read 5). -/
+theorem extractSuccess_type234_toFieldIndex
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat) :
+    toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat = 5 := by
+  have hle := extractSuccess_type_le4 txBytes h
+  exact toFieldIndex_type234 _ hge hle
+
+/-- Creation under success: `to` content is empty (hcre pure half). -/
+theorem extractSuccess_creation_to_empty
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hcre : (teerExtractToAddress txBytes).2.2 = (1 : Word)) :
+    (teerExtractToAddress txBytes).2.1 = [] := by
+  obtain ⟨_, content, isCre, heq, hcases⟩ := extractSuccess_outcome txBytes h
+  have hc : (teerExtractToAddress txBytes).2.1 = content := by rw [heq]
+  have hi : (teerExtractToAddress txBytes).2.2 = isCre := by rw [heq]
+  rw [hi] at hcre
+  cases hcases with
+  | inl h0 =>
+    rw [hc, h0.1]
+  | inr h20 =>
+    have : isCre = (0 : Word) := h20.2
+    rw [this] at hcre
+    exact absurd hcre (by decide)
+
+/-- Copy under success: `to` content length is 20 (hlen20 pure half). -/
+theorem extractSuccess_copy_to_len20
+    (txBytes : List (BitVec 8)) (h : extractSuccess txBytes)
+    (hcopy : (teerExtractToAddress txBytes).2.2 = (0 : Word)) :
+    (teerExtractToAddress txBytes).2.1.length = 20 := by
+  obtain ⟨_, content, isCre, heq, hcases⟩ := extractSuccess_outcome txBytes h
+  have hc : (teerExtractToAddress txBytes).2.1 = content := by rw [heq]
+  have hi : (teerExtractToAddress txBytes).2.2 = isCre := by rw [heq]
+  rw [hi] at hcopy
+  cases hcases with
+  | inl h0 =>
+    have : isCre = (1 : Word) := h0.2
+    rw [this] at hcopy
+    exact absurd hcopy (by decide)
+  | inr h20 =>
+    rw [hc, h20.1]
+
 #print axioms extractSuccess_type_ok
 #print axioms extractSuccess_outcome
 #print axioms extractSuccess_creation
@@ -271,5 +358,9 @@ theorem extractSuccess_creation_len
 #print axioms extractSuccess_type_le4
 #print axioms teer_success_type_le4
 #print axioms extractSuccess_creation_len
+#print axioms extractSuccess_inner_lt
+#print axioms extractSuccess_type234_toFieldIndex
+#print axioms extractSuccess_creation_to_empty
+#print axioms extractSuccess_copy_to_len20
 
 end EvmAsm.Codegen.TxExtractToAddressModel

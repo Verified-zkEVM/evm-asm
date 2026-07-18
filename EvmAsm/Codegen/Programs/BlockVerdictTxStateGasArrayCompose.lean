@@ -83,8 +83,11 @@
             **extractAssumed_creation_under_honesty / _fullCode DONE** (wire
             FrontCreation E2E → Assumed shape under extractLinkedCode/fullCode;
             still takes honesty residuals hdrop/hok*/hnext*/hcre + walk statics).
-            Residual: pure discharge of honesty residuals from `extractSuccess`
-            (EL decode ↔ walk machine) to fill `ExtractAssumed.success_flat`;
+            **pure honesty substrate DONE** (`extractSuccess_inner_lt` = walk_init
+            hoff; `toFieldIndex_*` / type234 index; `creation_to_empty` /
+            `copy_to_len20` for hcre/hlen20 pure halves; decode/to_field prior).
+            Residual: machine bridge (EL decode ↔ rlp_walk_init/next OK arms)
+            to discharge hdrop/hok*/hnext* and fill `ExtractAssumed.success_flat`;
             copy-path Assumed packaging; legacy/t1 front E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
