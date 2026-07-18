@@ -339,6 +339,93 @@ theorem extractWalkInitCall
     simp only [extractWalkInitPost]
     xperm_hyp hq) hcall
 
+/-- Short-success post at LinkWalkInit (a2=0; cursor = list+1). -/
+def extractWalkInitShortPost (txBase listLen : Word) (txBytes : List (BitVec 8))
+    (listOff : Nat) (t5Old t6Old : Word) : Assertion :=
+  (.x10 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
+    (.x11 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + listLen)) **
+    (.x12 ↦ᵣ (0 : Word)) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkInit) **
+    bytesRegion txBase txBytes
+
+set_option maxRecDepth 8000 in
+/-- JAL walk_init short-success path under extractLinkedCode (15-step leaf).
+    Discharge short pure from `extractSuccess_short_walkInit_guards`. -/
+theorem extractWalkInitCall_short
+    (txBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (txBytes : List (BitVec 8)) (listOff : Nat) (old1 : Word)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : listOff < txBytes.length)
+    (hover : txBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 listOff) = true)
+    (hlen : listLen ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (txBase + BitVec.ofNat 64 listOff) +
+        (((txBytes[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (txBase + BitVec.ofNat 64 listOff) + listLen) :
+    cpsTripleWithin (1 + 15) WalkInitJalPc LinkWalkInit extractLinkedCode
+      ((.x1 ↦ᵣ old1) **
+        extractWalkInitPrest txBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+          txBytes listOff)
+      (extractWalkInitShortPost txBase listLen txBytes listOff t5Old t6Old) := by
+  have hret : (LinkWalkInit &&& ~~~(1 : Word)) = LinkWalkInit := by
+    simp only [LinkWalkInit, E]; decide
+  have hleaf0 := rlp_walk_init_short_spec_within WI txBase LinkWalkInit listLen
+    a2Old t0Old t1Old t2Old t3Old t4Old txBytes listOff
+    hsalign hoff hover hvalid hlen h_ge h_hi h_exact
+  rw [hret] at hleaf0
+  -- Frame x30/x31 (short path does not touch them)
+  have hleafF := cpsTripleWithin_frameR
+    ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_regIs
+      · exact pcFree_regIs) hleaf0
+  have hleafP : cpsTripleWithin 15 WI LinkWalkInit walkInitCode
+      ((.x1 ↦ᵣ LinkWalkInit) **
+        extractWalkInitPrest txBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+          txBytes listOff)
+      (extractWalkInitShortPost txBase listLen txBytes listOff t5Old t6Old) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [extractWalkInitPrest] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      simp only [extractWalkInitShortPost] at hq ⊢
+      xperm_hyp hq) hleafF
+  have hcallee := cpsTripleWithin_extend_code walkInit_in_extractLinked hleafP
+  have hcallee' : cpsTripleWithin 15 WI LinkWalkInit extractLinkedCode
+      ((.x1 ↦ᵣ LinkWalkInit) **
+        extractWalkInitPrest txBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+          txBytes listOff)
+      ((.x1 ↦ᵣ LinkWalkInit) **
+        ((.x10 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
+          (.x11 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + listLen)) **
+          (.x12 ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion txBase txBytes)) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
+      simp only [extractWalkInitShortPost] at hq
+      xperm_hyp hq) hcallee
+  have hcall := callWithin_spec WalkInitJalPc WI old1 walkInitJalOff 15
+    walkInitJalOff_resolves
+    (fun a i hi => extract_mono a i
+      (CodeReq.ofProg_mem_at E WalkInitJalPc extractProg 36
+        (.JAL .x1 walkInitJalOff) (by simp only [WalkInitJalPc]; bv_omega)
+        (by rw [extract_length]; decide) rfl
+        (by rw [extract_length]; decide) a i hi))
+    (extractWalkInitPrest_pcFree txBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      txBytes listOff)
+    hcallee'
+  rw [show (WalkInitJalPc + 4 : Word) = LinkWalkInit from by
+    simp only [WalkInitJalPc, LinkWalkInit]; bv_omega] at hcall
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
+    simp only [extractWalkInitShortPost]
+    xperm_hyp hq) hcall
+
 set_option maxRecDepth 8000 in
 /-- BNE a2,x0 field_fail: not-taken when a2=0 → AfterWalkInitOk. -/
 theorem extractWalkInitBneOk :
@@ -363,9 +450,43 @@ theorem extractWalkInitBneOk :
   rw [hpc] at hnt
   exact hnt
 
+/-- Short post → common temps/bytes + ∃ cursor,end a2=0 OK regs
+    (honest replacement for universal `walkInitOkFail_drop` on short path). -/
+theorem extractWalkInitShortPost_to_okNested
+    (txBase listLen : Word) (txBytes : List (BitVec 8))
+    (listOff : Nat) (t5Old t6Old : Word) :
+    ∀ h, extractWalkInitShortPost txBase listLen txBytes listOff t5Old t6Old h →
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkInit) **
+          bytesRegion txBase txBytes) **
+        (fun st => ∃ cursor endPtr : Word,
+          ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
+            (.x12 ↦ᵣ (0 : Word))) st)) h := by
+  intro h hp
+  simp only [extractWalkInitShortPost] at hp
+  -- Reassoc flat short post → (temps/bytes) ** (x10 ** x11 ** x12)
+  have hp' :
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkInit) **
+          bytesRegion txBase txBytes) **
+        ((.x10 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12))) **
+          (.x11 ↦ᵣ ((txBase + BitVec.ofNat 64 listOff) + listLen)) **
+          (.x12 ↦ᵣ (0 : Word)))) h := by
+    xperm_hyp hp
+  obtain ⟨hL, hR, hd, hu, hRest, hRegs⟩ := hp'
+  refine ⟨hL, hR, hd, hu, hRest, ?_⟩
+  exact ⟨(txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12),
+    (txBase + BitVec.ofNat 64 listOff) + listLen, hRegs⟩
+
 #print axioms extractWalkInitPrest_pcFree
 #print axioms walkInitJalOff_resolves
 #print axioms extractWalkInitCall
+#print axioms extractWalkInitCall_short
+#print axioms extractWalkInitShortPost_to_okNested
 #print axioms extractWalkInitBneOk
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
+
+

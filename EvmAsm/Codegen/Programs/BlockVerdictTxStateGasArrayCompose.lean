@@ -90,11 +90,12 @@
             `decodeListItems_short_walkInit_guards` + `extractSuccess_inner_eq_encode`
             for short-list walk_init pure guards;
             `extractSuccess_short_walkInit_guards` Word-level short success pure
-            under extractSuccess + hshort ≤55).
-            Residual: machine bridge (wire short guards into walk_init call /
-            replace universal walkInitOkFail_drop; hok*/hnext*; long-list open)
-            to fill `ExtractAssumed.success_flat`; copy-path Assumed packaging;
-            legacy/t1 front E2E.
+            under extractSuccess + hshort ≤55;
+            `extractWalkInitCall_short` + `extractWalkInitShortPost_to_okNested`
+            short leaf call under extractLinkedCode, a2=0 OK nested post).
+            Residual: wire short call through FrontWalkInit AfterSave (drop
+            universal walkInitOkFail_drop on short path); hok*/hnext*; long-list;
+            fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
