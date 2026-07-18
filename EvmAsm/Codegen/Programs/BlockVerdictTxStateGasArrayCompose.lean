@@ -129,8 +129,12 @@
               `bytes_data_length_le_55_of_encode_le`,
               `hnext_short_string_matches_srcOff_succ`,
               `hnext_bytes_matches_srcOff_succ` (unified empty/single/multi ≤55).
+              **any-item packaging hnext DONE**:
+              `hnext_short_list_matches_srcOff_succ` +
+              `hnext_item_matches_srcOff_succ` (bytes or nested short list under
+              short outer list; covers all short-list fields).
               Residual: wire srcOffk:=shortListSrcOff into Assumed short creation
-              (discharge hnext0..4 via empty/single/bytes pure);
+              (discharge hnext0..4 via `hnext_item_matches_srcOff_succ`);
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;

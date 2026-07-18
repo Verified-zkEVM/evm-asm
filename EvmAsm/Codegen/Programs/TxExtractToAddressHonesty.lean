@@ -1475,4 +1475,195 @@ theorem hnext_bytes_matches_srcOff_succ
 #print axioms hnext_short_string_matches_srcOff_succ
 #print axioms hnext_bytes_matches_srcOff_succ
 
+/-- Long-list encode (payload > 55) has total length > 55. -/
+theorem encode_list_long_length_gt (items : List RLPItem)
+    (hge : 55 < (encode.encodeItems items).length) :
+    55 < (encode (.list items)).length := by
+  rw [encode_list_long items hge]
+  simp only [List.length_cons, List.length_append]
+  have hpos : 0 < (Nat.toBytesBE (encode.encodeItems items).length).length :=
+    toBytesBE_length_pos (by omega)
+  omega
+
+/-- Under encode-length ≤ 55, a `.list` item uses short-list form with payload ≤ 55. -/
+theorem encode_list_of_encode_le_55 (sub : List RLPItem)
+    (hle : (encode (.list sub)).length ≤ 55) :
+    (encode.encodeItems sub).length ≤ 55 ∧
+      encode (.list sub) =
+        BitVec.ofNat 8 (0xC0 + (encode.encodeItems sub).length)
+          :: encode.encodeItems sub := by
+  by_cases hp : (encode.encodeItems sub).length ≤ 55
+  · exact ⟨hp, encode_list_short sub hp⟩
+  · have hgt : 55 < (encode.encodeItems sub).length := by omega
+    have := encode_list_long_length_gt sub hgt
+    omega
+
+/-- Short-list nested field at `shortListSrcOff n` ⇒ packaging hnext to succ. -/
+theorem hnext_short_list_matches_srcOff_succ
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat) (hn : n < items.length)
+    (sub : List RLPItem)
+    (hitem : items[n]'hn = .list sub)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + shortListSrcOff listOff items n < 2 ^ 64)
+    (hspan : txBase.toNat + shortListSrcOff listOff items (n + 1) < 2 ^ 64) :
+    let srcOff := shortListSrcOff listOff items n
+    let srcOff' := shortListSrcOff listOff items (n + 1)
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 srcOff' := by
+  intro srcOff srcOff' endPtr next len hdec
+  have hitemLen : (encode (items[n]'hn)).length ≤ 55 :=
+    encode_item_length_le_55_of_short_list items n hn hshort
+  have hencLen : (encode (.list sub)).length ≤ 55 := by simpa [hitem] using hitemLen
+  obtain ⟨hpayLe, hencForm⟩ := encode_list_of_encode_le_55 sub hencLen
+  set pay := (encode.encodeItems sub).length with hpay_def
+  have hpayLe' : pay ≤ 55 := by simpa [hpay_def] using hpayLe
+  have hdrop := short_list_item_drop txBytes listOff items n henc hshort hn
+  have hdrop' :
+      txBytes.drop srcOff =
+        BitVec.ofNat 8 (0xC0 + pay) ::
+          (encode.encodeItems sub ++ encode.encodeItems (items.drop (n + 1))) := by
+    have : encode (items[n]'hn) =
+        BitVec.ofNat 8 (0xC0 + pay) :: encode.encodeItems sub := by
+      rw [hitem, hencForm, hpay_def]
+    simpa [srcOff, shortListSrcOff, this, List.cons_append] using hdrop
+  obtain ⟨hoff, hb⟩ :=
+    getElem_of_drop_cons txBytes srcOff (BitVec.ofNat 8 (0xC0 + pay)) _ hdrop'
+  have hover' : txBase.toNat + srcOff < 2 ^ 64 := by simpa [srcOff] using hover
+  have hp : (BitVec.ofNat 8 (0xC0 + pay)).toNat = 0xC0 + pay := by
+    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have hzePfx : ((BitVec.ofNat 8 (0xC0 + pay)).zeroExtend 64).toNat = 0xC0 + pay := by
+    rw [toNat_zeroExtend_byte, hp]
+  have hge80 : ¬ BitVec.ult
+      ((txBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+    rw [hb]
+    have h80 : (0x80 : Word).toNat = 0x80 := by decide
+    intro hult
+    have := (BitVec.ult_iff_lt).1 hult
+    simp only [BitVec.lt_def, hzePfx, h80] at this; omega
+  have hgeC0 : ¬ BitVec.ult
+      ((txBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true := by
+    rw [hb]
+    have hc0 : (0xc0 : Word).toNat = 0xc0 := by decide
+    intro hult
+    have := (BitVec.ult_iff_lt).1 hult
+    simp only [BitVec.lt_def, hzePfx, hc0] at this; omega
+  have hltF8 : BitVec.ult
+      ((txBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]
+    have hf8 : (0xf8 : Word).toNat = 0xf8 := by decide
+    exact (BitVec.ult_iff_lt).2 (by simp only [BitVec.lt_def, hzePfx, hf8]; omega)
+  have hlenc : (encode (items[n]'hn)).length = 1 + pay := by
+    rw [hitem, hencForm]
+    -- encode = pfx :: payload, |payload| = pay
+    simp [List.length_cons, ← hpay_def, Nat.add_comm]
+  have hsrc' : srcOff' = srcOff + (1 + pay) := by
+    have hsucc := shortListSrcOff_succ listOff items n hn
+    simpa [srcOff, srcOff', hlenc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+      using hsucc
+  obtain ⟨b, hb?, hforms⟩ := hdec
+  have heq : b = txBytes[srcOff]'hoff := by
+    have hget : txBytes[srcOff]? = some (txBytes[srcOff]'hoff) :=
+      List.getElem?_eq_getElem hoff
+    rw [hget] at hb?
+    exact Option.some.inj hb?.symm
+  have hge80b : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true := by
+    rw [heq]; exact hge80
+  have hgeC0b : ¬ BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true := by
+    rw [heq]; exact hgeC0
+  have hltF8b : BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true := by
+    rw [heq]; exact hltF8
+  have hbEq : b = BitVec.ofNat 8 (0xC0 + pay) := by rw [heq, hb]
+  have hzeB : (b.zeroExtend 64).toNat = 0xC0 + pay := by
+    rw [toNat_zeroExtend_byte, hbEq, hp]
+  rcases hforms with h1 | h2 | h3 | h4 | h5
+  · exact absurd h1.1 hge80b
+  · -- short string requires p < 0xb8, but p ≥ 0xc0
+    have hb8 : (0xb8 : Word).toNat = 0xb8 := by decide
+    have hltN : ¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true := by
+      intro hult
+      have := (BitVec.ult_iff_lt).1 hult
+      simp only [BitVec.lt_def, hzeB, hb8] at this; omega
+    exact absurd h2.2.1 hltN
+  · -- long string requires p < 0xc0
+    exact absurd h3.2.1 hgeC0b
+  · -- short list arm
+    have hnextEq :
+        next = (txBase + BitVec.ofNat 64 srcOff) +
+          ((b.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) :=
+      h4.2.2.2.1
+    have hse1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    have hc0 : (0xc0 : Word).toNat = 0xc0 := by decide
+    have hsub : b.zeroExtend 64 - (0xc0 : Word) = BitVec.ofNat 64 pay := by
+      apply BitVec.eq_of_toNat_eq
+      have hle : 0xc0 ≤ (b.zeroExtend 64).toNat := by omega
+      rw [BitVec.toNat_sub_of_le hle, hzeB, hc0, BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt (by omega)]
+      omega
+    have h1 : ((1 : Word).toNat) = 1 := by decide
+    have hsrcN : (BitVec.ofNat 64 srcOff).toNat = srcOff := by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+    have hpayW : (BitVec.ofNat 64 pay).toNat = pay := by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+    have hcursor : (txBase + BitVec.ofNat 64 srcOff).toNat = txBase.toNat + srcOff := by
+      rw [BitVec.toNat_add, hsrcN]; omega
+    have hspanN : txBase.toNat + srcOff + pay + 1 < 2 ^ 64 := by
+      have hsp : txBase.toNat + srcOff' < 2 ^ 64 := by simpa [srcOff'] using hspan
+      rw [hsrc'] at hsp; omega
+    have hnextN : next.toNat = txBase.toNat + srcOff + pay + 1 := by
+      rw [hnextEq, hse1, hsub]
+      -- next = cursor + (payW + 1)
+      have hsum :
+          ((txBase + BitVec.ofNat 64 srcOff) +
+            (BitVec.ofNat 64 pay + (1 : Word))).toNat =
+            txBase.toNat + srcOff + pay + 1 := by
+        have hmid :
+            ((txBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 pay).toNat =
+              txBase.toNat + srcOff + pay := by
+          rw [BitVec.toNat_add, hcursor, hpayW]; omega
+        -- (cursor + pay) + 1
+        have hre : (txBase + BitVec.ofNat 64 srcOff) +
+            (BitVec.ofNat 64 pay + (1 : Word)) =
+            ((txBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 pay) + (1 : Word) := by
+          ac_rfl
+        rw [hre, BitVec.toNat_add, hmid, h1]; omega
+      exact hsum
+    apply BitVec.eq_of_toNat_eq
+    have hr : (txBase + BitVec.ofNat 64 srcOff').toNat = txBase.toNat + srcOff' := by
+      have hoff' : srcOff' < 2 ^ 64 := by omega
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hoff']; omega
+    rw [hnextN, hr, hsrc']; omega
+  · exact absurd hltF8b h5.1
+
+/-- Unified packaging hnext for any short-list field (bytes or nested list). -/
+theorem hnext_item_matches_srcOff_succ
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat) (hn : n < items.length)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + shortListSrcOff listOff items n < 2 ^ 64)
+    (hspan : txBase.toNat + shortListSrcOff listOff items (n + 1) < 2 ^ 64) :
+    let srcOff := shortListSrcOff listOff items n
+    let srcOff' := shortListSrcOff listOff items (n + 1)
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 srcOff' := by
+  intro srcOff srcOff' endPtr next len hdec
+  match hitem : items[n]'hn with
+  | .bytes data =>
+    exact hnext_bytes_matches_srcOff_succ txBytes txBase listOff items n hn data
+      hitem henc hshort hover hspan endPtr next len hdec
+  | .list sub =>
+    exact hnext_short_list_matches_srcOff_succ txBytes txBase listOff items n hn sub
+      hitem henc hshort hover hspan endPtr next len hdec
+
+#print axioms encode_list_long_length_gt
+#print axioms encode_list_of_encode_le_55
+#print axioms hnext_short_list_matches_srcOff_succ
+#print axioms hnext_item_matches_srcOff_succ
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
