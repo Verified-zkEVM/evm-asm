@@ -183,6 +183,34 @@ theorem packaging_hnext_ambient
   have hnext0 := hnext_sl next lenW hdec_sl
   exact hnext_ambient_of_loadPtr regionBase loadPtr off rel' next hptr hspan_rel' hnext0
 
+/-- When slice.drop listOff = encode list (short), ambient drop has that encode as prefix. -/
+theorem bs_drop_encode_prefix_of_txSlice
+    (bs : List (BitVec 8)) (off len listOff : Nat)
+    (enc : List (BitVec 8))
+    (_hbound : off + len ≤ bs.length)
+    (hlo : listOff ≤ len)
+    (h : (txSlice bs off len).drop listOff = enc)
+    (henc_le : enc.length ≤ len - listOff) :
+    bs.drop (off + listOff) = enc ++ bs.drop (off + listOff + enc.length) := by
+  have htake :
+      (bs.drop (off + listOff)).take enc.length = enc := by
+    have hdrop := txSlice_drop bs off len listOff hlo
+    have hm : (bs.drop (off + listOff)).take (len - listOff) = enc := by
+      rw [← hdrop, h]
+    have hswap :
+        (bs.drop (off + listOff)).take enc.length =
+          ((bs.drop (off + listOff)).take (len - listOff)).take enc.length := by
+      rw [List.take_take, Nat.min_eq_left henc_le]
+    rw [hswap, hm, List.take_length]
+  calc
+    bs.drop (off + listOff)
+        = (bs.drop (off + listOff)).take enc.length ++
+            (bs.drop (off + listOff)).drop enc.length :=
+          (List.take_append_drop enc.length _).symm
+    _ = enc ++ (bs.drop (off + listOff)).drop enc.length := by rw [htake]
+    _ = enc ++ bs.drop (off + listOff + enc.length) := by
+          rw [List.drop_drop]
+
 #print axioms shortWalkCursor_loadPtr_eq
 #print axioms shortWalkEnd_loadPtr_eq
 #print axioms txSlice_getElem?
@@ -192,5 +220,6 @@ theorem packaging_hnext_ambient
 #print axioms rlpItemDecode_abs_to_txSlice_short
 #print axioms hnext_ambient_of_loadPtr
 #print axioms packaging_hnext_ambient
+#print axioms bs_drop_encode_prefix_of_txSlice
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
