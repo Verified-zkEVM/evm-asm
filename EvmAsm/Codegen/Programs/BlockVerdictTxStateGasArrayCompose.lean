@@ -36,8 +36,10 @@
         **type-branch DONE** (`extractTypeBranchLegacy/T1/Type234`).
         **all type walk chains DONE**; **HaveField both exits DONE**
         (`extractHaveFieldCreation` + `extractHaveFieldCopy` → EpiRestore
-        classical-3). Residual: walk…HaveField…epilogue top compose; front+typeLoad DONE
-        (`extractFront`, `extractTypeThenLoad`);
+        classical-3). Residual: 9-way walk_init→a2=0 under extractSuccess;
+        type-branch+walks+HaveField+epilogue top compose under shared ambient;
+        front+typeLoad+walkInit framed DONE (`extractFront`, `extractTypeThenLoad`,
+        `extractWalkInitCall_fromTypeLoad`, `extractWalkInitBneSave` E+148→E+160);
         extractSuccess → extractAssumed; fullCode∪extract
         (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
