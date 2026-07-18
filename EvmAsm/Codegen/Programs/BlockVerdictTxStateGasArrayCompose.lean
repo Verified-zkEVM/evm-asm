@@ -175,8 +175,11 @@
                 `extractFrontCopy_then_epi_of_decode_short_concrete`).
                 **copy Assumed short concrete DONE**
                 (`extractAssumed_copy_fullCode_of_decode_short_concrete`:
-                Assumed**contentDwords under honesty hyps). Residual: pure
-                wire for copy (hlen20/hnext_content/srcOff) + fill
+                Assumed**contentDwords under honesty hyps).
+                **copy pure field5 0x94 DONE**
+                (`encode_bytes_len20_pfx`, `extractSuccess_copy_type234_field5_pfx94`,
+                `_hlen20`, `_hnext_content` packaging). Residual: pureHvalid-style
+                Assumed wire for copy (srcOffk:=shortListSrcOff) + fill
                 `ExtractAssumed.success_flat` case-split.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
