@@ -278,7 +278,7 @@ def schemeAAnchors : List GuestRegion :=
     live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
     #10457), mirroring the earlier beneficiary-balance overlay to fix
     a phantom second-selfdestruct credit. -/
-def textSizeBytes : Nat := 0x5d204
+def textSizeBytes : Nat := 0x5d210
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
