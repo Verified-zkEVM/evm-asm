@@ -197,15 +197,25 @@ theorem extractFrontAfterSaveCopy_then_epi_of_decode
         endPtr next5 len5)
     (hinb5 : ∀ (endPtr : Word),
       BitVec.ult (txBase + BitVec.ofNat 64 srcOff5) endPtr = true)
-    (hnext1 : ∀ (next0 : Word) (_len0 : Word),
+    (hnext1 : ∀ (endPtr next0 len0 : Word),
+      rlpItemDecode txBytes srcOff0 (txBase + BitVec.ofNat 64 srcOff0)
+        endPtr next0 len0 →
       next0 = txBase + BitVec.ofNat 64 srcOff1)
-    (hnext2 : ∀ (next1 : Word) (_len1 : Word),
+    (hnext2 : ∀ (endPtr next1 len1 : Word),
+      rlpItemDecode txBytes srcOff1 (txBase + BitVec.ofNat 64 srcOff1)
+        endPtr next1 len1 →
       next1 = txBase + BitVec.ofNat 64 srcOff2)
-    (hnext3 : ∀ (next2 : Word) (_len2 : Word),
+    (hnext3 : ∀ (endPtr next2 len2 : Word),
+      rlpItemDecode txBytes srcOff2 (txBase + BitVec.ofNat 64 srcOff2)
+        endPtr next2 len2 →
       next2 = txBase + BitVec.ofNat 64 srcOff3)
-    (hnext4 : ∀ (next3 : Word) (_len3 : Word),
+    (hnext4 : ∀ (endPtr next3 len3 : Word),
+      rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+        endPtr next3 len3 →
       next3 = txBase + BitVec.ofNat 64 srcOff4)
-    (hnext5 : ∀ (next4 : Word) (_len4 : Word),
+    (hnext5 : ∀ (endPtr next4 len4 : Word),
+      rlpItemDecode txBytes srcOff4 (txBase + BitVec.ofNat 64 srcOff4)
+        endPtr next4 len4 →
       next4 = txBase + BitVec.ofNat 64 srcOff5)
     (hlen20 : ∀ (endPtr next5 len5 : Word),
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
@@ -309,7 +319,7 @@ theorem extractFrontAfterSaveCopy_then_epi_of_decode
       hoff3 hover3 hvalid3 hss3 hls3 hll3 (hdec3 endPtr) (hinb3 endPtr)
       hoff4 hover4 hvalid4 hss4 hls4 hll4 (hdec4 endPtr) (hinb4 endPtr)
       hoff5 hover5 hvalid5 hss5 hls5 hll5 (hdec5 endPtr) (hinb5 endPtr)
-      hnext1 hnext2 hnext3 hnext4 hnext5
+      (hnext1 endPtr) (hnext2 endPtr) (hnext3 endPtr) (hnext4 endPtr) (hnext5 endPtr)
       (hlen20 endPtr) (hnext_content endPtr) hcalign hcover hcvalid htalign htover htvalid
     -- MidJoin pre is flat midOwned chain; reassoc to (core) ** content
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)

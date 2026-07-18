@@ -72,11 +72,17 @@ def wn2Common (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext2) **
     bytesRegion txBase txBytes
 
-def wn2OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+def wn2OkRegs (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
   wn2Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
     wn2Common txBase txBytes **
     (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+
+def wn2OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  wn2OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff **
+    ⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext2Prep_framed
@@ -101,11 +107,22 @@ theorem extractWalkNext2Prep_framed
       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
       (.x1 ↦ᵣ LinkWalkNext1) ** bytesRegion txBase txBytes)
     (by pcf) h
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn1OkConcrete, wn1Stable, wn1Common] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
-    simp only [wn2Stable] at hq ⊢
-    xperm_hyp hq) hF
+  have hCore :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext1Bne WalkNext2JalPc extractLinkedCode
+        (wn1OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff0)
+        (wn2Stable txBase lenW typeW innerW endPtr next **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext1) ** bytesRegion txBase txBytes) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [wn1OkRegs, wn1Stable, wn1Common] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      simp only [wn2Stable] at hq ⊢
+      xperm_hyp hq) hF
+  refine cpsTripleWithin_weaken (fun st hp => by
+    simp only [wn1OkConcrete] at hp
+    exact (sepConj_pure_right st).mp hp |>.1) (fun _ hq => hq) hCore
 
 theorem extractWalkNext2Post_to_commonOutcome
     (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat) :
@@ -208,8 +225,8 @@ theorem extractWalkNext2BneOk_framed
     (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) :
     cpsTripleWithin 1 LinkWalkNext2 AfterWalkNext2Bne extractLinkedCode
-      (wn2OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn2OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+      (wn2OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff)
+      (wn2OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
   have h0 := extractWalkNext2BneOk
   have hF := cpsTripleWithin_frameR
     (wn2Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
@@ -219,9 +236,9 @@ theorem extractWalkNext2BneOk_framed
         (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))
     (by pcf) h0
   refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn2OkConcrete, wn2Stable, wn2Common] at hp ⊢
+    simp only [wn2OkRegs, wn2Stable, wn2Common] at hp ⊢
     xperm_hyp hp) (fun _ hq => by
-    simp only [wn2OkConcrete, wn2Stable, wn2Common] at hq ⊢
+    simp only [wn2OkRegs, wn2Stable, wn2Common] at hq ⊢
     xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
@@ -232,9 +249,16 @@ theorem extractWalkNext2Ok_bne
       endPtr next len) :
     cpsTripleWithin 1 LinkWalkNext2 AfterWalkNext2Bne extractLinkedCode
       (wn2OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn2OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) :=
-  extractWalkNext2BneOk_framed txBase lenW typeW innerW endPtr next len
+      (wn2OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+  have hR := extractWalkNext2BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
+  have hF := cpsTripleWithin_frameR
+    (⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝) pcFree_pure hR
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn2OkConcrete, wn2OkRegs] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      simp only [wn2OkConcrete, wn2OkRegs] at hq ⊢; xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext2OkNested_bne
@@ -276,11 +300,14 @@ theorem extractWalkNext2OkNested_bne
       xperm_hyp hp)
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_pure_pre (fun hdec => ?_)
-  have h0 := extractWalkNext2Ok_bne txBase lenW typeW innerW endPtr next len
-    txBytes srcOff hdec
+  have h0 := extractWalkNext2BneOk_framed txBase lenW typeW innerW endPtr next len
+    txBytes srcOff
   refine cpsTripleWithin_weaken (fun h hp => by
-    simp only [wn2OkConcrete, wn2Common] at hp ⊢
-    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+    simp only [wn2OkRegs, wn2Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    refine ⟨next, len, ?_⟩
+    simp only [wn2OkConcrete, wn2OkRegs]
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
 
 /-- Stable ambient for walk_next3. -/
 def wn3Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
@@ -299,11 +326,17 @@ def wn3Common (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext3) **
     bytesRegion txBase txBytes
 
-def wn3OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+def wn3OkRegs (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
   wn3Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
     wn3Common txBase txBytes **
     (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+
+def wn3OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  wn3OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff **
+    ⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext3Prep_framed
@@ -328,11 +361,22 @@ theorem extractWalkNext3Prep_framed
       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
       (.x1 ↦ᵣ LinkWalkNext2) ** bytesRegion txBase txBytes)
     (by pcf) h
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn2OkConcrete, wn2Stable, wn2Common] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
-    simp only [wn3Stable] at hq ⊢
-    xperm_hyp hq) hF
+  have hCore :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext2Bne WalkNext3JalPc extractLinkedCode
+        (wn2OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff0)
+        (wn3Stable txBase lenW typeW innerW endPtr next **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext2) ** bytesRegion txBase txBytes) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [wn2OkRegs, wn2Stable, wn2Common] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      simp only [wn3Stable] at hq ⊢
+      xperm_hyp hq) hF
+  refine cpsTripleWithin_weaken (fun st hp => by
+    simp only [wn2OkConcrete] at hp
+    exact (sepConj_pure_right st).mp hp |>.1) (fun _ hq => hq) hCore
 
 theorem extractWalkNext3Post_to_commonOutcome
     (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat) :
@@ -435,8 +479,8 @@ theorem extractWalkNext3BneOk_framed
     (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) :
     cpsTripleWithin 1 LinkWalkNext3 AfterWalkNext3Bne extractLinkedCode
-      (wn3OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn3OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+      (wn3OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff)
+      (wn3OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
   have h0 := extractWalkNext3BneOk
   have hF := cpsTripleWithin_frameR
     (wn3Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
@@ -446,9 +490,9 @@ theorem extractWalkNext3BneOk_framed
         (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))
     (by pcf) h0
   refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn3OkConcrete, wn3Stable, wn3Common] at hp ⊢
+    simp only [wn3OkRegs, wn3Stable, wn3Common] at hp ⊢
     xperm_hyp hp) (fun _ hq => by
-    simp only [wn3OkConcrete, wn3Stable, wn3Common] at hq ⊢
+    simp only [wn3OkRegs, wn3Stable, wn3Common] at hq ⊢
     xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
@@ -459,9 +503,16 @@ theorem extractWalkNext3Ok_bne
       endPtr next len) :
     cpsTripleWithin 1 LinkWalkNext3 AfterWalkNext3Bne extractLinkedCode
       (wn3OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn3OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) :=
-  extractWalkNext3BneOk_framed txBase lenW typeW innerW endPtr next len
+      (wn3OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+  have hR := extractWalkNext3BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
+  have hF := cpsTripleWithin_frameR
+    (⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝) pcFree_pure hR
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn3OkConcrete, wn3OkRegs] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      simp only [wn3OkConcrete, wn3OkRegs] at hq ⊢; xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext3OkNested_bne
@@ -503,11 +554,14 @@ theorem extractWalkNext3OkNested_bne
       xperm_hyp hp)
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_pure_pre (fun hdec => ?_)
-  have h0 := extractWalkNext3Ok_bne txBase lenW typeW innerW endPtr next len
-    txBytes srcOff hdec
+  have h0 := extractWalkNext3BneOk_framed txBase lenW typeW innerW endPtr next len
+    txBytes srcOff
   refine cpsTripleWithin_weaken (fun h hp => by
-    simp only [wn3OkConcrete, wn3Common] at hp ⊢
-    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+    simp only [wn3OkRegs, wn3Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    refine ⟨next, len, ?_⟩
+    simp only [wn3OkConcrete, wn3OkRegs]
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
 
 /-- Stable ambient for walk_next4. -/
 def wn4Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
@@ -526,11 +580,17 @@ def wn4Common (txBase : Word) (txBytes : List (BitVec 8)) : Assertion :=
     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkWalkNext4) **
     bytesRegion txBase txBytes
 
-def wn4OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+def wn4OkRegs (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
   wn4Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
     wn4Common txBase txBytes **
     (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
+
+def wn4OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  wn4OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff **
+    ⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext4Prep_framed
@@ -555,11 +615,22 @@ theorem extractWalkNext4Prep_framed
       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
       (.x1 ↦ᵣ LinkWalkNext3) ** bytesRegion txBase txBytes)
     (by pcf) h
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn3OkConcrete, wn3Stable, wn3Common] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
-    simp only [wn4Stable] at hq ⊢
-    xperm_hyp hq) hF
+  have hCore :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext3Bne WalkNext4JalPc extractLinkedCode
+        (wn3OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff0)
+        (wn4Stable txBase lenW typeW innerW endPtr next **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext3) ** bytesRegion txBase txBytes) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [wn3OkRegs, wn3Stable, wn3Common] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      simp only [wn4Stable] at hq ⊢
+      xperm_hyp hq) hF
+  refine cpsTripleWithin_weaken (fun st hp => by
+    simp only [wn3OkConcrete] at hp
+    exact (sepConj_pure_right st).mp hp |>.1) (fun _ hq => hq) hCore
 
 theorem extractWalkNext4Post_to_commonOutcome
     (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat) :
@@ -662,8 +733,8 @@ theorem extractWalkNext4BneOk_framed
     (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) :
     cpsTripleWithin 1 LinkWalkNext4 AfterWalkNext4Bne extractLinkedCode
-      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+      (wn4OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff)
+      (wn4OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
   have h0 := extractWalkNext4BneOk
   have hF := cpsTripleWithin_frameR
     (wn4Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
@@ -673,9 +744,9 @@ theorem extractWalkNext4BneOk_framed
         (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))
     (by pcf) h0
   refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn4OkConcrete, wn4Stable, wn4Common] at hp ⊢
+    simp only [wn4OkRegs, wn4Stable, wn4Common] at hp ⊢
     xperm_hyp hp) (fun _ hq => by
-    simp only [wn4OkConcrete, wn4Stable, wn4Common] at hq ⊢
+    simp only [wn4OkRegs, wn4Stable, wn4Common] at hq ⊢
     xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
@@ -686,9 +757,16 @@ theorem extractWalkNext4Ok_bne
       endPtr next len) :
     cpsTripleWithin 1 LinkWalkNext4 AfterWalkNext4Bne extractLinkedCode
       (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
-      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) :=
-  extractWalkNext4BneOk_framed txBase lenW typeW innerW endPtr next len
+      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
+  have hR := extractWalkNext4BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
+  have hF := cpsTripleWithin_frameR
+    (⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝) pcFree_pure hR
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn4OkConcrete, wn4OkRegs] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      simp only [wn4OkConcrete, wn4OkRegs] at hq ⊢; xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
 theorem extractWalkNext4OkNested_bne
@@ -730,11 +808,14 @@ theorem extractWalkNext4OkNested_bne
       xperm_hyp hp)
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_pure_pre (fun hdec => ?_)
-  have h0 := extractWalkNext4Ok_bne txBase lenW typeW innerW endPtr next len
-    txBytes srcOff hdec
+  have h0 := extractWalkNext4BneOk_framed txBase lenW typeW innerW endPtr next len
+    txBytes srcOff
   refine cpsTripleWithin_weaken (fun h hp => by
-    simp only [wn4OkConcrete, wn4Common] at hp ⊢
-    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+    simp only [wn4OkRegs, wn4Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    refine ⟨next, len, ?_⟩
+    simp only [wn4OkConcrete, wn4OkRegs]
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
 
 /-- Stable ambient for walk_next5. -/
 def wn5Stable (txBase lenW typeW innerW endPtr cursor : Word) : Assertion :=
@@ -790,11 +871,22 @@ theorem extractWalkNext5Prep_framed
       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
       (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes)
     (by pcf) h
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [wn4OkConcrete, wn4Stable, wn4Common] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
-    simp only [wn5Stable] at hq ⊢
-    xperm_hyp hq) hF
+  have hCore :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext4Bne WalkNext5JalPc extractLinkedCode
+        (wn4OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff0)
+        (wn5Stable txBase lenW typeW innerW endPtr next **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [wn4OkRegs, wn4Stable, wn4Common] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      simp only [wn5Stable] at hq ⊢
+      xperm_hyp hq) hF
+  refine cpsTripleWithin_weaken (fun st hp => by
+    simp only [wn4OkConcrete] at hp
+    exact (sepConj_pure_right st).mp hp |>.1) (fun _ hq => hq) hCore
 
 theorem extractWalkNext5Post_to_commonOutcome
     (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat) :

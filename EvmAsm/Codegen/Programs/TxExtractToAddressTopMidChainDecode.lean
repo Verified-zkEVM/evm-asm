@@ -488,15 +488,25 @@ theorem extractType234ToWn5Ok_owned_of_decode
       rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
         endPtr next5 len5)
     (hinb5 : BitVec.ult (txBase + BitVec.ofNat 64 srcOff5) endPtr = true)
-    (hnext1 : ∀ (next0 : Word) (_len0 : Word),
+    (hnext1 : ∀ (next0 len0 : Word),
+      rlpItemDecode txBytes srcOff0 (txBase + BitVec.ofNat 64 srcOff0)
+        endPtr next0 len0 →
       next0 = txBase + BitVec.ofNat 64 srcOff1)
-    (hnext2 : ∀ (next1 : Word) (_len1 : Word),
+    (hnext2 : ∀ (next1 len1 : Word),
+      rlpItemDecode txBytes srcOff1 (txBase + BitVec.ofNat 64 srcOff1)
+        endPtr next1 len1 →
       next1 = txBase + BitVec.ofNat 64 srcOff2)
-    (hnext3 : ∀ (next2 : Word) (_len2 : Word),
+    (hnext3 : ∀ (next2 len2 : Word),
+      rlpItemDecode txBytes srcOff2 (txBase + BitVec.ofNat 64 srcOff2)
+        endPtr next2 len2 →
       next2 = txBase + BitVec.ofNat 64 srcOff3)
-    (hnext4 : ∀ (next3 : Word) (_len3 : Word),
+    (hnext4 : ∀ (next3 len3 : Word),
+      rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+        endPtr next3 len3 →
       next3 = txBase + BitVec.ofNat 64 srcOff4)
-    (hnext5 : ∀ (next4 : Word) (_len4 : Word),
+    (hnext5 : ∀ (next4 len4 : Word),
+      rlpItemDecode txBytes srcOff4 (txBase + BitVec.ofNat 64 srcOff4)
+        endPtr next4 len4 →
       next4 = txBase + BitVec.ofNat 64 srcOff5)
  :
     cpsTripleWithin ((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) + (((1 + (1 + 1)) + (1 + 87)) + 1)) + (((1 + (1 + 1)) + (1 + 87)) + 1)) + (((1 + (1 + 1)) + (1 + 87)) + 1)) + (((1 + (1 + 1)) + (1 + 87)) + 1)) + (((1 + (1 + 1)) + (1 + 87)) + 1))
@@ -524,10 +534,43 @@ theorem extractType234ToWn5Ok_owned_of_decode
             midOwned spC s toBuf isCreationPtr s7) h) := by
     refine cpsTripleWithin_exists_pre_gen (fun next0 => ?_)
     refine cpsTripleWithin_exists_pre_gen (fun len0 => ?_)
-    exact extractWalkNext0to1Ok_owned_of_decode spC s txBase lenW typeW innerW endPtr
-      next0 len0 toBuf isCreationPtr s7 txBytes srcOff0 srcOff1
-      (hnext1 next0 len0) hsalign hoff1 hover1 hvalid1 hss1 hls1 hll1
-      hdec1 hinb1
+    have hpure :
+        cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+          AfterWalkNext0Bne AfterWalkNext1Bne extractLinkedCode
+          (⌜rlpItemDecode txBytes srcOff0 (txBase + BitVec.ofNat 64 srcOff0)
+              endPtr next0 len0⌝ **
+            (wn0OkRegs txBase lenW typeW innerW endPtr next0 len0
+              txBytes srcOff0 **
+              midOwned spC s toBuf isCreationPtr s7))
+          (fun h => ∃ next1 len1 : Word,
+            (wn1OkConcrete txBase lenW typeW innerW endPtr next1 len1
+              txBytes srcOff1 **
+              midOwned spC s toBuf isCreationPtr s7) h) := by
+      refine cpsTripleWithin_pure_pre (fun hdecN => ?_)
+      have hstep := extractWalkNext0to1Ok_owned_of_decode spC s txBase lenW typeW
+        innerW endPtr next0 len0 toBuf isCreationPtr s7 txBytes
+        srcOff0 srcOff1
+        (hnext1 next0 len0 hdecN) hsalign
+        hoff1 hover1 hvalid1 hss1 hls1 hll1
+        hdec1 hinb1
+      -- reattach pure so pre is OkConcrete ** mid again
+      refine cpsTripleWithin_weaken (fun st hp => by
+        obtain ⟨h1, h2, hd, hu, hRegs, hM⟩ := hp
+        have hOkC : wn0OkConcrete txBase lenW typeW innerW endPtr next0 len0
+            txBytes srcOff0 h1 := by
+          simp only [wn0OkConcrete]
+          exact (sepConj_pure_right h1).mpr ⟨hRegs, hdecN⟩
+        exact ⟨h1, h2, hd, hu, hOkC, hM⟩) (fun _ hq => hq) hstep
+    refine cpsTripleWithin_weaken (fun st hp => by
+      obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+      obtain ⟨hRegs, hdecN⟩ := (sepConj_pure_right h1).mp (by
+        simpa only [wn0OkConcrete] using hOkC)
+      have hRest :
+          (wn0OkRegs txBase lenW typeW innerW endPtr next0 len0
+            txBytes srcOff0 **
+            midOwned spC s toBuf isCreationPtr s7) st :=
+        ⟨h1, h2, hd, hu, hRegs, hM⟩
+      exact (sepConj_pure_left st).mpr ⟨hdecN, hRest⟩) (fun _ hq => hq) hpure
   have h2 :
       cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
         AfterWalkNext1Bne AfterWalkNext2Bne extractLinkedCode
@@ -541,10 +584,43 @@ theorem extractType234ToWn5Ok_owned_of_decode
             midOwned spC s toBuf isCreationPtr s7) h) := by
     refine cpsTripleWithin_exists_pre_gen (fun next1 => ?_)
     refine cpsTripleWithin_exists_pre_gen (fun len1 => ?_)
-    exact extractWalkNext1to2Ok_owned_of_decode spC s txBase lenW typeW innerW endPtr
-      next1 len1 toBuf isCreationPtr s7 txBytes srcOff1 srcOff2
-      (hnext2 next1 len1) hsalign hoff2 hover2 hvalid2 hss2 hls2 hll2
-      hdec2 hinb2
+    have hpure :
+        cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+          AfterWalkNext1Bne AfterWalkNext2Bne extractLinkedCode
+          (⌜rlpItemDecode txBytes srcOff1 (txBase + BitVec.ofNat 64 srcOff1)
+              endPtr next1 len1⌝ **
+            (wn1OkRegs txBase lenW typeW innerW endPtr next1 len1
+              txBytes srcOff1 **
+              midOwned spC s toBuf isCreationPtr s7))
+          (fun h => ∃ next2 len2 : Word,
+            (wn2OkConcrete txBase lenW typeW innerW endPtr next2 len2
+              txBytes srcOff2 **
+              midOwned spC s toBuf isCreationPtr s7) h) := by
+      refine cpsTripleWithin_pure_pre (fun hdecN => ?_)
+      have hstep := extractWalkNext1to2Ok_owned_of_decode spC s txBase lenW typeW
+        innerW endPtr next1 len1 toBuf isCreationPtr s7 txBytes
+        srcOff1 srcOff2
+        (hnext2 next1 len1 hdecN) hsalign
+        hoff2 hover2 hvalid2 hss2 hls2 hll2
+        hdec2 hinb2
+      -- reattach pure so pre is OkConcrete ** mid again
+      refine cpsTripleWithin_weaken (fun st hp => by
+        obtain ⟨h1, h2, hd, hu, hRegs, hM⟩ := hp
+        have hOkC : wn1OkConcrete txBase lenW typeW innerW endPtr next1 len1
+            txBytes srcOff1 h1 := by
+          simp only [wn1OkConcrete]
+          exact (sepConj_pure_right h1).mpr ⟨hRegs, hdecN⟩
+        exact ⟨h1, h2, hd, hu, hOkC, hM⟩) (fun _ hq => hq) hstep
+    refine cpsTripleWithin_weaken (fun st hp => by
+      obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+      obtain ⟨hRegs, hdecN⟩ := (sepConj_pure_right h1).mp (by
+        simpa only [wn1OkConcrete] using hOkC)
+      have hRest :
+          (wn1OkRegs txBase lenW typeW innerW endPtr next1 len1
+            txBytes srcOff1 **
+            midOwned spC s toBuf isCreationPtr s7) st :=
+        ⟨h1, h2, hd, hu, hRegs, hM⟩
+      exact (sepConj_pure_left st).mpr ⟨hdecN, hRest⟩) (fun _ hq => hq) hpure
   have h3 :
       cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
         AfterWalkNext2Bne AfterWalkNext3Bne extractLinkedCode
@@ -558,10 +634,43 @@ theorem extractType234ToWn5Ok_owned_of_decode
             midOwned spC s toBuf isCreationPtr s7) h) := by
     refine cpsTripleWithin_exists_pre_gen (fun next2 => ?_)
     refine cpsTripleWithin_exists_pre_gen (fun len2 => ?_)
-    exact extractWalkNext2to3Ok_owned_of_decode spC s txBase lenW typeW innerW endPtr
-      next2 len2 toBuf isCreationPtr s7 txBytes srcOff2 srcOff3
-      (hnext3 next2 len2) hsalign hoff3 hover3 hvalid3 hss3 hls3 hll3
-      hdec3 hinb3
+    have hpure :
+        cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+          AfterWalkNext2Bne AfterWalkNext3Bne extractLinkedCode
+          (⌜rlpItemDecode txBytes srcOff2 (txBase + BitVec.ofNat 64 srcOff2)
+              endPtr next2 len2⌝ **
+            (wn2OkRegs txBase lenW typeW innerW endPtr next2 len2
+              txBytes srcOff2 **
+              midOwned spC s toBuf isCreationPtr s7))
+          (fun h => ∃ next3 len3 : Word,
+            (wn3OkConcrete txBase lenW typeW innerW endPtr next3 len3
+              txBytes srcOff3 **
+              midOwned spC s toBuf isCreationPtr s7) h) := by
+      refine cpsTripleWithin_pure_pre (fun hdecN => ?_)
+      have hstep := extractWalkNext2to3Ok_owned_of_decode spC s txBase lenW typeW
+        innerW endPtr next2 len2 toBuf isCreationPtr s7 txBytes
+        srcOff2 srcOff3
+        (hnext3 next2 len2 hdecN) hsalign
+        hoff3 hover3 hvalid3 hss3 hls3 hll3
+        hdec3 hinb3
+      -- reattach pure so pre is OkConcrete ** mid again
+      refine cpsTripleWithin_weaken (fun st hp => by
+        obtain ⟨h1, h2, hd, hu, hRegs, hM⟩ := hp
+        have hOkC : wn2OkConcrete txBase lenW typeW innerW endPtr next2 len2
+            txBytes srcOff2 h1 := by
+          simp only [wn2OkConcrete]
+          exact (sepConj_pure_right h1).mpr ⟨hRegs, hdecN⟩
+        exact ⟨h1, h2, hd, hu, hOkC, hM⟩) (fun _ hq => hq) hstep
+    refine cpsTripleWithin_weaken (fun st hp => by
+      obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+      obtain ⟨hRegs, hdecN⟩ := (sepConj_pure_right h1).mp (by
+        simpa only [wn2OkConcrete] using hOkC)
+      have hRest :
+          (wn2OkRegs txBase lenW typeW innerW endPtr next2 len2
+            txBytes srcOff2 **
+            midOwned spC s toBuf isCreationPtr s7) st :=
+        ⟨h1, h2, hd, hu, hRegs, hM⟩
+      exact (sepConj_pure_left st).mpr ⟨hdecN, hRest⟩) (fun _ hq => hq) hpure
   have h4 :
       cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
         AfterWalkNext3Bne AfterWalkNext4Bne extractLinkedCode
@@ -575,10 +684,43 @@ theorem extractType234ToWn5Ok_owned_of_decode
             midOwned spC s toBuf isCreationPtr s7) h) := by
     refine cpsTripleWithin_exists_pre_gen (fun next3 => ?_)
     refine cpsTripleWithin_exists_pre_gen (fun len3 => ?_)
-    exact extractWalkNext3to4Ok_owned_of_decode spC s txBase lenW typeW innerW endPtr
-      next3 len3 toBuf isCreationPtr s7 txBytes srcOff3 srcOff4
-      (hnext4 next3 len3) hsalign hoff4 hover4 hvalid4 hss4 hls4 hll4
-      hdec4 hinb4
+    have hpure :
+        cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+          AfterWalkNext3Bne AfterWalkNext4Bne extractLinkedCode
+          (⌜rlpItemDecode txBytes srcOff3 (txBase + BitVec.ofNat 64 srcOff3)
+              endPtr next3 len3⌝ **
+            (wn3OkRegs txBase lenW typeW innerW endPtr next3 len3
+              txBytes srcOff3 **
+              midOwned spC s toBuf isCreationPtr s7))
+          (fun h => ∃ next4 len4 : Word,
+            (wn4OkConcrete txBase lenW typeW innerW endPtr next4 len4
+              txBytes srcOff4 **
+              midOwned spC s toBuf isCreationPtr s7) h) := by
+      refine cpsTripleWithin_pure_pre (fun hdecN => ?_)
+      have hstep := extractWalkNext3to4Ok_owned_of_decode spC s txBase lenW typeW
+        innerW endPtr next3 len3 toBuf isCreationPtr s7 txBytes
+        srcOff3 srcOff4
+        (hnext4 next3 len3 hdecN) hsalign
+        hoff4 hover4 hvalid4 hss4 hls4 hll4
+        hdec4 hinb4
+      -- reattach pure so pre is OkConcrete ** mid again
+      refine cpsTripleWithin_weaken (fun st hp => by
+        obtain ⟨h1, h2, hd, hu, hRegs, hM⟩ := hp
+        have hOkC : wn3OkConcrete txBase lenW typeW innerW endPtr next3 len3
+            txBytes srcOff3 h1 := by
+          simp only [wn3OkConcrete]
+          exact (sepConj_pure_right h1).mpr ⟨hRegs, hdecN⟩
+        exact ⟨h1, h2, hd, hu, hOkC, hM⟩) (fun _ hq => hq) hstep
+    refine cpsTripleWithin_weaken (fun st hp => by
+      obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+      obtain ⟨hRegs, hdecN⟩ := (sepConj_pure_right h1).mp (by
+        simpa only [wn3OkConcrete] using hOkC)
+      have hRest :
+          (wn3OkRegs txBase lenW typeW innerW endPtr next3 len3
+            txBytes srcOff3 **
+            midOwned spC s toBuf isCreationPtr s7) st :=
+        ⟨h1, h2, hd, hu, hRegs, hM⟩
+      exact (sepConj_pure_left st).mpr ⟨hdecN, hRest⟩) (fun _ hq => hq) hpure
   have h5 :
       cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
         AfterWalkNext4Bne AfterWalkNext5Bne extractLinkedCode
@@ -592,10 +734,43 @@ theorem extractType234ToWn5Ok_owned_of_decode
             midOwned spC s toBuf isCreationPtr s7) h) := by
     refine cpsTripleWithin_exists_pre_gen (fun next4 => ?_)
     refine cpsTripleWithin_exists_pre_gen (fun len4 => ?_)
-    exact extractWalkNext4to5Ok_owned_of_decode spC s txBase lenW typeW innerW endPtr
-      next4 len4 toBuf isCreationPtr s7 txBytes srcOff4 srcOff5
-      (hnext5 next4 len4) hsalign hoff5 hover5 hvalid5 hss5 hls5 hll5
-      hdec5 hinb5
+    have hpure :
+        cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+          AfterWalkNext4Bne AfterWalkNext5Bne extractLinkedCode
+          (⌜rlpItemDecode txBytes srcOff4 (txBase + BitVec.ofNat 64 srcOff4)
+              endPtr next4 len4⌝ **
+            (wn4OkRegs txBase lenW typeW innerW endPtr next4 len4
+              txBytes srcOff4 **
+              midOwned spC s toBuf isCreationPtr s7))
+          (fun h => ∃ next5 len5 : Word,
+            (wn5OkConcrete txBase lenW typeW innerW endPtr next5 len5
+              txBytes srcOff5 **
+              midOwned spC s toBuf isCreationPtr s7) h) := by
+      refine cpsTripleWithin_pure_pre (fun hdecN => ?_)
+      have hstep := extractWalkNext4to5Ok_owned_of_decode spC s txBase lenW typeW
+        innerW endPtr next4 len4 toBuf isCreationPtr s7 txBytes
+        srcOff4 srcOff5
+        (hnext5 next4 len4 hdecN) hsalign
+        hoff5 hover5 hvalid5 hss5 hls5 hll5
+        hdec5 hinb5
+      -- reattach pure so pre is OkConcrete ** mid again
+      refine cpsTripleWithin_weaken (fun st hp => by
+        obtain ⟨h1, h2, hd, hu, hRegs, hM⟩ := hp
+        have hOkC : wn4OkConcrete txBase lenW typeW innerW endPtr next4 len4
+            txBytes srcOff4 h1 := by
+          simp only [wn4OkConcrete]
+          exact (sepConj_pure_right h1).mpr ⟨hRegs, hdecN⟩
+        exact ⟨h1, h2, hd, hu, hOkC, hM⟩) (fun _ hq => hq) hstep
+    refine cpsTripleWithin_weaken (fun st hp => by
+      obtain ⟨h1, h2, hd, hu, hOkC, hM⟩ := hp
+      obtain ⟨hRegs, hdecN⟩ := (sepConj_pure_right h1).mp (by
+        simpa only [wn4OkConcrete] using hOkC)
+      have hRest :
+          (wn4OkRegs txBase lenW typeW innerW endPtr next4 len4
+            txBytes srcOff4 **
+            midOwned spC s toBuf isCreationPtr s7) st :=
+        ⟨h1, h2, hd, hu, hRegs, hM⟩
+      exact (sepConj_pure_left st).mpr ⟨hdecN, hRest⟩) (fun _ hq => hq) hpure
   have h01 := cpsTripleWithin_seq_same_cr h0 h1
   have h012 := cpsTripleWithin_seq_same_cr h01 h2
   have h0123 := cpsTripleWithin_seq_same_cr h012 h3

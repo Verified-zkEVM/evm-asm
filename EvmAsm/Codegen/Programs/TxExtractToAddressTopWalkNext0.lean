@@ -299,16 +299,22 @@ theorem extractWalkNext0BneOk_framed
     simp only [wn0Stable, wn0Common] at hq ⊢
     xperm_hyp hq) hF
 
-/-- OK concrete under ambient for exists_pre. -/
-def wn0OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+/-- OK regs under ambient (no pure). -/
+def wn0OkRegs (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
   wn0Stable txBase lenW typeW innerW endPtr (txBase + BitVec.ofNat 64 srcOff) **
     wn0Common txBase txBytes **
     (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len)
 
+/-- OK concrete = regs + `rlpItemDecode` pure (for decode-gated hnext). -/
+def wn0OkConcrete (txBase lenW typeW innerW endPtr next len : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  wn0OkRegs txBase lenW typeW innerW endPtr next len txBytes srcOff **
+    ⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝
+
 set_option maxRecDepth 8000 in
-/-- From rlpWalkNextOk pure+regs, BNE under ambient.
-    Needs pure decode dropped to expose x11=0. -/
+/-- From rlpWalkNextOk pure+regs, BNE under ambient; keep pure. -/
 theorem extractWalkNext0Ok_bne
     (txBase lenW typeW innerW endPtr next len : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat)
@@ -317,12 +323,19 @@ theorem extractWalkNext0Ok_bne
     cpsTripleWithin 1 LinkWalkNext0 AfterWalkNext0Bne extractLinkedCode
       (wn0OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff)
       (wn0OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff) := by
-  exact extractWalkNext0BneOk_framed txBase lenW typeW innerW endPtr next len
+  have hR := extractWalkNext0BneOk_framed txBase lenW typeW innerW endPtr next len
     txBytes srcOff
+  have hF := cpsTripleWithin_frameR
+    (⌜rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+      endPtr next len⌝) pcFree_pure hR
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [wn0OkConcrete, wn0OkRegs] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      simp only [wn0OkConcrete, wn0OkRegs] at hq ⊢; xperm_hyp hq) hF
 
 set_option maxRecDepth 8000 in
 /-- From ambient ** common ** `rlpWalkNextOk`, float ∃+pure and BNE not-taken
-    → AfterWalkNext0Bne with ∃ next,len concrete OK regs. -/
+    → AfterWalkNext0Bne with ∃ next,len OkConcrete (regs+pure). -/
 theorem extractWalkNext0OkNested_bne
     (txBase lenW typeW innerW endPtr : Word)
     (txBytes : List (BitVec 8)) (srcOff : Nat) :
@@ -335,7 +348,6 @@ theorem extractWalkNext0OkNested_bne
         wn0OkConcrete txBase lenW typeW innerW endPtr next len
           txBytes srcOff h) := by
   let cursor := txBase + BitVec.ofNat 64 srcOff
-  -- Float ∃ next,len out of rlpWalkNextOk.
   refine cpsTripleWithin_weaken
     (P := fun h => ∃ next len : Word,
       (wn0Stable txBase lenW typeW innerW endPtr cursor **
@@ -350,7 +362,6 @@ theorem extractWalkNext0OkNested_bne
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_exists_pre_gen (fun next => ?_)
   refine cpsTripleWithin_exists_pre_gen (fun len => ?_)
-  -- pure front for pure_pre (HeaderFields style).
   refine cpsTripleWithin_weaken
     (P := ⌜rlpItemDecode txBytes srcOff cursor endPtr next len⌝ **
       (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
@@ -360,17 +371,19 @@ theorem extractWalkNext0OkNested_bne
           bytesRegion txBase txBytes **
           (.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len))))
     (fun h hp => by
-      -- hp : stable ** common ** (x10 ** x11 ** x12 ** pure)
       simp only [wn0Common] at hp
       xperm_hyp hp)
     (fun _ hq => hq) ?_
   refine cpsTripleWithin_pure_pre (fun hdec => ?_)
-  -- Rest is wn0OkConcrete after xperm (x11/x0 with stable/common/regs).
-  have h0 := extractWalkNext0Ok_bne txBase lenW typeW innerW endPtr next len
-    txBytes srcOff hdec
+  have h0 := extractWalkNext0BneOk_framed txBase lenW typeW innerW endPtr next len
+    txBytes srcOff
   refine cpsTripleWithin_weaken (fun h hp => by
-    simp only [wn0OkConcrete, wn0Common] at hp ⊢
-    xperm_hyp hp) (fun h hq => ⟨next, len, hq⟩) h0
+    simp only [wn0OkRegs, wn0Common] at hp ⊢
+    xperm_hyp hp) (fun h hq => by
+    -- post OkRegs → OkConcrete = OkRegs ** pure
+    refine ⟨next, len, ?_⟩
+    simp only [wn0OkConcrete, wn0OkRegs]
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
 
 set_option maxRecDepth 8000 in
 /-- Alias: OK arm of OkFail under ambient → BNE → After ∃. -/

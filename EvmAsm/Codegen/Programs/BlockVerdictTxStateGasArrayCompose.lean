@@ -114,7 +114,10 @@
               `hnext_empty_short_of_pfx80` /
               `hnext_empty_matches_srcOff_succ` (decode-gated next =
               txBase+shortListSrcOff(n+1)). Residual: wire packaging
-              srcOffk:=shortListSrcOff + decode-gated hnext* (drop universal);
+              **decode-gated packaging hnext* DONE** (wn0..wn4 OkConcrete keep
+              pure like wn5; MidChainDecode ToWn5 pure_pre + hnext decode→next;
+              Front/Assumed of_decode cascade). Residual: wire srcOffk:=shortListSrcOff
+              + discharge hnext via empty/single pure under extractSuccess;
               pure ∃decode skips 0..4 (non-empty short/single-byte);
               long-list (≥56); fill `ExtractAssumed.success_flat`;
               copy-path Assumed; legacy/t1 E2E.
