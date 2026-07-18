@@ -302,11 +302,14 @@ structure A4gbrResiduals where
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient Option A progress classical-3:
       * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
-      * extract ambient: `ExtractAssumedAmbient.success_flat` (general off residual body);
-        off0 lemma `extractAssumed_ambient_off0` from slice Assumed;
-        off0 path package `extractAssumed_ambient_creation_type234_short_off0`;
-        pure bridges `txSlice_getElem` / `loadPtr_add_rel_eq` / `ambientAbsOff`;
-        walk leaves already ambient-capable (listBase=regionBase, abs listOff)
+      * extract ambient body dual progress:
+        off0 lemma + path package; pure bridges `txSlice_getElem`/`loadPtr_add_rel_eq`/`ambientAbsOff`;
+        type_dispatch call ambient DONE (`extractTypeSuccessAmbient`);
+        load type/inner ambient DONE (`extractLoadTypeInnerAmbient`);
+        type+load compose ambient DONE (`extractTypeThenLoadAmbient` E+72→E+144);
+        walk_init short ambient DONE (`extractWalkInitCall_short_ambient` + guards bridge);
+        residual: walk_next abs srcOff chain + HaveField/copy region dual → fill
+        ExtractAssumedAmbient.success_flat general off
       * TIS ambient callees + framed: extract/type/ets framed
       * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
       * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
