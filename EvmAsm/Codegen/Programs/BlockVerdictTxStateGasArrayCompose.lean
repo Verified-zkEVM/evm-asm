@@ -164,11 +164,11 @@
                 `extractAssumed_creation_shortConcrete_pureHdec(_fullCode)`).
                 **pureHvalid DONE** (`validByteRange` collapse;
                 `extractAssumed_creation_shortConcrete_pureHvalid(_fullCode)`):
-                hvalid*/hvalid1_*/hvalidTx0/hinvalid from one buffer range hyp
-                (+ hge7 for field5+1 room). Residual static domain: validByteRange
-                + toBuf align/valid + align/hover/hinover; fold into
-                ExtractAssumed.success_flat; copy Assumed; long-list;
-                legacy/t1 E2E.
+                hvalid*/hvalid1_*/hvalidTx0/hinvalid/hinover from validByteRange
+                + hover (+ hge7 field5+1 room). Residual static: validByteRange
+                + toBuf align/valid + txBase align/hover; path refinements
+                (creation/type234/short/hdecL/hge7). Fold static into
+                ExtractAssumed.success_flat; copy/legacy/t1 paths; long-list.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`

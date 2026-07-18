@@ -49,7 +49,6 @@ theorem extractAssumed_creation_shortConcrete_pureHvalid
     (halign : txBase.toNat % 8 = 0)
     (hover : txBase.toNat + txBytes.length < 2 ^ 64)
     (hvalidBuf : validByteRange txBase txBytes.length)
-    (hinover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
     (hge7 : 7 ≤ items.length) :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPre s.ra sp0 txBase lenW toBuf isCreationPtr
@@ -57,6 +56,7 @@ theorem extractAssumed_creation_shortConcrete_pureHvalid
       (extractAssumedPost s.ra sp0 txBase toBuf isCreationPtr
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 txBytes) := by
   have htx := extractSuccess_hvalid_tx0_inner txBytes txBase hsuccess hvalidBuf
+  have hinover := extractSuccess_hinover txBytes txBase hsuccess hover
   have hv :=
     extractSuccess_creation_type234_hvalid_srcOff txBytes txBase hsuccess
       hcreFlag hge items hdecL hshort hge7 hvalidBuf
@@ -93,7 +93,6 @@ theorem extractAssumed_creation_shortConcrete_pureHvalid_fullCode
     (halign : txBase.toNat % 8 = 0)
     (hover : txBase.toNat + txBytes.length < 2 ^ 64)
     (hvalidBuf : validByteRange txBase txBytes.length)
-    (hinover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
     (hge7 : 7 ≤ items.length) :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPre s.ra sp0 txBase lenW toBuf isCreationPtr
@@ -104,7 +103,7 @@ theorem extractAssumed_creation_shortConcrete_pureHvalid_fullCode
     (extractAssumed_creation_shortConcrete_pureHvalid
       sp0 spC s txBase lenW toBuf isCreationPtr txBytes items
       hspC hret htalign htover htvalid hlen hsuccess hcreFlag hge hdecL hshort
-      halign hover hvalidBuf hinover hge7)
+      halign hover hvalidBuf hge7)
 
 #print axioms extractAssumed_creation_shortConcrete_pureHvalid
 #print axioms extractAssumed_creation_shortConcrete_pureHvalid_fullCode

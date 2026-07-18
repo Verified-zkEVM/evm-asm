@@ -3047,11 +3047,21 @@ theorem extractSuccess_hvalid_tx0_inner
     isValidByteAccess_of_validByteRange txBase _ 0 hvalidBuf hpos,
     isValidByteAccess_of_validByteRange txBase _ _ hvalidBuf hinner⟩
 
+/-- Inner offset in-bounds for Word add under buffer span. -/
+theorem extractSuccess_hinover
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64 := by
+  have hinner := extractSuccess_inner_lt txBytes h
+  omega
+
 #print axioms validByteRange
 #print axioms isValidByteAccess_of_validByteRange
 #print axioms shortListSrcOff_add_one_le_succ
 #print axioms shortListSrcOff_succ_room
 #print axioms extractSuccess_creation_type234_hvalid_srcOff
 #print axioms extractSuccess_hvalid_tx0_inner
+#print axioms extractSuccess_hinover
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
