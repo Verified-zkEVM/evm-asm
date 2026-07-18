@@ -357,6 +357,10 @@ structure A4gbrResiduals where
           * legacy Front E2E short creation ambient DONE
               (`extractFrontCreation_then_epi_of_decode_short_concrete_legacy_ambient`)
           * Assumed packaging legacy short creation ambient DONE
+          * t1 ambient Mid frames/walks/MidJoin cre+copy DONE
+          * t1 short Front E2E + Assumed packaging ambient DONE
+            Residual: t1 PureHvalid ambient path Prop; t1 copy ambient;
+            long ambient; Teer; gate
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
           * legacy PureHvalid ambient path Prop DONE
               (`extractAssumed_success_flat_creation_legacy_short_ambient`)
