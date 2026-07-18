@@ -213,6 +213,7 @@ import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
