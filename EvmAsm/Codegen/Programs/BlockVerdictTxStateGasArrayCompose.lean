@@ -96,12 +96,11 @@
              **short Front→AfterSave DONE** (`extractWalkInitCall_short_fromTypeLoad`
              + `_ok_framed_s5s6` + `extractFrontToAfterSave_short` — no universal
              walkInitOkFail_drop; short pure hyps only).
-             Decode-gated hcre/hlen20 pure DONE (`rlpItemDecode_pfx80_imp_len0` /
-             `pfx94_imp_len20` / `hcre_decode_of_pfx80` / `hlen20_decode_of_pfx94` /
-             `encode_bytes_empty` / `extractSuccess_creation_encode_empty`).
-             Residual: restructure MidJoin universal hcre/hok/hnext to decode-gated
-             (wn5OkConcrete lacks pure rlpItemDecode); long-list (≥56);
-             fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
+              Decode-gated hcre pure + MidJoin creation DONE (`wn5OkConcrete`
+              keeps `rlpItemDecode`; hcre is `∀ endPtr next len, decode → len=0`
+              via `hcre_decode_of_pfx80`). Residual: decode-gated hlen20 copy;
+              hok*/hnext*; long-list (≥56); fill `ExtractAssumed.success_flat`;
+              copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
