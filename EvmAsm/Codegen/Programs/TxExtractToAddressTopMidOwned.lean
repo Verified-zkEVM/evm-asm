@@ -51,7 +51,7 @@ theorem midOwned_pcFree (spC : Word) (s : ExtractSaved)
 def creExtraTemps : Assertion :=
   regOwn .x6 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30
 
-private theorem creExtraTemps_pcFree : creExtraTemps.pcFree := by
+theorem creExtraTemps_pcFree : creExtraTemps.pcFree := by
   unfold creExtraTemps; pcf
 
 set_option maxRecDepth 8000 in

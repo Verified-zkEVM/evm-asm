@@ -4,11 +4,14 @@
 
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.SAsm.MeasureLoop
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopLegacy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopT1
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwned
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 
 namespace EvmAsm.Codegen.TxExtractToAddressSpec
 
@@ -16,6 +19,8 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.RLP
 open EvmAsm.Codegen
+open EvmAsm.Codegen.TxIntrinsicStateGasSpec
+  (extractToBufOwn nExtractStackDwords)
 
 
 set_option maxRecDepth 8000 in
@@ -908,6 +913,692 @@ theorem extractT1ToHaveField_owned
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hF
 
+/-- Reshape legacy ToHaveField post (len=0) → creation pre + extra temps. -/
+private theorem legacy_toHaveField_owned_post_to_creationPre
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff3 : Nat) :
+    ∀ h,
+      (legStable txBase lenW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff3) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkLegacyWalk3) **
+        bytesRegion txBase txBytes **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x31 ↦ᵣ (next - (0 : Word))) **
+        midOwned spC s toBuf isCreationPtr s7) h →
+      (haveFieldCreAmbient txBase lenW (0 : Word) innerW toBuf
+          (txBase + BitVec.ofNat 64 srcOff3) endPtr next txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkLegacyWalk3) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+        (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+        creExtraTemps ** regOwn .x7 ** regOwn .x5) h := by
+  intro h hp
+  simp only [legStable, midOwned, joinStackAmbient, haveFieldCreAmbient,
+    extractToBufOwn, creExtraTemps] at hp ⊢
+  xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-- legacy end (len=0) → creation → ret under midOwned. -/
+theorem extractLegacyHaveFieldCreation_then_epi
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff3 : Nat)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra) :
+    cpsTripleWithin
+      ((1 + 1) + ((1 + (1 + (1 + (1 + (1 + 1))))) + 11))
+      AfterLegacyWalk3Bne s.ra extractLinkedCode
+      (leg3OkConcrete txBase lenW innerW endPtr next (0 : Word)
+          txBytes srcOff3 **
+        midOwned spC s toBuf isCreationPtr s7)
+      ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+        stackFree sp0 nExtractStackDwords **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        extractToBufOwn toBuf **
+        (isCreationPtr ↦ₘ (1 : Word)) **
+        (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (Reg.x23 ↦ᵣ s.s7) **
+        (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        (.x31 ↦ᵣ (next - (0 : Word))) **
+        creExtraTemps) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff3
+  have hTo := extractLegacyToHaveField_owned spC s txBase lenW innerW
+    endPtr next (0 : Word) toBuf isCreationPtr s7 txBytes srcOff3
+  have hTo2 :
+      cpsTripleWithin (1 + 1) AfterLegacyWalk3Bne HaveField extractLinkedCode
+        (leg3OkConcrete txBase lenW innerW endPtr next (0 : Word)
+            txBytes srcOff3 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (haveFieldCreAmbient txBase lenW (0 : Word) innerW toBuf cursor endPtr next
+            txBytes **
+          joinStackAmbient spC s **
+          (.x1 ↦ᵣ LinkLegacyWalk3) ** (Reg.x23 ↦ᵣ s7) **
+          (.x12 ↦ᵣ (0 : Word)) **
+          (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+          (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+          creExtraTemps ** regOwn .x7 ** regOwn .x5) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hq => by
+        have hq1 :
+            (legStable txBase lenW innerW endPtr cursor **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+              regOwn .x29 ** regOwn .x30 **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkLegacyWalk3) **
+              bytesRegion txBase txBytes **
+              (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+              (.x31 ↦ᵣ (next - (0 : Word))) **
+              midOwned spC s toBuf isCreationPtr s7) h := by
+          simpa [cursor] using hq
+        exact legacy_toHaveField_owned_post_to_creationPre spC s txBase lenW
+          innerW endPtr next toBuf isCreationPtr s7 txBytes srcOff3 _ hq1) hTo
+  have hCre :
+      cpsTripleWithin ((1 + (1 + (1 + (1 + (1 + 1))))) + 11)
+        HaveField s.ra extractLinkedCode
+        (haveFieldCreAmbient txBase lenW (0 : Word) innerW toBuf cursor endPtr next
+            txBytes **
+          joinStackAmbient spC s **
+          (.x1 ↦ᵣ LinkLegacyWalk3) ** (Reg.x23 ↦ᵣ s7) **
+          (.x12 ↦ᵣ (0 : Word)) **
+          (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+          (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+          creExtraTemps ** regOwn .x7 ** regOwn .x5)
+        ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+          stackFree sp0 nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txBase txBytes **
+          extractToBufOwn toBuf **
+          (isCreationPtr ↦ₘ (1 : Word)) **
+          (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+          (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+          (Reg.x23 ↦ᵣ s.s7) **
+          (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          (.x31 ↦ᵣ (next - (0 : Word))) **
+          creExtraTemps) := by
+    let Pcore : Assertion :=
+      haveFieldCreAmbient txBase lenW (0 : Word) innerW toBuf cursor endPtr next
+          txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkLegacyWalk3) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+        (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+        creExtraTemps
+    have htemps :
+        cpsTripleWithin ((1 + (1 + (1 + (1 + (1 + 1))))) + 11)
+          HaveField s.ra extractLinkedCode
+          (Pcore ** regOwn .x7 ** regOwn .x5)
+          ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+            stackFree sp0 nExtractStackDwords **
+            (.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion txBase txBytes **
+            extractToBufOwn toBuf **
+            (isCreationPtr ↦ₘ (1 : Word)) **
+            (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+            (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+            (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+            (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+            (Reg.x23 ↦ᵣ s.s7) **
+            (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            (.x31 ↦ᵣ (next - (0 : Word))) **
+            creExtraTemps) := by
+      refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (r1 := .x7) (r2 := .x5)
+        (P := Pcore) (fun t2Old t0Old => ?_)
+      have h := extractHaveFieldCreation_then_epi sp0 spC s txBase lenW (0 : Word)
+        innerW toBuf cursor endPtr next isCreationPtr t2Old t0Old next
+        LinkLegacyWalk3 s7 txBytes hspC hret
+      have hF := cpsTripleWithin_frameR creExtraTemps creExtraTemps_pcFree h
+      exact cpsTripleWithin_weaken (fun _ hp => by
+        dsimp only [Pcore, creExtraTemps] at hp ⊢
+        xperm_hyp hp) (fun _ hq => by
+        dsimp only [creExtraTemps] at hq ⊢
+        xperm_hyp hq) hF
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, creExtraTemps] at hp ⊢
+      xperm_hyp hp) (fun _ hq => hq) htemps
+  exact cpsTripleWithin_seq_same_cr hTo2 hCre
+
+set_option maxRecDepth 8000 in
+/-- legacy end (len=20) → copy → ret under midOwned + content dwords. -/
+theorem extractLegacyHaveFieldCopy_then_epi
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff3 : Nat)
+    (w0 w1 w2 : Word)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra)
+    (hcalign : (next - (20 : Word)).toNat % 8 = 0)
+    (hcover : (next - (20 : Word)).toNat + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess ((next - (20 : Word)) + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin
+      ((1 + 1) +
+        ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11))
+      AfterLegacyWalk3Bne s.ra extractLinkedCode
+      (leg3OkConcrete txBase lenW innerW endPtr next (20 : Word)
+          txBytes srcOff3 **
+        midOwned spC s toBuf isCreationPtr s7 **
+        ((next - (20 : Word)) ↦ₘ w0) **
+        ((next - (20 : Word) + 8) ↦ₘ w1) **
+        ((next - (20 : Word) + 16) ↦ₘ w2))
+      ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+        stackFree sp0 nExtractStackDwords **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        extractToBufOwn toBuf **
+        (isCreationPtr ↦ₘ (0 : Word)) **
+        (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+        ((next - (20 : Word)) ↦ₘ w0) **
+        ((next - (20 : Word) + 8) ↦ₘ w1) **
+        ((next - (20 : Word) + 16) ↦ₘ w2) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (Reg.x23 ↦ᵣ s.s7) **
+        (.x5 ↦ᵣ (extractWord32 w2
+            (byteOffset ((next - (20 : Word)) + 16) / 4)).zeroExtend 64) **
+        (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ (next - (20 : Word))) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff3
+  let contentPtr := next - (20 : Word)
+  have hTo := extractLegacyToHaveField_owned spC s txBase lenW innerW
+    endPtr next (20 : Word) toBuf isCreationPtr s7 txBytes srcOff3
+  have hToF := cpsTripleWithin_frameR
+    ((contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_memIs
+      · apply pcFree_sepConj
+        · exact pcFree_memIs
+        · exact pcFree_memIs) hTo
+  have hCopy :
+      cpsTripleWithin
+        ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)
+        HaveField s.ra extractLinkedCode
+        (legStable txBase lenW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkLegacyWalk3) **
+          bytesRegion txBase txBytes **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+        ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+          stackFree sp0 nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txBase txBytes **
+          extractToBufOwn toBuf **
+          (isCreationPtr ↦ₘ (0 : Word)) **
+          (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+          (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+          (Reg.x23 ↦ᵣ s.s7) **
+          (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+          (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+    let Pcore : Assertion :=
+      haveFieldCopyAmbient txBase lenW (0 : Word) innerW endPtr cursor txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkLegacyWalk3) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) **
+        (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x10 ↦ᵣ next) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** memOwn isCreationPtr **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30
+    have htemps :
+        cpsTripleWithin
+          ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)
+          HaveField s.ra extractLinkedCode
+          (Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** regOwn .x6 ** regOwn .x5)
+          ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+            stackFree sp0 nExtractStackDwords **
+            (.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion txBase txBytes **
+            extractToBufOwn toBuf **
+            (isCreationPtr ↦ₘ (0 : Word)) **
+            (TeaTypeAddr ↦ₘ (0 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+            (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+            (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+            (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+            (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+            (Reg.x23 ↦ᵣ s.s7) **
+            (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+            (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+            (.x31 ↦ᵣ contentPtr) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+          (P := Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** regOwn .x6)
+          (fun t0Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
+          (P := Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** (.x5 ↦ᵣ t0Old))
+          (fun t1Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7)
+          (P := Pcore ** memOwn (toBuf + 16) ** (.x6 ↦ᵣ t1Old) ** (.x5 ↦ᵣ t0Old))
+          (fun t2Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_memIs_to_memOwn (a := toBuf + 16)
+          (P := Pcore ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) ** (.x5 ↦ᵣ t0Old))
+          (fun old16' => ?_))
+      have h := extractHaveFieldCopy_then_epi sp0 spC s txBase lenW (0 : Word)
+        innerW endPtr cursor contentPtr toBuf isCreationPtr
+        t2Old t1Old t0Old next w0 w1 w2 old16' LinkLegacyWalk3 s7 txBytes
+        hspC hret hcalign hcover hcvalid htalign htover htvalid
+      have hF := cpsTripleWithin_frameR
+        (regOwn .x28 ** regOwn .x29 ** regOwn .x30)
+        (by
+          apply pcFree_sepConj
+          · exact pcFree_regOwn
+          · apply pcFree_sepConj
+            · exact pcFree_regOwn
+            · exact pcFree_regOwn) h
+      exact cpsTripleWithin_weaken (fun _ hp => by
+        dsimp only [Pcore] at hp ⊢
+        xperm_hyp hp) (fun _ hq => by
+        dsimp only [extractToBufOwn] at hq ⊢
+        xperm_hyp hq) hF
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, midOwned, joinStackAmbient, haveFieldCopyAmbient,
+        extractToBufOwn, legStable] at hp ⊢
+      xperm_hyp hp) (fun _ hq => hq) htemps
+  have hTo2 :
+      cpsTripleWithin (1 + 1) AfterLegacyWalk3Bne HaveField extractLinkedCode
+        (leg3OkConcrete txBase lenW innerW endPtr next (20 : Word)
+            txBytes srcOff3 **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+        (legStable txBase lenW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkLegacyWalk3) **
+          bytesRegion txBase txBytes **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2)) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [contentPtr] at hp ⊢; xperm_hyp hp) (fun _ hq => by
+      dsimp only [contentPtr, cursor] at hq ⊢; xperm_hyp hq) hToF
+  exact cpsTripleWithin_seq_same_cr hTo2 hCopy
+
+/-- Reshape t1 ToHaveField post (len=0) → creation pre + extra temps. -/
+private theorem t1_toHaveField_owned_post_to_creationPre
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff4 : Nat) :
+    ∀ h,
+      (t1Stable txBase lenW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff4) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkT1Walk4) **
+        bytesRegion txBase txBytes **
+        (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x31 ↦ᵣ (next - (0 : Word))) **
+        midOwned spC s toBuf isCreationPtr s7) h →
+      (haveFieldCreAmbient txBase lenW (1 : Word) innerW toBuf
+          (txBase + BitVec.ofNat 64 srcOff4) endPtr next txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkT1Walk4) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+        (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+        creExtraTemps ** regOwn .x7 ** regOwn .x5) h := by
+  intro h hp
+  simp only [t1Stable, midOwned, joinStackAmbient, haveFieldCreAmbient,
+    extractToBufOwn, creExtraTemps] at hp ⊢
+  xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-- t1 end (len=0) → creation → ret under midOwned. -/
+theorem extractT1HaveFieldCreation_then_epi
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff4 : Nat)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra) :
+    cpsTripleWithin
+      (1 + ((1 + (1 + (1 + (1 + (1 + 1))))) + 11))
+      AfterT1Walk4Bne s.ra extractLinkedCode
+      (t14OkConcrete txBase lenW innerW endPtr next (0 : Word)
+          txBytes srcOff4 **
+        midOwned spC s toBuf isCreationPtr s7)
+      ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+        stackFree sp0 nExtractStackDwords **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        extractToBufOwn toBuf **
+        (isCreationPtr ↦ₘ (1 : Word)) **
+        (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (Reg.x23 ↦ᵣ s.s7) **
+        (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        (.x31 ↦ᵣ (next - (0 : Word))) **
+        creExtraTemps) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff4
+  have hTo := extractT1ToHaveField_owned spC s txBase lenW innerW
+    endPtr next (0 : Word) toBuf isCreationPtr s7 txBytes srcOff4
+  have hTo2 :
+      cpsTripleWithin 1 AfterT1Walk4Bne HaveField extractLinkedCode
+        (t14OkConcrete txBase lenW innerW endPtr next (0 : Word)
+            txBytes srcOff4 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (haveFieldCreAmbient txBase lenW (1 : Word) innerW toBuf cursor endPtr next
+            txBytes **
+          joinStackAmbient spC s **
+          (.x1 ↦ᵣ LinkT1Walk4) ** (Reg.x23 ↦ᵣ s7) **
+          (.x12 ↦ᵣ (0 : Word)) **
+          (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+          (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+          creExtraTemps ** regOwn .x7 ** regOwn .x5) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hq => by
+        have hq1 :
+            (t1Stable txBase lenW innerW endPtr cursor **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+              regOwn .x29 ** regOwn .x30 **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkT1Walk4) **
+              bytesRegion txBase txBytes **
+              (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+              (.x31 ↦ᵣ (next - (0 : Word))) **
+              midOwned spC s toBuf isCreationPtr s7) h := by
+          simpa [cursor] using hq
+        exact t1_toHaveField_owned_post_to_creationPre spC s txBase lenW
+          innerW endPtr next toBuf isCreationPtr s7 txBytes srcOff4 _ hq1) hTo
+  have hCre :
+      cpsTripleWithin ((1 + (1 + (1 + (1 + (1 + 1))))) + 11)
+        HaveField s.ra extractLinkedCode
+        (haveFieldCreAmbient txBase lenW (1 : Word) innerW toBuf cursor endPtr next
+            txBytes **
+          joinStackAmbient spC s **
+          (.x1 ↦ᵣ LinkT1Walk4) ** (Reg.x23 ↦ᵣ s7) **
+          (.x12 ↦ᵣ (0 : Word)) **
+          (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+          (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+          creExtraTemps ** regOwn .x7 ** regOwn .x5)
+        ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+          stackFree sp0 nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txBase txBytes **
+          extractToBufOwn toBuf **
+          (isCreationPtr ↦ₘ (1 : Word)) **
+          (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+          (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+          (Reg.x23 ↦ᵣ s.s7) **
+          (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          (.x31 ↦ᵣ (next - (0 : Word))) **
+          creExtraTemps) := by
+    let Pcore : Assertion :=
+      haveFieldCreAmbient txBase lenW (1 : Word) innerW toBuf cursor endPtr next
+          txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkT1Walk4) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ isCreationPtr) ** (.x10 ↦ᵣ next) **
+        (.x0 ↦ᵣ (0 : Word)) ** memOwn isCreationPtr **
+        creExtraTemps
+    have htemps :
+        cpsTripleWithin ((1 + (1 + (1 + (1 + (1 + 1))))) + 11)
+          HaveField s.ra extractLinkedCode
+          (Pcore ** regOwn .x7 ** regOwn .x5)
+          ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+            stackFree sp0 nExtractStackDwords **
+            (.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion txBase txBytes **
+            extractToBufOwn toBuf **
+            (isCreationPtr ↦ₘ (1 : Word)) **
+            (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+            (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+            (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+            (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+            (Reg.x23 ↦ᵣ s.s7) **
+            (.x5 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            (.x31 ↦ᵣ (next - (0 : Word))) **
+            creExtraTemps) := by
+      refine cpsTripleWithin_of_forall_regIs_to_regOwn2 (r1 := .x7) (r2 := .x5)
+        (P := Pcore) (fun t2Old t0Old => ?_)
+      have h := extractHaveFieldCreation_then_epi sp0 spC s txBase lenW (1 : Word)
+        innerW toBuf cursor endPtr next isCreationPtr t2Old t0Old next
+        LinkT1Walk4 s7 txBytes hspC hret
+      have hF := cpsTripleWithin_frameR creExtraTemps creExtraTemps_pcFree h
+      exact cpsTripleWithin_weaken (fun _ hp => by
+        dsimp only [Pcore, creExtraTemps] at hp ⊢
+        xperm_hyp hp) (fun _ hq => by
+        dsimp only [creExtraTemps] at hq ⊢
+        xperm_hyp hq) hF
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, creExtraTemps] at hp ⊢
+      xperm_hyp hp) (fun _ hq => hq) htemps
+  exact cpsTripleWithin_seq_same_cr hTo2 hCre
+
+set_option maxRecDepth 8000 in
+/-- t1 end (len=20) → copy → ret under midOwned + content dwords. -/
+theorem extractT1HaveFieldCopy_then_epi
+    (sp0 spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW endPtr next toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff4 : Nat)
+    (w0 w1 w2 : Word)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra)
+    (hcalign : (next - (20 : Word)).toNat % 8 = 0)
+    (hcover : (next - (20 : Word)).toNat + 16 < 2 ^ 64)
+    (hcvalid : isValidMemAccess ((next - (20 : Word)) + (16 : Word)) = true)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true) :
+    cpsTripleWithin
+      (1 +
+        ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11))
+      AfterT1Walk4Bne s.ra extractLinkedCode
+      (t14OkConcrete txBase lenW innerW endPtr next (20 : Word)
+          txBytes srcOff4 **
+        midOwned spC s toBuf isCreationPtr s7 **
+        ((next - (20 : Word)) ↦ₘ w0) **
+        ((next - (20 : Word) + 8) ↦ₘ w1) **
+        ((next - (20 : Word) + 16) ↦ₘ w2))
+      ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+        stackFree sp0 nExtractStackDwords **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion txBase txBytes **
+        extractToBufOwn toBuf **
+        (isCreationPtr ↦ₘ (0 : Word)) **
+        (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+        ((next - (20 : Word)) ↦ₘ w0) **
+        ((next - (20 : Word) + 8) ↦ₘ w1) **
+        ((next - (20 : Word) + 16) ↦ₘ w2) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (Reg.x23 ↦ᵣ s.s7) **
+        (.x5 ↦ᵣ (extractWord32 w2
+            (byteOffset ((next - (20 : Word)) + 16) / 4)).zeroExtend 64) **
+        (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ (next - (20 : Word))) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff4
+  let contentPtr := next - (20 : Word)
+  have hTo := extractT1ToHaveField_owned spC s txBase lenW innerW
+    endPtr next (20 : Word) toBuf isCreationPtr s7 txBytes srcOff4
+  have hToF := cpsTripleWithin_frameR
+    ((contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+    (by
+      apply pcFree_sepConj
+      · exact pcFree_memIs
+      · apply pcFree_sepConj
+        · exact pcFree_memIs
+        · exact pcFree_memIs) hTo
+  have hCopy :
+      cpsTripleWithin
+        ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)
+        HaveField s.ra extractLinkedCode
+        (t1Stable txBase lenW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkT1Walk4) **
+          bytesRegion txBase txBytes **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+        ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+          stackFree sp0 nExtractStackDwords **
+          (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion txBase txBytes **
+          extractToBufOwn toBuf **
+          (isCreationPtr ↦ₘ (0 : Word)) **
+          (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+          (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+          (Reg.x23 ↦ᵣ s.s7) **
+          (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+          (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+    let Pcore : Assertion :=
+      haveFieldCopyAmbient txBase lenW (1 : Word) innerW endPtr cursor txBytes **
+        joinStackAmbient spC s **
+        (.x1 ↦ᵣ LinkT1Walk4) ** (Reg.x23 ↦ᵣ s7) **
+        (.x12 ↦ᵣ (20 : Word)) **
+        (.x31 ↦ᵣ contentPtr) **
+        (.x18 ↦ᵣ toBuf) ** (.x19 ↦ᵣ isCreationPtr) **
+        (.x10 ↦ᵣ next) ** (.x0 ↦ᵣ (0 : Word)) **
+        (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+        memOwn toBuf ** memOwn (toBuf + 8) ** memOwn isCreationPtr **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30
+    have htemps :
+        cpsTripleWithin
+          ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)
+          HaveField s.ra extractLinkedCode
+          (Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** regOwn .x6 ** regOwn .x5)
+          ((.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+            stackFree sp0 nExtractStackDwords **
+            (.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion txBase txBytes **
+            extractToBufOwn toBuf **
+            (isCreationPtr ↦ₘ (0 : Word)) **
+            (TeaTypeAddr ↦ₘ (1 : Word)) ** (TeaInnerAddr ↦ₘ innerW) **
+            (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2) **
+            (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+            (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+            (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+            (Reg.x23 ↦ᵣ s.s7) **
+            (.x5 ↦ᵣ (extractWord32 w2 (byteOffset (contentPtr + 16) / 4)).zeroExtend 64) **
+            (.x6 ↦ᵣ (20 : Word)) ** (.x7 ↦ᵣ (20 : Word)) **
+            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+            (.x31 ↦ᵣ contentPtr) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+          (P := Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** regOwn .x6)
+          (fun t0Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
+          (P := Pcore ** memOwn (toBuf + 16) ** regOwn .x7 ** (.x5 ↦ᵣ t0Old))
+          (fun t1Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7)
+          (P := Pcore ** memOwn (toBuf + 16) ** (.x6 ↦ᵣ t1Old) ** (.x5 ↦ᵣ t0Old))
+          (fun t2Old => ?_))
+      refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_memIs_to_memOwn (a := toBuf + 16)
+          (P := Pcore ** (.x7 ↦ᵣ t2Old) ** (.x6 ↦ᵣ t1Old) ** (.x5 ↦ᵣ t0Old))
+          (fun old16' => ?_))
+      have h := extractHaveFieldCopy_then_epi sp0 spC s txBase lenW (1 : Word)
+        innerW endPtr cursor contentPtr toBuf isCreationPtr
+        t2Old t1Old t0Old next w0 w1 w2 old16' LinkT1Walk4 s7 txBytes
+        hspC hret hcalign hcover hcvalid htalign htover htvalid
+      have hF := cpsTripleWithin_frameR
+        (regOwn .x28 ** regOwn .x29 ** regOwn .x30)
+        (by
+          apply pcFree_sepConj
+          · exact pcFree_regOwn
+          · apply pcFree_sepConj
+            · exact pcFree_regOwn
+            · exact pcFree_regOwn) h
+      exact cpsTripleWithin_weaken (fun _ hp => by
+        dsimp only [Pcore] at hp ⊢
+        xperm_hyp hp) (fun _ hq => by
+        dsimp only [extractToBufOwn] at hq ⊢
+        xperm_hyp hq) hF
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, midOwned, joinStackAmbient, haveFieldCopyAmbient,
+        extractToBufOwn, t1Stable] at hp ⊢
+      xperm_hyp hp) (fun _ hq => hq) htemps
+  have hTo2 :
+      cpsTripleWithin 1 AfterT1Walk4Bne HaveField extractLinkedCode
+        (t14OkConcrete txBase lenW innerW endPtr next (20 : Word)
+            txBytes srcOff4 **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2))
+        (t1Stable txBase lenW innerW endPtr cursor **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkT1Walk4) **
+          bytesRegion txBase txBytes **
+          (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+          (.x31 ↦ᵣ contentPtr) **
+          midOwned spC s toBuf isCreationPtr s7 **
+          (contentPtr ↦ₘ w0) ** ((contentPtr + 8) ↦ₘ w1) ** ((contentPtr + 16) ↦ₘ w2)) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [contentPtr] at hp ⊢; xperm_hyp hp) (fun _ hq => by
+      dsimp only [contentPtr, cursor] at hq ⊢; xperm_hyp hq) hToF
+  exact cpsTripleWithin_seq_same_cr hTo2 hCopy
+
 #print axioms extractLegacyLoadArgs_owned
 #print axioms extractLegacyWalk0Call_owned
 #print axioms extractLegacyWalk0OkNested_owned
@@ -921,6 +1612,8 @@ theorem extractT1ToHaveField_owned
 #print axioms extractLegacyWalk3Call_owned
 #print axioms extractLegacyWalk3OkNested_owned
 #print axioms extractLegacyToHaveField_owned
+#print axioms extractLegacyHaveFieldCreation_then_epi
+#print axioms extractLegacyHaveFieldCopy_then_epi
 #print axioms extractT1LoadArgs_owned
 #print axioms extractT1Walk0Call_owned
 #print axioms extractT1Walk0OkNested_owned
@@ -937,5 +1630,7 @@ theorem extractT1ToHaveField_owned
 #print axioms extractT1Walk4Call_owned
 #print axioms extractT1Walk4OkNested_owned
 #print axioms extractT1ToHaveField_owned
+#print axioms extractT1HaveFieldCreation_then_epi
+#print axioms extractT1HaveFieldCopy_then_epi
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
