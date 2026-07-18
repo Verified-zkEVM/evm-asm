@@ -307,7 +307,7 @@ private theorem contentDwords_pcFree (contentPtr w0 w1 w2 : Word) :
     · exact pcFree_memIs
     · exact pcFree_memIs
 
-/-- AfterWalkNext5 ∃ → copy arm under `hlen20` + `hnext_content`. -/
+/-- AfterWalkNext5 ∃ → copy arm under decode-gated `hlen20` + `hnext_content`. -/
 private theorem wn5Exists_to_copy
     (sp0 spC : Word) (s : ExtractSaved)
     (txBase lenW typeW innerW endPtr toBuf isCreationPtr s7 : Word)
@@ -315,7 +315,9 @@ private theorem wn5Exists_to_copy
     (contentPtr w0 w1 w2 : Word)
     (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
-    (hlen20 : ∀ (_next5 len5 : Word), len5 = (20 : Word))
+    (hlen20 : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (20 : Word))
     (hnext_content : ∀ (next5 : Word) (_len5 : Word),
       next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
@@ -355,20 +357,33 @@ private theorem wn5Exists_to_copy
         regOwn .x28 ** regOwn .x29 ** regOwn .x30) := by
   refine cpsTripleWithin_exists_pre_gen (fun next5 => ?_)
   refine cpsTripleWithin_exists_pre_gen (fun len5 => ?_)
-  have hlen : len5 = (20 : Word) := hlen20 next5 len5
   have hnext : next5 = contentPtr + (20 : Word) := hnext_content next5 len5
   have hsub : next5 - (20 : Word) = contentPtr := by
-    rw [hnext]
-    exact BitVec.add_sub_cancel contentPtr (20 : Word)
+    rw [hnext]; exact BitVec.add_sub_cancel contentPtr (20 : Word)
   have h := extractType234HaveFieldCopy_then_epi sp0 spC s txBase lenW
     typeW innerW endPtr next5 toBuf isCreationPtr s7 txBytes srcOff5
     w0 w1 w2 hspC hret (by
       simp only [hsub]; exact hcalign) (by
       simp only [hsub]; exact hcover) (by
       simp only [hsub]; exact hcvalid) htalign htover htvalid
-  refine cpsTripleWithin_weaken (fun _ hp => by
-    simp only [hlen, hsub, contentDwords] at hp ⊢
-    xperm_hyp hp) (fun _ hq => by
+  refine cpsTripleWithin_weaken (fun hst hp => by
+    -- hp : OkConcrete ** (midOwned ** content); extract pure → len5 = 20
+    obtain ⟨h1, h2, hd, hu, hOkC, hMC⟩ := hp
+    obtain ⟨hRegs, hdec⟩ := (sepConj_pure_right h1).mp (by
+      simpa only [wn5OkConcrete] using hOkC)
+    have hlen : len5 = (20 : Word) := hlen20 next5 len5 hdec
+    have hOk20 : wn5OkConcrete txBase lenW typeW innerW endPtr next5 (20 : Word)
+        txBytes srcOff5 h1 := by
+      simp only [wn5OkConcrete, hlen] at hRegs hdec ⊢
+      exact (sepConj_pure_right h1).mpr ⟨hRegs, hdec⟩
+    have hp' :
+        (wn5OkConcrete txBase lenW typeW innerW endPtr next5 (20 : Word)
+          txBytes srcOff5 **
+          midOwned spC s toBuf isCreationPtr s7 **
+          contentDwords contentPtr w0 w1 w2) hst :=
+      ⟨h1, h2, hd, hu, hOk20, hMC⟩
+    simp only [hsub, contentDwords] at hp' ⊢
+    xperm_hyp hp') (fun _ hq => by
     simp only [hsub, contentDwords] at hq ⊢
     xperm_hyp hq) h
 
@@ -546,7 +561,9 @@ theorem extractType234AfterSaveCopy_then_epi
       next3 = txBase + BitVec.ofNat 64 srcOff4)
     (hnext5 : ∀ (next4 : Word) (_len4 : Word),
       next4 = txBase + BitVec.ofNat 64 srcOff5)
-    (hlen20 : ∀ (_next5 len5 : Word), len5 = (20 : Word))
+    (hlen20 : ∀ (next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (20 : Word))
     (hnext_content : ∀ (next5 : Word) (_len5 : Word),
       next5 = contentPtr + (20 : Word))
     (hcalign : contentPtr.toNat % 8 = 0)
