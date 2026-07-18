@@ -283,8 +283,10 @@ def schemeAAnchors : List GuestRegion :=
     via a fresh `readelf -SW`. Grew to `0x5d2a4` for the C3 arena
     overflow-reject batch (#10460). Grew to `0x5d518` for the bounded
     storage-root delete-walk fix (`fix/bounded-storage-delete-walk`,
-    #10461), clearing the 98-fixture EIP-7002/7251 code-1 cluster. -/
-def textSizeBytes : Nat := 0x5d518
+    #10461), clearing the 98-fixture EIP-7002/7251 code-1 cluster. Shrank
+    to `0x5d508` when full-subtree delete propagation was generalized to the
+    canonical empty-trie root. -/
+def textSizeBytes : Nat := 0x5d508
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
