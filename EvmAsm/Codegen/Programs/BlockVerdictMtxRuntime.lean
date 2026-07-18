@@ -131,6 +131,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0)\n" ++
   "  slli t2, t1, 6; add t1, t2, t1\n" ++                       -- t1 = i*65
   "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t1; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
+  -- `multi_tx_nth_context` deliberately leaves ctx+24 (the signer public-key
+  -- pointer) as a caller input.  The runtime dispatcher consumes that field to
+  -- derive and stage top-level CALLER/ORIGIN, so retain this tx's already
+  -- authenticated public_keys[i]+1 pointer before the nonce helper clobbers a0.
+  "  la t0, bv_mtx_ctx; sd a0, 24(t0)\n" ++
   "  la a1, bv_mtx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
