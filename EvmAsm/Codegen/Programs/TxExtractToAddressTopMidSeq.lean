@@ -386,10 +386,274 @@ theorem extractWalkNext0CallOk_owned
     toBuf isCreationPtr s7 txBytes srcOff
   exact cpsTripleWithin_seq_same_cr hCall2 hOk
 
+set_option maxRecDepth 8000 in
+/-- wn5 call posting `wn0Outcome` (keeps pure on fail arms for honest drop). -/
+theorem extractWalkNext5Call_type234_a2_outcome
+    (txBase lenW typeW innerW endPtr a2Old : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : srcOff < txBytes.length)
+    (hover : txBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < txBytes.length ∧ txBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext5JalPc LinkWalkNext5 extractLinkedCode
+      (wn5Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        (.x10 ↦ᵣ (txBase + BitVec.ofNat 64 srcOff)) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes)
+      (wn5Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        wn5Common txBase txBytes **
+        wn0Outcome txBase endPtr txBytes srcOff) := by
+  let cursor := txBase + BitVec.ofNat 64 srcOff
+  let Pcore : Assertion :=
+    wn5Stable txBase lenW typeW innerW endPtr cursor **
+      (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes
+  let Qassumed : Assertion :=
+    wn5Stable txBase lenW typeW innerW endPtr cursor **
+      wn5Common txBase txBytes **
+      wn0Outcome txBase endPtr txBytes srcOff
+  have htemps :
+      cpsTripleWithin (1 + 87) WalkNext5JalPc LinkWalkNext5 extractLinkedCode
+        (Pcore ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+        Qassumed := by
+    refine of_forall_regOwn7 (r1 := .x5) (r2 := .x6) (r3 := .x7)
+      (r4 := .x28) (r5 := .x29) (r6 := .x30) (r7 := .x31)
+      (fun t0 t1 t2 t3 t4 t5 t6 => ?_)
+    have hleaf := extractWalkNext5Call txBase endPtr a2Old
+      t0 t1 t2 t3 t4 t5 t6 txBytes srcOff LinkWalkNext4
+      hsalign hoff hover hvalid hss hls hll
+    have hF := cpsTripleWithin_frameR
+      (wn5Stable txBase lenW typeW innerW endPtr cursor)
+      (wn5Stable_pcFree _ _ _ _ _ _) hleaf
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp only [Pcore, wn5Stable, extractWalkNextPrest] at hp ⊢
+      xperm_hyp hp) (fun h hq => by
+      dsimp only [Qassumed] at hq ⊢
+      have hq' :
+          (wn5Stable txBase lenW typeW innerW endPtr cursor **
+            extractWalkNext5Post txBase endPtr txBytes srcOff) h := by
+        xperm_hyp hq
+      obtain ⟨hA, hP, hd, hu, hamb, hpost⟩ := hq'
+      have hnorm := extractWalkNext5Post_to_commonOutcome
+        txBase endPtr txBytes srcOff _ hpost
+      obtain ⟨hC, hO, hdc, huc, hcom, hout⟩ := hnorm
+      refine ⟨hA, hP, hd, hu, hamb, ?_⟩
+      exact ⟨hC, hO, hdc, huc, hcom, hout⟩) hF
+  exact cpsTripleWithin_weaken (fun _ hp => by
+    dsimp only [Pcore, Qassumed] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp only [Qassumed] at hq ⊢
+    exact hq) htemps
+
+set_option maxRecDepth 8000 in
+/-- wn5 call under midOwned posting Outcome. -/
+theorem extractWalkNext5Call_owned_a2_outcome
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW typeW innerW endPtr a2Old toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : srcOff < txBytes.length)
+    (hover : txBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < txBytes.length ∧ txBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((txBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff + 1 +
+          ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) WalkNext5JalPc LinkWalkNext5 extractLinkedCode
+      (wn5Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        (.x10 ↦ᵣ (txBase + BitVec.ofNat 64 srcOff)) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes **
+        midOwned spC s toBuf isCreationPtr s7)
+      (wn5Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff) **
+        wn5Common txBase txBytes **
+        wn0Outcome txBase endPtr txBytes srcOff **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractWalkNext5Call_type234_a2_outcome txBase lenW typeW innerW endPtr a2Old
+    txBytes srcOff hsalign hoff hover hvalid hss hls hll
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+set_option maxRecDepth 8000 in
+/-- prep+call posting Outcome under midOwned. -/
+theorem extractWalkNext5PrepCall_owned_outcome
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW typeW innerW endPtr next len toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff4 srcOff5 : Nat)
+    (hnext : next = txBase + BitVec.ofNat 64 srcOff5)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : srcOff5 < txBytes.length)
+    (hover : txBase.toNat + srcOff5 < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 srcOff5) = true)
+    (hss : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff5 + 1 < txBytes.length ∧ txBase.toNat + (srcOff5 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1)) = true)
+    (hls : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff5 + 1 + ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff5 + 1 +
+          ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff5 + 1 + ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff5 + 1 +
+          ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true) :
+    cpsTripleWithin ((1 + (1 + 1)) + (1 + 87))
+      AfterWalkNext4Bne LinkWalkNext5 extractLinkedCode
+      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff4 **
+        midOwned spC s toBuf isCreationPtr s7)
+      (wn5Stable txBase lenW typeW innerW endPtr
+          (txBase + BitVec.ofNat 64 srcOff5) **
+        wn5Common txBase txBytes **
+        wn0Outcome txBase endPtr txBytes srcOff5 **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have hPrep := extractWalkNext5Prep_owned spC s txBase lenW typeW innerW endPtr
+    next len toBuf isCreationPtr s7 txBytes srcOff4
+  have hPrep2 :
+      cpsTripleWithin (1 + (1 + 1)) AfterWalkNext4Bne WalkNext5JalPc extractLinkedCode
+        (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff4 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (wn5Stable txBase lenW typeW innerW endPtr
+            (txBase + BitVec.ofNat 64 srcOff5) **
+          (.x10 ↦ᵣ (txBase + BitVec.ofNat 64 srcOff5)) **
+          (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ LinkWalkNext4) ** bytesRegion txBase txBytes **
+          midOwned spC s toBuf isCreationPtr s7) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
+      simp only [hnext] at hq
+      xperm_hyp hq) hPrep
+  have hCall := extractWalkNext5Call_owned_a2_outcome spC s txBase lenW typeW innerW
+    endPtr len toBuf isCreationPtr s7 txBytes srcOff5
+    hsalign hoff hover hvalid hss hls hll
+  exact cpsTripleWithin_seq_same_cr hPrep2 hCall
+
+set_option maxRecDepth 8000 in
+/-- prep+call+OkNested under pure decode (honest drop-fail; no universal hok). -/
+theorem extractWalkNext5PrepCallOk_owned_of_decode
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW typeW innerW endPtr next len toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) (srcOff4 srcOff5 : Nat)
+    (hnext : next = txBase + BitVec.ofNat 64 srcOff5)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : srcOff5 < txBytes.length)
+    (hover : txBase.toNat + srcOff5 < 2 ^ 64)
+    (hvalid : isValidByteAccess (txBase + BitVec.ofNat 64 srcOff5) = true)
+    (hss : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff5 + 1 < txBytes.length ∧ txBase.toNat + (srcOff5 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1)) = true)
+    (hls : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff5 + 1 + ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff5 + 1 +
+          ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((txBytes[srcOff5]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff5 + 1 + ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ txBytes.length ∧
+        txBase.toNat + (srcOff5 + 1 +
+          ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((txBytes[srcOff5]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (txBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true)
+    (hdec : ∃ next5 len5 : Word,
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5)
+    (hinb : BitVec.ult (txBase + BitVec.ofNat 64 srcOff5) endPtr = true) :
+    cpsTripleWithin (((1 + (1 + 1)) + (1 + 87)) + 1)
+      AfterWalkNext4Bne AfterWalkNext5Bne extractLinkedCode
+      (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff4 **
+        midOwned spC s toBuf isCreationPtr s7)
+      (fun h => ∃ next5 len5 : Word,
+        (wn5OkConcrete txBase lenW typeW innerW endPtr next5 len5
+          txBytes srcOff5 **
+          midOwned spC s toBuf isCreationPtr s7) h) := by
+  have hPC := extractWalkNext5PrepCall_owned_outcome spC s txBase lenW typeW innerW
+    endPtr next len toBuf isCreationPtr s7 txBytes srcOff4 srcOff5
+    hnext hsalign hoff hover hvalid hss hls hll
+  have hPC2 :
+      cpsTripleWithin ((1 + (1 + 1)) + (1 + 87))
+        AfterWalkNext4Bne LinkWalkNext5 extractLinkedCode
+        (wn4OkConcrete txBase lenW typeW innerW endPtr next len txBytes srcOff4 **
+          midOwned spC s toBuf isCreationPtr s7)
+        (wn5Stable txBase lenW typeW innerW endPtr
+            (txBase + BitVec.ofNat 64 srcOff5) **
+          wn5Common txBase txBytes **
+          rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff5) endPtr txBytes srcOff5 **
+          midOwned spC s toBuf isCreationPtr s7) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by
+      obtain ⟨h1, h2, hd1, hu1, hS, hBCD⟩ := hq
+      obtain ⟨h3, h4, hd2, hu2, hC, hCD⟩ := hBCD
+      obtain ⟨h5, h6, hd3, hu3, hOut, hM⟩ := hCD
+      have hOk := wn0Outcome_drop_fail_of_decode txBase endPtr txBytes srcOff5
+        hdec hinb h5 hOut
+      exact ⟨h1, h2, hd1, hu1, hS, h3, h4, hd2, hu2, hC,
+        h5, h6, hd3, hu3, hOk, hM⟩) hPC
+  have hOk := extractWalkNext5OkNested_owned spC s txBase lenW typeW innerW endPtr
+    toBuf isCreationPtr s7 txBytes srcOff5
+  exact cpsTripleWithin_seq_same_cr hPC2 hOk
+
 #print axioms extractWalkNext5Call_type234_a2
 #print axioms extractWalkNext5Call_owned_a2
 #print axioms extractWalkNext5PrepCall_owned
 #print axioms extractWalkNext5PrepCallOk_owned
 #print axioms extractWalkNext0CallOk_owned
+#print axioms extractWalkNext5Call_type234_a2_outcome
+#print axioms extractWalkNext5PrepCallOk_owned_of_decode
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

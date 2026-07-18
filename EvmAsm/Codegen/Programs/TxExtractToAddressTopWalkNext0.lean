@@ -130,6 +130,38 @@ theorem wn0Outcome_to_okFail (txBase endPtr : Word) (txBytes : List (BitVec 8))
     refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hb6
     exact fun h' ⟨he, _⟩ => ⟨he, by decide⟩
 
+/-- Honest drop-fail on the 6-way outcome: pure decode + in-bounds kill
+    status-2 OOB and status-3..6 `¬∃decode` arms. Prefer this over universal
+    `hok : OkFail → Ok` (false as ∀h — OkFail strips the pure). -/
+theorem wn0Outcome_drop_fail_of_decode
+    (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat)
+    (hdec : ∃ next len : Word,
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len)
+    (hinb : BitVec.ult (txBase + BitVec.ofNat 64 srcOff) endPtr = true) :
+    ∀ h, wn0Outcome txBase endPtr txBytes srcOff h →
+      rlpWalkNextOk (txBase + BitVec.ofNat 64 srcOff) endPtr txBytes srcOff h := by
+  intro h hout
+  unfold wn0Outcome at hout
+  rcases hout with hOk | hb2 | hb3 | hb4 | hb5 | hb6
+  · exact hOk
+  · -- status 2: pure ¬ult; right-assoc A ** (B ** (C ** pure))
+    obtain ⟨_, h2, _, _, _, hBC⟩ := hb2
+    obtain ⟨_, h4, _, _, _, hCP⟩ := hBC
+    exact absurd hinb ((sepConj_pure_right _).1 hCP).2
+  · obtain ⟨_, h2, _, _, _, hBC⟩ := hb3
+    obtain ⟨_, h4, _, _, _, hCP⟩ := hBC
+    exact absurd hdec ((sepConj_pure_right _).1 hCP).2
+  · obtain ⟨_, h2, _, _, _, hBC⟩ := hb4
+    obtain ⟨_, h4, _, _, _, hCP⟩ := hBC
+    exact absurd hdec ((sepConj_pure_right _).1 hCP).2
+  · obtain ⟨_, h2, _, _, _, hBC⟩ := hb5
+    obtain ⟨_, h4, _, _, _, hCP⟩ := hBC
+    exact absurd hdec ((sepConj_pure_right _).1 hCP).2
+  · obtain ⟨_, h2, _, _, _, hBC⟩ := hb6
+    obtain ⟨_, h4, _, _, _, hCP⟩ := hBC
+    exact absurd hdec ((sepConj_pure_right _).1 hCP).2
+
 /-- Leaf post → wn0Common ** wn0Outcome. -/
 theorem extractWalkNext0Post_to_commonOutcome
     (txBase endPtr : Word) (txBytes : List (BitVec 8)) (srcOff : Nat) :
@@ -356,6 +388,7 @@ theorem extractWalkNext0OkFail_ok_bne
   extractWalkNext0OkNested_bne txBase lenW typeW innerW endPtr txBytes srcOff
 
 #print axioms wn0Outcome_to_okFail
+#print axioms wn0Outcome_drop_fail_of_decode
 #print axioms extractWalkNext0Post_to_commonOutcome
 #print axioms extractWalkNext0Call_type234
 #print axioms extractWalkNext0BneOk_framed
