@@ -261,8 +261,11 @@ def schemeAAnchors : List GuestRegion :=
     the a4gbr s-reg/scratch-own strengthen (#10442), the
     zisk_stateless_verdict_v2 probe closure fix (#10446), the
     execCodeEffectLogCap raise (#10447), and the nonstorage-effect
-    overflow guard (#10448). -/
-def textSizeBytes : Nat := 0x5cf80
+    overflow guard (#10448). Grew to `0x5cff4` for the net-deleted
+    BAL-storage marker-scan fix (`fix/bal-netdeleted-storage`, #10452:
+    demotes raw storage writes only when the account is recorded in
+    the transaction-scoped EIP-6780 same-tx deletion table). -/
+def textSizeBytes : Nat := 0x5cff4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
