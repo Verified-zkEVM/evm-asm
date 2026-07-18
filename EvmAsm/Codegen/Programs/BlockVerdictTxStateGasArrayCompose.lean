@@ -323,16 +323,23 @@ structure A4gbrResiduals where
             (`extractType234HaveFieldCreation_then_epi_ambient`);
           MidJoin AfterSave→creation ambient DONE
             (`extractType234AfterSaveCreation_then_epi_of_decode_ambient`);
-          MidJoin AfterSave→copy region ambient DONE
-            (`extractType234AfterSaveCopy_then_epi_of_decode_region_ambient`);
-          residual: Front E2E ambient creation/copy + Assumed ambient path
-            → fill ExtractAssumedAmbient.success_flat general off
-        * TIS ambient callees + framed: extract/type/ets framed
-        * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
-        * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
-        * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-        Residual: Front E2E ambient Assumed fill;
-          package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
+           MidJoin AfterSave→copy region ambient DONE
+             (`extractType234AfterSaveCopy_then_epi_of_decode_region_ambient`);
+           Front E2E short creation ambient DONE
+             (`extractFrontCreation_then_epi_of_decode_short_concrete_ambient`);
+           Assumed ambient packaging under honesty DONE
+             (`extractAssumed_creation_fullCode_of_decode_short_concrete_ambient`);
+           AmbientPureBridge DONE (cursor/end/hnext/hcre/hss/walk guards);
+           AmbientShortConcretePure DONE classical-3
+             (`extractAssumed_creation_shortConcrete_pure_ambient_fullCode`;
+              residual hvalid*/hvalid1_*/hdec* like slice short pure)
+         * TIS ambient callees + framed: extract/type/ets framed
+         * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
+         * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
+         * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
+         Residual: PureHvalid ambient + path Prop → fill
+           ExtractAssumedAmbient.success_flat general off; copy Front ambient;
+           package IntrinsicAssumed structure; Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
