@@ -192,10 +192,8 @@
                 `_fullCode_of_decode_short_concrete_region`).
                 **bare Assumed copy path Prop DONE**
                 (`extractAssumed_success_flat_copy_type234_short`,
-                gate `srcOff5+1=8*q`). **legacy/t1 Front E2E + Assumed bare copy packaging DONE**
-                (region; Assumed legacy fullCode; T1 Assumed/path Prop residual).
-                Residual: T1 Assumed pureHvalid+path Prop; long-list;
-                multi-tx Option A; Teer; gate.
+                gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
+                Residual: long-list (≥56); multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
@@ -250,6 +248,9 @@ def extract_discharge_creation_type234_short_available :=
 def extract_discharge_creation_legacy_short_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_creation_legacy_short
 
+def extract_discharge_creation_t1_short_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_creation_t1_short
+
 /-- Copy path packaging under Assumed**contentDwords (legacy content packaging). -/
 def extract_discharge_copy_type234_short_available :=
   TxExtractToAddressSpec.extractAssumed_content_copy_type234_short
@@ -258,11 +259,17 @@ def extract_discharge_copy_type234_short_available :=
 def extract_discharge_copy_type234_short_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_short
 
+def extract_discharge_copy_legacy_short_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short
+
+def extract_discharge_copy_t1_short_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short
+
 /-- Residual inventory for the unconditional a4gbr deliverable.
     BgvOffset + TypeDispatchAssumed removed — use `*_discharged`. -/
 structure A4gbrResiduals where
   /-- Extract assumed still residual; type_dispatch discharged.
-      Path packaging: `extract_discharge_creation_type234_short_available`. -/
+      Path packaging: creation/copy short bare for type234+legacy+t1 (`extract_discharge_*_short_*_available`). Long-list residual. -/
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
