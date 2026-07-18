@@ -92,6 +92,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressEpilogue
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFront
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopTypeLoad
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInit
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitOk
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
