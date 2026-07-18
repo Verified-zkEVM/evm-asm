@@ -182,7 +182,7 @@
                 **copy Assumed pure wire DONE**
                 (`extractAssumed_copy_shortConcrete_pure(_fullCode)`:
                 shortListSrcOff + hnext/hlen20/hnext_content pure;
-                Assumed**contentDwords). **copy pureHvalid DONE** (Assumed**content). **copy pureHvalid + Assumed**content path Prop DONE**. Residual: bare ExtractAssumed.success_flat case-split (creation/copy×type×short/long); multi-tx Option A; Teer; gate.
+                Assumed**contentDwords). **type234 short creation bare Assumed path Prop DONE**; **type234 short copy Assumed**content path Prop DONE**. Residual: bare `ExtractAssumed.success_flat` under extractSuccess alone (needs legacy/t1/long + content-from-bytesRegion for copy); multi-tx ambient Option A; Teer prover1; gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
