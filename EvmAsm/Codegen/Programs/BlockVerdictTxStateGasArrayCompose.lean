@@ -34,10 +34,10 @@
         **save cursor + first walk_next skip DONE** (`extractSaveCursor` E+152→E+160;
         `extractWalkNext0Call`+BNE E+184→E+192 under extractLinkedCode).
         **type-branch DONE** (`extractTypeBranchLegacy/T1/Type234`).
-        **all type walk chains DONE**; **HaveField creation path DONE**
-        (MV/BEQ/LI/BNE + creation → EpiRestore classical-3). Residual:
-        20B copy compose (LD/SD leaves exist) + LWU/SW + epilogue →
-        extractAssumed; fullCode∪extract
+        **all type walk chains DONE**; **HaveField both exits DONE**
+        (`extractHaveFieldCreation` + `extractHaveFieldCopy` → EpiRestore
+        classical-3). Residual: top compose prologue…epilogue under
+        extractSuccess → extractAssumed; fullCode∪extract
         (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
