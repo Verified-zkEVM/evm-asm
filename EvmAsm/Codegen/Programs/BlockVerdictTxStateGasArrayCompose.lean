@@ -101,9 +101,11 @@
               are decode-gated via pfx80/pfx94; pure
               `hnext_content_decode_of_pfx94` when contentPtr=cursor+1).
               **Honest hok path DONE wn0..wn5**: `wn0Outcome_drop_fail_of_decode`
-              + `*CallOk/*PrepCallOk_owned_of_decode` (Outcome post, no
-              universal OkFail→Ok). Residual: wire of_decode into MidChain
-              (replace hok hyps); pure ∃decode from extractSuccess item
+              + `*CallOk/*PrepCallOk_owned_of_decode` (Outcome post).
+              **MidChain of_decode DONE** (`TopMidChainDecode`:
+              `extractType234ToWn5Ok_owned_of_decode` takes hdec+hinb per
+              skip, no universal hok). Residual: wire of_decode into
+              MidJoin/FrontE2E; pure ∃decode from extractSuccess item
               offsets; hnext* from decode next; long-list (≥56); fill
               `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;

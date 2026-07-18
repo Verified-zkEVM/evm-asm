@@ -113,6 +113,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqRest
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidSeqDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChain
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChainRest
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidChainDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
