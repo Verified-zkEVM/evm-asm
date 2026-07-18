@@ -258,10 +258,77 @@ theorem extractWalkInitOkNested_bneSave
     ⟨h1, h2, hd, hu, hAC, hregsOwns⟩
   xperm_hyp hgoal
 
+local macro "pcf" : tactic => `(tactic|
+  repeat first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_emp
+    | exact pcFree_pure
+    | exact bytesRegion_pcFree _ _)
+
+set_option maxRecDepth 8000 in
+/-- walk_init call_okFail framed with s5/s6 (regOwn x21/x22). -/
+theorem extractWalkInitCall_okFail_framed_s5s6
+    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (old1 : Word)
+    (hsalign : txBase.toNat % 8 = 0)
+    (hoff : (teerTxTypeDispatch txBytes).2.2.toNat < txBytes.length)
+    (hover : txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess
+      (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat) = true)
+    (hll_len : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      (teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat
+        ≤ txBytes.length)
+    (hll_over : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      txBase.toNat + ((teerTxTypeDispatch txBytes).2.2.toNat + 1 +
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult
+        ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64)
+        (0xf8 : Word) = true →
+      ∀ k, k < ((txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff).zeroExtend 64 -
+          (0xf7 : Word)).toNat →
+        isValidByteAccess (txBase + BitVec.ofNat 64
+          ((teerTxTypeDispatch txBytes).2.2.toNat + 1 + k)) = true) :
+    cpsTripleWithin (1 + 81) WalkInitJalPc LinkWalkInit extractLinkedCode
+      ((.x1 ↦ᵣ old1) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x8 ↦ᵣ txBase) ** (.x9 ↦ᵣ lenW) **
+        (.x5 ↦ᵣ TeaInnerAddr) **
+        (.x10 ↦ᵣ (txBase + (teerTxTypeDispatch txBytes).2.2)) **
+        (.x11 ↦ᵣ (lenW - (teerTxTypeDispatch txBytes).2.2)) **
+        (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+        (.x30 ↦ᵣ (teerTxTypeDispatch txBytes).2.2) **
+        bytesRegion txBase txBytes **
+        (TeaTypeAddr ↦ₘ (teerTxTypeDispatch txBytes).2.1) **
+        (TeaInnerAddr ↦ₘ (teerTxTypeDispatch txBytes).2.2) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x31 **
+        regOwn .x21 ** regOwn .x22)
+      (walkInitAmbient txBase lenW
+          (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2 **
+        extractWalkInitCommon txBase txBytes ** extractWalkInitOkFail **
+        regOwn .x21 ** regOwn .x22) := by
+  have h0 := extractWalkInitCall_fromTypeLoad_okFail txBase lenW txBytes old1
+    hsalign hoff hover hvalid hll_len hll_over hll_valid
+  have hF := cpsTripleWithin_frameR (regOwn .x21 ** regOwn .x22) (by pcf) h0
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
 #print axioms extractWalkInitPost_to_okFail
 #print axioms extractWalkInitCall_fromTypeLoad_okFail
 #print axioms extractWalkInitOk_bneSave
 #print axioms extractWalkInitOkExists_bneSave
 #print axioms extractWalkInitOkNested_bneSave
+#print axioms extractWalkInitCall_okFail_framed_s5s6
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
