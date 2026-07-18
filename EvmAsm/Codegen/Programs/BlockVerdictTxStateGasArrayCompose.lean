@@ -275,6 +275,9 @@ def extract_discharge_copy_type234_short_region_available :=
 def extract_discharge_copy_type234_long_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_type234_long
 
+def extract_discharge_copy_legacy_long_region_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_long
+
 def extract_discharge_copy_legacy_short_region_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short
 
