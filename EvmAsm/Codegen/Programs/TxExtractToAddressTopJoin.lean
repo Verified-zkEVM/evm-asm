@@ -49,7 +49,7 @@ def joinCur (ra s0 s1 s2 s3 s4 s5 s6 s7 : Word) : ExtractSaved where
   ra := ra; s0 := s0; s1 := s1; s2 := s2; s3 := s3
   s4 := s4; s5 := s5; s6 := s6; s7 := s7
 
-private theorem regsAt_joinCur (ra s0 s1 s2 s3 s4 s5 s6 s7 : Word) :
+theorem regsAt_joinCur (ra s0 s1 s2 s3 s4 s5 s6 s7 : Word) :
     regsAt extractFrame (extractSavedVals (joinCur ra s0 s1 s2 s3 s4 s5 s6 s7)) =
       ((.x1 ↦ᵣ ra) ** (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
         (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
