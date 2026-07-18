@@ -137,7 +137,11 @@
               **Assumed pureHss DONE** (`pureHss`/`_fullCode`): hss0..5 via
               `hss_of_short_list_item` (fields 0..4 Or.inl hnext_fields04;
               field5 needs `7 ≤ items.length`); residual `hvalid1_*` at
-              srcOff+1. Residual: hvalid1/hdec/hinb/hcur; fill Assumed;
+              srcOff+1. **pure hinb/hcur/hdec-empty at list-end DONE**
+              (`hinb_short_list_end`, `packaging_hcur_shortListSrcOff0`,
+              `hdec_empty_short_list_end`). Residual: wire into Assumed
+              (∀endPtr packaging restructure), hvalid1, general hdec
+              non-empty fields; fill Assumed;
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
