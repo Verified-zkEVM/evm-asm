@@ -46,8 +46,9 @@
          **t1 ambient DONE** (`TopT1` walk0..4 + ToHaveField).
          **type234 HaveField join ambient DONE**; **HaveField creation/copy
          framed DONE** (`TopHaveField` → EpiRestore).
-         Residual: extractSuccess drop-fail pure; epilogue+stack top compose
-         → extractAssumed under extractLinkedCode;
+         **epilogue linked+framed DONE** (`extractEpilogueSuccess_framed`).
+         Residual: extractSuccess drop-fail pure; full mid seq compose
+         (front→type→walks→HaveField→epi) → extractAssumed;
          fullCode∪extract (use extractLinkedCode first);
          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
