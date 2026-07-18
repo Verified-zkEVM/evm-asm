@@ -104,7 +104,8 @@
               + `*CallOk/*PrepCallOk_owned_of_decode` (Outcome post).
               **MidChain of_decode DONE** (`TopMidChainDecode` ToWn5).
               **MidJoin+Front AfterSave of_decode DONE** (creation+copy;
-              hdec+hinb ∀endPtr). Residual: FrontE2E of_decode (E→ret);
+              hdec+hinb ∀endPtr). **FrontE2E of_decode DONE** (E→ret creation;
+              no hok*). **E2ECopy of_decode DONE**. Residual: Assumed of_decode;
               pure ∃decode from extractSuccess item
               offsets; hnext* from decode next; long-list (≥56); fill
               `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
