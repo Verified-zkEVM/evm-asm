@@ -5249,6 +5249,72 @@ theorem h_match_of_long_list
   rw [hR, hL, hpay]
   omega
 
+/-- Package Call_long pure leaf hyps under extractSuccess + long-list decode.
+    Static residuals remain: hsalign, hover on listOff, hvalid/hlvalid/hlover
+    (RAM `validByteRange`), and non-wrap `hptr`/`hend` for listLen span. -/
+theorem extractSuccess_long_walkInit_leaf_hyps
+    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hlenW : lenW.toNat = txBytes.length)
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hbuf : txBytes.length < 2 ^ 64)
+    (hptr : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat).toNat =
+      txBase.toNat + (teerTxTypeDispatch txBytes).2.2.toNat)
+    (hend : (txBase + BitVec.ofNat 64 (teerTxTypeDispatch txBytes).2.2.toNat).toNat +
+      (lenW - (teerTxTypeDispatch txBytes).2.2).toNat < 2 ^ 64) :
+    let innerW := (teerTxTypeDispatch txBytes).2.2
+    let listOff := innerW.toNat
+    let listLen := lenW - innerW
+    ∃ (hoff : listOff < txBytes.length) (hoff1 : listOff + 1 < txBytes.length),
+      listLen ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      ¬ BitVec.ult ((txBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      listOff + 1 + ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤
+        txBytes.length ∧
+      ¬ BitVec.ult ((txBase + BitVec.ofNat 64 listOff) + listLen)
+          ((txBase + BitVec.ofNat 64 listOff) +
+            (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true ∧
+      (txBytes[listOff + 1]'hoff1).zeroExtend 64 ≠ (0 : Word) ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+          ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)))
+          (56 : Word) = true ∧
+      ((txBase + BitVec.ofNat 64 listOff) +
+          (((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) +
+          BitVec.ofNat 64 (Nat.fromBytesBE ((txBytes.drop (listOff + 1)).take
+            ((txBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+        = (txBase + BitVec.ofNat 64 listOff) + listLen := by
+  set innerW := (teerTxTypeDispatch txBytes).2.2
+  set listOff := innerW.toNat
+  set listLen := lenW - innerW
+  set bs := txBytes.drop listOff
+  have hg := extractSuccess_long_walkInit_guards txBytes lenW h hlenW items hdec hlong hbuf
+  obtain ⟨hinner, hne, _, ⟨hoff, hge, hge_f8, hlolEq, _, htot⟩⟩ := hg
+  have henc := decodeListItems_eq_encode bs items hdec
+  have hbsLt : bs.length < 2 ^ 64 := by
+    have hle : bs.length ≤ txBytes.length := by
+      simp only [bs, List.length_drop]; omega
+    exact Nat.lt_of_le_of_lt hle hbuf
+  have hbound : (encode.encodeItems items).length < 256 ^ 8 :=
+    encodeItems_lt_256pow8_of_buf_lt bs items henc hlong hbsLt
+  have hbound64 : (encode.encodeItems items).length < 2 ^ 64 := by
+    rw [← pow256_8_eq_pow2_64]; exact hbound
+  have hoff1 := hoff1_of_long_list txBytes listOff items henc hlong
+  have hllen := hllen_of_long_list txBytes listOff items henc hlong hoff hbound
+  have hlenNat : listLen.toNat = (txBytes.drop listOff).length :=
+    listLen_word_eq_drop txBytes lenW innerW hinner hlenW
+  have hfits := h_fits_of_long_list txBase listLen txBytes listOff items
+    henc hlong hoff hbound hlenNat hptr hend
+  have hllz := h_llz_of_long_list txBytes listOff items henc hlong hoff1
+  have hmin := h_min_of_long_list txBytes listOff items henc hlong hoff hbound64
+  have hmatch := h_match_of_long_list txBase listLen txBytes listOff items
+    henc hlong hoff hbound hlenNat hptr hend
+  exact ⟨hoff, hoff1, hne, hge, hge_f8, hllen, hfits, hllz, hmin, hmatch⟩
+
 #print axioms encode_list_long_length
 #print axioms decodeListItems_long_walkInit_guards
 #print axioms extractSuccess_long_walkInit_guards
@@ -5256,5 +5322,6 @@ theorem h_match_of_long_list
 #print axioms h_min_of_long_list
 #print axioms h_fits_of_long_list
 #print axioms h_match_of_long_list
+#print axioms extractSuccess_long_walkInit_leaf_hyps
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
