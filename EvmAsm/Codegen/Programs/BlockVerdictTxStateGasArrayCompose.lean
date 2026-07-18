@@ -41,7 +41,8 @@
          AfterSave→WalkNext0 framed DONE** (`extractType234ToWalkNext0`).
          **wn0 call_type234 + OkFail DONE** (`extractWalkNext0Call_type234`) +
          **wn0 OK exists_pre→BNE DONE** (`extractWalkNext0OkNested_bne`).
-         Residual: wn1..5 ambient; legacy/t1 same;
+         **wn1 prep+call+OkNested BNE DONE** (`TopWalkNext1`).
+         Residual: wn2..5 ambient; legacy/t1 same;
          extractSuccess drop-fail pure; HaveField+epilogue top → extractAssumed;
          fullCode∪extract (use extractLinkedCode first);
          ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
