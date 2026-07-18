@@ -5324,4 +5324,180 @@ theorem extractSuccess_long_walkInit_leaf_hyps
 #print axioms h_match_of_long_list
 #print axioms extractSuccess_long_walkInit_leaf_hyps
 
+
+/-! ## Long-list item offsets + packaging hnext/hcre -/
+
+/-- Payload start after long-list header: `listOff + 1 + lol`. -/
+theorem long_list_payload_drop
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length) :
+    txBytes.drop (listOff + 1 + longListLol items) = encode.encodeItems items := by
+  have hcons := long_list_encode_cons txBytes listOff items henc hlong
+  have h1 : txBytes.drop (listOff + 1) = (txBytes.drop listOff).drop 1 := by
+    rw [← List.drop_drop]
+  have hpay0 :
+      txBytes.drop (listOff + 1) =
+        Nat.toBytesBE (encode.encodeItems items).length ++ encode.encodeItems items := by
+    rw [h1, hcons]; rfl
+  have hlol : longListLol items =
+      (Nat.toBytesBE (encode.encodeItems items).length).length := rfl
+  have h2 :
+      txBytes.drop (listOff + 1 + longListLol items) =
+        (txBytes.drop (listOff + 1)).drop (longListLol items) := by
+    simp [List.drop_drop, Nat.add_assoc]
+  rw [h2, hpay0, hlol, List.drop_left]
+
+/-- Item `n` of a long list begins at `longListSrcOff`. -/
+theorem long_list_item_drop
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length) :
+    txBytes.drop (longListSrcOff listOff items n) =
+      encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := by
+  have hpay := long_list_payload_drop txBytes listOff items henc hlong
+  have hitem := encodeItems_drop_at items n hn
+  simp only [longListSrcOff]
+  have hdd :
+      List.drop (encodeItemsPrefixLen items n)
+          (List.drop (listOff + 1 + longListLol items) txBytes) =
+        List.drop (listOff + 1 + longListLol items + encodeItemsPrefixLen items n)
+          txBytes := by
+    simp [List.drop_drop, Nat.add_assoc]
+  calc txBytes.drop (listOff + 1 + longListLol items + encodeItemsPrefixLen items n)
+      = List.drop (encodeItemsPrefixLen items n)
+          (List.drop (listOff + 1 + longListLol items) txBytes) := hdd.symm
+    _ = (encode.encodeItems items).drop (encodeItemsPrefixLen items n) := by rw [hpay]
+    _ = encode (items[n]'hn) ++ encode.encodeItems (items.drop (n + 1)) := hitem
+
+theorem longListSrcOff_zero (listOff : Nat) (items : List RLPItem) :
+    longListSrcOff listOff items 0 = listOff + 1 + longListLol items := by
+  simp only [longListSrcOff, encodeItemsPrefixLen_zero, Nat.add_zero]
+
+theorem longListSrcOff_succ (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (hn : n < items.length) :
+    longListSrcOff listOff items (n + 1) =
+      longListSrcOff listOff items n + (encode (items[n]'hn)).length := by
+  simp only [longListSrcOff, encodeItemsPrefixLen_succ items n hn]
+  omega
+
+/-- Empty-bytes item at long-list placement. -/
+theorem long_list_empty_bytes_pfx
+    (bs : List Byte) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : bs.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hn : n < items.length)
+    (hitem : items[n]'hn = .bytes []) :
+    let off := longListSrcOff listOff items n
+    ∃ hoff : off < bs.length, bs[off]'hoff = (0x80 : BitVec 8) := by
+  intro off
+  have hdrop := long_list_item_drop bs listOff items n henc hlong hn
+  have hencI : encode (items[n]'hn) = [BitVec.ofNat 8 0x80] := by
+    rw [hitem, encode_bytes_empty]
+  have hdrop' :
+      bs.drop off = BitVec.ofNat 8 0x80 :: encode.encodeItems (items.drop (n + 1)) := by
+    simpa [off, hencI] using hdrop
+  obtain ⟨hoff, hb⟩ := getElem_of_drop_cons bs off (BitVec.ofNat 8 0x80) _ hdrop'
+  exact ⟨hoff, hb⟩
+
+/-- Creation type234 long list ⇒ field5 empty 0x80 at longListSrcOff 5. -/
+theorem extractSuccess_creation_type234_field5_pfx80_long
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let off := longListSrcOff listOff items 5
+    (5 : Nat) < items.length ∧
+      items[5]? = some (.bytes []) ∧
+      ∃ hoff : off < txBytes.length, txBytes[off]'hoff = (0x80 : BitVec 8) := by
+  intro listOff off
+  have hidx := extractSuccess_type234_toFieldIndex txBytes h hge
+  have htf := extractSuccess_creation_encode_empty txBytes h hcreFlag
+  obtain ⟨items', hdec', hitem, _henc80⟩ := htf
+  have hitems : items = items' := by
+    have : some items = some items' := hdec.symm.trans hdec'
+    exact Option.some.inj this
+  subst hitems
+  have h5 : toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat = 5 := hidx
+  have hget : items[5]? = some (.bytes []) := by simpa [h5] using hitem
+  have hn : (5 : Nat) < items.length := (List.getElem?_eq_some_iff.mp hget).1
+  have hval : items[5]'hn = .bytes [] := (List.getElem?_eq_some_iff.mp hget).2
+  have hencFull := decodeListItems_eq_encode _ _ hdec
+  have hpfx := long_list_empty_bytes_pfx txBytes listOff items 5 hencFull hlong hn hval
+  exact ⟨hn, hget, hpfx⟩
+
+/-- Packaging hcre for creation type234 long at longListSrcOff 5. -/
+theorem extractSuccess_creation_type234_hcre_long
+    (txBytes : List (BitVec 8)) (txBase : Word)
+    (h : extractSuccess txBytes)
+    (hcreFlag : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch txBytes).2.1.toNat)
+    (items : List RLPItem)
+    (hdecL : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hlong : 55 < (encode.encodeItems items).length) :
+    let listOff := (teerTxTypeDispatch txBytes).2.2.toNat
+    let srcOff5 := longListSrcOff listOff items 5
+    ∀ (endPtr next5 len5 : Word),
+      rlpItemDecode txBytes srcOff5 (txBase + BitVec.ofNat 64 srcOff5)
+        endPtr next5 len5 → len5 = (0 : Word) := by
+  intro listOff srcOff5 endPtr next5 len5 hdec
+  have hf := extractSuccess_creation_type234_field5_pfx80_long txBytes h hcreFlag hge
+    items hdecL hlong
+  obtain ⟨_hn, _hget, hpfx⟩ := hf
+  obtain ⟨hoff, hb⟩ := hpfx
+  have hoff' : srcOff5 < txBytes.length := by simpa [srcOff5, listOff] using hoff
+  have hb' : txBytes[srcOff5]'hoff' = (0x80 : BitVec 8) := by
+    simpa [srcOff5, listOff] using hb
+  exact hcre_decode_of_pfx80 txBytes srcOff5
+    (txBase + BitVec.ofNat 64 srcOff5) endPtr hoff' hb' next5 len5 hdec
+
+/-- Empty field hnext under long list: next = longListSrcOff (n+1). -/
+theorem hnext_empty_long_matches_srcOff_succ
+    (txBytes : List (BitVec 8)) (txBase : Word) (listOff : Nat)
+    (items : List RLPItem) (n : Nat) (hn : n < items.length)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hitem : items[n]'hn = .bytes [])
+    (hover : txBase.toNat + longListSrcOff listOff items n < 2 ^ 64)
+    (hspan : txBase.toNat + longListSrcOff listOff items (n + 1) < 2 ^ 64) :
+    let srcOff := longListSrcOff listOff items n
+    let srcOff' := longListSrcOff listOff items (n + 1)
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 srcOff' := by
+  intro srcOff srcOff' endPtr next len hdec
+  obtain ⟨hoff, hb⟩ :=
+    long_list_empty_bytes_pfx txBytes listOff items n henc hlong hn hitem
+  have hsucc : srcOff' = srcOff + 1 := by
+    have hs := longListSrcOff_succ listOff items n hn
+    have hl : (encode (items[n]'hn)).length = 1 := by
+      rw [hitem, encode_bytes_empty_length]
+    have : longListSrcOff listOff items (n + 1) =
+        longListSrcOff listOff items n + 1 := by rwa [hl] at hs
+    simpa [srcOff, srcOff'] using this
+  have hoff' : srcOff < txBytes.length := by simpa [srcOff] using hoff
+  have hb' : txBytes[srcOff]'hoff' = (0x80 : BitVec 8) := by
+    simpa [srcOff] using hb
+  have hover' : txBase.toNat + srcOff < 2 ^ 64 := by simpa [srcOff] using hover
+  have hspan' : txBase.toNat + srcOff + 1 < 2 ^ 64 := by
+    have hsp : txBase.toNat + srcOff' < 2 ^ 64 := by simpa [srcOff'] using hspan
+    rwa [hsucc] at hsp
+  have hnext := hnext_empty_short_of_pfx80 txBytes txBase srcOff hoff' hb' hover' hspan'
+    endPtr next len hdec
+  rwa [← hsucc] at hnext
+
+#print axioms long_list_item_drop
+#print axioms long_list_empty_bytes_pfx
+#print axioms extractSuccess_creation_type234_field5_pfx80_long
+#print axioms extractSuccess_creation_type234_hcre_long
+#print axioms hnext_empty_long_matches_srcOff_succ
+
 end EvmAsm.Codegen.TxExtractToAddressHonesty
