@@ -972,6 +972,94 @@ theorem encode_bytes_short_ne_one_length (data : List Byte)
   rw [encodeBytes_short_of_length_ne_one data hlen hne1]
   simp [Nat.add_comm]
 
+/-- Single-byte form (`p < 0x80`): encode is the lone byte. -/
+theorem encode_bytes_single (b : Byte) (h : b.toNat < 0x80) :
+    encode (.bytes [b]) = [b] := by
+  simp only [encode, encodeBytes, h, ↓reduceIte]
+
+theorem encode_bytes_single_length (b : Byte) (h : b.toNat < 0x80) :
+    (encode (.bytes [b])).length = 1 := by
+  rw [encode_bytes_single b h]; rfl
+
+/-- Single-byte decode ⇒ `next = cursor + 1` and `len = 1`. -/
+theorem rlpItemDecode_single_byte_next
+    (bytes : List (BitVec 8)) (off : Nat) (cursor endPtr next len : Word)
+    (hoff : off < bytes.length)
+    (hb : (bytes[off]'hoff).toNat < 0x80)
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    next = cursor + signExtend12 (1 : BitVec 12) ∧ len = (1 : Word) := by
+  obtain ⟨b, hb?, hforms⟩ := h
+  have heq : b = bytes[off]'hoff := by
+    have hget : bytes[off]? = some (bytes[off]'hoff) := List.getElem?_eq_getElem hoff
+    rw [hget] at hb?
+    exact Option.some.inj hb?.symm
+  have hult : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true := by
+    have hze : (b.zeroExtend 64).toNat = b.toNat := toNat_zeroExtend_byte b
+    have h80 : (0x80 : Word).toNat = 0x80 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : (b.zeroExtend 64).toNat < 0x80 := by rw [hze, heq]; exact hb
+      simpa [BitVec.lt_def, h80] using this)
+  rcases hforms with h1 | h2 | h3 | h4 | h5
+  · exact ⟨h1.2.2.1, h1.2.2.2⟩
+  · exact absurd hult h2.1
+  · have hb8 : BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true := by
+      have hze : (b.zeroExtend 64).toNat = b.toNat := toNat_zeroExtend_byte b
+      have hb8n : (0xb8 : Word).toNat = 0xb8 := by decide
+      exact (BitVec.ult_iff_lt).2 (by
+        have : (b.zeroExtend 64).toNat < 0xb8 := by rw [hze, heq]; omega
+        simpa [BitVec.lt_def, hb8n] using this)
+    exact absurd hb8 h3.1
+  · have hc0 : BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true := by
+      have hze : (b.zeroExtend 64).toNat = b.toNat := toNat_zeroExtend_byte b
+      have hc0n : (0xc0 : Word).toNat = 0xc0 := by decide
+      exact (BitVec.ult_iff_lt).2 (by
+        have : (b.zeroExtend 64).toNat < 0xc0 := by rw [hze, heq]; omega
+        simpa [BitVec.lt_def, hc0n] using this)
+    exact absurd hc0 h4.1
+  · have hf8 : BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true := by
+      have hze : (b.zeroExtend 64).toNat = b.toNat := toNat_zeroExtend_byte b
+      have hf8n : (0xf8 : Word).toNat = 0xf8 := by decide
+      exact (BitVec.ult_iff_lt).2 (by
+        have : (b.zeroExtend 64).toNat < 0xf8 := by rw [hze, heq]; omega
+        simpa [BitVec.lt_def, hf8n] using this)
+    exact absurd hf8 h5.1
+
+/-- Decode-gated packaging hnext for single-byte field at `srcOff`. -/
+theorem hnext_single_byte_of_pfx
+    (txBytes : List (BitVec 8)) (txBase : Word) (srcOff : Nat)
+    (hoff : srcOff < txBytes.length)
+    (hb : (txBytes[srcOff]'hoff).toNat < 0x80)
+    (_hover : txBase.toNat + srcOff < 2 ^ 64)
+    (hspan : txBase.toNat + srcOff + 1 < 2 ^ 64) :
+    ∀ (endPtr next len : Word),
+      rlpItemDecode txBytes srcOff (txBase + BitVec.ofNat 64 srcOff)
+        endPtr next len →
+      next = txBase + BitVec.ofNat 64 (srcOff + 1) := by
+  intro endPtr next len hdec
+  have ⟨hnext, _hlen⟩ := rlpItemDecode_single_byte_next txBytes srcOff
+    (txBase + BitVec.ofNat 64 srcOff) endPtr next len hoff hb hdec
+  have hse : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  rw [hse] at hnext
+  have hcalc :
+      (txBase + BitVec.ofNat 64 srcOff) + (1 : Word) =
+        txBase + BitVec.ofNat 64 (srcOff + 1) := by
+    apply BitVec.eq_of_toNat_eq
+    have h1 : ((1 : Word).toNat) = 1 := by decide
+    have hsrc' : srcOff < 2 ^ 64 := by omega
+    have hsrc'' : (BitVec.ofNat 64 srcOff).toNat = srcOff := by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsrc']
+    have htb : (txBase + BitVec.ofNat 64 srcOff).toNat = txBase.toNat + srcOff := by
+      rw [BitVec.toNat_add, hsrc'']; omega
+    have hl : ((txBase + BitVec.ofNat 64 srcOff) + (1 : Word)).toNat =
+        txBase.toNat + srcOff + 1 := by
+      rw [BitVec.toNat_add, htb, h1]; omega
+    have hr : (txBase + BitVec.ofNat 64 (srcOff + 1)).toNat =
+        txBase.toNat + (srcOff + 1) := by
+      have hoff' : srcOff + 1 < 2 ^ 64 := by omega
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hoff']; omega
+    omega
+  exact hnext.trans hcalc
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
@@ -1009,5 +1097,9 @@ theorem encode_bytes_short_ne_one_length (data : List Byte)
 #print axioms hnext_empty_short_of_pfx80
 #print axioms hnext_empty_matches_srcOff_succ
 #print axioms encode_bytes_short_ne_one_length
+#print axioms encode_bytes_single
+#print axioms encode_bytes_single_length
+#print axioms rlpItemDecode_single_byte_next
+#print axioms hnext_single_byte_of_pfx
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
