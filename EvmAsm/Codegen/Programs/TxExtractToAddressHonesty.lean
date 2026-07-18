@@ -1882,9 +1882,85 @@ theorem extractSuccess_creation_type234_hover_srcOff
     hover_of_buffer_span txBase _ _ hover h4,
     hover_of_buffer_span txBase _ _ hover h5⟩
 
+/-- Buffer byte at short-list item offset equals encode head. -/
+theorem short_list_item_head_eq
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hoff : shortListSrcOff listOff items n < txBytes.length) :
+    txBytes[shortListSrcOff listOff items n]'hoff =
+      (encode (items[n]'hn))[0]'(encode_item_length_pos _) := by
+  set srcOff := shortListSrcOff listOff items n
+  have hdrop := short_list_item_drop txBytes listOff items n henc hshort hn
+  have hpos : 0 < (encode (items[n]'hn)).length := encode_item_length_pos _
+  have hcons : ∃ b rest, encode (items[n]'hn) = b :: rest := by
+    match h : encode (items[n]'hn) with
+    | [] => exact absurd h (List.ne_nil_of_length_pos hpos)
+    | b :: rest => exact ⟨b, rest, rfl⟩
+  obtain ⟨b, rest, heq⟩ := hcons
+  have hdrop' :
+      txBytes.drop srcOff =
+        b :: (rest ++ encode.encodeItems (items.drop (n + 1))) := by
+    simpa [srcOff, shortListSrcOff, heq] using hdrop
+  obtain ⟨_, hb'⟩ := getElem_of_drop_cons txBytes srcOff b _ hdrop'
+  simpa [heq] using hb'
+
+/-- If item encode length ≥ 2 then short-string content offset is in-bounds. -/
+theorem hss_room_of_encode_ge_two
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hge2 : 2 ≤ (encode (items[n]'hn)).length) :
+    let srcOff := shortListSrcOff listOff items n
+    srcOff + 1 < txBytes.length := by
+  intro srcOff
+  have hdrop := short_list_item_drop txBytes listOff items n henc hshort hn
+  have hlen_drop :
+      (txBytes.drop srcOff).length =
+        (encode (items[n]'hn)).length +
+          (encode.encodeItems (items.drop (n + 1))).length := by
+    have := congrArg List.length hdrop
+    simpa [srcOff, shortListSrcOff, List.length_append] using this
+  have hdl : (txBytes.drop srcOff).length = txBytes.length - srcOff := by
+    simp [List.length_drop]
+  have hsrc : srcOff < txBytes.length :=
+    shortListSrcOff_lt_length txBytes listOff items n henc hshort hn
+  omega
+
+/-- Empty item that is not last: offset+1 starts the next item (in-bounds). -/
+theorem hss_room_of_empty_not_last
+    (txBytes : List (BitVec 8)) (listOff : Nat) (items : List RLPItem) (n : Nat)
+    (henc : txBytes.drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hnext : n + 1 < items.length)
+    (hitem : items[n]'hn = .bytes []) :
+    let srcOff := shortListSrcOff listOff items n
+    srcOff + 1 < txBytes.length := by
+  intro srcOff
+  have hencI : encode (items[n]'hn) = [BitVec.ofNat 8 0x80] := by
+    rw [hitem, encode_bytes_empty]
+  have hsucc :
+      shortListSrcOff listOff items (n + 1) = srcOff + 1 := by
+    simp only [shortListSrcOff, srcOff]
+    have hpre :
+        encodeItemsPrefixLen items (n + 1) =
+          encodeItemsPrefixLen items n + (encode (items[n]'hn)).length :=
+      encodeItemsPrefixLen_succ items n hn
+    simp only [hencI, List.length_cons, List.length_nil] at hpre
+    omega
+  have hlt :=
+    shortListSrcOff_lt_length txBytes listOff items (n + 1) henc hshort hnext
+  omega
+
 #print axioms encode_item_length_pos
 #print axioms shortListSrcOff_lt_length
 #print axioms extractSuccess_creation_type234_hoff_srcOff
 #print axioms extractSuccess_creation_type234_hover_srcOff
+#print axioms short_list_item_head_eq
+#print axioms hss_room_of_encode_ge_two
+#print axioms hss_room_of_empty_not_last
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
