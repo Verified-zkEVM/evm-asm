@@ -230,7 +230,6 @@ theorem listLen_word_eq_drop
   have hle : innerW ≤ lenW := by
     exact (BitVec.le_def).mpr (by omega)
   rw [BitVec.toNat_sub_of_le hle, hlenW, List.length_drop]
-  omega
 
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
