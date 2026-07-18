@@ -145,8 +145,13 @@
               `short_walk_init_end_eq_shortListEndPtr`,
               `short_walk_init_cursor_eq_srcOff0`, `packaging_short_endPtr`,
               `rlpItemDecode_single_byte` / `hdec_single_short_list_end`.
-              Residual: wire concrete short endPtr into Assumed (drop ∀endPtr),
-              hvalid1, short-string/list hdec; fill Assumed;
+              **concrete short AfterSave→creation of_decode DONE**
+              (`frontAfterSavePostShort_to_midJoinPre`;
+              `extractFrontAfterSaveCreation_then_epi_of_decode_short` —
+              concrete hcur/hdec/hinb/hnext/hcre at shortWalkEnd, no ∀endPtr;
+              pure `shortWalkCursor_eq_srcOff0` / `shortWalkEnd_eq_shortListEndPtr`).
+              Residual: wire short concrete into Assumed/E2E (drop ∀endPtr there);
+              hvalid1; short-string/list hdec; fill Assumed;
               pure ∃decode skips 0..4; long-list (≥56);
               fill `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;

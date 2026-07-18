@@ -2526,6 +2526,37 @@ theorem packaging_short_endPtr
       shortListEndPtr txBase innerW.toNat items :=
   short_walk_init_end_eq_shortListEndPtr txBase lenW txBytes items h hlenW hdec hshort hover
 
+/-- `shortWalkCursor` uses `signExtend12 1` = 1. -/
+theorem shortWalkCursor_eq_listBase_add1 (txBase : Word) (listOff : Nat) :
+    (txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) =
+      (txBase + BitVec.ofNat 64 listOff) + (1 : Word) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+
+/-- Machine shortWalkCursor = `txBase + shortListSrcOff 0`. -/
+theorem shortWalkCursor_eq_srcOff0
+    (txBase : Word) (listOff : Nat) (items : List RLPItem)
+    (hover : txBase.toNat + (listOff + 1) < 2 ^ 64) :
+    (txBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) =
+      txBase + BitVec.ofNat 64 (shortListSrcOff listOff items 0) := by
+  rw [shortWalkCursor_eq_listBase_add1]
+  exact short_walk_init_cursor_eq_srcOff0 txBase listOff items hover
+
+/-- Machine shortWalkEnd = shortListEndPtr under success + short list. -/
+theorem shortWalkEnd_eq_shortListEndPtr
+    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (items : List RLPItem)
+    (h : extractSuccess txBytes)
+    (hlenW : lenW.toNat = txBytes.length)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hover : txBase.toNat + txBytes.length < 2 ^ 64) :
+    let innerW := (teerTxTypeDispatch txBytes).2.2
+    let listOff := innerW.toNat
+    (txBase + BitVec.ofNat 64 listOff) + (lenW - innerW) =
+      shortListEndPtr txBase listOff items :=
+  packaging_short_endPtr txBase lenW txBytes items h hlenW hdec hshort hover
+
 #print axioms encode_item_length_pos
 #print axioms shortListSrcOff_lt_length
 #print axioms extractSuccess_creation_type234_hoff_srcOff
@@ -2550,5 +2581,8 @@ theorem packaging_short_endPtr
 #print axioms short_walk_init_end_eq_shortListEndPtr
 #print axioms short_walk_init_cursor_eq_srcOff0
 #print axioms packaging_short_endPtr
+#print axioms shortWalkCursor_eq_listBase_add1
+#print axioms shortWalkCursor_eq_srcOff0
+#print axioms shortWalkEnd_eq_shortListEndPtr
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty

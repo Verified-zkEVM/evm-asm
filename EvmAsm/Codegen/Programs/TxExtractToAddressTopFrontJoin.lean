@@ -77,8 +77,51 @@ theorem frontAfterSave_to_midJoinPre
   refine ⟨cursor, endPtr, ?_⟩
   xperm_hyp hnest
 
+/-- Concrete short AfterSave → MidJoin pre at shortWalkCursor/End (no ∃). -/
+theorem frontAfterSavePostShort_to_midJoinPre
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW toBuf isCreationPtr : Word)
+    (txBytes : List (BitVec 8)) :
+    ∀ h, frontAfterSavePostShort spC s txBase lenW toBuf isCreationPtr txBytes h →
+      (afterSaveFrameTy txBase lenW
+          (teerTxTypeDispatch txBytes).2.1
+          (teerTxTypeDispatch txBytes).2.2
+          (shortWalkCursor txBase (teerTxTypeDispatch txBytes).2.2.toNat)
+          (shortWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+            (teerTxTypeDispatch txBytes).2.2.toNat)
+          txBytes **
+        (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s.s7) h := by
+  intro h hp
+  simp only [frontAfterSavePostShort] at hp
+  obtain ⟨h1, h2, hd, hu, hW, hAS⟩ := hp
+  have hM := walkFrame_to_midOwned spC s toBuf isCreationPtr h1 hW
+  have hC := afterSave_to_midJoinCore txBase lenW
+    (teerTxTypeDispatch txBytes).2.1 (teerTxTypeDispatch txBytes).2.2
+    (shortWalkCursor txBase (teerTxTypeDispatch txBytes).2.2.toNat)
+    (shortWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+      (teerTxTypeDispatch txBytes).2.2.toNat)
+    txBytes h2 hAS
+  have hnest :
+      ((afterSaveFrameTy txBase lenW
+          (teerTxTypeDispatch txBytes).2.1
+          (teerTxTypeDispatch txBytes).2.2
+          (shortWalkCursor txBase (teerTxTypeDispatch txBytes).2.2.toNat)
+          (shortWalkEnd txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+            (teerTxTypeDispatch txBytes).2.2.toNat)
+          txBytes **
+        (.x20 ↦ᵣ (teerTxTypeDispatch txBytes).2.1) **
+        regOwn .x5 ** (.x0 ↦ᵣ (0 : Word))) **
+      midOwned spC s toBuf isCreationPtr s.s7) h :=
+    ⟨h2, h1, hd.symm,
+      by rw [PartialState.union_comm_of_disjoint hd.symm, hu],
+      hC, hM⟩
+  xperm_hyp hnest
+
 #print axioms walkFrame_to_midOwned
 #print axioms afterSave_to_midJoinCore
 #print axioms frontAfterSave_to_midJoinPre
+#print axioms frontAfterSavePostShort_to_midJoinPre
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
