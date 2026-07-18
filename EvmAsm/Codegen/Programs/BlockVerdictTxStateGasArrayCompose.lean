@@ -156,9 +156,12 @@
                `extractAssumed_creation_fullCode_of_decode_short_concrete` —
                no ∀endPtr on hcur/hdec/hinb; still residual walk statics
                hoff/hss/hdec concrete + hnext/hcre at shortWalkEnd).
-               Residual: discharge concrete hdec/hinb/hcur/hnext/hcre from
-               extractSuccess+shortListSrcOff pure; hvalid1; multi-byte hdec;
-               fill `ExtractAssumed.success_flat`; copy Assumed; long-list;
+               **short concrete pure wire DONE**
+               (`extractAssumed_creation_shortConcrete_pure(_fullCode)`):
+               discharges hcur/hnext/hcre/hinb/hoff/hover/hls/hll/hne + short
+               walk guards from extractSuccess+shortListSrcOff; residual
+               hvalid*/hvalid1_*/hdec* (RAM + multi-byte decode); fill
+               `ExtractAssumed.success_flat`; copy Assumed; long-list;
                legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).

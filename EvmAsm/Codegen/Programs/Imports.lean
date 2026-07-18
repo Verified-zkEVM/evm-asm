@@ -134,6 +134,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumed
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortConcrete
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortConcretePure
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedSrcOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureOff
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHlsHll
