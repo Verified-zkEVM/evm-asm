@@ -328,9 +328,9 @@ theorem frontCreation_pre_eq_e2e
       old5 old6 old7 old14 old15 old16 txBytes := by
   simp only [creationE2EPre]
 
+set_option maxRecDepth 8000 in
 /-- Wire: Assumed pre/post under extractLinkedCode given FrontCreation E2E
     for all temp olds (honesty residuals live on the E2E hyp). -/
-set_option maxRecDepth 8000 in
 theorem extractAssumed_creation_of_front
     (sp0 spC : Word) (s : ExtractSaved)
     (txBase lenW toBuf isCreationPtr : Word)
