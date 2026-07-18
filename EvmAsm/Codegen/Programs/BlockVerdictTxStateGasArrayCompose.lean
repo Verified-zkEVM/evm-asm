@@ -352,7 +352,11 @@ structure A4gbrResiduals where
               (`extractLegacyAfterSaveCreation_then_epi_of_decode_ambient`)
           * legacy MidJoin AfterSave→copy region ambient DONE
               (`extractLegacyAfterSaveCopy_then_epi_of_decode_region_ambient`)
-          Residual: legacy Front E2E + PureHvalid ambient;
+          * legacy Front E2E short creation ambient DONE
+              (`extractFrontCreation_then_epi_of_decode_short_concrete_legacy_ambient`)
+          * Assumed packaging legacy short creation ambient DONE
+              (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
+          Residual: legacy PureHvalid ambient path Prop;
             t1/long ambient arms;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
