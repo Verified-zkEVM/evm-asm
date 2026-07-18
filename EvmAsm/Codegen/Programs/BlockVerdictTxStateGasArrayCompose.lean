@@ -48,10 +48,10 @@
          framed DONE** (`TopHaveField` → EpiRestore).
           **epilogue linked+framed DONE** (`extractEpilogueSuccess_framed`).
           **stack frame ambient on creation DONE** (`extractHaveFieldCreation_stack`)
-          + **frameSlotsSaved_imp_stackFree10 DONE**.
-          Residual: creation/copy → epi join (reshape post→epiPre);
-          frame stack through mid; extractSuccess drop-fail pure;
-          full mid seq compose → extractAssumed;
+          + **frameSlotsSaved_imp_stackFree10 DONE**
+          + **creation→epi join DONE** (`extractHaveFieldCreation_then_epi`).
+          Residual: copy→epi join; frame stack through mid;
+          extractSuccess drop-fail pure; full mid seq compose → extractAssumed;
           fullCode∪extract (use extractLinkedCode first);
           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
