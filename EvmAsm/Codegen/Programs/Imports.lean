@@ -84,6 +84,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressWalkInitAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTypeThenLoadAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressWalkNextAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitShortAmbient
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInitAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtractAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTypeAmbient
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTopAmbient
