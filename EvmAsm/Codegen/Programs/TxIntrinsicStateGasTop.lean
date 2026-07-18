@@ -130,7 +130,7 @@ theorem pack6
           (sepConj_mono (regIs_to_regOwn .x15 v15)
             (regIs_to_regOwn .x16 v16))))) h hp
 
-private theorem pack_ets_temps (isC outPtr : Word) :
+theorem pack_ets_temps (isC outPtr : Word) :
     ∀ h, ((.x5 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
       (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ (0 : Word)) **
       (.x14 ↦ᵣ isC) ** (.x15 ↦ᵣ outPtr) **
@@ -642,7 +642,7 @@ def etsCurSaved (s : TisSaved) (txBase lenW outPtr : Word) : TisSaved :=
     s3 := s.s3, s4 := 0, s5 := s.s5, s6 := s.s6 }
 
 /-- Reshape ets post → epi pre (regsAt cur + payload). -/
-private theorem etsPost_to_epiPre
+theorem etsPost_to_epiPre
     (spC : Word) (s : TisSaved)
     (txBase lenW outPtr s7 : Word) (txBytes : List (BitVec 8)) :
     ∀ h,

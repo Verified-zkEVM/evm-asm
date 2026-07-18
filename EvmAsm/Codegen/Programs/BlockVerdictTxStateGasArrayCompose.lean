@@ -210,6 +210,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischargeAmbient
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
@@ -302,15 +303,21 @@ structure A4gbrResiduals where
       * type_dispatch ambient full off/len: `typeDispatchAssumedAmbient_fullCode`
       * extract ambient: `ExtractAssumedAmbient.success_flat` (general off residual body);
         off0 lemma `extractAssumed_ambient_off0` from slice Assumed
-      * TIS ambient callees: `tisExtractSuccessAmbient`, `tisTypeSuccessAmbient`
-      * TIS ambient framed: `tisExtractFramedAmbient`, `tisTypeFramedAmbient`
-        (bodyFrame=loadPtr; bodyPayloadAmbient=regionBase/bs)
+      * TIS ambient callees + framed: extract/type/ets framed
+      * `txIntrinsicStateGas_success_spec_within_ambient` compose DONE
+      * `intrinsicAssumed_success_flat_ambient(_own)` general off/len DONE
+        (under TisCalleeAssumptionsAmbient + path hyps extractSuccess/type/statics)
       * `TisCalleeAssumptionsAmbient` = extract ambient hyp + type ambient full
-      Residual: ambient ets framed + success_spec_within_ambient compose;
-        IntrinsicAssumed general off discharge; fill extract ambient body. -/
+      Residual: fill ExtractAssumedAmbient.success_flat body (ambient re-spec extract);
+        package IntrinsicAssumed structure (path hyps honesty); Teer; gate. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
+
+/-- Ambient general off/len IntrinsicAssumed-shaped discharge available
+    (under TisCalleeAssumptionsAmbient + extractSuccess/type success/statics). -/
+def intrinsic_discharge_ambient_available :=
+  TxIntrinsicStateGasSpec.intrinsicAssumed_success_flat_ambient_own
 
 /-- Slice-eq-ambient discharge is available (off=0, full blob).
     Packaging into `IntrinsicAssumed` for arbitrary off/len remains residual. -/
