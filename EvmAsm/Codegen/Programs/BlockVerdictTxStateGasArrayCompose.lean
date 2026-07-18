@@ -299,10 +299,9 @@ structure A4gbrResiduals where
   extract : ExtractAssumed TxIntrinsicStateGasSpec.fullCode
   /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
       off=0 regOwn peel: `intrinsicAssumed_success_flat_off0_own`.
-      Blocker: leaf specs own `bytesRegion loadPtr slice`; array has ambient
-      `bytesRegion regionBase blob`. Split needs `8 ∣ off` (`bytesRegion_split`);
-      RLP tx starts are not dword-aligned → need ambient re-spec of extract/
-      type_dispatch (BgvOffset style) or byte-granular region split. -/
+      Option A substrate: `TxTypeDispatchAmbient` — `type_dispatch_lbu_ambient`,
+      `txSlice`, `TypeDispatchAssumedAmbient` off0 pkg. Residual: ambient leaf
+      arms off≠0; ExtractAssumed ambient re-spec; IntrinsicAssumed general off. -/
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
