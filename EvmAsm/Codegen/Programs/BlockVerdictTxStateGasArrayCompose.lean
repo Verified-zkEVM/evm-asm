@@ -74,12 +74,16 @@
            `nFrontCreation_le_nExtract` / `nFrontCopy_le_nExtract`.
            **callee-saved s0–s7 pin DONE** (`ExtractAssumed` + `IntrinsicAssumed`
            pin x8,x9,x18–x23; array x23=endW concrete; loopIntrinsicFrame drops x23).
-           **creationPost_to_assumed DONE** (KEEP s-regs; memIs→memOwn isCre/tea;
-           regIs→regOwn temps; classical-3).
-           Residual: of_forall Assumed pre peels (assumedPreConcrete_to_e2e DONE; +
-           prologueAbiRest); extractSuccess drop-fail pure (hok/hnext/hcre/hlen20);
-           extractAssumed_fullCode; fullCode∪extract;
-           ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
+            **creationPost_to_assumed DONE** (KEEP s-regs; memIs→memOwn isCre/tea;
+            regIs→regOwn temps; classical-3).
+            **assumedPreConcrete_to_e2e DONE** (stackFree10_eq_frameSlotsOwn).
+            **extractAssumed_creation_temps DONE** (of_forall6 peels x5/x6/x7/x14–16;
+            mono nFrontCreation→nExtract; Assumed pre/post under extractLinkedCode
+            given hE2E for all old temps).
+            Residual: wire hE2E from extractFrontCreation_then_epi (honesty
+            residuals hdrop/hok/hnext/hcre/hlen20 under extractSuccess pure);
+            extractAssumed_fullCode; fullCode∪extract;
+            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
   4. ~~BgvOffsetAssumed~~ DONE — use `bgvOffset_discharged`
   5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
