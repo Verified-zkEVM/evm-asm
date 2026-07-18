@@ -126,9 +126,11 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2E
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2EDecode
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2EShortDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumed
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedDecode
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedShortDecode
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead
