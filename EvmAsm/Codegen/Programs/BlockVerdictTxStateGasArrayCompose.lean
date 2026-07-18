@@ -55,8 +55,10 @@
            (type234/legacy/t1 creation+copy → ret with stackFree10).
            **type234 mid-seq PrepCallOk wn0..wn5 DONE** (`TopMidSeq` +
            `TopMidSeqRest`; a2-any closes prep→call gap; hok drop-fail residual).
-           Residual: extractSuccess drop-fail pure (discharge hok);
-           full mid seq chain → extractAssumed under extractLinkedCode;
+           **type234 chain AfterSave→wn0/wn1 Ok DONE** (`TopMidChain`;
+           nested exists + hnext cursor identity residual under extractSuccess).
+           Residual: extractSuccess drop-fail pure (discharge hok/hnext);
+           extend chain wn2..5→HaveField→epi → extractAssumed;
            fullCode∪extract (use extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
