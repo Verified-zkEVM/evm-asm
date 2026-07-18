@@ -216,6 +216,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTisDischarge
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbientTop
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbientOff0
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedPureHvalidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
@@ -473,6 +474,6 @@ def extract_discharge_creation_type234_short_ambient_available :=
 #print axioms type_dispatch_ambient_discharged
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_off0
 #print axioms TxExtractToAddressSpec.extractAssumed_ambient_creation_type234_short_off0
-#print axioms extract_discharge_creation_type234_short_ambient_available
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
 
 end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
