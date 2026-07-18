@@ -36,7 +36,7 @@
         **type-branch DONE** (`extractTypeBranchLegacy/T1/Type234`).
         **all type walk chains DONE**; **HaveField both exits DONE**
         (`extractHaveFieldCreation` + `extractHaveFieldCopy` → EpiRestore
-        classical-3). Residual: top compose prologue…epilogue under
+        classical-3). Residual: mid+exit compose type…HaveField…epilogue under; front DONE (`extractFront`);
         extractSuccess → extractAssumed; fullCode∪extract
         (150-instr ofProg mono heartbeat residual — use extractLinkedCode first);
         ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
