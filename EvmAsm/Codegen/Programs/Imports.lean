@@ -117,6 +117,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCre
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2E
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopy
 import EvmAsm.Codegen.Programs.BgvOffsetDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayCompose
 import EvmAsm.Codegen.Programs.RlpRead

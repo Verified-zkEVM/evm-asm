@@ -67,7 +67,8 @@
            **frontAfterSave→midJoinPre bridge DONE** (`frontAfterSave_to_midJoinPre`).
            **front AfterSave→creation→ret DONE** (`extractFrontAfterSaveCreation_then_epi`);
            **front AfterSave→copy→ret DONE** (`extractFrontAfterSaveCopy_then_epi`);
-           **E→ret type234 creation DONE** (`extractFrontCreation_then_epi`).
+           **E→ret type234 creation DONE** (`extractFrontCreation_then_epi`);
+           **E→ret type234 copy DONE** (`extractFrontCopy_then_epi`).
            Residual: copy path front join; extractSuccess drop-fail pure
            (hok/hnext/hcre/hlen20); E→ret under extractSuccess; extractAssumed;
            fullCode∪extract (extractLinkedCode first);
