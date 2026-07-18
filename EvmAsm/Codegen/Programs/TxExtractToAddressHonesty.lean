@@ -478,6 +478,35 @@ theorem extractSuccess_short_walkInit_guards
       simpa only [hbs0, hlenDrop] using hNat
     exact short_pfx_add1_eq_listLen listLen (txBytes[listOff]'hinner) hNat'
 
+/-- Package Front short walk_init hyps from extractSuccess + short list.
+    Discharges `hlistLen_ne` / `h_ge` / `h_hi` / `h_exact` shape used by
+    `extractFrontToAfterSave_short`. -/
+theorem extractSuccess_short_front_walkInit_hyps
+    (txBase lenW : Word) (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hlenW : lenW.toNat = txBytes.length)
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    let innerW := (teerTxTypeDispatch txBytes).2.2
+    let hoff : innerW.toNat < txBytes.length := extractSuccess_inner_lt txBytes h
+    (lenW - innerW) ≠ (0 : Word) ∧
+      ¬ BitVec.ult ((txBytes[innerW.toNat]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((txBytes[innerW.toNat]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      ((txBase + BitVec.ofNat 64 innerW.toNat) +
+          (((txBytes[innerW.toNat]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+            signExtend12 (1 : BitVec 12)) =
+        (txBase + BitVec.ofNat 64 innerW.toNat) + (lenW - innerW)) := by
+  have hg := extractSuccess_short_walkInit_guards txBytes lenW h hlenW items hdec hshort
+  obtain ⟨_hinner, hne, ⟨hoff', hge, hhi, heq⟩⟩ := hg
+  refine ⟨hne, ?_, ?_, ?_⟩
+  · convert hge
+  · convert hhi
+  · exact short_walkInit_h_exact txBase (lenW - (teerTxTypeDispatch txBytes).2.2)
+      (teerTxTypeDispatch txBytes).2.2.toNat
+      (txBytes[(teerTxTypeDispatch txBytes).2.2.toNat]'hoff') heq
+
 #print axioms rlpItemDecode_empty_short
 #print axioms rlpWalkNextOk_empty_short
 #print axioms rlpItemDecode_addr20_short
@@ -494,5 +523,6 @@ theorem extractSuccess_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
 #print axioms listLen_word_eq_drop
 #print axioms extractSuccess_short_walkInit_guards
+#print axioms extractSuccess_short_front_walkInit_hyps
 
 end EvmAsm.Codegen.TxExtractToAddressHonesty
