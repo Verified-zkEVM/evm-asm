@@ -190,6 +190,14 @@ cases = [
     ),
 ]
 
+# i07de: a non-empty pre-state storage root whose witness is absent makes both
+# storage-root builders fail.  BAAP must fail closed (501), never continue with
+# the stale aps_newsroot buffer left by the failed bounded attempt.
+double_builder_fail = (
+    account_rlp(1, 5, bytes.fromhex("11" * 32)),
+    bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)])]),
+)
+
 for name, account, account_change, expected in cases:
     with open(f"{outdir}/{name}.input", "wb") as f:
         f.write(build_input(account, account_change))
@@ -200,6 +208,9 @@ for name, account, account_change, expected in cases:
 with open(f"{outdir}/baap_cases.txt", "w") as f:
     for name, _, _, _ in cases:
         f.write(f"{name}\n")
+
+with open(f"{outdir}/baap_double_builder_fail.input", "wb") as f:
+    f.write(build_input(*double_builder_fail))
 PYGEN
 
 echo "==> lake build codegen"
@@ -231,5 +242,25 @@ while IFS= read -r name; do
     fail=1
   fi
 done < "$VDIR/baap_cases.txt"
+
+# The fixture deliberately omits the witness for a non-empty pre-state storage
+# root.  mpt_bounded_storage_root and mpt_state_root_ins both return nonzero;
+# BAAP must surface its storage-apply failure rather than consuming stale
+# aps_newsroot.  This is a source-proven fail-open seam guard (i07de).
+name="baap_double_builder_fail"
+out="$VDIR/$name.output"
+"$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
+  -i "$VDIR/$name.input" -o "$out" -n "$STEPS" >/dev/null 2>&1 </dev/null \
+  || { echo "  ERROR  $name"; fail=1; }
+if [[ -f "$out" ]]; then
+  status="$(od -An -tu8 -j 248 -N 8 "$out" | tr -d ' \\n')"
+  fail_code="$(od -An -tu8 -j 240 -N 8 "$out" | tr -d ' \\n')"
+  if [[ "$status" != "0" && "$fail_code" == "501" ]]; then
+    echo "  PASS   $name  status=$status fail_code=$fail_code"
+  else
+    echo "  FAIL   $name status=$status fail_code=$fail_code (expected nonzero/501)"
+    fail=1
+  fi
+fi
 [[ "$fail" -eq 0 ]] && echo "==> PASS: bal_account_apply_post_fields matches reference" \
   || { echo "==> FAIL"; exit 1; }

@@ -501,6 +501,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_legacy_args:\n" ++
   "  la a3, baap_storage_desc; la t0, baap_sc_out_count; ld a4, 0(t0); la a5, aps_newsroot\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
+  "  bnez a0, .Lbaap_fail_storage_apply\n" ++
   ".Lbaap_multi_set_account:\n" ++
   "  mv a0, s6; mv a1, s7; la a2, aps_newsroot; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
   "  jal ra, account_set_storage_root\n" ++
@@ -626,6 +627,10 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
 
 def ziskBalAccountApplyPostFieldsDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
+  -- The bounded storage-root fallback closure reopens constructed children by
+  -- Patricia depth; standalone BAAP probes need the same fixed cache as the
+  -- production guest.
+  mptBoundedConstructedCacheDataSection ++ "\n" ++
   ziskBalAccountPostFieldsDataSection ++ "\n" ++
   ".balign 8\n" ++
   "aab_bal_off:\n  .zero 8\n" ++

@@ -816,7 +816,7 @@ def mptBoundedStateRootFunction : String :=
   ".Lmbsr_empty_skip:\n  addi t0, t0, 1; j .Lmbsr_empty_filter\n" ++
   ".Lmbsr_empty_filtered:\n  mv s4, t1; beqz s4, .Lmbsr_copy_old; mv a0, s3; li a1, 0; mv a2, s4; li a3, 0; jal ra, mpt_bounded_build_missing_subtree; bnez a0, .Lmbsr_fail; j .Lmbsr_result\n" ++
   ".Lmbsr_open:\n  mv a0, s0; mv a1, s1; mv a2, s2; la a3, bsr_builder_frames; jal ra, mpt_bounded_open_root_frame; bnez a0, .Lmbsr_fail\n" ++
-  "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; beqz a0, .Lmbsr_result; li t0, 2; bne a0, t0, .Lmbsr_fail; la t0, bsr_builder_frames; ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(t0); li t1, 2; bne t0, t1, .Lmbsr_fail; li t0, 128; sb t0, 72(sp); addi a0, sp, 72; li a1, 1; mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
+  "  la a0, bsr_builder_frames; mv a1, s3; li a2, 0; mv a3, s4; li a4, 0; mv a5, s1; mv a6, s2; jal ra, mpt_bounded_rebuild_subtree; beqz a0, .Lmbsr_result; li t0, 2; bne a0, t0, .Lmbsr_fail; # A propagated delete marker means this root subtree is empty, independent of its original node kind.\n  li t0, 128; sb t0, 72(sp); addi a0, sp, 72; li a1, 1; mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
   ".Lmbsr_result:\n" ++
   "  la t0, bsr_builder_result_len; ld t1, 0(t0); beqz t1, .Lmbsr_fail; li t2, 32; bne t1, t2, .Lmbsr_hash_root; la t0, bsr_builder_result_ref; mv t1, s5; li t2, 32; j .Lmbsr_copy\n" ++
   ".Lmbsr_hash_root:\n  la a0, bsr_builder_result_ref; la t0, bsr_builder_result_len; ld a1, 0(t0); mv a2, s5; jal ra, zkvm_keccak256; li a0, 0; j .Lmbsr_ret\n" ++
