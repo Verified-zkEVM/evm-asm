@@ -57,9 +57,12 @@
            `TopMidSeqRest`; a2-any closes prep→call gap; hok drop-fail residual).
            **type234 chain AfterSave→wn0..wn5 Ok DONE** (`TopMidChain` +
            `TopMidChainRest`) + **AfterSave→creation→ret DONE**
-           (`extractType234AfterSaveCreation_then_epi`; hcre/hnext/hok residual).
-           Residual: extractSuccess drop-fail pure (discharge hok/hnext/hcre);
-           copy path AfterSave join; front→AfterSave; extractAssumed;
+           (`extractType234AfterSaveCreation_then_epi`) +
+           **AfterSave→20B copy→ret DONE**
+           (`extractType234AfterSaveCopy_then_epi`; contentDwords +
+           hlen20/hnext_content residual).
+           Residual: extractSuccess drop-fail pure (discharge hok/hnext/hcre/
+           hlen20/hnext_content); front→AfterSave; extractAssumed;
            fullCode∪extract (use extractLinkedCode first);
            ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
 
