@@ -627,6 +627,10 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
 
 def ziskBalAccountApplyPostFieldsDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
+  -- The bounded storage-root fallback closure reopens constructed children by
+  -- Patricia depth; standalone BAAP probes need the same fixed cache as the
+  -- production guest.
+  mptBoundedConstructedCacheDataSection ++ "\n" ++
   ziskBalAccountPostFieldsDataSection ++ "\n" ++
   ".balign 8\n" ++
   "aab_bal_off:\n  .zero 8\n" ++
