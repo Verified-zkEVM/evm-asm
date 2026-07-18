@@ -103,9 +103,9 @@
               **Honest hok path DONE wn0..wn5**: `wn0Outcome_drop_fail_of_decode`
               + `*CallOk/*PrepCallOk_owned_of_decode` (Outcome post).
               **MidChain of_decode DONE** (`TopMidChainDecode` ToWn5).
-              **MidJoin of_decode DONE** (`TopMidJoinDecode` creation+copy
-              AfterSave→ret, hdec+hinb, no universal hok). Residual: wire
-              FrontE2E to of_decode; pure ∃decode from extractSuccess item
+              **MidJoin+Front AfterSave of_decode DONE** (creation+copy;
+              hdec+hinb ∀endPtr). Residual: FrontE2E of_decode (E→ret);
+              pure ∃decode from extractSuccess item
               offsets; hnext* from decode next; long-list (≥56); fill
               `ExtractAssumed.success_flat`; copy-path Assumed; legacy/t1 E2E.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;

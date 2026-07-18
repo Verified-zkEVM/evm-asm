@@ -120,7 +120,9 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMid
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontWalkInit
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontJoin
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCre
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCreDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopy
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopyDecode
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2E
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopy
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumed
