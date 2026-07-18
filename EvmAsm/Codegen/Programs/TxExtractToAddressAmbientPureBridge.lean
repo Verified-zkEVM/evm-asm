@@ -469,6 +469,121 @@ theorem hss_ambient_of_short_list_field
     omega
   · exact hvalid1
 
+/-- Lift decode-gated hcre (len=0) from slice/loadPtr to ambient abs. -/
+theorem hcre_ambient_of_slice
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (items : List RLPItem) (n : Nat) (endPtr : Word)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : n < items.length)
+    (hoff : shortListSrcOff listOff items n < (txSlice bs off len).length)
+    (hspan : regionBase.toNat + (off + shortListSrcOff listOff items n) < 2 ^ 64)
+    (hroom1 : shortListSrcOff listOff items n + 1 < (txSlice bs off len).length)
+    (hcre_sl : ∀ (next lenW : Word),
+      rlpItemDecode (txSlice bs off len) (shortListSrcOff listOff items n)
+        (loadPtr + BitVec.ofNat 64 (shortListSrcOff listOff items n))
+        endPtr next lenW →
+      lenW = (0 : Word)) :
+    ∀ (next lenW : Word),
+      rlpItemDecode bs (ambientAbsOff off (shortListSrcOff listOff items n))
+        (regionBase + BitVec.ofNat 64
+          (ambientAbsOff off (shortListSrcOff listOff items n)))
+        endPtr next lenW →
+      lenW = (0 : Word) := by
+  intro next lenW hdec_abs
+  set rel := shortListSrcOff listOff items n
+  have hlen := txSlice_length bs off len hbound
+  have hrel : rel < len := by
+    have : rel < (txSlice bs off len).length := hoff
+    rwa [hlen] at this
+  have hroom1' : rel + 1 < len := by
+    have : rel + 1 < (txSlice bs off len).length := hroom1
+    rwa [hlen] at this
+  have hshort_abs :=
+    hshort_abs_at_short_list_field bs off len listOff items n
+      hbound henc hshort hn hoff
+  have hcur :
+      loadPtr + BitVec.ofNat 64 rel =
+        regionBase + BitVec.ofNat 64 (ambientAbsOff off rel) := by
+    simpa [ambientAbsOff] using
+      loadPtr_add_rel_eq regionBase loadPtr off rel hptr hspan
+  have hdec_sl :
+      rlpItemDecode (txSlice bs off len) rel
+        (loadPtr + BitVec.ofNat 64 rel) endPtr next lenW := by
+    rw [hcur]
+    exact rlpItemDecode_abs_to_txSlice_short bs off len rel
+      (regionBase + BitVec.ofNat 64 (ambientAbsOff off rel)) endPtr next lenW
+      hbound hrel hroom1' hdec_abs hshort_abs
+  exact hcre_sl next lenW hdec_sl
+
+/-- Ambient walk-init byte guards from slice pure + getElem bridge. -/
+theorem walk_init_ge_hi_ambient
+    (regionBase loadPtr : Word) (bs : List (BitVec 8)) (off len listOff : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (hoff_sl : listOff < (txSlice bs off len).length)
+    (h_ge_sl : ¬ BitVec.ult
+        (((txSlice bs off len)[listOff]'hoff_sl).zeroExtend 64)
+        (0xc0 : Word) = true)
+    (h_hi_sl : BitVec.ult
+        (((txSlice bs off len)[listOff]'hoff_sl).zeroExtend 64)
+        (0xf8 : Word) = true)
+    (hoff_bs : ambientAbsOff off listOff < bs.length) :
+    ¬ BitVec.ult ((bs[ambientAbsOff off listOff]'hoff_bs).zeroExtend 64)
+        (0xc0 : Word) = true ∧
+      BitVec.ult ((bs[ambientAbsOff off listOff]'hoff_bs).zeroExtend 64)
+        (0xf8 : Word) = true := by
+  have hlen := txSlice_length bs off len hbound
+  have hrel : listOff < len := by rwa [hlen] at hoff_sl
+  have heq :
+      bs[ambientAbsOff off listOff]'hoff_bs =
+        (txSlice bs off len)[listOff]'hoff_sl := by
+    simp only [ambientAbsOff]
+    exact (txSlice_getElem_eq bs off len listOff hbound hrel hoff_sl hoff_bs).symm
+  refine ⟨?_, ?_⟩
+  · have h := h_ge_sl
+    rw [← heq] at h
+    exact h
+  · have h := h_hi_sl
+    rw [← heq] at h
+    exact h
+
+/-- Ambient walk-init h_exact from slice pure + address bridge. -/
+theorem walk_init_exact_ambient
+    (regionBase loadPtr listLen : Word) (bs : List (BitVec 8))
+    (off len listOff : Nat)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (hoff_sl : listOff < (txSlice bs off len).length)
+    (hspan : regionBase.toNat + (off + listOff) < 2 ^ 64)
+    (h_exact_sl :
+      (loadPtr + BitVec.ofNat 64 listOff) +
+          ((((txSlice bs off len)[listOff]'hoff_sl).zeroExtend 64 - (0xc0 : Word)) +
+            signExtend12 (1 : BitVec 12)) =
+        (loadPtr + BitVec.ofNat 64 listOff) + listLen)
+    (hoff_bs : ambientAbsOff off listOff < bs.length) :
+    (regionBase + BitVec.ofNat 64 (ambientAbsOff off listOff)) +
+        (((bs[ambientAbsOff off listOff]'hoff_bs).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (regionBase + BitVec.ofNat 64 (ambientAbsOff off listOff)) + listLen := by
+  have hlen := txSlice_length bs off len hbound
+  have hrel : listOff < len := by rwa [hlen] at hoff_sl
+  have heq :
+      bs[ambientAbsOff off listOff]'hoff_bs =
+        (txSlice bs off len)[listOff]'hoff_sl := by
+    simp only [ambientAbsOff]
+    exact (txSlice_getElem_eq bs off len listOff hbound hrel hoff_sl hoff_bs).symm
+  have hcur :
+      loadPtr + BitVec.ofNat 64 listOff =
+        regionBase + BitVec.ofNat 64 (ambientAbsOff off listOff) := by
+    simpa [ambientAbsOff] using
+      loadPtr_add_rel_eq regionBase loadPtr off listOff hptr hspan
+  have h := h_exact_sl
+  rw [← heq, hcur] at h
+  exact h
+
 #print axioms shortWalkCursor_loadPtr_eq
 #print axioms shortWalkEnd_loadPtr_eq
 #print axioms txSlice_getElem?
@@ -486,5 +601,8 @@ theorem hss_ambient_of_short_list_field
 #print axioms hcur_ambient_short_srcOff0
 #print axioms hinb_ambient_short_list_end
 #print axioms hss_ambient_of_short_list_field
+#print axioms hcre_ambient_of_slice
+#print axioms walk_init_ge_hi_ambient
+#print axioms walk_init_exact_ambient
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
