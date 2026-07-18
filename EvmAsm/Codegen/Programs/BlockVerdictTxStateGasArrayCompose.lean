@@ -363,8 +363,8 @@ structure A4gbrResiduals where
           * t1 short Front E2E + Assumed packaging ambient DONE
             * t1 short creation ambient PureHvalid path Prop DONE
             * t1 short copy ambient PureHvalid path Prop DONE
-            * long walk_init Top/Front ambient packaging DONE (fromTypeLoad+AfterSave+midJoin)
-            Residual: long CreDecode/E2E/Assumed ambient + PureHvalid;
+            * long type234 creation CreDecode/E2E/Assumed ambient DONE classical-3
+            Residual: long PureHvalid ambient path Prop; legacy/t1 long ambient; Teer; gate;
             long ambient; Teer; gate
               (`extractAssumed_creation_fullCode_of_decode_short_concrete_legacy_ambient`)
           * legacy PureHvalid ambient path Prop DONE

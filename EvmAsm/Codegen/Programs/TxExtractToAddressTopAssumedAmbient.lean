@@ -10,6 +10,8 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressPrologue
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopMidOwned
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontMidAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2EShortDecode
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2E
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ELongConcrete
 import EvmAsm.Codegen.Programs.TxExtractToAddressAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
@@ -375,5 +377,117 @@ theorem extractAssumed_creation_of_front_ambient
 
 #print axioms creationPost_to_assumed_ambient
 #print axioms extractAssumed_creation_of_front_ambient
+
+theorem nFrontCreationSteps_le_nExtract :
+    nFrontCreationSteps ≤ nExtractSteps := by
+  simp only [nFrontCreationSteps, nExtractSteps, nTypeSteps]
+  omega
+
+theorem nFrontCreationStepsLong_le_nFront
+    (lol : Nat) (hlol : lol ≤ 8) :
+    nFrontCreationStepsLong lol ≤ nFrontCreationSteps := by
+  simp only [nFrontCreationStepsLong, nFrontCreationSteps, nTypeSteps]
+  omega
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_creation_concrete_long_ambient
+    (sp0 spC : Word) (s : ExtractSaved)
+    (regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (old5 old6 old7 old14 old15 old16 : Word)
+    (bs : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hE2E : cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
+      (creationE2EPreAmbient sp0 spC s regionBase loadPtr lenW toBuf
+        isCreationPtr old5 old6 old7 old14 old15 old16 bs)
+      (fun h => ∃ next5 : Word,
+        creationE2EPostAmbient sp0 s regionBase toBuf isCreationPtr next5
+          bs off len h)) :
+    cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
+      (assumedPreConcreteAmbient s.ra sp0 s regionBase loadPtr lenW toBuf
+        isCreationPtr old5 old6 old7 old14 old15 old16 bs)
+      (extractAssumedPostAmbient s.ra sp0
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+        regionBase toBuf isCreationPtr bs) := by
+  have h1 := cpsTripleWithin_mono_nSteps nFrontCreationSteps_le_nExtract hE2E
+  refine cpsTripleWithin_weaken
+    (fun st hp => assumedPreConcrete_to_e2e_ambient sp0 spC s regionBase loadPtr
+      lenW toBuf isCreationPtr old5 old6 old7 old14 old15 old16 bs hspC st hp)
+    (fun st hq => creationPostEx_to_assumed_ambient sp0 s regionBase toBuf
+      isCreationPtr bs off len st hq) h1
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_creation_temps_long_ambient
+    (sp0 spC : Word) (s : ExtractSaved)
+    (regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (bs : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hE2E : ∀ (old5 old6 old7 old14 old15 old16 : Word),
+      cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
+        (creationE2EPreAmbient sp0 spC s regionBase loadPtr lenW toBuf
+          isCreationPtr old5 old6 old7 old14 old15 old16 bs)
+        (fun h => ∃ next5 : Word,
+          creationE2EPostAmbient sp0 s regionBase toBuf isCreationPtr next5
+            bs off len h)) :
+    cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
+      (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient s.ra sp0
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+        regionBase toBuf isCreationPtr bs) := by
+  let Q := extractAssumedPostAmbient s.ra sp0
+    s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+    regionBase toBuf isCreationPtr bs
+  let Core := assumedCoreAmbient sp0 s regionBase loadPtr lenW toBuf
+    isCreationPtr bs
+  have htemps : cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
+      (Core ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16) Q := by
+    refine of_forall_regOwn6_amb (r1 := .x5) (r2 := .x6) (r3 := .x7)
+      (r4 := .x14) (r5 := .x15) (r6 := .x16) (fun old5 old6 old7 old14 old15 old16 => ?_)
+    have hc := extractAssumed_creation_concrete_long_ambient sp0 spC s regionBase
+      loadPtr lenW toBuf isCreationPtr old5 old6 old7 old14 old15 old16
+      bs off len hspC (hE2E old5 old6 old7 old14 old15 old16)
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp [Core, assumedCoreAmbient, assumedPreConcreteAmbient] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp [Q] at hq ⊢; exact hq) hc
+  refine cpsTripleWithin_weaken (fun _ hp => by
+    simp only [extractAssumedPreAmbient] at hp ⊢
+    dsimp [Core, assumedCoreAmbient] at hp ⊢
+    xperm_hyp hp) (fun _ hq => by
+    dsimp [Q] at hq ⊢; exact hq) htemps
+
+set_option maxRecDepth 8000 in
+/-- Long-budget ambient of_front (nFrontCreationSteps). -/
+theorem extractAssumed_creation_of_front_long_ambient
+    (sp0 spC : Word) (s : ExtractSaved)
+    (regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (bs : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = sp0 + signExtend12 (-80 : BitVec 12))
+    (hFront : ∀ (old5 old6 old7 old14 old15 old16 : Word),
+      cpsTripleWithin nFrontCreationSteps E s.ra extractLinkedCode
+        ((.x2 ↦ᵣ sp0) ** regsAt extractFrame (extractSavedVals s) **
+          frameSlotsOwn extractFrame spC ** extractSpareSlot spC **
+          prologueAbiRest loadPtr lenW toBuf isCreationPtr
+            old5 old6 old7 old14 old15 old16 **
+          extractToBufOwn toBuf ** memOwn isCreationPtr **
+          frontExtraAmbientAmb regionBase bs)
+        (fun h => ∃ next5 : Word,
+          creationE2EPostAmbient sp0 s regionBase toBuf isCreationPtr next5
+            bs off len h)) :
+    cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
+      (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient s.ra sp0
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_creation_temps_long_ambient sp0 spC s regionBase loadPtr lenW
+    toBuf isCreationPtr bs off len hspC (fun old5 old6 old7 old14 old15 old16 => by
+      have h := hFront old5 old6 old7 old14 old15 old16
+      simpa only [creationE2EPreAmbient] using h)
+
+#print axioms extractAssumed_creation_of_front_long_ambient
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
