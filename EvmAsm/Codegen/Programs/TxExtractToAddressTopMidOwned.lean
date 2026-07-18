@@ -1028,11 +1028,73 @@ theorem extractWalkNext4OkNested_owned
 #print axioms extractWalkNext4Prep_owned
 #print axioms extractWalkNext4Call_owned
 #print axioms extractWalkNext4OkNested_owned
+set_option maxRecDepth 8000 in
+/-- type-branch type234 under midOwned. -/
+theorem extractTypeBranchType234_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW typeW innerW cursor endPtr toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8))
+    (hne0 : typeW ≠ 0) (hne1 : typeW ≠ 1) :
+    cpsTripleWithin (1 + (1 + (1 + 1))) AfterSaveCursor Type234Start extractLinkedCode
+      (afterSaveFrameTy txBase lenW typeW innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ typeW) ** regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7)
+      (afterSaveFrameTy txBase lenW typeW innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ typeW) ** (.x5 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractTypeBranchType234_framed txBase lenW typeW innerW cursor endPtr
+    txBytes hne0 hne1
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+set_option maxRecDepth 8000 in
+/-- type-branch legacy under midOwned. -/
+theorem extractTypeBranchLegacy_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW cursor endPtr toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) :
+    cpsTripleWithin (1 + 1) AfterSaveCursor LegacyStart extractLinkedCode
+      (afterSaveFrame txBase lenW innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ (0 : Word)) ** regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7)
+      (afterSaveFrame txBase lenW innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractTypeBranchLegacy_framed txBase lenW innerW cursor endPtr txBytes
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+set_option maxRecDepth 8000 in
+/-- type-branch t1 under midOwned. -/
+theorem extractTypeBranchT1_owned
+    (spC : Word) (s : ExtractSaved)
+    (txBase lenW innerW cursor endPtr toBuf isCreationPtr s7 : Word)
+    (txBytes : List (BitVec 8)) :
+    cpsTripleWithin (1 + (1 + (1 + 1))) AfterSaveCursor T1Start extractLinkedCode
+      (afterSaveFrameTy txBase lenW (1 : Word) innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ (1 : Word)) ** regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7)
+      (afterSaveFrameTy txBase lenW (1 : Word) innerW cursor endPtr txBytes **
+        (.x20 ↦ᵣ (1 : Word)) ** (.x5 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        midOwned spC s toBuf isCreationPtr s7) := by
+  have h := extractTypeBranchT1_framed txBase lenW innerW cursor endPtr txBytes
+  have hF := cpsTripleWithin_frameR
+    (midOwned spC s toBuf isCreationPtr s7) (midOwned_pcFree _ _ _ _ _) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
 #print axioms extractType234ToHaveField_owned
 #print axioms extractType234HaveFieldCreation_then_epi
 #print axioms extractType234HaveFieldCopy_then_epi
 #print axioms extractWalkNext5Prep_owned
 #print axioms extractWalkNext5Call_owned
 #print axioms extractWalkNext5OkNested_owned
+#print axioms extractTypeBranchType234_owned
+#print axioms extractTypeBranchLegacy_owned
+#print axioms extractTypeBranchT1_owned
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
