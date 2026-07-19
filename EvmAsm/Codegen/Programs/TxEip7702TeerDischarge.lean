@@ -211,6 +211,33 @@ theorem stackFree20_split (sp0 : Word) :
   -- spC is let-bound to the same expression
   simpa [spC] using h2
 
+/-- Nested list_count free (6 dwords below teer frame base spC) sits under a
+    26-dword entry budget: `stackFree sp0 26 = stackFree spC 6 ** stackFree sp0 20`.
+    TeerAssumed currently models only 20 (frame+top pad); list_count needs this
+    extra nested free as a caller hyp until the array budget is bumped. -/
+def nTeerNestedListCount : Nat := 6
+
+def nTeerStackWithListCount : Nat := nTeerStackDwords + nTeerNestedListCount
+
+theorem stackFree26_split (sp0 : Word) :
+    let spC := sp0 + signExtend12 (-160 : BitVec 12)
+    stackFree sp0 nTeerStackWithListCount =
+      (stackFree spC nTeerNestedListCount ** stackFree sp0 nTeerStackDwords) := by
+  intro spC
+  -- Avoid unfolding nTeer* through stackFree_add induction (maxRecDepth).
+  change stackFree sp0 (20 + 6) =
+    (stackFree spC 6 ** stackFree sp0 20)
+  have hadd : stackFree sp0 (20 + 6) =
+      (stackFree (sp0 - BitVec.ofNat 64 (8 * 20)) 6 ** stackFree sp0 20) :=
+    stackFree_add sp0 20 6
+  have hsp : sp0 - BitVec.ofNat 64 (8 * 20) =
+      sp0 + signExtend12 (-160 : BitVec 12) := by
+    have h160 : BitVec.ofNat 64 (8 * 20) = (160 : Word) := by decide
+    rw [h160, se12_neg160]
+    bv_omega
+  -- spC is the let-bound name for the same expression
+  rw [hadd, hsp]
+
 private theorem frameSlotsSaved_imp_own (spC : Word) (s : TeerSaved) :
     ∀ h, frameSlotsSaved teerFrame spC (teerSavedVals s) h →
       frameSlotsOwn teerFrame spC h := by
@@ -252,6 +279,7 @@ theorem frameSlotsSaved_imp_stackFree20 (sp0 : Word) (s : TeerSaved) :
   exact hown
 
 #print axioms stackFree20_split
+#print axioms stackFree26_split
 #print axioms frameSlotsSaved_imp_stackFree20
 
 /-- Epi frame (13 slots) saved → own. -/
