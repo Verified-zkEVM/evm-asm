@@ -9,6 +9,10 @@ RUN_DIR="${RUN_DIR:-gen-out/bmvmx-full-capacity-probes}"
 EEST_FIXTURES_DIR="${EEST_FIXTURES_DIR:-gen-out/eest-fixtures}"
 EXPECTED_EEST_TX_COUNT="${EXPECTED_EEST_TX_COUNT:-1021}"
 SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 1024 1025 9523}"
+# A 1025-transaction body is the regression boundary for the former
+# fixture-era active-loop cap.  It is below the protocol-derived full cap, so
+# it must classify as active-loop admissible, not merely as decodable.
+REQUIRED_ACTIVE_TX_COUNT="${REQUIRED_ACTIVE_TX_COUNT:-1025}"
 REQUIRE_EEST="${REQUIRE_EEST:-0}"
 RUN_SYNTHETIC="${RUN_SYNTHETIC:-1}"
 ZISKEMU="${ZISKEMU:-}"
@@ -22,22 +26,35 @@ import re
 from pathlib import Path
 
 text = Path("EvmAsm/Codegen/Programs/BlockVerdictParams.lean").read_text()
-raw = dict(re.findall(r"def\s+(bvMtx(?:ActiveTxCap|FullTxCap|ArenaTxCap))\s*:\s*Nat\s*:=\s*([^\n]+)", text))
+raw = dict(re.findall(r"def\s+(\w+)\s*:\s*Nat\s*:=\s*([^\n]+)", text))
 
-seen = set()
+visiting = set()
+resolved = {}
 def resolve(name):
-    if name in seen:
+    if name in resolved:
+        return resolved[name]
+    if name in visiting:
         raise SystemExit(f"cycle while resolving {name}")
-    seen.add(name)
+    visiting.add(name)
     value = raw.get(name)
     if value is None:
         raise SystemExit(f"missing {name} in BlockVerdictParams.lean")
     value = value.strip()
     if value.isdigit():
-        return int(value)
-    if value in raw:
-        return resolve(value)
-    raise SystemExit(f"unsupported {name} definition: {value}")
+        result = int(value)
+    elif value in raw:
+        result = resolve(value)
+    else:
+        quotient = re.fullmatch(r"(\w+)\s*/\s*(\w+)", value)
+        if not quotient:
+            raise SystemExit(f"unsupported {name} definition: {value}")
+        numerator, denominator = map(resolve, quotient.groups())
+        if denominator == 0:
+            raise SystemExit(f"zero denominator in {name}: {value}")
+        result = numerator // denominator
+    visiting.remove(name)
+    resolved[name] = result
+    return result
 
 print(resolve("bvMtxActiveTxCap"), resolve("bvMtxFullTxCap"))
 PY
@@ -199,6 +216,10 @@ run_synthetic_probe() {
     -o "$RUN_DIR/zisk_block_body_extract_tx_count"
 
   local failed=0
+  if (( active_cap < REQUIRED_ACTIVE_TX_COUNT )); then
+    echo "active-cap regression: active_cap=$active_cap must admit tx_count=$REQUIRED_ACTIVE_TX_COUNT" >&2
+    return 1
+  fi
   local tx_count name in_file out_file log_file status_le count_le status count class
   for tx_count in $SYNTHETIC_TX_COUNTS; do
     name="tx${tx_count}"
