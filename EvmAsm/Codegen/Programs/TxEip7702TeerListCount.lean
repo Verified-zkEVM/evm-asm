@@ -284,8 +284,9 @@ def nListCountOkToLoad (listLen : Nat) : Nat :=
   (1 + nListCountSteps listLen) + 1 + 3
 
 /-- Residual pure bridge: under Success, flat Result is status-0 with that count.
-    Init-failure is immediate (¬∃ payload). Walk-failure vs complete Success
-    uniqueness is residual pure RLP (deterministic complete prefix count). -/
+    `Failure.walk` now requires still-inside (`ult`), so terminal end is Success
+    only (model fix in RlpListCountItemsSAsmBase). Specialize free proofs for
+    empty-short are residual (StrictPrefix dependent-elim / BitVec bounds). -/
 def ListCountResultSpecialize (bytes : List (BitVec 8)) (listBase : Word)
     (listLen count : Nat) (countW : Word) : Prop :=
   countW = BitVec.ofNat 64 count →

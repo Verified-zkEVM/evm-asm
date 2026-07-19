@@ -30,7 +30,9 @@ def Success (bytes : List (BitVec 8)) (base : Word) (listLen count : Nat) : Prop
     StrictPrefix bytes base endPtr cursorOff count listLen
 
 /-- Strict count failure: either the outer list is malformed, or a canonical
-    prefix reaches a cursor where no strict next item can be decoded. -/
+    prefix reaches a **still-inside** cursor where no strict next item can be
+    decoded. Terminal end (`¬ult`) is Success, not Failure — otherwise both
+    `Result.ok` and `Result.fail` inhabit complete lists. -/
 inductive Failure (bytes : List (BitVec 8)) (base : Word) (listLen : Nat) : Prop
   | init (h_invalid : ¬ ∃ cursorOff endPtr,
       StrictListPayload bytes base listLen cursorOff endPtr) :
@@ -38,6 +40,7 @@ inductive Failure (bytes : List (BitVec 8)) (base : Word) (listLen : Nat) : Prop
   | walk (cursorOff count off : Nat) (endPtr : Word)
       (h_list : StrictListPayload bytes base listLen cursorOff endPtr)
       (h_prefix : StrictPrefix bytes base endPtr cursorOff count off)
+      (h_inside : BitVec.ult (base + BitVec.ofNat 64 off) endPtr = true)
       (h_fail : WalkFailure bytes off (base + BitVec.ofNat 64 off) endPtr) :
       Failure bytes base listLen
 
@@ -105,16 +108,18 @@ theorem LoopInvariant.toSuccess
   subst off
   exact ⟨cursorOff, endPtr, h_inv.h_list, h_inv.h_prefix⟩
 
-/-- A failed strict walk from a loop station produces the unified semantic
-    failure witness without weakening the already-decoded prefix. -/
+/-- A failed strict walk from a still-inside loop station produces the unified
+    semantic failure witness without weakening the already-decoded prefix. -/
 theorem LoopInvariant.toFailure
     {bytes : List (BitVec 8)} {base endPtr cursor : Word}
     {listLen cursorOff count off : Nat}
     (h_inv : LoopInvariant bytes base listLen cursorOff endPtr count off cursor)
+    (h_inside : BitVec.ult cursor endPtr = true)
     (h_fail : WalkFailure bytes off cursor endPtr) :
     Failure bytes base listLen := by
-  refine .walk cursorOff count off endPtr h_inv.h_list h_inv.h_prefix ?_
-  simpa [h_inv.h_cursor] using h_fail
+  refine .walk cursorOff count off endPtr h_inv.h_list h_inv.h_prefix ?_ ?_
+  · simpa [h_inv.h_cursor] using h_inside
+  · simpa [h_inv.h_cursor] using h_fail
 
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

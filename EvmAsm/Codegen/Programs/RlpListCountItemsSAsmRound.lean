@@ -136,6 +136,7 @@ theorem dispatchFailure (newSp listBase outPtr endPtr oldCount status : Word)
     (h_inv : LoopInvariant bytes listBase listLen cursorOff endPtr count off
       (listBase + BitVec.ofNat 64 off))
     (h_status : status ≠ 0)
+    (h_inside : BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true)
     (h_walk : WalkFailure bytes off (listBase + BitVec.ofNat 64 off) endPtr) :
     cpsTripleWithin 1 (B + 60) (B + 84) code
       ((nextCommon listBase bytes **
@@ -153,7 +154,7 @@ theorem dispatchFailure (newSp listBase outPtr endPtr oldCount status : Word)
       regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (B + 60)) **
       bytesRegion listBase bytes))
   have ht := statusReject status F (by dsimp [F]; pcf) h_status
-  have h_failure := h_inv.toFailure h_walk
+  have h_failure := h_inv.toFailure h_inside h_walk
   exact cpsTripleWithin_weaken (fun _ hp => by
     unfold nextCommon at hp
     unfold F
@@ -244,6 +245,7 @@ theorem afterCall (newSp listBase outPtr endPtr oldCount : Word)
     (h_j : j = remaining listLen off)
     (h_inv : LoopInvariant bytes listBase listLen cursorOff endPtr count off
       (listBase + BitVec.ofNat 64 off))
+    (h_inside : BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true)
     (h_over : listBase.toNat + bytes.length < 2 ^ 64)
     (h_slack : listLen + 9 ≤ bytes.length) :
     cpsNBranchWithin 3 (B + 60) code
@@ -299,7 +301,7 @@ theorem afterCall (newSp listBase outPtr endPtr oldCount : Word)
     exact cpsNBranchWithin_mono_nSteps (by omega)
       (cpsNBranchWithin_of_triple (by simp)
         (dispatchFailure newSp listBase outPtr endPtr oldCount status saved bytes
-          listLen cursorOff count off h_inv hpure.1 hpure.2))
+          listLen cursorOff count off h_inv hpure.1 h_inside hpure.2))
   have harms := cpsNBranchWithin_pre_or hs hf
   exact cpsNBranchWithin_weaken_pre (fun h hp => by
     unfold normalizedNext at hp
@@ -424,8 +426,30 @@ theorem loopRound (newSp listBase outPtr endPtr oldCount : Word)
       unfold Fh at hp
       unfold Fc
       xperm_hyp hp) hh hcall
+    have h_inside : BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true := by
+      -- Not done (cursor ≠ end) + off ≤ listLen + end = base+listLen ⇒ ult
+      have h_end : endPtr = listBase + BitVec.ofNat 64 listLen := h_inv.h_list.end_eq
+      have h_off := h_inv.h_off
+      have h_ne : listBase + BitVec.ofNat 64 off ≠
+          listBase + BitVec.ofNat 64 listLen := by simpa [h_end] using h_done
+      have h_off_ne : off ≠ listLen := by
+        intro heq; apply h_ne; simp [heq]
+      have h_lt : off < listLen := Nat.lt_of_le_of_ne h_off h_off_ne
+      have h_base_off : listBase.toNat + off < 2 ^ 64 := by
+        have := h_over; omega
+      have h_base_len : listBase.toNat + listLen < 2 ^ 64 := by
+        have := h_over; omega
+      rw [h_end]
+      have h1 : (listBase + BitVec.ofNat 64 off).toNat = listBase.toNat + off := by
+        rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : off < 2^64),
+          Nat.mod_eq_of_lt h_base_off]
+      have h2 : (listBase + BitVec.ofNat 64 listLen).toNat = listBase.toNat + listLen := by
+        rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : listLen < 2^64),
+          Nat.mod_eq_of_lt h_base_len]
+      rw [BitVec.ult_eq_decide, decide_eq_true_iff, h1, h2]
+      omega
     have hcont := afterCall newSp listBase outPtr endPtr oldCount saved bytes
-      listLen cursorOff count off j h_j h_inv h_over h_slack
+      listLen cursorOff count off j h_j h_inv h_inside h_over h_slack
     have hseq := cpsTripleWithin_seq_cpsNBranchWithin_same_cr hc hcont
     exact cpsNBranchWithin_mono_nSteps (by omega)
       (cpsNBranchWithin_weaken_pre (fun _ hp => by
