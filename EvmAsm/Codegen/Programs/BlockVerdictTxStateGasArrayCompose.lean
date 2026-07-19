@@ -388,23 +388,17 @@ structure A4gbrResiduals where
            long type234+legacy+t1 copy PureHvalid ambient DONE;
            ExtractAssumedAmbient arm case-split DONE
              (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
-           residual: bare extractSuccess→arm domain bridge
-             (short-copy residual only q+hq_align+hq — hgeN DROPPED,
-              hcover/hcvalid from statics via copyAmbientExtras_of_statics;
-              short-cre: hgeN empty-to hss; long: hlong from head DONE,
-              residual hgeN+hitem≤55);
-             short-cre hshort↔head bridges DONE; creShort ambient flats
-             residual-only-hgeN; creShort of_success_head residual only unified hgeN
-             (toFieldIndex+2); unified creLong of_success_head residual hgeN+non-to-hitems; copyShort of_success_head_aligned residual only
-             content-start %8=0 + short-list head (q/hq_align/hq derived);
-             creLong ambient flats residual hgeN+hitem (hlong from head;
-              empty-to hitem free via encode_le55; unified of_success_head residual
-              hgeN+non-to-hitems);
-             copyLong ambient flats residual hitem+q (hgeN DROPPED via encode≥2; hlong from head;
-               cover from statics); copyLong of_success_head_aligned thins
-               residual to hgeN+hitem+halign+head (q/hq derived);
-             unified copyLong of_success_head_aligned residual non-content-hitems+halign (hgeN/hgeC DROPPED);
-             Teer 745; gate. -/
+           residual: bare extractSuccess→arm domain bridge (honest stop):
+             * short-copy: content-start %8=0 + short head only
+               (q/hq/hcover free; hgeN DROPPED via encode≥2)
+             * long-copy: non-content hitem≤55 + content-start %8=0 + long head
+               (hgeN/hgeC DROPPED; q/hq/content-hitem free)
+             * short-cre: unified hgeN only (toFieldIndex+2; empty to=0x80;
+               WalkNext hss stronger than code len=0 skip — weaken deferred)
+             * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
+             * ExtractAssumedAmbient structure fill blocked on domain bridge;
+               consumers keep named hyp; of_arm + of_success_head* available
+             TeerAssumed (745-instr prog converted; prover1 body); gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
@@ -451,14 +445,14 @@ def extract_discharge_ambient_copyLong_unified_available :=
 #print axioms extract_discharge_ambient_copyLong_unified_available
 
 
-/-- Long-copy ambient residual hgeN+hitem+q flats (hlong from head). classical-3. -/
+/-- Long-copy ambient residual hitem+q flats (hlong from head; hgeN DROPPED). classical-3. -/
 def extract_discharge_ambient_copyLong_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongType234
 #print axioms extract_discharge_ambient_copyLong_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongLegacy
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongT1
 
-/-- Long-copy ambient aligned residual (hitem+halign+head; hgeN/hgeC DROPPED). classical-3. -/
+/-- Long-copy ambient aligned residual (non-content-hitem+halign+head; hgeN/hgeC DROPPED). classical-3. -/
 def extract_discharge_ambient_copyLong_aligned_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongType234_of_success_head_aligned
 #print axioms extract_discharge_ambient_copyLong_aligned_available

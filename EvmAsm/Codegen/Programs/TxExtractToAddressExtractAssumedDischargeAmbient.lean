@@ -3610,4 +3610,23 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
 #print axioms extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
 
 
+/-- Honest residual ledger after ambient packaging thins (826edbb).
+
+    Closed from bare `extractSuccess` (+ head / content-len / align as noted):
+    * short-copy aligned: of_success_head_aligned (residual halign+head)
+    * long-copy aligned: of_success_head_aligned (residual non-content hitems+halign+head)
+    * short-cre: of_success_head (residual hgeN only)
+    * long-cre: of_success_head (residual hgeN + non-to hitems)
+
+    Still not free from pure model:
+    1. cre `hgeN` (`toFieldIndex+2`) — empty `to`=`0x80` needs following item under
+       current WalkNext `hss` (code skips LBU when len=0; weaken multi-session)
+    2. long non-to/non-content `hitem≤55` — outer long ⇏ item short
+    3. copy content-start `% 8 = 0` — LD-copy domain
+    4. `ExtractAssumedAmbient.success_flat` structure fill needs (1–3) closed -/
+def extractAssumedAmbient_domain_residual_ledger : True := trivial
+
+#print axioms extractAssumedAmbient_domain_residual_ledger
+
+
 end EvmAsm.Codegen.TxExtractToAddressSpec
