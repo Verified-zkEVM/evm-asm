@@ -133,8 +133,9 @@ structure TeerFrontToAuthLoopAssumed (cr : CodeReq) where
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
         (teerEmptyAuthExitPre spC s refund a0Old a1Old t0Old t1Old **
-          (.x1 ↦ᵣ ret) ** (.x15 ↦ᵣ baiW) **
-          stackFree spC (nTeerStackDwords - 20) **
+          (.x15 ↦ᵣ baiW) **
+          stackFree spVal 6 **
+          memOwn (spC + signExtend12 (104 : BitVec 12)) **
           bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
           memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
           memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
@@ -159,11 +160,13 @@ structure TeerFrontToAuthLoopAssumed (cr : CodeReq) where
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31)
 
-/-- Ambient frame carried through empty exit (not touched by wouldbe/epi). -/
-def teerEmptyAuthExitFrame (ret baiW spC regionBase : Word)
+/-- Ambient frame carried through empty exit (not touched by wouldbe/epi).
+    Carries top-6 free padding + a5@104 slot (epi does not restore a5). -/
+def teerEmptyAuthExitFrame (baiW spVal spC regionBase : Word)
     (bs balBytes : List (BitVec 8)) (balPtr : Word) : Assertion :=
-  (.x1 ↦ᵣ ret) ** (.x15 ↦ᵣ baiW) **
-    stackFree spC (nTeerStackDwords - 20) **
+  (.x15 ↦ᵣ baiW) **
+    stackFree spVal 6 **
+    memOwn (spC + signExtend12 (104 : BitVec 12)) **
     bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
     memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
     memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
@@ -230,7 +233,7 @@ theorem teerEmptyAuth_front_then_exit
         (RegularRefundAddr ↦ₘ refund) **
         memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
         (RolledBackAddr ↦ₘ (0 : Word)) **
-        teerEmptyAuthExitFrame ret baiW spC regionBase bs balBytes balPtr) := by
+        teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) := by
   have hf := front.run ret spVal spC regionBase loadPtr lenW balPtr balLenW
     chainIdW baiW s bs balBytes off len refund a0Old a1Old t0Old t1Old
     hret hbal hptr hbound hspC hra
@@ -256,7 +259,7 @@ theorem teerEmptyAuth_front_then_exit
         (RolledBackAddr ↦ₘ (0 : Word))) := by
     simpa [hra, teerEmptyAuthExitPre] using hx0
   have hxF := cpsTripleWithin_frameR
-    (teerEmptyAuthExitFrame ret baiW spC regionBase bs balBytes balPtr)
+    (teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr)
     (by pcf) hx
   have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       dsimp only [teerEmptyAuthExitPre, teerEmptyAuthExitFrame] at hp ⊢
@@ -305,7 +308,7 @@ theorem teerEmptyAuth_front_then_exit_mono
         (RegularRefundAddr ↦ₘ refund) **
         memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
         (RolledBackAddr ↦ₘ (0 : Word)) **
-        teerEmptyAuthExitFrame ret baiW spC regionBase bs balBytes balPtr) :=
+        teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) :=
   cpsTripleWithin_mono_nSteps front.hn
     (teerEmptyAuth_front_then_exit front ret spVal spC regionBase loadPtr lenW
       balPtr balLenW chainIdW baiW s bs balBytes off len refund a0Old a1Old
