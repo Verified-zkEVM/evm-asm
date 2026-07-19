@@ -27,11 +27,13 @@ import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.SAsm.AbiFrame
+import EvmAsm.Rv64.SAsm.StmtSoundCall
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.SAsm (cpsTripleWithin_exists_pre_gen)
 open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
@@ -589,7 +591,7 @@ theorem teerAuthLoopEmpty_to_exitPack
     teerEmptyAuthExitFrame, teerAuthLoopEmptyWalkCur, teerAuthLoopEmptyWalkEnd,
     teerAuthLoopEmptyLiveCur, RegularRefundAddr, RolledBackAddr,
     WouldbeStateAddr, WouldbeRegularAddr] at hp6 ⊢
-  simp only [regsAt_teerEpiFrame, teerSavedVals, hbase] at hp6 ⊢
+  simp only [regsAt_teerEpiFrame, hbase] at hp6 ⊢
   xperm_hyp hp6
 
 /-- Named hyp packaging (discharged by `teerAuthLoopEmpty_to_exitPack`). -/
@@ -627,11 +629,120 @@ def teerAuthLoopEmptyToExitAssumed : TeerAuthLoopEmptyToExitAssumed where
       balPtr chainIdW s balBytes innerVal endW s11 refund regionBase bs
       hbase hbytes hs0 hs1 hs2 hs3 hs4 hs9 hs11
 
+
+/-- Framed_empty post: AuthLoopPost ** Ambient (memOwn rolled/regular).
+    Peel to Source needs memIs refund/rolled + rolled=0 (ScratchZero preserve). -/
+def teerAuthLoopEmptyAmbientPost
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) : Assertion :=
+  (teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+      (0 : Word) bytes 0 listLenW) **
+    teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
+      baiW s balBytes innerVal cursorV endW s11
+
+/-- Source → ret a0=0 (30 steps) under identity wire + hspC/hret.
+    Floats ExitPack temps (t0/t1 peeled but not in ret post). -/
+theorem teerAuthLoopEmptySource_toRet
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal endW s11 refund : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (hbase : listBase = regionBase) (hbytes : bytes = bs)
+    (hs0 : s0 = s.s0) (hs1 : s1 = s.s1) (hs2 : s2 = s.s2) (hs3 : s3 = s.s3)
+    (hs4 : chainIdW = s.s4) (hs9 : endW = s.s9) (hs11 : s11 = s.s11)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra) :
+    cpsTripleWithin 30 AfterAuthLoopLi s.ra teerLinkedField0
+      (teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW s balBytes innerVal endW s11 refund)
+      (fun hp =>
+        ∃ (_t0Old _t1Old baiW : Word),
+          ((((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ spVal) **
+              (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+              (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+              (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+              (.x23 ↦ᵣ s.s7) ** (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) **
+              (.x26 ↦ᵣ s.s10) ** (.x27 ↦ᵣ s.s11) **
+              frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+              (.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+              (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+              (RegularRefundAddr ↦ₘ refund) **
+              memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+              (RolledBackAddr ↦ₘ (0 : Word))) **
+              teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) **
+            stackFree spC 6) hp) := by
+  have hpre :
+      ∀ h,
+        teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW s balBytes innerVal endW s11 refund h →
+        ∃ (t0Old t1Old baiW : Word),
+          teerAuthLoopEmptyExitPack spVal spC s
+            (teerAuthLoopEmptyWalkCur listBase)
+            (teerAuthLoopEmptyWalkEnd listBase listLenW)
+            refund
+            (teerAuthLoopEmptyWalkCur listBase)
+            (teerAuthLoopEmptyWalkEnd listBase listLenW)
+            t0Old t1Old baiW
+            regionBase bs balBytes balPtr h :=
+    teerAuthLoopEmpty_to_exitPack spVal spC listBase listLenW s0 s1 s2 s3 bytes
+      balPtr chainIdW s balBytes innerVal endW s11 refund regionBase bs
+      hbase hbytes hs0 hs1 hs2 hs3 hs4 hs9 hs11
+  -- Fixed temps: ExitPack peels produce some t0/t1/bai; post keeps ∃.
+  -- Direct: weaken Source→ExitPack then run ExitPack_toRet with witnesses from hpre.
+  intro R hR st hcr hPR hpc
+  obtain ⟨h0, hcompat, h1, h2, hd, hu, hSrc, hR2⟩ := hPR
+  obtain ⟨t0Old, t1Old, baiW, hPack⟩ := hpre h1 hSrc
+  have hrun :=
+    teerAuthLoopEmptyExitPack_toRet spVal spC s
+      (teerAuthLoopEmptyWalkCur listBase)
+      (teerAuthLoopEmptyWalkEnd listBase listLenW)
+      (teerAuthLoopEmptyWalkCur listBase)
+      (teerAuthLoopEmptyWalkEnd listBase listLenW)
+      t0Old t1Old refund baiW
+      regionBase bs balBytes balPtr hspC hret
+  have hPR' :
+      (((teerAuthLoopEmptyExitPack spVal spC s
+            (teerAuthLoopEmptyWalkCur listBase)
+            (teerAuthLoopEmptyWalkEnd listBase listLenW)
+            refund
+            (teerAuthLoopEmptyWalkCur listBase)
+            (teerAuthLoopEmptyWalkEnd listBase listLenW)
+            t0Old t1Old baiW
+            regionBase bs balBytes balPtr) ** R)).holdsFor st :=
+    ⟨h0, hcompat, h1, h2, hd, hu, hPack, hR2⟩
+  obtain ⟨k, hk, st', hexec, hpc', hQ⟩ :=
+    hrun R hR st hcr hPR' hpc
+  refine ⟨k, hk, st', hexec, hpc', ?_⟩
+  obtain ⟨h0', hcompat', h1', h2', hd', hu', hRet, hR'⟩ := hQ
+  exact ⟨h0', hcompat', h1', h2', hd', hu', ⟨t0Old, t1Old, baiW, hRet⟩, hR'⟩
+
+/-- Named residual: AmbientPost (memOwn) → Source (memIs refund/rolled=0).
+    Body: peel memOwn rolled/regular + ScratchZero preserve rolled=0. -/
+structure TeerAuthLoopEmptyAmbientToSourceAssumed where
+  reshape :
+    ∀ (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+      (bytes : List (BitVec 8))
+      (balPtr chainIdW baiW : Word)
+      (s : TeerSaved) (balBytes : List (BitVec 8))
+      (innerVal cursorV endW s11 : Word),
+      ∀ h,
+        teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+        ∃ refund,
+          teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+            balPtr chainIdW s balBytes innerVal endW s11 refund h
+
 #print axioms teerAuthLoopEmptyLiveCur_s78
 #print axioms teerAuthLoopEmptyLiveCur_s10
 #print axioms teerAuthLoopEmptyLiveCur_ra
 #print axioms teerAuthLoopEmpty_exitToRet_rolled0
 #print axioms teerAuthLoopEmptyExitPack_toRet
 #print axioms teerAuthLoopEmpty_to_exitPack
+#print axioms teerAuthLoopEmptySource_toRet
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
