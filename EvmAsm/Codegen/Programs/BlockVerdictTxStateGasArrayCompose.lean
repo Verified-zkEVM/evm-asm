@@ -229,6 +229,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischarge
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Region
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -383,7 +384,7 @@ structure A4gbrResiduals where
               (`extractAssumed_copy_fullCode_of_decode_short_concrete_legacy_region_ambient`)
           * long legacy creation CreDecode/E2E/of_decode ambient DONE classical-3
           * long legacy creation Pure/PureHvalid ambient path Prop DONE classical-3
-          long type234+legacy copy PureHvalid DONE; long t1 copy of_decode ambient DONE; residual: t1 copy PureHvalid + ExtractAssumedAmbient.success_flat + Teer + gate
+          long type234+legacy+t1 copy PureHvalid ambient DONE; residual: ExtractAssumedAmbient.success_flat + Teer + gate
             * long type234 copy ambient PureHvalid/flat DONE;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
@@ -521,6 +522,10 @@ def extract_discharge_creation_t1_short_ambient_available :=
 def extract_discharge_copy_t1_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short_ambient
 
+/-- Multi-tx Option A: ambient ExtractAssumed long t1 copy path Prop. -/
+def extract_discharge_copy_t1_long_ambient_available :=
+  TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_long_ambient
+
 /-- Residual discharge hook: ambient ExtractAssumed short legacy copy path Prop. -/
 def extract_discharge_copy_legacy_short_ambient_available :=
   TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short_ambient
@@ -554,6 +559,8 @@ def extract_discharge_copy_type234_short_ambient_available :=
 #print axioms extract_discharge_creation_t1_short_ambient_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_short_ambient
 #print axioms extract_discharge_copy_t1_short_ambient_available
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_t1_long_ambient
+#print axioms extract_discharge_copy_t1_long_ambient_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_copy_legacy_short_ambient
 #print axioms extract_discharge_copy_legacy_short_ambient_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_creation_type234_short_ambient
