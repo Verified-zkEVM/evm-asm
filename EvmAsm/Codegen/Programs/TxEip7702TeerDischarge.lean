@@ -673,8 +673,9 @@ def teerEmptyAuthResidualLedger : Prop :=
   --    Free26EmptyShort packaging DONE under hrunA+rz (of_hrunA / of_hrunA_applied);
   --    EmptyShort → ret / applied_flat free20**nested DONE; hteer0 free via teerApplied_zero.
   True ∧
-  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack ↦ₘ 0 held;
-  --    ScratchZero memOwn discards value — thread memIs0 multi-session)
+  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack ↦ₘ 0 held).
+  --    Foundation: teerScratchZero_is posts teerScratchZeroIs; thread through Front
+  --    ambient (memOwn rolled → ↦ₘ 0) multi-session.
   True ∧
   -- 3. TeerEmptyAuthHrunEmptyShort inhabit (wire applied_as_postEx @ srcOffA9=0;
   --    ~200 walk-domain binders; hident FREE via 0xc0 decode; do not clone into packaging)

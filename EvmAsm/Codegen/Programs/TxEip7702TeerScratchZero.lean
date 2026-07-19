@@ -84,24 +84,29 @@ theorem teerLaRegularRefund (v : Word) :
 private theorem addr_add_off0 (a : Word) : a + signExtend12 (0 : BitVec 12) = a := by
   simp [signExtend12]
 
+/-- Store zero keeps value-carrying `addr ↦ₘ 0` (foundation for RolledZero thread). -/
+private theorem teerSdZeroCell_is (addr pc : Word)
+    (hmem : ∀ a i, CodeReq.singleton pc (.SD .x5 .x0 (0 : BitVec 12)) a = some i →
+      teerCode a = some i) :
+    cpsTripleWithin 1 pc (pc + 4) teerCode
+      ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn addr)
+      ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** (addr ↦ₘ (0 : Word))) := by
+  have heq := addr_add_off0 addr
+  have h0 := sd_spec_gen_own_within .x5 .x0 addr (0 : Word) (0 : BitVec 12) pc
+  have h1 := cpsTripleWithin_extend_code hmem h0
+  convert h1 using 1 <;> simp only [heq]
+
 private theorem teerSdZeroCell (addr pc : Word)
     (hmem : ∀ a i, CodeReq.singleton pc (.SD .x5 .x0 (0 : BitVec 12)) a = some i →
       teerCode a = some i) :
     cpsTripleWithin 1 pc (pc + 4) teerCode
       ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn addr)
       ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn addr) := by
-  have heq := addr_add_off0 addr
-  have h0 := sd_spec_gen_own_within .x5 .x0 addr (0 : Word) (0 : BitVec 12) pc
-  have h1 := cpsTripleWithin_extend_code hmem h0
-  -- Normalize `addr + signExtend12 0` → `addr` in pre/post of the store triple.
-  have h2 : cpsTripleWithin 1 pc (pc + 4) teerCode
-      ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn addr)
-      ((.x5 ↦ᵣ addr) ** (.x0 ↦ᵣ (0 : Word)) ** (addr ↦ₘ (0 : Word))) := by
-    convert h1 using 1 <;> simp only [heq]
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq =>
       sepConj_mono_right
-        (sepConj_mono_right (fun _ hh => memIs_implies_memOwn _ hh)) _ hq) h2
+        (sepConj_mono_right (fun _ hh => memIs_implies_memOwn _ hh)) _ hq)
+    (teerSdZeroCell_is addr pc hmem)
 
 /-- `sd x0, 0(x5)` into regular_refund (memOwn → memOwn). -/
 theorem teerSdRegularRefund (v5 : Word) (hv : v5 = RegularRefundAddr) :
@@ -302,9 +307,161 @@ theorem teerScratchZero (v26 v5 : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c3
 
+/-! ## Value-carrying scratch-zero (RolledZero foundation)
+
+`teerScratchZero` discards written zeros via `memIs → memOwn`. Empty-auth
+RolledZero needs `RolledBack ↦ₘ 0` threaded; this dual keeps the zeros. -/
+
+/-- Four scratch cells after zero-store, value-carrying. -/
+def teerScratchZeroIs : Assertion :=
+  (RegularRefundAddr ↦ₘ (0 : Word)) **
+  (SuccessCountAddr ↦ₘ (0 : Word)) **
+  (PredelegatedAddr ↦ₘ (0 : Word)) **
+  (RolledBackAddr ↦ₘ (0 : Word))
+
+theorem pcFree_teerScratchZeroIs : teerScratchZeroIs.pcFree := by
+  unfold teerScratchZeroIs
+  repeat' (first | exact pcFree_memIs | apply pcFree_sepConj)
+
+theorem teerScratchZeroIs_to_own :
+    ∀ h, teerScratchZeroIs h → teerScratchZeroOwn h := by
+  intro h hp
+  unfold teerScratchZeroIs teerScratchZeroOwn at *
+  -- Right-assoc: A ** B ** C ** D
+  obtain ⟨h1, h2, hd, hu, hA, hBCD⟩ := hp
+  obtain ⟨h1', h2', hd', hu', hB, hCD⟩ := hBCD
+  obtain ⟨h1'', h2'', hd'', hu'', hC, hD⟩ := hCD
+  exact ⟨h1, h2, hd, hu, memIs_implies_memOwn _ hA,
+    ⟨h1', h2', hd', hu', memIs_implies_memOwn _ hB,
+      ⟨h1'', h2'', hd'', hu'', memIs_implies_memOwn _ hC,
+        memIs_implies_memOwn _ hD⟩⟩⟩
+
+/-- `sd` duals posting `↦ₘ 0` (not memOwn). -/
+theorem teerSdRegularRefund_is (v5 : Word) (hv : v5 = RegularRefundAddr) :
+    cpsTripleWithin 1 (E + 92) (E + 96) teerCode
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn RegularRefundAddr)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (RegularRefundAddr ↦ₘ (0 : Word))) := by
+  subst hv
+  have h := teerSdZeroCell_is RegularRefundAddr (E + 92)
+    (CodeReq.ofProg_mem_at E (E + 92) teerProg 23
+      (.SD .x5 .x0 (0 : BitVec 12)) (by bv_omega) (by rw [teer_length]; decide) rfl
+      (by rw [teer_length]; decide))
+  rw [show (E + 92 : Word) + 4 = E + 96 from by bv_omega] at h
+  exact h
+
+theorem teerSdSuccessCount_is (v5 : Word) (hv : v5 = SuccessCountAddr) :
+    cpsTripleWithin 1 (E + 104) (E + 108) teerCode
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn SuccessCountAddr)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (SuccessCountAddr ↦ₘ (0 : Word))) := by
+  subst hv
+  have h := teerSdZeroCell_is SuccessCountAddr (E + 104)
+    (CodeReq.ofProg_mem_at E (E + 104) teerProg 26
+      (.SD .x5 .x0 (0 : BitVec 12)) (by bv_omega) (by rw [teer_length]; decide) rfl
+      (by rw [teer_length]; decide))
+  rw [show (E + 104 : Word) + 4 = E + 108 from by bv_omega] at h
+  exact h
+
+theorem teerSdPredelegated_is (v5 : Word) (hv : v5 = PredelegatedAddr) :
+    cpsTripleWithin 1 (E + 116) (E + 120) teerCode
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn PredelegatedAddr)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (PredelegatedAddr ↦ₘ (0 : Word))) := by
+  subst hv
+  have h := teerSdZeroCell_is PredelegatedAddr (E + 116)
+    (CodeReq.ofProg_mem_at E (E + 116) teerProg 29
+      (.SD .x5 .x0 (0 : BitVec 12)) (by bv_omega) (by rw [teer_length]; decide) rfl
+      (by rw [teer_length]; decide))
+  rw [show (E + 116 : Word) + 4 = E + 120 from by bv_omega] at h
+  exact h
+
+theorem teerSdRolledBack_is (v5 : Word) (hv : v5 = RolledBackAddr) :
+    cpsTripleWithin 1 (E + 128) AtBalCheck teerCode
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** memOwn RolledBackAddr)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (RolledBackAddr ↦ₘ (0 : Word))) := by
+  subst hv
+  have h := teerSdZeroCell_is RolledBackAddr (E + 128)
+    (CodeReq.ofProg_mem_at E (E + 128) teerProg 32
+      (.SD .x5 .x0 (0 : BitVec 12)) (by bv_omega) (by rw [teer_length]; decide) rfl
+      (by rw [teer_length]; decide))
+  rw [show (E + 128 : Word) + 4 = AtBalCheck from by simp [AtBalCheck, E]; bv_omega] at h
+  exact h
+
+set_option maxRecDepth 8000 in
+/-- Scratch-zero posting value-carrying zeros (empty-auth RolledZero thread). -/
+theorem teerScratchZero_is (v26 v5 : Word) :
+    cpsTripleWithin 13 AfterAbiMoves AtBalCheck teerCode
+      ((.x26 ↦ᵣ v26) ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchZeroOwn)
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchZeroIs) := by
+  unfold teerScratchZeroOwn teerScratchZeroIs
+  have hli := teerLiS10 v26
+  have hliF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+      memOwn RegularRefundAddr ** memOwn SuccessCountAddr **
+      memOwn PredelegatedAddr ** memOwn RolledBackAddr) (by pcf) hli
+  have hla0 := teerLaRegularRefund v5
+  have hla0F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      memOwn RegularRefundAddr ** memOwn SuccessCountAddr **
+      memOwn PredelegatedAddr ** memOwn RolledBackAddr) (by pcf) hla0
+  have hsd0 := teerSdRegularRefund_is RegularRefundAddr rfl
+  have hsd0F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) **
+      memOwn SuccessCountAddr ** memOwn PredelegatedAddr ** memOwn RolledBackAddr)
+    (by pcf) hsd0
+  have c0a := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hliF hla0F
+  have c0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0a hsd0F
+  have hla1 := teerLaSuccessCount RegularRefundAddr
+  have hla1F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** memOwn SuccessCountAddr **
+      memOwn PredelegatedAddr ** memOwn RolledBackAddr) (by pcf) hla1
+  have hsd1 := teerSdSuccessCount_is SuccessCountAddr rfl
+  have hsd1F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** memOwn PredelegatedAddr **
+      memOwn RolledBackAddr)
+    (by pcf) hsd1
+  have c1a := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 hla1F
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1a hsd1F
+  have hla2 := teerLaPredelegated SuccessCountAddr
+  have hla2F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** (SuccessCountAddr ↦ₘ (0 : Word)) **
+      memOwn PredelegatedAddr ** memOwn RolledBackAddr) (by pcf) hla2
+  have hsd2 := teerSdPredelegated_is PredelegatedAddr rfl
+  have hsd2F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** (SuccessCountAddr ↦ₘ (0 : Word)) **
+      memOwn RolledBackAddr)
+    (by pcf) hsd2
+  have c2a := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 hla2F
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c2a hsd2F
+  have hla3 := teerLaRolledBack PredelegatedAddr
+  have hla3F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** (SuccessCountAddr ↦ₘ (0 : Word)) **
+      (PredelegatedAddr ↦ₘ (0 : Word)) ** memOwn RolledBackAddr) (by pcf) hla3
+  have hsd3 := teerSdRolledBack_is RolledBackAddr rfl
+  have hsd3F := cpsTripleWithin_frameR
+    ((.x26 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ (0 : Word)) ** (SuccessCountAddr ↦ₘ (0 : Word)) **
+      (PredelegatedAddr ↦ₘ (0 : Word)))
+    (by pcf) hsd3
+  have c3a := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c2 hla3F
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c3a hsd3F
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c3
+
 #print axioms teerLiS10
 #print axioms teerLaRegularRefund
 #print axioms teerSdRegularRefund
 #print axioms teerScratchZero
+#print axioms teerScratchZero_is
+#print axioms teerScratchZeroIs_to_own
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
