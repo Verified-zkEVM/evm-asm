@@ -296,8 +296,11 @@ def schemeAAnchors : List GuestRegion :=
     fix (`fix/mtx-receipts-enforce`, #10470), closing a latent
     false-accept on multi-tx unsupported receipts shapes 60/61/62
     (bail-elimination doctrine, maintainer-approved intentional FR
-    increase 19->2080 exposing hidden FAs, not a regression). -/
-def textSizeBytes : Nat := 0x5dc54
+    increase 19->2080 exposing hidden FAs, not a regression). Shrank to
+    `0x5dc4c` for the unconditional mtx process_transaction fix
+    (`measure/mtx-whitelist-bypass`, #10471: removes the whitelist-v0
+    admission gate, matching spec apply_body:913-914). -/
+def textSizeBytes : Nat := 0x5dc4c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
