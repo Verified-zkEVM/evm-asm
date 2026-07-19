@@ -181,7 +181,7 @@ theorem extractAssumed_copy_longConcrete_pure_t1_ambient
         (longWalkEndAmbient regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
         next4 len4)
-    (hge6 : 6 ≤ items.length) :
+    :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -518,8 +518,11 @@ theorem extractAssumed_copy_longConcrete_pure_t1_ambient
     longListSrcOff_succ_room slice listOff items 2 hencInner hlong (by omega)
   have hroom3 : srcOff3 + 1 < slice.length :=
     longListSrcOff_succ_room slice listOff items 3 hencInner hlong (by omega)
+  have hge2_4 : 2 ≤ (encode (items[4]'hn4)).length :=
+    extractSuccess_copy_t1_field4_encode_ge_two_long slice hsuccess hcopyFlag htype1
+      items hdecL hlong hn4
   have hroom4 : srcOff4 + 1 < slice.length :=
-    longListSrcOff_succ_room slice listOff items 4 hencInner hlong (by omega)
+    hss_room_of_encode_ge_two_long slice listOff items 4 hencInner hlong hn4 hge2_4
   have hnext1 : ∀ (next0 len0 : Word),
       rlpItemDecode bs absOff0 (regionBase + BitVec.ofNat 64 absOff0) endW
         next0 len0 →
@@ -646,7 +649,7 @@ theorem extractAssumed_copy_longConcrete_pure_t1_ambient
       hvalid1_3 hoff3
   have hss4 :=
     hss_ambient_of_long_list_field regionBase loadPtr bs off len listOff items 4
-      hptr hbound hencInner hlong hn4 hitem4 hoff4_sl hover (Or.inl (by omega : 5 < items.length))
+      hptr hbound hencInner hlong hn4 hitem4 hoff4_sl hover (Or.inr hge2_4)
       hvalid1_4 hoff4
   have hls0 :
       ¬ BitVec.ult ((bs[absOff0]'hoff0).zeroExtend 64) (0xb8 : Word) = true →
@@ -995,7 +998,7 @@ theorem extractAssumed_copy_longConcrete_pure_t1_ambient_fullCode
         (longWalkEndAmbient regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
         next4 len4)
-    (hge6 : 6 ≤ items.length) :
+    :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -1014,7 +1017,7 @@ theorem extractAssumed_copy_longConcrete_pure_t1_ambient_fullCode
       hitem2 hvalid2 hvalid1_2 hdec2
       hitem3 hvalid3 hvalid1_3 hdec3
       hitem4 hvalid4 hvalid1_4 hdec4
-      hge6)
+     )
 
 #print axioms extractAssumed_copy_longConcrete_pure_t1_ambient
 #print axioms extractAssumed_copy_longConcrete_pure_t1_ambient_fullCode

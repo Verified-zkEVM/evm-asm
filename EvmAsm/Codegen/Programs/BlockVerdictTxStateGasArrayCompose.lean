@@ -400,10 +400,10 @@ structure A4gbrResiduals where
              creLong ambient flats residual hgeN+hitem (hlong from head;
               empty-to hitem free via encode_le55; unified of_success_head residual
               hgeN+non-to-hitems);
-             copyLong ambient flats residual hgeN+hitem+q (hlong from head;
+             copyLong ambient flats residual hitem+q (hgeN DROPPED via encode≥2; hlong from head;
                cover from statics); copyLong of_success_head_aligned thins
                residual to hgeN+hitem+halign+head (q/hq derived);
-             unified copyLong of_success_head_aligned residual hgeN+non-content-hitems+halign;
+             unified copyLong of_success_head_aligned residual non-content-hitems+halign (hgeN DROPPED);
              Teer 745; gate. -/
 
   ambientMultiTx : True := trivial
@@ -445,7 +445,7 @@ def extract_discharge_ambient_creLong_unified_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creLong_of_success_head
 #print axioms extract_discharge_ambient_creLong_unified_available
 
-/-- Unified long-copy ambient of_success_head_aligned (residual hgeN+hitems+halign). -/
+/-- Unified long-copy ambient of_success_head_aligned (residual hitems+halign; hgeN DROPPED). -/
 def extract_discharge_ambient_copyLong_unified_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
 #print axioms extract_discharge_ambient_copyLong_unified_available

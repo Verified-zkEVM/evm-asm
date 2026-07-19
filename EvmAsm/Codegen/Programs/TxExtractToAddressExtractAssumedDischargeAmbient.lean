@@ -53,7 +53,10 @@ open EvmAsm.Codegen.TxExtractToAddressHonesty
     short_list_head_ult_f8_of_decode_hshort
     encodeItems_gt_55_of_decode_long_list_head shortListSrcOff longListSrcOff
     decodeListItems_eq_encode short_list_item_drop long_list_item_drop
-    encode_bytes_len20_pfx extractSuccess_copy_encode_addr20)
+    encode_bytes_len20_pfx extractSuccess_copy_encode_addr20
+    extractSuccess_copy_type234_items_length_long
+    extractSuccess_copy_legacy_items_length_long
+    extractSuccess_copy_t1_items_length_long)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec (nExtractSteps fullCode)
 open EvmAsm.EL.RLP
 
@@ -105,24 +108,48 @@ inductive ExtractAssumedAmbientArm
   | copyLongType234 (items : List RLPItem) (q : Nat)
       (hpath : extractCopyType234LongPathAmbient bs off len items q)
       (hex : CopyAmbientExtras regionBase q)
-      (hitem0 : (encode (items[0]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem1 : (encode (items[1]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem2 : (encode (items[2]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem3 : (encode (items[3]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem4 : (encode (items[4]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem0 : (encode (items[0]'(by
+          have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem1 : (encode (items[1]'(by
+          have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem2 : (encode (items[2]'(by
+          have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem3 : (encode (items[3]'(by
+          have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem4 : (encode (items[4]'(by
+          have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
   | copyLongLegacy (items : List RLPItem) (q : Nat)
       (hpath : extractCopyLegacyLongPathAmbient bs off len items q)
       (hex : CopyAmbientExtras regionBase q)
-      (hitem0 : (encode (items[0]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem1 : (encode (items[1]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem2 : (encode (items[2]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem0 : (encode (items[0]'(by
+          have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem1 : (encode (items[1]'(by
+          have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem2 : (encode (items[2]'(by
+          have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
   | copyLongT1 (items : List RLPItem) (q : Nat)
       (hpath : extractCopyT1LongPathAmbient bs off len items q)
       (hex : CopyAmbientExtras regionBase q)
-      (hitem0 : (encode (items[0]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem1 : (encode (items[1]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem2 : (encode (items[2]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
-      (hitem3 : (encode (items[3]'(by have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem0 : (encode (items[0]'(by
+          have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem1 : (encode (items[1]'(by
+          have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem2 : (encode (items[2]'(by
+          have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
+      (hitem3 : (encode (items[3]'(by
+          have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+            hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
 
 private theorem copyExtras_hcover_assoc (regionBase : Word) (q : Nat)
     (h : regionBase.toNat + 8 * q + 16 < 2 ^ 64) :
@@ -2051,7 +2078,7 @@ theorem extractAssumed_success_flat_ambient_copyShort_of_success_head_aligned
 Content field hitem is derived inside the long-copy flat (pfx94).
 -/
 
-/-- Package long type234 copy arm (long head; residual hge7 + hitem0..4 + q). -/
+/-- Package long type234 copy arm (long head; residual hitem0..4 + q (hgeN DROPPED)). -/
 def extractAssumedAmbientArm_copyLongType234
     (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
     (items : List RLPItem) (q : Nat)
@@ -2072,21 +2099,35 @@ def extractAssumedAmbientArm_copyLongType234
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge7 : 7 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55)
-    (hitem4 : (encode (items[4]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     ExtractAssumedAmbientArm regionBase bs off len :=
   .copyLongType234 items q
     ⟨hsuccess, hcopyFlag, hge, hdec,
       hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8,
-      hge7, hq_align, hq⟩
+      hq_align, hq⟩
     (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
     hitem0 hitem1 hitem2 hitem3 hitem4
 
@@ -2111,19 +2152,27 @@ def extractAssumedAmbientArm_copyLongLegacy
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge5 : 5 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     ExtractAssumedAmbientArm regionBase bs off len :=
   .copyLongLegacy items q
     ⟨hsuccess, hcopyFlag, htype0, hdec,
       hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8,
-      hge5, hq_align, hq⟩
+      hq_align, hq⟩
     (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
     hitem0 hitem1 hitem2
 
@@ -2148,25 +2197,36 @@ def extractAssumedAmbientArm_copyLongT1
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge6 : 6 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     ExtractAssumedAmbientArm regionBase bs off len :=
   .copyLongT1 items q
     ⟨hsuccess, hcopyFlag, htype1, hdec,
       hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8,
-      hge6, hq_align, hq⟩
+      hq_align, hq⟩
     (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
     hitem0 hitem1 hitem2 hitem3
 
 set_option maxRecDepth 8000 in
-/-- Long type234 copy ambient: residual `hge7` + `hitem0..4` + `q`/`hq_align`/`hq`.
+/-- Long type234 copy ambient: residual `hitem0..4` + `q`/`hq_align`/`hq` (hgeN DROPPED).
     `hlong` from head; cover from statics. classical-3. -/
 theorem extractAssumed_success_flat_ambient_copyLongType234
     (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
@@ -2195,16 +2255,30 @@ theorem extractAssumed_success_flat_ambient_copyLongType234
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge7 : 7 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55)
-    (hitem4 : (encode (items[4]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     cpsTripleWithin nExtractSteps E ret fullCode
       (extractAssumedPreAmbient ret spVal loadPtr lenW
         s0 s1 s2 s3 s4 s5 s6 s7
@@ -2217,7 +2291,7 @@ theorem extractAssumed_success_flat_ambient_copyLongType234
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
     (extractAssumedAmbientArm_copyLongType234 regionBase bs off len items q
-      hbound hsalign hover hvalidBuf hsuccess hcopyFlag hge hdec h0 hge_f8 hge7
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag hge hdec h0 hge_f8
       hq_align hq hitem0 hitem1 hitem2 hitem3 hitem4)
 
 set_option maxRecDepth 8000 in
@@ -2248,14 +2322,22 @@ theorem extractAssumed_success_flat_ambient_copyLongLegacy
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge5 : 5 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     cpsTripleWithin nExtractSteps E ret fullCode
       (extractAssumedPreAmbient ret spVal loadPtr lenW
         s0 s1 s2 s3 s4 s5 s6 s7
@@ -2268,7 +2350,7 @@ theorem extractAssumed_success_flat_ambient_copyLongLegacy
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
     (extractAssumedAmbientArm_copyLongLegacy regionBase bs off len items q
-      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype0 hdec h0 hge_f8 hge5
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype0 hdec h0 hge_f8
       hq_align hq hitem0 hitem1 hitem2)
 
 set_option maxRecDepth 8000 in
@@ -2299,15 +2381,26 @@ theorem extractAssumed_success_flat_ambient_copyLongT1
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge6 : 6 ≤ items.length)
     (hq_align : ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
       8 * q)
     (hq : 8 * q + 16 < bs.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55) :
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55) :
     cpsTripleWithin nExtractSteps E ret fullCode
       (extractAssumedPreAmbient ret spVal loadPtr lenW
         s0 s1 s2 s3 s4 s5 s6 s7
@@ -2320,7 +2413,7 @@ theorem extractAssumed_success_flat_ambient_copyLongT1
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
     (extractAssumedAmbientArm_copyLongT1 regionBase bs off len items q
-      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype1 hdec h0 hge_f8 hge6
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype1 hdec h0 hge_f8
       hq_align hq hitem0 hitem1 hitem2 hitem3)
 
 #print axioms extractAssumed_success_flat_ambient_copyLongType234
@@ -2408,7 +2501,7 @@ theorem hq_of_copy_content20_aligned_long
   omega
 
 set_option maxRecDepth 8000 in
-/-- Long type234 copy ambient: residual `hge7` + `hitem0..4` + long head + **content-start %8=0**.
+/-- Long type234 copy ambient: residual `hitem0..4` + long head + **content-start %8=0** (hgeN DROPPED).
     `hlong`/`q`/`hq_align`/`hq` derived. classical-3. -/
 theorem extractAssumed_success_flat_ambient_copyLongType234_of_success_head_aligned
     (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
@@ -2437,12 +2530,26 @@ theorem extractAssumed_success_flat_ambient_copyLongType234_of_success_head_alig
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge7 : 7 ≤ items.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55)
-    (hitem4 : (encode (items[4]'(by omega))).length ≤ 55)
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag hge items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
     (halign : copyContentStartAbsLong off
         (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5 % 8 = 0) :
     cpsTripleWithin nExtractSteps E ret fullCode
@@ -2499,7 +2606,7 @@ theorem extractAssumed_success_flat_ambient_copyLongType234_of_success_head_alig
     ret spVal regionBase loadPtr lenW toBuf isCreationPtr
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len items q
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
-    hsuccess hcopyFlag hge hdec h0 hge_f8 hge7 hq_align' hq
+    hsuccess hcopyFlag hge hdec h0 hge_f8 hq_align' hq
     hitem0 hitem1 hitem2 hitem3 hitem4
 
 set_option maxRecDepth 8000 in
@@ -2530,10 +2637,18 @@ theorem extractAssumed_success_flat_ambient_copyLongLegacy_of_success_head_align
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge5 : 5 ≤ items.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_legacy_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype0 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
     (halign : copyContentStartAbsLong off
         (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3 % 8 = 0) :
     cpsTripleWithin nExtractSteps E ret fullCode
@@ -2588,7 +2703,7 @@ theorem extractAssumed_success_flat_ambient_copyLongLegacy_of_success_head_align
     ret spVal regionBase loadPtr lenW toBuf isCreationPtr
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len items q
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
-    hsuccess hcopyFlag htype0 hdec h0 hge_f8 hge5 hq_align' hq
+    hsuccess hcopyFlag htype0 hdec h0 hge_f8 hq_align' hq
     hitem0 hitem1 hitem2
 
 set_option maxRecDepth 8000 in
@@ -2619,11 +2734,22 @@ theorem extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hge6 : 6 ≤ items.length)
-    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
-    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
-    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
-    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55)
+    (hitem0 : (encode (items[0]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by
+        have := extractSuccess_copy_t1_items_length_long (txSlice bs off len)
+          hsuccess hcopyFlag htype1 items hdec
+          (hlong_ambient_of_inner_long_head bs off len items hbound hdec h0 hge_f8); omega))).length ≤ 55)
     (halign : copyContentStartAbsLong off
         (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4 % 8 = 0) :
     cpsTripleWithin nExtractSteps E ret fullCode
@@ -2678,7 +2804,7 @@ theorem extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
     ret spVal regionBase loadPtr lenW toBuf isCreationPtr
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len items q
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
-    hsuccess hcopyFlag htype1 hdec h0 hge_f8 hge6 hq_align' hq
+    hsuccess hcopyFlag htype1 hdec h0 hge_f8 hq_align' hq
     hitem0 hitem1 hitem2 hitem3
 
 #print axioms hq_align_of_content_mod8_long
@@ -2892,6 +3018,13 @@ def creLongNonToHitems
           have : toFieldIndex ty < toFieldIndex ty + 2 := Nat.lt_add_of_pos_right (by decide)
           exact this))
         hgeN))).length ≤ 55
+
+/-- Non-content field short-encode residual for long-copy. Needs content field exists. -/
+def copyLongNonContentHitems
+    (ty : Nat) (items : List RLPItem)
+    (hgeC : toFieldIndex ty + 1 ≤ items.length) : Prop :=
+  ∀ i : Nat, ∀ hi : i < toFieldIndex ty,
+    (encode (items[i]'(Nat.lt_trans hi (Nat.lt_of_succ_le hgeC)))).length ≤ 55
 
 /-- Package long-creation arm by type. Residual `hgeN` + non-to `hitems`. -/
 def extractAssumedAmbientArm_creLong_of_hlong
@@ -3186,14 +3319,14 @@ theorem extractAssumed_success_flat_ambient_creLong_of_success_head
 /-! ### Long-copy ambient unified type case-split
 
 Dual of creLong unified + per-type copyLong of_success_head_aligned. Residual:
-* `hgeN` (`toFieldIndex+2 ≤ length`)
-* `hitems` — every non-content field encodes ≤ 55 (`creLongNonToHitems`)
+* `hitems` — non-content encode ≤ 55 (`copyLongNonContentHitems`)
+  (hgeN DROPPED via encode≥2 content room)
 * content-start `% 8 = 0` (`halign`); q/hq derived in per-type flats
 * long-list head
 -/
 
 set_option maxRecDepth 8000 in
-/-- Long-copy ambient unified: residual `hgeN` + non-content `hitems` + `halign` + long head. -/
+/-- Long-copy ambient unified: residual non-content `hitems` + `halign` + long head. -/
 theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
     (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
     (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
@@ -3220,10 +3353,10 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hgeN : toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 2 ≤
+    (hgeC : toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 1 ≤
       items.length)
-    (hitems : creLongNonToHitems
-        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items hgeN)
+    (hitems : copyLongNonContentHitems
+        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items hgeC)
     (halign : copyContentStartAbsLong off
         (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items
         (toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat) % 8 = 0) :
@@ -3238,13 +3371,13 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
   set ty := (teerTxTypeDispatch slice).2.1.toNat
   have hle : ty ≤ 4 := by
     simpa [slice, ty] using extractSuccess_type_le4 slice hsuccess
-  unfold creLongNonToHitems at hitems
+  unfold copyLongNonContentHitems at hitems
   by_cases hz : ty = 0
   · have htype0 : (teerTxTypeDispatch slice).2.1 = (0 : Word) := by
       apply BitVec.eq_of_toNat_eq
       simpa [ty, BitVec.toNat_zero] using hz
-    have hge5 : 5 ≤ items.length := by
-      simpa [slice, ty, hz, toFieldIndex_legacy] using hgeN
+    have : 4 ≤ items.length := by
+      simpa [slice, ty, hz, toFieldIndex_legacy] using hgeC
     have hidx : toFieldIndex ty = 3 := by simp [ty, hz, toFieldIndex_legacy]
     have hitem0 : (encode (items[0]'(by omega))).length ≤ 55 := by
       have hi : 0 < toFieldIndex ty := by simp [hidx]
@@ -3265,14 +3398,14 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
       hsuccess (by simpa [slice] using hcopyFlag) htype0
       (by simpa [slice] using hdec)
       (by simpa [slice] using h0) (by simpa [slice] using hge_f8)
-      hge5 hitem0 hitem1 hitem2 halign'
+      hitem0 hitem1 hitem2 halign'
   · by_cases h1 : ty = 1
     · have htype1 : (teerTxTypeDispatch slice).2.1 = (1 : Word) := by
         apply BitVec.eq_of_toNat_eq
         have : ty = 1 := h1
         simpa [ty, show (1 : Word).toNat = 1 by decide] using this
-      have hge6 : 6 ≤ items.length := by
-        simpa [slice, ty, hz, h1, toFieldIndex_t1] using hgeN
+      have : 5 ≤ items.length := by
+        simpa [slice, ty, hz, h1, toFieldIndex_t1] using hgeC
       have hidx : toFieldIndex ty = 4 := by simp [ty, h1, toFieldIndex_t1]
       have hitem0 : (encode (items[0]'(by omega))).length ≤ 55 := by
         have hi : 0 < toFieldIndex ty := by simp [hidx]
@@ -3296,11 +3429,11 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
         hsuccess (by simpa [slice] using hcopyFlag) htype1
         (by simpa [slice] using hdec)
         (by simpa [slice] using h0) (by simpa [slice] using hge_f8)
-        hge6 hitem0 hitem1 hitem2 hitem3 halign'
+        hitem0 hitem1 hitem2 hitem3 halign'
     · have hge : 2 ≤ ty := by omega
       have hidx : toFieldIndex ty = 5 := toFieldIndex_type234 ty hge hle
-      have hge7 : 7 ≤ items.length := by
-        simpa [slice, ty, hidx] using hgeN
+      have : 6 ≤ items.length := by
+        simpa [slice, ty, hidx] using hgeC
       have hitem0 : (encode (items[0]'(by omega))).length ≤ 55 := by
         have hi : 0 < toFieldIndex ty := by simp [hidx]
         simpa [slice, ty] using hitems 0 hi
@@ -3327,11 +3460,11 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_hlong
         (by simpa [slice, ty] using hge)
         (by simpa [slice] using hdec)
         (by simpa [slice] using h0) (by simpa [slice] using hge_f8)
-        hge7 hitem0 hitem1 hitem2 hitem3 hitem4 halign'
+        hitem0 hitem1 hitem2 hitem3 hitem4 halign'
 
 set_option maxRecDepth 8000 in
 /-- Obtain `hdec`/`hcopy` from extractSuccess + 20B content.
-    Residual long head + `hgeN` + non-content `hitems` + `halign`. classical-3. -/
+    Residual long head + non-content `hitems` + `halign` (hgeN DROPPED). classical-3. -/
 theorem extractAssumed_success_flat_ambient_copyLong_of_success_hlong
     (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
     (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
@@ -3355,18 +3488,18 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_success_hlong
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'hpos
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hgeN : ∀ items,
+    (hgeC : ∀ items,
       decodeListItems
           ((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items →
-        toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 2 ≤
+        toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 1 ≤
           items.length)
     (hitems : ∀ items
       (hdec : decodeListItems
           ((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items),
-      creLongNonToHitems
-        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items (hgeN items hdec))
+      copyLongNonContentHitems
+        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items (hgeC items hdec))
     (halign : ∀ items
       (_hdec : decodeListItems
           ((txSlice bs off len).drop
@@ -3394,13 +3527,13 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_success_hlong
     hsuccess hcopyFlag hdec
     (by simpa [slice] using hpos)
     (hge_f8 (by simpa [slice] using hpos))
-    (hgeN items hdec)
+    (hgeC items hdec)
     (hitems items hdec)
     (halign items hdec)
 
 set_option maxRecDepth 8000 in
 /-- Long-copy ambient from extractSuccess + 20B content + long-list head + align.
-    Residual unified `hgeN` + non-content `hitems` + `halign`. classical-3. -/
+    Residual unified `hgeC` + non-content `hitems` + `halign`. classical-3. -/
 theorem extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
     (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
     (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
@@ -3424,18 +3557,18 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
         ((((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'hpos
           ).zeroExtend 64) (0xf8 : Word) = true)
-    (hgeN : ∀ items,
+    (hgeC : ∀ items,
       decodeListItems
           ((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items →
-        toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 2 ≤
+        toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat + 1 ≤
           items.length)
     (hitems : ∀ items
       (hdec : decodeListItems
           ((txSlice bs off len).drop
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items),
-      creLongNonToHitems
-        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items (hgeN items hdec))
+      copyLongNonContentHitems
+        (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat items (hgeC items hdec))
     (halign : ∀ items
       (_hdec : decodeListItems
           ((txSlice bs off len).drop
@@ -3454,7 +3587,7 @@ theorem extractAssumed_success_flat_ambient_copyLong_of_success_head_aligned
     ret spVal regionBase loadPtr lenW toBuf isCreationPtr
     s0 s1 s2 s3 s4 s5 s6 s7 bs off len
     hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
-    hsuccess hcontent hge_f8 hgeN hitems halign
+    hsuccess hcontent hge_f8 hgeC hitems halign
 
 #print axioms extractAssumed_success_flat_ambient_copyLong_of_hlong
 #print axioms extractAssumed_success_flat_ambient_copyLong_of_success_hlong

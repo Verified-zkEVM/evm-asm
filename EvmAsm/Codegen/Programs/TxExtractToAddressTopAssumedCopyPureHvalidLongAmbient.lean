@@ -116,7 +116,7 @@ private theorem hdec_ambient_field_long'
 
 set_option maxRecDepth 8000 in
 /-- Ambient long concrete Assumed copy; hdec+hvalid+hlover/hlvalid from pure+validByteRange.
-    Residual path: copy/type234/long/hge7/hq_align + hitem0..5. -/
+    Residual path: copy/type234/long/hq_align + hitem0..5. -/
 theorem extractAssumed_copy_longConcrete_pureHvalid_ambient
     (sp0 spC : Word) (s : ExtractSaved)
     (regionBase loadPtr lenW toBuf isCreationPtr : Word)
@@ -166,7 +166,7 @@ theorem extractAssumed_copy_longConcrete_pureHvalid_ambient
     (hitem5 : (encode (items[5]'(by
         have := extractSuccess_copy_type234_items_length_long (txSlice bs off len) hsuccess
           hcopyFlag hge items hdecL hlong; omega))).length ≤ 55)
-    (hge7 : 7 ≤ items.length) :
+    :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -304,8 +304,11 @@ theorem extractAssumed_copy_longConcrete_pureHvalid_ambient
     longListSrcOff_succ_room slice listOff items 3 hencInner hlong (by omega)
   have hroom4 : srcOff4 + 1 < slice.length :=
     longListSrcOff_succ_room slice listOff items 4 hencInner hlong (by omega)
+  have hge2_5 : 2 ≤ (encode (items[5]'hn5)).length :=
+    extractSuccess_copy_type234_field5_encode_ge_two_long slice hsuccess hcopyFlag hge
+      items hdecL hlong hn5
   have hroom5 : srcOff5 + 1 < slice.length :=
-    longListSrcOff_succ_room slice listOff items 5 hencInner hlong (by omega)
+    hss_room_of_encode_ge_two_long slice listOff items 5 hencInner hlong hn5 hge2_5
   have hoff1_0 : absOff0 + 1 < bs.length := by
     have hrel : srcOff0 + 1 < len := by
       have : srcOff0 + 1 < slice.length := hroom0
@@ -452,7 +455,7 @@ theorem extractAssumed_copy_longConcrete_pureHvalid_ambient
       hitem3 hvalid3 hvalid1_3 hdec3
       hitem4 hvalid4 hvalid1_4 hdec4
       hitem5 hvalid5 hvalid1_5 hdec5
-      hge7
+     
 
 set_option maxRecDepth 8000 in
 theorem extractAssumed_copy_longConcrete_pureHvalid_ambient_fullCode
@@ -504,7 +507,7 @@ theorem extractAssumed_copy_longConcrete_pureHvalid_ambient_fullCode
     (hitem5 : (encode (items[5]'(by
         have := extractSuccess_copy_type234_items_length_long (txSlice bs off len) hsuccess
           hcopyFlag hge items hdecL hlong; omega))).length ≤ 55)
-    (hge7 : 7 ≤ items.length) :
+    :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -518,7 +521,7 @@ theorem extractAssumed_copy_longConcrete_pureHvalid_ambient_fullCode
       hq_align hq hcover hcvalid
       hspC hret htalign htover htvalid hlen hptr hbound hsuccess hcopyFlag hge hdecL hlong
       hsalign hover hvalidBuf
-      hitem0 hitem1 hitem2 hitem3 hitem4 hitem5 hge7)
+      hitem0 hitem1 hitem2 hitem3 hitem4 hitem5)
 
 /-- Path refinements for ambient long type234 copy arm. -/
 def extractCopyType234LongPathAmbient
@@ -530,7 +533,6 @@ def extractCopyType234LongPathAmbient
         ((txSlice bs off len).drop (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) =
       some items ∧
     55 < (encode.encodeItems items).length ∧
-    7 ≤ items.length ∧
     ambientAbsOff off
         (longListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
       8 * q ∧
@@ -560,15 +562,20 @@ theorem extractAssumed_success_flat_copy_type234_long_ambient
       (regionBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true)
     (hpath : extractCopyType234LongPathAmbient bs off len items q)
     (hitem0 : (encode (items[0]'(by
-        have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
     (hitem1 : (encode (items[1]'(by
-        have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
     (hitem2 : (encode (items[2]'(by
-        have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
     (hitem3 : (encode (items[3]'(by
-        have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
     (hitem4 : (encode (items[4]'(by
-        have := hpath.2.2.2.2.2.1; omega))).length ≤ 55)
+        have := extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+          hpath.1 hpath.2.1 hpath.2.2.1 items hpath.2.2.2.1 hpath.2.2.2.2.1; omega))).length ≤ 55)
     :
     cpsTripleWithin nExtractSteps E ret fullCode
       (extractAssumedPreAmbient ret spVal loadPtr lenW
@@ -577,7 +584,10 @@ theorem extractAssumed_success_flat_copy_type234_long_ambient
       (extractAssumedPostAmbient ret spVal
         s0 s1 s2 s3 s4 s5 s6 s7
         regionBase toBuf isCreationPtr bs) := by
-  obtain ⟨hsuccess, hcopyFlag, hge, hdecL, hlong, hge7, hq_align, hq⟩ := hpath
+  obtain ⟨hsuccess, hcopyFlag, hge, hdecL, hlong, hq_align, hq⟩ := hpath
+  have hlen_items :=
+    extractSuccess_copy_type234_items_length_long (txSlice bs off len)
+      hsuccess hcopyFlag hge items hdecL hlong
   have hitem5 :
       (encode (items[5]'(by omega))).length ≤ 55 :=
     extractSuccess_copy_type234_field5_encode_le55_long (txSlice bs off len)
@@ -602,7 +612,7 @@ theorem extractAssumed_success_flat_copy_type234_long_ambient
       hq_align hq hcover hcvalid
       hspC hret htalign htover htvalid hlen hptr hbound hsuccess hcopyFlag hge hdecL hlong
       hsalign hover hvalidBuf
-      hitem0 hitem1 hitem2 hitem3 hitem4 hitem5 hge7
+      hitem0 hitem1 hitem2 hitem3 hitem4 hitem5
 
 #print axioms extractAssumed_copy_longConcrete_pureHvalid_ambient
 #print axioms extractAssumed_copy_longConcrete_pureHvalid_ambient_fullCode
