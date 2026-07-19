@@ -265,6 +265,16 @@ def blockVerdictMtxValidationTail : String :=
   -- that declare no non-storage change. So running the check with withdrawals present is
   -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
   -- effect-having account in a withdrawals block.
+  -- EIP-7702 authorization nonce/balance changes are committed before runtime
+  -- execution.  Mirror the single-tx path: materialize their authenticated
+  -- non-storage effects before the common aggregate/comparator pass.
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_start; ld a3, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a4, 0(t2)\n" ++
+  "  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
+  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
