@@ -8,6 +8,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerWalkInit
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Rv64.SAsm.MeasureLoop
 import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
@@ -435,5 +436,170 @@ theorem teerAuthLoopStartShort
     (fun _ hq => by xperm_hyp hq) c12
 
 #print axioms teerAuthLoopStartShort
+
+/-- AuthLoopStart prest core (value-carrying x5/x10; temps lifted separately). -/
+def teerAuthLoopStartBodyCore
+    (listBase : Word) (_listLen : Word) (bs : List (BitVec 8)) (_listOff : Nat)
+    (old1 v10 t0Old v21 v22 v24 : Word) : Assertion :=
+  (.x1 ↦ᵣ old1) ** (.x10 ↦ᵣ v10) **
+    (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) ** (.x24 ↦ᵣ v24) **
+    (.x5 ↦ᵣ t0Old) **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs
+
+/-- AuthLoopStart post with all temps `regOwn`. -/
+def teerAuthLoopStartBodyPost
+    (listBase listLen : Word) (bs : List (BitVec 8)) (listOff : Nat) : Assertion :=
+  let cur := (listBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12)
+  let endW := (listBase + BitVec.ofNat 64 listOff) + listLen
+  (.x1 ↦ᵣ LinkWalkInitAuth) ** (.x10 ↦ᵣ cur) ** (.x11 ↦ᵣ endW) **
+    (.x12 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ cur) ** (.x22 ↦ᵣ endW) **
+    (.x24 ↦ᵣ (0 : Word)) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs
+
+set_option maxRecDepth 8000 in
+/-- Lift AuthLoopStartShort temps to `regOwn` (post also all-temps `regOwn`). -/
+theorem teerAuthLoopStartShort_ownTemps
+    (listBase listLen t0Old v10 : Word)
+    (bs : List (BitVec 8)) (listOff : Nat)
+    (old1 v21 v22 v24 : Word)
+    (hs5 : v21 = listBase + BitVec.ofNat 64 listOff)
+    (hs6 : v22 = listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hoff : listOff < bs.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hlen : listLen ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (listBase + BitVec.ofNat 64 listOff) +
+        (((bs[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 listOff) + listLen) :
+    cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi teerLinkedCount
+      (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old v21 v22 v24 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+  have hcore (a2 t1 t2 t3 t4 t5 t6 v11 : Word) :
+      cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi
+        teerLinkedCount
+        (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+          v21 v22 v24 **
+          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+          (.x6 ↦ᵣ t1) ** (.x7 ↦ᵣ t2) **
+          (.x28 ↦ᵣ t3) ** (.x29 ↦ᵣ t4) ** (.x30 ↦ᵣ t5) ** (.x31 ↦ᵣ t6))
+        (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+    have h0 := teerAuthLoopStartShort listBase listLen a2 t0Old t1 t2 t3 t4 t5 t6
+      bs listOff old1 v10 v11 v21 v22 v24 hs5 hs6 hsalign hoff hover hvalid hlen
+      h_ge h_hi h_exact
+    refine cpsTripleWithin_weaken (fun s hp => ?_) (fun s hq => ?_) h0
+    · unfold teerAuthLoopStartBodyCore at hp
+      xperm_hyp hp
+    · unfold teerAuthLoopStartBodyPost
+      have hq1 :
+          ((.x30 ↦ᵣ t5) ** (.x31 ↦ᵣ t6) **
+            ((.x1 ↦ᵣ LinkWalkInitAuth) **
+              (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff + signExtend12 1)) **
+              (.x11 ↦ᵣ (listBase + BitVec.ofNat 64 listOff + listLen)) **
+              (.x12 ↦ᵣ (0 : Word)) **
+              (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 listOff + signExtend12 1)) **
+              (.x22 ↦ᵣ (listBase + BitVec.ofNat 64 listOff + listLen)) **
+              (.x24 ↦ᵣ (0 : Word)) **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+              regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)) s := by
+        xperm_hyp hq
+      have hq2 :=
+        (sepConj_mono (regIs_implies_regOwn .x30)
+          (sepConj_mono (regIs_implies_regOwn .x31) (fun _ h => h))) s hq1
+      xperm_hyp hq2
+  have h3031 (a2 t1 t2 t3 t4 v11 : Word) :
+      cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi
+        teerLinkedCount
+        (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+          v21 v22 v24 **
+          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+          (.x6 ↦ᵣ t1) ** (.x7 ↦ᵣ t2) **
+          (.x28 ↦ᵣ t3) ** (.x29 ↦ᵣ t4) **
+          regOwn .x30 ** regOwn .x31)
+        (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+    have h := cpsTripleWithin_of_forall_regIs_to_regOwn2
+      (r1 := .x30) (r2 := .x31)
+      (P := teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+        v21 v22 v24 **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+        (.x6 ↦ᵣ t1) ** (.x7 ↦ᵣ t2) **
+        (.x28 ↦ᵣ t3) ** (.x29 ↦ᵣ t4))
+      (fun t5 t6 =>
+        cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (hcore a2 t1 t2 t3 t4 t5 t6 v11))
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) h
+  have h2829 (a2 t1 t2 v11 : Word) :
+      cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi
+        teerLinkedCount
+        (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+          v21 v22 v24 **
+          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+          (.x6 ↦ᵣ t1) ** (.x7 ↦ᵣ t2) **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+        (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+    have h := cpsTripleWithin_of_forall_regIs_to_regOwn2
+      (r1 := .x28) (r2 := .x29)
+      (P := teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+        v21 v22 v24 **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+        (.x6 ↦ᵣ t1) ** (.x7 ↦ᵣ t2) **
+        regOwn .x30 ** regOwn .x31)
+      (fun t3 t4 =>
+        cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (h3031 a2 t1 t2 t3 t4 v11))
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) h
+  have h67 (a2 v11 : Word) :
+      cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi
+        teerLinkedCount
+        (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+          v21 v22 v24 **
+          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+          regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+        (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+    have h := cpsTripleWithin_of_forall_regIs_to_regOwn2
+      (r1 := .x6) (r2 := .x7)
+      (P := teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+        v21 v22 v24 **
+        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ a2) **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (fun t1 t2 =>
+        cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (h2829 a2 t1 t2 v11))
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) h
+  have h1112 :
+      cpsTripleWithin nAuthLoopStartShort AfterAuthCountLoad AfterAuthLoopLi
+        teerLinkedCount
+        (teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+          v21 v22 v24 **
+          regOwn .x11 ** regOwn .x12 **
+          regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+        (teerAuthLoopStartBodyPost listBase listLen bs listOff) := by
+    have h := cpsTripleWithin_of_forall_regIs_to_regOwn2
+      (r1 := .x11) (r2 := .x12)
+      (P := teerAuthLoopStartBodyCore listBase listLen bs listOff old1 v10 t0Old
+        v21 v22 v24 **
+        regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (fun v11 a2 =>
+        cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (h67 a2 v11))
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => hq) h1112
+
+#print axioms teerAuthLoopStartShort_ownTemps
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
