@@ -383,7 +383,7 @@ structure A4gbrResiduals where
               (`extractAssumed_copy_fullCode_of_decode_short_concrete_legacy_region_ambient`)
           * long legacy creation CreDecode/E2E/of_decode ambient DONE classical-3
           * long legacy creation Pure/PureHvalid ambient path Prop DONE classical-3
-          Residual: long copy ambient;
+          Residual: long type234 copy ambient of_decode (CopyDecode/E2E/Assumed) DONE classical-3; residual: PureHvalid long copy + legacy/t1 copy ambient / long copy ambient;
             fill ExtractAssumedAmbient.success_flat case-split;
             package IntrinsicAssumed structure; Teer; gate. -/
 
