@@ -483,7 +483,7 @@ def teer_free26_of_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26_of
 /-- Free26 Front→ret under residual Free26 inhabit. classical-3. -/
 def teer_free26_front_exit_available : True := trivial
-#print axioms teerEmptyAuth_free26_front_then_exit_mono
+#print axioms TxEip7702TeerSpec.teerEmptyAuth_free26_front_then_exit_mono
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongLegacy_of_success_head_aligned
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
 
