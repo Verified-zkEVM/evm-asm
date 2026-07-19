@@ -388,13 +388,245 @@ theorem teerListCountCall_ok
         teerListCountCalleeQ_to_ok spC listBase outPtr s0 s1 s2 s3 countW bytes
           listLen count hcountW hcount hsuccess hspe h2 hQ⟩) hcall
 
-/-- Named hyp: list_count Call+BNE+LD success under nested `stackFree spC 6`.
-    Call_ok under ListCountResultSpecialize is classical-3; BNE+LD frame compose
-    residual (x5 regOwn vs t0Old framing). -/
+/-- Mid assertion after Call_ok framed with s7: ra + QOk + s7. -/
+def teerListCountAfterCallOk (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x1 ↦ᵣ LinkListCount) **
+      teerListCountCalleeQOk spC listBase outPtr s0 s1 s2 s3 countW bytes) **
+    (.x23 ↦ᵣ s7Old)
+
+private theorem teerListCountAfterCallOk_pcFree
+    (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) :
+    (teerListCountAfterCallOk spC listBase outPtr s0 s1 s2 s3 countW s7Old
+      bytes).pcFree := by
+  unfold teerListCountAfterCallOk teerListCountCalleeQOk; pcf
+
+/-- BNE focus atoms pulled left for frameR. -/
+def teerListCountBneFrame (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x1 ↦ᵣ LinkListCount) **
+      ((.x2 ↦ᵣ spC) **
+          ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+          stackFree spC 6) **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+         regOwn .x30 ** regOwn .x31 **
+         bytesRegion listBase bytes ** (outPtr ↦ₘ countW))) **
+    (.x23 ↦ᵣ s7Old)
+
+private theorem teerListCountBneFrame_pcFree
+    (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) :
+    (teerListCountBneFrame spC listBase outPtr s0 s1 s2 s3 countW s7Old
+      bytes).pcFree := by
+  unfold teerListCountBneFrame; pcf
+
+private theorem teerListCountAfterCallOk_to_bnePre
+    (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) (h : PartialState) :
+    teerListCountAfterCallOk spC listBase outPtr s0 s1 s2 s3 countW s7Old bytes h →
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        teerListCountBneFrame spC listBase outPtr s0 s1 s2 s3 countW s7Old
+          bytes) h := by
+  intro hp
+  unfold teerListCountAfterCallOk teerListCountCalleeQOk at hp
+  unfold teerListCountBneFrame
+  xperm_hyp hp
+
+private theorem teerListCountBnePost_to_afterCallOk
+    (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) (h : PartialState) :
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+      teerListCountBneFrame spC listBase outPtr s0 s1 s2 s3 countW s7Old
+        bytes) h →
+      teerListCountAfterCallOk spC listBase outPtr s0 s1 s2 s3 countW s7Old
+        bytes h := by
+  intro hp
+  unfold teerListCountAfterCallOk teerListCountCalleeQOk
+  unfold teerListCountBneFrame at hp
+  xperm_hyp hp
+
+/-- BNE framed under AfterCallOk. -/
+theorem teerListCountBneOk_framed
+    (spC listBase outPtr s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) :
+    cpsTripleWithin 1 LinkListCount AfterListCountBne teerLinkedCount
+      (teerListCountAfterCallOk spC listBase outPtr s0 s1 s2 s3 countW s7Old bytes)
+      (teerListCountAfterCallOk spC listBase outPtr s0 s1 s2 s3 countW s7Old
+        bytes) := by
+  have hbneF := cpsTripleWithin_frameR
+    (teerListCountBneFrame spC listBase outPtr s0 s1 s2 s3 countW s7Old bytes)
+    (teerListCountBneFrame_pcFree spC listBase outPtr s0 s1 s2 s3 countW s7Old
+      bytes)
+    teerListCountBneOk
+  exact cpsTripleWithin_weaken
+    (teerListCountAfterCallOk_to_bnePre spC listBase outPtr s0 s1 s2 s3 countW
+      s7Old bytes)
+    (teerListCountBnePost_to_afterCallOk spC listBase outPtr s0 s1 s2 s3 countW
+      s7Old bytes)
+    hbneF
+
+/-- LD frame: AfterCallOk without regOwn x5 (supplied as x5↦t0). -/
+def teerListCountLdFrame (spC listBase s0 s1 s2 s3 s7Old : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x1 ↦ᵣ LinkListCount) **
+      ((.x2 ↦ᵣ spC) **
+          ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+          stackFree spC 6) **
+        ((.x10 ↦ᵣ (0 : Word)) ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+         regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase bytes)) **
+    (.x23 ↦ᵣ s7Old)
+
+private theorem teerListCountLdFrame_pcFree
+    (spC listBase s0 s1 s2 s3 s7Old : Word)
+    (bytes : List (BitVec 8)) :
+    (teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes).pcFree := by
+  unfold teerListCountLdFrame; pcf
+
+/-- ∀ t0, LD under x5↦t0 + out↦count framed. -/
+theorem teerListCountLd_forall
+    (spC listBase s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) (t0 : Word) :
+    cpsTripleWithin 3 AfterListCountBne AfterAuthCountLoad teerLinkedCount
+      (((.x5 ↦ᵣ t0) ** (AuthCountAddr ↦ₘ countW)) **
+        teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes)
+      (teerListCountLoadPost spC listBase AuthCountAddr s0 s1 s2 s3 countW
+        bytes) := by
+  have hld := teerLdAuthCountS7 countW s7Old t0
+  -- Frame: everything in LdFrame except x23 (owned by hld prest)
+  have hldF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ LinkListCount) **
+        ((.x2 ↦ᵣ spC) **
+            ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+            stackFree spC 6) **
+          ((.x10 ↦ᵣ (0 : Word)) ** regOwn .x6 ** regOwn .x7 **
+           regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+           regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+           bytesRegion listBase bytes))
+    (by pcf) hld
+  -- weaken: desired prest P' → hldF prest P; hldF post Q → desired Q'
+  refine cpsTripleWithin_weaken ?_ ?_ hldF
+  · intro h hp
+    -- hp : ((x5 ** Auth) ** LdFrame) h
+    -- goal: ((x5 ** x23 ** Auth) ** frame) h
+    unfold teerListCountLdFrame at hp
+    xperm_hyp hp
+  · intro h hq
+    -- hq : ((x5=Auth ** x23=count ** Auth↦count) ** frame) h
+    -- goal: LoadPost h
+    unfold teerListCountLoadPost
+    xperm_hyp hq
+
+/-- AfterCallOk → (regOwn x5 ** Auth↦count) ** LdFrame (out=Auth). -/
+private theorem teerListCountAfterCallOk_to_ldOwnPre
+    (spC listBase s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) (h : PartialState) :
+    teerListCountAfterCallOk spC listBase AuthCountAddr s0 s1 s2 s3 countW s7Old
+        bytes h →
+      ((regOwn .x5 ** (AuthCountAddr ↦ₘ countW)) **
+        teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes) h := by
+  intro hp
+  unfold teerListCountAfterCallOk teerListCountCalleeQOk at hp
+  unfold teerListCountLdFrame
+  xperm_hyp hp
+
+/-- LD framed under AfterCallOk via of_forall on x5. -/
+theorem teerListCountLd_framed
+    (spC listBase s0 s1 s2 s3 countW s7Old : Word)
+    (bytes : List (BitVec 8)) :
+    cpsTripleWithin 3 AfterListCountBne AfterAuthCountLoad teerLinkedCount
+      (teerListCountAfterCallOk spC listBase AuthCountAddr s0 s1 s2 s3 countW s7Old
+        bytes)
+      (teerListCountLoadPost spC listBase AuthCountAddr s0 s1 s2 s3 countW
+        bytes) := by
+  have hld_forall : ∀ t0,
+      cpsTripleWithin 3 AfterListCountBne AfterAuthCountLoad teerLinkedCount
+        (((.x5 ↦ᵣ t0) ** (AuthCountAddr ↦ₘ countW)) **
+          teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes)
+        (teerListCountLoadPost spC listBase AuthCountAddr s0 s1 s2 s3 countW
+          bytes) :=
+    fun t0 => teerListCountLd_forall spC listBase s0 s1 s2 s3 countW s7Old bytes t0
+  have hld_forall' : ∀ t0,
+      cpsTripleWithin 3 AfterListCountBne AfterAuthCountLoad teerLinkedCount
+        (((AuthCountAddr ↦ₘ countW) **
+            teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes) **
+          (.x5 ↦ᵣ t0))
+        (teerListCountLoadPost spC listBase AuthCountAddr s0 s1 s2 s3 countW
+          bytes) := by
+    intro t0
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) (hld_forall t0)
+  have hld_own :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+      (P := (AuthCountAddr ↦ₘ countW) **
+        teerListCountLdFrame spC listBase s0 s1 s2 s3 s7Old bytes)
+      hld_forall'
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      have hp' := teerListCountAfterCallOk_to_ldOwnPre spC listBase s0 s1 s2 s3
+        countW s7Old bytes h hp
+      xperm_hyp hp')
+    (fun _ hq => hq) hld_own
+
+set_option maxRecDepth 8000 in
+/-- Call_ok + BNE + la/ld s7 under Result specialize. -/
+theorem teerListCountOkToLoad
+    (spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) (listLen count : Nat) (old1 s7Old : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hcountW : countW = BitVec.ofNat 64 count)
+    (hcount : count < 2 ^ 64)
+    (hsuccess : Success bytes listBase listLen count)
+    (hspe : ListCountResultSpecialize bytes listBase listLen count countW)
+    (hout : outPtr = AuthCountAddr) :
+    cpsTripleWithin (nListCountOkToLoad listLen) AtListCount AfterAuthCountLoad
+      teerLinkedCount
+      ((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+        teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
+          bytes)
+      (teerListCountLoadPost spC listBase outPtr s0 s1 s2 s3 countW bytes) := by
+  subst hout
+  have hcall := teerListCountCall_ok spC newSp listBase listLenW AuthCountAddr
+    oldCount s0 s1 s2 s3 countW bytes listLen count old1 hlistLenW hsalign hslack
+    hover hvalid hnewSp hret hcountW hcount hsuccess hspe
+  have hcallF := cpsTripleWithin_frameR (.x23 ↦ᵣ s7Old) (by pcf) hcall
+  -- post hcallF: (x1 ** QOk) ** x23 = AfterCallOk (defeq after unfold)
+  have hcallF' : cpsTripleWithin (1 + nListCountSteps listLen) AtListCount
+      LinkListCount teerLinkedCount
+      ((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+        teerListCountCalleeP spC listBase listLenW AuthCountAddr oldCount
+          s0 s1 s2 s3 bytes)
+      (teerListCountAfterCallOk spC listBase AuthCountAddr s0 s1 s2 s3 countW
+        s7Old bytes) := by
+    refine cpsTripleWithin_weaken ?_ ?_ hcallF
+    · intro h hp; xperm_hyp hp
+    · intro h hq
+      show (teerListCountAfterCallOk spC listBase AuthCountAddr s0 s1 s2 s3
+          countW s7Old bytes) h
+      unfold teerListCountAfterCallOk
+      xperm_hyp hq
+  have hbne := teerListCountBneOk_framed spC listBase AuthCountAddr s0 s1 s2 s3
+    countW s7Old bytes
+  have hmid := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hcallF' hbne
+  have hld := teerListCountLd_framed spC listBase s0 s1 s2 s3 countW s7Old bytes
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hmid hld
+
+/-- list_count Call+BNE+LD success under nested `stackFree spC 6`.
+    Requires `ListCountResultSpecialize` (walk-fail uniqueness residual pure). -/
 structure TeerListCountAssumed (cr : CodeReq) where
   run :
     ∀ (spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
-      (bytes : List (BitVec 8)) (listLen count : Nat) (old1 s7Old t0Old : Word),
+      (bytes : List (BitVec 8)) (listLen count : Nat) (old1 s7Old : Word),
       listLenW = BitVec.ofNat 64 listLen →
       listBase.toNat % 8 = 0 →
       listLen + 9 ≤ bytes.length →
@@ -406,12 +638,22 @@ structure TeerListCountAssumed (cr : CodeReq) where
       countW = BitVec.ofNat 64 count →
       count < 2 ^ 64 →
       Success bytes listBase listLen count →
+      ListCountResultSpecialize bytes listBase listLen count countW →
       outPtr = AuthCountAddr →
       cpsTripleWithin (nListCountOkToLoad listLen) AtListCount AfterAuthCountLoad cr
-        ((.x1 ↦ᵣ old1) ** (.x5 ↦ᵣ t0Old) ** (.x23 ↦ᵣ s7Old) **
+        ((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
           teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
             bytes)
         (teerListCountLoadPost spC listBase outPtr s0 s1 s2 s3 countW bytes)
+
+def teerListCountAssumed_teerLinked : TeerListCountAssumed teerLinkedCount where
+  run := fun spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW
+      bytes listLen count old1 s7Old
+      hlistLenW hsalign hslack hover hvalid hnewSp hret hcountW hcount
+      hsuccess hspe hout =>
+    teerListCountOkToLoad spC newSp listBase listLenW outPtr oldCount
+      s0 s1 s2 s3 countW bytes listLen count old1 s7Old hlistLenW hsalign hslack
+      hover hvalid hnewSp hret hcountW hcount hsuccess hspe hout
 
 #print axioms teerListCountCall
 #print axioms teerListCountBneOk
@@ -419,5 +661,7 @@ structure TeerListCountAssumed (cr : CodeReq) where
 #print axioms teerListCountCall_ok
 #print axioms teerListCountCalleeQ_to_ok
 #print axioms Success_implies_payload
+#print axioms teerListCountOkToLoad
+#print axioms teerListCountAssumed_teerLinked
 
 end EvmAsm.Codegen.TxEip7702TeerSpec

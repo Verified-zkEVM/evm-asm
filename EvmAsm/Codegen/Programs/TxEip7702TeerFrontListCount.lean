@@ -1,9 +1,10 @@
 /-
   Teer front packaging: AtListCount → AfterAuthLoopLi under nested stackFree spC 6.
 
-  * TeerListCountAuthLoopAssumed — named hyp combining ListCount Call+BNE+LD +
-    AuthLoopStartShort (Prep+WI+LI). Body residual: TeerListCountAssumed Result→ok
-    + frame compose (leaves classical-3).
+  * TeerListCountAssumed discharged classical-3 via teerListCountOkToLoad
+    (Call_ok+BNE+LD) under ListCountResultSpecialize (walk-fail uniqueness residual).
+  * TeerListCountAuthLoopAssumed — named hyp: OkToLoad + AuthLoopStartShort.
+    Body residual: frame compose OkToLoad→AuthLoopStart under nested free.
   * Empty-auth: Success count=0 → s7=0; LI s8=0 at AfterAuthLoopLi.
 
   Bridge residual (AuthContent applied post → Assumed prest):
