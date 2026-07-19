@@ -676,7 +676,9 @@ def teerEmptyAuthResidualLedger : Prop :=
   True ∧
   -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack↦ₘ0 held)
   True ∧
-  -- 3. FrontToBridge inhabit (applied hrun wire; free26_to_bridgePre_pick packaging DONE)
+  -- 3. FrontToBridge inhabit (applied hrun wire; free26_to_bridgePre_pick packaging DONE;
+     of_hrun_empty_short packages free26→applied_flat without Front structure:
+     residual hrun+specialize+hrolled0+domain)
   True ∧
   -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest);
   --    global DomainEmptyShort ∀ remains uninhabitable packaging debt
