@@ -97,6 +97,8 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopBalNonce
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopNonceJoin
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopRolledBack
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopPrior
+import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopOrZero
+import EvmAsm.Codegen.Programs.TxEip7702TeerEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
