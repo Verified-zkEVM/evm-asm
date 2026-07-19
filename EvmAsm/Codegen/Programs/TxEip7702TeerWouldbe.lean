@@ -398,7 +398,65 @@ theorem teerWouldbeToEpi_rolled0
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c89
 
+/-- Wouldbe stores + rolled=0 + frame restore → ret (29 steps).
+    `cur.s10 = s10Val` so wouldbe's live s10 matches `regsAt` (no double-own). -/
+theorem teerWouldbeToRet_rolled0
+    (sp0 spC : Word) (s cur : TeerSaved)
+    (s10Val a0Old a1Old t0Old t1Old refund : Word)
+    (hspC : spC = sp0 + signExtend12 (-160 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra)
+    (hcur10 : cur.s10 = s10Val) :
+    cpsTripleWithin 29 AtLoopExit s.ra teerLinkedField0
+      ((.x2 ↦ᵣ spC) **
+        regsAt teerEpiFrame (teerSavedVals cur) **
+        frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (RegularRefundAddr ↦ₘ refund) **
+        memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+        (RolledBackAddr ↦ₘ (0 : Word)))
+      ((.x10 ↦ᵣ s10Val) ** (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (.x23 ↦ᵣ s.s7) ** (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) **
+        (.x26 ↦ᵣ s.s10) ** (.x27 ↦ᵣ s.s11) **
+        frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        (.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+        (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (RegularRefundAddr ↦ₘ refund) **
+        memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+        (RolledBackAddr ↦ₘ (0 : Word))) := by
+  have hwb := teerWouldbeToEpi_rolled0 s10Val a0Old a1Old t0Old t1Old refund
+  -- Frame all epi regs except x26 (live s10 = s10Val, matched via hcur10).
+  have hwbF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) **
+      (.x1 ↦ᵣ cur.ra) ** (.x8 ↦ᵣ cur.s0) ** (.x9 ↦ᵣ cur.s1) **
+      (.x18 ↦ᵣ cur.s2) ** (.x19 ↦ᵣ cur.s3) ** (.x20 ↦ᵣ cur.s4) **
+      (.x21 ↦ᵣ cur.s5) ** (.x22 ↦ᵣ cur.s6) ** (.x23 ↦ᵣ cur.s7) **
+      (.x24 ↦ᵣ cur.s8) ** (.x25 ↦ᵣ cur.s9) ** (.x27 ↦ᵣ cur.s11) **
+      frameSlotsSaved teerEpiFrame spC (teerSavedVals s))
+    (by pcf) hwb
+  have hepi0 := teerEpilogueRestore_a0 sp0 spC s cur s10Val hspC hret
+  have hepi := cpsTripleWithin_extend_code teerField0_mono_teer hepi0
+  have hepiF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+      (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (RegularRefundAddr ↦ₘ refund) **
+      memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+      (RolledBackAddr ↦ₘ (0 : Word)))
+    (by pcf) hepi
+  -- Bridge: expand regsAt on the epi-prest goal; wouldbe post already has x26↦s10Val.
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      rw [regsAt_teerEpiFrame, hcur10]
+      xperm_hyp hp) hwbF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by
+      rw [regsAt_teerEpiFrame, hcur10] at hp
+      xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
 #print axioms teerWouldbeMvA0
 #print axioms teerWouldbeToEpi_rolled0
+#print axioms teerWouldbeToRet_rolled0
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
