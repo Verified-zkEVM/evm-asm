@@ -11,9 +11,14 @@
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerSpec
 import EvmAsm.Codegen.Programs.TxEip7702TeerEpilogue
+import EvmAsm.Codegen.Programs.TxEip7702TeerAssumed
+import EvmAsm.Codegen.Programs.TxEip7702TeerWouldbe
+import EvmAsm.Codegen.Programs.TxEip7702TeerScratchZero
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.AbiFrame
+import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -23,6 +28,7 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
+open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 
 set_option maxRecDepth 8000
 
@@ -328,5 +334,220 @@ theorem memIs_imp_memOwn_scratch (addr v : Word) :
 
 #print axioms frameSlotsSaved_epi_a5_imp_stackFree20
 #print axioms memIs_imp_memOwn_scratch
+
+
+
+/-- Empty-exit post → applied_flat post under `hteer0 : teer slice = 0`. -/
+theorem teerEmptyExitPost_imp_applied_flat_post
+    (teer : TeerApplied)
+    (ret spVal spC regionBase balPtr baiW refund : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat)
+    (s : TeerSaved)
+    (hs0 : s.s0 = s0) (hs1 : s.s1 = s1) (hs2 : s.s2 = s2) (hs3 : s.s3 = s3)
+    (hs4 : s.s4 = s4) (hs5 : s.s5 = s5) (hs6 : s.s6 = s6) (hs7 : s.s7 = s7)
+    (hs8 : s.s8 = s8) (hs9 : s.s9 = s9) (hs10 : s.s10 = s10) (hs11 : s.s11 = s11)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hteer0 :
+      teer ((bs.drop off).take len) balBytes chainId bai = 0) :
+    ∀ h,
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        (.x23 ↦ᵣ s.s7) ** (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) **
+        (.x26 ↦ᵣ s.s10) ** (.x27 ↦ᵣ s.s11) **
+        frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        (.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+        (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (RegularRefundAddr ↦ₘ refund) **
+        memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+        (RolledBackAddr ↦ₘ (0 : Word)) **
+        teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) h →
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ BitVec.ofNat 64
+          (teer ((bs.drop off).take len) balBytes chainId bai)) **
+        regOwn .x11 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) h := by
+  intro h hp
+  have ha0 :
+      BitVec.ofNat 64 (teer ((bs.drop off).take len) balBytes chainId bai) =
+        (0 : Word) := by
+    rw [hteer0]; rfl
+  -- Expand frame + rewrite s fields only (do not global-rewrite 0 via ha0)
+  dsimp only [teerEmptyAuthExitFrame] at hp
+  simp only [hs0, hs1, hs2, hs3, hs4, hs5, hs6, hs7, hs8, hs9, hs10, hs11] at hp
+  -- Group stack pieces for free-20 rebuild (keep a0=0 until after stack mono)
+  have hp1 :
+      ((frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+          memOwn (spC + signExtend12 (104 : BitVec 12)) **
+          stackFree spVal 6) **
+        ((.x10 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+          (.x27 ↦ᵣ s11) **
+          (.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+          (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (RegularRefundAddr ↦ₘ refund) **
+          memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+          (RolledBackAddr ↦ₘ (0 : Word)) **
+          (.x15 ↦ᵣ baiW) **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_inner_off) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_type) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_auth_count) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr) **
+          regOwn .x7 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+          regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31)) h := by
+    xperm_hyp hp
+  have hStack :
+      ∀ h1,
+        (frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+          memOwn (spC + signExtend12 (104 : BitVec 12)) **
+          stackFree spVal 6) h1 →
+        stackFree spVal nTeerStackDwords h1 := by
+    intro h1 hpS
+    have hpS' :
+        (frameSlotsSaved teerEpiFrame
+            (spVal + signExtend12 (-160 : BitVec 12)) (teerSavedVals s) **
+          memOwn ((spVal + signExtend12 (-160 : BitVec 12)) +
+            signExtend12 (104 : BitVec 12)) **
+          stackFree spVal 6) h1 := by
+      simpa [hspC] using hpS
+    exact frameSlotsSaved_epi_a5_imp_stackFree20 spVal s h1 hpS'
+  have hp2 := sepConj_mono hStack (fun _ hh => hh) h hp1
+  -- Pull convertibles left on the right conjunct, then mono regIs/memIs
+  have hp3 :
+      (stackFree spVal nTeerStackDwords **
+        ((.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+          (.x6 ↦ᵣ (0 : Word)) ** (.x15 ↦ᵣ baiW) **
+          (RegularRefundAddr ↦ₘ refund) **
+          (RolledBackAddr ↦ₘ (0 : Word)) **
+          ((.x10 ↦ᵣ (0 : Word)) **
+            (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+            (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+            (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+            (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+            (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+            (.x27 ↦ᵣ s11) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+            bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_inner_off) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_type) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_auth_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr) **
+            regOwn .x7 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+            regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31))) h := by
+    xperm_hyp hp2
+  -- a0=0 → a0=teer (atom-only; do not global-rewrite other zeros)
+  have ha0_reg :
+      ∀ h1, (.x10 ↦ᵣ (0 : Word)) h1 →
+        (.x10 ↦ᵣ BitVec.ofNat 64
+          (teer ((bs.drop off).take len) balBytes chainId bai)) h1 := by
+    intro h1 hpA0
+    simpa [ha0.symm] using hpA0
+  have hp4 :=
+    sepConj_mono (fun _ hh => hh)
+      (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x5)
+          (sepConj_mono (regIs_implies_regOwn .x6)
+            (sepConj_mono (regIs_implies_regOwn .x15)
+              (sepConj_mono memIs_implies_memOwn
+                (sepConj_mono memIs_implies_memOwn
+                  (sepConj_mono ha0_reg
+                    (fun _ hh => hh)))))))) h hp3
+  -- Fold scratch into teerScratchOwn and xperm to goal order
+  unfold teerScratchOwn at hp4 ⊢
+  simp only [RegularRefundAddr, RolledBackAddr, WouldbeStateAddr,
+    WouldbeRegularAddr] at hp4 ⊢
+  xperm_hyp hp4
+
+/-- Empty-auth `TeerAssumed` under FrontToAuthLoopAssumed + teer≡0.
+    Front residual remains; this packages the applied_flat field. -/
+def teerAssumed_empty_applied_flat
+    (teer : TeerApplied)
+    (front : TeerFrontToAuthLoopAssumed teerLinkedField0)
+    (hteer0_all :
+      ∀ (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
+        off + len ≤ bs.length →
+        teer ((bs.drop off).take len) balBytes chainId bai = 0) :
+    TeerAssumed teerLinkedField0 teer where
+  entry := E
+  applied_flat := fun ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW
+      s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+      bs balBytes off len chainId bai
+      hret hbal hptr hbound hbalLen hchain hbai => by
+    let spC : Word := spVal + signExtend12 (-160 : BitVec 12)
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    have hspC : spC = spVal + signExtend12 (-160 : BitVec 12) := rfl
+    have hra : s.ra = ret := rfl
+    have hteer0 := hteer0_all bs balBytes off len chainId bai hbound
+    have hrun0 :=
+      teerEmptyAuth_front_then_exit_mono front ret spVal spC regionBase loadPtr
+        (BitVec.ofNat 64 len) balPtr balLenW chainIdW baiW s bs balBytes off len
+        (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+        hret hbal hptr hbound hspC hra
+    refine cpsTripleWithin_weaken (fun _ hp => by
+        -- applied_flat PRE → front PRE (s fields definitional)
+        simpa [s] using hp)
+      (teerEmptyExitPost_imp_applied_flat_post teer ret spVal spC regionBase
+        balPtr baiW (0 : Word) s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+        bs balBytes off len chainId bai s
+        rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl hspC hteer0)
+      ?_
+    simpa [s] using hrun0
+
+#print axioms teerEmptyExitPost_imp_applied_flat_post
+#print axioms teerAssumed_empty_applied_flat
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
