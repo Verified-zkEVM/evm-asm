@@ -2755,4 +2755,31 @@ def teerEmptyAuthFree26MidAssumed_empty_short
 
 #print axioms teerEmptyAuthFree26MidAssumed_empty_short
 
+/-- Free pure: `ofNat 64 1 ≠ 0`. -/
+theorem teer_bv_one_ne_zero : BitVec.ofNat 64 1 ≠ (0 : Word) := by
+  decide
+
+theorem teer_listLenW_one_ne_zero {w : Word}
+    (h : w = BitVec.ofNat 64 1) : w ≠ (0 : Word) := by
+  simp [h]; exact teer_bv_one_ne_zero
+
+/-- Free26 inhabit from FrontToBridge + empty-short midA; `hlen` free via listLenW=1. -/
+def teerFrontToAuthLoopAssumedFree26_of_empty_short
+    (front : TeerFrontAuthContentToBridgeAssumed)
+    (midA : TeerEmptyAuthFree26MidAssumed)
+    (hlistLen : midA.listLen = 1)
+    (hlistLenW : front.listLenW = BitVec.ofNat 64 midA.listLen)
+    (hn : nFree26EmptyToExitPack front.nSteps midA.listLen + 30 ≤ nTeerSteps) :
+    TeerFrontToAuthLoopAssumedFree26 :=
+  teerFrontToAuthLoopAssumedFree26_of front midA hlistLenW
+    (by
+      have h1 : front.listLenW = BitVec.ofNat 64 1 := by
+        simpa [hlistLen] using hlistLenW
+      exact teer_listLenW_one_ne_zero h1)
+    hn
+
+#print axioms teer_bv_one_ne_zero
+#print axioms teer_listLenW_one_ne_zero
+#print axioms teerFrontToAuthLoopAssumedFree26_of_empty_short
+
 end EvmAsm.Codegen.TxEip7702TeerSpec

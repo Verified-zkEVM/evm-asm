@@ -489,6 +489,8 @@ def teer_empty_short_success_available : True := trivial
 /-- a4gbr: Free26 midA empty-short packaging (Success/guards free). -/
 def teer_midA_empty_short_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerEmptyAuthFree26MidAssumed_empty_short
+#print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26_of_empty_short
+#print axioms TxEip7702TeerSpec.teer_listLenW_one_ne_zero
 
 /-- Free26 Front→ret under residual Free26 inhabit. classical-3. -/
 def teer_free26_front_exit_available : True := trivial
