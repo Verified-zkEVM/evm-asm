@@ -2300,8 +2300,9 @@ theorem teerAuthLoopEmptyAmbientPost_to_source_of_rolledZero
         s balBytes innerVal cursorV endW s11 refund rolledVal h hp)
 
 /-- free26 Front residual structure: E free26 → AfterAuthLoopLi ExitPack.
-    Honest nested-free path. Inhabit via FrontToBridge + empty mid + RolledZero
-    (see `teerEmptyAuth_free26_to_exitPack`). -/
+    Identity nested-free path: requires `content = regionBase` (list at blob base).
+    Inhabit via FrontToBridge + `TeerEmptyAuthFree26MidAssumed`
+    (`teerFrontToAuthLoopAssumedFree26_of`). -/
 structure TeerFrontToAuthLoopAssumedFree26 where
   nSteps : Nat
   hn : nSteps + 30 ≤ nTeerSteps
@@ -2311,7 +2312,9 @@ structure TeerFrontToAuthLoopAssumedFree26 where
     ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
       (s : TeerSaved)
       (bs balBytes : List (BitVec 8)) (off len : Nat)
-      (_old1 _s7Old _cursorV _endW _s11 _innerVal : Word),
+      (old1 _s7Old _cursorV _endW _s11 _innerVal : Word),
+      content = regionBase →
+      old1 = LinkAuthWalkNext9 →
       (ret &&& ~~~(1 : Word)) = ret →
       balPtr ≠ 0 →
       loadPtr = regionBase + BitVec.ofNat 64 off →
@@ -2345,6 +2348,84 @@ structure TeerFrontToAuthLoopAssumedFree26 where
               t0Old t1Old baiW'
               regionBase bs balBytes balPtr hp)
 
+/-- Residual empty-path mid domain for Free26 inhabit (identity listBase=content).
+    Bundles list_count Success/guards + hrolled0 + s-reg wire equalities. -/
+structure TeerEmptyAuthFree26MidAssumed where
+  listLen : Nat
+  asm : TeerListCountAuthLoopAssumed teerLinkedCount
+  mid :
+    ∀ (spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW _baiW : Word)
+      (s : TeerSaved) (bs balBytes : List (BitVec 8))
+      (content listLenW _oldCount _s7Old cursorV endW s11 innerVal : Word),
+      content = regionBase →
+      listLenW = BitVec.ofNat 64 listLen →
+      listLenW ≠ (0 : Word) →
+      ∃ (newSp : Word) (bytes : List (BitVec 8)) (s0 s1 s2 s3 v24 : Word)
+        (hoff : (0 : Nat) < bytes.length),
+        bytes = bs ∧
+        newSp = spC + signExtend12 (-48 : BitVec 12) ∧
+        s0 = loadPtr ∧ s1 = lenW ∧ s2 = balPtr ∧ s3 = balLenW ∧
+        v24 = cursorV ∧
+        s0 = s.s0 ∧ s1 = s.s1 ∧ s2 = s.s2 ∧ s3 = s.s3 ∧
+        chainIdW = s.s4 ∧ endW = s.s9 ∧ s11 = s.s11 ∧
+        regionBase.toNat % 8 = 0 ∧
+        listLen + 9 ≤ bytes.length ∧
+        regionBase.toNat + bytes.length < 2 ^ 64 ∧
+        (∀ k, k < bytes.length →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 k) = true) ∧
+        (LinkListCount &&& ~~~(1 : Word)) = LinkListCount ∧
+        Success bytes regionBase listLen 0 ∧
+        ListCountResultSpecialize bytes regionBase listLen 0 (0 : Word) ∧
+        regionBase.toNat + 0 < 2 ^ 64 ∧
+        isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true ∧
+        ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+        BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+        (regionBase + BitVec.ofNat 64 0) +
+            (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+              signExtend12 (1 : BitVec 12)) =
+          (regionBase + BitVec.ofNat 64 0) + listLenW ∧
+        (∀ (refund rolledVal : Word) h,
+          ((teerListCountAuthLoopPost spC regionBase AuthCountAddr s0 s1 s2 s3
+              (0 : Word) bytes 0 listLenW) **
+            teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+              innerVal endW s11 refund rolledVal) h →
+          rolledVal = (0 : Word))
+
+/-- Fill Free26 from FrontToBridge + residual mid domain (identity content=regionBase).
+    Residual: inhabit `front` (applied hrun) and `midA` (Success/guards/hrolled0). -/
+def teerFrontToAuthLoopAssumedFree26_of
+    (front : TeerFrontAuthContentToBridgeAssumed)
+    (midA : TeerEmptyAuthFree26MidAssumed)
+    (hlistLenW : front.listLenW = BitVec.ofNat 64 midA.listLen)
+    (hlen : front.listLenW ≠ (0 : Word))
+    (hn : nFree26EmptyToExitPack front.nSteps midA.listLen + 30 ≤ nTeerSteps) :
+    TeerFrontToAuthLoopAssumedFree26 where
+  nSteps := nFree26EmptyToExitPack front.nSteps midA.listLen
+  hn := hn
+  content := front.content
+  listLenW := front.listLenW
+  run := fun ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
+      s bs balBytes off len old1 s7Old cursorV endW s11 innerVal
+      hc hold1 hret hbal hptr hbound hspC hra => by
+    obtain ⟨newSp, bytes, s0, s1, s2, s3, v24, hoff,
+        hbytes, hnewSp, hs0, hs1, hs2, hs3, hv24,
+        hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11,
+        hsalign, hslack, hover, hvalid, hretLink,
+        hsuccess, hspe, hoverOff, hvalidOff, h_ge, h_hi, h_exact, hrolled0⟩ :=
+      midA.mid spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
+        s bs balBytes front.content front.listLenW front.oldCount
+        s7Old cursorV endW s11 innerVal hc hlistLenW hlen
+    simpa [hc] using
+      teerEmptyAuth_free26_to_exitPack front midA.asm ret spVal spC regionBase
+        loadPtr lenW balPtr balLenW chainIdW baiW s bs balBytes off len
+        old1 s7Old cursorV endW s11 innerVal newSp regionBase midA.listLen bytes
+        s0 s1 s2 s3 v24 hoff rfl hbytes hc
+        hs0 hs1 hs2 hs3 hv24 hs0s hs1s hs2s hs3s hs4 hs9 hs11 hlistLenW
+        hsalign hslack hover hvalid hnewSp hretLink hsuccess hspe hlen
+        hoverOff hvalidOff h_ge h_hi h_exact hrolled0 hret hbal hptr hbound hspC
+        hra hold1
+
 #print axioms teerAuthLoopEmptyAmbientPost_to_source_of_rolledZero
+#print axioms teerFrontToAuthLoopAssumedFree26_of
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
