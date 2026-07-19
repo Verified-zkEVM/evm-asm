@@ -398,7 +398,8 @@ structure A4gbrResiduals where
              content-start %8=0 + short-list head (q/hq_align/hq derived);
              creLong ambient flats residual hgeN+hitem (hlong from head);
              copyLong ambient flats residual hgeN+hitem+q (hlong from head;
-               cover from statics);
+               cover from statics); copyLong of_success_head_aligned thins
+               residual to hgeN+hitem+halign+head (q/hq derived);
              Teer 745; gate. -/
 
   ambientMultiTx : True := trivial
@@ -431,6 +432,13 @@ def extract_discharge_ambient_copyLong_available :=
 #print axioms extract_discharge_ambient_copyLong_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongLegacy
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongT1
+
+/-- Long-copy ambient aligned residual (hgeN+hitem+halign+head). classical-3. -/
+def extract_discharge_ambient_copyLong_aligned_available :=
+  @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongType234_of_success_head_aligned
+#print axioms extract_discharge_ambient_copyLong_aligned_available
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongLegacy_of_success_head_aligned
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
 
 
 
