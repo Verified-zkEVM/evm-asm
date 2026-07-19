@@ -65,6 +65,8 @@ structure TeerCalleeAssumptions (cr : CodeReq) where
   successWrite : TeerSuccessWriteAssumed cr
   priorZero : TeerPriorZeroAssumed cr
   listCountAuthLoop : TeerListCountAuthLoopAssumed cr
+  /-- AuthContent flat → ListCount CalleeP prest (nested free + bytes window). -/
+  contentBridge : TeerAuthContentBridgeAssumed
 
 /-- Live regs at AfterAuthLoopLi for empty-auth exit (s7=s8=0, s10=0). -/
 def teerEmptyAuthCur (s : TeerSaved) : TeerSaved where
