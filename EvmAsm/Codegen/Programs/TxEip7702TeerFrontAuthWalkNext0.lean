@@ -617,7 +617,8 @@ theorem teerAuthWalkNext0_applied_nested
         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
       (teerAuthWalkNext0PostNested spC loadPtr lenW balPtr balLenW chainIdW
         s7 s11 spVal regionBase endL cursorV endW bs balBytes s innerVal srcOffA) := by
-  intro s innerVal listLen endL endW cursorV _cur
+  intro s innerVal listLen endL endW cursorV
+  let cur := (regionBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12)
   have hwi2 := teerWalkInit2_applied ret spVal spC loadPtr lenW
     balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
     regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
