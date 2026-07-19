@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopNonceJoin
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopOrZero
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontListCount
 import EvmAsm.Codegen.Programs.TxEip7702TeerSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
@@ -63,6 +64,7 @@ structure TeerCalleeAssumptions (cr : CodeReq) where
   authOrZero : TeerAuthOrZeroAssumed cr
   successWrite : TeerSuccessWriteAssumed cr
   priorZero : TeerPriorZeroAssumed cr
+  listCountAuthLoop : TeerListCountAuthLoopAssumed cr
 
 /-- Live regs at AfterAuthLoopLi for empty-auth exit (s7=s8=0, s10=0). -/
 def teerEmptyAuthCur (s : TeerSaved) : TeerSaved where
