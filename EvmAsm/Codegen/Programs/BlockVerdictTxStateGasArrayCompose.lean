@@ -401,7 +401,7 @@ structure A4gbrResiduals where
              * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
              * ExtractAssumedAmbient structure fill blocked on domain bridge;
                consumers keep named hyp; of_arm + of_success_head* available
-             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit short→AfterWalkInitSave(E+232) + WalkNext0 CycleOk→AfterWalkNext0Save(E+252) classical-3; residual FrontWalkNext0 applied + cycles1–5/auth/epi.
+             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit short→AfterWalkInitSave + WalkNext0 CycleOk + FrontWalkNext0 applied→AfterWalkNext0Save(E+252) classical-3; residual cycles1–5/auth under applied + FrontToAuthLoopAssumed.
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
