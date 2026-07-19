@@ -39,14 +39,14 @@ namespace EvmAsm.Codegen.TxExtractToAddressSpec
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
-open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
+open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange isValidByteAccess_of_validByteRange)
 open EvmAsm.Codegen
-open EvmAsm.Codegen.TxTypeDispatchSpec (txSlice teerTxTypeDispatch txSlice_length)
+open EvmAsm.Codegen.TxTypeDispatchSpec (txSlice teerTxTypeDispatch txSlice_length ambientAbsOff)
 open EvmAsm.Codegen.TxExtractToAddressModel
   (extractSuccess teerExtractToAddress decodeListItems decodeListItems_some_ne_nil)
 open EvmAsm.Codegen.TxExtractToAddressHonesty
   (encodeItems_le_55_of_decode_short_list_head
-    short_list_head_ult_f8_of_decode_hshort)
+    short_list_head_ult_f8_of_decode_hshort shortListSrcOff)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec (nExtractSteps fullCode)
 open EvmAsm.EL.RLP
 
@@ -681,5 +681,492 @@ theorem extractAssumed_success_flat_ambient_creShortT1_of_hshort
 #print axioms extractAssumed_success_flat_ambient_creShortLegacy_of_hshort
 #print axioms extractAssumed_success_flat_ambient_creShortT1_of_hshort
 #print axioms bs_length_lt_256_pow8_of_hover
+
+
+/-! ### Short-copy ambient packaging: residual q + hq_align + hq only
+
+`hcover`/`hcvalid` discharge from statics (`hsalign`/`hover`/`hvalidBuf`) + `hq`.
+`hshort` from short-list head (or direct). Path flags still needed:
+`hcopyFlag`/`type`/`hdec` (from extractSuccess + case).
+-/
+
+/-- Copy cover from ambient span + content dword bound. -/
+theorem copyAmbientExtras_of_statics
+    (regionBase : Word) (bs : List (BitVec 8)) (q : Nat)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hq : 8 * q + 16 < bs.length) :
+    CopyAmbientExtras regionBase q := by
+  have hcover : regionBase.toNat + 8 * q + 16 < 2 ^ 64 := by omega
+  have hsum : regionBase.toNat + (8 * q + 16) < 2 ^ 64 := by omega
+  have hadd :
+      regionBase + BitVec.ofNat 64 (8 * q) + (16 : Word) =
+        regionBase + BitVec.ofNat 64 (8 * q + 16) := by
+    have h16 : (16 : Word) = BitVec.ofNat 64 16 := rfl
+    rw [h16, BitVec.add_assoc, BitVec.ofNat_add]
+  have haddr :
+      (regionBase + BitVec.ofNat 64 (8 * q + 16)).toNat =
+        regionBase.toNat + (8 * q + 16) := by
+    have ha := regionBase.isLt
+    have hk : 8 * q + 16 < 2 ^ 64 := by omega
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt hsum]
+  have hbyte :
+      isValidByteAccess (regionBase + BitVec.ofNat 64 (8 * q + 16)) = true :=
+    isValidByteAccess_of_validByteRange regionBase bs.length (8 * q + 16)
+      hvalidBuf hq
+  have hmemAddr :
+      isValidMemAddr (regionBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true := by
+    simpa [isValidByteAccess, hadd] using hbyte
+  have hal4 :
+      isAligned4 (regionBase + BitVec.ofNat 64 (8 * q) + (16 : Word)) = true := by
+    have : (regionBase + BitVec.ofNat 64 (8 * q) + (16 : Word)).toNat % 4 = 0 := by
+      rw [hadd, haddr]
+      have hb : regionBase.toNat % 8 = 0 := hsalign
+      omega
+    simpa [isAligned4] using this
+  exact ⟨hcover, by simp only [isValidMemAccess_eq, hmemAddr, hal4, Bool.and_self]⟩
+
+/-- Package short type234 copy arm (residual q/hq_align/hq; hshort from head). -/
+def extractAssumedAmbientArm_copyShortType234
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hbound : off + len ≤ bs.length)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortType234 items q
+    ⟨hsuccess, hcopyFlag, hge, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi,
+      hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+/-- Package short legacy copy arm (residual q/hq_align/hq). -/
+def extractAssumedAmbientArm_copyShortLegacy
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hbound : off + len ≤ bs.length)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortLegacy items q
+    ⟨hsuccess, hcopyFlag, htype0, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi,
+      hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+/-- Package short t1 copy arm (residual q/hq_align/hq). -/
+def extractAssumedAmbientArm_copyShortT1
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hbound : off + len ≤ bs.length)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortT1 items q
+    ⟨hsuccess, hcopyFlag, htype1, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi,
+      hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+set_option maxRecDepth 8000 in
+/-- Short type234 copy ambient Assumed: residual only `q`/`hq_align`/`hq`. classical-3. -/
+theorem extractAssumed_success_flat_ambient_copyShortType234
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortType234 regionBase bs off len items q
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag hge hdec hlen h0 hhi
+      hq_align hq)
+
+set_option maxRecDepth 8000 in
+/-- Short legacy copy ambient Assumed: residual only `q`/`hq_align`/`hq`. classical-3. -/
+theorem extractAssumed_success_flat_ambient_copyShortLegacy
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortLegacy regionBase bs off len items q
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype0 hdec hlen h0 hhi
+      hq_align hq)
+
+set_option maxRecDepth 8000 in
+/-- Short t1 copy ambient Assumed: residual only `q`/`hq_align`/`hq`. classical-3. -/
+theorem extractAssumed_success_flat_ambient_copyShortT1
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortT1 regionBase bs off len items q
+      hbound hsalign hover hvalidBuf hsuccess hcopyFlag htype1 hdec hlen h0 hhi
+      hq_align hq)
+
+/-- Package short type234 copy arm from `hshort` (no head guard). residual q/hq_align/hq. -/
+def extractAssumedAmbientArm_copyShortType234_of_hshort
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortType234 items q
+    ⟨hsuccess, hcopyFlag, hge, hdec, hshort, hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+def extractAssumedAmbientArm_copyShortLegacy_of_hshort
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortLegacy items q
+    ⟨hsuccess, hcopyFlag, htype0, hdec, hshort, hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+def extractAssumedAmbientArm_copyShortT1_of_hshort
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem) (q : Nat)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .copyShortT1 items q
+    ⟨hsuccess, hcopyFlag, htype1, hdec, hshort, hq_align, hq⟩
+    (copyAmbientExtras_of_statics regionBase bs q hsalign hover hvalidBuf hq)
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_ambient_copyShortType234_of_hshort
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortType234_of_hshort regionBase bs off len items q
+      hsalign hover hvalidBuf hsuccess hcopyFlag hge hdec hshort hq_align hq)
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_ambient_copyShortLegacy_of_hshort
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortLegacy_of_hshort regionBase bs off len items q
+      hsalign hover hvalidBuf hsuccess hcopyFlag htype0 hdec hshort hq_align hq)
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_ambient_copyShortT1_of_hshort
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem) (q : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyFlag : (teerExtractToAddress (txSlice bs off len)).2.2 = (0 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hq_align : ambientAbsOff off
+        (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4) + 1 =
+      8 * q)
+    (hq : 8 * q + 16 < bs.length) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) :=
+  extractAssumed_success_flat_ambient_of_arm
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    (extractAssumedAmbientArm_copyShortT1_of_hshort regionBase bs off len items q
+      hsalign hover hvalidBuf hsuccess hcopyFlag htype1 hdec hshort hq_align hq)
+
+#print axioms copyAmbientExtras_of_statics
+#print axioms extractAssumed_success_flat_ambient_copyShortType234
+#print axioms extractAssumed_success_flat_ambient_copyShortLegacy
+#print axioms extractAssumed_success_flat_ambient_copyShortT1
+#print axioms extractAssumed_success_flat_ambient_copyShortType234_of_hshort
+#print axioms extractAssumed_success_flat_ambient_copyShortLegacy_of_hshort
+#print axioms extractAssumed_success_flat_ambient_copyShortT1_of_hshort
+
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

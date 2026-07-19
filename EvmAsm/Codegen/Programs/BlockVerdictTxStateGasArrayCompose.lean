@@ -389,11 +389,12 @@ structure A4gbrResiduals where
            ExtractAssumedAmbient arm case-split DONE
              (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
            residual: bare extractSuccess→arm domain bridge
-             (short-copy: hq_align+hq+hcover/hcvalid only — hgeN DROPPED via
-              encode_ge_two content-field room; short-cre: hgeN empty-to hss;
-              long: per-field hitem≤55);
+             (short-copy residual only q+hq_align+hq — hgeN DROPPED,
+              hcover/hcvalid from statics via copyAmbientExtras_of_statics;
+              short-cre: hgeN empty-to hss; long: per-field hitem≤55);
              short-cre hshort↔head bridges DONE; creShort ambient flats
-             residual-only-hgeN (`…_creShort*` / `…_of_hshort`); Teer 745;
+             residual-only-hgeN; copyShort ambient flats residual-only
+             q/hq_align/hq (`…_copyShort*` / `…_of_hshort`); Teer 745;
              gate. -/
 
   ambientMultiTx : True := trivial
@@ -416,6 +417,10 @@ def extract_discharge_ambient_creShort_available :=
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortLegacy
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortT1
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortType234_of_hshort
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShortType234
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShortLegacy
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShortT1
+#print axioms TxExtractToAddressSpec.copyAmbientExtras_of_statics
 /-- Ambient general off/len IntrinsicAssumed-shaped discharge available
     (under TisCalleeAssumptionsAmbient + extractSuccess/type success/statics). -/
 def intrinsic_discharge_ambient_available :=
