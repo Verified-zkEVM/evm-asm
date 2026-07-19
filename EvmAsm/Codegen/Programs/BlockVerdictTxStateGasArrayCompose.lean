@@ -492,7 +492,7 @@ def teer_midA_empty_short_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26_of_empty_short
 #print axioms TxEip7702TeerSpec.teer_listLenW_one_ne_zero
 
-/-- a4gbr: Free26 empty-short under FrontToBridge+RolledZero; of_hrun_empty_short free Success/guards/hspe; of_hrun_empty_short_ident frees oldCount via pick (residual hrun+hident content=regionBase∧listLenW=1+hrolled0+domain); of_hrun_empty_short residual hrun+specialize+hrolled0+Domain (classical-3 packaging). -/
+/-- a4gbr: Free26 empty-short (hident FREE via 0xc0 decode at srcOffA9=0) under FrontToBridge+RolledZero; of_hrun_empty_short free Success/guards/hspe; of_hrun_empty_short_ident frees oldCount via pick (residual hrun+hident content=regionBase∧listLenW=1+hrolled0+domain); of_hrun_empty_short residual hrun+specialize+hrolled0+Domain (classical-3 packaging). -/
 def teer_free26_empty_short_domain_available :=
   @TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26_of_empty_short_domain
 #print axioms teer_free26_empty_short_domain_available
