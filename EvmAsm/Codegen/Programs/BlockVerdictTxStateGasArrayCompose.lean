@@ -401,7 +401,7 @@ structure A4gbrResiduals where
              * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
              * ExtractAssumedAmbient structure fill blocked on domain bridge;
                consumers keep named hyp; of_arm + of_success_head* available
-             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit+WalkNext0–5 applied + Recipient+ValueNonzero+WalkInit2+AuthWalkNext CycleOk 0–9 + FrontAuthWalkNext0–9 applied classical-3 → AfterAuthWalkNext9Bne; FrontAuthCount content→AtListCount applied classical-3; TeerListCountAssumed packaging (Call+BNE+LD under nested stackFree spC 6; body residual Result→ok); residual FrontListCount applied + AuthLoopStart → FrontToAuthLoopAssumed + hteer0 + named leaf Assumeds.
+             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit+WalkNext0–5 applied + Recipient+ValueNonzero+WalkInit2+AuthWalkNext CycleOk 0–9 + FrontAuthWalkNext0–9 applied classical-3 → AfterAuthWalkNext9Bne; FrontAuthCount content→AtListCount applied classical-3; TeerListCountAssumed packaging; AuthLoopStartShort AfterAuthCountLoad->AfterAuthLoopLi DONE (Call+BNE+LD under nested stackFree spC 6; body residual Result→ok); residual FrontListCount applied + AuthLoopStart → FrontToAuthLoopAssumed + hteer0 + named leaf Assumeds.
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
