@@ -762,7 +762,12 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 0\n" ++   -- origin nonce -> sp+0
   "  jal ra, account_extract_nonce\n" ++
   "  sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp)\n" ++             -- post_balance = 0 (sp+8..39)
-  "  ld a3, 0(sp); ld a4, 0(sp)\n" ++                                                     -- pre_nonce = post_nonce = origin nonce
+  -- SELFDESTRUCT preserves the origin nonce, but a successful CREATE earlier
+  -- in this transaction may already have advanced it.  Keep the witness nonce
+  -- as the block-pre value and take the latest recorded nonce as the final.
+  "  ld t0, 0(sp); sd t0, 40(sp)\n" ++
+  "  la a0, sdai_origin_address; addi a1, sp, 40; jal ra, nonstorage_effect_latest_nonce\n" ++
+  "  ld a3, 0(sp); ld a4, 40(sp)\n" ++
   "  la a0, sdai_origin_address; addi a1, sp, 64; addi a2, sp, 8\n" ++                    -- a1 = pre_bal (origin), a2 = post_bal (0)
   "  jal ra, record_nonstorage_effect\n" ++
   ".L_sdbn_restore:\n" ++
