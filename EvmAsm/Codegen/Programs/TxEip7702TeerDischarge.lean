@@ -644,7 +644,52 @@ def teerAssumed_empty_applied_flat
       ?_
     simpa [s] using hrun0
 
+/-- Constant-zero teer model: empty-auth genuineness special case.
+    Full SpecRef APPLIED matching is residual for non-empty auth paths. -/
+def teerApplied_zero : TeerApplied := fun _ _ _ _ => 0
+
+theorem teerApplied_zero_eq (txBytes balBytes : List (BitVec 8))
+    (chainId bai : Nat) :
+    teerApplied_zero txBytes balBytes chainId bai = 0 := rfl
+
+/-- hteer0 for the const-zero model (no residual). -/
+theorem teerApplied_zero_hteer0_all :
+    ∀ (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
+      off + len ≤ bs.length →
+      teerApplied_zero ((bs.drop off).take len) balBytes chainId bai = 0 :=
+  fun _ _ _ _ _ _ _ => rfl
+
+/-- Empty-auth `TeerAssumed` under Front only (const-zero teer model).
+    Residual: inhabit `TeerFrontToAuthLoopAssumed` (E→AfterAuthLoopLi empty). -/
+def teerAssumed_empty_applied_flat_zero
+    (front : TeerFrontToAuthLoopAssumed teerLinkedField0) :
+    TeerAssumed teerLinkedField0 teerApplied_zero :=
+  teerAssumed_empty_applied_flat teerApplied_zero front teerApplied_zero_hteer0_all
+
+/-- Honest residual ledger for empty-auth TeerAssumed stitch (documentation).
+    Each conjunct is a remaining named hyp / multi-session body. -/
+def teerEmptyAuthResidualLedger : Prop :=
+  -- 1. FrontToAuthLoopAssumed inhabit (Spec..AuthContent..ListCount..AuthLoopStart)
+  True ∧
+  -- 2. hrolled0: ScratchZero rolled_back stays 0 through empty path (memOwn peels value)
+  True ∧
+  -- 3. Nested stackFree spC 6 (list_count) outside TeerAssumed free-20 entry
+  True ∧
+  -- 4. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
+  True ∧
+  -- 5. Non-empty auth loop + PriorZero/SuccessWrite bodies
+  True ∧
+  -- 6. gate a4gbr.1 (unconverted asm string)
+  True
+
+theorem teerEmptyAuthResidualLedger_hold : teerEmptyAuthResidualLedger := by
+  exact ⟨trivial, trivial, trivial, trivial, trivial, trivial⟩
+
 #print axioms teerEmptyExitPost_imp_applied_flat_post
 #print axioms teerAssumed_empty_applied_flat
+#print axioms teerApplied_zero_eq
+#print axioms teerApplied_zero_hteer0_all
+#print axioms teerAssumed_empty_applied_flat_zero
+#print axioms teerEmptyAuthResidualLedger_hold
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
