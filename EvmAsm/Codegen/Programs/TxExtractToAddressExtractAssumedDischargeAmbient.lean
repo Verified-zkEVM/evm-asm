@@ -2488,5 +2488,190 @@ theorem extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
 #print axioms extractAssumed_success_flat_ambient_copyLongLegacy_of_success_head_aligned
 #print axioms extractAssumed_success_flat_ambient_copyLongT1_of_success_head_aligned
 
+/-! ### Long-creation residual thin: empty `to` hitem free + head packaging
+
+Empty creation `to` is `0x80` (encode length 1 ≤ 55) via
+`TxExtractToAddressHonesty.extractSuccess_creation_to_field_encode_le55`. Residual after head packaging:
+`hgeN` + non-to-field `hitem*` + long-list head.
+-/
+
+set_option maxRecDepth 8000 in
+/-- Long type234 creation ambient: residual `hge7` + `hitem0..4` + long head.
+    `hlong`/`hitem5` (empty `to`) derived. classical-3. -/
+theorem extractAssumed_success_flat_ambient_creLongType234_of_success_head
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hge_f8 : ¬ BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge7 : 7 ≤ items.length)
+    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55)
+    (hitem4 : (encode (items[4]'(by omega))).length ≤ 55) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) := by
+  set slice := txSlice bs off len
+  have hidx : toFieldIndex (teerTxTypeDispatch slice).2.1.toNat = 5 := by
+    have hty : 2 ≤ (teerTxTypeDispatch slice).2.1.toNat := by simpa [slice] using hge
+    have hle : (teerTxTypeDispatch slice).2.1.toNat ≤ 4 :=
+      extractSuccess_type_le4 slice hsuccess
+    simpa using toFieldIndex_type234 _ hty hle
+  obtain ⟨_hn5, hitem5'⟩ :=
+    TxExtractToAddressHonesty.extractSuccess_creation_to_field_encode_le55 slice hsuccess
+      (by simpa [slice] using hcre) items (by simpa [slice] using hdec)
+  have hitem5 : (encode (items[5]'(by omega))).length ≤ 55 := by
+    simpa [hidx] using hitem5'
+  exact extractAssumed_success_flat_ambient_creLongType234
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len items
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    hsuccess hcre hge hdec h0 hge_f8 hge7
+    hitem0 hitem1 hitem2 hitem3 hitem4 hitem5
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_ambient_creLongLegacy_of_success_head
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hge_f8 : ¬ BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge5 : 5 ≤ items.length)
+    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) := by
+  set slice := txSlice bs off len
+  have hidx : toFieldIndex (teerTxTypeDispatch slice).2.1.toNat = 3 := by
+    have hty : (teerTxTypeDispatch slice).2.1 = (0 : Word) := by simpa [slice] using htype0
+    have htyN : (teerTxTypeDispatch slice).2.1.toNat = 0 := by simp [hty]
+    simp [htyN, toFieldIndex]
+  obtain ⟨_hn3, hitem3'⟩ :=
+    TxExtractToAddressHonesty.extractSuccess_creation_to_field_encode_le55 slice hsuccess
+      (by simpa [slice] using hcre) items (by simpa [slice] using hdec)
+  have hitem3 : (encode (items[3]'(by omega))).length ≤ 55 := by
+    simpa [hidx] using hitem3'
+  exact extractAssumed_success_flat_ambient_creLongLegacy
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len items
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    hsuccess hcre htype0 hdec h0 hge_f8 hge5
+    hitem0 hitem1 hitem2 hitem3
+
+set_option maxRecDepth 8000 in
+theorem extractAssumed_success_flat_ambient_creLongT1_of_success_head
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hge_f8 : ¬ BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge6 : 6 ≤ items.length)
+    (hitem0 : (encode (items[0]'(by omega))).length ≤ 55)
+    (hitem1 : (encode (items[1]'(by omega))).length ≤ 55)
+    (hitem2 : (encode (items[2]'(by omega))).length ≤ 55)
+    (hitem3 : (encode (items[3]'(by omega))).length ≤ 55) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) := by
+  set slice := txSlice bs off len
+  have hidx : toFieldIndex (teerTxTypeDispatch slice).2.1.toNat = 4 := by
+    have hty : (teerTxTypeDispatch slice).2.1 = (1 : Word) := by simpa [slice] using htype1
+    have htyN : (teerTxTypeDispatch slice).2.1.toNat = 1 := by simp [hty]
+    simp [htyN, toFieldIndex]
+  obtain ⟨_hn4, hitem4'⟩ :=
+    TxExtractToAddressHonesty.extractSuccess_creation_to_field_encode_le55 slice hsuccess
+      (by simpa [slice] using hcre) items (by simpa [slice] using hdec)
+  have hitem4 : (encode (items[4]'(by omega))).length ≤ 55 := by
+    simpa [hidx] using hitem4'
+  exact extractAssumed_success_flat_ambient_creLongT1
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len items
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    hsuccess hcre htype1 hdec h0 hge_f8 hge6
+    hitem0 hitem1 hitem2 hitem3 hitem4
+
+#print axioms extractAssumed_success_flat_ambient_creLongType234_of_success_head
+#print axioms extractAssumed_success_flat_ambient_creLongLegacy_of_success_head
+#print axioms extractAssumed_success_flat_ambient_creLongT1_of_success_head
+
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

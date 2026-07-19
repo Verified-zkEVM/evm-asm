@@ -396,7 +396,9 @@ structure A4gbrResiduals where
              short-cre hshort↔head bridges DONE; creShort ambient flats
              residual-only-hgeN; copyShort of_success_head_aligned residual only
              content-start %8=0 + short-list head (q/hq_align/hq derived);
-             creLong ambient flats residual hgeN+hitem (hlong from head);
+             creLong ambient flats residual hgeN+hitem (hlong from head;
+              empty-to hitem free via encode_le55; of_success_head residual
+              hgeN+non-to-hitem+head);
              copyLong ambient flats residual hgeN+hitem+q (hlong from head;
                cover from statics); copyLong of_success_head_aligned thins
                residual to hgeN+hitem+halign+head (q/hq derived);
@@ -422,6 +424,11 @@ def extract_discharge_ambient_copyShort_aligned_available :=
 def extract_discharge_ambient_creLong_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creLongType234
 #print axioms extract_discharge_ambient_creLong_available
+
+/-- creLong of_success_head (empty-to hitem free). classical-3. -/
+def extract_discharge_ambient_creLong_head_available :=
+  @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creLongType234_of_success_head
+#print axioms extract_discharge_ambient_creLong_head_available
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creLongLegacy
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creLongT1
 #print axioms TxExtractToAddressSpec.hlong_ambient_of_inner_long_head
