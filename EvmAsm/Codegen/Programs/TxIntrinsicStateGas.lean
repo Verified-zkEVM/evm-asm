@@ -1350,7 +1350,10 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_wouldbe_state:\n  .zero 8\n" ++
   "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
-  "teer_authority:\n  .zero 24\n" ++
+  -- `nonstorage_effect_latest_{balance,nonce}` compare the padded 32-byte
+  -- effect-log key word-for-word.  The recovered address occupies bytes 0..19;
+  -- retain an explicit zero tail rather than reading into the next scratch cell.
+  "teer_authority:\n  .zero 32\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
