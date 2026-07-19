@@ -518,7 +518,7 @@ example : True := trivial
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26EmptyShort_front_then_exit_applied_flat
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26EmptyShort_front_then_exit_applied_flat_zero
 
-/-- a4gbr: ScratchZero value-carrying zeros foundation + FrontEarly Is path; FrontType Is → AfterTypeBne DONE
+/-- a4gbr: ScratchZero value-carrying zeros foundation + FrontEarly Is path; FrontType Is → AfterTypeBne DONE; FrontType4 Is → AtWalkInit DONE
     through AfterBalCheck (ZeroIs**RestOwn). Residual: thread Is through
     FrontType..Ambient to free RolledZero. -/
 def teer_scratch_zero_is_available

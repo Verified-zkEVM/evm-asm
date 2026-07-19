@@ -466,7 +466,7 @@ def teerScratchRestWithoutTypeOwn : Assertion :=
   memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
   memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
 
-private theorem pcFree_teerScratchRestWithoutTypeOwn :
+theorem pcFree_teerScratchRestWithoutTypeOwn :
     teerScratchRestWithoutTypeOwn.pcFree := by
   unfold teerScratchRestWithoutTypeOwn
   repeat' (first | exact pcFree_memOwn | apply pcFree_sepConj)
@@ -501,7 +501,7 @@ def teerTypeAmbientIs
   bytesRegion balPtr balBytes **
   teerScratchZeroIs ** teerScratchRestWithoutTypeOwn
 
-private theorem pcFree_teerTypeAmbientIs
+theorem pcFree_teerTypeAmbientIs
     (spC balPtr balLenW chainIdW
       s5 s6 s7 s8 s9 s11 spVal : Word)
     (balBytes : List (BitVec 8)) (s : TeerSaved) :
