@@ -335,7 +335,7 @@ theorem teerWalkInit2FromValue
 
 /-- Ambient through FromValue (drops focus regs). -/
 def teerWalkInit2Ambient
-    (spVal spC loadPtr lenW balPtr balLenW chainIdW : Word)
+    (spVal spC _loadPtr _lenW balPtr balLenW chainIdW : Word)
     (s : TeerSaved) (_regionBase : Word) (_bs balBytes : List (BitVec 8))
     (_innerVal endW : Word) (s7 s11 cursorV : Word) : Assertion :=
   (.x2 ↦ᵣ spC) **
