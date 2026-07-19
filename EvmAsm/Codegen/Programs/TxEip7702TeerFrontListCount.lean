@@ -7,18 +7,12 @@
     AuthLoopStartShort_ownTemps (nested free framed).
   * Empty-auth: Success count=0 → s7=0; LI s8=0 at AfterAuthLoopLi.
 
-  Bridge residual (AuthContent applied post → Assumed prest):
-  1. nested `stackFree spC 6` outside TeerAssumed 20 — use `stackFree26_split`
-     when caller provides 26-dword entry budget
-  2. `bytesRegion listBase listBytes` vs full `bytesRegion regionBase bs`
-     (CalleeP owns the list window; ambient must NOT also hold regionBase bs —
-     fixed below. Split/focus residual when content is a strict subwindow.)
-  3. peel `memOwn AuthCountAddr` → `AuthCountAddr ↦ₘ oldCount`
-  4. FrontToAuthLoopAssumed empty post still needs epi-shaped ExitPre weaken
-
-  Packaging: `TeerAuthContentBridgeAssumed` names the AuthContent→CalleeP prest
-  reshape (nested free + AuthCount peel + bytes window). Compose under it to
-  reach AfterAuthLoopLi from applied entry.
+  Bridge: nested-identity free reshape classical-3
+  (`teerAuthContent_to_listCountPrest_nested_identity` + structure fill).
+  Domain: nested free already present (stackFree26 entry) + listBase=regionBase
+  + bytes=bs + AuthCount↦oldCount peeled. Residual: general content-window
+  focus; FrontToAuthLoopAssumed empty ExitPre weaken; compose AuthContent_applied
+  under nested free budget.
 -/
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerListCount
@@ -100,12 +94,13 @@ structure TeerListCountAuthLoopAssumed (cr : CodeReq) where
     NOT also hold `bytesRegion regionBase bs` (would double-own the content
     window). BAL region stays ambient. -/
 def teerListCountAuthLoopAmbient
-    (spVal spC balPtr chainIdW baiW : Word)
+    (spVal spC balPtr chainIdW _baiW : Word)
     (s : TeerSaved) (balBytes : List (BitVec 8))
-    (innerVal cursorV endW s11 : Word) : Assertion :=
+    (innerVal _cursorV endW s11 : Word) : Assertion :=
   (.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
     (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
-    (.x15 ↦ᵣ baiW) **
+    -- AuthContent posts regOwn x15 (bai value not preserved through list_count)
+    regOwn .x15 **
     frameSlotsSaved teerFrame spC (teerSavedVals s) **
     (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
     (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
@@ -132,8 +127,8 @@ def teerListCountAuthLoopAmbient
     memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
     memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
     memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
-    memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr) **
-    (.x24 ↦ᵣ cursorV)
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+    -- x24 owned by Assumed outer prest (v24), not ambient
 
 local macro "pcf" : tactic => `(tactic|
   repeat first
@@ -394,73 +389,129 @@ theorem teerAuthCount_memOwn_choose (B : Assertion) :
   intro h hp
   exact sepConj_choose_memOwn hp
 
-/-- Named hyp: reshape AuthContent flat post at AtListCount into ListCountAuthLoop
-    prest (CalleeP ** ambient).
+/-- AuthContent flat atoms with nested free already present and AuthCount
+    value-carrying (after peel). Used as bridge prest domain. -/
+def teerAuthContentBridgePre
+    (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
+    (content listLenW s7Old cursorV endW s11 : Word)
+    (s : TeerSaved) (innerVal oldCount : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) : Assertion :=
+  stackFree spC 6 **
+    ((.x2 ↦ᵣ spC) **
+      (.x1 ↦ᵣ old1) **
+      (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+      (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+      (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+      (.x23 ↦ᵣ s7Old) **
+      (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+      (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+      (.x26 ↦ᵣ (0 : Word)) **
+      (.x27 ↦ᵣ s11) **
+      frameSlotsSaved teerFrame spC (teerSavedVals s) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+      (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      stackFree spVal 6 **
+      bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+      (AuthCountAddr ↦ₘ oldCount) ** teerScratchWithoutAuthCountOwn)
 
-    Residual body (not free from pure model alone):
-    1. nested `stackFree spC 6` (outside TeerAssumed 20; needs entry budget 26
-       via `stackFree26_split`, or separate nested-free hyp)
-    2. replace `bytesRegion regionBase bs` with `bytesRegion listBase bytes`
-       (content window; requires 8-aligned listBase + focus/split when content
-       is a strict subwindow of the tx blob)
-    3. peel `memOwn AuthCountAddr` → `AuthCountAddr ↦ₘ oldCount`
-    4. wire s0..s3 = loadPtr/lenW/bal/balLen and a0/a1/a2 from content setup
+/-- ListCountAuthLoop Assumed prest (CalleeP framed with cursors + ambient). -/
+def teerAuthContentBridgePost
+    (spVal spC listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) : Assertion :=
+  ((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+      (.x24 ↦ᵣ v24) **
+      (.x21 ↦ᵣ listBase) **
+      (.x22 ↦ᵣ listLenW) **
+      teerListCountCalleeP spC listBase listLenW AuthCountAddr oldCount s0 s1 s2 s3
+        bytes) **
+    teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
+      baiW s balBytes innerVal cursorV endW s11
 
-    Free pieces landed: auth_count peel helpers; ambient no longer double-owns
-    the tx blob (CalleeP-only). -/
+/-- Free reshape under nested free already present + identity blob
+    (listBase = regionBase, bytes = bs) + cursor wire.
+
+    Domain residual for general content windows: 8-aligned
+    bytesRegion_window_focus (or unaligned focus lemma). Nested free is
+    NOT free from TeerAssumed 20-dword budget — caller must supply
+    stackFree spC 6 via stackFree26_split (entry budget 26). -/
+theorem teerAuthContent_to_listCountPrest_nested_identity
+    (spVal spC listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 loadPtr lenW balLenW : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (content : Word)
+    (hbase : listBase = regionBase)
+    (hbytes : bytes = bs)
+    (hcontent : content = listBase)
+    (hs0 : s0 = loadPtr) (hs1 : s1 = lenW) (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hv24 : v24 = cursorV) :
+    ∀ h, teerAuthContentBridgePre spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+        content listLenW s7Old cursorV endW s11 s innerVal oldCount
+        regionBase bs balBytes h →
+      teerAuthContentBridgePost spVal spC listBase listLenW oldCount s0 s1 s2 s3
+        bytes old1 s7Old v24 balPtr chainIdW baiW s balBytes
+        innerVal cursorV endW s11 h := by
+  intro h hp
+  subst hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24
+  dsimp only [teerAuthContentBridgePre, teerAuthContentBridgePost,
+    teerListCountCalleeP, entryRest, teerListCountAuthLoopAmbient,
+    teerScratchWithoutAuthCountOwn, AuthCountAddr] at hp ⊢
+  xperm_hyp hp
+
+/-- Structure packaging: identity-blob bridge under nested free.
+    General content-window focus residual (named for callers that need it). -/
 structure TeerAuthContentBridgeAssumed where
-  reshape :
-    ∀ (spVal spC listBase listLenW outPtr oldCount s0 s1 s2 s3 : Word)
+  reshape_nested_identity :
+    ∀ (spVal spC listBase listLenW oldCount s0 s1 s2 s3 : Word)
       (bytes : List (BitVec 8))
       (old1 s7Old v24 : Word)
       (balPtr chainIdW baiW : Word)
       (s : TeerSaved) (balBytes : List (BitVec 8))
       (innerVal cursorV endW s11 loadPtr lenW balLenW : Word)
       (regionBase : Word) (bs : List (BitVec 8))
-      (next lenK : Word),
-      outPtr = AuthCountAddr →
-      listBase = next - lenK →
-      listLenW = lenK →
+      (content : Word),
+      listBase = regionBase →
+      bytes = bs →
+      content = listBase →
       s0 = loadPtr → s1 = lenW → s2 = balPtr → s3 = balLenW →
-      -- nested free below frame (list_count ABI)
-      (∀ h, (stackFree spVal 6 ** frameSlotsSaved teerFrame spC (teerSavedVals s)) h →
-        (stackFree spC 6 ** stackFree spVal 6 **
-          frameSlotsSaved teerFrame spC (teerSavedVals s)) h) →
-      -- AuthContent flat post atoms (subset) imply CalleeP ** ambient
-      ∀ h,
-        (((.x2 ↦ᵣ spC) **
-          (.x1 ↦ᵣ old1) **
-          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
-          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
-          (.x21 ↦ᵣ next - lenK) ** (.x22 ↦ᵣ lenK) **
-          (.x23 ↦ᵣ s7Old) **
-          (.x10 ↦ᵣ next - lenK) ** (.x11 ↦ᵣ lenK) ** (.x12 ↦ᵣ AuthCountAddr) **
-          (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
-          (.x26 ↦ᵣ (0 : Word)) **
-          (.x27 ↦ᵣ s11) **
-          frameSlotsSaved teerFrame spC (teerSavedVals s) **
-          (.x0 ↦ᵣ (0 : Word)) **
-          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
-          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
-          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
-          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-          stackFree spVal 6 **
-          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
-          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
-          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
-          teerAuthContentScratchOwn) h) →
-        (((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
-            (.x24 ↦ᵣ v24) **
-            (.x21 ↦ᵣ listBase) **
-            (.x22 ↦ᵣ listLenW) **
-            teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
-              bytes) **
-          teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
-            baiW s balBytes innerVal cursorV endW s11) h
+      v24 = cursorV →
+      ∀ h, teerAuthContentBridgePre spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+          content listLenW s7Old cursorV endW s11 s innerVal oldCount
+          regionBase bs balBytes h →
+        teerAuthContentBridgePost spVal spC listBase listLenW oldCount s0 s1 s2 s3
+          bytes old1 s7Old v24 balPtr chainIdW baiW s balBytes
+          innerVal cursorV endW s11 h
+
+/-- Discharge identity bridge classical-3. -/
+def teerAuthContentBridgeAssumed_nested_identity : TeerAuthContentBridgeAssumed where
+  reshape_nested_identity := by
+    intro spVal spC listBase listLenW oldCount s0 s1 s2 s3 bytes
+      old1 s7Old v24 balPtr chainIdW baiW s balBytes
+      innerVal cursorV endW s11 loadPtr lenW balLenW regionBase bs content
+      hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24
+    exact teerAuthContent_to_listCountPrest_nested_identity
+      spVal spC listBase listLenW oldCount s0 s1 s2 s3 bytes
+      old1 s7Old v24 balPtr chainIdW baiW s balBytes
+      innerVal cursorV endW s11 loadPtr lenW balLenW regionBase bs content
+      hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24
 
 #print axioms teerAuthContentScratch_to_authCount_rest
 #print axioms teerAuthCount_memOwn_choose
+#print axioms teerAuthContent_to_listCountPrest_nested_identity
+#print axioms teerAuthContentBridgeAssumed_nested_identity
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
