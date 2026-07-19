@@ -210,6 +210,30 @@ def createCreatorNonceUseFunction : String :=
   "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   ".Lccns_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
+  "  ret\n" ++
+  -- Membership in the transaction-local, frame-journaled CREATE table. A hit
+  -- is an `is_account_alive` witness for an account created earlier in this
+  -- transaction, including a constructor that self-destructs before code is
+  -- deposited. Reverts restore the table through create_creator_nonce_undo_to.
+  -- a0 = 20-byte BE address; a0 = 1 on hit, 0 on miss. Clobbers t0-t6/a0-a1.
+  "create_creator_nonce_contains:\n" ++
+  "  mv t6, a0\n" ++
+  "  la t0, create_nonce_table; la t1, create_nonce_table_count; ld t1, 0(t1)\n" ++
+  "  li t2, 0\n" ++
+  ".Lccnc_contains_loop:\n" ++
+  "  beq t2, t1, .Lccnc_contains_miss\n" ++
+  "  li t3, 40; mul t3, t2, t3; add t3, t0, t3\n" ++
+  "  mv t4, t6; mv t5, t3; li a1, 20\n" ++
+  ".Lccnc_contains_cmp:\n" ++
+  "  beqz a1, .Lccnc_contains_found\n" ++
+  "  lbu a0, 0(t4); lbu t0, 0(t5); bne a0, t0, .Lccnc_contains_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi a1, a1, -1; j .Lccnc_contains_cmp\n" ++
+  ".Lccnc_contains_next:\n" ++
+  "  addi t2, t2, 1; la t0, create_nonce_table; j .Lccnc_contains_loop\n" ++
+  ".Lccnc_contains_found:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lccnc_contains_miss:\n" ++
+  "  li a0, 0; ret\n" ++
   "  ret"
 
 /-- Data for the per-creator nonce table (linked into the dispatcher data section in
