@@ -78,6 +78,11 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, evm_refund_acc; sd zero, 0(t0)\n" ++
   "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
+  -- The direct EOA shortcut bypasses `CallableSetup`, which also clears the
+  -- spill portion of the EIP-8037 state-gas reservoir.  Leaving it live makes
+  -- a preceding contract transaction's spill part of this EOA transaction's
+  -- settlement.
+  "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
