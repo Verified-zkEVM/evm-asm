@@ -2207,4 +2207,55 @@ def teerFrontAuthContentToBridgeAssumed_of_pick
 #print axioms teerEmptyAuth_free26_to_bridgePre_pick
 #print axioms teerWord_ofNat_toNat
 
+
+/-! ## Heap uniqueness (regIs / memIs) -/
+
+/-- Register value is unique on a partial heap. -/
+theorem teerRegIs_unique {r : Reg} {v1 v2 : Word} {h : PartialState} :
+    (r ↦ᵣ v1) h → (r ↦ᵣ v2) h → v1 = v2 := by
+  intro h1 h2
+  simp only [regIs] at h1 h2
+  -- h1: h = singletonReg r v1; h2: h = singletonReg r v2
+  have heq : PartialState.singletonReg r v1 = PartialState.singletonReg r v2 :=
+    h1.symm.trans h2
+  have hv := congrArg (fun p : PartialState => p.regs r) heq
+  simp only [PartialState.singletonReg, beq_self_eq_true, ↓reduceIte] at hv
+  exact Option.some_injective _ hv
+
+/-- Memory cell value is unique on a partial heap. -/
+theorem teerMemIs_unique {a v1 v2 : Word} {h : PartialState} :
+    (a ↦ₘ v1) h → (a ↦ₘ v2) h → v1 = v2 := by
+  intro h1 h2
+  simp only [memIs] at h1 h2
+  obtain ⟨heq1, _⟩ := h1
+  obtain ⟨heq2, _⟩ := h2
+  -- heq1: h = singletonMem a v1; heq2: h = singletonMem a v2
+  have heq : PartialState.singletonMem a v1 = PartialState.singletonMem a v2 :=
+    heq1.symm.trans heq2
+  have hv := congrArg (fun p : PartialState => p.mem a) heq
+  simp only [PartialState.singletonMem, beq_self_eq_true, ↓reduceIte] at hv
+  exact Option.some_injective _ hv
+
+/-- Rolled cell value 0 is unique: peel + `↦ₘ 0` forces `rolledVal = 0`. -/
+theorem teerRolledVal_eq_zero_of_memIs0 {rolledVal : Word} {h : PartialState}
+    (h0 : (RolledBackAddr ↦ₘ (0 : Word)) h)
+    (hv : (RolledBackAddr ↦ₘ rolledVal) h) :
+    rolledVal = (0 : Word) :=
+  (teerMemIs_unique h0 hv).symm
+
+/-- holdsFor form: machine state with rolled ↦ 0 forces peeled value 0. -/
+theorem teerRolledVal_eq_zero_of_holdsFor
+    {rolledVal : Word} {s : MachineState}
+    (h0 : (RolledBackAddr ↦ₘ (0 : Word)).holdsFor s)
+    (hv : (RolledBackAddr ↦ₘ rolledVal).holdsFor s) :
+    rolledVal = (0 : Word) := by
+  have h0' := holdsFor_memIs.mp h0
+  have hv' := holdsFor_memIs.mp hv
+  exact hv'.1.symm.trans h0'.1
+
+#print axioms teerRegIs_unique
+#print axioms teerMemIs_unique
+#print axioms teerRolledVal_eq_zero_of_memIs0
+#print axioms teerRolledVal_eq_zero_of_holdsFor
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
