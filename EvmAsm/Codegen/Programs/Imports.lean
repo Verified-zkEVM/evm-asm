@@ -69,6 +69,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerType
 import EvmAsm.Codegen.Programs.TxEip7702TeerType4
 import EvmAsm.Codegen.Programs.TxEip7702TeerWalkInit
 import EvmAsm.Codegen.Programs.TxEip7702TeerWalkNext0
+import EvmAsm.Codegen.Programs.TxEip7702TeerWalkNextSkip
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
