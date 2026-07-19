@@ -518,10 +518,13 @@ example : True := trivial
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26EmptyShort_front_then_exit_applied_flat
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26EmptyShort_front_then_exit_applied_flat_zero
 
-/-- a4gbr: ScratchZero value-carrying zeros foundation + FrontEarly Is path
+/-- a4gbr: ScratchZero value-carrying zeros foundation + FrontEarly Is path; FrontType Is → AfterTypeBne DONE
     through AfterBalCheck (ZeroIs**RestOwn). Residual: thread Is through
     FrontType..Ambient to free RolledZero. -/
-def teer_scratch_zero_is_available : True := trivial
+def teer_scratch_zero_is_available
+
+#print axioms teerTypeSuccess_applied_is
+theorem teer_type_success_applied_is_available : True := trivial : True := trivial
 #print axioms TxEip7702TeerSpec.teerScratchZero_is
 #print axioms TxEip7702TeerSpec.teerScratchZeroIs_to_own
 #print axioms TxEip7702TeerSpec.teerPrologueScratchBal_applied_is

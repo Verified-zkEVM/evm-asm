@@ -441,4 +441,378 @@ theorem teerTypeSuccess_applied
 #print axioms teerTypeSuccess_applied_nested
 #print axioms teerTypeSuccess_applied
 
+/-! ## Type path under ZeroIs (RolledZero thread)
+
+AfterBal Is post is `ZeroIs ** RestOwn`. Peel type/inner from RestOwn;
+ambient carries `ZeroIs ** RestWithoutType` (rolled stays ↦ₘ0). -/
+
+/-- RestOwn without type/inner (zero cells already in ZeroIs). -/
+def teerScratchRestWithoutTypeOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_auth_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+private theorem pcFree_teerScratchRestWithoutTypeOwn :
+    teerScratchRestWithoutTypeOwn.pcFree := by
+  unfold teerScratchRestWithoutTypeOwn
+  repeat' (first | exact pcFree_memOwn | apply pcFree_sepConj)
+
+theorem teerScratchRestOwn_to_type_rest :
+    ∀ h, teerScratchRestOwn h →
+      (memOwn TypeAddr ** memOwn InnerOffAddr ** teerScratchRestWithoutTypeOwn) h := by
+  intro h hp
+  unfold teerScratchRestOwn teerScratchRestWithoutTypeOwn TypeAddr InnerOffAddr at *
+  xperm_hyp hp
+
+theorem teerScratchRestOwn_of_type_rest :
+    ∀ h, (memOwn TypeAddr ** memOwn InnerOffAddr ** teerScratchRestWithoutTypeOwn) h →
+      teerScratchRestOwn h := by
+  intro h hp
+  unfold teerScratchRestOwn teerScratchRestWithoutTypeOwn TypeAddr InnerOffAddr at *
+  xperm_hyp hp
+
+/-- Ambient under type focus with ZeroIs (rolled ↦ₘ0). -/
+def teerTypeAmbientIs
+    (spC balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal : Word)
+    (balBytes : List (BitVec 8)) (s : TeerSaved) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+  (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+  (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+  (.x26 ↦ᵣ (0 : Word)) **
+  (.x27 ↦ᵣ s11) **
+  frameSlotsSaved teerFrame spC (teerSavedVals s) **
+  stackFree spVal 6 **
+  bytesRegion balPtr balBytes **
+  teerScratchZeroIs ** teerScratchRestWithoutTypeOwn
+
+private theorem pcFree_teerTypeAmbientIs
+    (spC balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal : Word)
+    (balBytes : List (BitVec 8)) (s : TeerSaved) :
+    (teerTypeAmbientIs spC balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal balBytes s).pcFree := by
+  unfold teerTypeAmbientIs teerScratchZeroIs teerScratchRestWithoutTypeOwn
+  pcf
+
+/-- AfterBal Is-flat → type focus ** ambient Is. -/
+theorem teerAfterBalFlatIs_to_typePre
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s5 s6 s7 s8 s9 s11 regionBase : Word)
+    (bs balBytes : List (BitVec 8)) (s : TeerSaved) :
+    ∀ h,
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+        (.x5 ↦ᵣ RolledBackAddr) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestOwn) h →
+      (teerTypeFocus ret loadPtr lenW balPtr balLenW regionBase bs **
+        teerTypeAmbientIs spC balPtr balLenW chainIdW
+          s5 s6 s7 s8 s9 s11 spVal balBytes s) h := by
+  intro h hp
+  unfold teerTypeFocus teerTypeAmbientIs
+  -- Pull Rest leftmost (ZeroIs stays with frame), peel Type/Inner, lift regs.
+  have hpR : (teerScratchRestOwn **
+      (teerScratchZeroIs **
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ ret) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+          (.x5 ↦ᵣ RolledBackAddr) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes))) h := by
+    xperm_hyp hp
+  have hpPeel := sepConj_mono_left teerScratchRestOwn_to_type_rest h hpR
+  have hp1 : ((.x5 ↦ᵣ RolledBackAddr) **
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        (memOwn TypeAddr ** memOwn InnerOffAddr **
+          teerScratchZeroIs ** teerScratchRestWithoutTypeOwn))) h := by
+    xperm_hyp hpPeel
+  have hp2 := sepConj_mono_left
+    (regIs_implies_regOwn (r := .x5) (v := RolledBackAddr)) h hp1
+  have hp3 : ((.x14 ↦ᵣ chainIdW) **
+      (regOwn .x5 **
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ ret) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          (memOwn TypeAddr ** memOwn InnerOffAddr **
+            teerScratchZeroIs ** teerScratchRestWithoutTypeOwn)))) h := by
+    xperm_hyp hp2
+  have hp4 := sepConj_mono_left
+    (regIs_implies_regOwn (r := .x14) (v := chainIdW)) h hp3
+  have hp5 : ((.x15 ↦ᵣ baiW) **
+      (regOwn .x14 ** regOwn .x5 **
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ ret) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (.x0 ↦ᵣ (0 : Word)) **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          (memOwn TypeAddr ** memOwn InnerOffAddr **
+            teerScratchZeroIs ** teerScratchRestWithoutTypeOwn)))) h := by
+    xperm_hyp hp4
+  have hp6 := sepConj_mono_left
+    (regIs_implies_regOwn (r := .x15) (v := baiW)) h hp5
+  xperm_hyp hp6
+
+def teerTypePostNestedIs
+    (spC loadPtr lenW balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal regionBase : Word)
+    (bs balBytes : List (BitVec 8)) (s : TeerSaved) : Assertion :=
+  ((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ balPtr) **
+    bytesRegion regionBase bs **
+    memOwn TypeAddr ** memOwn InnerOffAddr **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+    regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+    regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
+  teerTypeAmbientIs spC balPtr balLenW chainIdW
+    s5 s6 s7 s8 s9 s11 spVal balBytes s
+
+/-- Applied entry → AfterTypeBne nested under ZeroIs ambient. -/
+theorem teerTypeSuccess_applied_nested_is
+    (asm : TypeDispatchAssumedAmbientFull teerLinkedEarly)
+    (hentry : asm.entry = TypeEntry)
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word))
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlen : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 off) = true) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    cpsTripleWithin (34 + (6 + (1 + nTypeSteps) + 1)) E AfterTypeBne teerLinkedEarly
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      (teerTypePostNestedIs spC loadPtr lenW balPtr balLenW chainIdW
+        s5 s6 s7 s8 s9 s11 spVal regionBase bs balBytes s) := by
+  intro s
+  have hbal := teerPrologueScratchBal_applied_is ret spVal spC loadPtr lenW balPtr
+    balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 regionBase bs
+    balBytes hspC hnez
+  have hbalE : cpsTripleWithin 34 E AfterBalCheck teerLinkedEarly _ _ :=
+    cpsTripleWithin_extend_code teerEarly_mono_teer hbal
+  have hty := teerTypeSuccessAmbient asm hentry regionBase loadPtr lenW balPtr
+    bs off len ret loadPtr lenW balPtr balLenW
+    hptr hlen hsuccess halign hbound hover hvalid0
+  have htyF := cpsTripleWithin_frameR
+    (teerTypeAmbientIs spC balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal balBytes s)
+    (pcFree_teerTypeAmbientIs spC balPtr balLenW chainIdW
+      s5 s6 s7 s8 s9 s11 spVal balBytes s) hty
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (teerAfterBalFlatIs_to_typePre ret spVal spC loadPtr lenW balPtr balLenW
+      chainIdW baiW s5 s6 s7 s8 s9 s11 regionBase bs balBytes s)
+    hbalE htyF
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by
+      unfold teerTypePostNestedIs teerTypeAmbientIs at *
+      xperm_hyp hq) hseq
+
+/-- Flatten type Is nested: post carries ZeroIs ** RestOwn (type/inner rebuilt). -/
+theorem teerTypeSuccess_applied_is
+    (asm : TypeDispatchAssumedAmbientFull teerLinkedEarly)
+    (hentry : asm.entry = TypeEntry)
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word))
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlen : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 off) = true) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    cpsTripleWithin (34 + (6 + (1 + nTypeSteps) + 1)) E AfterTypeBne teerLinkedEarly
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ LinkType) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestOwn) := by
+  intro s
+  have h0 := teerTypeSuccess_applied_nested_is asm hentry ret spVal spC loadPtr lenW
+    balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+    regionBase bs balBytes off len hspC hnez hptr hlen hsuccess halign hbound
+    hover hvalid0
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      unfold teerTypePostNestedIs teerTypeAmbientIs at hq
+      have hq1 : (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ balPtr) **
+          bytesRegion regionBase bs **
+          memOwn TypeAddr ** memOwn InnerOffAddr **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+          regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
+        ((.x2 ↦ᵣ spC) **
+          (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          stackFree spVal 6 **
+          bytesRegion balPtr balBytes **
+          teerScratchZeroIs ** teerScratchRestWithoutTypeOwn)) h := hq
+      -- Rebuild RestOwn from Type**Inner**RestWT; keep ZeroIs
+      have hx : ((memOwn TypeAddr ** memOwn InnerOffAddr ** teerScratchRestWithoutTypeOwn) **
+          (((.x1 ↦ᵣ LinkType) ** (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ balPtr) **
+            bytesRegion regionBase bs **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+            regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+            regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
+          ((.x2 ↦ᵣ spC) **
+            (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+            (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+            (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+            (.x26 ↦ᵣ (0 : Word)) **
+            (.x27 ↦ᵣ s11) **
+            frameSlotsSaved teerFrame spC (teerSavedVals s) **
+            stackFree spVal 6 **
+            bytesRegion balPtr balBytes **
+            teerScratchZeroIs))) h := by
+        xperm_hyp hq1
+      have hx2 := (sepConj_mono teerScratchRestOwn_of_type_rest (fun _ hy => hy)) _ hx
+      xperm_hyp hx2) h0
+
+#print axioms teerScratchRestOwn_to_type_rest
+#print axioms teerAfterBalFlatIs_to_typePre
+#print axioms teerTypeSuccess_applied_nested_is
+#print axioms teerTypeSuccess_applied_is
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
