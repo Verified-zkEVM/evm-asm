@@ -398,7 +398,7 @@ structure A4gbrResiduals where
              * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
              * ExtractAssumedAmbient structure fill blocked on domain bridge;
                consumers keep named hyp; of_arm + of_success_head* available
-             TeerAssumed (745-instr prog converted; Spec+Prologue frame/ABI started — TxEip7702TeerSpec/Prologue); residual scratch-zero→type→walks→auth loop→epilogue; gate a4gbr.1. -/
+             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
