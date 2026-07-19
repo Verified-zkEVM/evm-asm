@@ -97,7 +97,7 @@ structure TeerListCountAuthLoopAssumed (cr : CodeReq) where
 
 /-- Ambient frame around list_count+AuthLoopStart (regs/stack not in CalleeP). -/
 def teerListCountAuthLoopAmbient
-    (spVal spC (_loadPtr) (_lenW) balPtr (_balLenW) chainIdW baiW : Word)
+    (spVal spC balPtr chainIdW baiW : Word)
     (s : TeerSaved) (regionBase : Word) (bs balBytes : List (BitVec 8))
     (innerVal cursorV endW s11 : Word) : Assertion :=
   (.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
@@ -147,11 +147,11 @@ local macro "pcf" : tactic => `(tactic|
     | exact frameSlotsSaved_pcFree _ _ _)
 
 private theorem pcFree_teerListCountAuthLoopAmbient
-    (spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (spVal spC balPtr chainIdW baiW : Word)
     (s : TeerSaved) (regionBase : Word) (bs balBytes : List (BitVec 8))
     (innerVal cursorV endW s11 : Word) :
-    (teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
-      baiW s regionBase bs balBytes innerVal cursorV endW s11).pcFree := by
+    (teerListCountAuthLoopAmbient spVal spC balPtr chainIdW baiW s regionBase bs
+      balBytes innerVal cursorV endW s11).pcFree := by
   unfold teerListCountAuthLoopAmbient
   pcf
 
@@ -163,7 +163,7 @@ theorem teerListCountAuthLoop_framed
     (bytes : List (BitVec 8)) (listLen count listOff : Nat)
     (old1 s7Old t0Old v10 v11 v24 : Word)
     (hoff : listOff < bytes.length)
-    (loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (balPtr chainIdW baiW : Word)
     (s : TeerSaved) (regionBase : Word) (bs balBytes : List (BitVec 8))
     (innerVal cursorV endW s11 : Word)
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
@@ -194,20 +194,20 @@ theorem teerListCountAuthLoop_framed
           (.x22 ↦ᵣ listLenW) **
           teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
             bytes) **
-        teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
+        teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
           baiW s regionBase bs balBytes innerVal cursorV endW s11)
       ((teerListCountAuthLoopPost spC listBase outPtr s0 s1 s2 s3 countW bytes
           listOff listLenW (0 : Word) (0 : Word)) **
-        teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
+        teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
           baiW s regionBase bs balBytes innerVal cursorV endW s11) := by
   have hcore := asm.run spC listBase listLenW outPtr oldCount s0 s1 s2 s3 countW
     bytes listLen count listOff old1 s7Old t0Old v10 v11 v24 hoff
     hlistLenW hsalign hslack hover hvalid hret hcountW hcount hsuccess hout
     hlen hoverOff hvalidOff h_ge h_hi h_exact
-  have hpcf := pcFree_teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr
-    balLenW chainIdW baiW s regionBase bs balBytes innerVal cursorV endW s11
+  have hpcf := pcFree_teerListCountAuthLoopAmbient spVal spC balPtr
+    chainIdW baiW s regionBase bs balBytes innerVal cursorV endW s11
   exact cpsTripleWithin_frameR
-    (teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
+    (teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
       baiW s regionBase bs balBytes innerVal cursorV endW s11)
     hpcf hcore
 
@@ -218,7 +218,7 @@ theorem teerListCountAuthLoop_framed_empty
     (bytes : List (BitVec 8)) (listLen : Nat)
     (old1 s7Old t0Old v10 v11 v24 : Word)
     (hoff : (0 : Nat) < bytes.length)
-    (loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (balPtr chainIdW baiW : Word)
     (s : TeerSaved) (regionBase : Word) (bs balBytes : List (BitVec 8))
     (innerVal cursorV endW s11 : Word)
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
@@ -247,11 +247,11 @@ theorem teerListCountAuthLoop_framed_empty
           (.x22 ↦ᵣ listLenW) **
           teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
             bytes) **
-        teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
+        teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
           baiW s regionBase bs balBytes innerVal cursorV endW s11)
       ((teerListCountAuthLoopPost spC listBase outPtr s0 s1 s2 s3 (0 : Word) bytes
           0 listLenW (0 : Word) (0 : Word)) **
-        teerListCountAuthLoopAmbient spVal spC loadPtr lenW balPtr balLenW chainIdW
+        teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
           baiW s regionBase bs balBytes innerVal cursorV endW s11) := by
   have hbase :
       listBase + BitVec.ofNat 64 0 = listBase := by
@@ -260,7 +260,7 @@ theorem teerListCountAuthLoop_framed_empty
   simpa [hbase] using
     teerListCountAuthLoop_framed asm spVal spC listBase listLenW outPtr oldCount
       s0 s1 s2 s3 (0 : Word) bytes listLen 0 0 old1 s7Old t0Old v10 v11 v24 hoff
-      loadPtr lenW balPtr balLenW chainIdW baiW s regionBase bs balBytes
+      balPtr chainIdW baiW s regionBase bs balBytes
       innerVal cursorV endW s11 hlistLenW hsalign hslack hover hvalid hret
       (rfl : (0 : Word) = BitVec.ofNat 64 0) (by omega : (0 : Nat) < 2 ^ 64)
       hsuccess hout hlen hoverOff hvalidOff h_ge h_hi h_exact
