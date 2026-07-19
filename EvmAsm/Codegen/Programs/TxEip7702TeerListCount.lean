@@ -254,6 +254,60 @@ theorem teerLdAuthCountS7 (countW s7Old t0Old : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hseq
 
+
+/-- Success-path callee post after Call: status 0, out cell holds countW. -/
+def teerListCountCalleeQOk (spC listBase outPtr s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x2 ↦ᵣ spC) **
+      ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+      stackFree spC 6) **
+    ((.x10 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase bytes ** (outPtr ↦ₘ countW))
+
+/-- After Call+BNE+LD success: s7=countW, out↦countW. -/
+def teerListCountLoadPost (spC listBase outPtr s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) : Assertion :=
+  ((.x2 ↦ᵣ spC) **
+      ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+      stackFree spC 6) **
+    ((.x1 ↦ᵣ LinkListCount) **
+     (.x10 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ AuthCountAddr) **
+     (.x23 ↦ᵣ countW) ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x11 ** regOwn .x12 ** regOwn .x28 ** regOwn .x29 **
+     regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase bytes ** (outPtr ↦ₘ countW))
+
+/-- Call + BNE + la/ld s7 step bound. -/
+def nListCountOkToLoad (listLen : Nat) : Nat :=
+  (1 + nListCountSteps listLen) + 1 + 3
+
+/-- Named hyp: list_count Call+BNE+LD success under nested `stackFree spC 6`.
+    Leaves `teerListCountCall` / `BneOk` / `LdAuthCountS7` exist; residual is
+    Result→ok specialize + frame compose (Success-count uniqueness). -/
+structure TeerListCountAssumed (cr : CodeReq) where
+  run :
+    ∀ (spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
+      (bytes : List (BitVec 8)) (listLen count : Nat) (old1 s7Old t0Old : Word),
+      listLenW = BitVec.ofNat 64 listLen →
+      listBase.toNat % 8 = 0 →
+      listLen + 9 ≤ bytes.length →
+      listBase.toNat + bytes.length < 2 ^ 64 →
+      (∀ k, k < bytes.length →
+        isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) →
+      newSp = spC + signExtend12 (-48 : BitVec 12) →
+      (LinkListCount &&& ~~~(1 : Word)) = LinkListCount →
+      countW = BitVec.ofNat 64 count →
+      count < 2 ^ 64 →
+      Success bytes listBase listLen count →
+      outPtr = AuthCountAddr →
+      cpsTripleWithin (nListCountOkToLoad listLen) AtListCount AfterAuthCountLoad cr
+        ((.x1 ↦ᵣ old1) ** (.x5 ↦ᵣ t0Old) ** (.x23 ↦ᵣ s7Old) **
+          teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
+            bytes)
+        (teerListCountLoadPost spC listBase outPtr s0 s1 s2 s3 countW bytes)
+
 #print axioms teerListCountCall
 #print axioms teerListCountBneOk
 #print axioms teerLdAuthCountS7
