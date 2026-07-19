@@ -3413,4 +3413,29 @@ theorem teerEmptyAuth_free26EmptyShort_front_then_exit
 #print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of
 #print axioms teerEmptyAuth_free26EmptyShort_front_then_exit
 
+/-! ## Free nTeerSteps budget for applied AuthContent front -/
+
+/-- Empty-short free26 path under applied AuthContent step count fits `nTeerSteps`.
+    `nFrontToAtListCount + nListCountAuthLoopStart 1 + 30 ≤ 4096` (concrete). -/
+theorem teer_nFree26Empty_applied_budget :
+    nFree26EmptyToExitPack nFrontToAtListCount 1 + 30 ≤ nTeerSteps := by
+  -- Unfold step-count spine to numerals; `decide` (not native_decide).
+  dsimp only [nFree26EmptyToExitPack, nListCountAuthLoopStart, nListCountOkToLoad,
+    nListCountSteps, nAuthLoopStartShort, nFrontToAtListCount, nTeerSteps]
+  decide
+
+/-- `hn` free when FrontToBridge uses applied AuthContent step count. -/
+def teerFrontToAuthLoopAssumedFree26EmptyShort_of_applied
+    (front : TeerFrontAuthContentToBridgeAssumed)
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (rz : TeerRolledZeroAssumed)
+    (hlistLenW : front.listLenW = BitVec.ofNat 64 1)
+    (hnSteps : front.nSteps = nFrontToAtListCount) :
+    TeerFrontToAuthLoopAssumedFree26EmptyShort :=
+  teerFrontToAuthLoopAssumedFree26EmptyShort_of front asm rz hlistLenW (by
+    simpa [hnSteps] using teer_nFree26Empty_applied_budget)
+
+#print axioms teer_nFree26Empty_applied_budget
+#print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_applied
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
