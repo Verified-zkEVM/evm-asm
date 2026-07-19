@@ -675,7 +675,7 @@ def teerEmptyAuthResidualLedger : Prop :=
   -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack memIs 0 held)
   True ∧
   -- 3. FrontToBridge inhabit (applied hrun wire; free26 pick packaging DONE;
-  --    of_hrun_empty_short_ident frees oldCount via pick; residual hrun+hident+hrolled0+domain)
+  --    of_hrun_empty_short_ident frees oldCount; decode path frees hident; decode_rz packages hrolled0; residual hrun+rz+domain)
   True ∧
   -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest)
   True ∧
