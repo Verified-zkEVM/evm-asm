@@ -118,6 +118,14 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerFrontValueNonzero
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontWalkInit2
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext0
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext1
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext2
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext3
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext4
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext5
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext6
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext7
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext8
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthWalkNext9
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
