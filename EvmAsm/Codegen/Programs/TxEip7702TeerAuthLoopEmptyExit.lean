@@ -5536,4 +5536,64 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_hrunA_empty_short_decode_rz_zero
 #print axioms teerEmptyAuth_free26_toRet_of_hrunA_empty_short_decode_rz
 #print axioms teerEmptyAuth_free26_to_applied_flat_of_hrunA_empty_short_decode_rz_zero
 
+/-! ## Free26EmptyShort from hrunA + rz (no FrontToBridge)
+
+`content` is a ghost equal to `regionBase` at each `run` (identity empty-short).
+Residual inhabit: `TeerEmptyAuthHrunEmptyShort` + `TeerRolledZeroAssumed`.
+Domain fixture stays on `run`. -/
+
+/-- Fill Free26EmptyShort from hrunA + rz via decode_rz ExitPack (hident FREE). -/
+def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA
+    (hrunA : TeerEmptyAuthHrunEmptyShort)
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (rz : TeerRolledZeroAssumed)
+    (content : Word)
+    (hn : hrunA.nSteps + nListCountAuthLoopStart 1 + 30 ≤ nTeerSteps) :
+    TeerFrontToAuthLoopAssumedFree26EmptyShort where
+  nSteps := hrunA.nSteps + nListCountAuthLoopStart 1
+  hn := hn
+  content := content
+  listLenW := BitVec.ofNat 64 1
+  run := fun ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
+      s bs balBytes off len _old1 _s7Old cursorV endW _s11 innerVal hoff0
+      hc _hlist1 _hold1 _hret _hbal _hptr _hbound hspC _hra
+      hs0w hs1w hs2w hs3w hs4w hs9w _hs11w
+      hsalign hslack hover hvalid h0 => by
+    have hpack :=
+      teerEmptyAuth_free26_to_exitPack_of_hrunA_empty_short_decode_rz
+        hrunA asm rz ret spVal spC regionBase loadPtr lenW balPtr balLenW
+        chainIdW baiW
+        s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 s.s8 s.s9 s.s10 s.s11
+        s bs balBytes hspC
+        innerVal endW endW cursorV
+        loadPtr lenW balPtr balLenW cursorV hoff0
+        rfl rfl rfl rfl rfl
+        hs0w hs1w hs2w hs3w hs4w hs9w rfl
+        hsalign hslack hover hvalid h0
+    -- Prest: Free26EmptyShort is x1**x2**free26**…; EntryRest is free26**x1**x2**…
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => by simpa [hc] using hq) hpack
+    intro h hp
+    have hp' :
+        (stackFree spVal nTeerStackWithListCount **
+          teerAuthContentAppliedEntryRest ret spVal loadPtr lenW balPtr balLenW
+            chainIdW baiW s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7 s.s8 s.s9
+            s.s10 s.s11 regionBase bs balBytes) h := by
+      unfold teerAuthContentAppliedEntryRest
+      xperm_hyp hp
+    exact hp'
+
+/-- `hn` free when hrunA uses applied AuthContent step count. -/
+def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_applied
+    (hrunA : TeerEmptyAuthHrunEmptyShort)
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (rz : TeerRolledZeroAssumed)
+    (content : Word)
+    (hnSteps : hrunA.nSteps = nFrontToAtListCount) :
+    TeerFrontToAuthLoopAssumedFree26EmptyShort :=
+  teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA hrunA asm rz content (by
+    simpa [hnSteps] using teer_nFree26Empty_applied_budget)
+
+#print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA
+#print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_applied
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
