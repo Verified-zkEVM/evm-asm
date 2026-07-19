@@ -323,6 +323,57 @@ theorem teerScratchZero_fullScratch (v26 : Word) (R : Assertion)
 #print axioms teerScratchZero_regOwn
 #print axioms teerScratchZero_fullScratch
 
+/-! ## Value-carrying scratch-zero under applied (RolledZero thread)
+
+`teerScratchZero_fullScratch` rebuilds `teerScratchOwn` (memOwn). Empty-auth
+RolledZero needs `RolledBack ↦ₘ 0` preserved; these duals post
+`teerScratchZeroIs ** teerScratchRestOwn` instead. -/
+
+/-- Scratch-zero Is with regOwn x5 (forall-lift). -/
+theorem teerScratchZero_regOwn_is (v26 : Word) :
+    cpsTripleWithin 13 AfterAbiMoves AtBalCheck teerCode
+      (((.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchZeroOwn) ** regOwn .x5)
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchZeroIs) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn
+    (P := (.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchZeroOwn) ?_
+  intro v5
+  have h0 := teerScratchZero_is v26 v5
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h0
+
+/-- Framed scratch-zero Is under full teerScratchOwn → ZeroIs ** RestOwn. -/
+theorem teerScratchZero_fullScratch_is (v26 : Word) (R : Assertion)
+    (hR : R.pcFree) :
+    cpsTripleWithin 13 AfterAbiMoves AtBalCheck teerCode
+      (((.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchOwn) **
+        regOwn .x5 ** R)
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchZeroIs ** teerScratchRestOwn ** R) := by
+  have hbody := teerScratchZero_regOwn_is v26
+  have hF := cpsTripleWithin_frameR (teerScratchRestOwn ** R)
+    (pcFree_sepConj pcFree_teerScratchRestOwn hR) hbody
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      unfold teerScratchOwn at hp
+      unfold teerScratchZeroOwn teerScratchRestOwn
+        RegularRefundAddr SuccessCountAddr PredelegatedAddr RolledBackAddr
+      xperm_hyp hp)
+    (fun _ hq => by
+      -- Nested frameR post: (bodyIs ** (Rest ** R)); flatten to bodyIs ** Rest ** R
+      xperm_hyp hq) hF
+
+/-- Rebuild full memOwn scratch from Is + Rest (applied_flat exit). -/
+theorem teerScratchOwn_of_zeroIs_rest :
+    ∀ h, (teerScratchZeroIs ** teerScratchRestOwn) h → teerScratchOwn h := by
+  intro h hp
+  exact teerScratchOwn_of_zero_rest h
+    (sepConj_mono (teerScratchZeroIs_to_own) (fun _ hq => hq) h hp)
+
+#print axioms teerScratchZero_regOwn_is
+#print axioms teerScratchZero_fullScratch_is
+#print axioms teerScratchOwn_of_zeroIs_rest
+
 /-- Ambient frame after peeling scratch body regs from prologue post. -/
 def teerScratchAmbient
     (spC ret loadPtr lenW balPtr balLenW chainIdW baiW
@@ -655,5 +706,233 @@ theorem teerPrologueScratchBal_applied
 
 #print axioms teerPrologueScratchBal_applied_nested
 #print axioms teerPrologueScratchBal_applied
+
+/-! ## Applied prologue+scratch+bal posting ZeroIs (RolledZero thread) -/
+
+/-- Applied entry → AtBalCheck with `teerScratchZeroIs ** teerScratchRestOwn`. -/
+theorem teerPrologueScratch_applied_is
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12)) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    let amb :=
+      teerScratchAmbient spC ret loadPtr lenW balPtr balLenW chainIdW baiW
+        s5 s6 s7 s8 s9 s11 spVal regionBase bs balBytes s
+    cpsTripleWithin 33 E AtBalCheck teerCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) **
+        (.x0 ↦ᵣ (0 : Word)) ** teerScratchZeroIs ** teerScratchRestOwn ** amb) := by
+  intro s amb
+  have hpro := teerPrologue_applied ret spVal spC loadPtr lenW balPtr balLenW
+    chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 regionBase bs balBytes hspC
+  have hR := pcFree_teerScratchAmbient spC ret loadPtr lenW balPtr balLenW
+    chainIdW baiW s5 s6 s7 s8 s9 s11 spVal regionBase bs balBytes s
+  have hsc := teerScratchZero_fullScratch_is s10 amb hR
+  have hscW := cpsTripleWithin_weaken
+    (teerProloguePost_to_scratchFullPre spC ret loadPtr lenW balPtr balLenW
+      chainIdW baiW s5 s6 s7 s8 s9 s10 s11 spVal regionBase bs balBytes s)
+    (fun _ hq => hq) hsc
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [s] at hp ⊢
+      exact hp) hpro hscW
+  exact cpsTripleWithin_mono_nSteps (by decide : 20 + 13 ≤ 33) hseq
+
+/-- Flatten Is nested post at AtBalCheck. -/
+theorem teerPrologueScratch_applied_flat_is
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12)) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    cpsTripleWithin 33 E AtBalCheck teerCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+        (.x5 ↦ᵣ RolledBackAddr) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestOwn) := by
+  intro s
+  have h0 := teerPrologueScratch_applied_is ret spVal spC loadPtr lenW balPtr balLenW
+    chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 regionBase bs balBytes hspC
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by
+      unfold teerScratchAmbient at hq
+      xperm_hyp hq) h0
+
+/-- AtBalCheck Is-flat → bal prest + ambient carrying ZeroIs ** RestOwn. -/
+theorem teerAtBalCheckFlatIs_to_balPre
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s5 s6 s7 s8 s9 s11 regionBase : Word)
+    (bs balBytes : List (BitVec 8)) (s : TeerSaved) :
+    ∀ h,
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+        (.x5 ↦ᵣ RolledBackAddr) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestOwn) h →
+      (((.x18 ↦ᵣ balPtr) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ ret) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+          (.x5 ↦ᵣ RolledBackAddr) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchZeroIs ** teerScratchRestOwn)) h := by
+  intro h hp
+  xperm_hyp hp
+
+/-- Applied entry → AfterBalCheck with ZeroIs ** RestOwn (bal≠0). -/
+theorem teerPrologueScratchBal_applied_is
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word)) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    cpsTripleWithin 34 E AfterBalCheck teerCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+        (.x5 ↦ᵣ RolledBackAddr) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestOwn) := by
+  intro s
+  have hsc := teerPrologueScratch_applied_flat_is ret spVal spC loadPtr lenW balPtr
+    balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 regionBase bs
+    balBytes hspC
+  have hbal := teerBalNezBeq balPtr hnez
+  have hbalF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) **
+      (.x1 ↦ᵣ ret) **
+      (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+      (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+      (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+      (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+      (.x26 ↦ᵣ (0 : Word)) **
+      (.x27 ↦ᵣ s11) ** (.x15 ↦ᵣ baiW) **
+      (.x5 ↦ᵣ RolledBackAddr) **
+      frameSlotsSaved teerFrame spC (teerSavedVals s) **
+      (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+      (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) ** (.x14 ↦ᵣ chainIdW) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      stackFree spVal 6 **
+      bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+      teerScratchZeroIs ** teerScratchRestOwn) (by
+      unfold teerScratchZeroIs teerScratchRestOwn
+      pcf) hbal
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (teerAtBalCheckFlatIs_to_balPre ret spVal spC loadPtr lenW balPtr balLenW
+      chainIdW baiW s5 s6 s7 s8 s9 s11 regionBase bs balBytes s)
+    hsc hbalF
+  have hnest := cpsTripleWithin_mono_nSteps (by decide : 33 + 1 ≤ 34) hseq
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by xperm_hyp hq) hnest
+
+#print axioms teerPrologueScratch_applied_is
+#print axioms teerPrologueScratch_applied_flat_is
+#print axioms teerPrologueScratchBal_applied_is
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
