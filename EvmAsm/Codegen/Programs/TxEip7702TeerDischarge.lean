@@ -671,6 +671,7 @@ def teerAssumed_empty_applied_flat_zero
 def teerEmptyAuthResidualLedger : Prop :=
   -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path)
   --    Free26 packaging DONE: of_empty_short_domain under FrontToBridge+RolledZero+Domain
+--    Free26EmptyShort→applied_flat free20**nested packaging DONE classical-3
   --    Free26→applied_flat free20**nested DONE (teerEmptyAuth_free26_front_then_exit_applied_flat_zero)
   True ∧
   -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack↦ₘ0 held)
