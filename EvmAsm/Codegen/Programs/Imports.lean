@@ -64,6 +64,8 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxEip7702TeerSpec
 import EvmAsm.Codegen.Programs.TxEip7702TeerPrologue
 import EvmAsm.Codegen.Programs.TxEip7702TeerScratchZero
+import EvmAsm.Codegen.Programs.TxEip7702TeerBalCheck
+import EvmAsm.Codegen.Programs.TxEip7702TeerType
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract

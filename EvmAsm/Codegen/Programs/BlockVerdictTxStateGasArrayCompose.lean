@@ -196,7 +196,8 @@
                 gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
                 Long type234 creation bare Assumed DONE. Long type234 creation+copy bare Assumed path Props DONE (copy gates longListSrcOff5+1=8*q). Residual: legacy/t1 long; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
-                Teer prover1; gate a4gbr.1.
+                Teer prover1; Teer progress: Spec/Prologue/ScratchZero/BalCheck/Type ambient (AfterTypeBne) classical-3; residual type==4+walks+auth+epi.
+            gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
             ~~TypeDispatchAssumed~~ DONE — use `typeDispatch_discharged`
@@ -398,7 +399,8 @@ structure A4gbrResiduals where
              * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
              * ExtractAssumedAmbient structure fill blocked on domain bridge;
                consumers keep named hyp; of_arm + of_success_head* available
-             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; gate a4gbr.1. -/
+             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec/Prologue/ScratchZero/BalCheck/Type ambient (AfterTypeBne) classical-3; residual type==4+walks+auth+epi.
+            gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
