@@ -669,21 +669,23 @@ def teerAssumed_empty_applied_flat_zero
 /-- Honest residual ledger for empty-auth TeerAssumed stitch (documentation).
     Each conjunct is a remaining named hyp / multi-session body. -/
 def teerEmptyAuthResidualLedger : Prop :=
-  -- 1. FrontToAuthLoopAssumed inhabit (Spec..AuthContent..ListCount..AuthLoopStart)
+  -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path)
   True ∧
-  -- 2. hrolled0: ScratchZero rolled_back stays 0 through empty path (memOwn peels value)
+  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack↦ₘ0 held)
   True ∧
-  -- 3. Nested stackFree spC 6 (list_count) outside TeerAssumed free-20 entry
+  -- 3. FrontToBridge inhabit (applied hrun wire + domain)
   True ∧
-  -- 4. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
+  -- 4. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path)
   True ∧
-  -- 5. Non-empty auth loop + PriorZero/SuccessWrite bodies
+  -- 5. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
   True ∧
-  -- 6. gate a4gbr.1 (unconverted asm string)
+  -- 6. Non-empty auth loop + PriorZero/SuccessWrite bodies
+  True ∧
+  -- 7. gate a4gbr.1 (unconverted asm string)
   True
 
 theorem teerEmptyAuthResidualLedger_hold : teerEmptyAuthResidualLedger := by
-  exact ⟨trivial, trivial, trivial, trivial, trivial, trivial⟩
+  exact ⟨trivial, trivial, trivial, trivial, trivial, trivial, trivial⟩
 
 #print axioms teerEmptyExitPost_imp_applied_flat_post
 #print axioms teerAssumed_empty_applied_flat

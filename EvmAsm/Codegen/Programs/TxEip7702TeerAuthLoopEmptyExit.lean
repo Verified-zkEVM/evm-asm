@@ -2258,4 +2258,93 @@ theorem teerRolledVal_eq_zero_of_holdsFor
 #print axioms teerRolledVal_eq_zero_of_memIs0
 #print axioms teerRolledVal_eq_zero_of_holdsFor
 
+
+/-! ## hrolled0 packaging -/
+
+/-- Named hyp: empty path preserves ScratchZero `teer_rolled_back = 0` through
+    list_count..AfterAuthLoopLi. `memOwn` discards the value after ScratchZero;
+    this re-pins it. Free when ambient already carries `RolledBack ↦ₘ 0`
+    (`teerRolledVal_eq_zero_of_memIs0`). -/
+structure TeerRolledZeroAssumed where
+  holds :
+    ∀ (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+      (bytes : List (BitVec 8))
+      (balPtr chainIdW _baiW : Word)
+      (s : TeerSaved) (balBytes : List (BitVec 8))
+      (innerVal _cursorV endW s11 : Word)
+      (refund rolledVal : Word) (h : PartialState),
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+          (0 : Word) bytes 0 listLenW) **
+        teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+          innerVal endW s11 refund rolledVal) h →
+      rolledVal = (0 : Word)
+
+/-- AmbientPost → Source under `TeerRolledZeroAssumed` (packages open `hrolled0`). -/
+theorem teerAuthLoopEmptyAmbientPost_to_source_of_rolledZero
+    (rz : TeerRolledZeroAssumed)
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) :
+    ∀ h,
+      teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+      ∃ (refund : Word),
+        teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW s balBytes innerVal endW s11 refund h :=
+  teerAuthLoopEmptyAmbientPost_to_source spVal spC listBase listLenW s0 s1 s2 s3
+    bytes balPtr chainIdW baiW s balBytes innerVal cursorV endW s11
+    (fun refund rolledVal h hp =>
+      rz.holds spVal spC listBase listLenW s0 s1 s2 s3 bytes balPtr chainIdW baiW
+        s balBytes innerVal cursorV endW s11 refund rolledVal h hp)
+
+/-- free26 Front residual structure: E free26 → AfterAuthLoopLi ExitPack.
+    Honest nested-free path. Inhabit via FrontToBridge + empty mid + RolledZero
+    (see `teerEmptyAuth_free26_to_exitPack`). -/
+structure TeerFrontToAuthLoopAssumedFree26 where
+  nSteps : Nat
+  hn : nSteps + 30 ≤ nTeerSteps
+  content : Word
+  listLenW : Word
+  run :
+    ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+      (s : TeerSaved)
+      (bs balBytes : List (BitVec 8)) (off len : Nat)
+      (_old1 _s7Old _cursorV _endW _s11 _innerVal : Word),
+      (ret &&& ~~~(1 : Word)) = ret →
+      balPtr ≠ 0 →
+      loadPtr = regionBase + BitVec.ofNat 64 off →
+      off + len ≤ bs.length →
+      spC = spVal + signExtend12 (-160 : BitVec 12) →
+      s.ra = ret →
+      cpsTripleWithin nSteps E AfterAuthLoopLi teerLinkedField0
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nTeerStackWithListCount **
+          (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+          (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+          (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+          (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) ** (.x26 ↦ᵣ s.s10) **
+          (.x27 ↦ᵣ s.s11) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+          (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchOwn **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+        (fun hp =>
+          ∃ (refund t0Old t1Old baiW' : Word),
+            teerAuthLoopEmptyExitPack spVal spC s
+              (teerAuthLoopEmptyWalkCur content)
+              (teerAuthLoopEmptyWalkEnd content listLenW)
+              refund
+              (teerAuthLoopEmptyWalkCur content)
+              (teerAuthLoopEmptyWalkEnd content listLenW)
+              t0Old t1Old baiW'
+              regionBase bs balBytes balPtr hp)
+
+#print axioms teerAuthLoopEmptyAmbientPost_to_source_of_rolledZero
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
