@@ -1404,10 +1404,10 @@ def blockVerdictFunction : String :=
   "  j .Lbv_after_tx_gas_precharge\n" ++
 
   blockVerdictCreateCollisionBranch ++
-  bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvReceiptsShapeSet 60 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
   -- Exact block-gas settlement needs one runtime result for every transaction.
   -- Creation and otherwise unsupported execution shapes deliberately leave that

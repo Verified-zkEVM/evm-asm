@@ -368,13 +368,17 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_creation_cap_done:\n" ++
   "  bgtu t2, t1, .Lbv_eip8037_gas_fail\n" ++
   ".Lbv_mtx_creation_prefix_done:\n" ++
-  bvReceiptsShapeSet 60 false ++
+  -- The receipt root is consensus-critical even when this runtime lane cannot
+  -- yet materialize every result.  Enforce it so an unsupported multi-tx shape
+  -- cannot silently accept a doctored header; incomplete materialization now
+  -- fails closed and is an explicit make-exact follow-up.
+  bvReceiptsShapeSet 60 true ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_dispatch_unsupported:\n" ++
-  bvRuntimeCompletenessSet 4 ++ bvReceiptsShapeSet 61 false ++
+  bvRuntimeCompletenessSet 4 ++ bvReceiptsShapeSet 61 true ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_bail:\n" ++
-  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 false ++  ".Lbv_mtx_bail_after_shape:\n" ++
+  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
 
 end EvmAsm.Codegen

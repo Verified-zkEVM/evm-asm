@@ -292,8 +292,12 @@ def schemeAAnchors : List GuestRegion :=
     per-frame CREATE nonce undo journal. Grew to `0x5dc40` for the
     CALLCODE stopHandlerCF per-depth metadata restore fix
     (`fix/mtx-sender-skip`, #10469), fixing the STOP-vs-RETURN
-    asymmetry. -/
-def textSizeBytes : Nat := 0x5dc40
+    asymmetry. Grew to `0x5dc54` for the receipts-shape enforce=true
+    fix (`fix/mtx-receipts-enforce`, #10470), closing a latent
+    false-accept on multi-tx unsupported receipts shapes 60/61/62
+    (bail-elimination doctrine, maintainer-approved intentional FR
+    increase 19->2080 exposing hidden FAs, not a regression). -/
+def textSizeBytes : Nat := 0x5dc54
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
