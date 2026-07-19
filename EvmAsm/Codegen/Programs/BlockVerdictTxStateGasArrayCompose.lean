@@ -198,7 +198,7 @@
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
                 Teer prover1; Teer progress: Spec..Type4→AtWalkInit + WalkInit short call+BNE+save→AfterWalkInitSave
             * teer walk_next0 prep+call+BNE+save (E+232→E+252) DONE classical-3
-            * teer walk_next skips 1–5 (E+260..340) prep+call+BNE DONE; cycle5 ends at recipient SUB (E+348)(E+232) classical-3; residual walk_next chain+auth+epi.
+            * teer walk_next skips 1–5 DONE; recipient SUB+store ptr/len+save s8 → AfterRecipientSave(E+380) classical-3; residual value_nonzero walk_next + second walk_init + auth loop + epi.
             gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
