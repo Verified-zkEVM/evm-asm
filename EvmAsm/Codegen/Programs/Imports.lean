@@ -61,6 +61,8 @@ import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
+import EvmAsm.Codegen.Programs.TxEip7702TeerSpec
+import EvmAsm.Codegen.Programs.TxEip7702TeerPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
