@@ -111,6 +111,16 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_selfdestruct_no_ctx_bal_loop\n" ++
   "  j .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
+  -- Header-state lookup cannot see a beneficiary created earlier in this
+  -- transaction. The per-tx CREATE table is frame-journaled, so a hit proves
+  -- live `tx_state.created_accounts` membership while a reverted child is
+  -- absent. Check it at the common charge gate (not merely the no-context arm).
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n" ++
+  "  jal ra, create_creator_nonce_contains\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  bnez t6, .L_selfdestruct_surcharge_done\n" ++
     -- `is_account_alive` reads the live transaction state. A prior committed
   -- value transfer can therefore make a pre-state-empty beneficiary alive even
   -- when it came from a different SELFDESTRUCT origin (CALLCODE/DELEGATECALL).
