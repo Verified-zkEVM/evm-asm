@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 
 namespace EvmAsm.Codegen
 
@@ -271,15 +272,98 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  mv s0, a0\n" ++
   "  la t0, bv_creation_ctx_ptr; sd s0, 0(t0)  # stable across runtime dispatcher\n" ++
   "  mv s1, a1\n" ++
+  -- A top-level CREATE runs its transaction data as initcode.  Use the common
+  -- arbitrary-code payload stager rather than the old one-byte STOP-only
+  -- layout so the callable runtime receives the real initcode bytes both as
+  -- code and as transaction calldata for intrinsic-gas accounting.
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
-  "  jal ra, stage_creation_runtime_payload\n" ++
+  "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
+  "  li a5, 0; li a6, 0\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
+  -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
+  -- transaction recipient).  A top-level CREATE has no recipient: its frame
+  -- address is the CREATE(sender, nonce) address already derived by the
+  -- verdict path.  Replace just that word before dispatch; this is required
+  -- for initcode such as ADDRESS; SELFDESTRUCT to execute in the created
+  -- account's context, as `process_create_message` does.
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
+  "  sd zero, 0(t1); sd zero, 8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
+  "  la t2, bv_create_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_address:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
+  ".Lbvcr_stage_address_done:\n" ++
+  -- A transaction-level CREATE enters initcode in the freshly-created account,
+  -- just like `process_create_message`: mark depth zero as a CREATE frame and
+  -- publish its address/nonce before the dispatcher starts.  The runtime uses
+  -- this marker for EIP-6780 SELFDESTRUCT-to-self accounting; without it an
+  -- initcode SELFDESTRUCT treats its own just-created account as pre-existing.
+  -- Keep the depth-zero metadata in the same form as `create_frame_descend` so
+  -- nested CREATEs see their creator's nonce one rather than pre-state zero.
+  "  la t0, create_frame_flag; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, create_address_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t1, bv_create_addr; li t2, 0\n" ++
+  ".Lbvcr_create_address_copy:\n" ++
+  "  li t3, 20; beq t2, t3, .Lbvcr_create_address_copy_done\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
+  ".Lbvcr_create_address_copy_done:\n" ++
+  "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
+  -- EIP-7708's synthetic Transfer log is part of the top-level create message
+  -- whenever it carries value.  The generic transaction intrinsic helper
+  -- charges its 1756 regular gas (LOG3: base + three topics + 32-byte data),
+  -- but this creation substrate bypasses that helper and stages the log here.
+  -- Put the matching charge in the dispatcher's pre-frame regular-gas cell so
+  -- it is applied before execution and therefore has ordinary OOG semantics.
+  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; beqz t1, .Lbvcr_tl7708_gas_zero; li t1, 1756; sd t1, 0(t0); j .Lbvcr_tl7708_gas_done\n" ++
+  ".Lbvcr_tl7708_gas_zero:\n" ++
+  "  sd zero, 0(t0)\n" ++
+  ".Lbvcr_tl7708_gas_done:\n" ++
   "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
+  -- Retain only the depth-zero RETURN in a distinct EIP-170-sized fixed
+  -- buffer.  Its status distinguishes STOP (0), captured RETURN (1), and an
+  -- oversized RETURN (2), so the later deposit step can reject rather than
+  -- silently treating an unsupported output as empty code.
+  "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
+  "  la t0, top_level_creation_returndata_len; sd zero, 0(t0)\n" ++
+  "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
+  -- `return`/`revert` clear child-depth markers, while a top-level frame has
+  -- no parent return path.  Clear this transaction-local depth-zero marker
+  -- here so the next transaction cannot inherit created-in-tx status.
+  "  la t0, create_frame_flag; sd zero, 0(t0)\n" ++
+  "  la t0, system_call_mode; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- `process_create_message` consumes a successful constructor RETURN as the
+  -- deployed code before transaction gas settlement.  STOP has empty code and
+  -- needs no record; a returned payload is captured in the fixed EIP-170
+  -- buffer above.  Any unavailable/invalid/OOG deposit takes this helper's
+  -- existing conservative failure edge rather than using an unverified code
+  -- hash or silently omitting the state-gas charge.
+  "  li t0, 0xa0010000; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
+  "  la t0, top_level_creation_returndata_status; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbvcr_ret\n" ++
+  "  la a0, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a1, 0(t0); jal ra, create_deployed_code_valid; bnez a0, .Lbvcr_ret\n" ++
+  -- Hash gas = 6 * ceil32(code_len)/32, charged against the top-level frame.
+  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, 6; mul t0, t0, t1\n" ++
+  "  la t1, evm_env; ld t2, 568(t1); bltu t2, t0, .Lbvcr_ret; sub t2, t2, t0; sd t2, 568(t1)\n" ++
+  -- Code-deposit state gas = 1530 * code_len.  This is the same reservoir /
+  -- spill fold used by the nested CREATE RETURN tail, with the top-level env
+  -- as the regular-gas source.
+  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, 1530; mul t0, t0, t1\n" ++
+  "  la t1, evm_state_gas_left; ld t2, 0(t1); bgeu t2, t0, .Lbvcr_csg_res\n" ++
+  "  sub t3, t0, t2; la t4, evm_env; ld t5, 568(t4); bltu t5, t3, .Lbvcr_ret\n" ++
+  "  sd zero, 0(t1); sub t5, t5, t3; sd t5, 568(t4); la t1, evm_state_gas_spilled; ld t2, 0(t1); add t2, t2, t3; sd t2, 0(t1); j .Lbvcr_csg_used\n" ++
+  ".Lbvcr_csg_res:\n" ++
+  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbvcr_csg_used:\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
+  "  la a0, bv_create_addr; la a1, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a2, 0(t0); jal ra, create_record_code_effect; bnez a0, .Lbvcr_ret\n" ++
+  ".Lbvcr_deposit_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
   "  ld s2, 48(s0)               # reload is_creation (the pre-dispatch save in s2 was clobbered too)\n" ++
