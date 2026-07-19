@@ -405,7 +405,7 @@ structure A4gbrResiduals where
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
-  /-- Teer AuthLoop…AtRecover(E+936) + recover Call(Assumed)+BNE+prior zeros→E+968 classical-3; success empty skip→E+1116 + bal_find Setup/Call(Assumed)/BNE→E+1156 classical-3; bal_finals Setup/Call(Assumed)/BNE→E+1196 classical-3; acct_absent zero + records empty skip→AtSvfTxCount(E+1276) classical-3; svf_tx_count=1 fallthrough→AfterSvfTxCountBne(E+1296) classical-3; code_at Setup/Call(Assumed)/BNE→AfterCodeAtBne(E+1388) classical-3; cahsr_code_length empty-skip→AtSvfTxCountSkip(E+1848) + len=23 fallthrough→AfterCahsrLenEq23(E+1412) classical-3; residual 0xef0100 prefix LBU + second code_at/bal_*/epi; TeerCodeAtAssumed named hyp; TeerRecover/BalFind/BalFinals Assumed named hyps; leaf modulo its remaining input callees (prover1 scope). -/
+  /-- Teer AuthLoop…AtRecover(E+936) + recover Call(Assumed)+BNE+prior zeros→E+968 classical-3; success empty skip→E+1116 + bal_find Setup/Call(Assumed)/BNE→E+1156 classical-3; bal_finals Setup/Call(Assumed)/BNE→E+1196 classical-3; acct_absent zero + records empty skip→AtSvfTxCount(E+1276) classical-3; svf_tx_count=1 fallthrough→AfterSvfTxCountBne(E+1296) classical-3; code_at Setup/Call(Assumed)/BNE→AfterCodeAtBne(E+1388) classical-3; cahsr_code_length empty-skip→AtSvfTxCountSkip(E+1848) + len=23→AfterCahsrLenEq23(E+1412) + codePtr setup→AfterCodePtrAdd(E+1440) + LBU/BNE/JAL leaves classical-3; residual 0xef0100 compose + second code_at/bal_*/epi; TeerCodeAtAssumed named hyp; TeerRecover/BalFind/BalFinals Assumed named hyps; leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
 
 /-- Ambient Assumed success_flat arm case-split available (path+extras → flat).
