@@ -289,8 +289,11 @@ def schemeAAnchors : List GuestRegion :=
     effect rows began preserving a prior value-transfer balance. Grew to
     `0x5d920` for the SUICIDE-6 selfdestruct/create fix
     (`diagnose/suicide-code44`, #10467). Grew to `0x5db78` for the
-    per-frame CREATE nonce undo journal. -/
-def textSizeBytes : Nat := 0x5db78
+    per-frame CREATE nonce undo journal. Grew to `0x5dc40` for the
+    CALLCODE stopHandlerCF per-depth metadata restore fix
+    (`fix/mtx-sender-skip`, #10469), fixing the STOP-vs-RETURN
+    asymmetry. -/
+def textSizeBytes : Nat := 0x5dc40
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
