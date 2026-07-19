@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopyDecodeLongAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressCopyFromRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitLongAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext0
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopyLongConcreteRegion
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbient
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
@@ -27,18 +28,7 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch txSlice ambientAbsOff)
 open EvmAsm.EL.RLP (Nat.fromBytesBE)
 
-/-- Long-path E2E copy steps: walk_init uses 1+(7*lol+25). -/
-def nFrontCopyStepsLongRegion (lol : Nat) : Nat :=
-  (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) +
-    ((1 + (7 * lol + 25)) + (1 + (1 + 1)))) +
-    (((((((((1 + (1 + (1 + 1))) + (1 + 1)) + ((1 + 87) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-            (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-        ((1 + 1) +
-          ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)))
+-- nFrontCopyStepsLongRegion shared from TopFrontE2ECopyLongConcreteRegion.
 
 set_option maxRecDepth 8000 in
 /-- Ambient E → ret type234 20B copy long of_decode. -/

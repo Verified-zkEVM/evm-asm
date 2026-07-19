@@ -230,6 +230,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongReg
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Region
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Ambient
+import EvmAsm.Codegen.Programs.TxExtractToAddressExtractAssumedDischargeAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -384,14 +385,23 @@ structure A4gbrResiduals where
               (`extractAssumed_copy_fullCode_of_decode_short_concrete_legacy_region_ambient`)
           * long legacy creation CreDecode/E2E/of_decode ambient DONE classical-3
           * long legacy creation Pure/PureHvalid ambient path Prop DONE classical-3
-          long type234+legacy+t1 copy PureHvalid ambient DONE; residual: ExtractAssumedAmbient.success_flat + Teer + gate
-            * long type234 copy ambient PureHvalid/flat DONE;
-            fill ExtractAssumedAmbient.success_flat case-split;
-            package IntrinsicAssumed structure; Teer; gate. -/
+           long type234+legacy+t1 copy PureHvalid ambient DONE;
+           ExtractAssumedAmbient arm case-split DONE
+             (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
+           residual: bare extractSuccess→arm domain bridge
+             (copy hq_align/cover; long hitem; type234 hge7);
+             package ExtractAssumedAmbient structure; Teer; gate. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
+
+/-- Ambient Assumed success_flat arm case-split available (path+extras → flat).
+    Bare extractSuccess → arm remains residual. -/
+def extract_discharge_ambient_of_arm_available :=
+  @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_of_arm
+
+#print axioms extract_discharge_ambient_of_arm_available
 
 /-- Ambient general off/len IntrinsicAssumed-shaped discharge available
     (under TisCalleeAssumptionsAmbient + extractSuccess/type success/statics). -/

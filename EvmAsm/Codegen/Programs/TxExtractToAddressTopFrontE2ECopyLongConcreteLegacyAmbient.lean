@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontCopyDecodeLongLegacyAmb
 import EvmAsm.Codegen.Programs.TxExtractToAddressCopyFromRegion
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkInitLongAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopWalkNext0
+import EvmAsm.Codegen.Programs.TxExtractToAddressTopFrontE2ECopyLongConcreteLegacyRegion
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchAmbient
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
@@ -27,15 +28,7 @@ open EvmAsm.Codegen.TxIntrinsicStateGasSpec
 open EvmAsm.Codegen.TxTypeDispatchSpec (teerTxTypeDispatch txSlice ambientAbsOff)
 open EvmAsm.EL.RLP (Nat.fromBytesBE)
 
-/-- Long-path E2E legacy copy steps: walk_init 1+(7*lol+25); 4 walks. -/
-def nFrontCopyStepsLongLegacyRegion (lol : Nat) : Nat :=
-  (((14 + 4) + ((6 + (1 + nTypeSteps) + 1) + 8)) + ((1 + (7 * lol + 25)) + (1 + (1 + 1)))) +
-    (((((((1 + 1) + (1 + 1)) + ((1 + 87) + 1)) +
-        (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-        (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-        (((1 + (1 + 1)) + (1 + 87)) + 1)) +
-        ((1 + 1) +
-          ((1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))))))) + 11)))
+-- nFrontCopyStepsLongLegacyRegion shared from TopFrontE2ECopyLongConcreteLegacyRegion.
 
 set_option maxRecDepth 8000 in
 /-- Ambient E → ret legacy 20B copy long of_decode. -/
