@@ -674,7 +674,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   --    EmptyShort → ret / applied_flat free20**nested DONE; hteer0 free via teerApplied_zero.
   True ∧
   -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack ↦ₘ 0 held).
-  --    Foundation: teerScratchZero_is posts teerScratchZeroIs; thread through Front
+  --    Foundation: teerScratchZero_is + FrontEarly teerPrologueScratchBal_applied_is
+  --    (E→AfterBalCheck posts ZeroIs**RestOwn); residual thread Is through FrontType..Ambient
   --    ambient (memOwn rolled → ↦ₘ 0) multi-session.
   True ∧
   -- 3. TeerEmptyAuthHrunEmptyShort inhabit (wire applied_as_postEx @ srcOffA9=0;
