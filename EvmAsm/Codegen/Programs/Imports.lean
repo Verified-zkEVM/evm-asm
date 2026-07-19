@@ -108,6 +108,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerFrontType
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontType4
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontWalkInit
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontWalkNext0
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontWalkNext1
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
