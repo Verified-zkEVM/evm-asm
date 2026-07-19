@@ -97,7 +97,7 @@ structure TeerListCountAuthLoopAssumed (cr : CodeReq) where
 
 /-- Ambient frame around list_count+AuthLoopStart (regs/stack not in CalleeP). -/
 def teerListCountAuthLoopAmbient
-    (spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (spVal spC (_loadPtr) (_lenW) balPtr (_balLenW) chainIdW baiW : Word)
     (s : TeerSaved) (regionBase : Word) (bs balBytes : List (BitVec 8))
     (innerVal cursorV endW s11 : Word) : Assertion :=
   (.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
