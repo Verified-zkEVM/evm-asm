@@ -2090,6 +2090,121 @@ theorem teerEmptyAuth_free26_toRet_of_hrun_fixed
 #print axioms teerEmptyAuth_free26_to_exitPack_of_hrun_fixed
 #print axioms teerEmptyAuth_free26_toRet_of_hrun_fixed
 
+/-- `Word` round-trip: `ofNat (toNat v) = v`. -/
+private theorem teerWord_ofNat_toNat (v : Word) :
+    BitVec.ofNat 64 v.toNat = v := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt v.isLt
 
+/-- Pick BridgePre witnesses as content/listLenW/oldCount (no specialize residual).
+    Exists form `(next−lenK, lenK, oc)` → named content form. -/
+theorem teerAuthContentBridgePre_exists_pick
+    (spVal spC loadPtr lenW balPtr balLenW chainIdW : Word)
+    (s7Old cursorV endW s11 : Word) (s : TeerSaved) (innerVal : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) :
+    ∀ h,
+      (∃ (next lenK oc : Word),
+        teerAuthContentBridgePre spVal spC LinkAuthWalkNext9 loadPtr lenW
+          balPtr balLenW chainIdW (next - lenK) lenK s7Old cursorV endW s11 s
+          innerVal oc regionBase bs balBytes h) →
+      ∃ (content listLenW oldCount : Word),
+        teerAuthContentBridgePre spVal spC LinkAuthWalkNext9 loadPtr lenW
+          balPtr balLenW chainIdW content listLenW s7Old cursorV endW s11 s
+          innerVal oldCount regionBase bs balBytes h := by
+  intro h ⟨next, lenK, oc, hBr⟩
+  exact ⟨next - lenK, lenK, oc, hBr⟩
+
+/-- free26 → ∃ content listLenW oldCount BridgePre under hrun (pick, no specialize). -/
+theorem teerEmptyAuth_free26_to_bridgePre_pick
+    {n : Nat}
+    (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (s : TeerSaved)
+    (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (innerVal endL endW cursorV : Word) (srcOffA9 : Nat)
+    (hrun : cpsTripleWithin n E AtListCount teerLinkedCount
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      (teerAuthContentAppliedPostEx spVal spC loadPtr lenW balPtr balLenW chainIdW
+        s7 cursorV endW s11 s innerVal endL regionBase bs balBytes srcOffA9)) :
+    cpsTripleWithin n E AtListCount teerLinkedField0
+      (stackFree spVal nTeerStackWithListCount **
+        teerAuthContentAppliedEntryRest ret spVal loadPtr lenW balPtr balLenW
+          chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+          regionBase bs balBytes)
+      (fun h =>
+        ∃ (content listLenW oldCount : Word),
+          teerAuthContentBridgePre spVal spC LinkAuthWalkNext9 loadPtr lenW
+            balPtr balLenW chainIdW content listLenW s7 cursorV endW s11 s
+            innerVal oldCount regionBase bs balBytes h) := by
+  have hex :=
+    teerEmptyAuth_free26_to_exitPack_of_hrun ret spVal spC regionBase loadPtr lenW
+      balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+      s bs balBytes hspC innerVal endL endW cursorV srcOffA9 hrun
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (teerAuthContentBridgePre_exists_pick spVal spC loadPtr lenW balPtr balLenW
+      chainIdW s7 cursorV endW s11 s innerVal regionBase bs balBytes)
+    hex
+
+/-- Fill FrontToBridge from exists-pick BridgePre run.
+    Witnesses are the picked content/listLenW/oldCount (no separate specialize).
+    Caller supplies `run` after `free26_to_bridgePre_pick` + mid with those fields. -/
+def teerFrontAuthContentToBridgeAssumed_of_pick
+    (nSteps : Nat) (content listLenW oldCount : Word)
+    (run :
+      ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+        (s : TeerSaved)
+        (bs balBytes : List (BitVec 8)) (off len : Nat)
+        (old1 s7Old cursorV endW s11 innerVal : Word),
+        (ret &&& ~~~(1 : Word)) = ret →
+        balPtr ≠ 0 →
+        loadPtr = regionBase + BitVec.ofNat 64 off →
+        off + len ≤ bs.length →
+        spC = spVal + signExtend12 (-160 : BitVec 12) →
+        s.ra = ret →
+        cpsTripleWithin nSteps E AtListCount teerLinkedField0
+          ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+            stackFree spVal nTeerStackWithListCount **
+            (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+            (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+            (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+            (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) ** (.x26 ↦ᵣ s.s10) **
+            (.x27 ↦ᵣ s.s11) **
+            (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+            (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+            (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+            bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+            teerScratchOwn **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+          (teerAuthContentBridgePre spVal spC old1 loadPtr lenW balPtr balLenW
+            chainIdW content listLenW s7Old cursorV endW s11 s innerVal oldCount
+            regionBase bs balBytes)) :
+    TeerFrontAuthContentToBridgeAssumed where
+  nSteps := nSteps
+  content := content
+  listLenW := listLenW
+  oldCount := oldCount
+  run := run
+
+#print axioms teerAuthContentBridgePre_exists_pick
+#print axioms teerEmptyAuth_free26_to_bridgePre_pick
+#print axioms teerWord_ofNat_toNat
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
