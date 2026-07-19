@@ -405,7 +405,7 @@ structure A4gbrResiduals where
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
-  /-- Teer AuthLoopBeq+BodyWn0→E+756; residual body/recover/epi; leaf modulo its remaining input callees (prover1 scope). -/
+  /-- Teer AuthLoopBeq+Body→E+756 + InnerWI→E+780; residual wn/content_to_u64/recover/epi; leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
 
 /-- Ambient Assumed success_flat arm case-split available (path+extras → flat).
