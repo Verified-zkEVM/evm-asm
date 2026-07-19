@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerSpec
+import EvmAsm.Codegen.Programs.TxEip7702TeerEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.AbiFrame
@@ -246,5 +247,86 @@ theorem frameSlotsSaved_imp_stackFree20 (sp0 : Word) (s : TeerSaved) :
 
 #print axioms stackFree20_split
 #print axioms frameSlotsSaved_imp_stackFree20
+
+/-- Epi frame (13 slots) saved → own. -/
+private theorem frameSlotsSaved_epi_imp_own (spC : Word) (s : TeerSaved) :
+    ∀ h, frameSlotsSaved teerEpiFrame spC (teerSavedVals s) h →
+      frameSlotsOwn teerEpiFrame spC h := by
+  intro h hp
+  obtain ⟨e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96, e104⟩ := se12s
+  simp only [teerEpiFrame, frameSlotsSaved, frameSlotsOwn, teerSavedVals,
+    List.foldr_cons, List.foldr_nil, sepConj_emp_right',
+    e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96] at hp ⊢
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn
+              (sepConj_mono memIs_implies_memOwn
+                (sepConj_mono memIs_implies_memOwn
+                  (sepConj_mono memIs_implies_memOwn
+                    (sepConj_mono memIs_implies_memOwn
+                      (sepConj_mono memIs_implies_memOwn
+                        (sepConj_mono memIs_implies_memOwn
+                          memIs_implies_memOwn))))))))))) h hp
+
+/-- teerEpiFrame own ** a5@104 own implies full teerFrame own (xperm). -/
+private theorem frameSlotsOwn_epi_a5_imp (spC : Word) :
+    ∀ h,
+      (frameSlotsOwn teerEpiFrame spC **
+        memOwn (spC + signExtend12 (104 : BitVec 12))) h →
+      frameSlotsOwn teerFrame spC h := by
+  intro h hp
+  obtain ⟨e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96, e104⟩ := se12s
+  simp only [teerEpiFrame, teerFrame, frameSlotsOwn,
+    List.foldr_cons, List.foldr_nil, sepConj_emp_right',
+    e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96, e104] at hp ⊢
+  xperm_hyp hp
+
+/-- Exit packaging shape: epi saved frame + a5 slot own + top-6 free → entry free-20. -/
+theorem frameSlotsSaved_epi_a5_imp_stackFree20 (sp0 : Word) (s : TeerSaved) :
+    ∀ h,
+      (frameSlotsSaved teerEpiFrame (sp0 + signExtend12 (-160 : BitVec 12))
+          (teerSavedVals s) **
+        memOwn ((sp0 + signExtend12 (-160 : BitVec 12)) +
+          signExtend12 (104 : BitVec 12)) **
+        stackFree sp0 6) h →
+      stackFree sp0 nTeerStackDwords h := by
+  intro h hp
+  -- Reassoc to (epiSaved ** a5) ** free6
+  have hp' :
+      ((frameSlotsSaved teerEpiFrame (sp0 + signExtend12 (-160 : BitVec 12))
+          (teerSavedVals s) **
+        memOwn ((sp0 + signExtend12 (-160 : BitVec 12)) +
+          signExtend12 (104 : BitVec 12))) **
+        stackFree sp0 6) h := by
+    xperm_hyp hp
+  have hFrame :
+      ∀ h1,
+        (frameSlotsSaved teerEpiFrame (sp0 + signExtend12 (-160 : BitVec 12))
+            (teerSavedVals s) **
+          memOwn ((sp0 + signExtend12 (-160 : BitVec 12)) +
+            signExtend12 (104 : BitVec 12))) h1 →
+        frameSlotsOwn teerFrame (sp0 + signExtend12 (-160 : BitVec 12)) h1 := by
+    intro h1 hp1
+    have hEpiOwn :=
+      sepConj_mono
+        (frameSlotsSaved_epi_imp_own (sp0 + signExtend12 (-160 : BitVec 12)) s)
+        (fun _ hh => hh) h1 hp1
+    exact frameSlotsOwn_epi_a5_imp _ h1 hEpiOwn
+  have hown :=
+    sepConj_mono hFrame (fun _ hh => hh) h hp'
+  have heq := stackFree20_split sp0
+  simp only at heq
+  rwa [← heq] at hown
+
+/-- Value-carrying scratch cells → bare memOwn (for teerScratchOwn rebuild). -/
+theorem memIs_imp_memOwn_scratch (addr v : Word) :
+    ∀ h, (addr ↦ₘ v) h → memOwn addr h :=
+  fun h hp => memIs_implies_memOwn h hp
+
+#print axioms frameSlotsSaved_epi_a5_imp_stackFree20
+#print axioms memIs_imp_memOwn_scratch
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
