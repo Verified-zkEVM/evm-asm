@@ -196,7 +196,8 @@
                 gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
                 Long type234 creation bare Assumed DONE. Long type234 creation+copy bare Assumed path Props DONE (copy gates longListSrcOff5+1=8*q). Residual: legacy/t1 long; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
-                Teer prover1; Teer progress: Spec..Type4→AtWalkInit + WalkInit short call+BNE+save→AfterWalkInitSave(E+232) classical-3; residual walk_next chain+auth+epi.
+                Teer prover1; Teer progress: Spec..Type4→AtWalkInit + WalkInit short call+BNE+save→AfterWalkInitSave
+            * teer walk_next0 prep+call+BNE+save (E+232→E+252) DONE classical-3(E+232) classical-3; residual walk_next chain+auth+epi.
             gate a4gbr.1.
             **fullCode ∪ extract(+walks) DONE** (`fullCode = (tis∪ets)∪extractLinkedCode`;
             `extractLinked_mono` / `extract_mono_full` / `type_mono`).
