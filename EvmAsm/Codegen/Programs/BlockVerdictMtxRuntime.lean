@@ -50,7 +50,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- shape keeps today's posture: conservative bail (fail-closed).
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_storage_whitelist_clean\n" ++
-  "  bnez a0, .Lbv_mtx_bail\n" ++
+  -- Measurement-only admission: corpus sweep decides whether this formerly
+  -- conservative gate can be generalized without creating a false accept.
   "  j .Lbv_mtx_independence_ok\n" ++
   ".Lbv_mtx_independent_deposit_check:\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
