@@ -721,8 +721,184 @@ theorem teerAuthLoopEmptySource_toRet
   obtain ⟨h0', hcompat', h1', h2', hd', hu', hRet, hR'⟩ := hQ
   exact ⟨h0', hcompat', h1', h2', hd', hu', ⟨t0Old, t1Old, baiW, hRet⟩, hR'⟩
 
-/-- Named residual: AmbientPost (memOwn) → Source (memIs refund/rolled=0).
-    Body: peel memOwn rolled/regular + ScratchZero preserve rolled=0. -/
+/-- Ambient half with peeled rolled/regular (rolledVal may be nonzero).
+    Uses GuestAddrs for wouldbe cells (Wouldbe*Addr are defs, not abbrevs). -/
+def teerAuthLoopEmptyAmbientMemIs
+    (spVal spC balPtr chainIdW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal endW s11 refund rolledVal : Word) : Assertion :=
+  (.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+    (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+    regOwn .x15 **
+    frameSlotsSaved teerFrame spC (teerSavedVals s) **
+    (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+    (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+    regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+    stackFree spVal 6 **
+    bytesRegion balPtr balBytes **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+    (BitVec.ofNat 64 GuestAddrs.teer_rolled_back ↦ₘ rolledVal) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+    (BitVec.ofNat 64 GuestAddrs.teer_regular_refund ↦ₘ refund) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+/-- Peel memOwn rolled/regular from AmbientPost → ∃ values (memIs). -/
+theorem teerAuthLoopEmptyAmbientPost_peel
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) :
+    ∀ h,
+      teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+      ∃ (refund rolledVal : Word),
+        ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+            (0 : Word) bytes 0 listLenW) **
+          teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+            innerVal endW s11 refund rolledVal) h := by
+  intro h hp0
+  dsimp only [teerAuthLoopEmptyAmbientPost, teerListCountAuthLoopAmbient] at hp0
+  -- Pull memOwn rolled leftmost (GuestAddrs form matches Ambient unfold)
+  have hp1 :
+      (memOwn (BitVec.ofNat 64 GuestAddrs.teer_rolled_back) **
+        ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+            (0 : Word) bytes 0 listLenW) **
+          ((.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+            (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+            regOwn .x15 **
+            frameSlotsSaved teerFrame spC (teerSavedVals s) **
+            (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+            (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+            stackFree spVal 6 **
+            bytesRegion balPtr balBytes **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_regular_refund) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)))) h := by
+    xperm_hyp hp0
+  obtain ⟨rolledVal, hp2⟩ := sepConj_choose_memOwn hp1
+  have hp3 :
+      (memOwn (BitVec.ofNat 64 GuestAddrs.teer_regular_refund) **
+        ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+            (0 : Word) bytes 0 listLenW) **
+          ((.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+            (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+            regOwn .x15 **
+            frameSlotsSaved teerFrame spC (teerSavedVals s) **
+            (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+            (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+            stackFree spVal 6 **
+            bytesRegion balPtr balBytes **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+            (BitVec.ofNat 64 GuestAddrs.teer_rolled_back ↦ₘ rolledVal) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_predelegated_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)))) h := by
+    xperm_hyp hp2
+  obtain ⟨refund, hp4⟩ := sepConj_choose_memOwn hp3
+  refine ⟨refund, rolledVal, ?_⟩
+  dsimp only [teerAuthLoopEmptyAmbientMemIs]
+  xperm_hyp hp4
+
+/-- MemIs ambient + rolledVal=0 → Source. -/
+theorem teerAuthLoopEmptyAmbientMemIs_to_source
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal endW s11 refund rolledVal : Word)
+    (hrolled0 : rolledVal = (0 : Word)) :
+    ∀ h,
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+          (0 : Word) bytes 0 listLenW) **
+        teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+          innerVal endW s11 refund rolledVal) h →
+      teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW s balBytes innerVal endW s11 refund h := by
+  intro h hp
+  dsimp only [teerAuthLoopEmptySource, teerAuthLoopEmptyAmbientMemIs,
+    RolledBackAddr, RegularRefundAddr, WouldbeStateAddr, WouldbeRegularAddr] at hp ⊢
+  -- Both sides now GuestAddrs form; rolledVal→0
+  simpa [hrolled0] using hp
+
+/-- AmbientPost → ∃ refund, Source under ScratchZero preserve (rolled stays 0).
+    `hrolled0` discharges the peeled rolled cell value. -/
+theorem teerAuthLoopEmptyAmbientPost_to_source
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word)
+    (hrolled0 : ∀ (refund rolledVal : Word) h,
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+          (0 : Word) bytes 0 listLenW) **
+        teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+          innerVal endW s11 refund rolledVal) h →
+      rolledVal = (0 : Word)) :
+    ∀ h,
+      teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+      ∃ (refund : Word),
+        teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW s balBytes innerVal endW s11 refund h := by
+  intro h hp
+  obtain ⟨refund, rolledVal, hpM⟩ :=
+    teerAuthLoopEmptyAmbientPost_peel spVal spC listBase listLenW s0 s1 s2 s3
+      bytes balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h hp
+  refine ⟨refund, ?_⟩
+  exact teerAuthLoopEmptyAmbientMemIs_to_source spVal spC listBase listLenW
+    s0 s1 s2 s3 bytes balPtr chainIdW s balBytes innerVal endW s11
+    refund rolledVal (hrolled0 refund rolledVal h hpM) h hpM
+
+/-- Named residual packaging: AmbientPost → Source.
+    Filled when ScratchZero preserve gives rolled=0 after peel. -/
 structure TeerAuthLoopEmptyAmbientToSourceAssumed where
   reshape :
     ∀ (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
@@ -737,6 +913,87 @@ structure TeerAuthLoopEmptyAmbientToSourceAssumed where
           teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
             balPtr chainIdW s balBytes innerVal endW s11 refund h
 
+/-- Fill Ambient→Source Assumed from rolled=0 preserve hyp. -/
+def teerAuthLoopEmptyAmbientToSourceAssumed_of_rolled0
+    (hrolled0_all :
+      ∀ (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+        (bytes : List (BitVec 8))
+        (balPtr chainIdW : Word)
+        (s : TeerSaved) (balBytes : List (BitVec 8))
+        (innerVal endW s11 refund rolledVal : Word) h,
+        ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+            (0 : Word) bytes 0 listLenW) **
+          teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+            innerVal endW s11 refund rolledVal) h →
+        rolledVal = (0 : Word)) :
+    TeerAuthLoopEmptyAmbientToSourceAssumed where
+  reshape := fun spVal spC listBase listLenW s0 s1 s2 s3 bytes
+      balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 =>
+    teerAuthLoopEmptyAmbientPost_to_source spVal spC listBase listLenW
+      s0 s1 s2 s3 bytes balPtr chainIdW baiW s balBytes innerVal cursorV
+      endW s11 (fun refund rolledVal h hp =>
+        hrolled0_all spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW s balBytes innerVal endW s11 refund rolledVal h hp)
+
+/-- AmbientPost → ret under rolled=0 preserve + identity wire.
+    Composes peel→Source→Source_toRet. -/
+theorem teerAuthLoopEmptyAmbientPost_toRet
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (hbase : listBase = regionBase) (hbytes : bytes = bs)
+    (hs0 : s0 = s.s0) (hs1 : s1 = s.s1) (hs2 : s2 = s.s2) (hs3 : s3 = s.s3)
+    (hs4 : chainIdW = s.s4) (hs9 : endW = s.s9) (hs11 : s11 = s.s11)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra)
+    (hrolled0 : ∀ (refund rolledVal : Word) h,
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+          (0 : Word) bytes 0 listLenW) **
+        teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+          innerVal endW s11 refund rolledVal) h →
+      rolledVal = (0 : Word)) :
+    cpsTripleWithin 30 AfterAuthLoopLi s.ra teerLinkedField0
+      (teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11)
+      (fun hp =>
+        ∃ (refund _t0Old _t1Old baiW' : Word),
+          ((((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ spVal) **
+              (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+              (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+              (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+              (.x23 ↦ᵣ s.s7) ** (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) **
+              (.x26 ↦ᵣ s.s10) ** (.x27 ↦ᵣ s.s11) **
+              frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+              (.x11 ↦ᵣ refund) ** (.x5 ↦ᵣ RolledBackAddr) **
+              (.x6 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+              (RegularRefundAddr ↦ₘ refund) **
+              memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+              (RolledBackAddr ↦ₘ (0 : Word))) **
+              teerEmptyAuthExitFrame baiW' spVal spC regionBase bs balBytes balPtr) **
+            stackFree spC 6) hp) := by
+  intro R hR st hcr hPR hpc
+  obtain ⟨h0, hcompat, h1, h2, hd, hu, hAmb, hR2⟩ := hPR
+  obtain ⟨refund, hSrc⟩ :=
+    teerAuthLoopEmptyAmbientPost_to_source spVal spC listBase listLenW
+      s0 s1 s2 s3 bytes balPtr chainIdW baiW s balBytes innerVal cursorV
+      endW s11 hrolled0 h1 hAmb
+  have hrun :=
+    teerAuthLoopEmptySource_toRet spVal spC listBase listLenW s0 s1 s2 s3 bytes
+      balPtr chainIdW s balBytes innerVal endW s11 refund regionBase bs
+      hbase hbytes hs0 hs1 hs2 hs3 hs4 hs9 hs11 hspC hret
+  have hPR' :
+      ((teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+          balPtr chainIdW s balBytes innerVal endW s11 refund ** R)).holdsFor st :=
+    ⟨h0, hcompat, h1, h2, hd, hu, hSrc, hR2⟩
+  obtain ⟨k, hk, st', hexec, hpc', hQ⟩ :=
+    hrun R hR st hcr hPR' hpc
+  refine ⟨k, hk, st', hexec, hpc', ?_⟩
+  obtain ⟨h0', hcompat', h1', h2', hd', hu', ⟨t0, t1, bai', hRet⟩, hR'⟩ := hQ
+  exact ⟨h0', hcompat', h1', h2', hd', hu', ⟨refund, t0, t1, bai', hRet⟩, hR'⟩
+
 #print axioms teerAuthLoopEmptyLiveCur_s78
 #print axioms teerAuthLoopEmptyLiveCur_s10
 #print axioms teerAuthLoopEmptyLiveCur_ra
@@ -744,5 +1001,9 @@ structure TeerAuthLoopEmptyAmbientToSourceAssumed where
 #print axioms teerAuthLoopEmptyExitPack_toRet
 #print axioms teerAuthLoopEmpty_to_exitPack
 #print axioms teerAuthLoopEmptySource_toRet
+#print axioms teerAuthLoopEmptyAmbientPost_peel
+#print axioms teerAuthLoopEmptyAmbientMemIs_to_source
+#print axioms teerAuthLoopEmptyAmbientPost_to_source
+#print axioms teerAuthLoopEmptyAmbientPost_toRet
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
