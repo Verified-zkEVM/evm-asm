@@ -645,6 +645,138 @@ theorem teerCahsrPrefixJalSkip :
         (by rw [teer_length]; decide) rfl
         (by rw [teer_length]; decide) a i hi)) h0
 
+/-- Already-delegated prefix 0xef0100: LBU×3 + BNE×3 + JAL skip.
+    Requires bytes 0..2 share one dword (codePtr % 8 ≤ 5). Carries x0=0 for BNE x0. -/
+theorem teerCahsrPrefixEf0100Skip
+    (codePtr t6Old t7Old dwordAddr wordVal : Word)
+    (halign0 : alignToDword codePtr = dwordAddr)
+    (halign1 : alignToDword (codePtr + (1 : Word)) = dwordAddr)
+    (halign2 : alignToDword (codePtr + (2 : Word)) = dwordAddr)
+    (hvalid0 : isValidByteAccess codePtr = true)
+    (hvalid1 : isValidByteAccess (codePtr + (1 : Word)) = true)
+    (hvalid2 : isValidByteAccess (codePtr + (2 : Word)) = true)
+    (hb0 : (extractByte wordVal (byteOffset codePtr)).zeroExtend 64 = (239 : Word))
+    (hb1 : (extractByte wordVal (byteOffset (codePtr + (1 : Word)))).zeroExtend 64 =
+      (1 : Word))
+    (hb2 : (extractByte wordVal (byteOffset (codePtr + (2 : Word)))).zeroExtend 64 =
+      (0 : Word)) :
+    cpsTripleWithin 9 AfterCodePtrAdd AtSvfTxCountSkip teerLinkedField0
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ t6Old) ** (.x7 ↦ᵣ t7Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (1 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+  let b0 : Word := (extractByte wordVal (byteOffset codePtr)).zeroExtend 64
+  let b1 : Word := (extractByte wordVal (byteOffset (codePtr + (1 : Word)))).zeroExtend 64
+  let b2 : Word := (extractByte wordVal (byteOffset (codePtr + (2 : Word)))).zeroExtend 64
+  have hlbu0 := teerLbuCode0 codePtr t6Old dwordAddr wordVal halign0 hvalid0
+  have hlbu0F := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ t7Old) ** (.x0 ↦ᵣ (0 : Word))) (by pcf) hlbu0
+  have hliEf := teerLiCodeEf t7Old
+  have hliEfF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b0) ** (.x0 ↦ᵣ (0 : Word)) **
+      (dwordAddr ↦ₘ wordVal)) (by pcf) hliEf
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlbu0F hliEfF
+  have hbneEf := teerBneCodeEfOk b0 hb0
+  have hbneEfF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ codePtr) ** (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by pcf) hbneEf
+  have c12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hbneEfF
+  have hlbu1 := teerLbuCode1 codePtr b0 dwordAddr wordVal halign1 hvalid1
+  have hlbu1F : cpsTripleWithin 1 AfterBneEf AfterLbu1 teerLinkedField0
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b0) ** (.x7 ↦ᵣ (239 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ (239 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+    have h := cpsTripleWithin_frameR
+      ((.x7 ↦ᵣ (239 : Word)) ** (.x0 ↦ᵣ (0 : Word))) (by pcf) hlbu1
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h
+  have c23 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c12 hlbu1F
+  have hli01 := teerLiCode01 (239 : Word)
+  have hli01F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b1) ** (.x0 ↦ᵣ (0 : Word)) **
+      (dwordAddr ↦ₘ wordVal)) (by pcf) hli01
+  have c34 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c23 hli01F
+  have hbne01 := teerBneCode01Ok b1 hb1
+  have hbne01F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ codePtr) ** (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by pcf) hbne01
+  have c45 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c34 hbne01F
+  have hlbu2 := teerLbuCode2 codePtr b1 dwordAddr wordVal halign2 hvalid2
+  have hlbu2F : cpsTripleWithin 1 AfterBne01 AfterLbu2 teerLinkedField0
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ (1 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+      ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b2) ** (.x7 ↦ᵣ (1 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+    have h := cpsTripleWithin_frameR
+      ((.x7 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) (by pcf) hlbu2
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h
+  have c56 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c45 hlbu2F
+  have hbne00 := teerBneCode00Ok b2 hb2
+  have hbne00F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ codePtr) ** (.x7 ↦ᵣ (1 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by pcf) hbne00
+  have c67 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c56 hbne00F
+  -- JAL emp ** ambient; cancel emp via sepConj_emp_left'
+  let ambient : Assertion :=
+    ((.x5 ↦ᵣ codePtr) ** (.x6 ↦ᵣ b2) ** (.x7 ↦ᵣ (1 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+  have hjal0 := teerCahsrPrefixJalSkip
+  have hjalF0 := cpsTripleWithin_frameR ambient (by pcf) hjal0
+  have hjalF : cpsTripleWithin 1 AtCahsrPrefixJal AtSvfTxCountSkip teerLinkedField0
+      ambient ambient := by
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by rwa [sepConj_emp_left' ambient])
+      (fun _ hq => by rwa [sepConj_emp_left' ambient] at hq) hjalF0
+  have c78 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    simp only [AfterBne00, AtCahsrPrefixJal] at *
+    xperm_hyp hp) c67 hjalF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun s hq => by
+      have hq' : ambient s := hq
+      simp only [ambient, b2, hb2] at hq'
+      xperm_hyp hq') c78
+
+/-- AfterCahsrLenEq23 → AtSvfTxCountSkip: codePtr setup + 0xef0100 prefix match. -/
+theorem teerCahsrLenEq23ThenPrefixEf0100Skip
+    (codesPtr offW t0Old t1Old t6Old t7Old dwordAddr wordVal : Word)
+    (halign0 : alignToDword (codesPtr + offW) = dwordAddr)
+    (halign1 : alignToDword ((codesPtr + offW) + (1 : Word)) = dwordAddr)
+    (halign2 : alignToDword ((codesPtr + offW) + (2 : Word)) = dwordAddr)
+    (hvalid0 : isValidByteAccess (codesPtr + offW) = true)
+    (hvalid1 : isValidByteAccess ((codesPtr + offW) + (1 : Word)) = true)
+    (hvalid2 : isValidByteAccess ((codesPtr + offW) + (2 : Word)) = true)
+    (hb0 : (extractByte wordVal (byteOffset (codesPtr + offW))).zeroExtend 64 =
+      (239 : Word))
+    (hb1 : (extractByte wordVal
+        (byteOffset ((codesPtr + offW) + (1 : Word)))).zeroExtend 64 = (1 : Word))
+    (hb2 : (extractByte wordVal
+        (byteOffset ((codesPtr + offW) + (2 : Word)))).zeroExtend 64 = (0 : Word)) :
+    cpsTripleWithin (7 + 9) AfterCahsrLenEq23 AtSvfTxCountSkip teerLinkedField0
+      ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t7Old) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (CodesPtrAddr2 ↦ₘ codesPtr) ** (CahsrCodeOffsetAddr ↦ₘ offW) **
+        (dwordAddr ↦ₘ wordVal))
+      ((.x5 ↦ᵣ (codesPtr + offW)) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (1 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (CodesPtrAddr2 ↦ₘ codesPtr) ** (CahsrCodeOffsetAddr ↦ₘ offW) **
+        (dwordAddr ↦ₘ wordVal)) := by
+  have hsetup := teerCodePtrSetup codesPtr offW t0Old t1Old
+  have hsetupF := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ t7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by pcf) hsetup
+  have hpref := teerCahsrPrefixEf0100Skip (codesPtr + offW) offW t7Old
+    dwordAddr wordVal halign0 halign1 halign2 hvalid0 hvalid1 hvalid2 hb0 hb1 hb2
+  -- after setup: x5=codesPtr+offW, x6=offW
+  have hprefF := cpsTripleWithin_frameR
+    ((CodesPtrAddr2 ↦ₘ codesPtr) ** (CahsrCodeOffsetAddr ↦ₘ offW))
+    (by pcf) hpref
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hsetupF hprefF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) c
+
 #print axioms teerLaCahsrCodeLength
 #print axioms teerLdCahsrCodeLength
 #print axioms teerCahsrLenBeqTaken_zero
@@ -654,5 +786,7 @@ theorem teerCahsrPrefixJalSkip :
 #print axioms teerLbuCode0
 #print axioms teerBneCodeEfOk
 #print axioms teerCahsrPrefixJalSkip
+#print axioms teerCahsrPrefixEf0100Skip
+#print axioms teerCahsrLenEq23ThenPrefixEf0100Skip
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
