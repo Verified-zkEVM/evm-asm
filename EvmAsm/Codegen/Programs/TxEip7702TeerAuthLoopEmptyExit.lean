@@ -2312,7 +2312,7 @@ structure TeerFrontToAuthLoopAssumedFree26 where
     ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
       (s : TeerSaved)
       (bs balBytes : List (BitVec 8)) (off len : Nat)
-      (old1 _s7Old _cursorV _endW _s11 _innerVal : Word),
+      (old1 _s7Old _cursorV endW s11 _innerVal : Word),
       content = regionBase →
       old1 = LinkAuthWalkNext9 →
       (ret &&& ~~~(1 : Word)) = ret →
@@ -2321,6 +2321,14 @@ structure TeerFrontToAuthLoopAssumedFree26 where
       off + len ≤ bs.length →
       spC = spVal + signExtend12 (-160 : BitVec 12) →
       s.ra = ret →
+      -- ABI wire: prologue-saved s-regs match applied entry (Front discharges)
+      loadPtr = s.s0 →
+      lenW = s.s1 →
+      balPtr = s.s2 →
+      balLenW = s.s3 →
+      chainIdW = s.s4 →
+      endW = s.s9 →
+      s11 = s.s11 →
       cpsTripleWithin nSteps E AfterAuthLoopLi teerLinkedField0
         ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
           stackFree spVal nTeerStackWithListCount **
@@ -2349,7 +2357,8 @@ structure TeerFrontToAuthLoopAssumedFree26 where
               regionBase bs balBytes balPtr hp)
 
 /-- Residual empty-path mid domain for Free26 inhabit (identity listBase=content).
-    Bundles list_count Success/guards + hrolled0 + s-reg wire equalities. -/
+    Bundles list_count Success/guards + hrolled0 + domain.
+    ABI wire (`loadPtr = s.s0` …) lives on Free26.run (Front discharges). -/
 structure TeerEmptyAuthFree26MidAssumed where
   listLen : Nat
   asm : TeerListCountAuthLoopAssumed teerLinkedCount
@@ -2360,6 +2369,13 @@ structure TeerEmptyAuthFree26MidAssumed where
       content = regionBase →
       listLenW = BitVec.ofNat 64 listLen →
       listLenW ≠ (0 : Word) →
+      loadPtr = s.s0 →
+      lenW = s.s1 →
+      balPtr = s.s2 →
+      balLenW = s.s3 →
+      chainIdW = s.s4 →
+      endW = s.s9 →
+      s11 = s.s11 →
       ∃ (newSp : Word) (bytes : List (BitVec 8)) (s0 s1 s2 s3 v24 : Word)
         (hoff : (0 : Nat) < bytes.length),
         bytes = bs ∧
@@ -2392,7 +2408,8 @@ structure TeerEmptyAuthFree26MidAssumed where
           rolledVal = (0 : Word))
 
 /-- Fill Free26 from FrontToBridge + residual mid domain (identity content=regionBase).
-    Residual: inhabit `front` (applied hrun) and `midA` (Success/guards/hrolled0). -/
+    Residual: inhabit `front` (applied hrun) and `midA` (domain/hrolled0).
+    ABI wire is on Free26.run. -/
 def teerFrontToAuthLoopAssumedFree26_of
     (front : TeerFrontAuthContentToBridgeAssumed)
     (midA : TeerEmptyAuthFree26MidAssumed)
@@ -2406,7 +2423,8 @@ def teerFrontToAuthLoopAssumedFree26_of
   listLenW := front.listLenW
   run := fun ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
       s bs balBytes off len old1 s7Old cursorV endW s11 innerVal
-      hc hold1 hret hbal hptr hbound hspC hra => by
+      hc hold1 hret hbal hptr hbound hspC hra
+      hs0w hs1w hs2w hs3w hs4w hs9w hs11w => by
     obtain ⟨newSp, bytes, s0, s1, s2, s3, v24, hoff,
         hbytes, hnewSp, hs0, hs1, hs2, hs3, hv24,
         hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11,
@@ -2415,6 +2433,7 @@ def teerFrontToAuthLoopAssumedFree26_of
       midA.mid spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
         s bs balBytes front.content front.listLenW front.oldCount
         s7Old cursorV endW s11 innerVal hc hlistLenW hlen
+        hs0w hs1w hs2w hs3w hs4w hs9w hs11w
     simpa [hc] using
       teerEmptyAuth_free26_to_exitPack front midA.asm ret spVal spC regionBase
         loadPtr lenW balPtr balLenW chainIdW baiW s bs balBytes off len
@@ -2442,7 +2461,10 @@ theorem teerEmptyAuth_free26_front_then_exit
     (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
     (hbound : off + len ≤ bs.length)
     (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
-    (hra : s.ra = ret) :
+    (hra : s.ra = ret)
+    (hs0w : loadPtr = s.s0) (hs1w : lenW = s.s1)
+    (hs2w : balPtr = s.s2) (hs3w : balLenW = s.s3)
+    (hs4w : chainIdW = s.s4) (hs9w : endW = s.s9) (hs11w : s11 = s.s11) :
     cpsTripleWithin (front.nSteps + 30) E ret teerLinkedField0
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
         stackFree spVal nTeerStackWithListCount **
@@ -2478,6 +2500,7 @@ theorem teerEmptyAuth_free26_front_then_exit
   have hf := front.run ret spVal spC regionBase loadPtr lenW balPtr balLenW
     chainIdW baiW s bs balBytes off len old1 s7Old cursorV endW s11 innerVal
     hcontent hold1 hret hbal hptr hbound hspC hra
+    hs0w hs1w hs2w hs3w hs4w hs9w hs11w
   have hexit :
       cpsTripleWithin 30 AfterAuthLoopLi ret teerLinkedField0
         (fun hp =>
@@ -2562,7 +2585,10 @@ theorem teerEmptyAuth_free26_front_then_exit_mono
     (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
     (hbound : off + len ≤ bs.length)
     (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
-    (hra : s.ra = ret) :
+    (hra : s.ra = ret)
+    (hs0w : loadPtr = s.s0) (hs1w : lenW = s.s1)
+    (hs2w : balPtr = s.s2) (hs3w : balLenW = s.s3)
+    (hs4w : chainIdW = s.s4) (hs9w : endW = s.s9) (hs11w : s11 = s.s11) :
     cpsTripleWithin nTeerSteps E ret teerLinkedField0
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
         stackFree spVal nTeerStackWithListCount **
@@ -2598,7 +2624,8 @@ theorem teerEmptyAuth_free26_front_then_exit_mono
   cpsTripleWithin_mono_nSteps front.hn
     (teerEmptyAuth_free26_front_then_exit front ret spVal spC regionBase loadPtr
       lenW balPtr balLenW chainIdW baiW s bs balBytes off len old1 s7Old cursorV
-      endW s11 innerVal hcontent hold1 hret hbal hptr hbound hspC hra)
+      endW s11 innerVal hcontent hold1 hret hbal hptr hbound hspC hra
+      hs0w hs1w hs2w hs3w hs4w hs9w hs11w)
 
 /-- Free pure: list_count link PC is 2-aligned (ret target). -/
 theorem teerLinkListCount_aligned :
@@ -2789,7 +2816,8 @@ theorem teerListCountResultSpecialize_empty_short
 #print axioms teerListCountResultSpecialize_empty_short
 
 /-- Empty-short midA inhabit: Success/guards/LinkListCount/hspe free under hover.
-    Residual domain: hrolled0, s-reg wire, align/slack/valid, and `bs[0] = 0xc0`. -/
+    ABI wire is Free26.run residual (Front discharges).
+    Residual domain: hrolled0, align/slack/valid, and `bs[0] = 0xc0`. -/
 def teerEmptyAuthFree26MidAssumed_empty_short
     (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
     (hrolled0_all :
@@ -2801,11 +2829,6 @@ def teerEmptyAuthFree26MidAssumed_empty_short
           teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
             innerVal endW s11 refund rolledVal) h →
         rolledVal = (0 : Word))
-    (hwire_all :
-      ∀ (loadPtr lenW balPtr balLenW chainIdW : Word) (s : TeerSaved)
-        (endW s11 : Word),
-        loadPtr = s.s0 ∧ lenW = s.s1 ∧ balPtr = s.s2 ∧ balLenW = s.s3 ∧
-          chainIdW = s.s4 ∧ endW = s.s9 ∧ s11 = s.s11)
     (hdomain_all :
       ∀ (regionBase : Word) (bs : List (BitVec 8)),
         regionBase.toNat % 8 = 0 ∧
@@ -2820,10 +2843,8 @@ def teerEmptyAuthFree26MidAssumed_empty_short
   asm := asm
   mid := fun spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW _baiW
       s bs balBytes content listLenW _oldCount _s7Old cursorV endW s11 innerVal
-      hc hlistLenW hlen => by
+      hc hlistLenW hlen hs0w hs1w hs2w hs3w hs4w hs9w hs11w => by
     obtain ⟨hsalign, hslack, hover, hvalid, hoff, h0⟩ := hdomain_all regionBase bs
-    obtain ⟨hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11⟩ :=
-      hwire_all loadPtr lenW balPtr balLenW chainIdW s endW s11
     have hguards :=
       teerWalkInit_guards_empty_short bs regionBase listLenW hoff h0 hlistLenW
     obtain ⟨h_ge, h_hi, h_exact⟩ := hguards
@@ -2848,15 +2869,18 @@ def teerEmptyAuthFree26MidAssumed_empty_short
     have hnewSp : spC + signExtend12 (-48 : BitVec 12) =
         spC + signExtend12 (-48 : BitVec 12) := rfl
     have hv24 : cursorV = cursorV := rfl
+    -- ABI wire: Free26.run hyps + s0:=loadPtr ⇒ s0 = s.s0 etc.
+    have hs0s : loadPtr = s.s0 := hs0w
+    have hs1s : lenW = s.s1 := hs1w
+    have hs2s : balPtr = s.s2 := hs2w
+    have hs3s : balLenW = s.s3 := hs3w
     refine ⟨spC + signExtend12 (-48 : BitVec 12), bs, loadPtr, lenW, balPtr,
       balLenW, cursorV, hoff, rfl, hnewSp, rfl, rfl, rfl, rfl, hv24,
-      hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11, hsalign, hslack, hover, hvalid,
+      hs0s, hs1s, hs2s, hs3s, hs4w, hs9w, hs11w, hsalign, hslack, hover, hvalid,
       teerLinkListCount_aligned, hsuccess, hspe, ?_, ?_,
       h_ge, h_hi, h_exact, hrolled0⟩
-    · -- regionBase.toNat + 0 < 2^64
-      omega
-    · -- isValidByteAccess (regionBase + 0)
-      simpa using hvalid 0 hoff
+    · omega
+    · simpa using hvalid 0 hoff
 
 #print axioms teerEmptyAuthFree26MidAssumed_empty_short
 
