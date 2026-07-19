@@ -194,6 +194,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- running value (advancing the table; both CREATE and CREATE2 bump it). a0==x10 (the dispatcher
     -- PC) is clobbered by the call, so save/restore x10; the result (a0) is stored to create_nonce
     -- BEFORE restoring x10 (the #8608 lesson). create_creator_nonce_use preserves x12/x13/x20/x21.
+    -- Snapshot the nonce-mutation journal BEFORE the outer CREATE mutates it.  The
+    -- following frame descent consumes this one-shot pre-snapshot for its child-depth
+    -- checkpoint; a child REVERT then restores this exact pre-CREATE state.
+    "  la t0, create_nonce_undo_count; ld t1, 0(t0); la t0, create_nonce_undo_presnap_count; sd t1, 0(t0)\n" ++
+    "  la t0, create_nonce_undo_presnap_armed; li t1, 1; sd t1, 0(t0)\n" ++
     "  mv s10, x10\n" ++
     "  la a0, create_sender_be\n" ++
     "  mv a1, x18\n" ++
@@ -547,6 +552,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  srli t3, t3, 6\n" ++
     "  sd t3, 568(x20)\n" ++
     "7:\n" ++
+    -- This CREATE did not enter a child frame (collision/depth/local failure).
+    -- The EVM nonce bump is committed for such an attempted CREATE, but its
+    -- one-shot pre-mutation checkpoint must not leak into a later unrelated
+    -- CALL descent and be consumed as that frame's rollback mark.
+    "  la t0, create_nonce_undo_presnap_armed; sd x0, 0(t0)\n" ++
     "  la t0, create_state_gas_charged_current\n  ld t1, 0(t0)\n  beqz t1, .Lcr_no_state_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n  sd x0, 0(t0)\n" ++
     "  li t2, 183600\n  la t0, evm_state_gas_spilled\n  ld t1, 0(t0)\n  li t3, 0\n  beqz t1, .Lcr_no_spill_refund_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  mv t3, t1\n  bleu t1, t2, .Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ "\n  mv t3, t2\n.Lcr_spill_refund_le_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
