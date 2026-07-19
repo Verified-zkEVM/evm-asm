@@ -2605,8 +2605,79 @@ theorem teerLinkListCount_aligned :
     (LinkListCount &&& ~~~(1 : Word)) = LinkListCount := by
   decide
 
+open EvmAsm.Codegen.RlpListNthItemSAsm
+
+private theorem teer_c0_ze : ((0xc0 : BitVec 8).zeroExtend 64) = (0xc0 : Word) := by
+  decide
+
+private theorem teer_byte0_ze_c0'
+    {bytes : List (BitVec 8)} {hoff : 0 < bytes.length}
+    (h0 : bytes[0]'hoff = (0xc0 : BitVec 8)) :
+    (bytes[0]'hoff).zeroExtend 64 = (0xc0 : Word) := by
+  rw [h0, teer_c0_ze]
+
+private theorem teer_c0_sub_c0 : (0xc0 : Word) - (0xc0 : Word) = (0 : Word) := by
+  decide
+
+private theorem teer_c0_not_ult_c0 :
+    ¬ BitVec.ult (0xc0 : Word) (0xc0 : Word) = true := by
+  decide
+
+private theorem teer_c0_ult_f8 :
+    BitVec.ult (0xc0 : Word) (0xf8 : Word) = true := by
+  decide
+
+private theorem teer_zero_add_one : (0 : Word) + (1 : Word) = (1 : Word) := by
+  decide
+
+private theorem teer_ofNat_one : BitVec.ofNat 64 1 = (1 : Word) := rfl
+
+/-- Empty short-list header `0xc0` at bytes[0]: walk_init short guards. -/
+theorem teerWalkInit_guards_empty_short
+    (bytes : List (BitVec 8)) (base listLenW : Word)
+    (hoff : 0 < bytes.length)
+    (h0 : bytes[0]'hoff = (0xc0 : BitVec 8))
+    (hlenW : listLenW = BitVec.ofNat 64 1) :
+    ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      (base + BitVec.ofNat 64 0) +
+          (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+            signExtend12 (1 : BitVec 12)) =
+        (base + BitVec.ofNat 64 0) + listLenW := by
+  have hze := teer_byte0_ze_c0' (hoff := hoff) h0
+  refine ⟨?ge, ?hi, ?ex⟩
+  · intro h; rw [hze] at h; exact teer_c0_not_ult_c0 h
+  · rw [hze]; exact teer_c0_ult_f8
+  · rw [hze, hlenW, BitVec.add_zero, signExtend12_1, teer_c0_sub_c0,
+        teer_zero_add_one, teer_ofNat_one]
+
+/-- Empty short-list `0xc0` is a complete strict traversal with item count 0. -/
+theorem teerSuccess_empty_short_list
+    (bytes : List (BitVec 8)) (base : Word)
+    (hoff : 0 < bytes.length)
+    (h0 : bytes[0]'hoff = (0xc0 : BitVec 8)) :
+    Success bytes base 1 0 := by
+  have hze := teer_byte0_ze_c0' (hoff := hoff) h0
+  have hnotlist :
+      ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true := by
+    intro h; rw [hze] at h; exact teer_c0_not_ult_c0 h
+  have hshort :
+      BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hze]; exact teer_c0_ult_f8
+  have hend :
+      base +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+        base + BitVec.ofNat 64 1 := by
+    rw [hze, signExtend12_1, teer_c0_sub_c0, teer_zero_add_one, teer_ofNat_one]
+  have hlist :=
+    shortInit_to_strict bytes base 1 hoff (by omega) hnotlist hshort hend
+  exact ⟨1, base + BitVec.ofNat 64 1, hlist, StrictPrefix.zero⟩
+
 #print axioms teerEmptyAuth_free26_front_then_exit
 #print axioms teerEmptyAuth_free26_front_then_exit_mono
 #print axioms teerLinkListCount_aligned
+#print axioms teerWalkInit_guards_empty_short
+#print axioms teerSuccess_empty_short_list
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
