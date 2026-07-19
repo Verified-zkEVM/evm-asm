@@ -677,7 +677,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   True ∧
   -- 3. FrontToBridge inhabit (applied hrun wire; free26_to_bridgePre_pick packaging DONE)
   True ∧
-  -- 4. TeerEmptyAuthDomainEmptyShort inhabit (0xc0/align/slack/valid fixture)
+  -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest);
+  --    global DomainEmptyShort ∀ remains uninhabitable packaging debt
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path)
   True ∧
