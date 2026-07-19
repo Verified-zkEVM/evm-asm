@@ -283,9 +283,114 @@ def teerListCountLoadPost (spC listBase outPtr s0 s1 s2 s3 countW : Word)
 def nListCountOkToLoad (listLen : Nat) : Nat :=
   (1 + nListCountSteps listLen) + 1 + 3
 
+/-- Residual pure bridge: under Success, flat Result is status-0 with that count.
+    Init-failure is immediate (¬∃ payload). Walk-failure vs complete Success
+    uniqueness is residual pure RLP (deterministic complete prefix count). -/
+def ListCountResultSpecialize (bytes : List (BitVec 8)) (listBase : Word)
+    (listLen count : Nat) (countW : Word) : Prop :=
+  countW = BitVec.ofNat 64 count →
+  count < 2 ^ 64 →
+  Success bytes listBase listLen count →
+    ∀ status result : Word,
+      Result bytes listBase listLen status result →
+        status = (0 : Word) ∧ result = countW
+
+/-- Success yields an outer StrictListPayload (rules out Failure.init). -/
+theorem Success_implies_payload
+    {bytes : List (BitVec 8)} {base : Word} {listLen count : Nat}
+    (hS : Success bytes base listLen count) :
+    ∃ cursorOff endPtr,
+      EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload
+        bytes base listLen cursorOff endPtr := by
+  obtain ⟨cursorOff, endPtr, hlist, _⟩ := hS
+  exact ⟨cursorOff, endPtr, hlist⟩
+
+/-- Call post → ok post under Result specialization. -/
+theorem teerListCountCalleeQ_to_ok
+    (spC listBase outPtr s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) (listLen count : Nat)
+    (hcountW : countW = BitVec.ofNat 64 count)
+    (hcount : count < 2 ^ 64)
+    (hsuccess : Success bytes listBase listLen count)
+    (hspe : ListCountResultSpecialize bytes listBase listLen count countW) :
+    ∀ h, teerListCountCalleeQ spC listBase outPtr s0 s1 s2 s3 bytes listLen h →
+      teerListCountCalleeQOk spC listBase outPtr s0 s1 s2 s3 countW bytes h := by
+  intro h hq
+  unfold teerListCountCalleeQ at hq
+  obtain ⟨status, result, v11, v12, hcore⟩ := hq
+  have hR : Result bytes listBase listLen status result :=
+    ((sepConj_pure_right _).1 hcore).2
+  obtain ⟨hst, hres⟩ := hspe hcountW hcount hsuccess status result hR
+  -- rewrite status/result without subst (keeps countW binder)
+  have hbody0 := ((sepConj_pure_right _).1 hcore).1
+  -- hbody0 still has result; rewrite to countW via hres
+  have hbody : ((((.x2 ↦ᵣ spC) **
+        ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+        stackFree spC 6) **
+      ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x28 ** regOwn .x29 **
+       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes ** (outPtr ↦ₘ countW)))) h := by
+    simpa [hres] using hbody0
+  unfold teerListCountCalleeQOk
+  -- status → 0
+  have hbody1 : ((((.x2 ↦ᵣ spC) **
+        ((.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) ** (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3)) **
+        stackFree spC 6) **
+      ((.x10 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x28 ** regOwn .x29 **
+       regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion listBase bytes ** (outPtr ↦ₘ countW)))) h := by
+    simpa [hst] using hbody
+  refine sepConj_mono_right ?_ _ hbody1
+  intro h' hp'
+  -- lift x11 then x12 regIs → regOwn
+  have hx11 :=
+    sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right
+        (sepConj_mono_left (regIs_implies_regOwn (r := .x11) (v := v11))))))
+      _ hp'
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_left (regIs_implies_regOwn (r := .x12) (v := v12)))))))
+    _ hx11
+
+set_option maxRecDepth 8000 in
+/-- Call under specialization → status-0 QOk post. -/
+theorem teerListCountCall_ok
+    (spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) (listLen count : Nat) (old1 : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hcountW : countW = BitVec.ofNat 64 count)
+    (hcount : count < 2 ^ 64)
+    (hsuccess : Success bytes listBase listLen count)
+    (hspe : ListCountResultSpecialize bytes listBase listLen count countW) :
+    cpsTripleWithin (1 + nListCountSteps listLen) AtListCount LinkListCount
+      teerLinkedCount
+      ((.x1 ↦ᵣ old1) **
+        teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
+          bytes)
+      ((.x1 ↦ᵣ LinkListCount) **
+        teerListCountCalleeQOk spC listBase outPtr s0 s1 s2 s3 countW bytes) := by
+  have hcall := teerListCountCall spC newSp listBase listLenW outPtr oldCount
+    s0 s1 s2 s3 bytes listLen old1 hlistLenW hsalign hslack hover hvalid hnewSp hret
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => by
+      obtain ⟨h1, h2, hd, hu, hra, hQ⟩ := hq
+      exact ⟨h1, h2, hd, hu, hra,
+        teerListCountCalleeQ_to_ok spC listBase outPtr s0 s1 s2 s3 countW bytes
+          listLen count hcountW hcount hsuccess hspe h2 hQ⟩) hcall
+
 /-- Named hyp: list_count Call+BNE+LD success under nested `stackFree spC 6`.
-    Leaves `teerListCountCall` / `BneOk` / `LdAuthCountS7` exist; residual is
-    Result→ok specialize + frame compose (Success-count uniqueness). -/
+    Call_ok under ListCountResultSpecialize is classical-3; BNE+LD frame compose
+    residual (x5 regOwn vs t0Old framing). -/
 structure TeerListCountAssumed (cr : CodeReq) where
   run :
     ∀ (spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
@@ -311,5 +416,8 @@ structure TeerListCountAssumed (cr : CodeReq) where
 #print axioms teerListCountCall
 #print axioms teerListCountBneOk
 #print axioms teerLdAuthCountS7
+#print axioms teerListCountCall_ok
+#print axioms teerListCountCalleeQ_to_ok
+#print axioms Success_implies_payload
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
