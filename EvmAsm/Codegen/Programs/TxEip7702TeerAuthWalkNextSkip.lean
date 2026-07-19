@@ -15,6 +15,8 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerWalkNext0
 import EvmAsm.Codegen.Programs.TxEip7702TeerWalkNextSkip
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.RwSubwindow
+import EvmAsm.Rv64.SAsm.MeasureLoop
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
 
@@ -1936,5 +1938,278 @@ theorem teerAuthWalkNext9BneOk :
 #print axioms teerAuthWalkNext9Prep
 #print axioms teerAuthWalkNext9Call
 #print axioms teerAuthWalkNext9BneOk
+
+/-! ## Auth cycle 0 CycleOk (Prep+Call+BNE+Save s5) -/
+
+def teerAuthWalkNext0Common (listBase : Word) (bs : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+    bytesRegion listBase bs
+
+theorem teerAuthWalkNext0Post_to_commonOutcome
+    (listBase endPtr : Word) (bs : List (BitVec 8)) (srcOff : Nat) :
+    ∀ h, teerWalkNextPost LinkAuthWalkNext0 listBase endPtr bs srcOff h →
+      (teerAuthWalkNext0Common listBase bs **
+        teerWalkNext0Outcome listBase endPtr bs srcOff) h := by
+  intro h hp
+  simp only [teerWalkNextPost, teerAuthWalkNext0Common] at hp ⊢
+  xperm_hyp hp
+
+theorem teerAuthWalkNext0BneOk_framed
+    (listBase next len : Word) (bs : List (BitVec 8)) :
+    cpsTripleWithin 1 LinkAuthWalkNext0 AfterAuthWalkNext0Bne teerLinkedEarly
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs)
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs) := by
+  have h0 := teerAuthWalkNext0BneOk
+  have hF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+      bytesRegion listBase bs)
+    (by pcf) h0
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+theorem teerAuthWalkNext0OkNested_bne
+    (listBase endPtr : Word) (bs : List (BitVec 8)) (srcOff : Nat) :
+    cpsTripleWithin 1 LinkAuthWalkNext0 AfterAuthWalkNext0Bne teerLinkedEarly
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs) **
+        rlpWalkNextOk (listBase + BitVec.ofNat 64 srcOff) endPtr bs srcOff)
+      (fun h => ∃ next len : Word,
+        (((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+          bytesRegion listBase bs) **
+          ⌜rlpItemDecode bs srcOff (listBase + BitVec.ofNat 64 srcOff)
+            endPtr next len⌝) h) := by
+  let cursor := listBase + BitVec.ofNat 64 srcOff
+  refine cpsTripleWithin_weaken
+    (P := fun h => ∃ next len : Word,
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs) **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+          ⌜rlpItemDecode bs srcOff cursor endPtr next len⌝)) h)
+    (fun h hp => by
+      obtain ⟨h1, h2, hd, hu, hCom, hOk⟩ := hp
+      obtain ⟨next, len, hw⟩ := hOk
+      exact ⟨next, len, h1, h2, hd, hu, hCom, hw⟩)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_exists_pre_gen (fun next => ?_)
+  refine cpsTripleWithin_exists_pre_gen (fun len => ?_)
+  refine cpsTripleWithin_weaken
+    (P := ⌜rlpItemDecode bs srcOff cursor endPtr next len⌝ **
+      (((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+          bytesRegion listBase bs)))
+    (fun h hp => by xperm_hyp hp)
+    (fun _ hq => hq) ?_
+  refine cpsTripleWithin_pure_pre (fun hdec => ?_)
+  have h0 := teerAuthWalkNext0BneOk_framed listBase next len bs
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => by
+    refine ⟨next, len, ?_⟩
+    exact (sepConj_pure_right h).mpr ⟨hq, hdec⟩) h0
+
+theorem teerAuthWalkNext0SaveS5_framed
+    (listBase next len v21 : Word) (bs : List (BitVec 8)) :
+    cpsTripleWithin 1 AfterAuthWalkNext0Bne AfterAuthWalkNext0Save teerLinkedEarly
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x21 ↦ᵣ v21) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs)
+      ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+        (.x21 ↦ᵣ next) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs) := by
+  have h0 := teerAuthWalkNext0SaveS5 next v21
+  have hF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** (.x0 ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+      bytesRegion listBase bs)
+    (by pcf) h0
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hF
+
+private abbrev nAuthWalkNext0Cycle : Nat := 2 + (1 + 87) + 1 + 1
+
+open EvmAsm.Rv64.SAsm (cpsTripleWithin_seq_exists_same_cr sepConj_exists_left)
+
+set_option maxRecDepth 8000 in
+/-- Full auth cycle 0: Prep+Call+BNE ok+Save s5. Post ∃ next len (s5←next). -/
+theorem teerAuthWalkNext0CycleOk
+    (listBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (bs : List (BitVec 8)) (srcOff : Nat) (old1 v21 v22 a0Old a1Old : Word)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hoff : srcOff < bs.length)
+    (hover : listBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ listBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (listBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        listBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (listBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        listBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (listBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hdec : ∃ next len : Word,
+      rlpItemDecode bs srcOff (listBase + BitVec.ofNat 64 srcOff)
+        endPtr next len)
+    (hinb : BitVec.ult (listBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hcur : v21 = listBase + BitVec.ofNat 64 srcOff)
+    (hend : v22 = endPtr) :
+    let cursor := listBase + BitVec.ofNat 64 srcOff
+    cpsTripleWithin nAuthWalkNext0Cycle AfterWalkInit2Save AfterAuthWalkNext0Save
+      teerLinkedEarly
+      ((.x1 ↦ᵣ old1) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+        (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)
+      (fun h => ∃ next len : Word,
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+          (.x21 ↦ᵣ next) ** (.x22 ↦ᵣ endPtr) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+          bytesRegion listBase bs **
+          ⌜rlpItemDecode bs srcOff cursor endPtr next len⌝) h) := by
+  intro cursor
+  have hprep := teerAuthWalkNext0Prep cursor endPtr a0Old a1Old
+  have hprepF := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ old1) **
+      (.x12 ↦ᵣ a2Old) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)
+    (by pcf) hprep
+  have hprep' :
+      cpsTripleWithin 2 AfterWalkInit2Save AuthWalkNext0JalPc teerLinkedEarly
+        ((.x1 ↦ᵣ old1) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+          (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)
+        ((.x1 ↦ᵣ old1) ** (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr) **
+          (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+          (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      simp only [hcur, hend] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hprepF
+  have hcall := teerAuthWalkNext0Call listBase endPtr a2Old t0Old t1Old t2Old t3Old
+    t4Old t5Old t6Old bs srcOff old1 hsalign hoff hover hvalid hss hls hll
+  have hcallOk :
+      cpsTripleWithin (1 + 87) AuthWalkNext0JalPc LinkAuthWalkNext0 teerLinkedEarly
+        ((.x1 ↦ᵣ old1) **
+          teerWalkNextPrest cursor endPtr
+            a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old listBase bs)
+        (teerAuthWalkNext0Common listBase bs **
+          rlpWalkNextOk cursor endPtr bs srcOff) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hcall
+    have hq' := teerAuthWalkNext0Post_to_commonOutcome listBase endPtr bs srcOff h hq
+    obtain ⟨hC, hO, hd, hu, hcom, hout⟩ := hq'
+    exact ⟨hC, hO, hd, hu, hcom,
+      teerWalkNext0Outcome_drop_fail_of_decode listBase endPtr bs srcOff
+        hdec hinb hO hout⟩
+  have hcallF := cpsTripleWithin_frameR
+    ((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)) (by pcf) hcallOk
+  have hcallF' :
+      cpsTripleWithin (1 + 87) AuthWalkNext0JalPc LinkAuthWalkNext0 teerLinkedEarly
+        ((.x1 ↦ᵣ old1) ** (.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr) **
+          teerWalkNextPrest cursor endPtr
+            a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old listBase bs)
+        (((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)) **
+          teerAuthWalkNext0Common listBase bs **
+          rlpWalkNextOk cursor endPtr bs srcOff) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      simp only [teerWalkNextPrest] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hcallF
+  have hseq1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    simp only [teerWalkNextPrest] at hp ⊢
+    xperm_hyp hp) hprep' hcallF'
+  have hbne := teerAuthWalkNext0OkNested_bne listBase endPtr bs srcOff
+  have hbneF := cpsTripleWithin_frameR
+    ((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)) (by pcf) hbne
+  let Mid (p : Word × Word) : Assertion :=
+    (((.x10 ↦ᵣ p.1) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ p.2) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+        bytesRegion listBase bs) **
+      ⌜rlpItemDecode bs srcOff cursor endPtr p.1 p.2⌝) **
+      ((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr))
+  have hbneMid :
+      cpsTripleWithin 1 LinkAuthWalkNext0 AfterAuthWalkNext0Bne teerLinkedEarly
+        (((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ endPtr)) **
+          teerAuthWalkNext0Common listBase bs **
+          rlpWalkNextOk cursor endPtr bs srcOff)
+        (fun h => ∃ p : Word × Word, Mid p h) := by
+    refine cpsTripleWithin_weaken (fun h hp => by
+      simp only [teerAuthWalkNext0Common] at hp ⊢
+      xperm_hyp hp) (fun h hq => by
+      obtain ⟨h1, h2, hd, hu, hEx, hFr⟩ := hq
+      obtain ⟨next, len, hOk⟩ := hEx
+      exact ⟨(next, len), h1, h2, hd, hu, hOk, hFr⟩) hbneF
+  have hseq2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hseq1 hbneMid
+  let Fin (p : Word × Word) : Assertion :=
+    (.x10 ↦ᵣ p.1) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ p.2) **
+      (.x21 ↦ᵣ p.1) ** (.x22 ↦ᵣ endPtr) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ LinkAuthWalkNext0) **
+      bytesRegion listBase bs **
+      ⌜rlpItemDecode bs srcOff cursor endPtr p.1 p.2⌝
+  have hsave (p : Word × Word) :
+      cpsTripleWithin 1 AfterAuthWalkNext0Bne AfterAuthWalkNext0Save teerLinkedEarly
+        (Mid p) (Fin p) := by
+    dsimp only [Mid, Fin]
+    have h0 := teerAuthWalkNext0SaveS5_framed listBase p.1 p.2 cursor bs
+    have h0F := cpsTripleWithin_frameR
+      ((.x22 ↦ᵣ endPtr) **
+        ⌜rlpItemDecode bs srcOff cursor endPtr p.1 p.2⌝)
+      (by pcf) h0
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) h0F
+  have hsaveE (p : Word × Word) :
+      cpsTripleWithin 1 AfterAuthWalkNext0Bne AfterAuthWalkNext0Save teerLinkedEarly
+        (Mid p) (fun h => ∃ q : Word × Word, Fin q h) :=
+    cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hq => ⟨p, hq⟩) (hsave p)
+  have hseq3 := cpsTripleWithin_seq_exists_same_cr hseq2 hsaveE
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by
+    obtain ⟨⟨next, len⟩, hq'⟩ := hq
+    exact ⟨next, len, by dsimp only [Fin] at hq'; exact hq'⟩)
+    (cpsTripleWithin_mono_nSteps
+      (by decide : ((2 + (1 + 87) + 1) + 1) ≤ nAuthWalkNext0Cycle) hseq3)
+
+#print axioms teerAuthWalkNext0CycleOk
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
