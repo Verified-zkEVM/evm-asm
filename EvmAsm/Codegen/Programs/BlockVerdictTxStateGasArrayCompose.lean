@@ -196,7 +196,7 @@
                 gate `srcOff5+1=8*q`). **Bare Assumed short copy path Props DONE** (type234+legacy+t1 region).
                 Long type234 creation bare Assumed DONE. Long type234 creation+copy bare Assumed path Props DONE (copy gates longListSrcOff5+1=8*q). Residual: legacy/t1 long; multi-tx Option A; Teer; gate.
                 content offset 8-aligned); long-list; multi-tx ambient Option A;
-                Teer prover1; Teer progress: Spec..Type4→AtWalkInit + WalkInit short call+BNE+save→AfterWalkInitSave
+                Teer prover1; Teer progress: Spec..Type4→AtWalkInit + WalkInit short→AfterWalkInitSave + WalkNext0 CycleOk
             * teer walk_next0 prep+call+BNE+save (E+232→E+252) DONE classical-3
             * teer walk_next skips 1–5 DONE; recipient→E+380 + value_nonzero walk_next+store→AfterValueNonzero(E+412) classical-3; second WI@E+456 + auth walk_next skips 0–9→E+652 classical-3; list_count→E+696 + auth-loop WI prep/Call/BNE/save+LI s8→AfterAuthLoopLi(E+724) classical-3; residual BEQ empty + auth body + epi.
             gate a4gbr.1.
@@ -401,7 +401,7 @@ structure A4gbrResiduals where
              * long-cre: hgeN + non-to hitem≤55 + long head (empty-to hitem free)
              * ExtractAssumedAmbient structure fill blocked on domain bridge;
                consumers keep named hyp; of_arm + of_success_head* available
-             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit short call+BNE+save→AfterWalkInitSave(E+232) classical-3; residual walk_next chain+auth+epi.
+             TeerAssumed (745-instr: Spec+Prologue+ScratchZero through AtBalCheck classical-3 — TxEip7702TeerSpec/Prologue/ScratchZero); residual bal≠0 BEQ→type_dispatch→walks→auth loop→epilogue; Teer progress: Spec..Type4→AtWalkInit + WalkInit short→AfterWalkInitSave(E+232) + WalkNext0 CycleOk→AfterWalkNext0Save(E+252) classical-3; residual FrontWalkNext0 applied + cycles1–5/auth/epi.
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
