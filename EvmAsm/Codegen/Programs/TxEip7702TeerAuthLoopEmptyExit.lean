@@ -2680,4 +2680,79 @@ theorem teerSuccess_empty_short_list
 #print axioms teerWalkInit_guards_empty_short
 #print axioms teerSuccess_empty_short_list
 
+/-- Empty-short midA inhabit: Success/guards/LinkListCount free.
+    Residual domain: hspe (Result specialize), hrolled0, s-reg wire, align/slack/valid,
+    and `bs[0] = 0xc0`. -/
+def teerEmptyAuthFree26MidAssumed_empty_short
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (hspe_all :
+      ∀ (bytes : List (BitVec 8)) (base : Word),
+        ListCountResultSpecialize bytes base 1 0 (0 : Word))
+    (hrolled0_all :
+      ∀ (spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW : Word)
+        (s : TeerSaved) (bs balBytes : List (BitVec 8))
+        (_cursorV endW s11 innerVal refund rolledVal : Word) (h : PartialState),
+        ((teerListCountAuthLoopPost spC regionBase AuthCountAddr
+            loadPtr lenW balPtr balLenW (0 : Word) bs 0 (BitVec.ofNat 64 1)) **
+          teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+            innerVal endW s11 refund rolledVal) h →
+        rolledVal = (0 : Word))
+    (hwire_all :
+      ∀ (loadPtr lenW balPtr balLenW chainIdW : Word) (s : TeerSaved)
+        (endW s11 : Word),
+        loadPtr = s.s0 ∧ lenW = s.s1 ∧ balPtr = s.s2 ∧ balLenW = s.s3 ∧
+          chainIdW = s.s4 ∧ endW = s.s9 ∧ s11 = s.s11)
+    (hdomain_all :
+      ∀ (regionBase : Word) (bs : List (BitVec 8)),
+        regionBase.toNat % 8 = 0 ∧
+          1 + 9 ≤ bs.length ∧
+          regionBase.toNat + bs.length < 2 ^ 64 ∧
+          (∀ k, k < bs.length →
+            isValidByteAccess (regionBase + BitVec.ofNat 64 k) = true) ∧
+          ∃ (hoff : (0 : Nat) < bs.length),
+            bs[0]'hoff = (0xc0 : BitVec 8)) :
+    TeerEmptyAuthFree26MidAssumed where
+  listLen := 1
+  asm := asm
+  mid := fun spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW _baiW
+      s bs balBytes content listLenW _oldCount _s7Old cursorV endW s11 innerVal
+      hc hlistLenW hlen => by
+    obtain ⟨hsalign, hslack, hover, hvalid, hoff, h0⟩ := hdomain_all regionBase bs
+    obtain ⟨hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11⟩ :=
+      hwire_all loadPtr lenW balPtr balLenW chainIdW s endW s11
+    have hguards :=
+      teerWalkInit_guards_empty_short bs regionBase listLenW hoff h0 hlistLenW
+    obtain ⟨h_ge, h_hi, h_exact⟩ := hguards
+    have hsuccess := teerSuccess_empty_short_list bs regionBase hoff h0
+    have hspe := hspe_all bs regionBase
+    have hrolled0 :
+        ∀ (refund rolledVal : Word) h,
+          ((teerListCountAuthLoopPost spC regionBase AuthCountAddr
+              loadPtr lenW balPtr balLenW (0 : Word) bs 0 listLenW) **
+            teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+              innerVal endW s11 refund rolledVal) h →
+          rolledVal = (0 : Word) := by
+      intro refund rolledVal h hp
+      have hp' : ((teerListCountAuthLoopPost spC regionBase AuthCountAddr
+            loadPtr lenW balPtr balLenW (0 : Word) bs 0 (BitVec.ofNat 64 1)) **
+          teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+            innerVal endW s11 refund rolledVal) h := by
+        simpa [hlistLenW] using hp
+      exact hrolled0_all spVal spC regionBase loadPtr lenW balPtr balLenW
+        chainIdW s bs balBytes cursorV endW s11 innerVal refund rolledVal h hp'
+    have hnewSp : spC + signExtend12 (-48 : BitVec 12) =
+        spC + signExtend12 (-48 : BitVec 12) := rfl
+    have hv24 : cursorV = cursorV := rfl
+    refine ⟨spC + signExtend12 (-48 : BitVec 12), bs, loadPtr, lenW, balPtr,
+      balLenW, cursorV, hoff, rfl, hnewSp, rfl, rfl, rfl, rfl, hv24,
+      hs0s, hs1s, hs2s, hs3s, hs4, hs9, hs11, hsalign, hslack, hover, hvalid,
+      teerLinkListCount_aligned, hsuccess, hspe, ?_, ?_,
+      h_ge, h_hi, h_exact, hrolled0⟩
+    · -- regionBase.toNat + 0 < 2^64
+      omega
+    · -- isValidByteAccess (regionBase + 0)
+      simpa using hvalid 0 hoff
+
+#print axioms teerEmptyAuthFree26MidAssumed_empty_short
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
