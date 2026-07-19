@@ -1168,6 +1168,23 @@ theorem short_list_head_ult_f8_of_decode_hshort
   omega
 
 #print axioms short_list_head_ult_f8_of_decode_hshort
+
+/-- Decode + long-form list head (`¬ pfx < 0xf8`) ⇒ outer payload encode > 55.
+    Dual of `encodeItems_le_55_of_decode_short_list_head`. classical-3. -/
+theorem encodeItems_gt_55_of_decode_long_list_head
+    (bs : List Byte) (items : List RLPItem)
+    (h : decodeListItems bs = some items)
+    (h0 : 0 < bs.length)
+    (hge : ¬ BitVec.ult ((bs[0]'h0).zeroExtend 64) (0xf8 : Word) = true) :
+    55 < (encode.encodeItems items).length := by
+  by_cases h55 : (encode.encodeItems items).length ≤ 55
+  · obtain ⟨h0', hult⟩ := short_list_head_ult_f8_of_decode_hshort bs items h h55
+    have hult' : BitVec.ult ((bs[0]'h0).zeroExtend 64) (0xf8 : Word) = true := by
+      convert hult
+    exact absurd hult' hge
+  · omega
+
+#print axioms encodeItems_gt_55_of_decode_long_list_head
 #print axioms decodeListItems_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
 #print axioms listLen_word_eq_drop
