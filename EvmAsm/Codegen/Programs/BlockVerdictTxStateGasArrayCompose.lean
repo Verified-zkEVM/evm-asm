@@ -389,7 +389,9 @@ structure A4gbrResiduals where
            ExtractAssumedAmbient arm case-split DONE
              (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
            residual: bare extractSuccess→arm domain bridge
-             (copy hq_align/cover; long hitem; hgeN empty-to hss room);
+             (short-copy: hq_align+hq+hcover/hcvalid only — hgeN DROPPED via
+              encode_ge_two content-field room; short-cre: hgeN empty-to hss;
+              long: per-field hitem≤55);
              short-cre hshort↔head bridges DONE; creShort ambient flats
              residual-only-hgeN (`…_creShort*` / `…_of_hshort`); Teer 745;
              gate. -/

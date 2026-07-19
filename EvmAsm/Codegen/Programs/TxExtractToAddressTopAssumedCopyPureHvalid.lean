@@ -120,7 +120,7 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid
   have hinover := extractSuccess_hinover txBytes txBase hsuccess hover
   have hv :=
     extractSuccess_copy_type234_hvalid_srcOff txBytes txBase hsuccess
-      hcopyFlag hge items hdecL hshort hge7 hvalidBuf
+      hcopyFlag hge items hdecL hshort hvalidBuf
   exact extractAssumed_copy_shortConcrete_pure
     sp0 spC s txBase lenW toBuf isCreationPtr contentPtr w0 w1 w2 txBytes items
     hspC hret htalign htover htvalid hcalign hcover hcvalid hcontent

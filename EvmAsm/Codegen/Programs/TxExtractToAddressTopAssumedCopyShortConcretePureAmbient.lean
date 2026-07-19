@@ -174,8 +174,7 @@ theorem extractAssumed_copy_shortConcrete_pure_ambient
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5)))
         (shortWalkEnd regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
-        next5 len5)
-    (hge7 : 7 ≤ items.length) :
+        next5 len5) :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -329,8 +328,11 @@ theorem extractAssumed_copy_shortConcrete_pure_ambient
     shortListSrcOff_succ_room slice listOff items 3 hencInner hshort (by omega)
   have hroom4 : srcOff4 + 1 < slice.length :=
     shortListSrcOff_succ_room slice listOff items 4 hencInner hshort (by omega)
+  have hge2_5 : 2 ≤ (encode (items[5]'hn5)).length :=
+    extractSuccess_copy_type234_field5_encode_ge_two slice hsuccess hcopyFlag hge
+      items hdecL hshort hn5
   have hroom5 : srcOff5 + 1 < slice.length :=
-    shortListSrcOff_succ_room slice listOff items 5 hencInner hshort (by omega)
+    hss_room_of_encode_ge_two slice listOff items 5 hencInner hshort hn5 hge2_5
   have hnext1 : ∀ (next0 len0 : Word),
       rlpItemDecode bs absOff0 (regionBase + BitVec.ofNat 64 absOff0) endW
         next0 len0 →
@@ -476,7 +478,7 @@ theorem extractAssumed_copy_shortConcrete_pure_ambient
       hvalid1_4 hoff4
   have hss5 :=
     hss_ambient_of_short_list_field regionBase loadPtr bs off len listOff items 5
-      hptr hbound hencInner hshort hn5 hoff5_sl hover (Or.inl (by omega : 6 < items.length))
+      hptr hbound hencInner hshort hn5 hoff5_sl hover (Or.inr hge2_5)
       hvalid1_5 hoff5
   have hls0 :
       ¬ BitVec.ult ((bs[absOff0]'hoff0).zeroExtend 64) (0xb8 : Word) = true →
@@ -869,8 +871,7 @@ theorem extractAssumed_copy_shortConcrete_pure_ambient_fullCode
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 5)))
         (shortWalkEnd regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
-        next5 len5)
-    (hge7 : 7 ≤ items.length) :
+        next5 len5) :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -889,8 +890,7 @@ theorem extractAssumed_copy_shortConcrete_pure_ambient_fullCode
       hvalid2 hvalid1_2 hdec2
       hvalid3 hvalid1_3 hdec3
       hvalid4 hvalid1_4 hdec4
-      hvalid5 hvalid1_5 hdec5
-      hge7)
+      hvalid5 hvalid1_5 hdec5)
 
 #print axioms extractAssumed_copy_shortConcrete_pure_ambient
 #print axioms extractAssumed_copy_shortConcrete_pure_ambient_fullCode

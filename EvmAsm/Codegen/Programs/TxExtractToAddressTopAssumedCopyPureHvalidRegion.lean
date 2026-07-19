@@ -203,7 +203,7 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_region
     hinb_short_list_end txBase listOff items 5 hn5 hoverEnd endW hendEq
   have hv :=
     extractSuccess_copy_type234_hvalid_srcOff txBytes txBase hsuccess
-      hcopyFlag hge items hdecL hshort hge7 hvalidBuf
+      hcopyFlag hge items hdecL hshort hvalidBuf
   have htx := extractSuccess_hvalid_tx0_inner txBytes txBase hsuccess hvalidBuf
   have hinover' := extractSuccess_hinover txBytes txBase hsuccess hover
   have hss0 :=

@@ -97,14 +97,14 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_region
       hhover.1 hhover.2.1 hhover.2.2.1 hhover.2.2.2
   have hv :=
     extractSuccess_copy_legacy_hvalid_srcOff txBytes txBase hsuccess
-      hcopyFlag htype0 items hdecL hshort hge5 hvalidBuf
+      hcopyFlag htype0 items hdecL hshort hvalidBuf
   have hn0 : (0 : Nat) < items.length := by omega
   have hn1 : (1 : Nat) < items.length := by omega
   have hn2 : (2 : Nat) < items.length := by omega
   have hn3 : (3 : Nat) < items.length := by omega
   have hfields :=
     extractSuccess_copy_legacy_hnext_fields02 txBytes hsuccess hcopyFlag htype0
-      items hdecL hshort hge5
+      items hdecL hshort
   have hencInner :
       txBytes.drop listOff = encode (.list items) :=
     decodeListItems_eq_encode _ _ hdecL

@@ -158,8 +158,7 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4)))
         (shortWalkEnd regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
-        next4 len4)
-    (hge6 : 6 ≤ items.length) :
+        next4 len4) :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -214,7 +213,7 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient
   have hn4 : (4 : Nat) < items.length := by omega
   have hfields03 :=
     extractSuccess_copy_t1_hnext_fields03 slice hsuccess hcopyFlag htype1
-      items hdecL hshort hge6
+      items hdecL hshort
   have hencInner : slice.drop listOff = encode (.list items) :=
     decodeListItems_eq_encode _ _ hdecL
   have hoverEnd :
@@ -296,8 +295,11 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient
     shortListSrcOff_succ_room slice listOff items 2 hencInner hshort (by omega)
   have hroom3 : srcOff3 + 1 < slice.length :=
     shortListSrcOff_succ_room slice listOff items 3 hencInner hshort (by omega)
+  have hge2_4 : 2 ≤ (encode (items[4]'hn4)).length :=
+    extractSuccess_copy_t1_field4_encode_ge_two slice hsuccess hcopyFlag htype1
+      items hdecL hshort hn4
   have hroom4 : srcOff4 + 1 < slice.length :=
-    shortListSrcOff_succ_room slice listOff items 4 hencInner hshort (by omega)
+    hss_room_of_encode_ge_two slice listOff items 4 hencInner hshort hn4 hge2_4
   have hnext1 : ∀ (next0 len0 : Word),
       rlpItemDecode bs absOff0 (regionBase + BitVec.ofNat 64 absOff0) endW
         next0 len0 →
@@ -576,7 +578,7 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient
       hencInner hshort hn3 hoff3_sl h'
   have hss4 :=
     hss_ambient_of_short_list_field regionBase loadPtr bs off len listOff items 4
-      hptr hbound hencInner hshort hn4 hoff4_sl hover (Or.inl (by omega : (4 : Nat) + 1 < items.length))
+      hptr hbound hencInner hshort hn4 hoff4_sl hover (Or.inr hge2_4)
       hvalid1_4 hoff4
   have hls0 :
       ¬ BitVec.ult ((bs[absOff0]'hoff0).zeroExtend 64) (0xb8 : Word) = true →
@@ -876,8 +878,7 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient_fullCode
             (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 4)))
         (shortWalkEnd regionBase (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
           (ambientAbsOff off (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat))
-        next4 len4)
-    (hge6 : 6 ≤ items.length)  :
+        next4 len4) :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -895,8 +896,7 @@ theorem extractAssumed_copy_shortConcrete_pure_t1_region_ambient_fullCode
       hvalid1 hvalid1_1 hdec1
       hvalid2 hvalid1_2 hdec2
       hvalid3 hvalid1_3 hdec3
-      hvalid4 hvalid1_4 hdec4
-      hge6)
+      hvalid4 hvalid1_4 hdec4)
 
 #print axioms extractAssumed_copy_shortConcrete_pure_t1_region_ambient
 #print axioms extractAssumed_copy_shortConcrete_pure_t1_region_ambient_fullCode

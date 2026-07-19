@@ -1,6 +1,6 @@
 /-
   Ambient short legacy copy: discharge hdec*/hvalid* via slice pure + bridges +
-  validByteRange on regionBase. Residual path flags (copy/legacy/short/hge5/hq_align).
+  validByteRange on regionBase. Residual path flags (copy/legacy/short/hq_align).
 -/
 
 import EvmAsm.Rv64.CPSSpec
@@ -114,7 +114,7 @@ private theorem hdec_ambient_field'
 
 set_option maxRecDepth 8000 in
 /-- Ambient short concrete Assumed copy; hdec+hvalid from pure+validByteRange.
-    Residual path: copy/legacy/short/hge5/hdecL. -/
+    Residual path: copy/legacy/short/hdecL. -/
 theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient
     (sp0 spC : Word) (s : ExtractSaved)
     (regionBase loadPtr lenW toBuf isCreationPtr : Word)
@@ -145,8 +145,7 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient
     (hshort : (encode.encodeItems items).length ≤ 55)
     (hsalign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalidBuf : validByteRange regionBase bs.length)
-    (hge5 : 5 ≤ items.length) :
+    (hvalidBuf : validByteRange regionBase bs.length) :
     cpsTripleWithin nExtractSteps E s.ra extractLinkedCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -257,8 +256,15 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient
     shortListSrcOff_succ_room slice listOff items 1 hencInner hshort (by omega)
   have hroom2 : srcOff2 + 1 < slice.length :=
     shortListSrcOff_succ_room slice listOff items 2 hencInner hshort (by omega)
+  have hn3 : (3 : Nat) < items.length := by
+    have := extractSuccess_copy_legacy_items_length slice hsuccess hcopyFlag htype0
+      items hdecL hshort
+    omega
+  have hge2_3 : 2 ≤ (encode (items[3]'hn3)).length :=
+    extractSuccess_copy_legacy_field3_encode_ge_two slice hsuccess hcopyFlag htype0
+      items hdecL hshort hn3
   have hroom3 : srcOff3 + 1 < slice.length :=
-    shortListSrcOff_succ_room slice listOff items 3 hencInner hshort (by omega)
+    hss_room_of_encode_ge_two slice listOff items 3 hencInner hshort hn3 hge2_3
   have hoff1_0 : absOff0 + 1 < bs.length := by
     have hrel : srcOff0 + 1 < len := by
       have : srcOff0 + 1 < slice.length := hroom0
@@ -343,7 +349,6 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient
       hvalid1 hvalid1_1 hdec1
       hvalid2 hvalid1_2 hdec2
       hvalid3 hvalid1_3 hdec3
-      hge5
 
 set_option maxRecDepth 8000 in
 theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient_fullCode
@@ -376,8 +381,7 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient_fullCode
     (hshort : (encode.encodeItems items).length ≤ 55)
     (hsalign : regionBase.toNat % 8 = 0)
     (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hvalidBuf : validByteRange regionBase bs.length)
-    (hge5 : 5 ≤ items.length)  :
+    (hvalidBuf : validByteRange regionBase bs.length) :
     cpsTripleWithin nExtractSteps E s.ra fullCode
       (extractAssumedPreAmbient s.ra sp0 loadPtr lenW
         s.s0 s.s1 s.s2 s.s3 s.s4 s.s5 s.s6 s.s7
@@ -390,7 +394,7 @@ theorem extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient_fullCode
       sp0 spC s regionBase loadPtr lenW toBuf isCreationPtr bs off len items q
       hq_align hq hcover hcvalid
       hspC hret htalign htover htvalid hlen hptr hbound hsuccess hcopyFlag htype0 hdecL hshort
-      hsalign hover hvalidBuf hge5)
+      hsalign hover hvalidBuf)
 
 /-- Path refinements for ambient short legacy copy arm. -/
 def extractCopyLegacyShortPathAmbient
@@ -402,7 +406,6 @@ def extractCopyLegacyShortPathAmbient
         ((txSlice bs off len).drop (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) =
       some items ∧
     (encode.encodeItems items).length ≤ 55 ∧
-    5 ≤ items.length ∧
     ambientAbsOff off
         (shortListSrcOff (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items 3) + 1 =
       8 * q ∧
@@ -437,7 +440,7 @@ theorem extractAssumed_success_flat_copy_legacy_short_ambient
       (extractAssumedPostAmbient ret spVal
         s0 s1 s2 s3 s4 s5 s6 s7
         regionBase toBuf isCreationPtr bs) := by
-  obtain ⟨hsuccess, hcopyFlag, htype0, hdecL, hshort, hge5, hq_align, hq⟩ := hpath
+  obtain ⟨hsuccess, hcopyFlag, htype0, hdecL, hshort, hq_align, hq⟩ := hpath
   let s : ExtractSaved :=
     { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3
       s4 := s4, s5 := s5, s6 := s6, s7 := s7 }
@@ -457,7 +460,7 @@ theorem extractAssumed_success_flat_copy_legacy_short_ambient
       spVal spC s regionBase loadPtr lenW toBuf isCreationPtr bs off len items q
       hq_align hq hcover hcvalid
       hspC hret htalign htover htvalid hlen hptr hbound hsuccess hcopyFlag htype0 hdecL hshort
-      hsalign hover hvalidBuf hge5
+      hsalign hover hvalidBuf
 
 #print axioms extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient
 #print axioms extractAssumed_copy_shortConcrete_pureHvalid_legacy_ambient_fullCode
