@@ -237,8 +237,6 @@ def createNonceTableData : String :=
   ++ "create_nonce_undo_count:\n  .zero 8\n"
   ++ "create_nonce_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
   ++ ".balign 8\ncreate_nonce_undo_log:\n  .zero " ++ toString createNonceUndoBytes ++ "\n"
-  ++ "create_nonce_undo_presnap_armed:\n  .zero 8\n"
-  ++ "create_nonce_undo_presnap_count:\n  .zero 8\n"
 
 /-- `zisk_create_creator_nonce_use`: known-answer probe. Two creators (A=0x11*20,
     B=0x22*20); the running nonce advances per creator independently:
