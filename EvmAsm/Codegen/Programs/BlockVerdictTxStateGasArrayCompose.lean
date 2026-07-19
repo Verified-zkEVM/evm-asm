@@ -508,6 +508,8 @@ def teer_free26_empty_short_run_domain_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26EmptyShort_front_then_exit
 #print axioms TxEip7702TeerSpec.teer_nFree26Empty_applied_budget
 #print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26EmptyShort_of_applied
+#print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA
+#print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_applied
 
 /-- Free26EmptyShort → applied_flat free20**nested packaging. classical-3. -/
 example : True := trivial

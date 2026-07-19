@@ -670,18 +670,20 @@ def teerAssumed_empty_applied_flat_zero
     Each conjunct is a remaining named hyp / multi-session body. -/
 def teerEmptyAuthResidualLedger : Prop :=
   -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path).
-  --    Free26 packaging DONE under FrontToBridge+RolledZero; EmptyShort applied_flat DONE.
+  --    Free26EmptyShort packaging DONE under hrunA+rz (of_hrunA / of_hrunA_applied);
+  --    EmptyShort → ret / applied_flat free20**nested DONE; hteer0 free via teerApplied_zero.
   True ∧
-  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack memIs 0 held)
+  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack ↦ₘ 0 held;
+  --    ScratchZero memOwn discards value — thread memIs0 multi-session)
   True ∧
-  -- 3. FrontToBridge inhabit (applied hrun wire; free26 pick packaging DONE;
-  --    of_hrun_empty_short_ident frees oldCount; decode path frees hident; decode_rz packages hrolled0; residual hrun+rz+domain)
+  -- 3. TeerEmptyAuthHrunEmptyShort inhabit (wire applied_as_postEx @ srcOffA9=0;
+  --    ~200 walk-domain binders; hident FREE via 0xc0 decode; do not clone into packaging)
   True ∧
-  -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest)
+  -- 4. Domain empty-short fixture on Free26EmptyShort.run (align/slack/valid/bs[0]=0xc0)
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path)
   True ∧
-  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce)
+  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies
   True ∧
