@@ -597,7 +597,6 @@ theorem teerAuthWalkNext0_applied_nested
     let endL := (regionBase + BitVec.ofNat 64 listOff) + listLen
     let endW := endL
     let cursorV := regionBase + BitVec.ofNat 64 srcOffV
-    let cur := (regionBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12)
     cpsTripleWithin nFrontToAuthWalkNext0Save
       E AfterAuthWalkNext0Save teerLinkedEarly
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
