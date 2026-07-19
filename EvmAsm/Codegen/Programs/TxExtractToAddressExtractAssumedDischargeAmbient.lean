@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongAmb
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongLegacyAmbient
 import EvmAsm.Codegen.Programs.TxExtractToAddressTopAssumedCopyPureHvalidLongT1Ambient
 import EvmAsm.Codegen.Programs.TxExtractToAddressModel
+import EvmAsm.Codegen.Programs.TxExtractToAddressHonesty
 import EvmAsm.Codegen.Programs.TxExtractToAddressSpec
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
@@ -37,8 +38,11 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange)
 open EvmAsm.Codegen
-open EvmAsm.Codegen.TxTypeDispatchSpec (txSlice)
-open EvmAsm.Codegen.TxExtractToAddressModel (extractSuccess)
+open EvmAsm.Codegen.TxTypeDispatchSpec (txSlice teerTxTypeDispatch txSlice_length)
+open EvmAsm.Codegen.TxExtractToAddressModel
+  (extractSuccess teerExtractToAddress decodeListItems decodeListItems_some_ne_nil)
+open EvmAsm.Codegen.TxExtractToAddressHonesty
+  (encodeItems_le_55_of_decode_short_list_head)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec (nExtractSteps fullCode)
 open EvmAsm.EL.RLP
 
@@ -229,10 +233,123 @@ theorem extractAssumedAmbientArm_success
   | copyLongLegacy _ _ hpath _ _ _ _ => exact hpath.1
   | copyLongT1 _ _ hpath _ _ _ _ _ => exact hpath.1
 
-/-- Domain residual: bare `extractSuccess` ↛ arm (copy align/cover, long hitem, hge7). -/
+/-- Domain residual: bare `extractSuccess` ↛ arm (copy align/cover, long hitem, hge7).
+    Short-creation arms: `hshort` discharged by short-list head; residual `hgeN`
+    (one extra item past `to`-field for hss room on empty content). -/
 def extractAssumedAmbient_success_flat_domain_residual : True := trivial
+
+/-- Short-list head at inner offset ⇒ `hshort` for ambient short arms. -/
+theorem hshort_ambient_of_inner_short_head
+    (bs : List (BitVec 8)) (off len : Nat) (items : List RLPItem)
+    (hbound : off + len ≤ bs.length)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true) :
+    (encode.encodeItems items).length ≤ 55 := by
+  set slice := txSlice bs off len
+  set listOff := (teerTxTypeDispatch slice).2.2.toNat
+  set inner := slice.drop listOff
+  have hdec' : decodeListItems inner = some items := by
+    simpa [inner, listOff, slice] using hdec
+  have h0' : 0 < inner.length := by simpa [inner, listOff, slice] using h0
+  have hhi' :
+      BitVec.ult ((inner[0]'h0').zeroExtend 64) (0xf8 : Word) = true := by
+    simpa [inner, listOff, slice] using hhi
+  have hlen_inner : inner.length < 256 ^ 8 := by
+    have hle : inner.length ≤ slice.length := by
+      simp only [inner, List.length_drop]; omega
+    have hslice : slice.length = len := txSlice_length bs off len hbound
+    omega
+  exact encodeItems_le_55_of_decode_short_list_head inner items hdec' h0' hlen_inner hhi'
+
+/-- Package short type234 creation arm (path flags + short head; residual hge7). -/
+def extractAssumedAmbientArm_creShortType234
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem)
+    (hbound : off + len ≤ bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (hge : 2 ≤ (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat)
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge7 : 7 ≤ items.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .creShortType234 items
+    ⟨hsuccess, hcre, hge, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi, hge7⟩
+
+/-- Package short legacy creation arm (residual hge5). -/
+def extractAssumedAmbientArm_creShortLegacy
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem)
+    (hbound : off + len ≤ bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (htype0 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (0 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge5 : 5 ≤ items.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .creShortLegacy items
+    ⟨hsuccess, hcre, htype0, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi, hge5⟩
+
+/-- Package short t1 creation arm (residual hge6). -/
+def extractAssumedAmbientArm_creShortT1
+    (regionBase : Word) (bs : List (BitVec 8)) (off len : Nat)
+    (items : List RLPItem)
+    (hbound : off + len ≤ bs.length)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcre : (teerExtractToAddress (txSlice bs off len)).2.2 = (1 : Word))
+    (htype1 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (1 : Word))
+    (hdec : decodeListItems
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items)
+    (hlen : bs.length < 256 ^ 8)
+    (h0 : 0 <
+      ((txSlice bs off len).drop
+        (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length)
+    (hhi : BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (hge6 : 6 ≤ items.length) :
+    ExtractAssumedAmbientArm regionBase bs off len :=
+  .creShortT1 items
+    ⟨hsuccess, hcre, htype1, hdec,
+      hshort_ambient_of_inner_short_head bs off len items hbound hdec hlen h0 hhi, hge6⟩
 
 #print axioms extractAssumed_success_flat_ambient_of_arm
 #print axioms extractAssumedAmbientArm_success
+#print axioms hshort_ambient_of_inner_short_head
+#print axioms extractAssumedAmbientArm_creShortType234
+#print axioms extractAssumedAmbientArm_creShortLegacy
+#print axioms extractAssumedAmbientArm_creShortT1
 
 end EvmAsm.Codegen.TxExtractToAddressSpec

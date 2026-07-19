@@ -389,8 +389,10 @@ structure A4gbrResiduals where
            ExtractAssumedAmbient arm case-split DONE
              (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
            residual: bare extractSuccess→arm domain bridge
-             (copy hq_align/cover; long hitem; type234 hge7);
-             package ExtractAssumedAmbient structure; Teer; gate. -/
+             (copy hq_align/cover; long hitem; hgeN past to-field);
+             short-cre hshort DONE (`encodeItems_le_55_of_decode_short_list_head`
+             + `extractAssumedAmbientArm_creShort*`); Teer 745-instr prover1;
+             gate. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
