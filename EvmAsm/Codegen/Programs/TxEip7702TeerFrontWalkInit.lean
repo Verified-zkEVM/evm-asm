@@ -414,4 +414,258 @@ theorem teerWalkInitShort_applied
 #print axioms teerWalkInitShort_applied_nested
 #print axioms teerWalkInitShort_applied
 
+/-- Ambient walk_init with ZeroIs (rolled ↦ₘ0). -/
+def teerWalkInitAmbientIs
+    (spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal : Word)
+    (balBytes : List (BitVec 8)) (s : TeerSaved)
+    (innerVal : Word) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+  (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+  (.x21 ↦ᵣ loadPtr + innerVal) ** (.x22 ↦ᵣ lenW - innerVal) **
+  (.x23 ↦ᵣ s7) **
+  (.x26 ↦ᵣ (0 : Word)) **
+  (.x27 ↦ᵣ s11) **
+  frameSlotsSaved teerFrame spC (teerSavedVals s) **
+  (TypeAddr ↦ₘ (4 : Word)) ** (InnerOffAddr ↦ₘ innerVal) **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+  stackFree spVal 6 **
+  bytesRegion balPtr balBytes **
+  teerScratchZeroIs ** teerScratchRestWithoutTypeOwn
+
+theorem pcFree_teerWalkInitAmbientIs
+    (spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal : Word)
+    (balBytes : List (BitVec 8)) (s : TeerSaved)
+    (innerVal : Word) :
+    (teerWalkInitAmbientIs spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal balBytes s innerVal).pcFree := by
+  unfold teerWalkInitAmbientIs teerScratchZeroIs teerScratchRestWithoutTypeOwn
+  pcf
+
+/-- Type4 Is-flat AtWalkInit → walk_init focus ** ambient Is. -/
+theorem teerAtWalkInitFlatIs_to_walkInitPre
+    (spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s8 s9 s11 spVal regionBase : Word)
+    (bs balBytes : List (BitVec 8)) (s : TeerSaved)
+    (innerVal : Word)
+    (listOff : Nat)
+    (ha0 : loadPtr + innerVal = regionBase + BitVec.ofNat 64 listOff) :
+    ∀ h,
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ LinkType) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ loadPtr + innerVal) ** (.x22 ↦ᵣ lenW - innerVal) **
+        (.x23 ↦ᵣ s7) ** (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x5 ↦ᵣ InnerOffAddr) ** (.x6 ↦ᵣ innerVal) ** (.x7 ↦ᵣ (4 : Word)) **
+        (.x10 ↦ᵣ loadPtr + innerVal) ** (.x11 ↦ᵣ lenW - innerVal) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (TypeAddr ↦ₘ (4 : Word)) ** (InnerOffAddr ↦ₘ innerVal) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestWithoutTypeOwn) h →
+      (teerWalkInitFocus regionBase (lenW - innerVal) bs listOff
+          LinkType s8 s9 InnerOffAddr innerVal (4 : Word) **
+        teerWalkInitAmbientIs spC loadPtr lenW balPtr balLenW chainIdW
+          s7 s11 spVal balBytes s innerVal) h := by
+  intro _ hp
+  unfold teerWalkInitFocus teerWalkInitBodyCore teerWalkInitAmbientIs
+  simp only [ha0] at hp ⊢
+  xperm_hyp hp
+
+def teerWalkInitPostNestedIs
+    (spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal regionBase : Word)
+    (bs balBytes : List (BitVec 8)) (s : TeerSaved)
+    (innerVal : Word) (listOff : Nat) : Assertion :=
+  (teerWalkInitBodyPost regionBase (lenW - innerVal) bs listOff **
+    teerWalkInitAmbientIs spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal balBytes s innerVal)
+
+set_option maxRecDepth 8000 in
+/-- E → AfterWalkInitSave under applied Is path (short outer list). -/
+theorem teerWalkInitShort_applied_nested_is
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word))
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 off) = true)
+    (listOff : Nat)
+    (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
+      regionBase + BitVec.ofNat 64 listOff)
+    (hoff : listOff < bs.length)
+    (hoverL : regionBase.toNat + listOff < 2 ^ 64)
+    (hvalidL : isValidByteAccess (regionBase + BitVec.ofNat 64 listOff) = true)
+    (hlenL : lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2 ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (regionBase + BitVec.ofNat 64 listOff) +
+        (((bs[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    let innerVal := (teerTxTypeDispatch (txSlice bs off len)).2.2
+    cpsTripleWithin (nFrontToWalkInit + nWalkInitShort)
+      E AfterWalkInitSave teerLinkedEarly
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      (teerWalkInitPostNestedIs spC loadPtr lenW balPtr balLenW chainIdW
+        s7 s11 spVal regionBase bs balBytes s innerVal listOff) := by
+  intro s innerVal
+  have hty := teerType4ThenInner_applied_is ret spVal spC loadPtr lenW
+    balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+    regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
+    halign hbound hover hvalid0
+  have hwi := teerWalkInitShortSuccess_ownTemps regionBase
+    (lenW - innerVal) InnerOffAddr innerVal (4 : Word) bs listOff
+    LinkType s8 s9
+    (by simpa using halign) hoff hoverL hvalidL hlenL h_ge h_hi h_exact
+  have hwiF := cpsTripleWithin_frameR
+    (teerWalkInitAmbientIs spC loadPtr lenW balPtr balLenW chainIdW
+      s7 s11 spVal balBytes s innerVal)
+    (pcFree_teerWalkInitAmbientIs _ _ _ _ _ _ _ _ _ _ _ _) hwi
+  have hwiF' :
+      cpsTripleWithin nWalkInitShort AtWalkInit AfterWalkInitSave teerLinkedEarly
+        (teerWalkInitFocus regionBase (lenW - innerVal) bs listOff
+            LinkType s8 s9 InnerOffAddr innerVal (4 : Word) **
+          teerWalkInitAmbientIs spC loadPtr lenW balPtr balLenW chainIdW
+            s7 s11 spVal balBytes s innerVal)
+        (teerWalkInitPostNestedIs spC loadPtr lenW balPtr balLenW chainIdW
+          s7 s11 spVal regionBase bs balBytes s innerVal listOff) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        unfold teerWalkInitFocus at hp
+        xperm_hyp hp)
+      (fun _ hq => by
+        unfold teerWalkInitPostNestedIs
+        exact hq)
+      hwiF
+  have hsc := teerAtWalkInitFlatIs_to_walkInitPre spC loadPtr lenW balPtr
+    balLenW chainIdW s7 s8 s9 s11 spVal regionBase bs balBytes s
+    innerVal listOff ha0
+  have hseq := cpsTripleWithin_seq_perm_same_cr hsc hty hwiF'
+  exact cpsTripleWithin_mono_nSteps
+    (by decide : nFrontToWalkInit + nWalkInitShort ≤ nFrontToWalkInit + nWalkInitShort)
+    hseq
+
+set_option maxRecDepth 8000 in
+/-- Flatten nested Is → AfterWalkInitSave with ZeroIs ** RestWithoutType. -/
+theorem teerWalkInitShort_applied_is
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word))
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
+    (halign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 off) = true)
+    (listOff : Nat)
+    (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
+      regionBase + BitVec.ofNat 64 listOff)
+    (hoff : listOff < bs.length)
+    (hoverL : regionBase.toNat + listOff < 2 ^ 64)
+    (hvalidL : isValidByteAccess (regionBase + BitVec.ofNat 64 listOff) = true)
+    (hlenL : lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2 ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (regionBase + BitVec.ofNat 64 listOff) +
+        (((bs[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) :
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    let innerVal := (teerTxTypeDispatch (txSlice bs off len)).2.2
+    let cur := (regionBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12)
+    let endW := (regionBase + BitVec.ofNat 64 listOff) + (lenW - innerVal)
+    cpsTripleWithin (nFrontToWalkInit + nWalkInitShort)
+      E AfterWalkInitSave teerLinkedEarly
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ LinkWalkInit) **
+        (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+        (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+        (.x21 ↦ᵣ loadPtr + innerVal) ** (.x22 ↦ᵣ lenW - innerVal) **
+        (.x23 ↦ᵣ s7) **
+        (.x10 ↦ᵣ cur) ** (.x11 ↦ᵣ endW) **
+        (.x12 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ cur) ** (.x25 ↦ᵣ endW) **
+        (.x26 ↦ᵣ (0 : Word)) **
+        (.x27 ↦ᵣ s11) **
+        frameSlotsSaved teerFrame spC (teerSavedVals s) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (TypeAddr ↦ₘ (4 : Word)) ** (InnerOffAddr ↦ₘ innerVal) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        stackFree spVal 6 **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchZeroIs ** teerScratchRestWithoutTypeOwn) := by
+  intro s innerVal cur endW
+  have h0 := teerWalkInitShort_applied_nested_is ret spVal spC loadPtr lenW
+    balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+    regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
+    halign hbound hover hvalid0 listOff ha0 hoff hoverL hvalidL hlenL
+    h_ge h_hi h_exact
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by
+      unfold teerWalkInitPostNestedIs teerWalkInitBodyPost teerWalkInitAmbientIs at hq
+      xperm_hyp hq) h0
+
+#print axioms teerWalkInitShort_applied_nested_is
+#print axioms teerWalkInitShort_applied_is
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
