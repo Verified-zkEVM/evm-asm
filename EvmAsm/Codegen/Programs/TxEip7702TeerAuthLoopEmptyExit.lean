@@ -2674,20 +2674,124 @@ theorem teerSuccess_empty_short_list
     shortInit_to_strict bytes base 1 hoff (by omega) hnotlist hshort hend
   exact ⟨1, base + BitVec.ofNat 64 1, hlist, StrictPrefix.zero⟩
 
+/-- Prefix offsets stay in `[startOff, endOff]` under a concrete end. -/
+theorem teerStrictPrefix_start_le_off_le_end
+    {bytes : List (BitVec 8)} {base : Word} {endOff startOff count off : Nat}
+    (h : StrictPrefix bytes base (base + BitVec.ofNat 64 endOff) startOff count off)
+    (hstart : startOff ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    startOff ≤ off ∧ off ≤ endOff := by
+  induction h with
+  | zero => exact ⟨le_rfl, hstart⟩
+  | succ count off next len hp hi ih =>
+    obtain ⟨hs, he⟩ := ih
+    have ha :=
+      BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hi he hover
+    exact ⟨le_trans hs (Nat.le_of_lt ha.2.1), ha.2.2⟩
+
+/-- A prefix that ends exactly at `startOff` is empty. -/
+theorem teerStrictPrefix_off_eq_start_imp_count_zero
+    {bytes : List (BitVec 8)} {base : Word} {endOff startOff count off : Nat}
+    (h : StrictPrefix bytes base (base + BitVec.ofNat 64 endOff)
+      startOff count off)
+    (heq : off = startOff)
+    (hstart : startOff ≤ endOff)
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) :
+    count = 0 := by
+  cases h with
+  | zero => rfl
+  | succ count0 off' next len hp hi =>
+    -- heq : (next - base).toNat = startOff
+    obtain ⟨hs0, he0⟩ :=
+      teerStrictPrefix_start_le_off_le_end hp hstart hover
+    have ha :=
+      BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hi he0 hover
+    -- advance: off' < (next - base).toNat, and startOff ≤ off'
+    omega
+
+/-- `listLen = 1` Success forces item count 0 (empty short payload). -/
+theorem teerSuccess_listLen_one_count_zero
+    {bytes : List (BitVec 8)} {base : Word} {count : Nat}
+    (hS : Success bytes base 1 count)
+    (hover : base.toNat + 1 + 9 < 2 ^ 64) :
+    count = 0 := by
+  obtain ⟨cursorOff, endPtr, hlist, hpref⟩ := hS
+  have hend := StrictListPayload.end_eq hlist
+  have hc1 : cursorOff = 1 := by
+    have hpos := StrictListPayload.cursor_pos hlist
+    have hle := StrictListPayload.cursor_le hlist
+    omega
+  subst cursorOff
+  have hpref' :
+      StrictPrefix bytes base (base + BitVec.ofNat 64 1) 1 count 1 := by
+    simpa [hend] using hpref
+  exact teerStrictPrefix_off_eq_start_imp_count_zero hpref' rfl
+    (by omega : (1 : Nat) ≤ 1) hover
+
+private theorem teer_ult_self_false (w : Word) :
+    ¬ BitVec.ult w w = true := by
+  intro h
+  have := (BitVec.ult_iff_toNat_lt).1 h
+  exact Nat.lt_irrefl _ this
+
+/-- Success at `listLen = 1` rules out count Failure. -/
+theorem teerSuccess_not_Failure_listLen_one
+    {bytes : List (BitVec 8)} {base : Word} {count : Nat}
+    (hS : Success bytes base 1 count)
+    (hover : base.toNat + 1 + 9 < 2 ^ 64) :
+    ¬ Failure bytes base 1 := by
+  intro hf
+  cases hf with
+  | init hinv =>
+    obtain ⟨c, e, hl, _⟩ := hS
+    exact hinv ⟨c, e, hl⟩
+  | walk cursorOff cnt off endPtr hlist hpref hins _hfail =>
+    have hend := StrictListPayload.end_eq hlist
+    have hc1 : cursorOff = 1 := by
+      have hpos := StrictListPayload.cursor_pos hlist
+      have hle := StrictListPayload.cursor_le hlist
+      omega
+    subst cursorOff
+    have hpref' :
+        StrictPrefix bytes base (base + BitVec.ofNat 64 1) 1 cnt off := by
+      simpa [hend] using hpref
+    -- walk station must satisfy startOff ≤ off ≤ endOff = 1, so off = 1
+    obtain ⟨hs, he⟩ :=
+      teerStrictPrefix_start_le_off_le_end hpref'
+        (by omega : (1 : Nat) ≤ 1) hover
+    have hoff1 : off = 1 := by omega
+    subst off
+    -- still-inside at exclusive end is absurd
+    have hult :
+        BitVec.ult (base + BitVec.ofNat 64 1) (base + BitVec.ofNat 64 1) = true := by
+      simpa [hend] using hins
+    exact teer_ult_self_false _ hult
+
+/-- Empty-short `ListCountResultSpecialize` free under mild hover. -/
+theorem teerListCountResultSpecialize_empty_short
+    (bytes : List (BitVec 8)) (base : Word)
+    (hover : base.toNat + 1 + 9 < 2 ^ 64) :
+    ListCountResultSpecialize bytes base 1 0 (0 : Word) := by
+  intro hcountW _hcount hsuccess status result hR
+  cases hR with
+  | ok count' _hcount' hsuccess' =>
+    have hc0 := teerSuccess_listLen_one_count_zero hsuccess' hover
+    subst count'
+    exact ⟨rfl, by simp [hcountW]⟩
+  | fail hfail =>
+    exact (teerSuccess_not_Failure_listLen_one hsuccess hover hfail).elim
+
 #print axioms teerEmptyAuth_free26_front_then_exit
 #print axioms teerEmptyAuth_free26_front_then_exit_mono
 #print axioms teerLinkListCount_aligned
 #print axioms teerWalkInit_guards_empty_short
 #print axioms teerSuccess_empty_short_list
+#print axioms teerListCountResultSpecialize_empty_short
 
-/-- Empty-short midA inhabit: Success/guards/LinkListCount free.
-    Residual domain: hspe (Result specialize), hrolled0, s-reg wire, align/slack/valid,
-    and `bs[0] = 0xc0`. -/
+/-- Empty-short midA inhabit: Success/guards/LinkListCount/hspe free under hover.
+    Residual domain: hrolled0, s-reg wire, align/slack/valid, and `bs[0] = 0xc0`. -/
 def teerEmptyAuthFree26MidAssumed_empty_short
     (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
-    (hspe_all :
-      ∀ (bytes : List (BitVec 8)) (base : Word),
-        ListCountResultSpecialize bytes base 1 0 (0 : Word))
     (hrolled0_all :
       ∀ (spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW : Word)
         (s : TeerSaved) (bs balBytes : List (BitVec 8))
@@ -2724,7 +2828,8 @@ def teerEmptyAuthFree26MidAssumed_empty_short
       teerWalkInit_guards_empty_short bs regionBase listLenW hoff h0 hlistLenW
     obtain ⟨h_ge, h_hi, h_exact⟩ := hguards
     have hsuccess := teerSuccess_empty_short_list bs regionBase hoff h0
-    have hspe := hspe_all bs regionBase
+    have hspeHover : regionBase.toNat + 1 + 9 < 2 ^ 64 := by omega
+    have hspe := teerListCountResultSpecialize_empty_short bs regionBase hspeHover
     have hrolled0 :
         ∀ (refund rolledVal : Word) h,
           ((teerListCountAuthLoopPost spC regionBase AuthCountAddr
