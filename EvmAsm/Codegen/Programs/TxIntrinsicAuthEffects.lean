@@ -101,9 +101,10 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteanse_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++
-  "  bnez s11, .Lteanse_next\n" ++
+  -- An absent authority starts at nonce zero, but later valid authorizations in
+  -- this same transaction must validate against the latest recorded nonce.
   "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
-  "  j .Lteanse_record\n" ++
+  "  j .Lteanse_have_pre\n" ++
   ".Lteanse_have_pre:\n" ++
   -- Each authorization validates the authority's current nonce.  Earlier valid
   -- tuples in this transaction already recorded the increment, so use that
