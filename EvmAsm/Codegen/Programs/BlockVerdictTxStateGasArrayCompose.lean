@@ -393,8 +393,8 @@ structure A4gbrResiduals where
               hcover/hcvalid from statics via copyAmbientExtras_of_statics;
               short-cre: hgeN empty-to hss; long: per-field hitem≤55);
              short-cre hshort↔head bridges DONE; creShort ambient flats
-             residual-only-hgeN; copyShort of_success_head residual only
-             q/hq_align/hq + short-list head (`…_copyShort_of_success_head`);
+             residual-only-hgeN; copyShort of_success_head_aligned residual only
+             content-start %8=0 + short-list head (q/hq_align/hq derived);
              Teer 745; gate. -/
 
   ambientMultiTx : True := trivial
@@ -407,6 +407,12 @@ def extract_discharge_ambient_of_arm_available :=
   @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_of_arm
 
 #print axioms extract_discharge_ambient_of_arm_available
+
+/-- Short-copy ambient aligned residual (halign + head only). classical-3. -/
+def extract_discharge_ambient_copyShort_aligned_available :=
+  @TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShort_of_success_head_aligned
+#print axioms extract_discharge_ambient_copyShort_aligned_available
+
 
 
 /-- Short-cre ambient residual-hgeN flats available (classical-3). -/

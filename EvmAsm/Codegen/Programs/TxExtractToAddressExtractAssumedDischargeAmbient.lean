@@ -41,7 +41,8 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.SAsm.DualReadByteScan (validByteRange isValidByteAccess_of_validByteRange)
 open EvmAsm.Codegen
-open EvmAsm.Codegen.TxTypeDispatchSpec (txSlice teerTxTypeDispatch txSlice_length ambientAbsOff)
+open EvmAsm.Codegen.TxTypeDispatchSpec
+  (txSlice teerTxTypeDispatch txSlice_length ambientAbsOff ambientAbsOff_lt)
 open EvmAsm.Codegen.TxExtractToAddressModel
   (extractSuccess teerExtractToAddress decodeListItems decodeListItems_some_ne_nil
     toFieldIndex toFieldIndex_legacy toFieldIndex_t1 toFieldIndex_type234
@@ -49,7 +50,9 @@ open EvmAsm.Codegen.TxExtractToAddressModel
     extractSuccess_to_field)
 open EvmAsm.Codegen.TxExtractToAddressHonesty
   (encodeItems_le_55_of_decode_short_list_head
-    short_list_head_ult_f8_of_decode_hshort shortListSrcOff)
+    short_list_head_ult_f8_of_decode_hshort shortListSrcOff
+    decodeListItems_eq_encode short_list_item_drop encode_bytes_len20_pfx
+    extractSuccess_copy_encode_addr20)
 open EvmAsm.Codegen.TxIntrinsicStateGasSpec (nExtractSteps fullCode)
 open EvmAsm.EL.RLP
 
@@ -1392,6 +1395,181 @@ theorem extractAssumed_success_flat_ambient_copyShort_of_success_head
 
 #print axioms extractAssumed_success_flat_ambient_copyShort_of_success_head
 
+
+
+
+/-! ### Short-copy residual thin: alignment → q/hq_align; content span → hq -/
+
+/-- Absolute content-dword start after the `0x94` prefix of a short-list field. -/
+def copyContentStartAbs (off listOff : Nat) (items : List RLPItem) (k : Nat) : Nat :=
+  ambientAbsOff off (shortListSrcOff listOff items k) + 1
+
+/-- Canonical content qword index when content start is 8-aligned. -/
+def copyContentQ (off listOff : Nat) (items : List RLPItem) (k : Nat) : Nat :=
+  copyContentStartAbs off listOff items k / 8
+
+theorem hq_align_of_content_mod8
+    (off listOff : Nat) (items : List RLPItem) (k : Nat)
+    (halign : copyContentStartAbs off listOff items k % 8 = 0) :
+    copyContentStartAbs off listOff items k =
+      8 * copyContentQ off listOff items k := by
+  have hdvd : 8 ∣ copyContentStartAbs off listOff items k :=
+    Nat.dvd_of_mod_eq_zero halign
+  simpa [copyContentQ] using (Nat.mul_div_cancel' hdvd).symm
+
+/-- 20-byte short-string field in short list ⇒ content start + 20 ≤ ambient length. -/
+theorem copy_content20_span_le_bs
+    (bs : List (BitVec 8)) (off len listOff : Nat) (items : List RLPItem) (k : Nat)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : k < items.length)
+    (content : List (BitVec 8))
+    (hitem : items[k]'hn = .bytes content)
+    (hlen20 : content.length = 20) :
+    copyContentStartAbs off listOff items k + 20 ≤ bs.length := by
+  set slice := txSlice bs off len
+  set srcOff := shortListSrcOff listOff items k
+  have hdrop := short_list_item_drop slice listOff items k henc hshort hn
+  have hencI : encode (items[k]'hn) = BitVec.ofNat 8 0x94 :: content := by
+    rw [hitem, encode_bytes_len20_pfx content hlen20]
+  have hdrop' :
+      slice.drop srcOff =
+        BitVec.ofNat 8 0x94 :: (content ++ encode.encodeItems (items.drop (k + 1))) := by
+    simpa [srcOff, hencI, List.cons_append] using hdrop
+  have hlen_drop : 21 ≤ (slice.drop srcOff).length := by
+    rw [hdrop']
+    simp only [List.length_cons, List.length_append, hlen20]
+    omega
+  have hslice_len : slice.length = len := txSlice_length bs off len hbound
+  have hsrc_le : srcOff + 21 ≤ len := by
+    have hld :
+        (slice.drop srcOff).length = slice.length - srcOff := by
+      simp only [List.length_drop]
+    have hle : srcOff ≤ slice.length := by
+      have : 0 < (slice.drop srcOff).length := by omega
+      simp only [List.length_drop] at this
+      omega
+    rw [hld, hslice_len] at hlen_drop
+    omega
+  have hstart :
+      copyContentStartAbs off listOff items k = off + srcOff + 1 := by
+    simp only [copyContentStartAbs, ambientAbsOff, srcOff]
+  rw [hstart]
+  omega
+
+/-- Aligned content start ⇒ `8 * q + 16 < bs.length` for 20B content field. -/
+theorem hq_of_copy_content20_aligned
+    (bs : List (BitVec 8)) (off len listOff : Nat) (items : List RLPItem) (k : Nat)
+    (hbound : off + len ≤ bs.length)
+    (henc : (txSlice bs off len).drop listOff = encode (.list items))
+    (hshort : (encode.encodeItems items).length ≤ 55)
+    (hn : k < items.length)
+    (content : List (BitVec 8))
+    (hitem : items[k]'hn = .bytes content)
+    (hlen20 : content.length = 20)
+    (halign : copyContentStartAbs off listOff items k % 8 = 0) :
+    8 * copyContentQ off listOff items k + 16 < bs.length := by
+  have hspan :=
+    copy_content20_span_le_bs bs off len listOff items k hbound henc hshort hn
+      content hitem hlen20
+  have hq_align := hq_align_of_content_mod8 off listOff items k halign
+  omega
+
+set_option maxRecDepth 8000 in
+/-- Short-copy ambient from extractSuccess + short-list head + **content-start 8-align**.
+    Residual only `halign` (content start % 8 = 0) + short-list head.
+    `q`/`hq_align`/`hq` derived. classical-3. -/
+theorem extractAssumed_success_flat_ambient_copyShort_of_success_head_aligned
+    (ret spVal regionBase loadPtr lenW toBuf isCreationPtr : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (bs : List (BitVec 8)) (off len : Nat)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hbound : off + len ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalidBuf : validByteRange regionBase bs.length)
+    (htalign : toBuf.toNat % 8 = 0)
+    (htover : toBuf.toNat + 16 < 2 ^ 64)
+    (htvalid : isValidMemAccess (toBuf + (16 : Word)) = true)
+    (hsuccess : extractSuccess (txSlice bs off len))
+    (hcopyLen : (teerExtractToAddress (txSlice bs off len)).2.1.length = 20)
+    (hhi : ∀ (h0 : 0 <
+        ((txSlice bs off len).drop
+          (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat).length),
+      BitVec.ult
+        ((((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat)[0]'h0
+          ).zeroExtend 64) (0xf8 : Word) = true)
+    (halign : ∀ items,
+      decodeListItems
+          ((txSlice bs off len).drop
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat) = some items →
+        copyContentStartAbs off
+            (teerTxTypeDispatch (txSlice bs off len)).2.2.toNat items
+            (toFieldIndex (teerTxTypeDispatch (txSlice bs off len)).2.1.toNat) % 8 = 0) :
+    cpsTripleWithin nExtractSteps E ret fullCode
+      (extractAssumedPreAmbient ret spVal loadPtr lenW
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs)
+      (extractAssumedPostAmbient ret spVal
+        s0 s1 s2 s3 s4 s5 s6 s7
+        regionBase toBuf isCreationPtr bs) := by
+  set slice := txSlice bs off len
+  have hcopyFlag := extractSuccess_copy slice hsuccess hcopyLen
+  obtain ⟨items, content, hdec, hitem?, hlen20, _hencBytes⟩ :=
+    extractSuccess_copy_encode_addr20 slice hsuccess (by simpa [slice] using hcopyFlag)
+  have hlen := bs_length_lt_256_pow8_of_hover regionBase bs hover
+  have h0 : 0 <
+      (slice.drop (teerTxTypeDispatch slice).2.2.toNat).length :=
+    decodeListItems_drop_pos slice _ items (by simpa [slice] using hdec)
+  have hhi' := hhi (by simpa [slice] using h0)
+  have hshort :=
+    hshort_ambient_of_inner_short_head bs off len items hbound
+      (by simpa [slice] using hdec) hlen
+      (by simpa [slice] using h0) (by simpa [slice] using hhi')
+  set listOff := (teerTxTypeDispatch slice).2.2.toNat
+  set ty := (teerTxTypeDispatch slice).2.1.toNat
+  set k := toFieldIndex ty
+  set q := copyContentQ off listOff items k
+  have hmod : copyContentStartAbs off listOff items k % 8 = 0 := by
+    simpa [slice, listOff, ty, k] using
+      halign items (by simpa [slice] using hdec)
+  have hq_align :
+      ambientAbsOff off (shortListSrcOff listOff items k) + 1 = 8 * q := by
+    simpa [copyContentStartAbs, q] using
+      hq_align_of_content_mod8 off listOff items k hmod
+  have hsome : items[k]? = some (RLPItem.bytes content) := by
+    simpa [slice, listOff, ty, k] using hitem?
+  have hn : k < items.length := (List.getElem?_eq_some_iff.1 hsome).1
+  have hitem : items[k]'hn = RLPItem.bytes content :=
+    (List.getElem?_eq_some_iff.1 hsome).2
+  have henc :
+      slice.drop listOff = encode (.list items) :=
+    decodeListItems_eq_encode _ _ (by simpa [slice, listOff] using hdec)
+  have hq :
+      8 * q + 16 < bs.length := by
+    simpa [q, slice, listOff] using
+      hq_of_copy_content20_aligned bs off len listOff items k hbound henc hshort hn
+        content hitem hlen20 hmod
+  have hq_align' :
+      ambientAbsOff off
+          (shortListSrcOff (teerTxTypeDispatch slice).2.2.toNat items
+            (toFieldIndex (teerTxTypeDispatch slice).2.1.toNat)) + 1 =
+        8 * q := by
+    simpa [slice, listOff, ty, k] using hq_align
+  exact extractAssumed_success_flat_ambient_copyShort_of_hshort
+    ret spVal regionBase loadPtr lenW toBuf isCreationPtr
+    s0 s1 s2 s3 s4 s5 s6 s7 bs off len items q
+    hret hptr hlenW hsalign hbound hover hvalidBuf htalign htover htvalid
+    hsuccess hcopyFlag (by simpa [slice] using hdec) hshort hq_align' hq
+
+#print axioms hq_align_of_content_mod8
+#print axioms copy_content20_span_le_bs
+#print axioms hq_of_copy_content20_aligned
+#print axioms extractAssumed_success_flat_ambient_copyShort_of_success_head_aligned
 
 
 end EvmAsm.Codegen.TxExtractToAddressSpec
