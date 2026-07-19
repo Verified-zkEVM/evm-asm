@@ -481,6 +481,11 @@ def teer_free26_bridgePre_pick_available : True := trivial
 /-- Free26 inhabit packaging under residual front+midA. classical-3. -/
 def teer_free26_of_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerFrontToAuthLoopAssumedFree26_of
+/-- a4gbr: empty-short list Success + walkInit guards free (0xc0). -/
+def teer_empty_short_success_available : True := trivial
+#print axioms TxEip7702TeerSpec.teerSuccess_empty_short_list
+#print axioms TxEip7702TeerSpec.teerWalkInit_guards_empty_short
+
 /-- Free26 Front→ret under residual Free26 inhabit. classical-3. -/
 def teer_free26_front_exit_available : True := trivial
 #print axioms TxEip7702TeerSpec.teerEmptyAuth_free26_front_then_exit_mono
