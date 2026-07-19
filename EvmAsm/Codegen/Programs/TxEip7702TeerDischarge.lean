@@ -360,8 +360,43 @@ theorem memIs_imp_memOwn_scratch (addr v : Word) :
     ∀ h, (addr ↦ₘ v) h → memOwn addr h :=
   fun h hp => memIs_implies_memOwn h hp
 
+/-- Inverse of epi+a5 packaging: full `teerFrame` saved splits to
+    `teerEpiFrame` saved ** a5@104 value-carrying cell. -/
+theorem frameSlotsSaved_teerFrame_split_epi_a5 (spC : Word) (s : TeerSaved) :
+    ∀ h, frameSlotsSaved teerFrame spC (teerSavedVals s) h →
+      (frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        (spC + signExtend12 (104 : BitVec 12) ↦ₘ s.a5)) h := by
+  intro h hp
+  obtain ⟨e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96, e104⟩ := se12s
+  simp only [teerFrame, teerEpiFrame, frameSlotsSaved, teerSavedVals,
+    List.foldr_cons, List.foldr_nil, sepConj_emp_right',
+    e0, e8, e16, e24, e32, e40, e48, e56, e64, e72, e80, e88, e96, e104] at hp ⊢
+  xperm_hyp hp
+
+/-- a5@104 memIs → memOwn (ExitFrame carries bare own). -/
+theorem frameSlotsSaved_teerFrame_split_epi_a5_own (spC : Word) (s : TeerSaved) :
+    ∀ h, frameSlotsSaved teerFrame spC (teerSavedVals s) h →
+      (frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        memOwn (spC + signExtend12 (104 : BitVec 12))) h := by
+  intro h hp
+  have hp' := frameSlotsSaved_teerFrame_split_epi_a5 spC s h hp
+  exact sepConj_mono (fun _ hh => hh) memIs_implies_memOwn h hp'
+
+/-- Entry `stackFree 26` peels nested list_count free under frame + free-20. -/
+theorem stackFree26_peel_nested (sp0 : Word) :
+    ∀ h, stackFree sp0 nTeerStackWithListCount h →
+      (stackFree (sp0 + signExtend12 (-160 : BitVec 12)) nTeerNestedListCount **
+        stackFree sp0 nTeerStackDwords) h := by
+  intro h hp
+  have heq := stackFree26_split sp0
+  simp only at heq
+  rwa [heq] at hp
+
 #print axioms frameSlotsSaved_epi_a5_imp_stackFree20
 #print axioms memIs_imp_memOwn_scratch
+#print axioms frameSlotsSaved_teerFrame_split_epi_a5
+#print axioms frameSlotsSaved_teerFrame_split_epi_a5_own
+#print axioms stackFree26_peel_nested
 
 
 
