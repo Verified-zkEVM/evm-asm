@@ -2911,4 +2911,50 @@ def teerFrontToAuthLoopAssumedFree26_of_empty_short
 #print axioms teer_listLenW_one_ne_zero
 #print axioms teerFrontToAuthLoopAssumedFree26_of_empty_short
 
+/-! ## Empty-short domain residual packaging -/
+
+/-- Identity empty-short domain: aligned blob, room for list_count slack,
+    valid bytes, header `0xc0`. Residual until Front/caller supplies fixture facts. -/
+structure TeerEmptyAuthDomainEmptyShort where
+  holds :
+    ∀ (regionBase : Word) (bs : List (BitVec 8)),
+      regionBase.toNat % 8 = 0 ∧
+        1 + 9 ≤ bs.length ∧
+        regionBase.toNat + bs.length < 2 ^ 64 ∧
+        (∀ k, k < bs.length →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 k) = true) ∧
+        ∃ (hoff : (0 : Nat) < bs.length),
+          bs[0]'hoff = (0xc0 : BitVec 8)
+
+/-- midA empty-short from `TeerRolledZeroAssumed` + domain (no open hrolled0 forall). -/
+def teerEmptyAuthFree26MidAssumed_empty_short_of
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (rz : TeerRolledZeroAssumed)
+    (dom : TeerEmptyAuthDomainEmptyShort) :
+    TeerEmptyAuthFree26MidAssumed :=
+  teerEmptyAuthFree26MidAssumed_empty_short asm
+    (fun spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW
+        s bs balBytes cursorV endW s11 innerVal refund rolledVal h hp =>
+      rz.holds spVal spC regionBase (BitVec.ofNat 64 1) loadPtr lenW balPtr balLenW
+        bs balPtr chainIdW (0 : Word) s balBytes innerVal cursorV endW s11
+        refund rolledVal h hp)
+    dom.holds
+
+/-- Free26 empty-short from FrontToBridge + RolledZero + domain.
+    Residual inhabit: front (applied hrun), rz (ScratchZero preserve), dom (0xc0 fixture).
+    ABI wire on Free26.run (Front prologue). hspe/Success/guards/hlen free. -/
+def teerFrontToAuthLoopAssumedFree26_of_empty_short_domain
+    (front : TeerFrontAuthContentToBridgeAssumed)
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (rz : TeerRolledZeroAssumed)
+    (dom : TeerEmptyAuthDomainEmptyShort)
+    (hlistLenW : front.listLenW = BitVec.ofNat 64 1)
+    (hn : nFree26EmptyToExitPack front.nSteps 1 + 30 ≤ nTeerSteps) :
+    TeerFrontToAuthLoopAssumedFree26 :=
+  let midA := teerEmptyAuthFree26MidAssumed_empty_short_of asm rz dom
+  teerFrontToAuthLoopAssumedFree26_of_empty_short front midA rfl hlistLenW hn
+
+#print axioms teerEmptyAuthFree26MidAssumed_empty_short_of
+#print axioms teerFrontToAuthLoopAssumedFree26_of_empty_short_domain
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
