@@ -326,7 +326,7 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. -/
-def bssSizeBytes : Nat := 0x1b5eede0
+def bssSizeBytes : Nat := 0x1b5fee00
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -352,7 +352,7 @@ def dataRegion : GuestRegion :=
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b5eede0-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b5fee00-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf600000`). -/
