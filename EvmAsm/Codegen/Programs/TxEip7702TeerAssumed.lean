@@ -68,7 +68,9 @@ structure TeerCalleeAssumptions (cr : CodeReq) where
   /-- AuthContent flat → ListCount CalleeP prest (nested free + bytes window). -/
   contentBridge : TeerAuthContentBridgeAssumed
 
-/-- Live regs at AfterAuthLoopLi for empty-auth exit (s7=s8=0, s10=0). -/
+/-- Live regs at AfterAuthLoopLi for empty-auth exit (s7=s8=0, s10=0).
+    Keeps original s5/s6/ra — used when exit packaging does not go through
+    AuthLoopStart (legacy packaging). -/
 def teerEmptyAuthCur (s : TeerSaved) : TeerSaved where
   ra := s.ra
   s0 := s.s0
@@ -92,7 +94,44 @@ theorem teerEmptyAuthCur_s78 (s : TeerSaved) :
     (teerEmptyAuthCur s).s8 = (0 : Word) ∧ (teerEmptyAuthCur s).s7 = (0 : Word) :=
   ⟨rfl, rfl⟩
 
-/-- Prest at AfterAuthLoopLi matching `teerEmptyAuthToRet_rolled0`. -/
+/-- Live TeerSaved after empty list_count + AuthLoopStart:
+    ra=LinkWalkInitAuth, s5/s6=walk cursors, s7=s8=s10=0. -/
+def teerAuthLoopEmptyLiveCur (s : TeerSaved)
+    (walkCur walkEnd : Word) : TeerSaved where
+  ra := LinkWalkInitAuth
+  s0 := s.s0
+  s1 := s.s1
+  s2 := s.s2
+  s3 := s.s3
+  s4 := s.s4
+  s5 := walkCur
+  s6 := walkEnd
+  s7 := 0
+  s8 := 0
+  s9 := s.s9
+  s10 := 0
+  s11 := s.s11
+  a5 := s.a5
+
+theorem teerAuthLoopEmptyLiveCur_s78 (s : TeerSaved) (c e : Word) :
+    (teerAuthLoopEmptyLiveCur s c e).s8 = (0 : Word) ∧
+      (teerAuthLoopEmptyLiveCur s c e).s7 = (0 : Word) :=
+  ⟨rfl, rfl⟩
+
+theorem teerAuthLoopEmptyLiveCur_s10 (s : TeerSaved) (c e : Word) :
+    (teerAuthLoopEmptyLiveCur s c e).s10 = (0 : Word) := rfl
+
+theorem teerAuthLoopEmptyLiveCur_ra (s : TeerSaved) (c e : Word) :
+    (teerAuthLoopEmptyLiveCur s c e).ra = LinkWalkInitAuth := rfl
+
+/-- Short-list empty-auth walk cursors after AuthLoopStart (listOff=0). -/
+def teerAuthLoopEmptyWalkCur (listBase : Word) : Word :=
+  listBase + signExtend12 (1 : BitVec 12)
+
+def teerAuthLoopEmptyWalkEnd (listBase listLenW : Word) : Word :=
+  listBase + listLenW
+
+/-- Prest at AfterAuthLoopLi matching `teerEmptyAuthToRet_rolled0` (legacy cur). -/
 def teerEmptyAuthExitPre (spC : Word) (s : TeerSaved)
     (refund a0Old a1Old t0Old t1Old : Word) : Assertion :=
   (.x2 ↦ᵣ spC) **
@@ -104,8 +143,20 @@ def teerEmptyAuthExitPre (spC : Word) (s : TeerSaved)
     memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
     (RolledBackAddr ↦ₘ (0 : Word))
 
-/-- Front half Assumed: entry → AfterAuthLoopLi with empty-auth live state.
-    Residual: compose Spec..ListCount..AuthLoopStart under bal≠0. -/
+/-- ExitPre under AuthLoop-empty live cur; frame slots = original saved `s`. -/
+def teerAuthLoopEmptyExitPre (spC : Word) (s : TeerSaved)
+    (walkCur walkEnd refund a0Old a1Old t0Old t1Old : Word) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+    regsAt teerEpiFrame (teerSavedVals (teerAuthLoopEmptyLiveCur s walkCur walkEnd)) **
+    frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+    (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
+    (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+    (RegularRefundAddr ↦ₘ refund) **
+    memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
+    (RolledBackAddr ↦ₘ (0 : Word))
+
+/-- Front half Assumed: entry → AfterAuthLoopLi with AuthLoop-empty live state.
+    Residual: compose Spec..ListCount..AuthLoopStart under bal≠0 + identity blob. -/
 structure TeerFrontToAuthLoopAssumed (cr : CodeReq) where
   nSteps : Nat
   hn : nSteps + 30 ≤ nTeerSteps
@@ -113,7 +164,7 @@ structure TeerFrontToAuthLoopAssumed (cr : CodeReq) where
     ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
       (s : TeerSaved)
       (bs balBytes : List (BitVec 8)) (off len : Nat)
-      (refund a0Old a1Old t0Old t1Old : Word),
+      (walkCur walkEnd refund a0Old a1Old t0Old t1Old : Word),
       (ret &&& ~~~(1 : Word)) = ret →
       balPtr ≠ 0 →
       loadPtr = regionBase + BitVec.ofNat 64 off →
@@ -136,7 +187,7 @@ structure TeerFrontToAuthLoopAssumed (cr : CodeReq) where
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
-        (teerEmptyAuthExitPre spC s refund a0Old a1Old t0Old t1Old **
+        (teerAuthLoopEmptyExitPre spC s walkCur walkEnd refund a0Old a1Old t0Old t1Old **
           (.x15 ↦ᵣ baiW) **
           stackFree spVal 6 **
           memOwn (spC + signExtend12 (104 : BitVec 12)) **
@@ -196,13 +247,13 @@ def teerEmptyAuthExitFrame (baiW spVal spC regionBase : Word)
     regOwn .x31
 
 /-- Front (Assumed) + empty-auth exit → ret with a0=0 (rolled=0).
-    Step count ≤ nTeerSteps via front.hn. -/
+    Uses AuthLoop-empty live cur (walk cursors + LinkWalkInitAuth). -/
 theorem teerEmptyAuth_front_then_exit
     (front : TeerFrontToAuthLoopAssumed teerLinkedField0)
     (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
     (s : TeerSaved)
     (bs balBytes : List (BitVec 8)) (off len : Nat)
-    (refund a0Old a1Old t0Old t1Old : Word)
+    (walkCur walkEnd refund a0Old a1Old t0Old t1Old : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hbal : balPtr ≠ 0)
     (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
@@ -239,16 +290,17 @@ theorem teerEmptyAuth_front_then_exit
         (RolledBackAddr ↦ₘ (0 : Word)) **
         teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) := by
   have hf := front.run ret spVal spC regionBase loadPtr lenW balPtr balLenW
-    chainIdW baiW s bs balBytes off len refund a0Old a1Old t0Old t1Old
-    hret hbal hptr hbound hspC hra
-  have hx0 := teerEmptyAuthToRet_rolled0 spVal spC s (teerEmptyAuthCur s)
+    chainIdW baiW s bs balBytes off len walkCur walkEnd refund a0Old a1Old
+    t0Old t1Old hret hbal hptr hbound hspC hra
+  have hx0 := teerEmptyAuthToRet_rolled0 spVal spC s
+    (teerAuthLoopEmptyLiveCur s walkCur walkEnd)
     (0 : Word) a0Old a1Old t0Old t1Old refund hspC
     (by simpa [hra] using hret)
-    (teerEmptyAuthCur_s10 s)
-    (teerEmptyAuthCur_s78 s)
-  -- Exit PC is s.ra; rewrite to ret via hra.
+    (teerAuthLoopEmptyLiveCur_s10 s walkCur walkEnd)
+    (teerAuthLoopEmptyLiveCur_s78 s walkCur walkEnd)
+  -- Exit PC is s.ra (= ret); live cur has LinkWalkInitAuth but epi restores ra from frame.
   have hx : cpsTripleWithin 30 AfterAuthLoopLi ret teerLinkedField0
-      (teerEmptyAuthExitPre spC s refund a0Old a1Old t0Old t1Old)
+      (teerAuthLoopEmptyExitPre spC s walkCur walkEnd refund a0Old a1Old t0Old t1Old)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
         (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
         (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
@@ -261,12 +313,12 @@ theorem teerEmptyAuth_front_then_exit
         (RegularRefundAddr ↦ₘ refund) **
         memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
         (RolledBackAddr ↦ₘ (0 : Word))) := by
-    simpa [hra, teerEmptyAuthExitPre] using hx0
+    simpa [hra, teerAuthLoopEmptyExitPre] using hx0
   have hxF := cpsTripleWithin_frameR
     (teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr)
     (by pcf) hx
   have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
-      dsimp only [teerEmptyAuthExitPre, teerEmptyAuthExitFrame] at hp ⊢
+      dsimp only [teerAuthLoopEmptyExitPre, teerEmptyAuthExitFrame] at hp ⊢
       xperm_hyp hp) hf hxF
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq => by xperm_hyp hq) hall
@@ -277,7 +329,7 @@ theorem teerEmptyAuth_front_then_exit_mono
     (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
     (s : TeerSaved)
     (bs balBytes : List (BitVec 8)) (off len : Nat)
-    (refund a0Old a1Old t0Old t1Old : Word)
+    (walkCur walkEnd refund a0Old a1Old t0Old t1Old : Word)
     (hret : (ret &&& ~~~(1 : Word)) = ret)
     (hbal : balPtr ≠ 0)
     (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
@@ -315,11 +367,14 @@ theorem teerEmptyAuth_front_then_exit_mono
         teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) :=
   cpsTripleWithin_mono_nSteps front.hn
     (teerEmptyAuth_front_then_exit front ret spVal spC regionBase loadPtr lenW
-      balPtr balLenW chainIdW baiW s bs balBytes off len refund a0Old a1Old
-      t0Old t1Old hret hbal hptr hbound hspC hra)
+      balPtr balLenW chainIdW baiW s bs balBytes off len walkCur walkEnd
+      refund a0Old a1Old t0Old t1Old hret hbal hptr hbound hspC hra)
 
 #print axioms teerEmptyAuthCur_s10
 #print axioms teerEmptyAuthCur_s78
+#print axioms teerAuthLoopEmptyLiveCur_s78
+#print axioms teerAuthLoopEmptyLiveCur_s10
+#print axioms teerAuthLoopEmptyLiveCur_ra
 #print axioms teerEmptyAuth_front_then_exit
 #print axioms teerEmptyAuth_front_then_exit_mono
 

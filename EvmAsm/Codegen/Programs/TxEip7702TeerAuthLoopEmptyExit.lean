@@ -55,56 +55,8 @@ local macro "pcf" : tactic => `(tactic|
     | exact pcFree_stackFree _ _
     | exact bytesRegion_pcFree _ _)
 
-/-- Live TeerSaved at AfterAuthLoopLi after empty list_count + AuthLoopStart. -/
-def teerAuthLoopEmptyLiveCur (s : TeerSaved)
-    (walkCur walkEnd : Word) : TeerSaved where
-  ra := LinkWalkInitAuth
-  s0 := s.s0
-  s1 := s.s1
-  s2 := s.s2
-  s3 := s.s3
-  s4 := s.s4
-  s5 := walkCur
-  s6 := walkEnd
-  s7 := 0
-  s8 := 0
-  s9 := s.s9
-  s10 := 0
-  s11 := s.s11
-  a5 := s.a5
-
-theorem teerAuthLoopEmptyLiveCur_s78 (s : TeerSaved) (c e : Word) :
-    (teerAuthLoopEmptyLiveCur s c e).s8 = (0 : Word) ∧
-      (teerAuthLoopEmptyLiveCur s c e).s7 = (0 : Word) :=
-  ⟨rfl, rfl⟩
-
-theorem teerAuthLoopEmptyLiveCur_s10 (s : TeerSaved) (c e : Word) :
-    (teerAuthLoopEmptyLiveCur s c e).s10 = (0 : Word) := rfl
-
-theorem teerAuthLoopEmptyLiveCur_ra (s : TeerSaved) (c e : Word) :
-    (teerAuthLoopEmptyLiveCur s c e).ra = LinkWalkInitAuth := rfl
-
-def teerAuthLoopEmptyWalkCur (listBase : Word) : Word :=
-  listBase + signExtend12 (1 : BitVec 12)
-
-def teerAuthLoopEmptyWalkEnd (listBase listLenW : Word) : Word :=
-  listBase + listLenW
-
-/-- ExitPre: live regs = AuthLoop-empty cur; frame slots = original saved `s`.
-    Do NOT reuse `teerEmptyAuthExitPre liveCur` — that would double-empty and
-    save liveCur into the frame slots. -/
-def teerAuthLoopEmptyExitPre (spC : Word) (s : TeerSaved)
-    (walkCur walkEnd refund a0Old a1Old t0Old t1Old : Word) : Assertion :=
-  (.x2 ↦ᵣ spC) **
-    regsAt teerEpiFrame (teerSavedVals (teerAuthLoopEmptyLiveCur s walkCur walkEnd)) **
-    frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
-    (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
-    (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
-    (RegularRefundAddr ↦ₘ refund) **
-    memOwn WouldbeStateAddr ** memOwn WouldbeRegularAddr **
-    (RolledBackAddr ↦ₘ (0 : Word))
-
-/-- ((ExitPre ** ExitFrame) ** nested free) — left-nested for double frameR. -/
+/-- ((ExitPre ** ExitFrame) ** nested free) — left-nested for double frameR.
+    ExitPre/liveCur live in Assumed (shared with FrontToAuthLoopAssumed). -/
 def teerAuthLoopEmptyExitPack
     (spVal spC : Word) (s : TeerSaved)
     (walkCur walkEnd refund a0Old a1Old t0Old t1Old baiW : Word)
@@ -1096,9 +1048,6 @@ theorem teerBridgePre_toRet_empty
   exact cpsTripleWithin_mono_nSteps (by
     dsimp only [nBridgePreToRet]; omega) hseq
 
-#print axioms teerAuthLoopEmptyLiveCur_s78
-#print axioms teerAuthLoopEmptyLiveCur_s10
-#print axioms teerAuthLoopEmptyLiveCur_ra
 #print axioms teerAuthLoopEmpty_exitToRet_rolled0
 #print axioms teerAuthLoopEmptyExitPack_toRet
 #print axioms teerAuthLoopEmpty_to_exitPack

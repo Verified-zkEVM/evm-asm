@@ -625,9 +625,13 @@ def teerAssumed_empty_applied_flat
     have hspC : spC = spVal + signExtend12 (-160 : BitVec 12) := rfl
     have hra : s.ra = ret := rfl
     have hteer0 := hteer0_all bs balBytes off len chainId bai hbound
+    -- Empty-auth walk cursors (listOff=0 identity blob at regionBase).
+    let walkCur := teerAuthLoopEmptyWalkCur regionBase
+    let walkEnd := teerAuthLoopEmptyWalkEnd regionBase (BitVec.ofNat 64 len)
     have hrun0 :=
       teerEmptyAuth_front_then_exit_mono front ret spVal spC regionBase loadPtr
         (BitVec.ofNat 64 len) balPtr balLenW chainIdW baiW s bs balBytes off len
+        walkCur walkEnd
         (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
         hret hbal hptr hbound hspC hra
     refine cpsTripleWithin_weaken (fun _ hp => by
