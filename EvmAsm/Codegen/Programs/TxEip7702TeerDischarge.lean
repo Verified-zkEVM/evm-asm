@@ -669,23 +669,19 @@ def teerAssumed_empty_applied_flat_zero
 /-- Honest residual ledger for empty-auth TeerAssumed stitch (documentation).
     Each conjunct is a remaining named hyp / multi-session body. -/
 def teerEmptyAuthResidualLedger : Prop :=
-  -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path)
-  --    Free26 packaging DONE: of_empty_short_domain under FrontToBridge+RolledZero+Domain
---    Free26EmptyShort→applied_flat free20**nested packaging DONE classical-3
-  --    Free26→applied_flat free20**nested DONE (teerEmptyAuth_free26_front_then_exit_applied_flat_zero)
+  -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path).
+  --    Free26 packaging DONE under FrontToBridge+RolledZero; EmptyShort applied_flat DONE.
   True ∧
-  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack↦ₘ0 held)
+  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack memIs 0 held)
   True ∧
-  -- 3. FrontToBridge inhabit (applied hrun wire; free26_to_bridgePre_pick packaging DONE;
-     of_hrun_empty_short packages free26→applied_flat without Front structure:
-     residual hrun+specialize+hrolled0+domain)
+  -- 3. FrontToBridge inhabit (applied hrun wire; free26 pick packaging DONE;
+  --    of_hrun_empty_short_ident frees oldCount via pick; residual hrun+hident+hrolled0+domain)
   True ∧
-  -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest);
-  --    global DomainEmptyShort ∀ remains uninhabitable packaging debt
+  -- 4. Domain empty-short: Free26EmptyShort puts fixture hyps on run (honest)
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path)
   True ∧
-  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
+  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce)
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies
   True ∧
