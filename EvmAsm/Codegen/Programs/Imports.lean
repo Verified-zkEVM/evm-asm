@@ -103,6 +103,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerWouldbe
 import EvmAsm.Codegen.Programs.TxEip7702TeerExitRet
 import EvmAsm.Codegen.Programs.TxEip7702TeerAssumed
 import EvmAsm.Codegen.Programs.TxEip7702TeerDischarge
+import EvmAsm.Codegen.Programs.TxEip7702TeerFrontEarly
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
