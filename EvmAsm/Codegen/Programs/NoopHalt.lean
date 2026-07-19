@@ -611,6 +611,24 @@ private def selfdestructTailAsm : String :=
   "  beqz t3, .L_sd_create_addr_done\n" ++
   "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .L_sd_create_addr_loop\n" ++
   ".L_sd_create_addr_done:\n" ++
+  -- A CREATE init frame which halts through SELFDESTRUCT is still a successful
+  -- CREATE: its creator's nonce advances and its endowment remains moved into
+  -- the (then EIP-6780-cleared) child.  The normal CREATE RETURN/STOP deposit
+  -- arm appends this final creator effect after frame_return; this special arm
+  -- used to return the address without that record, leaving the BAL's creator
+  -- balance/nonce change unmatched (bv_fail=44).
+  -- frame_return has restored the creator env in x20 and the per-depth globals
+  -- above restored create_sender_be/create_value_be/create_nonce.
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  addi t0, x20, 63\n  la t1, nse_create_post_bal\n  li t2, 32\n" ++
+  ".L_sd_create_creator_post_rev:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L_sd_create_creator_post_rev\n" ++
+  "  la a0, nse_create_post_bal\n  la a1, create_value_be\n  la a2, create_creator_newbal\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n" ++
+  "  la a0, create_sender_be\n  la a1, create_creator_newbal\n  la a2, nse_create_post_bal\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   dispatchContinueRet
 
 /-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT
