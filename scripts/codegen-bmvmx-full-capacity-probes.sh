@@ -184,7 +184,6 @@ PY
 emit_block_body_input() {
   local tx_count="$1" in_file="$2"
   uv run --directory execution-specs --quiet python3 - "$tx_count" "$in_file" <<'PY'
-import rlp
 import struct
 import sys
 
@@ -195,7 +194,28 @@ tx = bytes.fromhex(
     "881bc16d674ec80000801ba01111111111111111111111111111111111111111111111111111111111111111"
     "a02222222222222222222222222222222222222222222222222222222222222222"
 )
-body_rlp = rlp.encode([[tx] * tx_count, [], []])
+def rlp_list(payload: bytes) -> bytes:
+    """Encode an RLP list whose already-encoded items form payload."""
+    length = len(payload)
+    if length < 56:
+        return bytes([0xC0 + length]) + payload
+    length_bytes = length.to_bytes((length.bit_length() + 7) // 8, "big")
+    return bytes([0xF7 + len(length_bytes)]) + length_bytes + payload
+
+def rlp_bytes(value: bytes) -> bytes:
+    if len(value) == 1 and value[0] < 0x80:
+        return value
+    if len(value) < 56:
+        return bytes([0x80 + len(value)]) + value
+    length_bytes = len(value).to_bytes((len(value).bit_length() + 7) // 8, "big")
+    return bytes([0xB7 + len(length_bytes)]) + length_bytes + value
+
+# Keep the historical probe construction byte-identical to rlp.encode([txs,
+# [], []]): each fixture transaction is a byte string, hence one RLP string
+# item inside the transactions list.  This is intentionally only a body-count
+# capacity probe; it does not claim to construct a signed execution payload.
+transactions = rlp_list(rlp_bytes(tx) * tx_count)
+body_rlp = rlp_list(transactions + b"\xc0\xc0")
 record = struct.pack("<Q", len(body_rlp)) + body_rlp
 with open(out, "wb") as f:
     f.write(record)
