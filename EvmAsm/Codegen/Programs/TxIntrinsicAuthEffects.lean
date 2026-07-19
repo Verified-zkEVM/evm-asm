@@ -114,6 +114,15 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
   ".Lteanse_record:\n" ++
+  -- This producer runs after execution has appended any value-CALL effects, although
+  -- EIP-7702 authorization is semantically before message execution.  Preserve an
+  -- already-recorded final balance for the same authority: the aggregate keeps the
+  -- first record's pre-balance but the last record's post-balance, so emitting the
+  -- header balance here would otherwise clobber a later value credit/debit.
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteanse_next\n" ++
