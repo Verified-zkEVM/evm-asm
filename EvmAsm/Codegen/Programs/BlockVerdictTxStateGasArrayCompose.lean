@@ -405,7 +405,7 @@ structure A4gbrResiduals where
             gate a4gbr.1. -/
 
   ambientMultiTx : True := trivial
-  /-- Teer AuthLoop…nonce→E+896 + nonce-max+recover setup→AtRecover(E+936) classical-3; residual recover call+BNE+bal_*/epi; leaf modulo its remaining input callees (prover1 scope). -/
+  /-- Teer AuthLoop…AtRecover(E+936) + recover Call(Assumed)+BNE+prior zeros→E+968 classical-3; residual success_table/bal_*/epi; TeerRecoverAssumed named hyp; leaf modulo its remaining input callees (prover1 scope). -/
   teerInputCallees : True := trivial
 
 /-- Ambient Assumed success_flat arm case-split available (path+extras → flat).
