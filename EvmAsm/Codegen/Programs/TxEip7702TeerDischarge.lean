@@ -392,11 +392,41 @@ theorem stackFree26_peel_nested (sp0 : Word) :
   simp only at heq
   rwa [heq] at hp
 
+/-- Left-peel nested free from applied-style entry prest under 26-dword budget. -/
+theorem teerAppliedEntry_stackFree26_peel (sp0 : Word) (A : Assertion) :
+    ∀ h,
+      (stackFree sp0 nTeerStackWithListCount ** A) h →
+      (stackFree (sp0 + signExtend12 (-160 : BitVec 12)) nTeerNestedListCount **
+        (stackFree sp0 nTeerStackDwords ** A)) h := by
+  intro h hp
+  have hp' :=
+    sepConj_mono (stackFree26_peel_nested sp0) (fun _ hh => hh) h hp
+  -- Reassoc (nested ** free20) ** A → nested ** (free20 ** A)
+  xperm_hyp hp'
+
+/-- AuthLoop ambient carries full `teerFrame` saved; ExitPre needs epi+a5.
+    Pure frame split (value-carrying a5). -/
+theorem teerAuthLoopFrame_to_exitFrame (spC : Word) (s : TeerSaved) :
+    ∀ h, frameSlotsSaved teerFrame spC (teerSavedVals s) h →
+      (frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        (spC + signExtend12 (104 : BitVec 12) ↦ₘ s.a5)) h :=
+  frameSlotsSaved_teerFrame_split_epi_a5 spC s
+
+/-- Same with bare `memOwn` a5 (matches `teerEmptyAuthExitFrame`). -/
+theorem teerAuthLoopFrame_to_exitFrame_own (spC : Word) (s : TeerSaved) :
+    ∀ h, frameSlotsSaved teerFrame spC (teerSavedVals s) h →
+      (frameSlotsSaved teerEpiFrame spC (teerSavedVals s) **
+        memOwn (spC + signExtend12 (104 : BitVec 12))) h :=
+  frameSlotsSaved_teerFrame_split_epi_a5_own spC s
+
 #print axioms frameSlotsSaved_epi_a5_imp_stackFree20
 #print axioms memIs_imp_memOwn_scratch
 #print axioms frameSlotsSaved_teerFrame_split_epi_a5
 #print axioms frameSlotsSaved_teerFrame_split_epi_a5_own
 #print axioms stackFree26_peel_nested
+#print axioms teerAppliedEntry_stackFree26_peel
+#print axioms teerAuthLoopFrame_to_exitFrame
+#print axioms teerAuthLoopFrame_to_exitFrame_own
 
 
 
