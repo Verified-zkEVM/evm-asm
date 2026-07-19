@@ -72,6 +72,13 @@ def systemCallReturndataMaxBytes : Nat := 12288
 
 #guard systemCallReturndataMaxBytes = 12288
 
+/-- EIP-170's Amsterdam deployed-code limit.  Top-level creation retains a
+    successful initcode RETURN in a fixed buffer of exactly this size before
+    applying the code-deposit rules. -/
+def topLevelCreationReturndataMaxBytes : Nat := 65536
+
+#guard topLevelCreationReturndataMaxBytes = 65536
+
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
 
@@ -2240,6 +2247,15 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
   "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -3562,6 +3578,15 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
   "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
