@@ -949,6 +949,19 @@ theorem extractSuccess_creation_to_field_encode_le55
   rw [hval, encode_bytes_empty_length]
   omega
 
+/-- Same as `extractSuccess_creation_to_field_encode_le55` with explicit index bound. -/
+theorem extractSuccess_creation_to_field_encode_le55_of
+    (txBytes : List (BitVec 8))
+    (h : extractSuccess txBytes)
+    (hcre : (teerExtractToAddress txBytes).2.2 = (1 : Word))
+    (items : List RLPItem)
+    (hdec : decodeListItems (txBytes.drop (teerTxTypeDispatch txBytes).2.2.toNat) =
+      some items)
+    (hn : toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat < items.length) :
+    (encode (items[toFieldIndex (teerTxTypeDispatch txBytes).2.1.toNat]'hn)).length ≤ 55 := by
+  obtain ⟨hn', hle⟩ := extractSuccess_creation_to_field_encode_le55 txBytes h hcre items hdec
+  exact hle
+
 /-- Short-list offset advances by 1 across an empty-bytes field. -/
 theorem shortListSrcOff_succ_empty
     (listOff : Nat) (items : List RLPItem) (n : Nat) (hn : n < items.length)
@@ -1230,6 +1243,7 @@ theorem encodeItems_gt_55_of_decode_long_list_head
 #print axioms hnext_short_string_of_decode
 #print axioms encode_bytes_empty_length
 #print axioms extractSuccess_creation_to_field_encode_le55
+#print axioms extractSuccess_creation_to_field_encode_le55_of
 #print axioms shortListSrcOff_succ_empty
 #print axioms rlpItemDecode_pfx80_imp_next
 #print axioms hnext_empty_short_of_pfx80
