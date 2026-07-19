@@ -2607,5 +2607,6 @@ theorem teerLinkListCount_aligned :
 
 #print axioms teerEmptyAuth_free26_front_then_exit
 #print axioms teerEmptyAuth_free26_front_then_exit_mono
+#print axioms teerLinkListCount_aligned
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
