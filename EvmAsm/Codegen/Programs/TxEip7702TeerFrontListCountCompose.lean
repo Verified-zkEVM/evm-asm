@@ -463,5 +463,48 @@ theorem teerAuthContent_free26_to_bridgePre
 #print axioms teerAuthContentNestedPostEx_to_bridgePre
 #print axioms teerAuthContent_free26_to_bridgePre
 
+/-- free26 → ∃ BridgePre under teerLinkedField0 (mono from teerLinkedCount hrun). -/
+theorem teerAuthContent_free26_to_bridgePre_field0
+    {n : Nat}
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (s : TeerSaved) (innerVal endL endW cursorV : Word)
+    (srcOffA9 : Nat)
+    (hrun : cpsTripleWithin n E AtListCount teerLinkedCount
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      (teerAuthContentAppliedPostEx spVal spC loadPtr lenW balPtr balLenW chainIdW
+        s7 cursorV endW s11 s innerVal endL regionBase bs balBytes srcOffA9)) :
+    cpsTripleWithin n E AtListCount teerLinkedField0
+      (stackFree spVal nTeerStackWithListCount **
+        teerAuthContentAppliedEntryRest ret spVal loadPtr lenW balPtr balLenW
+          chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+          regionBase bs balBytes)
+      (fun h =>
+        ∃ (next lenK oldCount : Word),
+          teerAuthContentBridgePre spVal spC LinkAuthWalkNext9 loadPtr lenW
+            balPtr balLenW chainIdW (next - lenK) lenK s7 cursorV endW s11 s
+            innerVal oldCount regionBase bs balBytes h) := by
+  exact cpsTripleWithin_extend_code teerField0_mono_count
+    (teerAuthContent_free26_to_bridgePre ret spVal spC loadPtr lenW
+      balPtr balLenW chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+      regionBase bs balBytes hspC s innerVal endL endW cursorV srcOffA9 hrun)
+
+#print axioms teerAuthContent_free26_to_bridgePre_field0
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
