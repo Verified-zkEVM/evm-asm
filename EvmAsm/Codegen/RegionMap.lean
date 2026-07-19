@@ -287,7 +287,7 @@ def schemeAAnchors : List GuestRegion :=
     to `0x5d508` when full-subtree delete propagation was generalized to the
     canonical empty-trie root. Grew to `0x5d87c` when EIP-7702 authorization
     effect rows began preserving a prior value-transfer balance. -/
-def textSizeBytes : Nat := 0x5d87c
+def textSizeBytes : Nat := 0x5d878
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
