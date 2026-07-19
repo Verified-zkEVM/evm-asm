@@ -1048,6 +1048,68 @@ theorem teerBridgePre_toRet_empty
   exact cpsTripleWithin_mono_nSteps (by
     dsimp only [nBridgePreToRet]; omega) hseq
 
+/-- AmbientPost → ∃ refund t0 t1 bai, ExitPack under hrolled0 + identity wire.
+    Composes peel→Source→to_exitPack. Pure reshape (0 steps).
+    Front post ExitPre**ExitFrame is ExitPack without nested free;
+    ExitPack is the honest list_count empty exit shape (nested free preserved). -/
+theorem teerAuthLoopEmptyAmbientPost_to_exitPack
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (hbase : listBase = regionBase) (hbytes : bytes = bs)
+    (hs0 : s0 = s.s0) (hs1 : s1 = s.s1) (hs2 : s2 = s.s2) (hs3 : s3 = s.s3)
+    (hs4 : chainIdW = s.s4) (hs9 : endW = s.s9) (hs11 : s11 = s.s11)
+    (hrolled0 : ∀ (refund rolledVal : Word) h,
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+          (0 : Word) bytes 0 listLenW) **
+        teerAuthLoopEmptyAmbientMemIs spVal spC balPtr chainIdW s balBytes
+          innerVal endW s11 refund rolledVal) h →
+      rolledVal = (0 : Word)) :
+    ∀ h,
+      teerAuthLoopEmptyAmbientPost spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+      ∃ (refund t0Old t1Old baiW' : Word),
+        teerAuthLoopEmptyExitPack spVal spC s
+          (teerAuthLoopEmptyWalkCur listBase)
+          (teerAuthLoopEmptyWalkEnd listBase listLenW)
+          refund
+          (teerAuthLoopEmptyWalkCur listBase)
+          (teerAuthLoopEmptyWalkEnd listBase listLenW)
+          t0Old t1Old baiW'
+          regionBase bs balBytes balPtr h := by
+  intro h hp
+  obtain ⟨refund, hSrc⟩ :=
+    teerAuthLoopEmptyAmbientPost_to_source spVal spC listBase listLenW s0 s1 s2 s3
+      bytes balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 hrolled0 h hp
+  obtain ⟨t0Old, t1Old, baiW', hPack⟩ :=
+    teerAuthLoopEmpty_to_exitPack spVal spC listBase listLenW s0 s1 s2 s3 bytes
+      balPtr chainIdW s balBytes innerVal endW s11 refund regionBase bs
+      hbase hbytes hs0 hs1 hs2 hs3 hs4 hs9 hs11 h hSrc
+  exact ⟨refund, t0Old, t1Old, baiW', hPack⟩
+
+/-- ExitPack splits to Front ExitPre**ExitFrame on h1 + nested free on h2.
+    FrontToAuthLoopAssumed posts ExitPre**ExitFrame (free20 path);
+    free26 callers keep nested free via this split + stackFree26_split. -/
+theorem teerAuthLoopEmptyExitPack_split
+    (spVal spC : Word) (s : TeerSaved)
+    (walkCur walkEnd refund a0Old a1Old t0Old t1Old baiW : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (balPtr : Word) :
+    ∀ h,
+      teerAuthLoopEmptyExitPack spVal spC s walkCur walkEnd refund
+        a0Old a1Old t0Old t1Old baiW regionBase bs balBytes balPtr h →
+      ∃ h1 h2,
+        h1.Disjoint h2 ∧ h1.union h2 = h ∧
+          (teerAuthLoopEmptyExitPre spC s walkCur walkEnd refund
+              a0Old a1Old t0Old t1Old **
+            teerEmptyAuthExitFrame baiW spVal spC regionBase bs balBytes balPtr) h1 ∧
+          stackFree spC 6 h2 := by
+  intro h hp
+  dsimp only [teerAuthLoopEmptyExitPack] at hp
+  exact hp
+
 #print axioms teerAuthLoopEmpty_exitToRet_rolled0
 #print axioms teerAuthLoopEmptyExitPack_toRet
 #print axioms teerAuthLoopEmpty_to_exitPack
@@ -1057,5 +1119,7 @@ theorem teerBridgePre_toRet_empty
 #print axioms teerAuthLoopEmptyAmbientPost_to_source
 #print axioms teerAuthLoopEmptyAmbientPost_toRet
 #print axioms teerBridgePre_toRet_empty
+#print axioms teerAuthLoopEmptyAmbientPost_to_exitPack
+#print axioms teerAuthLoopEmptyExitPack_split
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
