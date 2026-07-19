@@ -142,13 +142,6 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
-/-- Active multi-transaction execution-loop capacity. The cached `zkevm@v0.4.0`
-    stateless fixtures include blocks with more than the old 16-entry arena
-    cap, topping out at 1021 transactions. Keep this as the conservative loop
-    gate while sender aggregation, skip-list traversal, and other non-cheap
-    algorithms are generalized to the full 200M target. -/
-def bvMtxActiveTxCap : Nat := 1024
-
 /-- Every valid transaction consumes at least this intrinsic gas.  Together
     with the explicit block gas limit this is the protocol-enforced upper bound
     on transaction- and receipt-trie entries; it must not become a detached
@@ -159,6 +152,12 @@ def bvMtxIntrinsicGasFloor : Nat := 21000
     gas limit and the 21,000-gas intrinsic floor. -/
 def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
 #guard bvMtxFullTxCap = 9523
+
+/-- Active multi-transaction execution-loop capacity. Every live per-transaction
+    arena and aggregation table is statically sized to the protocol-derived
+    `bvMtxFullTxCap`, so the loop must use the same bound rather than preserve a
+    fixture-era 1024-transaction false-reject gate. -/
+def bvMtxActiveTxCap : Nat := bvMtxFullTxCap
 
 /-- An RLP transaction/receipt index below `bvMtxFullTxCap` has at most three
     key bytes, hence at most six nibbles.  The indexed-root replacement keeps
@@ -459,7 +458,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736
 #guard bvMtxSenderCountSkipBytes = 609472
-#guard bvMtxActiveTxCap = 1024
+#guard bvMtxActiveTxCap = bvMtxFullTxCap
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
 #guard bvSystemStorageMinSstoreGas = 100

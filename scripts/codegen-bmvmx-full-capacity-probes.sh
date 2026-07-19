@@ -9,6 +9,10 @@ RUN_DIR="${RUN_DIR:-gen-out/bmvmx-full-capacity-probes}"
 EEST_FIXTURES_DIR="${EEST_FIXTURES_DIR:-gen-out/eest-fixtures}"
 EXPECTED_EEST_TX_COUNT="${EXPECTED_EEST_TX_COUNT:-1021}"
 SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 1024 1025 9523}"
+# A 1025-transaction body is the regression boundary for the former
+# fixture-era active-loop cap.  It is below the protocol-derived full cap, so
+# it must classify as active-loop admissible, not merely as decodable.
+REQUIRED_ACTIVE_TX_COUNT="${REQUIRED_ACTIVE_TX_COUNT:-1025}"
 REQUIRE_EEST="${REQUIRE_EEST:-0}"
 RUN_SYNTHETIC="${RUN_SYNTHETIC:-1}"
 ZISKEMU="${ZISKEMU:-}"
@@ -22,22 +26,35 @@ import re
 from pathlib import Path
 
 text = Path("EvmAsm/Codegen/Programs/BlockVerdictParams.lean").read_text()
-raw = dict(re.findall(r"def\s+(bvMtx(?:ActiveTxCap|FullTxCap|ArenaTxCap))\s*:\s*Nat\s*:=\s*([^\n]+)", text))
+raw = dict(re.findall(r"def\s+(\w+)\s*:\s*Nat\s*:=\s*([^\n]+)", text))
 
-seen = set()
+visiting = set()
+resolved = {}
 def resolve(name):
-    if name in seen:
+    if name in resolved:
+        return resolved[name]
+    if name in visiting:
         raise SystemExit(f"cycle while resolving {name}")
-    seen.add(name)
+    visiting.add(name)
     value = raw.get(name)
     if value is None:
         raise SystemExit(f"missing {name} in BlockVerdictParams.lean")
     value = value.strip()
     if value.isdigit():
-        return int(value)
-    if value in raw:
-        return resolve(value)
-    raise SystemExit(f"unsupported {name} definition: {value}")
+        result = int(value)
+    elif value in raw:
+        result = resolve(value)
+    else:
+        quotient = re.fullmatch(r"(\w+)\s*/\s*(\w+)", value)
+        if not quotient:
+            raise SystemExit(f"unsupported {name} definition: {value}")
+        numerator, denominator = map(resolve, quotient.groups())
+        if denominator == 0:
+            raise SystemExit(f"zero denominator in {name}: {value}")
+        result = numerator // denominator
+    visiting.remove(name)
+    resolved[name] = result
+    return result
 
 print(resolve("bvMtxActiveTxCap"), resolve("bvMtxFullTxCap"))
 PY
@@ -167,7 +184,6 @@ PY
 emit_block_body_input() {
   local tx_count="$1" in_file="$2"
   uv run --directory execution-specs --quiet python3 - "$tx_count" "$in_file" <<'PY'
-import rlp
 import struct
 import sys
 
@@ -178,7 +194,28 @@ tx = bytes.fromhex(
     "881bc16d674ec80000801ba01111111111111111111111111111111111111111111111111111111111111111"
     "a02222222222222222222222222222222222222222222222222222222222222222"
 )
-body_rlp = rlp.encode([[tx] * tx_count, [], []])
+def rlp_list(payload: bytes) -> bytes:
+    """Encode an RLP list whose already-encoded items form payload."""
+    length = len(payload)
+    if length < 56:
+        return bytes([0xC0 + length]) + payload
+    length_bytes = length.to_bytes((length.bit_length() + 7) // 8, "big")
+    return bytes([0xF7 + len(length_bytes)]) + length_bytes + payload
+
+def rlp_bytes(value: bytes) -> bytes:
+    if len(value) == 1 and value[0] < 0x80:
+        return value
+    if len(value) < 56:
+        return bytes([0x80 + len(value)]) + value
+    length_bytes = len(value).to_bytes((len(value).bit_length() + 7) // 8, "big")
+    return bytes([0xB7 + len(length_bytes)]) + length_bytes + value
+
+# Keep the historical probe construction byte-identical to rlp.encode([txs,
+# [], []]): each fixture transaction is a byte string, hence one RLP string
+# item inside the transactions list.  This is intentionally only a body-count
+# capacity probe; it does not claim to construct a signed execution payload.
+transactions = rlp_list(rlp_bytes(tx) * tx_count)
+body_rlp = rlp_list(transactions + b"\xc0\xc0")
 record = struct.pack("<Q", len(body_rlp)) + body_rlp
 with open(out, "wb") as f:
     f.write(record)
@@ -199,6 +236,10 @@ run_synthetic_probe() {
     -o "$RUN_DIR/zisk_block_body_extract_tx_count"
 
   local failed=0
+  if (( active_cap < REQUIRED_ACTIVE_TX_COUNT )); then
+    echo "active-cap regression: active_cap=$active_cap must admit tx_count=$REQUIRED_ACTIVE_TX_COUNT" >&2
+    return 1
+  fi
   local tx_count name in_file out_file log_file status_le count_le status count class
   for tx_count in $SYNTHETIC_TX_COUNTS; do
     name="tx${tx_count}"
