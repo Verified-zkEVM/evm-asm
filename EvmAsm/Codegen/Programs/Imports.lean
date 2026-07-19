@@ -101,6 +101,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopOrZero
 import EvmAsm.Codegen.Programs.TxEip7702TeerEpilogue
 import EvmAsm.Codegen.Programs.TxEip7702TeerWouldbe
 import EvmAsm.Codegen.Programs.TxEip7702TeerExitRet
+import EvmAsm.Codegen.Programs.TxEip7702TeerAssumed
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
