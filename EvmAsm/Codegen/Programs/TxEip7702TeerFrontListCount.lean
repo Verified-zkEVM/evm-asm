@@ -11,8 +11,8 @@
   (`teerAuthContent_to_listCountPrest_nested_identity` + structure fill).
   Domain: nested free already present (stackFree26 entry) + listBase=regionBase
   + bytes=bs + AuthCount↦oldCount peeled. Residual: general content-window
-  focus; FrontToAuthLoopAssumed empty ExitPre weaken; compose AuthContent_applied
-  under nested free budget.
+  focus; AuthContent_applied→BridgePre; AuthLoopEmpty→ExitPre;
+  FrontToAuthLoopAssumed; teerBridgePre_to_AfterAuthLoopLi_empty DONE.
 -/
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerListCount
@@ -509,9 +509,71 @@ def teerAuthContentBridgeAssumed_nested_identity : TeerAuthContentBridgeAssumed 
       innerVal cursorV endW s11 loadPtr lenW balLenW regionBase bs content
       hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24
 
+/-- BridgePre (nested free + AuthCount peeled + identity wires) → AfterAuthLoopLi
+    empty (count=0) under discharged ListCountAuthLoop Assumed. -/
+theorem teerBridgePre_to_AfterAuthLoopLi_empty
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (spVal spC newSp listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 loadPtr lenW balLenW : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (content : Word)
+    (hoff : (0 : Nat) < bytes.length)
+    (hbase : listBase = regionBase)
+    (hbytes : bytes = bs)
+    (hcontent : content = listBase)
+    (hs0 : s0 = loadPtr) (hs1 : s1 = lenW) (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hv24 : v24 = cursorV)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hsuccess : Success bytes listBase listLen 0)
+    (hspe : ListCountResultSpecialize bytes listBase listLen 0 (0 : Word))
+    (hlen : listLenW ≠ (0 : Word))
+    (hoverOff : listBase.toNat + 0 < 2 ^ 64)
+    (hvalidOff : isValidByteAccess (listBase + BitVec.ofNat 64 0) = true)
+    (h_ge : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (listBase + BitVec.ofNat 64 0) +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 0) + listLenW) :
+    cpsTripleWithin (nListCountAuthLoopStart listLen) AtListCount AfterAuthLoopLi
+      teerLinkedCount
+      (teerAuthContentBridgePre spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+        content listLenW s7Old cursorV endW s11 s innerVal oldCount
+        regionBase bs balBytes)
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3 (0 : Word)
+          bytes 0 listLenW) **
+        teerListCountAuthLoopAmbient spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11) := by
+  have hrun :=
+    teerListCountAuthLoop_framed_empty asm spVal spC newSp listBase listLenW
+      AuthCountAddr oldCount s0 s1 s2 s3 bytes listLen old1 s7Old v24 hoff
+      balPtr chainIdW baiW s balBytes innerVal cursorV endW s11
+      hlistLenW hsalign hslack hover hvalid hnewSp hret hsuccess hspe
+      (rfl : AuthCountAddr = AuthCountAddr) hlen hoverOff hvalidOff h_ge h_hi h_exact
+  exact cpsTripleWithin_weaken
+    (fun _ hp =>
+      teerAuthContent_to_listCountPrest_nested_identity
+        spVal spC listBase listLenW oldCount s0 s1 s2 s3 bytes
+        old1 s7Old v24 balPtr chainIdW baiW s balBytes
+        innerVal cursorV endW s11 loadPtr lenW balLenW regionBase bs content
+        hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24 _ hp)
+    (fun _ hq => hq) hrun
+
 #print axioms teerAuthContentScratch_to_authCount_rest
 #print axioms teerAuthCount_memOwn_choose
 #print axioms teerAuthContent_to_listCountPrest_nested_identity
 #print axioms teerAuthContentBridgeAssumed_nested_identity
+#print axioms teerBridgePre_to_AfterAuthLoopLi_empty
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
