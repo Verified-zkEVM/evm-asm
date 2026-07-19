@@ -390,9 +390,9 @@ structure A4gbrResiduals where
              (`extractAssumed_success_flat_ambient_of_arm`; 12 arms);
            residual: bare extractSuccess→arm domain bridge
              (copy hq_align/cover; long hitem; hgeN empty-to hss room);
-             short-cre hshort DONE; creShort ambient flats residual-only-hgeN
-             (`extractAssumed_success_flat_ambient_creShort*`); Teer 745-instr
-             prover1; gate. -/
+             short-cre hshort↔head bridges DONE; creShort ambient flats
+             residual-only-hgeN (`…_creShort*` / `…_of_hshort`); Teer 745;
+             gate. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
@@ -413,6 +413,7 @@ def extract_discharge_ambient_creShort_available :=
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortType234
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortLegacy
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortT1
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_creShortType234_of_hshort
 /-- Ambient general off/len IntrinsicAssumed-shaped discharge available
     (under TisCalleeAssumptionsAmbient + extractSuccess/type success/statics). -/
 def intrinsic_discharge_ambient_available :=

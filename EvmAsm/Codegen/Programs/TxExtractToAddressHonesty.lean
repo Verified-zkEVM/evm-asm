@@ -1136,6 +1136,38 @@ theorem hnext_single_byte_of_pfx
 #print axioms extractSuccess_creation_encode_empty
 #print axioms decodeListItems_eq_encode
 #print axioms encodeItems_le_55_of_decode_short_list_head
+
+/-- Inverse: decode + short outer payload ⇒ list head `ult 0xf8`. classical-3. -/
+theorem short_list_head_ult_f8_of_decode_hshort
+    (bs : List Byte) (items : List RLPItem)
+    (h : decodeListItems bs = some items)
+    (hshort : (encode.encodeItems items).length ≤ 55) :
+    ∃ h0 : 0 < bs.length,
+      BitVec.ult ((bs[0]'h0).zeroExtend 64) (0xf8 : Word) = true := by
+  have henc := decodeListItems_eq_encode bs items h
+  have hne := decodeListItems_some_ne_nil h
+  have h0 : 0 < bs.length := List.length_pos_iff.mpr hne
+  refine ⟨h0, ?_⟩
+  have hform := encode_list_short items hshort
+  have hbs : bs = BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length) ::
+      encode.encodeItems items := by
+    rw [henc, hform]
+  have hhead :
+      bs[0]'h0 = BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length) := by
+    simp [hbs]
+  have hn : (encode.encodeItems items).length ≤ 55 := hshort
+  have hsum : 0xC0 + (encode.encodeItems items).length < 256 := by omega
+  have hze :
+      ((BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)).zeroExtend 64).toNat =
+        0xC0 + (encode.encodeItems items).length := by
+    rw [toNat_zeroExtend_byte, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsum]
+  have hb : (0xf8 : Word).toNat = 248 := by decide
+  apply (BitVec.ult_iff_lt).2
+  change ((bs[0]'h0).zeroExtend 64).toNat < (0xf8 : Word).toNat
+  rw [hhead, hze, hb]
+  omega
+
+#print axioms short_list_head_ult_f8_of_decode_hshort
 #print axioms decodeListItems_short_walkInit_guards
 #print axioms extractSuccess_inner_eq_encode
 #print axioms listLen_word_eq_drop
