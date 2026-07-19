@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerPrologue
+import EvmAsm.Codegen.Programs.TxEip7702TeerScratchZero
 import EvmAsm.Codegen.Programs.TxEip7702TeerDischarge
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArraySpec
 import EvmAsm.Rv64.CPSSpec
@@ -238,5 +239,88 @@ theorem teerPrologue_applied
 #print axioms teerPrologue_ownTemps
 #print axioms teerAppliedEntry_to_prologueOwnPre
 #print axioms teerPrologue_applied
+
+
+/-- Remaining scratch cells after peeling the four zeroed ones. -/
+def teerScratchRestOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_inner_off) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_type) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_auth_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+private theorem pcFree_teerScratchRestOwn : teerScratchRestOwn.pcFree := by
+  unfold teerScratchRestOwn
+  repeat' (first | exact pcFree_memOwn | apply pcFree_sepConj)
+
+theorem teerScratchOwn_to_zero_rest :
+    ∀ h, teerScratchOwn h → (teerScratchZeroOwn ** teerScratchRestOwn) h := by
+  intro h hp
+  unfold teerScratchOwn teerScratchZeroOwn teerScratchRestOwn
+    RegularRefundAddr SuccessCountAddr PredelegatedAddr RolledBackAddr at *
+  xperm_hyp hp
+
+theorem teerScratchOwn_of_zero_rest :
+    ∀ h, (teerScratchZeroOwn ** teerScratchRestOwn) h → teerScratchOwn h := by
+  intro h hp
+  unfold teerScratchOwn teerScratchZeroOwn teerScratchRestOwn
+    RegularRefundAddr SuccessCountAddr PredelegatedAddr RolledBackAddr at *
+  xperm_hyp hp
+
+/-- Scratch-zero with regOwn x5 (forall-lift). Parenthesize for of_forall. -/
+theorem teerScratchZero_regOwn (v26 : Word) :
+    cpsTripleWithin 13 AfterAbiMoves AtBalCheck teerCode
+      (((.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchZeroOwn) ** regOwn .x5)
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchZeroOwn) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn
+    (P := (.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchZeroOwn) ?_
+  intro v5
+  have h0 := teerScratchZero v26 v5
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h0
+
+/-- Framed scratch-zero under full teerScratchOwn. -/
+theorem teerScratchZero_fullScratch (v26 : Word) (R : Assertion)
+    (hR : R.pcFree) :
+    cpsTripleWithin 13 AfterAbiMoves AtBalCheck teerCode
+      (((.x26 ↦ᵣ v26) ** (.x0 ↦ᵣ (0 : Word)) ** teerScratchOwn) **
+        regOwn .x5 ** R)
+      ((.x26 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ RolledBackAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+        teerScratchOwn ** R) := by
+  have hbody := teerScratchZero_regOwn v26
+  have hF := cpsTripleWithin_frameR (teerScratchRestOwn ** R)
+    (pcFree_sepConj pcFree_teerScratchRestOwn hR) hbody
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      -- Expand full scratch in hyp; expand zero/rest+abbrevs in goal only.
+      unfold teerScratchOwn at hp
+      unfold teerScratchZeroOwn teerScratchRestOwn
+        RegularRefundAddr SuccessCountAddr PredelegatedAddr RolledBackAddr
+      xperm_hyp hp)
+    (fun _ hq => by
+      unfold teerScratchZeroOwn teerScratchRestOwn
+        RegularRefundAddr SuccessCountAddr PredelegatedAddr RolledBackAddr at hq
+      unfold teerScratchOwn
+      xperm_hyp hq) hF
+
+#print axioms teerScratchOwn_to_zero_rest
+#print axioms teerScratchZero_regOwn
+#print axioms teerScratchZero_fullScratch
+
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
