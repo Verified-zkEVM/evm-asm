@@ -6,7 +6,8 @@
   * AuthContent_applied post (WithoutVnz) = AppliedFlatVnz (xperm).
   * nested ** Vnz-flat → ∃oldCount BridgePre (FrontListCount peel).
   * NestedPostEx→BridgePre + free26_to_bridgePre (hrun-parameterized) classical-3.
-  * Residual: full-binder wire teerAuthContent_applied → free26_to_bridgePre;
+  * free26_to_bridgePre_field0 mono packaging classical-3.
+  * Residual: wire teerAuthContent_applied as hrun into free26_to_bridgePre_field0;
     FrontToAuthLoopAssumed inhabit; general content-window.
 -/
 
@@ -17,6 +18,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerFrontValueNonzero
 import EvmAsm.Codegen.Programs.TxEip7702TeerRecipient
 import EvmAsm.Codegen.Programs.TxEip7702TeerType
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthCount
+import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopField0
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
@@ -460,5 +462,6 @@ theorem teerAuthContent_free26_to_bridgePre
 #print axioms teerAuthContent_applied_nestedFree_of_run
 #print axioms teerAuthContentNestedPostEx_to_bridgePre
 #print axioms teerAuthContent_free26_to_bridgePre
+
 
 end EvmAsm.Codegen.TxEip7702TeerSpec

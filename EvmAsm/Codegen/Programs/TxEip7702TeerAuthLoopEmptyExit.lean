@@ -1211,8 +1211,10 @@ theorem teerAuthLoopEmptyExitPack_split
 #print axioms teerBridgePre_to_exitPack_empty
 
 /-- Residual packaging: AuthContent_applied (free26 nested) → BridgePre.
-    When discharged, compose with `teerBridgePre_to_exitPack_empty` for
-    AfterAuthLoopLi ExitPack, then ExitPack_split → Front ExitPre**Frame. -/
+    Body residual: wire `teerAuthContent_applied` as hrun into
+    `teerAuthContent_free26_to_bridgePre_field0`, then specialize ∃ next,lenK,oldCount
+    to fixed content/listLenW/oldCount (empty identity: content=listBase).
+    Compose with `teerBridgePre_to_exitPack_empty` for ExitPack. -/
 structure TeerFrontAuthContentToBridgeAssumed where
   nSteps : Nat
   run :
@@ -1246,9 +1248,6 @@ structure TeerFrontAuthContentToBridgeAssumed where
         (teerAuthContentBridgePre spVal spC old1 loadPtr lenW balPtr balLenW
           chainIdW content listLenW s7Old cursorV endW s11 s innerVal oldCount
           regionBase bs balBytes)
-
--- free26 empty-path: FrontToBridge residual; mid BridgePre→ExitPack/ret DONE
--- (`teerBridgePre_to_exitPack_empty` / `teerBridgePre_toRet_empty`).
 
 
 /-- free26 empty path: FrontToBridge + list_count AuthLoop steps. -/

@@ -62,7 +62,8 @@ private abbrev nFrontToAuthWalkNext8Save : Nat :=
 private abbrev nFrontToAuthWalkNext9Bne : Nat :=
   nFrontToAuthWalkNext8Save + nAuthWalkNext9CycleOnly
 private abbrev nAuthContentToListCount : Nat := 6
-private abbrev nFrontToAtListCount : Nat :=
+/-- Public step count: E → AtListCount (AuthContent applied). -/
+abbrev nFrontToAtListCount : Nat :=
   nFrontToAuthWalkNext9Bne + nAuthContentToListCount
 
 local macro "pcf" : tactic => `(tactic|
