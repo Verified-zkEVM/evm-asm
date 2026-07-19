@@ -269,8 +269,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bti_sc_clen:\n  .zero 8\n" ++
   -- .6.2.2.2.a: per-tx runtime-result arrays + context scratch for the gated
   -- multi-tx dispatch loop (.6.2.2.2.b). U64 arrays are cheap tx-indexed
-  -- full-capacity arenas; the active loop gate remains bvMtxActiveTxCap until
-  -- the sender-balance algorithm lands. bv_mtx_ctx is one 192-byte
+  -- full-capacity arenas; the active loop uses the same gas-derived bound.
+  -- bv_mtx_ctx is one 192-byte
   -- multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
   "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
@@ -474,9 +474,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
-  -- Capacity follows bvMtxActiveTxCap so all-distinct current-fixture blocks do
-  -- not hit the old 16-entry table-full path. Full 9523-tx aggregation is a
-  -- separate follow-up slice.
+  -- Capacity follows the gas-derived multi-transaction bound, so distinct
+  -- senders do not inherit the former 1024-transaction admission limit.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
