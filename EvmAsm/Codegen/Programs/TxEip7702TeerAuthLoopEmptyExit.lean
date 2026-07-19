@@ -2761,7 +2761,7 @@ theorem teer_bv_one_ne_zero : BitVec.ofNat 64 1 ≠ (0 : Word) := by
 
 theorem teer_listLenW_one_ne_zero {w : Word}
     (h : w = BitVec.ofNat 64 1) : w ≠ (0 : Word) := by
-  simp [h]; exact teer_bv_one_ne_zero
+  rw [h]; exact teer_bv_one_ne_zero
 
 /-- Free26 inhabit from FrontToBridge + empty-short midA; `hlen` free via listLenW=1. -/
 def teerFrontToAuthLoopAssumedFree26_of_empty_short
