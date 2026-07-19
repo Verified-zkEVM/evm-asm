@@ -52,6 +52,21 @@ def createNonceTableCap : Nat :=
 
 #guard createNonceTableCap = 6250
 
+/-- A successful CREATE mutates the table twice at most: it advances its
+    creator, then seeds the created child as a possible recursive creator.
+    Therefore the mutation journal needs twice the gas-derived CREATE bound,
+    while the distinct-creator table itself remains bounded by one entry per
+    CREATE. -/
+def createNonceUndoCap : Nat := 2 * createNonceTableCap
+
+#guard createNonceUndoCap = 12500
+
+/-- The undo journal is indexed by mutation order, never by attacker-controlled
+    node count. -/
+def createNonceUndoRecordBytes : Nat := 24
+
+def createNonceUndoBytes : Nat := createNonceUndoCap * createNonceUndoRecordBytes
+
 /-! ## create_creator_nonce_use
     a0 = creator address ptr (20-byte big-endian)
     a1 = creator pre-state nonce (u64; used only on the creator's FIRST CREATE)
@@ -78,6 +93,13 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_found:\n" ++
   "  ld a0, 32(t3)               # ret = entry.nonce\n" ++
   "  li t4, -1; beq a0, t4, .Lccnu_ret  # max nonce: CREATE must fail; do not wrap table\n" ++
+  -- Journal the in-place table mutation before advancing it.  A reverted
+  -- frame replays this record backwards; old_count also removes a just-added
+  -- entry without depending on stale bytes beyond the live table count.
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccnu_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd a0, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  addi t4, a0, 1; sd t4, 32(t3)   # entry.nonce += 1\n" ++
   "  j .Lccnu_ret\n" ++
   ".Lccnu_new:\n" ++
@@ -90,6 +112,10 @@ def createCreatorNonceUseFunction : String :=
   "  beqz t6, .Lccnu_cpaddr_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccnu_cpaddr\n" ++
   ".Lccnu_cpaddr_d:\n" ++
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccnu_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd zero, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  addi t4, s1, 1; sd t4, 32(t3)   # entry.nonce = pre_nonce + 1 (next CREATE)\n" ++
   "  la t4, create_nonce_table_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  mv a0, s1                   # ret = pre_nonce (this CREATE)\n" ++
@@ -97,9 +123,28 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_overflow:\n" ++
   "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   "  mv a0, s1                   # conservative fallback: pre_nonce, no store\n" ++
+  "  j .Lccnu_ret\n" ++
+  ".Lccnu_undo_overflow:\n" ++
+  "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
+  "  # No table mutation when the bounded undo journal is full.\n" ++
   ".Lccnu_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
+  -- Revert the nonce-table mutation journal to a saved high-water mark.
+  -- a0 = retained entry count.  Entries are replayed backwards so restoring
+  -- old_count removes newly appended creators and restoring old_nonce repairs
+  -- updates to an existing creator.  Returns a0 = 0.
+  "create_creator_nonce_undo_to:\n" ++
+  "  la t0, create_nonce_undo_count; ld t1, 0(t0)\n" ++
+  ".Lccnu_undo_loop:\n" ++
+  "  bgeu a0, t1, .Lccnu_undo_done\n" ++
+  "  addi t1, t1, -1; li t2, 24; mul t2, t1, t2; la t3, create_nonce_undo_log; add t3, t3, t2\n" ++
+  "  ld t4, 0(t3); ld t5, 8(t3); ld t6, 16(t3)\n" ++
+  "  li t2, 40; mul t2, t4, t2; la t3, create_nonce_table; add t3, t3, t2; sd t5, 32(t3)\n" ++
+  "  la t2, create_nonce_table_count; sd t6, 0(t2)\n" ++
+  "  la t2, create_nonce_undo_count; sd t1, 0(t2); j .Lccnu_undo_loop\n" ++
+  ".Lccnu_undo_done:\n" ++
+  "  li a0, 0; ret\n" ++
   -- Read the current (next-to-use) nonce for an already-seeded creator without
   -- advancing the table.  A CREATE child uses this at return time: initcode can
   -- itself CREATE, so the child final nonce is the table value rather than
@@ -147,6 +192,14 @@ def createCreatorNonceUseFunction : String :=
   ".Lccns_next:\n" ++
   "  addi t2, t2, 1; j .Lccns_loop\n" ++
   ".Lccns_set:\n" ++
+  -- Seeding a child makes that child a possible recursive CREATE creator.
+  -- It is therefore a table mutation just like `..._use` and must be
+  -- journaled: a reverted parent must not retain the child creator entry.
+  "  ld t4, 32(t3)\n" ++
+  "  la t5, create_nonce_undo_count; ld t6, 0(t5); li a0, " ++ toString createNonceUndoCap ++ "; bgeu t6, a0, .Lccns_undo_overflow\n" ++
+  "  li a0, 24; mul a0, t6, a0; la t5, create_nonce_undo_log; add t5, t5, a0\n" ++
+  "  sd t2, 0(t5); sd t4, 8(t5); sd t1, 16(t5)\n" ++
+  "  la t5, create_nonce_undo_count; addi t6, t6, 1; sd t6, 0(t5)\n" ++
   "  li t4, 1; sd t4, 32(t3); j .Lccns_ret\n" ++
   ".Lccns_new:\n" ++
   "  li t3, " ++ toString createNonceTableCap ++ "\n" ++
@@ -158,9 +211,16 @@ def createCreatorNonceUseFunction : String :=
   "  beqz t6, .Lccns_copy_done\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccns_copy\n" ++
   ".Lccns_copy_done:\n" ++
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccns_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd zero, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  li t4, 1; sd t4, 32(t3)\n" ++
   "  la t4, create_nonce_table_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4); j .Lccns_ret\n" ++
   ".Lccns_overflow:\n" ++
+  "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
+  "  j .Lccns_ret\n" ++
+  ".Lccns_undo_overflow:\n" ++
   "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   ".Lccns_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
@@ -174,6 +234,11 @@ def createNonceTableData : String :=
   "create_nonce_table_overflow:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "create_nonce_table:\n  .zero " ++ toString (createNonceTableCap * 40) ++ "\n"
+  ++ "create_nonce_undo_count:\n  .zero 8\n"
+  ++ "create_nonce_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
+  ++ ".balign 8\ncreate_nonce_undo_log:\n  .zero " ++ toString createNonceUndoBytes ++ "\n"
+  ++ "create_nonce_undo_presnap_armed:\n  .zero 8\n"
+  ++ "create_nonce_undo_presnap_count:\n  .zero 8\n"
 
 /-- `zisk_create_creator_nonce_use`: known-answer probe. Two creators (A=0x11*20,
     B=0x22*20); the running nonce advances per creator independently:

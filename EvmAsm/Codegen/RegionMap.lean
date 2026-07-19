@@ -287,7 +287,7 @@ def schemeAAnchors : List GuestRegion :=
     to `0x5d508` when full-subtree delete propagation was generalized to the
     canonical empty-trie root. Grew to `0x5d87c` when EIP-7702 authorization
     effect rows began preserving a prior value-transfer balance. -/
-def textSizeBytes : Nat := 0x5d878
+def textSizeBytes : Nat := 0x5db1c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -313,7 +313,7 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. -/
-def bssSizeBytes : Nat := 0x1b5a39e0
+def bssSizeBytes : Nat := 0x1b5eede0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

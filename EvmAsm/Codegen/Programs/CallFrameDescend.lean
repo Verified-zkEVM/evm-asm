@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.CreateCreatorNonce
 
 namespace EvmAsm.Codegen
 
@@ -491,6 +492,17 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
   "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
   ".Lcfd_nse_snap_done:\n" ++
+  -- Every child frame checkpoints the CREATE nonce-mutation journal.  CREATE
+  -- arms a pre-mutation checkpoint before `create_creator_nonce_use`; ordinary
+  -- CALL frames take the live mark here.  This mirrors the effect-log snapshot
+  -- discipline above and makes a parent REVERT undo committed nested CREATEs too.
+  "  la t1, create_nonce_undo_presnap_armed; ld t2, 0(t1)\n" ++
+  "  beqz t2, .Lcfd_cnj_live\n" ++
+  "  sd x0, 0(t1); la t1, create_nonce_undo_presnap_count; ld t0, 0(t1); j .Lcfd_cnj_save\n" ++
+  ".Lcfd_cnj_live:\n" ++
+  "  la t1, create_nonce_undo_count; ld t0, 0(t1)\n" ++
+  ".Lcfd_cnj_save:\n" ++
+  "  la t1, create_nonce_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
@@ -837,7 +849,8 @@ def ziskCallFrameDescendDataSection : String :=
   "cfd2_pstack:\n  .zero 256\n" ++
   "cfd2_to:\n  .zero 32\n" ++
   "cfd2_val:\n  .zero 32\n" ++
-  "cfd2_code:\n  .zero 64\n"
+  "cfd2_code:\n  .zero 64\n" ++
+  createNonceTableData
 
 def ziskCallFrameDescendProbeUnit : BuildUnit := {
   body        := NOP

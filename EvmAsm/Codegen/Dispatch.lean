@@ -1212,6 +1212,8 @@ def emitDispatcherPrologue : String :=
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_presnap_armed; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++    -- (else CREATE deposits + code_covers carry stale records across txs)
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
@@ -2845,6 +2847,8 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_presnap_armed; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
