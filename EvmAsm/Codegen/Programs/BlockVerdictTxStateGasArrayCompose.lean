@@ -393,9 +393,9 @@ structure A4gbrResiduals where
               hcover/hcvalid from statics via copyAmbientExtras_of_statics;
               short-cre: hgeN empty-to hss; long: per-field hitem≤55);
              short-cre hshort↔head bridges DONE; creShort ambient flats
-             residual-only-hgeN; copyShort unified residual hshort+q/hq_align/hq
-             (`…_copyShort_of_hshort` / `…_of_success_hshort`); Teer 745;
-             gate. -/
+             residual-only-hgeN; copyShort of_success_head residual only
+             q/hq_align/hq + short-list head (`…_copyShort_of_success_head`);
+             Teer 745; gate. -/
 
   ambientMultiTx : True := trivial
   /-- Teer leaf modulo its remaining input callees (prover1 scope). -/
@@ -423,6 +423,7 @@ def extract_discharge_ambient_creShort_available :=
 #print axioms TxExtractToAddressSpec.copyAmbientExtras_of_statics
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShort_of_hshort
 #print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShort_of_success_hshort
+#print axioms TxExtractToAddressSpec.extractAssumed_success_flat_ambient_copyShort_of_success_head
 /-- Ambient general off/len IntrinsicAssumed-shaped discharge available
     (under TisCalleeAssumptionsAmbient + extractSuccess/type success/statics). -/
 def intrinsic_discharge_ambient_available :=
