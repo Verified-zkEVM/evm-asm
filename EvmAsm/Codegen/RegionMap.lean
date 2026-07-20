@@ -303,7 +303,7 @@ def schemeAAnchors : List GuestRegion :=
     for the guarded post-setup top-level CREATE nonce seed
     (`fix/nested-create-nonce-seed`), which preserves the live nonce for
     nested CREATE executed from initcode. -/
-def textSizeBytes : Nat := 0x5e1e8
+def textSizeBytes : Nat := 0x5e318
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -329,7 +329,7 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. -/
-def bssSizeBytes : Nat := 0x1b5fee00
+def bssSizeBytes : Nat := 0x1b5fee40
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -355,7 +355,7 @@ def dataRegion : GuestRegion :=
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b5fee00-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b5fee40-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf600000`). -/
