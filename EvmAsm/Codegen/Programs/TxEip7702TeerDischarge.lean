@@ -669,34 +669,32 @@ def teerAssumed_empty_applied_flat_zero
 /-- Honest residual ledger for empty-auth TeerAssumed stitch (documentation).
     Each conjunct is a remaining named hyp / multi-session body. -/
 def teerEmptyAuthResidualLedger : Prop :=
-  -- 1. Free26EmptyShort packaging COMPLETE under residual hrunA:
-  --    of_hrunA_is / toRet / applied_flat_is_zero (hrolled0 FREE on Is path);
-  --    EmptyShort → ret / applied_flat free20**nested DONE; hteer0 free via teerApplied_zero.
-  --    free20 FrontToAuthLoopAssumed still residual (nested free6 gap vs free26 honest).
+  -- 1. Free26EmptyShort Is packaging COMPLETE:
+  --    of_hrunA_is / applied@srcOffA9=0 ABI-dom duals → ExitPack/toRet/applied_flat free20**nested;
+  --    hident FREE (0xc0 decode); hrolled0 FREE (Is ZeroIs); hteer0 FREE (teerApplied_zero);
+  --    list_count asm FREE; domain-on-run + listOff0/A9dec/field 0x80 pack chain FREE lemmas.
+  --    residual inhabit: full applied walk domain (type-4 fixture) + Free26 Front structure.
   True ∧
-  -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs carries RolledBack ↦ₘ 0).
+  -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs / BridgePreIs / AmbientPostIs).
   --    Own path still residual if not using Is.
   True ∧
-  -- 3. hrunA wire DONE + ABI-pinned ExitPack/toRet/applied_flat_zero
-  --    (of_applied*_abi frees wire; residual domain 0xc0/slack/valid + walk guards + asm + hret).
+  -- 3. free20 FrontToAuthLoopAssumed / Array TeerAssumed:
+  --    nested list_count free6 outside addi -160 (20 dwords). TeerAssumedFree26 packages
+  --    free26→free20**nested honestly; Array still models free20 until nTeerStackDwords→26
+  --    or Loop frames free26 entry.
   True ∧
-  -- 4. Domain empty-short on-run packaged (TeerEmptyAuthDomainEmptyShortRun; hoff0 free from slack);
-  --    list_count asm FREE via teerLinked; walk hover/hvalid FREE from dom+hoff;
-  --    hvalid0/hoffOff FREE via teer success⇒len>0 + bound + teer_hvalid_of_dom;
-  --    residual: domain fixture inhabit + walk hoff/hdec/hss/hls/hll/hinb/hbridge + hret
-  --    per-guard FREE lemmas (coord decompose): teer_hcur_of_srcOff_succ, teer_hss/hls/hll_vacuous_of_ult_*,
-  --    teer_h_ge/h_hi_of_byte_c0 + listOff0_of_dom; teer_ret_aligned packaging alias
+  -- 4. Empty-short listLenW=1: hinb true only at listBase; type-4 field walks need longer
+  --    list / separate fixture. 0x80 pack chain duals are packaging for longer-list heads.
   True ∧
-  -- 5. Nested stackFree spC 6 outside TeerAssumed free-20:
-  --    TeerAssumedFree26 + teerAssumedFree26_empty_applied_flat_zero packaging DONE
-  --    (free26 prest → free20**nested post; residual inhabit Free26 Front + ABI wire).
-  --    Array free20 TeerAssumed residual until nTeerStackDwords bumps to 26.
+  -- 5. TeerAssumedFree26 + teerAssumedFree26_empty_applied_flat_zero packaging DONE.
   True ∧
-  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
+  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/OrZero/…):
+  --    bansf_spec_within exists but thin TeerBalFinalsAssumed adapter multi-session;
+  --    OrZero 20B LBU/OR loop body unproven (Assumed memOwn weak).
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies
   True ∧
-  -- 8. gate a4gbr.1 (unconverted asm string)
+  -- 8. gate a4gbr.1 (unconverted asm string) — deferred
   True
 
 theorem teerEmptyAuthResidualLedger_hold : teerEmptyAuthResidualLedger := by

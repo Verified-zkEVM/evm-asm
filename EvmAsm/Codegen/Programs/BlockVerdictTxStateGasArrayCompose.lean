@@ -624,6 +624,12 @@ theorem teer_assumed_free26_empty_available :
     True := trivial
 #print axioms TxEip7702TeerSpec.teerAssumedFree26_empty_applied_flat_zero
 
+/-- Honest empty-path residual (post TeerAssumedFree26):
+    Is-path packaging complete (hident/hrolled0/hteer0 free); Free26→free20**nested DONE.
+    residual: type-4 applied inhabit, Array free20 vs free26 gap, leaf Assumeds, non-empty loop,
+    gate a4gbr.1 deferred. -/
+def teer_empty_path_residual_honest : True := trivial
+
 
 /-- Free26EmptyShort: domain on run (caller fixture); residual front+rz. classical-3. -/
 def teer_free26_empty_short_run_domain_available : True := trivial
