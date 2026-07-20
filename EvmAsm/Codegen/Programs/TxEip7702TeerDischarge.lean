@@ -688,10 +688,10 @@ def teerEmptyAuthResidualLedger : Prop :=
   True ∧
   -- 5. TeerAssumedFree26 + teerAssumedFree26_empty_applied_flat_zero packaging DONE.
   True ∧
-  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/OrZero/…):
-  --    bansf_spec_within exists but thin TeerBalFinalsAssumed adapter multi-session;
-  --    OrZero: Assumed strengthened to bytesRegion; setup+counter BEQ+OR-acc=0 skip
-  --    classical-3; teerOrAcc_zero_replicate free; body LBU/OR/ADDI/JAL×20 residual.
+  -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…):
+  --    residual multi-session adapters.
+  --    OrZero: teerAuthOrZeroAssumed_teerLinked FILLED classical-3 (body×20+Loop20+Assumed;
+  --    teerOrAcc_zero_replicate free for all-zero authority).
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies
   True ∧
