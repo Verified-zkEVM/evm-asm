@@ -690,7 +690,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   True ∧
   -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/OrZero/…):
   --    bansf_spec_within exists but thin TeerBalFinalsAssumed adapter multi-session;
-  --    OrZero 20B LBU/OR loop body unproven (Assumed memOwn weak).
+  --    OrZero: Assumed strengthened to bytesRegion; setup+counter BEQ+OR-acc=0 skip
+  --    classical-3; teerOrAcc_zero_replicate free; body LBU/OR/ADDI/JAL×20 residual.
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies
   True ∧
