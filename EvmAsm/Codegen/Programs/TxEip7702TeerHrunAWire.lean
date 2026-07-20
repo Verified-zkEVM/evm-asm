@@ -5468,6 +5468,114 @@ theorem teer_field_package_short_list
 #print axioms teer_field_package_short_list
 
 
+/-- General fit: `n < end - cursor` in `toNat` (no wrap). -/
+theorem teer_hfit_of_toNat
+    (cursor endPtr : Word) (n : Nat)
+    (hle : cursor.toNat ≤ endPtr.toNat)
+    (hn : n < endPtr.toNat - cursor.toNat)
+    (hn64 : n < 2 ^ 64) :
+    BitVec.ult (BitVec.ofNat 64 n) (endPtr - cursor) = true := by
+  have hsub : (endPtr - cursor).toNat = endPtr.toNat - cursor.toNat :=
+    BitVec.toNat_sub_of_le hle
+  exact (BitVec.ult_iff_lt).2 (by
+    simp only [BitVec.lt_def, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn64, hsub]
+    exact hn)
+
+#print axioms teer_hfit_of_toNat
+
+/-- Addr20 fit free when `cursor.toNat + 21 ≤ endPtr.toNat`. -/
+theorem teer_hfit_addr20_of_span
+    (cursor endPtr : Word)
+    (hle : cursor.toNat ≤ endPtr.toNat)
+    (hspan : cursor.toNat + 21 ≤ endPtr.toNat) :
+    BitVec.ult (20 : Word) (endPtr - cursor) = true := by
+  have hn : (20 : Nat) < endPtr.toNat - cursor.toNat := by omega
+  have h20 : (20 : Word) = BitVec.ofNat 64 20 := rfl
+  simpa [h20] using teer_hfit_of_toNat cursor endPtr 20 hle hn (by decide)
+
+#print axioms teer_hfit_addr20_of_span
+
+/-- Addr20 field package with fit free from span. -/
+theorem teer_field_package_addr20_of_span
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hover21 : regionBase.toNat + (srcOff + 21) < 2 ^ 64)
+    (hle : (regionBase + BitVec.ofNat 64 srcOff).toNat ≤ endPtr.toNat)
+    (hspan : (regionBase + BitVec.ofNat 64 srcOff).toNat + 21 ≤ endPtr.toNat) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 21)) :=
+  teer_field_package_addr20 bs srcOff regionBase endPtr hoff hb
+    hoff1 hover1 hvalid1 hover21
+    (teer_hfit_addr20_of_span (regionBase + BitVec.ofNat 64 srcOff) endPtr hle hspan)
+
+#print axioms teer_field_package_addr20_of_span
+
+/-- Short-list fit free when `cursor.toNat + (pay+1) ≤ endPtr.toNat`.
+    Fit shape: `¬ ult (end-cursor) (pay+1)`. -/
+theorem teer_hfit_short_list_of_span
+    (cursor endPtr : Word) (pay : Nat)
+    (hle : cursor.toNat ≤ endPtr.toNat)
+    (hspan : cursor.toNat + (pay + 1) ≤ endPtr.toNat)
+    (hpay : pay ≤ 55) :
+    ¬ BitVec.ult (endPtr - cursor)
+      (BitVec.ofNat 64 pay + signExtend12 (1 : BitVec 12)) = true := by
+  intro hult
+  have hse : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := teer_se12_one
+  have hsum : (BitVec.ofNat 64 pay + signExtend12 (1 : BitVec 12)).toNat = pay + 1 := by
+    rw [hse, BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+    have hp : pay < 2 ^ 64 := by omega
+    have h1 : (1 : Nat) % 2 ^ 64 = 1 := by decide
+    rw [Nat.mod_eq_of_lt hp, h1, Nat.mod_eq_of_lt (by omega : pay + 1 < 2 ^ 64)]
+  have hsub : (endPtr - cursor).toNat = endPtr.toNat - cursor.toNat :=
+    BitVec.toNat_sub_of_le hle
+  have hlt := (BitVec.ult_iff_lt).1 hult
+  simp only [BitVec.lt_def, hsub, hsum] at hlt
+  omega
+
+#print axioms teer_hfit_short_list_of_span
+
+/-- Short-list field package with fit free from span. -/
+theorem teer_field_package_short_list_of_span
+    (bs : List (BitVec 8)) (srcOff pay : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = BitVec.ofNat 8 (0xC0 + pay))
+    (hpay : pay ≤ 55)
+    (hnoWrap : regionBase.toNat + (srcOff + 1 + pay) < 2 ^ 64)
+    (hle : (regionBase + BitVec.ofNat 64 srcOff).toNat ≤ endPtr.toNat)
+    (hspan : (regionBase + BitVec.ofNat 64 srcOff).toNat + (pay + 1) ≤ endPtr.toNat) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1 + pay)) :=
+  teer_field_package_short_list bs srcOff pay regionBase endPtr hoff hb hpay
+    (teer_hfit_short_list_of_span (regionBase + BitVec.ofNat 64 srcOff) endPtr pay
+      hle hspan hpay)
+    hnoWrap
+
+#print axioms teer_field_package_short_list_of_span
+
+
+
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
     Fit: at least one byte remains to `endPtr`. -/
 theorem teer_rlpItemDecode_empty_list_c0
