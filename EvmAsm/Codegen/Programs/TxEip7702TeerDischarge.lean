@@ -681,9 +681,9 @@ def teerEmptyAuthResidualLedger : Prop :=
   --    (of_applied*_abi frees wire; residual domain 0xc0/slack/valid + walk guards + asm + hret).
   True ∧
   -- 4. Domain empty-short on-run packaged (TeerEmptyAuthDomainEmptyShortRun; hoff0 free from slack);
-  --    list_count asm FREE via teerLinked; walk hover/hvalid FREE from dom+hoff on abi_dom;
-  --    hvalid0 FREE via hoffOff (off < length) + teer_hvalid_of_dom; residual: domain fixture
-  --    inhabit + walk hoff/hdec/hss/hls/hll/hinb/hbridge + hoffOff + hret
+  --    list_count asm FREE via teerLinked; walk hover/hvalid FREE from dom+hoff;
+  --    hvalid0/hoffOff FREE via teer success⇒len>0 + bound + teer_hvalid_of_dom;
+  --    residual: domain fixture inhabit + walk hoff/hdec/hss/hls/hll/hinb/hbridge + hret
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
   True ∧

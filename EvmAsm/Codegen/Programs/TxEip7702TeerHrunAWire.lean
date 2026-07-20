@@ -4339,6 +4339,37 @@ theorem teer_hover_of_dom
 #print axioms teer_hvalid_of_dom
 #print axioms teer_hover_of_dom
 
+
+/-- Empty take ⇒ empty slice. -/
+theorem teer_txSlice_zero (bs : List (BitVec 8)) (off : Nat) :
+    txSlice bs off 0 = [] := by
+  simp only [txSlice, List.take_zero]
+
+/-- teer success status 0 ⇒ nonempty slice length. -/
+theorem teer_success_len_pos
+    {bs : List (BitVec 8)} {off len : Nat}
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word)) :
+    0 < len := by
+  by_contra h
+  have h0 : len = 0 := Nat.eq_zero_of_not_pos h
+  subst h0
+  have hs := teer_txSlice_zero bs off
+  rw [hs] at hsuccess
+  simp only [teerTxTypeDispatch] at hsuccess
+  exact absurd hsuccess (by decide)
+
+/-- teer success + bound ⇒ off in-blob (frees hoffOff). -/
+theorem teer_hoffOff_of_success_bound
+    {bs : List (BitVec 8)} {off len : Nat}
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (hbound : off + len ≤ bs.length) :
+    off < bs.length := by
+  have hpos := teer_success_len_pos hsuccess
+  omega
+
+#print axioms teer_success_len_pos
+#print axioms teer_hoffOff_of_success_bound
+
 theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi_dom
     (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
     (s5 s6 s7 s10 s11 : Word)
@@ -4351,7 +4382,6 @@ theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi
     (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
     (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
     (hbound : off + len ≤ bs.length)
-    (hoffOff : off < bs.length)
     (listOff : Nat)
     (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
       regionBase + BitVec.ofNat 64 listOff)
@@ -4955,7 +4985,7 @@ theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi
     ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW
     s5 s6 s7 s10 s11
     regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
-    dom.halign hbound dom.hover (teer_hvalid_of_dom dom hoffOff) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
+    dom.halign hbound dom.hover (teer_hvalid_of_dom dom (teer_hoffOff_of_success_bound hsuccess hbound)) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
     h_ge h_hi h_exact
     srcOff0 hcur0 hoff0 (teer_hover_of_dom dom hoff0) (teer_hvalid_of_dom dom hoff0) hss0 hls0 hll0 hdec0 hinb0
     srcOff1 hoff1 (teer_hover_of_dom dom hoff1) (teer_hvalid_of_dom dom hoff1) hss1 hls1 hll1 hdec1 hinb1
@@ -4994,7 +5024,6 @@ theorem teerEmptyAuth_free26_toRet_of_applied_as_postEx_is_empty_short_abi_dom
     (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
     (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
     (hbound : off + len ≤ bs.length)
-    (hoffOff : off < bs.length)
     (listOff : Nat)
     (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
       regionBase + BitVec.ofNat 64 listOff)
@@ -5605,7 +5634,7 @@ theorem teerEmptyAuth_free26_toRet_of_applied_as_postEx_is_empty_short_abi_dom
     ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW
     s5 s6 s7 s10 s11
     regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
-    dom.halign hbound dom.hover (teer_hvalid_of_dom dom hoffOff) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
+    dom.halign hbound dom.hover (teer_hvalid_of_dom dom (teer_hoffOff_of_success_bound hsuccess hbound)) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
     h_ge h_hi h_exact
     srcOff0 hcur0 hoff0 (teer_hover_of_dom dom hoff0) (teer_hvalid_of_dom dom hoff0) hss0 hls0 hll0 hdec0 hinb0
     srcOff1 hoff1 (teer_hover_of_dom dom hoff1) (teer_hvalid_of_dom dom hoff1) hss1 hls1 hll1 hdec1 hinb1
@@ -5643,7 +5672,6 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
     (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
     (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
     (hbound : off + len ≤ bs.length)
-    (hoffOff : off < bs.length)
     (listOff : Nat)
     (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
       regionBase + BitVec.ofNat 64 listOff)
@@ -6256,7 +6284,7 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
     ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW
     s5 s6 s7 s10 s11
     regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
-    dom.halign hbound dom.hover (teer_hvalid_of_dom dom hoffOff) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
+    dom.halign hbound dom.hover (teer_hvalid_of_dom dom (teer_hoffOff_of_success_bound hsuccess hbound)) listOff ha0 hoffL (teer_hover_of_dom dom hoffL) (teer_hvalid_of_dom dom hoffL) hlenL
     h_ge h_hi h_exact
     srcOff0 hcur0 hoff0 (teer_hover_of_dom dom hoff0) (teer_hvalid_of_dom dom hoff0) hss0 hls0 hll0 hdec0 hinb0
     srcOff1 hoff1 (teer_hover_of_dom dom hoff1) (teer_hvalid_of_dom dom hoff1) hss1 hls1 hll1 hdec1 hinb1
