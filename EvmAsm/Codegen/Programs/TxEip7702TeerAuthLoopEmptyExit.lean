@@ -2911,6 +2911,156 @@ theorem teerEmptyAuth_free26_front_then_exit_applied_flat_zero
 #print axioms teerEmptyAuth_free26_front_then_exit_applied_flat
 #print axioms teerEmptyAuth_free26_front_then_exit_applied_flat_zero
 
+/-! ## TeerAssumedFree26 — honest list_count stack (free26)
+
+`TeerAssumed` / Array footprint uses free20 (`addi sp,-160`). list_count needs
+nested free6 below the teer frame → free26 entry is the honest ABI. This
+structure packages that path; Array free20 `TeerAssumed` remains residual until
+`nTeerStackDwords` / caller budget bumps to 26.
+-/
+
+/-- Honest free26 TeerAssumed: prest free26, post free20 ** nested free6. -/
+structure TeerAssumedFree26 (cr : CodeReq) (teer : TeerApplied) where
+  entry : Word
+  applied_flat :
+    ∀ (ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
+      (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+      (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat),
+      (ret &&& ~~~(1 : Word)) = ret →
+      balPtr ≠ 0 →
+      loadPtr = regionBase + BitVec.ofNat 64 off →
+      off + len ≤ bs.length →
+      balLenW = BitVec.ofNat 64 balBytes.length →
+      chainIdW = BitVec.ofNat 64 chainId →
+      baiW = BitVec.ofNat 64 bai →
+      let spC := spVal + signExtend12 (-160 : BitVec 12)
+      cpsTripleWithin nTeerSteps entry ret cr
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nTeerStackWithListCount **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+          (.x27 ↦ᵣ s11) **
+          (.x10 ↦ᵣ loadPtr) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+          (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchOwn **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+        (fun hp =>
+          ∃ (refund baiW' : Word),
+            (((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+                stackFree spVal nTeerStackDwords **
+                (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+                (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+                (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+                (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+                (.x27 ↦ᵣ s11) **
+                (.x10 ↦ᵣ BitVec.ofNat 64
+                  (teer ((bs.drop off).take len) balBytes chainId bai)) **
+                regOwn .x11 **
+                bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+                teerScratchOwn **
+                regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+                regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+                regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+                regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+              stackFree spC 6) hp)
+
+/-- Empty-auth free26 applied_flat under Free26 Front + const-zero teer.
+    Identity `hcontent : front.content = regionBase` (list at blob base).
+    Packages `TeerAssumedFree26.applied_flat` shape; structure fill needs
+    `hcontent` per call (Free26 identity domain). Residual: inhabit Free26. -/
+theorem teerAssumedFree26_empty_applied_flat_zero
+    (front : TeerFrontToAuthLoopAssumedFree26)
+    (ret spVal regionBase loadPtr balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (bs balBytes : List (BitVec 8)) (off len chainId bai : Nat)
+    (hcontent : front.content = regionBase)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hbal : balPtr ≠ 0)
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hbound : off + len ≤ bs.length)
+    (hbalLen : balLenW = BitVec.ofNat 64 balBytes.length)
+    (hchain : chainIdW = BitVec.ofNat 64 chainId)
+    (hbai : baiW = BitVec.ofNat 64 bai)
+    -- Free26 ABI wire: prologue-saved s-regs match applied entry args
+    (hs0 : s0 = loadPtr) (hs1 : s1 = BitVec.ofNat 64 len)
+    (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hs4 : s4 = chainIdW) :
+    let spC := spVal + signExtend12 (-160 : BitVec 12)
+    cpsTripleWithin nTeerSteps E ret teerLinkedField0
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nTeerStackWithListCount **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+        (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+        (.x27 ↦ᵣ s11) **
+        (.x10 ↦ᵣ loadPtr) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+        (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+        (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+        bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+        teerScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+      (fun hp =>
+        ∃ (refund baiW' : Word),
+          (((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+              stackFree spVal nTeerStackDwords **
+              (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+              (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+              (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+              (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+              (.x27 ↦ᵣ s11) **
+              (.x10 ↦ᵣ (0 : Word)) **
+              regOwn .x11 **
+              bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+              teerScratchOwn **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+              regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+              regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+              regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+            stackFree spC 6) hp) := by
+  intro spC
+  let s : TeerSaved :=
+    { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+      s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+      s10 := s10, s11 := s11, a5 := baiW }
+  have hspC : spC = spVal + signExtend12 (-160 : BitVec 12) := rfl
+  have hra : s.ra = ret := rfl
+  have hs0w : loadPtr = s.s0 := by simp only [s]; exact hs0.symm
+  have hs1w : BitVec.ofNat 64 len = s.s1 := by simp only [s]; exact hs1.symm
+  have hs2w : balPtr = s.s2 := by simp only [s]; exact hs2.symm
+  have hs3w : balLenW = s.s3 := by simp only [s]; exact hs3.symm
+  have hs4w : chainIdW = s.s4 := by simp only [s]; exact hs4.symm
+  have hs9w : s.s9 = s.s9 := rfl
+  have hs11w : s.s11 = s.s11 := rfl
+  have hrun :=
+    teerEmptyAuth_free26_front_then_exit_applied_flat_zero front
+      ret spVal spC regionBase loadPtr (BitVec.ofNat 64 len)
+      balPtr balLenW chainIdW baiW s bs balBytes off len chainId bai
+      LinkAuthWalkNext9 (0 : Word) (0 : Word) s.s9 s.s11 (0 : Word)
+      hcontent rfl hret hbal hptr hbound hspC hra
+      hs0w hs1w hs2w hs3w hs4w hs9w hs11w
+  -- Prest of hrun uses s.sN; goal uses s0..s11 — rewrite via s def
+  refine cpsTripleWithin_weaken (fun _ hp => by
+      -- goal prest → hrun prest
+      simpa [s, hs0, hs1, hs2, hs3, hs4] using hp)
+    (fun _ hq => by
+      obtain ⟨refund, baiW', hp⟩ := hq
+      refine ⟨refund, baiW', ?_⟩
+      simpa [s, hs0, hs1, hs2, hs3, hs4] using hp)
+    hrun
+
+#print axioms teerAssumedFree26_empty_applied_flat_zero
+
 /-- Free pure: list_count link PC is 2-aligned (ret target). -/
 theorem teerLinkListCount_aligned :
     (LinkListCount &&& ~~~(1 : Word)) = LinkListCount := by

@@ -687,7 +687,10 @@ def teerEmptyAuthResidualLedger : Prop :=
   --    per-guard FREE lemmas (coord decompose): teer_hcur_of_srcOff_succ, teer_hss/hls/hll_vacuous_of_ult_*,
   --    teer_h_ge/h_hi_of_byte_c0 + listOff0_of_dom; teer_ret_aligned packaging alias
   True ∧
-  -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
+  -- 5. Nested stackFree spC 6 outside TeerAssumed free-20:
+  --    TeerAssumedFree26 + teerAssumedFree26_empty_applied_flat_zero packaging DONE
+  --    (free26 prest → free20**nested post; residual inhabit Free26 Front + ABI wire).
+  --    Array free20 TeerAssumed residual until nTeerStackDwords bumps to 26.
   True ∧
   -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
   True ∧
