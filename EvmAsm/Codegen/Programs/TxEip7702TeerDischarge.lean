@@ -680,7 +680,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   -- 3. hrunA wire DONE + ABI-pinned ExitPack/toRet/applied_flat_zero
   --    (of_applied*_abi frees wire; residual domain 0xc0/slack/valid + walk guards + asm + hret).
   True ∧
-  -- 4. Domain empty-short fixture on run (align/slack/valid/bs[0]=0xc0) — fixture not free
+  -- 4. Domain empty-short on-run packaged (TeerEmptyAuthDomainEmptyShortRun; hoff0 free from slack);
+  --    residual: inhabit domain fixture + walk guards + list_count asm + hret
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
   True ∧
