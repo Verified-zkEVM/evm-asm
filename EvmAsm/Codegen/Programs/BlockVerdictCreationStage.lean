@@ -7,6 +7,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -276,12 +277,45 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- arbitrary-code payload stager rather than the old one-byte STOP-only
   -- layout so the callable runtime receives the real initcode bytes both as
   -- code and as transaction calldata for intrinsic-gas accounting.
+  -- The callable runtime may resolve code for nested CALL/STATICCALL targets.
+  -- Reserve room for its authenticated M31 context before the common stager
+  -- writes the code/calldata prefix: two padded initcode copies plus the
+  -- pre-header, state witness, codes witness, and fixed trailer must fit the
+  -- same bounded payload buffer as the normal contract path.
+  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8; slli t1, t1, 1\n" ++
+  "  la t0, sv_pre_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, bv_witness_state_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Lbvcr_payload_unsupported\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
   "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
+  -- Match the normal contract-dispatch M31 trailer.  The common stager only
+  -- constructs code, calldata, and env words; nested account/code lookups
+  -- require this authenticated pre-transaction header/witness context.
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, sv_pre_rlp_len; ld t2, 0(t1); sd t2, 472(t0)\n" ++
+  "  la t1, bv_witness_state_len; ld t3, 0(t1); sd t3, 480(t0)\n" ++
+  "  la t1, svf_codes_len; ld t4, 0(t1); sd t4, 488(t0)\n" ++
+  "  addi t5, t0, 496\n" ++
+  "  la t1, sv_pre_rlp_ptr; ld t1, 0(t1); mv t6, t2\n" ++
+  ".Lbvcr_ctx_hdr_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_state_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_hdr_copy\n" ++
+  ".Lbvcr_ctx_state_copy_start:\n" ++
+  "  la t1, bv_witness_state_ptr; ld t1, 0(t1); mv t6, t3\n" ++
+  ".Lbvcr_ctx_state_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_codes_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_state_copy\n" ++
+  ".Lbvcr_ctx_codes_copy_start:\n" ++
+  "  la t1, svf_codes_ptr; ld t1, 0(t1); mv t6, t4\n" ++
+  ".Lbvcr_ctx_codes_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_done\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_codes_copy\n" ++
+  ".Lbvcr_ctx_done:\n" ++
   -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
   -- transaction recipient).  A top-level CREATE has no recipient: its frame
   -- address is the CREATE(sender, nonce) address already derived by the
@@ -426,6 +460,9 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bv_receipts_enforce_enabled; sd t5, 0(t4)\n" ++
   "  li a0, 0\n" ++
+  "  j .Lbvcr_ret\n" ++
+  ".Lbvcr_payload_unsupported:\n" ++
+  "  li a0, 5\n" ++
   ".Lbvcr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
