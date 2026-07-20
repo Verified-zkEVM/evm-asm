@@ -1221,6 +1221,216 @@ theorem teerAuthContentAppliedFlatVnz_nested_to_bridgePre
 #print axioms teerListCountAuthLoop_framed_is
 #print axioms teerListCountAuthLoop_framed_empty_is
 
+/-! ## AppliedFlatVnzIs → BridgePreIs (ZeroIs path; free hrolled0) -/
+
+/-- Local RestWithoutVnz (no zero cells; includes auth_count). Avoids FrontValueNonzero import. -/
+def teerAuthContentRestWithoutVnzOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+  memOwn AuthCountAddr **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+/-- RestWithoutVnz = auth_count ** RestWithoutAuthCount. -/
+theorem teerAuthContentRestWithoutVnz_to_authCount_rest :
+    ∀ h, teerAuthContentRestWithoutVnzOwn h →
+      (memOwn AuthCountAddr ** teerScratchRestWithoutAuthCountOwn) h := by
+  intro h hp
+  unfold teerAuthContentRestWithoutVnzOwn teerScratchRestWithoutAuthCountOwn
+    AuthCountAddr at *
+  xperm_hyp hp
+
+/-- Applied-flat atoms with ZeroIs ** RestWithoutVnz (matches applied_is post). -/
+def teerAuthContentAppliedFlatVnzIs
+    (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
+    (content listLenW s7Old cursorV endW s11 : Word)
+    (s : TeerSaved) (innerVal : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+    (.x1 ↦ᵣ old1) **
+    (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+    (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+    (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+    (.x23 ↦ᵣ s7Old) **
+    (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+    (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+    (.x26 ↦ᵣ (0 : Word)) **
+    (.x27 ↦ᵣ s11) **
+    frameSlotsSaved teerFrame spC (teerSavedVals s) **
+    (.x0 ↦ᵣ (0 : Word)) **
+    (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+    (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+    regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    stackFree spVal 6 **
+    bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+    teerScratchZeroIs ** teerAuthContentRestWithoutVnzOwn
+
+/-- Peel AuthCount from VnzIs-flat → ∃ oldCount BridgePreIs atoms (no nested free). -/
+theorem teerAuthContentAppliedFlatVnzIs_choose
+    (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
+    (content listLenW s7Old cursorV endW s11 : Word)
+    (s : TeerSaved) (innerVal : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) :
+    ∀ h,
+      teerAuthContentAppliedFlatVnzIs spVal spC old1 loadPtr lenW balPtr balLenW
+        chainIdW content listLenW s7Old cursorV endW s11 s innerVal
+        regionBase bs balBytes h →
+      ∃ oldCount,
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ old1) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+          (.x23 ↦ᵣ s7Old) **
+          (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+          (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+          (AuthCountAddr ↦ₘ oldCount) **
+          teerScratchZeroIs ** teerScratchRestWithoutAuthCountOwn) h := by
+  intro h hp
+  dsimp only [teerAuthContentAppliedFlatVnzIs] at hp
+  -- Pull RestWithoutVnz rightmost then peel auth_count
+  have hp1 :
+      (((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ old1) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+          (.x23 ↦ᵣ s7Old) **
+          (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+          (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+          teerScratchZeroIs) **
+        teerAuthContentRestWithoutVnzOwn) h := by
+    xperm_hyp hp
+  obtain ⟨hL, hR, hd, hu, hfront, hrest⟩ := hp1
+  have hAR := teerAuthContentRestWithoutVnz_to_authCount_rest _ hrest
+  obtain ⟨oldCount, hPeeled⟩ := teerAuthCount_memOwn_choose _ _ hAR
+  refine ⟨oldCount, ?_⟩
+  have hp2 :
+      (((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ old1) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+          (.x23 ↦ᵣ s7Old) **
+          (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+          (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+          teerScratchZeroIs) **
+        ((AuthCountAddr ↦ₘ oldCount) ** teerScratchRestWithoutAuthCountOwn)) h :=
+    ⟨hL, hR, hd, hu, hfront, hPeeled⟩
+  xperm_hyp hp2
+
+/-- Nested free + VnzIs-flat → ∃ oldCount BridgePreIs. -/
+theorem teerAuthContentAppliedFlatVnzIs_nested_to_bridgePreIs
+    (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
+    (content listLenW s7Old cursorV endW s11 : Word)
+    (s : TeerSaved) (innerVal : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) :
+    ∀ h,
+      (stackFree spC 6 **
+        teerAuthContentAppliedFlatVnzIs spVal spC old1 loadPtr lenW balPtr balLenW
+          chainIdW content listLenW s7Old cursorV endW s11 s innerVal
+          regionBase bs balBytes) h →
+      ∃ oldCount,
+        teerAuthContentBridgePreIs spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+          content listLenW s7Old cursorV endW s11 s innerVal oldCount
+          regionBase bs balBytes h := by
+  intro h hp
+  obtain ⟨h1, h2, hd, hu, hnest, hflat⟩ := hp
+  obtain ⟨oldCount, hA⟩ :=
+    teerAuthContentAppliedFlatVnzIs_choose spVal spC old1 loadPtr lenW balPtr balLenW
+      chainIdW content listLenW s7Old cursorV endW s11 s innerVal
+      regionBase bs balBytes h2 hflat
+  refine ⟨oldCount, ?_⟩
+  have hpN :
+      (stackFree spC 6 **
+        ((.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ old1) **
+          (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+          (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+          (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+          (.x23 ↦ᵣ s7Old) **
+          (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+          (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) **
+          (.x27 ↦ᵣ s11) **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          stackFree spVal 6 **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+          (AuthCountAddr ↦ₘ oldCount) **
+          teerScratchZeroIs ** teerScratchRestWithoutAuthCountOwn)) h :=
+    ⟨h1, h2, hd, hu, hnest, hA⟩
+  dsimp only [teerAuthContentBridgePreIs] at hpN ⊢
+  xperm_hyp hpN
+
+#print axioms teerAuthContentRestWithoutVnz_to_authCount_rest
+#print axioms teerAuthContentAppliedFlatVnzIs_choose
+#print axioms teerAuthContentAppliedFlatVnzIs_nested_to_bridgePreIs
+
 #print axioms teerAuthContent_to_listCountPrest_nested_identity_is
 #print axioms teerBridgePre_to_AfterAuthLoopLi_empty_is
 
