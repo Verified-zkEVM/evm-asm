@@ -5279,6 +5279,121 @@ theorem teer_hdec_hbridge_short_list
 
 #print axioms teer_hdec_hbridge_short_list
 
+
+/-- Empty-string field package (`0x80`): hls/hll vacuous + hss room + hdec + bridge.
+    Residual thins to head byte + room/fit/hinb bounds. -/
+theorem teer_field_package_empty_string
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hfit : BitVec.ult (0 : Word)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1)) := by
+  have hss := teer_hss_room_of_byte_80 hoff hb hoff1 hover1 hvalid1
+  have ⟨hls, hll⟩ := teer_room_hls_hll_vacuous_of_byte_80 hoff hb
+  refine ⟨hss, hls, hll, teer_hdec_empty_short_string bs srcOff regionBase endPtr hoff hb hfit, ?_⟩
+  intro next len0 hdec
+  exact teer_hbridge_empty_short_string bs srcOff regionBase endPtr next len0
+    hoff hb hdec hover1
+
+#print axioms teer_field_package_empty_string
+
+/-- Addr20 field package (`0x94`): hls/hll vacuous + hss room + hdec + bridge next+21.
+    Residual thins to head byte + room/fit bounds. -/
+theorem teer_field_package_addr20
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hover21 : regionBase.toNat + (srcOff + 21) < 2 ^ 64)
+    (hfit : BitVec.ult (20 : Word)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 21)) := by
+  have hss : ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+    intro _ _
+    exact ⟨hoff1, hover1, hvalid1⟩
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    rw [hb]; decide
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]; decide
+  refine ⟨hss, teer_hls_vacuous_of_ult_b8 hoff hb8, teer_hll_vacuous_of_ult_f8 hoff hf8,
+    teer_hdec_addr20_short bs srcOff regionBase endPtr hoff hb hfit, ?_⟩
+  intro next len0 hdec
+  exact teer_hbridge_addr20_short bs srcOff regionBase endPtr next len0
+    hoff hb hdec hover21
+
+#print axioms teer_field_package_addr20
+
+/-- Single-byte field package (`b < 0x80`): all rooms vacuous + hdec + bridge. -/
+theorem teer_field_package_single_byte
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : (bs[srcOff]'hoff).toNat < 0x80)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hnoWrap : regionBase.toNat + (srcOff + 1) < 2 ^ 64) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1)) := by
+  have ⟨hssV, hls, hll⟩ := teer_room_vacuous_of_single_byte hoff hb
+  -- strengthen vacuous hss (→ True) to the packaging room shape via absurd ante
+  have hze : ((bs[srcOff]'hoff).zeroExtend 64).toNat = (bs[srcOff]'hoff).toNat :=
+    toNat_zeroExtend_byte _
+  have h80 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+    have h80n : (0x80 : Word).toNat = 0x80 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0x80 := by rw [hze]; exact hb
+      simpa [BitVec.lt_def, h80n] using this)
+  have hss :
+      ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+    intro hne _
+    exact (hne h80).elim
+  refine ⟨hss, hls, hll, ?_⟩
+  exact teer_hdec_hbridge_single_byte bs srcOff regionBase endPtr hoff hb hinb hnoWrap
+
+#print axioms teer_field_package_single_byte
+
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
     Fit: at least one byte remains to `endPtr`. -/
 theorem teer_rlpItemDecode_empty_list_c0
