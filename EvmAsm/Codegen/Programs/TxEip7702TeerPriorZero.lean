@@ -4,9 +4,10 @@
 
   Body: acct_absent load/BEQ; optional predelegated ADD on s10;
   20B authority==sender cmp; value_nonzero/recipient checks;
-  regular_refund += 2000; MV x7,x27 joins OR-zero setup.
-  Unproven mid residual packaged as TeerPriorZeroAssumed.
-  Fallthrough load already: teerPriorZeroFallthrough (Prior.lean).
+  regular_refund += 2000; join OrZero setup.
+
+  Filled path: absent=0 + auth==sender full match (teerPzLoop20).
+  Other arms (absent≠0, mismatch→value/refund) residual.
 -/
 
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopPrior
@@ -16,6 +17,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopField0
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.MemRegion
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
 
@@ -30,65 +32,94 @@ def RecipientLenAddrPz : Word := BitVec.ofNat 64 GuestAddrs.teer_recipient_len
 def SenderAddrPz : Word := BitVec.ofNat 64 GuestAddrs.bv_stx_sender_addr
 
 /-- Named hyp: prior==0 block AfterPriorBeqNtaken → AfterPriorJoin.
-    May update s10 (predelegated add) and regular_refund; posts x7=s11. -/
+    Match path: acct_absent=0, authority bytes = sender bytes (len 20).
+    s10 and regular_refund unchanged; x7 ends at AuthorityAddr+20. -/
 structure TeerPriorZeroAssumed (cr : CodeReq) where
   nSteps : Nat
-  run :
-    ∀ (s10Val s10New refund refundNew s11Val : Word),
+  run_authMatch :
+    ∀ (s10Val refund s11Val ghost6 : Word)
+      (authBytes senderBytes : List (BitVec 8)),
+      authBytes.length = 20 →
+      authBytes = senderBytes →
+      AuthorityAddr.toNat % 8 = 0 →
+      SenderAddrPz.toNat % 8 = 0 →
+      AuthorityAddr.toNat + 20 ≤ 2 ^ 64 →
+      SenderAddrPz.toNat + 20 ≤ 2 ^ 64 →
+      (∀ j, j < 20 →
+        isValidByteAccess (AuthorityAddr + BitVec.ofNat 64 j) = true) →
+      (∀ j, j < 20 →
+        isValidByteAccess (SenderAddrPz + BitVec.ofNat 64 j) = true) →
       cpsTripleWithin nSteps AfterPriorBeqNtaken AfterPriorJoin cr
         ((.x26 ↦ᵣ s10Val) ** (.x27 ↦ᵣ s11Val) **
           (.x0 ↦ᵣ (0 : Word)) **
+          (.x6 ↦ᵣ ghost6) **
           (RegularRefundAddr ↦ₘ refund) **
-          memOwn AcctAbsentAddrPz **
-          memOwn AuthorityAddr **
-          memOwn SenderAddrPz **
+          (AcctAbsentAddrPz ↦ₘ (0 : Word)) **
+          bytesRegion AuthorityAddr authBytes **
+          bytesRegion SenderAddrPz senderBytes **
           memOwn ValueNonzeroAddrPz **
           memOwn RecipientPtrAddrPz **
           memOwn RecipientLenAddrPz **
-          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x5 ** regOwn .x7 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
-        ((.x26 ↦ᵣ s10New) ** (.x27 ↦ᵣ s11Val) **
-          (.x7 ↦ᵣ s11Val) **
+        ((.x26 ↦ᵣ s10Val) ** (.x27 ↦ᵣ s11Val) **
           (.x0 ↦ᵣ (0 : Word)) **
-          (RegularRefundAddr ↦ₘ refundNew) **
-          memOwn AcctAbsentAddrPz **
-          memOwn AuthorityAddr **
-          memOwn SenderAddrPz **
+          (.x6 ↦ᵣ ghost6) **
+          (.x7 ↦ᵣ (AuthorityAddr + (20 : Word))) **
+          (.x28 ↦ᵣ (SenderAddrPz + (20 : Word))) **
+          (.x29 ↦ᵣ (0 : Word)) **
+          (RegularRefundAddr ↦ₘ refund) **
+          (AcctAbsentAddrPz ↦ₘ (0 : Word)) **
+          bytesRegion AuthorityAddr authBytes **
+          bytesRegion SenderAddrPz senderBytes **
           memOwn ValueNonzeroAddrPz **
           memOwn RecipientPtrAddrPz **
           memOwn RecipientLenAddrPz **
-          regOwn .x5 ** regOwn .x6 **
-          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+          regOwn .x5 ** regOwn .x30 ** regOwn .x31)
 
-theorem teerPriorZero_run
+theorem teerPriorZero_run_authMatch
     (asm : TeerPriorZeroAssumed teerLinkedField0)
-    (s10Val s10New refund refundNew s11Val : Word) :
+    (s10Val refund s11Val ghost6 : Word)
+    (authBytes senderBytes : List (BitVec 8))
+    (hlen : authBytes.length = 20) (heq : authBytes = senderBytes)
+    (halignA : AuthorityAddr.toNat % 8 = 0)
+    (halignS : SenderAddrPz.toNat % 8 = 0)
+    (hoverA : AuthorityAddr.toNat + 20 ≤ 2 ^ 64)
+    (hoverS : SenderAddrPz.toNat + 20 ≤ 2 ^ 64)
+    (hvalidA : ∀ j, j < 20 →
+      isValidByteAccess (AuthorityAddr + BitVec.ofNat 64 j) = true)
+    (hvalidS : ∀ j, j < 20 →
+      isValidByteAccess (SenderAddrPz + BitVec.ofNat 64 j) = true) :
     cpsTripleWithin asm.nSteps AfterPriorBeqNtaken AfterPriorJoin teerLinkedField0
       ((.x26 ↦ᵣ s10Val) ** (.x27 ↦ᵣ s11Val) **
         (.x0 ↦ᵣ (0 : Word)) **
+        (.x6 ↦ᵣ ghost6) **
         (RegularRefundAddr ↦ₘ refund) **
-        memOwn AcctAbsentAddrPz **
-        memOwn AuthorityAddr **
-        memOwn SenderAddrPz **
+        (AcctAbsentAddrPz ↦ₘ (0 : Word)) **
+        bytesRegion AuthorityAddr authBytes **
+        bytesRegion SenderAddrPz senderBytes **
         memOwn ValueNonzeroAddrPz **
         memOwn RecipientPtrAddrPz **
         memOwn RecipientLenAddrPz **
-        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x5 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
-      ((.x26 ↦ᵣ s10New) ** (.x27 ↦ᵣ s11Val) **
-        (.x7 ↦ᵣ s11Val) **
+      ((.x26 ↦ᵣ s10Val) ** (.x27 ↦ᵣ s11Val) **
         (.x0 ↦ᵣ (0 : Word)) **
-        (RegularRefundAddr ↦ₘ refundNew) **
-        memOwn AcctAbsentAddrPz **
-        memOwn AuthorityAddr **
-        memOwn SenderAddrPz **
+        (.x6 ↦ᵣ ghost6) **
+        (.x7 ↦ᵣ (AuthorityAddr + (20 : Word))) **
+        (.x28 ↦ᵣ (SenderAddrPz + (20 : Word))) **
+        (.x29 ↦ᵣ (0 : Word)) **
+        (RegularRefundAddr ↦ₘ refund) **
+        (AcctAbsentAddrPz ↦ₘ (0 : Word)) **
+        bytesRegion AuthorityAddr authBytes **
+        bytesRegion SenderAddrPz senderBytes **
         memOwn ValueNonzeroAddrPz **
         memOwn RecipientPtrAddrPz **
         memOwn RecipientLenAddrPz **
-        regOwn .x5 ** regOwn .x6 **
-        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) :=
-  asm.run s10Val s10New refund refundNew s11Val
+        regOwn .x5 ** regOwn .x30 ** regOwn .x31) :=
+  asm.run_authMatch s10Val refund s11Val ghost6 authBytes senderBytes
+    hlen heq halignA halignS hoverA hoverS hvalidA hvalidS
 
-#print axioms teerPriorZero_run
+#print axioms teerPriorZero_run_authMatch
 
 end EvmAsm.Codegen.TxEip7702TeerSpec

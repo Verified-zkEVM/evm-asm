@@ -682,4 +682,216 @@ theorem teerPzLoop20
 
 #print axioms teerPzLoop20
 
+/-! ## Setup: AfterPriorBeqNtaken → AfterLi20Pz (absent=0) -/
+
+abbrev AfterLaAcctPz : Word := E + 2192
+abbrev AfterLdAcctPz : Word := E + 2196
+abbrev AfterBeqAcctPz : Word := E + 2200
+abbrev AfterLaAuthPz : Word := E + 2220
+abbrev AfterLaSendPz : Word := E + 2228
+
+abbrev teerPzAcctBeqOff : BitVec 13 := (16 : BitVec 13)
+
+theorem teerPzAcctBeqOff_taken :
+    AfterLdAcctPz + signExtend13 teerPzAcctBeqOff = (E + 2212) := by
+  simp only [AfterLdAcctPz, teerPzAcctBeqOff, E]; decide
+
+private theorem se12_zero_pz : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+
+/-- `la x5, teer_acct_absent` AfterPriorBeqNtaken. -/
+theorem teerPzLaAcctAbsent (v : Word) :
+    cpsTripleWithin 2 AfterPriorBeqNtaken AfterLaAcctPz teerLinkedField0
+      (.x5 ↦ᵣ v) (.x5 ↦ᵣ AcctAbsentAddrPz) := by
+  have hau : ∀ a i, CodeReq.singleton AfterPriorBeqNtaken
+      (.AUIPC .x5 (Codegen.laHi GuestAddrs.teer_acct_absent
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E AfterPriorBeqNtaken teerProg 546
+        (.AUIPC .x5 (Codegen.laHi GuestAddrs.teer_acct_absent
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)))
+        (by simp only [AfterPriorBeqNtaken]; bv_omega)
+        (by rw [teer_length]; decide) rfl (by rw [teer_length]; decide) a i hi)
+  have had : ∀ a i, CodeReq.singleton (E + 2188)
+      (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.teer_acct_absent
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E (E + 2188) teerProg 547
+        (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.teer_acct_absent
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2184)))
+        (by bv_omega) (by rw [teer_length]; decide) rfl
+        (by rw [teer_length]; decide) a i hi)
+  have h := la_materialize_within .x5 v AfterPriorBeqNtaken AcctAbsentAddrPz
+    (by decide) (by decide) hau had
+  have hpc : (AfterPriorBeqNtaken : Word) + 8 = AfterLaAcctPz := by
+    simp only [AfterPriorBeqNtaken, AfterLaAcctPz]; bv_omega
+  rw [hpc] at h
+  exact h
+
+/-- `ld x28, 0(x5)` acct_absent. -/
+theorem teerPzLdAcctAbsent (absent t28Old : Word) :
+    cpsTripleWithin 1 AfterLaAcctPz AfterLdAcctPz teerLinkedField0
+      ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x28 ↦ᵣ t28Old) **
+        (AcctAbsentAddrPz ↦ₘ absent))
+      ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x28 ↦ᵣ absent) **
+        (AcctAbsentAddrPz ↦ₘ absent)) := by
+  have h0 := ld_spec_gen_within .x28 .x5 AcctAbsentAddrPz t28Old absent
+    (0 : BitVec 12) AfterLaAcctPz (by decide)
+  rw [show AcctAbsentAddrPz + signExtend12 (0 : BitVec 12) = AcctAbsentAddrPz from by
+    rw [se12_zero_pz]; exact BitVec.add_zero AcctAbsentAddrPz] at h0
+  have e0 := cpsTripleWithin_extend_code
+    (fun a i hi => teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E AfterLaAcctPz teerProg 548
+        (.LD .x28 .x5 (0 : BitVec 12))
+        (by simp only [AfterLaAcctPz]; bv_omega)
+        (by rw [teer_length]; decide) rfl (by rw [teer_length]; decide) a i hi)) h0
+  have hpc : AfterLaAcctPz + 4 = AfterLdAcctPz := by
+    simp only [AfterLaAcctPz, AfterLdAcctPz]; bv_omega
+  rw [hpc] at e0
+  exact e0
+
+/-- `beq x28, x0` taken (absent=0) → skip predelegated to la authority. -/
+theorem teerPzAcctBeqTaken_zero :
+    cpsTripleWithin 1 AfterLdAcctPz (E + 2212) teerLinkedField0
+      ((.x28 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x28 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := beq_spec_gen_within .x28 .x0 teerPzAcctBeqOff
+    (0 : Word) (0 : Word) AfterLdAcctPz
+  rw [teerPzAcctBeqOff_taken] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (fun a i hi => teerField0_mono_teer a i
+        (CodeReq.ofProg_mem_at E AfterLdAcctPz teerProg 549
+          (.BEQ .x28 .x0 teerPzAcctBeqOff)
+          (by simp only [AfterLdAcctPz]; bv_omega)
+          (by rw [teer_length]; decide) rfl
+          (by rw [teer_length]; decide) a i hi)) hbr)
+    (fun _ hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 rfl)
+
+/-- `la x7, teer_authority` at E+2212. -/
+theorem teerPzLaAuth (v : Word) :
+    cpsTripleWithin 2 (E + 2212) AfterLaAuthPz teerLinkedField0
+      (.x7 ↦ᵣ v) (.x7 ↦ᵣ AuthorityAddr) := by
+  have hau : ∀ a i, CodeReq.singleton (E + 2212)
+      (.AUIPC .x7 (Codegen.laHi GuestAddrs.teer_authority
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E (E + 2212) teerProg 553
+        (.AUIPC .x7 (Codegen.laHi GuestAddrs.teer_authority
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)))
+        (by bv_omega) (by rw [teer_length]; decide) rfl
+        (by rw [teer_length]; decide) a i hi)
+  have had : ∀ a i, CodeReq.singleton (E + 2216)
+      (.ADDI .x7 .x7 (Codegen.laLo GuestAddrs.teer_authority
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E (E + 2216) teerProg 554
+        (.ADDI .x7 .x7 (Codegen.laLo GuestAddrs.teer_authority
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2212)))
+        (by bv_omega) (by rw [teer_length]; decide) rfl
+        (by rw [teer_length]; decide) a i hi)
+  have h := la_materialize_within .x7 v (E + 2212) AuthorityAddr
+    (by decide) (by decide) hau had
+  have hpc : ((E + 2212 : Word) + 8) = AfterLaAuthPz := by
+    simp only [AfterLaAuthPz, E]; bv_omega
+  rw [hpc] at h
+  exact h
+
+/-- `la x28, bv_stx_sender_addr` AfterLaAuthPz. -/
+theorem teerPzLaSender (v : Word) :
+    cpsTripleWithin 2 AfterLaAuthPz AfterLaSendPz teerLinkedField0
+      (.x28 ↦ᵣ v) (.x28 ↦ᵣ SenderAddrPz) := by
+  have hau : ∀ a i, CodeReq.singleton AfterLaAuthPz
+      (.AUIPC .x28 (Codegen.laHi GuestAddrs.bv_stx_sender_addr
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E AfterLaAuthPz teerProg 555
+        (.AUIPC .x28 (Codegen.laHi GuestAddrs.bv_stx_sender_addr
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)))
+        (by simp only [AfterLaAuthPz]; bv_omega)
+        (by rw [teer_length]; decide) rfl (by rw [teer_length]; decide) a i hi)
+  have had : ∀ a i, CodeReq.singleton (E + 2224)
+      (.ADDI .x28 .x28 (Codegen.laLo GuestAddrs.bv_stx_sender_addr
+        (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)))
+        a = some i → teerLinkedField0 a = some i := fun a i hi =>
+    teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E (E + 2224) teerProg 556
+        (.ADDI .x28 .x28 (Codegen.laLo GuestAddrs.bv_stx_sender_addr
+          (GuestAddrs.tx_eip7702_existing_authority_refund + 2220)))
+        (by bv_omega) (by rw [teer_length]; decide) rfl
+        (by rw [teer_length]; decide) a i hi)
+  have h := la_materialize_within .x28 v AfterLaAuthPz SenderAddrPz
+    (by decide) (by decide) hau had
+  have hpc : (AfterLaAuthPz : Word) + 8 = AfterLaSendPz := by
+    simp only [AfterLaAuthPz, AfterLaSendPz]; bv_omega
+  rw [hpc] at h
+  exact h
+
+/-- `li x29, 20` AfterLaSendPz → AfterLi20Pz. -/
+theorem teerPzLi20 (vOld : Word) :
+    cpsTripleWithin 1 AfterLaSendPz AfterLi20Pz teerLinkedField0
+      (.x29 ↦ᵣ vOld) (.x29 ↦ᵣ (20 : Word)) := by
+  have h0 := li_spec_gen_within .x29 vOld (20 : Word) AfterLaSendPz (by decide)
+  have h1 := cpsTripleWithin_extend_code
+    (fun a i hi => teerField0_mono_teer a i
+      (CodeReq.ofProg_mem_at E AfterLaSendPz teerProg 557
+        (.LI .x29 (20 : Word)) (by simp only [AfterLaSendPz]; bv_omega)
+        (by rw [teer_length]; decide) rfl (by rw [teer_length]; decide) a i hi)) h0
+  have hpc : (AfterLaSendPz + 4 : Word) = AfterLi20Pz := by
+    simp only [AfterLaSendPz, AfterLi20Pz]; bv_omega
+  rw [hpc] at h1
+  exact h1
+
+/-- Setup absent=0: AfterPriorBeqNtaken → AfterLi20Pz (9 steps). -/
+theorem teerPzSetupAbsent0
+    (v5 v7 v28 v29 absentGhost : Word)
+    (habs : absentGhost = (0 : Word)) :
+    cpsTripleWithin 9 AfterPriorBeqNtaken AfterLi20Pz teerLinkedField0
+      ((.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+        (.x0 ↦ᵣ (0 : Word)) ** (AcctAbsentAddrPz ↦ₘ absentGhost))
+      ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x7 ↦ᵣ AuthorityAddr) **
+        (.x28 ↦ᵣ SenderAddrPz) ** (.x29 ↦ᵣ (20 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (AcctAbsentAddrPz ↦ₘ (0 : Word))) := by
+  subst habs
+  have hla := teerPzLaAcctAbsent v5
+  have hlaF := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+      (.x0 ↦ᵣ (0 : Word)) ** (AcctAbsentAddrPz ↦ₘ (0 : Word))) (by pcf) hla
+  have hld := teerPzLdAcctAbsent (0 : Word) v28
+  have hldF := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ v7) ** (.x29 ↦ᵣ v29) ** (.x0 ↦ᵣ (0 : Word))) (by pcf) hld
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaF hldF
+  have hbq := teerPzAcctBeqTaken_zero
+  have hbqF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x7 ↦ᵣ v7) ** (.x29 ↦ᵣ v29) **
+      (AcctAbsentAddrPz ↦ₘ (0 : Word))) (by pcf) hbq
+  have c12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hbqF
+  have hauth := teerPzLaAuth v7
+  have hauthF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x28 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ v29) **
+      (.x0 ↦ᵣ (0 : Word)) ** (AcctAbsentAddrPz ↦ₘ (0 : Word))) (by pcf) hauth
+  have c23 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c12 hauthF
+  have hsend := teerPzLaSender (0 : Word)
+  have hsendF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x7 ↦ᵣ AuthorityAddr) ** (.x29 ↦ᵣ v29) **
+      (.x0 ↦ᵣ (0 : Word)) ** (AcctAbsentAddrPz ↦ₘ (0 : Word))) (by pcf) hsend
+  have c34 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c23 hsendF
+  have hli := teerPzLi20 v29
+  have hliF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ AcctAbsentAddrPz) ** (.x7 ↦ᵣ AuthorityAddr) **
+      (.x28 ↦ᵣ SenderAddrPz) ** (.x0 ↦ᵣ (0 : Word)) **
+      (AcctAbsentAddrPz ↦ₘ (0 : Word))) (by pcf) hli
+  have c45 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c34 hliF
+  exact cpsTripleWithin_mono_nSteps (by decide : (2 + 1 + 1 + 2 + 2 + 1 : Nat) ≤ 9)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) c45)
+
+#print axioms teerPzSetupAbsent0
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
