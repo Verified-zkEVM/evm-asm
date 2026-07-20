@@ -669,21 +669,21 @@ def teerAssumed_empty_applied_flat_zero
 /-- Honest residual ledger for empty-auth TeerAssumed stitch (documentation).
     Each conjunct is a remaining named hyp / multi-session body. -/
 def teerEmptyAuthResidualLedger : Prop :=
-  -- 1. FrontToAuthLoopAssumed free20 inhabit (or Free26 ExitPack path).
-  --    Free26EmptyShort packaging DONE under hrunA+rz (of_hrunA / of_hrunA_applied) and under hrunA Is (of_hrunA_is / of_hrunA_is_applied, hrolled0 FREE);
+  -- 1. Free26EmptyShort packaging COMPLETE under residual hrunA:
+  --    of_hrunA_is / toRet / applied_flat_is_zero (hrolled0 FREE on Is path);
   --    EmptyShort → ret / applied_flat free20**nested DONE; hteer0 free via teerApplied_zero.
+  --    free20 FrontToAuthLoopAssumed still residual (nested free6 gap vs free26 honest).
   True ∧
-  -- 2. TeerRolledZeroAssumed inhabit (hrolled0; free when RolledBack ↦ₘ 0 held).
-  --    Foundation: teerScratchZero_is + FrontEarly teerPrologueScratchBal_applied_is
-  --    (E→AfterBalCheck posts ZeroIs**RestOwn); residual thread Is through FrontType..Ambient
-  --    ambient (memOwn rolled → ↦ₘ 0) multi-session.
+  -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs carries RolledBack ↦ₘ 0).
+  --    Own path still residual if not using Is.
   True ∧
-  -- 3. TeerEmptyAuthHrunEmptyShort inhabit (wire applied_as_postEx @ srcOffA9=0;
-  --    ~200 walk-domain binders; hident FREE via 0xc0 decode; do not clone into packaging)
+  -- 3. TeerEmptyAuthHrunEmptyShortIs inhabit MULTI-SESSION:
+  --    wire teerAuthContent_applied_as_postEx_is with srcOffA9=0
+  --    (~200 walk-domain binders; hident FREE via 0xc0 decode; do NOT clone into packaging)
   True ∧
   -- 4. Domain empty-short fixture on Free26EmptyShort.run (align/slack/valid/bs[0]=0xc0)
   True ∧
-  -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path)
+  -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
   True ∧
   -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…)
   True ∧
