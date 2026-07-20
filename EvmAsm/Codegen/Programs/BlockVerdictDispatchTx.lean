@@ -482,6 +482,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
   "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
+  -- An authenticated absent account has the empty storage trie, so every
+  -- requested slot has the same zero pre-state value as an absent slot.
+  -- Keep parse/decode failures below as conservative unsupported exits.
+  "  li t2, 1; beq a0, t2, .Ldtrc_vzero\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_storage_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
