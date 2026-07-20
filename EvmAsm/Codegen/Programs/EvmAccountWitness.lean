@@ -21,22 +21,21 @@ namespace EvmAsm.Codegen
 
 /-- Copy an EVM stack address word into natural 20-byte address order.
 
-    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
-    helpers expect the big-endian byte string whose keccak selects the account
-    path. `x12` is the EVM stack pointer and `t1` points at
+    Stack bytes 0..19 hold the low 160-bit address in the guest's canonical
+    big-endian byte order; trie and same-transaction code-effect lookups use
+    that same order. `x12` is the EVM stack pointer and `t1` points at
     `eahsr_address_scratch`. -/
 private def extcodehashWitnessAddressCopy : String :=
   String.intercalate "" <|
     (List.range 20).map fun i =>
-      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+      s!"  lbu t2, {i}(x12)\n  sb t2, {i}(t1)\n"
 
 /-- Raw dispatcher handler for EXTCODEHASH backed by
     `extcodehash_at_header_state_root`.
 
-    The EVM stack word stores the low 160-bit address little-endian; the
-    helper expects the natural 20-byte address order used for
-    `keccak(address)`, so the handler first reverses bytes 0..19 into
-    `eahsr_address_scratch`. Net stack delta is zero: the address word is
+    The EVM stack word and the helper both use the natural 20-byte address
+    order used for `keccak(address)`, so the handler copies bytes 0..19 into
+    `eahsr_address_scratch` unchanged. Net stack delta is zero: the address word is
     overwritten with the 32-byte EIP-1052 result. -/
 private def extcodehashWitnessTail : HandlerTail :=
   .custom <|
