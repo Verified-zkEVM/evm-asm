@@ -261,6 +261,120 @@ theorem teerListCountAuthLoop_framed
       baiW s balBytes innerVal cursorV endW s11)
     hpcf hcore
 
+theorem teerListCountAuthLoop_framed_is
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (spVal spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 countW : Word)
+    (bytes : List (BitVec 8)) (listLen count listOff : Nat)
+    (old1 s7Old v24 : Word)
+    (hoff : listOff < bytes.length)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hcountW : countW = BitVec.ofNat 64 count)
+    (hcount : count < 2 ^ 64)
+    (hsuccess : Success bytes listBase listLen count)
+    (hspe : ListCountResultSpecialize bytes listBase listLen count countW)
+    (hout : outPtr = AuthCountAddr)
+    (hlen : listLenW ≠ (0 : Word))
+    (hoverOff : listBase.toNat + listOff < 2 ^ 64)
+    (hvalidOff : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (h_ge : ¬ BitVec.ult ((bytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (listBase + BitVec.ofNat 64 listOff) +
+        (((bytes[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 listOff) + listLenW) :
+    cpsTripleWithin (nListCountAuthLoopStart listLen) AtListCount AfterAuthLoopLi
+      teerLinkedCount
+      (((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+          (.x24 ↦ᵣ v24) **
+          (.x21 ↦ᵣ listBase + BitVec.ofNat 64 listOff) **
+          (.x22 ↦ᵣ listLenW) **
+          teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
+            bytes) **
+        teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11)
+      ((teerListCountAuthLoopPost spC listBase outPtr s0 s1 s2 s3 countW bytes
+          listOff listLenW) **
+        teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11) := by
+  have hcore := asm.run spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3
+    countW bytes listLen count listOff old1 s7Old v24 hoff
+    hlistLenW hsalign hslack hover hvalid hnewSp hret hcountW hcount hsuccess hspe
+    hout hlen hoverOff hvalidOff h_ge h_hi h_exact
+  have hpcf := pcFree_teerListCountAuthLoopAmbientIs spVal spC balPtr
+    chainIdW baiW s balBytes innerVal cursorV endW s11
+  exact cpsTripleWithin_frameR
+    (teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+      baiW s balBytes innerVal cursorV endW s11)
+    hpcf hcore
+
+
+/-- Empty-auth framed under AmbientIs (ZeroIs preserved; free hrolled0). -/
+theorem teerListCountAuthLoop_framed_empty_is
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (spVal spC newSp listBase listLenW outPtr oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (old1 s7Old v24 : Word)
+    (hoff : (0 : Nat) < bytes.length)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hsuccess : Success bytes listBase listLen 0)
+    (hspe : ListCountResultSpecialize bytes listBase listLen 0 (0 : Word))
+    (hout : outPtr = AuthCountAddr)
+    (hlen : listLenW ≠ (0 : Word))
+    (hoverOff : listBase.toNat + 0 < 2 ^ 64)
+    (hvalidOff : isValidByteAccess (listBase + BitVec.ofNat 64 0) = true)
+    (h_ge : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (listBase + BitVec.ofNat 64 0) +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 0) + listLenW) :
+    cpsTripleWithin (nListCountAuthLoopStart listLen) AtListCount AfterAuthLoopLi
+      teerLinkedCount
+      (((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+          (.x24 ↦ᵣ v24) **
+          (.x21 ↦ᵣ listBase) **
+          (.x22 ↦ᵣ listLenW) **
+          teerListCountCalleeP spC listBase listLenW outPtr oldCount s0 s1 s2 s3
+            bytes) **
+        teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11)
+      ((teerListCountAuthLoopPost spC listBase outPtr s0 s1 s2 s3 (0 : Word) bytes
+          0 listLenW) **
+        teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11) := by
+  have hbase :
+      listBase + BitVec.ofNat 64 0 = listBase := by
+    apply BitVec.eq_of_toNat_eq
+    simp
+  simpa [hbase] using
+    teerListCountAuthLoop_framed_is asm spVal spC newSp listBase listLenW outPtr
+      oldCount s0 s1 s2 s3 (0 : Word) bytes listLen 0 0 old1 s7Old v24 hoff
+      balPtr chainIdW baiW s balBytes
+      innerVal cursorV endW s11 hlistLenW hsalign hslack hover hvalid hnewSp hret
+      (rfl : (0 : Word) = BitVec.ofNat 64 0) (by omega : (0 : Nat) < 2 ^ 64)
+      hsuccess hspe hout hlen hoverOff hvalidOff h_ge h_hi h_exact
+
+
 /-- Empty-auth specialization: count=0, listOff=0 (content setup). -/
 theorem teerListCountAuthLoop_framed_empty
     (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
@@ -588,6 +702,144 @@ def teerAuthContentBridgePre
       memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
       memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
       (AuthCountAddr ↦ₘ oldCount) ** teerScratchWithoutAuthCountOwn)
+
+/-- BridgePre with ZeroIs (free hrolled0 mid-segment). -/
+def teerAuthContentBridgePreIs
+    (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
+    (content listLenW s7Old cursorV endW s11 : Word)
+    (s : TeerSaved) (innerVal oldCount : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) : Assertion :=
+  stackFree spC 6 **
+    ((.x2 ↦ᵣ spC) **
+      (.x1 ↦ᵣ old1) **
+      (.x8 ↦ᵣ loadPtr) ** (.x9 ↦ᵣ lenW) **
+      (.x18 ↦ᵣ balPtr) ** (.x19 ↦ᵣ balLenW) ** (.x20 ↦ᵣ chainIdW) **
+      (.x21 ↦ᵣ content) ** (.x22 ↦ᵣ listLenW) **
+      (.x23 ↦ᵣ s7Old) **
+      (.x10 ↦ᵣ content) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ AuthCountAddr) **
+      (.x24 ↦ᵣ cursorV) ** (.x25 ↦ᵣ endW) **
+      (.x26 ↦ᵣ (0 : Word)) **
+      (.x27 ↦ᵣ s11) **
+      frameSlotsSaved teerFrame spC (teerSavedVals s) **
+      (.x0 ↦ᵣ (0 : Word)) **
+      (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+      (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      stackFree spVal 6 **
+      bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+      memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+      (AuthCountAddr ↦ₘ oldCount) **
+      teerScratchZeroIs ** teerScratchRestWithoutAuthCountOwn)
+
+/-- Assumed prest under AmbientIs. -/
+def teerAuthContentBridgePostIs
+    (spVal spC listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) : Assertion :=
+  ((.x1 ↦ᵣ old1) ** (.x23 ↦ᵣ s7Old) **
+      (.x24 ↦ᵣ v24) **
+      (.x21 ↦ᵣ listBase) **
+      (.x22 ↦ᵣ listLenW) **
+      teerListCountCalleeP spC listBase listLenW AuthCountAddr oldCount s0 s1 s2 s3
+        bytes) **
+    teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+      baiW s balBytes innerVal cursorV endW s11
+
+theorem teerAuthContent_to_listCountPrest_nested_identity_is
+    (spVal spC listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 loadPtr lenW balLenW : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (content : Word)
+    (hbase : listBase = regionBase)
+    (hbytes : bytes = bs)
+    (hcontent : content = listBase)
+    (hs0 : s0 = loadPtr) (hs1 : s1 = lenW) (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hv24 : v24 = cursorV) :
+    ∀ h,
+      teerAuthContentBridgePreIs spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+        content listLenW s7Old cursorV endW s11 s innerVal oldCount
+        regionBase bs balBytes h →
+      teerAuthContentBridgePostIs spVal spC listBase listLenW oldCount s0 s1 s2 s3
+        bytes old1 s7Old v24 balPtr chainIdW baiW s balBytes
+        innerVal cursorV endW s11 h := by
+  intro h hp
+  subst hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24
+  dsimp only [teerAuthContentBridgePreIs, teerAuthContentBridgePostIs,
+    teerListCountCalleeP, entryRest, teerListCountAuthLoopAmbientIs,
+    teerScratchZeroIs, teerScratchRestWithoutAuthCountOwn,
+    RegularRefundAddr, SuccessCountAddr, PredelegatedAddr, RolledBackAddr,
+    AuthCountAddr] at hp ⊢
+  xperm_hyp hp
+
+theorem teerBridgePre_to_AfterAuthLoopLi_empty_is
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (spVal spC newSp listBase listLenW oldCount s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8)) (listLen : Nat)
+    (old1 s7Old v24 : Word)
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 loadPtr lenW balLenW : Word)
+    (regionBase : Word) (bs : List (BitVec 8))
+    (content : Word)
+    (hoff : (0 : Nat) < bytes.length)
+    (hbase : listBase = regionBase)
+    (hbytes : bytes = bs)
+    (hcontent : content = listBase)
+    (hs0 : s0 = loadPtr) (hs1 : s1 = lenW) (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hv24 : v24 = cursorV)
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnewSp : newSp = spC + signExtend12 (-48 : BitVec 12))
+    (hret : (LinkListCount &&& ~~~(1 : Word)) = LinkListCount)
+    (hsuccess : Success bytes listBase listLen 0)
+    (hspe : ListCountResultSpecialize bytes listBase listLen 0 (0 : Word))
+    (hlen : listLenW ≠ (0 : Word))
+    (hoverOff : listBase.toNat + 0 < 2 ^ 64)
+    (hvalidOff : isValidByteAccess (listBase + BitVec.ofNat 64 0) = true)
+    (h_ge : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (listBase + BitVec.ofNat 64 0) +
+        (((bytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
+          signExtend12 (1 : BitVec 12)) =
+      (listBase + BitVec.ofNat 64 0) + listLenW) :
+    cpsTripleWithin (nListCountAuthLoopStart listLen) AtListCount AfterAuthLoopLi
+      teerLinkedCount
+      (teerAuthContentBridgePreIs spVal spC old1 loadPtr lenW balPtr balLenW chainIdW
+        content listLenW s7Old cursorV endW s11 s innerVal oldCount
+        regionBase bs balBytes)
+      ((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3 (0 : Word)
+          bytes 0 listLenW) **
+        teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+          baiW s balBytes innerVal cursorV endW s11) := by
+  have hrun :=
+    teerListCountAuthLoop_framed_empty_is asm spVal spC newSp listBase listLenW
+      AuthCountAddr oldCount s0 s1 s2 s3 bytes listLen old1 s7Old v24 hoff
+      balPtr chainIdW baiW s balBytes innerVal cursorV endW s11
+      hlistLenW hsalign hslack hover hvalid hnewSp hret hsuccess hspe
+      (rfl : AuthCountAddr = AuthCountAddr) hlen hoverOff hvalidOff h_ge h_hi h_exact
+  exact cpsTripleWithin_weaken
+    (fun _ hp =>
+      teerAuthContent_to_listCountPrest_nested_identity_is
+        spVal spC listBase listLenW oldCount s0 s1 s2 s3 bytes
+        old1 s7Old v24 balPtr chainIdW baiW s balBytes
+        innerVal cursorV endW s11 loadPtr lenW balLenW regionBase bs content
+        hbase hbytes hcontent hs0 hs1 hs2 hs3 hv24 _ hp)
+    (fun _ hq => hq) hrun
 
 theorem teerAuthContentAppliedFlat_nested_to_bridgePre
     (spVal spC old1 loadPtr lenW balPtr balLenW chainIdW : Word)
@@ -965,5 +1217,11 @@ theorem teerAuthContentAppliedFlatVnz_nested_to_bridgePre
 
 #print axioms teerScratchWithoutAuthCount_of_zeroIs_rest
 #print axioms teerListCountAuthLoopAmbientIs_to_own
+
+#print axioms teerListCountAuthLoop_framed_is
+#print axioms teerListCountAuthLoop_framed_empty_is
+
+#print axioms teerAuthContent_to_listCountPrest_nested_identity_is
+#print axioms teerBridgePre_to_AfterAuthLoopLi_empty_is
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
