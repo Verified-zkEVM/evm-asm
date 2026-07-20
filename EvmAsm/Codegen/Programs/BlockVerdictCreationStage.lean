@@ -329,6 +329,13 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
   "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
   ".Lbvcr_stage_address_done:\n" ++
+  -- `process_create_message` credits the newly-created account with tx.value
+  -- before initcode executes.  The common payload stager has already copied
+  -- that value to CALLVALUE@+96, but its generic account lookup leaves this
+  -- fresh CREATE address's SELFBALANCE@+32 at zero.  Seed the frame's live
+  -- self balance from the same context value (both use LE EVM-word layout),
+  -- so SELFDESTRUCT and SELFBALANCE observe the account state the spec uses.
+  "  ld t2, 96(s0); sd t2, 32(t1); ld t2, 104(s0); sd t2, 40(t1); ld t2, 112(s0); sd t2, 48(t1); ld t2, 120(s0); sd t2, 56(t1)\n" ++
   -- A transaction-level CREATE enters initcode in the freshly-created account,
   -- just like `process_create_message`: mark depth zero as a CREATE frame and
   -- publish its address/nonce before the dispatcher starts.  The runtime uses
