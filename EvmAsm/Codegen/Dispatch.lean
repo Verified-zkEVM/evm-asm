@@ -2606,6 +2606,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
   "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+  -- `calculate_intrinsic_cost` includes the EIP-7708 synthetic Transfer-log
+  -- cost in a value-carrying CREATE's recipient_regular_gas.  This is part of
+  -- base_regular_gas, so it must feed both the regular intrinsic and the
+  -- calldata floor before the latter is persisted below.
+  "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
+  "  ld x9, 112(x20); or x8, x8, x9\n" ++
+  "  ld x9, 120(x20); or x8, x8, x9\n" ++
+  "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
+  "  li x8, 1756\n" ++             -- TRANSFER_LOG_COST
+  "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++
+  "  j .runtime_tx_gas_recipient_done\n" ++
   ".runtime_tx_gas_no_create:\n" ++
   -- EIP-2780 decomposes the non-create recipient/value components out of the
   -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self

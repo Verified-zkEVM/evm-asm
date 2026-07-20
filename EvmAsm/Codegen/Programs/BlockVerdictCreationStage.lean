@@ -372,17 +372,6 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
   ".Lbvcr_create_address_copy_done:\n" ++
   "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  -- EIP-7708's synthetic Transfer log is part of the top-level create message
-  -- whenever it carries value.  The generic transaction intrinsic helper
-  -- charges its 1756 regular gas (LOG3: base + three topics + 32-byte data),
-  -- but this creation substrate bypasses that helper and stages the log here.
-  -- Put the matching charge in the dispatcher's pre-frame regular-gas cell so
-  -- it is applied before execution and therefore has ordinary OOG semantics.
-  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; beqz t1, .Lbvcr_tl7708_gas_zero; li t1, 1756; sd t1, 0(t0); j .Lbvcr_tl7708_gas_done\n" ++
-  ".Lbvcr_tl7708_gas_zero:\n" ++
-  "  sd zero, 0(t0)\n" ++
-  ".Lbvcr_tl7708_gas_done:\n" ++
   "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
   -- Retain only the depth-zero RETURN in a distinct EIP-170-sized fixed
   -- buffer.  Its status distinguishes STOP (0), captured RETURN (1), and an
