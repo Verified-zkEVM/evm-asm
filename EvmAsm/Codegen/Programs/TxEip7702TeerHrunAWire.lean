@@ -15,6 +15,7 @@ import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Codegen.Programs.TxExtractToAddressHonesty
 import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
@@ -26,6 +27,8 @@ open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 open EvmAsm.Codegen.TxTypeDispatchSpec
   (teerTxTypeDispatch txSlice loadPtr_add_rel_eq)
+open EvmAsm.Codegen.TxExtractToAddressHonesty (rlpItemDecode_single_byte)
+open EvmAsm.Rv64.SAsm (toNat_zeroExtend_byte)
 
 set_option maxRecDepth 8000
 
@@ -4596,6 +4599,63 @@ theorem teer_ret_aligned_of (ret : Word)
     (h : (ret &&& ~~~(1 : Word)) = ret) : teer_ret_aligned ret := h
 
 #print axioms teer_ret_aligned_of
+
+/-- Concrete teer entry PC is 2-aligned (`0x8002d3b4`). -/
+theorem teer_ret_aligned_E : teer_ret_aligned E := by
+  decide
+
+#print axioms teer_ret_aligned_E
+
+/-- List-count link PC is 2-aligned (`E+680`). -/
+theorem teer_ret_aligned_LinkListCount : teer_ret_aligned LinkListCount := by
+  decide
+
+#print axioms teer_ret_aligned_LinkListCount
+
+/-- Single-byte head (`toNat < 0x80`) ⇒ all three room hyps vacuous. -/
+theorem teer_room_vacuous_of_single_byte
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (hb : (bs[srcOff]'hoff).toNat < 0x80) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) := by
+  have hze : ((bs[srcOff]'hoff).zeroExtend 64).toNat = (bs[srcOff]'hoff).toNat :=
+    toNat_zeroExtend_byte _
+  have h80 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+    have h80n : (0x80 : Word).toNat = 0x80 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0x80 := by rw [hze]; exact hb
+      simpa [BitVec.lt_def, h80n] using this)
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    have hb8n : (0xb8 : Word).toNat = 0xb8 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xb8 := by rw [hze]; omega
+      simpa [BitVec.lt_def, hb8n] using this)
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    have hf8n : (0xf8 : Word).toNat = 0xf8 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xf8 := by rw [hze]; omega
+      simpa [BitVec.lt_def, hf8n] using this)
+  refine ⟨teer_hss_vacuous_of_ult_80 hoff h80, teer_hls_vacuous_of_ult_b8 hoff hb8,
+    teer_hll_vacuous_of_ult_f8 hoff hf8⟩
+
+#print axioms teer_room_vacuous_of_single_byte
+
+/-- Single-byte RLP head + `hinb` ⇒ `hdec` free (`rlpItemDecode_single_byte`). -/
+theorem teer_hdec_single_byte
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : (bs[srcOff]'hoff).toNat < 0x80)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true) :
+    ∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 :=
+  ⟨_, _, rlpItemDecode_single_byte bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr hoff hb hinb⟩
+
+#print axioms teer_hdec_single_byte
+
 
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
     Fit: at least one byte remains to `endPtr`. -/
