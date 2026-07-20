@@ -341,8 +341,9 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- publish its address/nonce before the dispatcher starts.  The runtime uses
   -- this marker for EIP-6780 SELFDESTRUCT-to-self accounting; without it an
   -- initcode SELFDESTRUCT treats its own just-created account as pre-existing.
-  -- Keep the depth-zero metadata in the same form as `create_frame_descend` so
-  -- nested CREATEs see their creator's nonce one rather than pre-state zero.
+  -- Keep the depth-zero metadata in the same form as `create_frame_descend`.
+  -- The nonce-table seed itself must happen after runtime_dispatcher_call's
+  -- per-transaction reset; the callable dispatcher performs that guarded seed.
   "  la t0, create_frame_flag; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, create_address_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  la t1, bv_create_addr; li t2, 0\n" ++
@@ -351,7 +352,6 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
   ".Lbvcr_create_address_copy_done:\n" ++
   "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
   -- EIP-7708's synthetic Transfer log is part of the top-level create message
   -- whenever it carries value.  The generic transaction intrinsic helper
   -- charges its 1756 regular gas (LOG3: base + three topics + 32-byte data),
