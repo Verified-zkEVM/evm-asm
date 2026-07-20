@@ -131,6 +131,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerFrontListCount
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontListCountCompose
 import EvmAsm.Codegen.Programs.TxEip7702TeerAuthLoopEmptyExit
 import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthContentHrun
+import EvmAsm.Codegen.Programs.TxEip7702TeerHrunAWire
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue

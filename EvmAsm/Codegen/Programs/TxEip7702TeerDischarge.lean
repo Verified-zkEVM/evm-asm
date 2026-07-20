@@ -677,9 +677,9 @@ def teerEmptyAuthResidualLedger : Prop :=
   -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs carries RolledBack ↦ₘ 0).
   --    Own path still residual if not using Is.
   True ∧
-  -- 3. TeerEmptyAuthHrunEmptyShortIs inhabit MULTI-SESSION:
-  --    wire teerAuthContent_applied_as_postEx_is with srcOffA9=0
-  --    (~200 walk-domain binders; hident FREE via 0xc0 decode; do NOT clone into packaging)
+  -- 3. hrunA wire DONE: teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short
+  --    (TxEip7702TeerHrunAWire; applied@srcOffA9=0→ExitPack). Residual ABI wire
+  --    (s0=loadPtr…) + domain fixture on empty-short; structure forall still packaging.
   True ∧
   -- 4. Domain empty-short fixture on Free26EmptyShort.run (align/slack/valid/bs[0]=0xc0)
   True ∧
