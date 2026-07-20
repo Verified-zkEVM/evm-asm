@@ -498,12 +498,42 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, 96\n" ++
   "  j .L_selfdestruct_eip7708_have_balance\n" ++
   ".L_selfdestruct_eip7708_created:\n" ++
-  -- A same-tx-created SELFDESTRUCT moves the current child frame balance. Reading the
-  -- non-storage-effect log here can pick up stale aggregate post-balances from earlier
-  -- CREATE bookkeeping, so use the live env selfBalance directly.
+  -- A same-tx-created SELFDESTRUCT moves the current child's live balance. Prefer the
+  -- most-recent non-storage effect: this includes a non-zero CREATE endowment and any
+  -- later value credit. A zero-endowment CREATE may nevertheless target a PRE-FUNDED
+  -- address which is absent from the final BAL (the account is deleted at tx end), so
+  -- its balance is not in the callee table and env+32 remains zero. On a live-log miss,
+  -- read that authenticated block-pre balance from the header-state witness before the
+  -- conservative env fallback. This matches Amsterdam selfdestruct's
+  -- get_account(tx_state, current_target).balance at the transfer point.
+  "  addi sp, sp, -160\n  sd x10, 144(sp)\n  sd x12, 152(sp)\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, sdai_origin_address; mv t1, sp; li t2, 20\n" ++
+  ".L_sd7708_created_key:\n" ++
+  "  beqz t2, .L_sd7708_created_live\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sd7708_created_key\n" ++
+  ".L_sd7708_created_live:\n" ++
+  "  mv a0, sp; la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  bnez a0, .L_sd7708_created_have_live\n" ++
+  -- Account struct at sp+32: nonce@0, balance@8..40 BE, storage root, code hash.
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, sdai_origin_address; li a3, 20\n" ++
+  "  ld a4, 592(x20); ld a5, 600(x20); addi a6, sp, 32\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .L_sd7708_created_env\n" ++
+  "  ld t0, 40(sp); la t1, evm_selfdestruct_balance_scratch; sd t0, 0(t1)\n" ++
+  "  ld t0, 48(sp); sd t0, 8(t1); ld t0, 56(sp); sd t0, 16(t1); ld t0, 64(sp); sd t0, 24(t1)\n" ++
+  "  j .L_sd7708_created_restore\n" ++
+  ".L_sd7708_created_have_live:\n" ++
+  "  j .L_sd7708_created_restore\n" ++
+  ".L_sd7708_created_env:\n" ++
+  -- The header lookup can legitimately miss for a freshly-created address; preserve
+  -- the existing frame-local fallback for that case.
   "  la t0, evm_selfdestruct_balance_scratch; addi t1, x20, 63; li t2, 32\n" ++
   ".L_sd7708_envbal_rev:\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_envbal_rev\n" ++
+  ".L_sd7708_created_restore:\n" ++
+  "  ld x10, 144(sp); ld x12, 152(sp); addi sp, sp, 160\n" ++
   ".L_selfdestruct_eip7708_have_balance:\n" ++
   "  la t0, evm_selfdestruct_balance_scratch\n" ++
   "  addi t1, t0, 31\n" ++
