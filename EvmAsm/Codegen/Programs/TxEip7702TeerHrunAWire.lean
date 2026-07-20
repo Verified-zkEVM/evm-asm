@@ -5394,6 +5394,80 @@ theorem teer_field_package_single_byte
 
 #print axioms teer_field_package_single_byte
 
+
+/-- `hinb` (`cursor < end`) ⇒ empty-string fit `ult 0 (end - cursor)`. -/
+theorem teer_hfit_empty_of_hinb
+    (cursor endPtr : Word)
+    (hinb : BitVec.ult cursor endPtr = true) :
+    BitVec.ult (0 : Word) (endPtr - cursor) = true := by
+  have hlt : cursor.toNat < endPtr.toNat := (BitVec.ult_iff_lt).1 hinb
+  have hle : cursor.toNat ≤ endPtr.toNat := Nat.le_of_lt hlt
+  have h0n : (0 : Word).toNat = 0 := by decide
+  exact (BitVec.ult_iff_lt).2 (by
+    have hsub : (endPtr - cursor).toNat = endPtr.toNat - cursor.toNat :=
+      BitVec.toNat_sub_of_le hle
+    simp only [BitVec.lt_def, h0n, hsub]
+    omega)
+
+#print axioms teer_hfit_empty_of_hinb
+
+/-- Empty-string package with `hfit` free from `hinb`. -/
+theorem teer_field_package_empty_string_of_hinb
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1)) :=
+  teer_field_package_empty_string bs srcOff regionBase endPtr hoff hb
+    hoff1 hover1 hvalid1
+    (teer_hfit_empty_of_hinb (regionBase + BitVec.ofNat 64 srcOff) endPtr hinb)
+
+#print axioms teer_field_package_empty_string_of_hinb
+
+/-- Short-list field package (`0xC0+pay`): rooms vacuous + hdec + bridge.
+    Residual: head/pay + fit + noWrap. -/
+theorem teer_field_package_short_list
+    (bs : List (BitVec 8)) (srcOff pay : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = BitVec.ofNat 8 (0xC0 + pay))
+    (hpay : pay ≤ 55)
+    (hfit : ¬ BitVec.ult (endPtr - (regionBase + BitVec.ofNat 64 srcOff))
+      (BitVec.ofNat 64 pay + signExtend12 (1 : BitVec 12)) = true)
+    (hnoWrap : regionBase.toNat + (srcOff + 1 + pay) < 2 ^ 64) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1 + pay)) := by
+  have ⟨hss, hls, hll⟩ := teer_room_vacuous_of_short_list_pfx hoff hb hpay
+  refine ⟨hss, hls, hll,
+    teer_hdec_short_list bs srcOff pay regionBase endPtr hoff hb hpay hfit, ?_⟩
+  intro next len0 hdec
+  exact teer_hbridge_short_list bs srcOff pay regionBase endPtr next len0
+    hoff hb hpay hdec hnoWrap
+
+#print axioms teer_field_package_short_list
+
+
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
     Fit: at least one byte remains to `endPtr`. -/
 theorem teer_rlpItemDecode_empty_list_c0
