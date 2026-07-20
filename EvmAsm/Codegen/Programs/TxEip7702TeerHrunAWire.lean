@@ -9801,4 +9801,236 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
 #print axioms teerEmptyAuth_free26_toRet_of_applied_as_postEx_is_empty_short_abi
 #print axioms teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short_abi_dom_listOff0_exact_A9dec_zero
 
+/-! ### Type-4 field packaging-shaped free from empty-string head `0x80` -/
+
+/-- Packaging-shaped room+decode+bridge for a field when head is `0x80`.
+    `hls`/`hll` vacuous at any `P`; `hss` needs `srcOff+1` room; bridge advances +1. -/
+theorem teer_pack_field_empty_string
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+        next = regionBase + BitVec.ofNat 64 (srcOff + 1)) := by
+  have hss := teer_hss_room_of_byte_80 hoff hb hoff1 hover1 hvalid1
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    rw [hb]; decide
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]; decide
+  have hls := teer_hls_vacuous_of_ult_b8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hb8
+  have hll := teer_hll_vacuous_of_ult_f8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hf8
+  have hdec := teer_hdec_empty_short_string bs srcOff regionBase endPtr hoff hb
+    (teer_hfit_empty_of_hinb (regionBase + BitVec.ofNat 64 srcOff) endPtr hinb)
+  refine ⟨hss, hls, hll, hdec, ?_⟩
+  intro next len0 hdec'
+  exact teer_hbridge_empty_short_string bs srcOff regionBase endPtr next len0
+    hoff hb hdec' (by omega)
+
+#print axioms teer_pack_field_empty_string
+
+/-- Domain + `srcOff+1` in-bounds ⇒ free hover/hvalid at `srcOff+1`. -/
+theorem teer_hoff1_room_of_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (srcOff : Nat) (hoff1 : srcOff + 1 < bs.length) :
+    regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+      isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true :=
+  ⟨teer_hover_of_dom dom hoff1, teer_hvalid_of_dom dom hoff1⟩
+
+#print axioms teer_hoff1_room_of_dom
+
+theorem teer_hbridge_to_succ_of_empty_string
+    (bs : List (BitVec 8)) (srcOff0 srcOff1 : Nat) (regionBase endPtr : Word)
+    (hsrc1 : srcOff1 = srcOff0 + 1)
+    (hdec : ∀ next len0 : Word,
+      rlpItemDecode bs srcOff0 (regionBase + BitVec.ofNat 64 srcOff0) endPtr next len0 →
+        next = regionBase + BitVec.ofNat 64 (srcOff0 + 1)) :
+    ∀ next len0 : Word,
+      rlpItemDecode bs srcOff0 (regionBase + BitVec.ofNat 64 srcOff0) endPtr next len0 →
+        next = regionBase + BitVec.ofNat 64 srcOff1 := by
+  intro next len0 hd
+  have h := hdec next len0 hd
+  simpa [hsrc1] using h
+
+#print axioms teer_hbridge_to_succ_of_empty_string
+
+/-- Packaging-shaped pack for address field head `0x94` (bridge advances +21). -/
+theorem teer_pack_field_addr20
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hover21 : regionBase.toNat + (srcOff + 21) < 2 ^ 64)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hspan21 : (regionBase + BitVec.ofNat 64 srcOff).toNat + 21 ≤ endPtr.toNat) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+        next = regionBase + BitVec.ofNat 64 (srcOff + 21)) := by
+  have hss := teer_hss_room_of_byte_94 hoff hb hoff1 hover1 hvalid1
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    rw [hb]; decide
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]; decide
+  have hls := teer_hls_vacuous_of_ult_b8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hb8
+  have hll := teer_hll_vacuous_of_ult_f8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hf8
+  have hle : (regionBase + BitVec.ofNat 64 srcOff).toNat ≤ endPtr.toNat := by omega
+  have hfit := teer_hfit_addr20_of_span (regionBase + BitVec.ofNat 64 srcOff) endPtr hle hspan21
+  have hdec := teer_hdec_addr20_short bs srcOff regionBase endPtr hoff hb hfit
+  refine ⟨hss, hls, hll, hdec, ?_⟩
+  intro next len0 hdec'
+  exact teer_hbridge_addr20_short bs srcOff regionBase endPtr next len0
+    hoff hb hdec' hover21
+
+#print axioms teer_pack_field_addr20
+
+/-- Packaging-shaped pack for single-byte head (`b < 0x80`); all rooms vacuous. -/
+theorem teer_pack_field_single_byte
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : (bs[srcOff]'hoff).toNat < 0x80)
+    (hinb : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hnoWrap : regionBase.toNat + (srcOff + 1) < 2 ^ 64) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff + 1 +
+          ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+    (∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+        next = regionBase + BitVec.ofNat 64 (srcOff + 1)) := by
+  have hze : ((bs[srcOff]'hoff).zeroExtend 64).toNat = (bs[srcOff]'hoff).toNat :=
+    toNat_zeroExtend_byte _
+  have h80 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+    have h80n : (0x80 : Word).toNat = 0x80 := by decide
+    exact (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0x80 := by rw [hze]; exact hb
+      simpa [BitVec.lt_def, h80n] using this)
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    have h : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xb8 := by
+      have : (bs[srcOff]'hoff).toNat < 0x80 := hb
+      omega
+    exact (BitVec.ult_iff_lt).2 (by simpa [BitVec.lt_def] using h)
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    have h : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xf8 := by
+      have : (bs[srcOff]'hoff).toNat < 0x80 := hb
+      omega
+    exact (BitVec.ult_iff_lt).2 (by simpa [BitVec.lt_def] using h)
+  have hss := teer_hss_vacuous_of_ult_80 (P :=
+      srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    hoff h80
+  have hls := teer_hls_vacuous_of_ult_b8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hb8
+  have hll := teer_hll_vacuous_of_ult_f8 (P :=
+      srcOff + 1 + ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+        ≤ bs.length ∧
+      regionBase.toNat + (srcOff + 1 +
+        ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bs[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    hoff hf8
+  have ⟨hdec, hbridge⟩ :=
+    teer_hdec_hbridge_single_byte bs srcOff regionBase endPtr hoff hb hinb hnoWrap
+  exact ⟨hss, hls, hll, hdec, hbridge⟩
+
+#print axioms teer_pack_field_single_byte
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
