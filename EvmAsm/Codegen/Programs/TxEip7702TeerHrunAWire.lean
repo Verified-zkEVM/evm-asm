@@ -10636,4 +10636,581 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
 
 #print axioms teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short_abi_dom_listOff0_exact_A9dec_f0_80_zero
 
+theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short_abi_dom_listOff0_exact_A9dec_f0f1_80_zero
+    (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s5 s6 s7 s10 s11 : Word)
+    (regionBase : Word) (bs balBytes : List (BitVec 8)) (off len : Nat)
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (hnez : balPtr ≠ (0 : Word))
+    (hptr : loadPtr = regionBase + BitVec.ofNat 64 off)
+    (hlenW : lenW = BitVec.ofNat 64 len)
+    (hsuccess : (teerTxTypeDispatch (txSlice bs off len)).1 = (0 : Word))
+    (htype4 : (teerTxTypeDispatch (txSlice bs off len)).2.1 = (4 : Word))
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (hbound : off + len ≤ bs.length)
+    (listOff : Nat)
+    (ha0 : loadPtr + (teerTxTypeDispatch (txSlice bs off len)).2.2 =
+      regionBase + BitVec.ofNat 64 listOff)
+    (hoffL : listOff < bs.length)
+    (hL : listOff = 0)
+    (hlenL : lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2 ≠ (0 : Word))
+    (hlen1 : lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2 = BitVec.ofNat 64 1)
+    (srcOff0 : Nat)
+    (hsrc0 : srcOff0 = listOff + 1)
+    (hoff0 : srcOff0 < bs.length)
+    (hb0 : bs[srcOff0]'hoff0 = (0x80 : BitVec 8))
+    (hinb0 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff0)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOff1 : Nat)
+    (hsrc1 : srcOff1 = srcOff0 + 1)
+    (hoff1 : srcOff1 < bs.length)
+    (hb1 : bs[srcOff1]'hoff1 = (0x80 : BitVec 8))
+    (hinb1 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff1)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOff2 : Nat)
+    (hsrc2 : srcOff2 = srcOff1 + 1)
+    (hoff2 : srcOff2 < bs.length)
+    (hss2 : ¬ BitVec.ult ((bs[srcOff2]'hoff2).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff2]'hoff2).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff2 + 1 < bs.length ∧ regionBase.toNat + (srcOff2 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff2 + 1)) = true)
+    (hls2 : ¬ BitVec.ult ((bs[srcOff2]'hoff2).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff2]'hoff2).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff2 + 1 + ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff2 + 1 +
+          ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff2 + 1 + k)) = true)
+    (hll2 : ¬ BitVec.ult ((bs[srcOff2]'hoff2).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff2 + 1 + ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff2 + 1 +
+          ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff2]'hoff2).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff2 + 1 + k)) = true)
+    (hdec2 : ∃ next len2 : Word,
+      rlpItemDecode bs srcOff2 (regionBase + BitVec.ofNat 64 srcOff2)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next len2)
+    (hinb2 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff2)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOff3 : Nat)
+    (hoff3 : srcOff3 < bs.length)
+    (hss3 : ¬ BitVec.ult ((bs[srcOff3]'hoff3).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff3]'hoff3).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff3 + 1 < bs.length ∧ regionBase.toNat + (srcOff3 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff3 + 1)) = true)
+    (hls3 : ¬ BitVec.ult ((bs[srcOff3]'hoff3).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff3]'hoff3).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff3 + 1 + ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff3 + 1 +
+          ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff3 + 1 + k)) = true)
+    (hll3 : ¬ BitVec.ult ((bs[srcOff3]'hoff3).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff3 + 1 + ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff3 + 1 +
+          ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff3]'hoff3).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff3 + 1 + k)) = true)
+    (hdec3 : ∃ next len3 : Word,
+      rlpItemDecode bs srcOff3 (regionBase + BitVec.ofNat 64 srcOff3)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next len3)
+    (hinb3 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff3)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOff4 : Nat)
+    (hoff4 : srcOff4 < bs.length)
+    (hss4 : ¬ BitVec.ult ((bs[srcOff4]'hoff4).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff4]'hoff4).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff4 + 1 < bs.length ∧ regionBase.toNat + (srcOff4 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff4 + 1)) = true)
+    (hls4 : ¬ BitVec.ult ((bs[srcOff4]'hoff4).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff4]'hoff4).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff4 + 1 + ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff4 + 1 +
+          ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff4 + 1 + k)) = true)
+    (hll4 : ¬ BitVec.ult ((bs[srcOff4]'hoff4).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff4 + 1 + ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff4 + 1 +
+          ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff4]'hoff4).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff4 + 1 + k)) = true)
+    (hdec4 : ∃ next len4 : Word,
+      rlpItemDecode bs srcOff4 (regionBase + BitVec.ofNat 64 srcOff4)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next len4)
+    (hinb4 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff4)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOff5 : Nat)
+    (hoff5 : srcOff5 < bs.length)
+    (hss5 : ¬ BitVec.ult ((bs[srcOff5]'hoff5).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff5]'hoff5).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff5 + 1 < bs.length ∧ regionBase.toNat + (srcOff5 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff5 + 1)) = true)
+    (hls5 : ¬ BitVec.ult ((bs[srcOff5]'hoff5).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff5]'hoff5).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff5 + 1 + ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff5 + 1 +
+          ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true)
+    (hll5 : ¬ BitVec.ult ((bs[srcOff5]'hoff5).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff5 + 1 + ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOff5 + 1 +
+          ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOff5]'hoff5).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff5 + 1 + k)) = true)
+    (hdec5 : ∃ next len5 : Word,
+      rlpItemDecode bs srcOff5 (regionBase + BitVec.ofNat 64 srcOff5)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next len5)
+    (hinb5 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff5)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridge2 : ∀ next2 len2 : Word,
+      rlpItemDecode bs srcOff2 (regionBase + BitVec.ofNat 64 srcOff2)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next2 len2 →
+      next2 = regionBase + BitVec.ofNat 64 srcOff3)
+    (hbridge3 : ∀ next3 len3 : Word,
+      rlpItemDecode bs srcOff3 (regionBase + BitVec.ofNat 64 srcOff3)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next3 len3 →
+      next3 = regionBase + BitVec.ofNat 64 srcOff4)
+    (hbridge4 : ∀ next4 len4 : Word,
+      rlpItemDecode bs srcOff4 (regionBase + BitVec.ofNat 64 srcOff4)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next4 len4 →
+      next4 = regionBase + BitVec.ofNat 64 srcOff5)
+    (srcOffV : Nat)
+    (hoffV : srcOffV < bs.length)
+    (hssV : ¬ BitVec.ult ((bs[srcOffV]'hoffV).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffV]'hoffV).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffV + 1 < bs.length ∧ regionBase.toNat + (srcOffV + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffV + 1)) = true)
+    (hlsV : ¬ BitVec.ult ((bs[srcOffV]'hoffV).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffV]'hoffV).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffV + 1 + ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffV + 1 +
+          ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffV + 1 + k)) = true)
+    (hllV : ¬ BitVec.ult ((bs[srcOffV]'hoffV).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffV + 1 + ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffV + 1 +
+          ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffV]'hoffV).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffV + 1 + k)) = true)
+    (hdecV : ∃ next lenV : Word,
+      rlpItemDecode bs srcOffV (regionBase + BitVec.ofNat 64 srcOffV)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenV)
+    (hinbV : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffV)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridge5 : ∀ next5 len5 : Word,
+      rlpItemDecode bs srcOff5 (regionBase + BitVec.ofNat 64 srcOff5)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next5 len5 →
+      next5 = regionBase + BitVec.ofNat 64 srcOffV) 
+    -- auth walk_next0 item
+    (srcOffA : Nat)
+    (hcurA : (regionBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) =
+      regionBase + BitVec.ofNat 64 srcOffA)
+    (hoffA : srcOffA < bs.length)
+    (hssA : ¬ BitVec.ult ((bs[srcOffA]'hoffA).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA]'hoffA).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA + 1 < bs.length ∧ regionBase.toNat + (srcOffA + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA + 1)) = true)
+    (hlsA : ¬ BitVec.ult ((bs[srcOffA]'hoffA).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA]'hoffA).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA + 1 + ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA + 1 +
+          ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA + 1 + k)) = true)
+    (hllA : ¬ BitVec.ult ((bs[srcOffA]'hoffA).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA + 1 + ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA + 1 +
+          ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA]'hoffA).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA + 1 + k)) = true)
+    (hdecA : ∃ next lenA : Word,
+      rlpItemDecode bs srcOffA (regionBase + BitVec.ofNat 64 srcOffA)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA)
+    (hinbA : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (srcOffA1 : Nat)
+    (hoffA1 : srcOffA1 < bs.length)
+    (hssA1 : ¬ BitVec.ult ((bs[srcOffA1]'hoffA1).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA1]'hoffA1).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA1 + 1 < bs.length ∧ regionBase.toNat + (srcOffA1 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA1 + 1)) = true)
+    (hlsA1 : ¬ BitVec.ult ((bs[srcOffA1]'hoffA1).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA1]'hoffA1).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA1 + 1 + ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA1 + 1 +
+          ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA1 + 1 + k)) = true)
+    (hllA1 : ¬ BitVec.ult ((bs[srcOffA1]'hoffA1).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA1 + 1 + ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA1 + 1 +
+          ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA1]'hoffA1).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA1 + 1 + k)) = true)
+    (hdecA1 : ∃ next lenA1 : Word,
+      rlpItemDecode bs srcOffA1 (regionBase + BitVec.ofNat 64 srcOffA1)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA1)
+    (hinbA1 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA1)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA : ∀ nextA lenA : Word,
+      rlpItemDecode bs srcOffA (regionBase + BitVec.ofNat 64 srcOffA)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA lenA →
+      nextA = regionBase + BitVec.ofNat 64 srcOffA1)
+    (srcOffA2 : Nat)
+    (hoffA2 : srcOffA2 < bs.length)
+    (hssA2 : ¬ BitVec.ult ((bs[srcOffA2]'hoffA2).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA2]'hoffA2).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA2 + 1 < bs.length ∧ regionBase.toNat + (srcOffA2 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA2 + 1)) = true)
+    (hlsA2 : ¬ BitVec.ult ((bs[srcOffA2]'hoffA2).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA2]'hoffA2).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA2 + 1 + ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA2 + 1 +
+          ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA2 + 1 + k)) = true)
+    (hllA2 : ¬ BitVec.ult ((bs[srcOffA2]'hoffA2).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA2 + 1 + ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA2 + 1 +
+          ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA2]'hoffA2).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA2 + 1 + k)) = true)
+    (hdecA2 : ∃ next lenA2 : Word,
+      rlpItemDecode bs srcOffA2 (regionBase + BitVec.ofNat 64 srcOffA2)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA2)
+    (hinbA2 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA2)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA1 : ∀ nextA1 lenA1 : Word,
+      rlpItemDecode bs srcOffA1 (regionBase + BitVec.ofNat 64 srcOffA1)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA1 lenA1 →
+      nextA1 = regionBase + BitVec.ofNat 64 srcOffA2)
+    (srcOffA3 : Nat)
+    (hoffA3 : srcOffA3 < bs.length)
+    (hssA3 : ¬ BitVec.ult ((bs[srcOffA3]'hoffA3).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA3]'hoffA3).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA3 + 1 < bs.length ∧ regionBase.toNat + (srcOffA3 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA3 + 1)) = true)
+    (hlsA3 : ¬ BitVec.ult ((bs[srcOffA3]'hoffA3).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA3]'hoffA3).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA3 + 1 + ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA3 + 1 +
+          ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA3 + 1 + k)) = true)
+    (hllA3 : ¬ BitVec.ult ((bs[srcOffA3]'hoffA3).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA3 + 1 + ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA3 + 1 +
+          ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA3]'hoffA3).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA3 + 1 + k)) = true)
+    (hdecA3 : ∃ next lenA3 : Word,
+      rlpItemDecode bs srcOffA3 (regionBase + BitVec.ofNat 64 srcOffA3)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA3)
+    (hinbA3 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA3)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA2 : ∀ nextA2 lenA2 : Word,
+      rlpItemDecode bs srcOffA2 (regionBase + BitVec.ofNat 64 srcOffA2)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA2 lenA2 →
+      nextA2 = regionBase + BitVec.ofNat 64 srcOffA3)
+    (srcOffA4 : Nat)
+    (hoffA4 : srcOffA4 < bs.length)
+    (hssA4 : ¬ BitVec.ult ((bs[srcOffA4]'hoffA4).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA4]'hoffA4).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA4 + 1 < bs.length ∧ regionBase.toNat + (srcOffA4 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA4 + 1)) = true)
+    (hlsA4 : ¬ BitVec.ult ((bs[srcOffA4]'hoffA4).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA4]'hoffA4).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA4 + 1 + ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA4 + 1 +
+          ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA4 + 1 + k)) = true)
+    (hllA4 : ¬ BitVec.ult ((bs[srcOffA4]'hoffA4).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA4 + 1 + ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA4 + 1 +
+          ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA4]'hoffA4).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA4 + 1 + k)) = true)
+    (hdecA4 : ∃ next lenA4 : Word,
+      rlpItemDecode bs srcOffA4 (regionBase + BitVec.ofNat 64 srcOffA4)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA4)
+    (hinbA4 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA4)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA3 : ∀ nextA3 lenA3 : Word,
+      rlpItemDecode bs srcOffA3 (regionBase + BitVec.ofNat 64 srcOffA3)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA3 lenA3 →
+      nextA3 = regionBase + BitVec.ofNat 64 srcOffA4)
+    (srcOffA5 : Nat)
+    (hoffA5 : srcOffA5 < bs.length)
+    (hssA5 : ¬ BitVec.ult ((bs[srcOffA5]'hoffA5).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA5]'hoffA5).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA5 + 1 < bs.length ∧ regionBase.toNat + (srcOffA5 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA5 + 1)) = true)
+    (hlsA5 : ¬ BitVec.ult ((bs[srcOffA5]'hoffA5).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA5]'hoffA5).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA5 + 1 + ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA5 + 1 +
+          ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA5 + 1 + k)) = true)
+    (hllA5 : ¬ BitVec.ult ((bs[srcOffA5]'hoffA5).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA5 + 1 + ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA5 + 1 +
+          ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA5]'hoffA5).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA5 + 1 + k)) = true)
+    (hdecA5 : ∃ next lenA5 : Word,
+      rlpItemDecode bs srcOffA5 (regionBase + BitVec.ofNat 64 srcOffA5)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA5)
+    (hinbA5 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA5)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA4 : ∀ nextA4 lenA4 : Word,
+      rlpItemDecode bs srcOffA4 (regionBase + BitVec.ofNat 64 srcOffA4)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA4 lenA4 →
+      nextA4 = regionBase + BitVec.ofNat 64 srcOffA5)
+    (srcOffA6 : Nat)
+    (hoffA6 : srcOffA6 < bs.length)
+    (hssA6 : ¬ BitVec.ult ((bs[srcOffA6]'hoffA6).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA6]'hoffA6).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA6 + 1 < bs.length ∧ regionBase.toNat + (srcOffA6 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA6 + 1)) = true)
+    (hlsA6 : ¬ BitVec.ult ((bs[srcOffA6]'hoffA6).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA6]'hoffA6).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA6 + 1 + ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA6 + 1 +
+          ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA6 + 1 + k)) = true)
+    (hllA6 : ¬ BitVec.ult ((bs[srcOffA6]'hoffA6).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA6 + 1 + ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA6 + 1 +
+          ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA6]'hoffA6).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA6 + 1 + k)) = true)
+    (hdecA6 : ∃ next lenA6 : Word,
+      rlpItemDecode bs srcOffA6 (regionBase + BitVec.ofNat 64 srcOffA6)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA6)
+    (hinbA6 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA6)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA5 : ∀ nextA5 lenA5 : Word,
+      rlpItemDecode bs srcOffA5 (regionBase + BitVec.ofNat 64 srcOffA5)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA5 lenA5 →
+      nextA5 = regionBase + BitVec.ofNat 64 srcOffA6)
+    (srcOffA7 : Nat)
+    (hoffA7 : srcOffA7 < bs.length)
+    (hssA7 : ¬ BitVec.ult ((bs[srcOffA7]'hoffA7).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA7]'hoffA7).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA7 + 1 < bs.length ∧ regionBase.toNat + (srcOffA7 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA7 + 1)) = true)
+    (hlsA7 : ¬ BitVec.ult ((bs[srcOffA7]'hoffA7).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA7]'hoffA7).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA7 + 1 + ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA7 + 1 +
+          ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA7 + 1 + k)) = true)
+    (hllA7 : ¬ BitVec.ult ((bs[srcOffA7]'hoffA7).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA7 + 1 + ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA7 + 1 +
+          ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA7]'hoffA7).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA7 + 1 + k)) = true)
+    (hdecA7 : ∃ next lenA7 : Word,
+      rlpItemDecode bs srcOffA7 (regionBase + BitVec.ofNat 64 srcOffA7)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA7)
+    (hinbA7 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA7)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA6 : ∀ nextA6 lenA6 : Word,
+      rlpItemDecode bs srcOffA6 (regionBase + BitVec.ofNat 64 srcOffA6)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA6 lenA6 →
+      nextA6 = regionBase + BitVec.ofNat 64 srcOffA7)
+    (srcOffA8 : Nat)
+    (hoffA8 : srcOffA8 < bs.length)
+    (hssA8 : ¬ BitVec.ult ((bs[srcOffA8]'hoffA8).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOffA8]'hoffA8).zeroExtend 64) (0xb8 : Word) = true →
+        srcOffA8 + 1 < bs.length ∧ regionBase.toNat + (srcOffA8 + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA8 + 1)) = true)
+    (hlsA8 : ¬ BitVec.ult ((bs[srcOffA8]'hoffA8).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOffA8]'hoffA8).zeroExtend 64) (0xc0 : Word) = true →
+        srcOffA8 + 1 + ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA8 + 1 +
+          ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA8 + 1 + k)) = true)
+    (hllA8 : ¬ BitVec.ult ((bs[srcOffA8]'hoffA8).zeroExtend 64) (0xf8 : Word) = true →
+        srcOffA8 + 1 + ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ bs.length ∧
+        regionBase.toNat + (srcOffA8 + 1 +
+          ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((bs[srcOffA8]'hoffA8).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOffA8 + 1 + k)) = true)
+    (hdecA8 : ∃ next lenA8 : Word,
+      rlpItemDecode bs srcOffA8 (regionBase + BitVec.ofNat 64 srcOffA8)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next lenA8)
+    (hinbA8 : BitVec.ult (regionBase + BitVec.ofNat 64 srcOffA8)
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) = true)
+    (hbridgeA7 : ∀ nextA7 lenA7 : Word,
+      rlpItemDecode bs srcOffA7 (regionBase + BitVec.ofNat 64 srcOffA7)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA7 lenA7 →
+      nextA7 = regionBase + BitVec.ofNat 64 srcOffA8)
+    (srcOffA9 : Nat)
+    (hoffA9 : srcOffA9 < bs.length)
+    (hbridgeA8 : ∀ nextA8 lenA8 : Word,
+      rlpItemDecode bs srcOffA8 (regionBase + BitVec.ofNat 64 srcOffA8)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA8 lenA8 →
+      nextA8 = regionBase + BitVec.ofNat 64 srcOffA9)
+    (hA9 : srcOffA9 = 0)
+    (hret : (ret &&& ~~~(1 : Word)) = ret) :
+    let s0 := loadPtr
+    let s1 := lenW
+    let s2 := balPtr
+    let s3 := balLenW
+    let s4 := chainIdW
+    let s8 := regionBase + BitVec.ofNat 64 srcOffV
+    let s9 :=
+      (regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)
+    let s : TeerSaved :=
+      { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4
+        s5 := s5, s6 := s6, s7 := s7, s8 := s8, s9 := s9
+        s10 := s10, s11 := s11, a5 := baiW }
+    cpsTripleWithin (nFrontToAtListCount + nListCountAuthLoopStart 1 + 30)
+      E ret teerLinkedField0
+      (stackFree spVal nTeerStackWithListCount **
+        teerAuthContentAppliedEntryRestIs ret spVal loadPtr lenW balPtr balLenW
+          chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+          regionBase bs balBytes)
+      (fun hp =>
+        ∃ (_refund _baiW' : Word),
+          (((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+              stackFree spVal nTeerStackDwords **
+              (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+              (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) ** (.x20 ↦ᵣ s.s4) **
+              (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) ** (.x23 ↦ᵣ s.s7) **
+              (.x24 ↦ᵣ s.s8) ** (.x25 ↦ᵣ s.s9) ** (.x26 ↦ᵣ s.s10) **
+              (.x27 ↦ᵣ s.s11) **
+              (.x10 ↦ᵣ (0 : Word)) **
+              regOwn .x11 **
+              bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+              teerScratchOwn **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+              regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+              regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+              regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) **
+            stackFree spC 6) hp) := by
+  intro s0 s1 s2 s3 s4 s8 s9 s
+  have hoff2' : srcOff1 + 1 < bs.length := by simpa [hsrc2] using hoff2
+  have ⟨hover2, hvalid2⟩ := teer_hoff1_room_of_dom dom srcOff1 hoff2'
+  have ⟨hss1, hls1, hll1, hdec1, hbr1⟩ :=
+    teer_pack_field_empty_string bs srcOff1 regionBase
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2))
+      hoff1 hb1 hoff2' hover2 hvalid2 hinb1
+  have hbridge1 : ∀ next1 len1 : Word,
+      rlpItemDecode bs srcOff1 (regionBase + BitVec.ofNat 64 srcOff1)
+        ((regionBase + BitVec.ofNat 64 listOff) +
+          (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) next1 len1 →
+        next1 = regionBase + BitVec.ofNat 64 srcOff2 :=
+    teer_hbridge_to_succ_of_empty_string bs srcOff1 srcOff2 regionBase
+      ((regionBase + BitVec.ofNat 64 listOff) +
+        (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) hsrc2 hbr1
+  exact teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short_abi_dom_listOff0_exact_A9dec_f0_80_zero
+    ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW
+    s5 s6 s7 s10 s11
+    regionBase bs balBytes off len hspC hnez hptr hlenW hsuccess htype4
+    dom hbound listOff ha0 hoffL hL hlenL hlen1
+    srcOff0 hsrc0 hoff0 hb0 hinb0
+    srcOff1 hsrc1 hoff1 hss1 hls1 hll1 hdec1 hinb1
+    srcOff2 hoff2 hss2 hls2 hll2 hdec2 hinb2
+    srcOff3 hoff3 hss3 hls3 hll3 hdec3 hinb3
+    srcOff4 hoff4 hss4 hls4 hll4 hdec4 hinb4
+    srcOff5 hoff5 hss5 hls5 hll5 hdec5 hinb5
+    hbridge1 hbridge2 hbridge3 hbridge4
+    srcOffV hoffV hssV hlsV hllV hdecV hinbV hbridge5
+    srcOffA hcurA hoffA hssA hlsA hllA hdecA hinbA
+    srcOffA1 hoffA1 hssA1 hlsA1 hllA1 hdecA1 hinbA1 hbridgeA
+    srcOffA2 hoffA2 hssA2 hlsA2 hllA2 hdecA2 hinbA2 hbridgeA1
+    srcOffA3 hoffA3 hssA3 hlsA3 hllA3 hdecA3 hinbA3 hbridgeA2
+    srcOffA4 hoffA4 hssA4 hlsA4 hllA4 hdecA4 hinbA4 hbridgeA3
+    srcOffA5 hoffA5 hssA5 hlsA5 hllA5 hdecA5 hinbA5 hbridgeA4
+    srcOffA6 hoffA6 hssA6 hlsA6 hllA6 hdecA6 hinbA6 hbridgeA5
+    srcOffA7 hoffA7 hssA7 hlsA7 hllA7 hdecA7 hinbA7 hbridgeA6
+    srcOffA8 hoffA8 hssA8 hlsA8 hllA8 hdecA8 hinbA8 hbridgeA7
+    srcOffA9 hoffA9 hbridgeA8 hA9 hret
+
+#print axioms teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short_abi_dom_listOff0_exact_A9dec_f0f1_80_zero
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
