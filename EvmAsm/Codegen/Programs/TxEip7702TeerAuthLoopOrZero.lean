@@ -339,19 +339,19 @@ private theorem teerOrZeroInv_eq (authPtr : Word) (authBytes : List (BitVec 8)) 
         teerOrZeroInvAmb authPtr authBytes i) := rfl
 
 
-private theorem teer_word_ofNat_add_one (i : Nat) :
+theorem teer_word_ofNat_add_one (i : Nat) :
     BitVec.ofNat 64 (i + 1) = BitVec.ofNat 64 i + (1 : Word) := by
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_add, BitVec.toNat_ofNat]
 
-private theorem teer_ofNat_zero_eq : (BitVec.ofNat 64 0 : Word) = 0 := rfl
+theorem teer_ofNat_zero_eq : (BitVec.ofNat 64 0 : Word) = 0 := rfl
 
-private theorem teer_add_ofNat_zero (x : Word) : x + BitVec.ofNat 64 0 = x := by
+theorem teer_add_ofNat_zero (x : Word) : x + BitVec.ofNat 64 0 = x := by
   change x + (0 : Word) = x
   exact BitVec.add_zero x
 
 /-- `ofNat (n+1) + se12(-1) = ofNat n` (dual ParentHeaderMemcmp.cnt_step_down). -/
-private theorem teer_cnt_step (n : Nat) :
+theorem teer_cnt_step (n : Nat) :
     BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
   have e1 : BitVec.ofNat 64 (n + 1) = BitVec.ofNat 64 n + (1 : Word) := by
     rw [show (1 : Word) = BitVec.ofNat 64 1 from rfl, BitVec.ofNat_add]
@@ -360,7 +360,7 @@ private theorem teer_cnt_step (n : Nat) :
   exact BitVec.add_zero _
 
 /-- `ofNat k + se12(-1) = ofNat (k-1)` for `0 < k`. -/
-private theorem teer_cnt_pred (k : Nat) (hk : 0 < k) :
+theorem teer_cnt_pred (k : Nat) (hk : 0 < k) :
     BitVec.ofNat 64 k + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 (k - 1) := by
   have hk' : k = (k - 1) + 1 := by omega
   rw [hk']; exact teer_cnt_step (k - 1)

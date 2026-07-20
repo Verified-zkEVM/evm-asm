@@ -690,7 +690,7 @@ def teerEmptyAuthResidualLedger : Prop :=
   True ∧
   -- 6. Named leaf Assumeds (Recover/BalFind/BalFinals/CodeAt/BalNonce/…):
   --    residual multi-session adapters.
-  --    OrZero: teerAuthOrZeroAssumed_teerLinked FILLED classical-3 (body×20+Loop20+Assumed;
+  --    OrZero+SenderMatch filled: teerAuthOrZeroAssumed_teerLinked FILLED classical-3 (body×20+Loop20+Assumed;
   --    teerOrAcc_zero_replicate free for all-zero authority).
   True ∧
   -- 7. Non-empty auth loop + PriorZero/SuccessWrite bodies

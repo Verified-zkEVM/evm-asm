@@ -13,6 +13,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.TxEip7702TeerSpec
@@ -51,24 +52,38 @@ def SenderAddr : Word := BitVec.ofNat 64 GuestAddrs.bv_stx_sender_addr
 private theorem se12_zero_nj : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
 private theorem se12_144_nj : signExtend12 (144 : BitVec 12) = (144 : Word) := by decide
 
-/-- Named hyp: authority==sender 20B cmp loop + `addi x6,x6,1`.
+/-- Named hyp: authority==sender 20B cmp loop (success path) + `addi x6,x6,1`.
     Prest at AfterLi20Nj (x29=20, x7=AuthorityAddr, x28=SenderAddr).
-    Post at AfterAuthSenderInc with x6 = nonceVal+1. -/
+    Post at AfterAuthSenderInc with x6 = nonceVal+1 when all 20 bytes match.
+    Prest/post use nested x29/x0 left for BEQ framing (dual OrZero). -/
 structure TeerAuthSenderMatchAssumed (cr : CodeReq) where
   nSteps : Nat
   match_flat :
-    ∀ (nonceVal : Word),
+    ∀ (nonceVal : Word) (authBytes senderBytes : List (BitVec 8)),
+      authBytes.length = 20 →
+      senderBytes.length = 20 →
+      authBytes = senderBytes →
+      AuthorityAddr.toNat % 8 = 0 →
+      SenderAddr.toNat % 8 = 0 →
+      AuthorityAddr.toNat + 20 ≤ 2 ^ 64 →
+      SenderAddr.toNat + 20 ≤ 2 ^ 64 →
+      (∀ k, k < 20 →
+        isValidByteAccess (AuthorityAddr + BitVec.ofNat 64 k) = true) →
+      (∀ k, k < 20 →
+        isValidByteAccess (SenderAddr + BitVec.ofNat 64 k) = true) →
       cpsTripleWithin nSteps AfterLi20Nj AfterAuthSenderInc cr
-        ((.x6 ↦ᵣ nonceVal) ** (.x7 ↦ᵣ AuthorityAddr) ** (.x28 ↦ᵣ SenderAddr) **
-          (.x29 ↦ᵣ (20 : Word)) **
-          regOwn .x30 ** regOwn .x31 **
-          memOwn AuthorityAddr ** memOwn SenderAddr **
-          (.x0 ↦ᵣ (0 : Word)))
-        ((.x6 ↦ᵣ (nonceVal + (1 : Word))) **
-          regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-          regOwn .x30 ** regOwn .x31 **
-          memOwn AuthorityAddr ** memOwn SenderAddr **
-          (.x0 ↦ᵣ (0 : Word)))
+        (((.x29 ↦ᵣ (20 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x6 ↦ᵣ nonceVal) ** (.x7 ↦ᵣ AuthorityAddr) ** (.x28 ↦ᵣ SenderAddr) **
+            regOwn .x30 ** regOwn .x31 **
+            bytesRegion AuthorityAddr authBytes **
+            bytesRegion SenderAddr senderBytes))
+        (((.x29 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x6 ↦ᵣ (nonceVal + (1 : Word))) **
+            (.x7 ↦ᵣ (AuthorityAddr + (20 : Word))) **
+            (.x28 ↦ᵣ (SenderAddr + (20 : Word))) **
+            regOwn .x30 ** regOwn .x31 **
+            bytesRegion AuthorityAddr authBytes **
+            bytesRegion SenderAddr senderBytes))
 
 /-- `mv x6, x11` AfterBalNonceBeq0 → AfterMvNonce. -/
 theorem teerMvNonceFromA1 (nonceVal x6Old : Word) :
@@ -197,28 +212,54 @@ theorem teerNonceJoinSetup
 /-- Setup + Assumed 20B match → AfterAuthSenderInc with x6 = nonceVal+1. -/
 theorem teerNonceJoinThroughMatch
     (asm : TeerAuthSenderMatchAssumed teerLinkedField0)
-    (nonceVal x6Old x7Old x28Old x29Old : Word) :
+    (nonceVal x6Old x7Old x28Old x29Old : Word)
+    (authBytes senderBytes : List (BitVec 8))
+    (hlenA : authBytes.length = 20) (hlenS : senderBytes.length = 20)
+    (heq : authBytes = senderBytes)
+    (halignA : AuthorityAddr.toNat % 8 = 0)
+    (halignS : SenderAddr.toNat % 8 = 0)
+    (hoverA : AuthorityAddr.toNat + 20 ≤ 2 ^ 64)
+    (hoverS : SenderAddr.toNat + 20 ≤ 2 ^ 64)
+    (hvalidA : ∀ k, k < 20 →
+      isValidByteAccess (AuthorityAddr + BitVec.ofNat 64 k) = true)
+    (hvalidS : ∀ k, k < 20 →
+      isValidByteAccess (SenderAddr + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (6 + asm.nSteps) AfterBalNonceBeq0 AfterAuthSenderInc teerLinkedField0
       ((.x6 ↦ᵣ x6Old) ** (.x11 ↦ᵣ nonceVal) **
         (.x7 ↦ᵣ x7Old) ** (.x28 ↦ᵣ x28Old) ** (.x29 ↦ᵣ x29Old) **
         regOwn .x30 ** regOwn .x31 **
-        memOwn AuthorityAddr ** memOwn SenderAddr **
+        bytesRegion AuthorityAddr authBytes **
+        bytesRegion SenderAddr senderBytes **
         (.x0 ↦ᵣ (0 : Word)))
-      ((.x6 ↦ᵣ (nonceVal + (1 : Word))) ** (.x11 ↦ᵣ nonceVal) **
-        regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-        regOwn .x30 ** regOwn .x31 **
-        memOwn AuthorityAddr ** memOwn SenderAddr **
-        (.x0 ↦ᵣ (0 : Word))) := by
+      (((.x29 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x6 ↦ᵣ (nonceVal + (1 : Word))) ** (.x11 ↦ᵣ nonceVal) **
+          (.x7 ↦ᵣ (AuthorityAddr + (20 : Word))) **
+          (.x28 ↦ᵣ (SenderAddr + (20 : Word))) **
+          regOwn .x30 ** regOwn .x31 **
+          bytesRegion AuthorityAddr authBytes **
+          bytesRegion SenderAddr senderBytes)) := by
   have hsetup := teerNonceJoinSetup nonceVal x6Old x7Old x28Old x29Old
   have hsetupF := cpsTripleWithin_frameR
     (regOwn .x30 ** regOwn .x31 **
-      memOwn AuthorityAddr ** memOwn SenderAddr ** (.x0 ↦ᵣ (0 : Word)))
+      bytesRegion AuthorityAddr authBytes **
+      bytesRegion SenderAddr senderBytes ** (.x0 ↦ᵣ (0 : Word)))
     (by pcf) hsetup
-  have hmatch := asm.match_flat nonceVal
-  have hmatchF := cpsTripleWithin_frameR
-    ((.x11 ↦ᵣ nonceVal)) (by pcf) hmatch
+  have hsetupN :=
+    cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun s hq => by
+        change
+          ((((.x29 ↦ᵣ (20 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+            ((.x6 ↦ᵣ nonceVal) ** (.x7 ↦ᵣ AuthorityAddr) ** (.x28 ↦ᵣ SenderAddr) **
+              regOwn .x30 ** regOwn .x31 **
+              bytesRegion AuthorityAddr authBytes **
+              bytesRegion SenderAddr senderBytes)) **
+            (.x11 ↦ᵣ nonceVal)) s
+        xperm_hyp hq) hsetupF
+  have hmatch := asm.match_flat nonceVal authBytes senderBytes
+    hlenA hlenS heq halignA halignS hoverA hoverS hvalidA hvalidS
+  have hmatchF := cpsTripleWithin_frameR (.x11 ↦ᵣ nonceVal) (by pcf) hmatch
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
-    hsetupF hmatchF
+    hsetupN hmatchF
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c
 
