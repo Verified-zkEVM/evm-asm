@@ -299,8 +299,11 @@ def schemeAAnchors : List GuestRegion :=
     increase 19->2080 exposing hidden FAs, not a regression). Shrank to
     `0x5dc4c` for the unconditional mtx process_transaction fix
     (`measure/mtx-whitelist-bypass`, #10471: removes the whitelist-v0
-    admission gate, matching spec apply_body:913-914). -/
-def textSizeBytes : Nat := 0x5e1c8
+    admission gate, matching spec apply_body:913-914). Grew to `0x5e1e8`
+    for the guarded post-setup top-level CREATE nonce seed
+    (`fix/nested-create-nonce-seed`), which preserves the live nonce for
+    nested CREATE executed from initcode. -/
+def textSizeBytes : Nat := 0x5e1e8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

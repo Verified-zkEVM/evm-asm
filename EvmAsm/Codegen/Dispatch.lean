@@ -3007,6 +3007,17 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  -- A top-level CREATE seeds its own nonce to one before executing initcode.
+  -- BlockVerdictCreationStage marks that frame before entering this callable
+  -- dispatcher, but this setup deliberately resets the per-transaction CREATE
+  -- nonce table. Seed only after that reset: a nested CREATE in the constructor
+  -- must derive from the top-level created account's live nonce (1), not its
+  -- header-state nonce (usually 0). Non-creation callers leave the marker zero.
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n" ++
+  "  la t0, create_frame_flag; ld t1, 0(t0); beqz t1, .Lrtd_top_create_nonce_done\n" ++
+  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
+  ".Lrtd_top_create_nonce_done:\n" ++
+  "  ld x10, 0(sp); addi sp, sp, 16\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
