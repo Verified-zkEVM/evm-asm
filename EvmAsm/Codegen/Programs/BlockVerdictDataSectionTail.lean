@@ -315,6 +315,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- delegating EOA (so SSTORE keys the EOA's storage, per interpreter.py message setup).
   ".balign 8\n" ++
   "dtrc_deleg_target:\n  .zero 32\n" ++
+  "dtrc_deleg_deferred:\n  .zero 8\n" ++
+  "dtrc_deleg_materialize_status:\n  .zero 8\n" ++
   "bsbd_deleg_target:\n  .zero 24\n" ++
   "dwp_al_off:\n  .zero 8\n" ++
   "dwp_al_len:\n  .zero 8\n" ++

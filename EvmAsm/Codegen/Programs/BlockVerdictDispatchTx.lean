@@ -340,6 +340,39 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n" ++
   "\n" ++
+  -- C1/9skho: materialize a prior-block EIP-7702 target only after the
+  -- callable runtime has paid its top-frame access charge.  The staged payload
+  -- retains the marker layout; code fetch uses x21, so only x21/codeSize need
+  -- change after the target lookup.
+  "dtrc_materialize_deferred_delegation:\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
+  "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Ldtrc_materialize_lookup_fail\n" ++
+  "  la t0, cahsr_code_offset; ld t1, 0(t0); ld t2, 608(x20); add s0, t2, t1\n" ++
+  "  la t0, cahsr_code_length; ld s1, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, bytecode_is_self_contained\n" ++
+  "  bnez a0, .Ldtrc_materialize_self_contained_fail\n" ++
+  "  mv x21, s0; sd s1, 496(x20)\n" ++
+  "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  "  j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_lookup_fail:\n" ++
+  "  li t1, 1; j .Ldtrc_materialize_fail\n" ++
+  ".Ldtrc_materialize_self_contained_fail:\n" ++
+  "  li t1, 2\n" ++
+  ".Ldtrc_materialize_fail:\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd t1, 0(t0)\n" ++
+  "  la x21, bv_stop_code; li t1, 1; sd t1, 496(x20)\n" ++
+  ".Ldtrc_materialize_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 40\n" ++
+  "  ret\n" ++
+  "\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -348,6 +381,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
   -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
   -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
@@ -398,31 +434,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t1, 100\n" ++
   ".Ldtrc_prior_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
-  -- Re-resolve the TARGET's code against the same header the recipient resolved under.
-  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
-  "  la a2, dtrc_deleg_target\n" ++
-  "  mv a3, s0; mv a4, s1\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  -- Amsterdam prepare_dispatch resolves an absent delegated target as empty
-  -- code. A code-section miss is equivalent only when the authenticated
-  -- target record carries EMPTY_CODE_HASH; every other lookup failure stays
-  -- an honest unsupported exit.
-  "  li t0, 1; beq a0, t0, .Ldtrc_deleg_empty_target_code\n" ++
-  "  li t0, 5; bne a0, t0, .Ldtrc_deleg_target_lookup_done\n" ++
-  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
-  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
-  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
-  "  j .Ldtrc_deleg_empty_target_code\n" ++
-  ".Ldtrc_deleg_target_lookup_done:\n" ++
-  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
-  -- Warm the delegated target (EIP-2929 accessed_addresses.add(delegated_address)).
-  "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
-  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
-  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_seed\n" ++
+  -- Amsterdam prepare_dispatch charges this delegated access before reading
+  -- the target account/code.  Keep the marker payload until the callable
+  -- runtime reaches that existing OOG branch, then materialize on success.
+  "  la t0, dtrc_deleg_deferred; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_materialize_deferred_delegation; sd t1, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_empty_code:\n" ++
   ".Ldtrc_deleg_empty_target_code:\n" ++
@@ -444,8 +460,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_deferred_marker_ready\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
   "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
+  ".Ldtrc_deferred_marker_ready:\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
@@ -942,6 +960,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_post_top_frame_fn; sd zero, 0(t4)\n" ++
+  "  la t4, dtrc_deleg_materialize_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
