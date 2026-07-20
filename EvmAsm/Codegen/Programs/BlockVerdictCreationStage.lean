@@ -295,6 +295,26 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
   "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
   ".Lbvcr_stage_address_done:\n" ++
+  -- A top-level CREATE runs its initcode in a message whose CALLER and ORIGIN
+  -- are the authenticated transaction sender.  The generic code payload
+  -- stager leaves both zero, which is correct only for its older
+  -- self-contained slice.  In particular, initcode `CALLER; ...; SSTORE` or
+  -- `ORIGIN; ...; SSTORE` must observe the sender before its writes and
+  -- state-gas are recorded.
+  "  ld a0, 24(s0); beqz a0, .Lbvcr_stage_caller_done\n" ++
+  "  la a1, srpc_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0; addi t1, t1, 64\n" ++
+  "  la t2, srpc_sender_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_caller:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_caller_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_caller\n" ++
+  ".Lbvcr_stage_caller_done:\n" ++
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0; addi t1, t1, 128\n" ++
+  "  la t2, srpc_sender_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_origin:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_origin_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_origin\n" ++
+  ".Lbvcr_stage_origin_done:\n" ++
   -- `process_create_message` credits the fresh account with the transaction
   -- endowment before initcode runs.  `stage_runtime_payload_code` materializes
   -- that value as CALLVALUE at env+96, but the live account balance consumed by
