@@ -29,7 +29,8 @@ open EvmAsm.Codegen.TxTypeDispatchSpec
   (teerTxTypeDispatch txSlice loadPtr_add_rel_eq)
 open EvmAsm.Codegen.TxExtractToAddressHonesty
   (rlpItemDecode_single_byte rlpItemDecode_single_byte_next
-    rlpItemDecode_empty_short rlpItemDecode_pfx80_imp_next rlpItemDecode_pfx80_imp_len0)
+    rlpItemDecode_empty_short rlpItemDecode_pfx80_imp_next rlpItemDecode_pfx80_imp_len0
+    rlpItemDecode_addr20_short rlpItemDecode_pfx94_imp_next rlpItemDecode_pfx94_imp_len20)
 open EvmAsm.Rv64.SAsm (toNat_zeroExtend_byte)
 
 set_option maxRecDepth 8000
@@ -4859,8 +4860,136 @@ theorem teer_hss_room_of_byte_80_dom
 
 #print axioms teer_hss_room_of_byte_80_dom
 
+/-- 20-byte address short-string `0x94` + fit ⇒ `hdec` free. -/
+theorem teer_hdec_addr20_short
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hfit : BitVec.ult (20 : Word)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true) :
+    ∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 :=
+  ⟨_, _, rlpItemDecode_addr20_short bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr hoff hb hfit⟩
 
+#print axioms teer_hdec_addr20_short
 
+/-- `0x94` decode ⇒ bridge `next = regionBase + ofNat (srcOff+21)`. -/
+theorem teer_hbridge_addr20_short
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr next len0 : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hdec : rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0)
+    (hnoWrap : regionBase.toNat + (srcOff + 21) < 2 ^ 64) :
+    next = regionBase + BitVec.ofNat 64 (srcOff + 21) := by
+  have hnext := rlpItemDecode_pfx94_imp_next bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 hoff hb hdec
+  have h21 : (21 : Word) = BitVec.ofNat 64 21 := rfl
+  have hnext' : next =
+      (regionBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 21 := by
+    simpa [h21] using hnext
+  apply Eq.trans hnext'
+  apply BitVec.eq_of_toNat_eq
+  have hs : srcOff < 2 ^ 64 := by omega
+  have hs21 : srcOff + 21 < 2 ^ 64 := by omega
+  have hsum0 : regionBase.toNat + srcOff < 2 ^ 64 := by omega
+  have hsum21 : regionBase.toNat + (srcOff + 21) < 2 ^ 64 := hnoWrap
+  have h21mod : (21 : Nat) % 2 ^ 64 = 21 := by decide
+  calc
+    ((regionBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 21).toNat
+        = ((regionBase + BitVec.ofNat 64 srcOff).toNat + 21) % 2 ^ 64 := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, h21mod]
+    _ = (regionBase.toNat + srcOff + 21) % 2 ^ 64 := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs,
+            Nat.mod_eq_of_lt hsum0]
+    _ = regionBase.toNat + srcOff + 21 := by
+          rw [Nat.mod_eq_of_lt (by omega : regionBase.toNat + srcOff + 21 < 2 ^ 64)]
+    _ = regionBase.toNat + (srcOff + 21) := by omega
+    _ = (regionBase + BitVec.ofNat 64 (srcOff + 21)).toNat := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs21,
+            Nat.mod_eq_of_lt hsum21]
+
+#print axioms teer_hbridge_addr20_short
+
+/-- `0x94` hdec exists + bridge package. -/
+theorem teer_hdec_hbridge_addr20_short
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hfit : BitVec.ult (20 : Word)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true)
+    (hnoWrap : regionBase.toNat + (srcOff + 21) < 2 ^ 64) :
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+      (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 21)) := by
+  refine ⟨teer_hdec_addr20_short bs srcOff regionBase endPtr hoff hb hfit, ?_⟩
+  intro next len0 hdec
+  exact teer_hbridge_addr20_short bs srcOff regionBase endPtr next len0 hoff hb hdec hnoWrap
+
+#print axioms teer_hdec_hbridge_addr20_short
+
+/-- `0x94` head ⇒ long-string/long-list rooms vacuous. -/
+theorem teer_room_hls_hll_vacuous_of_byte_94
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8)) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) := by
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    rw [hb]; decide
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]; decide
+  exact ⟨teer_hls_vacuous_of_ult_b8 hoff hb8, teer_hll_vacuous_of_ult_f8 hoff hf8⟩
+
+#print axioms teer_room_hls_hll_vacuous_of_byte_94
+
+/-- Short-string room for `0x94`: need `srcOff+1` valid (content peek). -/
+theorem teer_hss_room_of_byte_94
+    {regionBase : Word} {bs : List (BitVec 8)} {srcOff : Nat}
+    (hoff : srcOff < bs.length)
+    (_hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) :
+    ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+  intro _ _
+  exact ⟨hoff1, hover1, hvalid1⟩
+
+#print axioms teer_hss_room_of_byte_94
+
+/-- Domain + `srcOff+1 < length` ⇒ short-string room for `0x94` free. -/
+theorem teer_hss_room_of_byte_94_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (srcOff : Nat) (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hroom : srcOff + 1 < bs.length) :
+    ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true :=
+  teer_hss_room_of_byte_94 hoff hb hroom
+    (by have h := dom.hover; omega)
+    (dom.hvalid (srcOff + 1) hroom)
+
+#print axioms teer_hss_room_of_byte_94_dom
+
+/-- Decode-gated: `0x94` ⇒ every decode has `len = 20`. -/
+theorem teer_hlen20_of_byte_94
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr next len0 : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x94 : BitVec 8))
+    (hdec : rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) :
+    len0 = (20 : Word) :=
+  rlpItemDecode_pfx94_imp_len20 bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 hoff hb hdec
+
+#print axioms teer_hlen20_of_byte_94
 
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
     Fit: at least one byte remains to `endPtr`. -/
