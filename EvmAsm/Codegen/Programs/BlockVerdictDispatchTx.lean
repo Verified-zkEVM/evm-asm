@@ -404,6 +404,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- Amsterdam prepare_dispatch resolves an absent delegated target as empty
+  -- code. A code-section miss is equivalent only when the authenticated
+  -- target record carries EMPTY_CODE_HASH; every other lookup failure stays
+  -- an honest unsupported exit.
+  "  li t0, 1; beq a0, t0, .Ldtrc_deleg_empty_target_code\n" ++
+  "  li t0, 5; bne a0, t0, .Ldtrc_deleg_target_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_code_lookup_unsupported\n" ++
+  "  j .Ldtrc_deleg_empty_target_code\n" ++
+  ".Ldtrc_deleg_target_lookup_done:\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
   -- Warm the delegated target (EIP-2929 accessed_addresses.add(delegated_address)).
   "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -412,6 +425,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, runtime_access_account_seed\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_empty_code:\n" ++
+  ".Ldtrc_deleg_empty_target_code:\n" ++
   "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
   "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
@@ -482,6 +496,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
   "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
+  -- An authenticated absent account has the empty storage trie, so every
+  -- requested slot has the same zero pre-state value as an absent slot.
+  -- Keep parse/decode failures below as conservative unsupported exits.
+  "  li t2, 1; beq a0, t2, .Ldtrc_vzero\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_storage_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++

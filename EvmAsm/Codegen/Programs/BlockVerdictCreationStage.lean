@@ -7,6 +7,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -276,12 +277,45 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- arbitrary-code payload stager rather than the old one-byte STOP-only
   -- layout so the callable runtime receives the real initcode bytes both as
   -- code and as transaction calldata for intrinsic-gas accounting.
+  -- The callable runtime may resolve code for nested CALL/STATICCALL targets.
+  -- Reserve room for its authenticated M31 context before the common stager
+  -- writes the code/calldata prefix: two padded initcode copies plus the
+  -- pre-header, state witness, codes witness, and fixed trailer must fit the
+  -- same bounded payload buffer as the normal contract path.
+  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8; slli t1, t1, 1\n" ++
+  "  la t0, sv_pre_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, bv_witness_state_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Lbvcr_payload_unsupported\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
   "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
+  -- Match the normal contract-dispatch M31 trailer.  The common stager only
+  -- constructs code, calldata, and env words; nested account/code lookups
+  -- require this authenticated pre-transaction header/witness context.
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, sv_pre_rlp_len; ld t2, 0(t1); sd t2, 472(t0)\n" ++
+  "  la t1, bv_witness_state_len; ld t3, 0(t1); sd t3, 480(t0)\n" ++
+  "  la t1, svf_codes_len; ld t4, 0(t1); sd t4, 488(t0)\n" ++
+  "  addi t5, t0, 496\n" ++
+  "  la t1, sv_pre_rlp_ptr; ld t1, 0(t1); mv t6, t2\n" ++
+  ".Lbvcr_ctx_hdr_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_state_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_hdr_copy\n" ++
+  ".Lbvcr_ctx_state_copy_start:\n" ++
+  "  la t1, bv_witness_state_ptr; ld t1, 0(t1); mv t6, t3\n" ++
+  ".Lbvcr_ctx_state_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_codes_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_state_copy\n" ++
+  ".Lbvcr_ctx_codes_copy_start:\n" ++
+  "  la t1, svf_codes_ptr; ld t1, 0(t1); mv t6, t4\n" ++
+  ".Lbvcr_ctx_codes_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_done\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_codes_copy\n" ++
+  ".Lbvcr_ctx_done:\n" ++
   -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
   -- transaction recipient).  A top-level CREATE has no recipient: its frame
   -- address is the CREATE(sender, nonce) address already derived by the
@@ -295,12 +329,10 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
   "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
   ".Lbvcr_stage_address_done:\n" ++
-  -- A top-level CREATE runs its initcode in a message whose CALLER and ORIGIN
-  -- are the authenticated transaction sender.  The generic code payload
-  -- stager leaves both zero, which is correct only for its older
-  -- self-contained slice.  In particular, initcode `CALLER; ...; SSTORE` or
-  -- `ORIGIN; ...; SSTORE` must observe the sender before its writes and
-  -- state-gas are recorded.
+  -- A top-level CREATE runs initcode with CALLER == ORIGIN == the
+  -- authenticated transaction sender.  The common stager leaves those words
+  -- zero for its self-contained recipient slice, so complete the two sender
+  -- identity words here before dispatching initcode.
   "  ld a0, 24(s0); beqz a0, .Lbvcr_stage_caller_done\n" ++
   "  la a1, srpc_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0; addi t1, t1, 64\n" ++
@@ -315,23 +347,23 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t4, 20; beq t3, t4, .Lbvcr_stage_origin_done\n" ++
   "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_origin\n" ++
   ".Lbvcr_stage_origin_done:\n" ++
-  -- `process_create_message` credits the fresh account with the transaction
-  -- endowment before initcode runs.  `stage_runtime_payload_code` materializes
-  -- that value as CALLVALUE at env+96, but the live account balance consumed by
-  -- SELFBALANCE and SELFDESTRUCT's new-beneficiary surcharge is env+32.  Both
-  -- words use the same little-endian EVM-word representation, so seed the
-  -- latter directly from the former.  Without this, a value-carrying top-level
-  -- CREATE that SELFDESTRUCTs to an empty beneficiary appears balance-zero and
-  -- misses the required NEW_ACCOUNT state-gas charge.
-  "  ld t2, 96(t1); sd t2, 32(t1); ld t2, 104(t1); sd t2, 40(t1)\n" ++
-  "  ld t2, 112(t1); sd t2, 48(t1); ld t2, 120(t1); sd t2, 56(t1)\n" ++
+  -- Restore the env base for the adjacent SELFBALANCE staging below.
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
+  -- `process_create_message` credits the newly-created account with tx.value
+  -- before initcode executes.  The common payload stager has already copied
+  -- that value to CALLVALUE@+96, but its generic account lookup leaves this
+  -- fresh CREATE address's SELFBALANCE@+32 at zero.  Seed the frame's live
+  -- self balance from the same context value (both use LE EVM-word layout),
+  -- so SELFDESTRUCT and SELFBALANCE observe the account state the spec uses.
+  "  ld t2, 96(s0); sd t2, 32(t1); ld t2, 104(s0); sd t2, 40(t1); ld t2, 112(s0); sd t2, 48(t1); ld t2, 120(s0); sd t2, 56(t1)\n" ++
   -- A transaction-level CREATE enters initcode in the freshly-created account,
   -- just like `process_create_message`: mark depth zero as a CREATE frame and
   -- publish its address/nonce before the dispatcher starts.  The runtime uses
   -- this marker for EIP-6780 SELFDESTRUCT-to-self accounting; without it an
   -- initcode SELFDESTRUCT treats its own just-created account as pre-existing.
-  -- Keep the depth-zero metadata in the same form as `create_frame_descend` so
-  -- nested CREATEs see their creator's nonce one rather than pre-state zero.
+  -- Keep the depth-zero metadata in the same form as `create_frame_descend`.
+  -- The nonce-table seed itself must happen after runtime_dispatcher_call's
+  -- per-transaction reset; the callable dispatcher performs that guarded seed.
   "  la t0, create_frame_flag; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, create_address_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  la t1, bv_create_addr; li t2, 0\n" ++
@@ -340,7 +372,6 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
   ".Lbvcr_create_address_copy_done:\n" ++
   "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
   -- EIP-7708's synthetic Transfer log is part of the top-level create message
   -- whenever it carries value.  The generic transaction intrinsic helper
   -- charges its 1756 regular gas (LOG3: base + three topics + 32-byte data),
@@ -456,6 +487,9 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bv_receipts_enforce_enabled; sd t5, 0(t4)\n" ++
   "  li a0, 0\n" ++
+  "  j .Lbvcr_ret\n" ++
+  ".Lbvcr_payload_unsupported:\n" ++
+  "  li a0, 5\n" ++
   ".Lbvcr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++

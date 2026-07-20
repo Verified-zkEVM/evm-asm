@@ -533,7 +533,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_wouldbe_state:\n  .zero 8\n" ++
   "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
-  "teer_authority:\n  .zero 24\n" ++
+  -- Keep the EIP-7702 authority as a full padded non-storage-effect key.
+  "teer_authority:\n  .zero 32\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++

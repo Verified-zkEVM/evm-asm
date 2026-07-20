@@ -908,11 +908,12 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
-  -- If runtime replay could not materialize a complete gas/effect arena,
-  -- the recipient execution storage log is incomplete. The authenticated
-  -- state-root recompute remains binding, so skip this redundant storage
-  -- exactness check rather than false-rejecting BAL rows against a partial log.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_storage_exact_done\n" ++
+  -- `bvgr_arena_tx_count` is not initialized until the later gas-gate prelude.
+  -- The dispatcher has already published its per-tx result here, so gate this
+  -- exactness check on that available runtime evidence instead.  An absent
+  -- runtime result is fail-closed: partial execution evidence must not permit a
+  -- BAL storage row to be omitted.
+  "  la t0, bvgr_runtime_count; ld t0, 0(t0); beqz t0, .Lbv_bal_storage_omit_fail\n" ++
   -- Reverted/exceptional txs keep access evidence, but their storage writes do not commit.
   -- The raw replay log still contains attempted SSTOREs; do not require those reverted writes
   -- to appear as BAL storage_changes. State-root/BAL application already rejects any committed
