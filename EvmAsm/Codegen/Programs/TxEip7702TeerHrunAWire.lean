@@ -4693,6 +4693,48 @@ theorem teer_hinbA9_empty_short_listOff0
 
 #print axioms teer_hinbA9_empty_short_listOff0
 
+/-- Domain slack + `listOff=0` + `srcOff0 = listOff+1` ⇒ `hoff0` free (`1 < length`). -/
+theorem teer_hoff0_srcOff_succ_listOff0_of_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (listOff : Nat) (hL : listOff = 0)
+    (srcOff0 : Nat) (hsrc0 : srcOff0 = listOff + 1) :
+    srcOff0 < bs.length := by
+  subst hL; subst hsrc0
+  have hs := dom.hslack
+  omega
+
+#print axioms teer_hoff0_srcOff_succ_listOff0_of_dom
+
+/-- Domain slack + `srcOffA9=0` ⇒ `hoffA9` free (`0 < length`). -/
+theorem teer_hoffA9_of_zero_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (srcOffA9 : Nat) (hA9 : srcOffA9 = 0) :
+    srcOffA9 < bs.length := by
+  subst hA9
+  exact teer_hoff0_of_empty_short_slack dom.hslack
+
+#print axioms teer_hoffA9_of_zero_dom
+
+/-- Packaging note: `hoff0`/`hoffA9` remain binders on applied packaging because
+    field-guard hyps (`hss0`, …) are dependent on the named `hoff*`. Callers
+    discharge them with `teer_hoff0_srcOff_succ_listOff0_of_dom` /
+    `teer_hoffA9_of_zero_dom` rather than a separate signature dual. -/
+theorem teer_hoff0_hoffA9_empty_short_discharge
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (listOff : Nat) (hL : listOff = 0)
+    (srcOff0 : Nat) (hsrc0 : srcOff0 = listOff + 1)
+    (srcOffA9 : Nat) (hA9 : srcOffA9 = 0) :
+    srcOff0 < bs.length ∧ srcOffA9 < bs.length :=
+  ⟨teer_hoff0_srcOff_succ_listOff0_of_dom dom listOff hL srcOff0 hsrc0,
+    teer_hoffA9_of_zero_dom dom srcOffA9 hA9⟩
+
+#print axioms teer_hoff0_hoffA9_empty_short_discharge
+
+
+
 /-- Minimal empty-short fixture bytes: `0xc0` + 9 padding zeros (slack ≥ 10). -/
 def teerEmptyShortFixtureBytes : List (BitVec 8) :=
   (0xc0 : BitVec 8) :: List.replicate 9 (0 : BitVec 8)
