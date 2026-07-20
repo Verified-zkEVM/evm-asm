@@ -156,6 +156,53 @@ private theorem pcFree_teerListCountAuthLoopAmbient
   unfold teerListCountAuthLoopAmbient
   pcf
 
+/-- WithoutAuthCount minus the four ScratchZero cells (value-carrying ZeroIs). -/
+def teerScratchRestWithoutAuthCountOwn : Assertion :=
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+  memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+/-- Ambient with value-carrying ScratchZero cells (ZeroIs). Free RolledZero path. -/
+def teerListCountAuthLoopAmbientIs
+    (spVal spC balPtr chainIdW _baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal _cursorV endW s11 : Word) : Assertion :=
+  (.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+    (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+    regOwn .x15 **
+    frameSlotsSaved teerFrame spC (teerSavedVals s) **
+    (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+    (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+    regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+    stackFree spVal 6 **
+    bytesRegion balPtr balBytes **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+    memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+    teerScratchZeroIs **
+    teerScratchRestWithoutAuthCountOwn
+
+theorem pcFree_teerListCountAuthLoopAmbientIs
+    (spVal spC balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) :
+    (teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW baiW s
+      balBytes innerVal cursorV endW s11).pcFree := by
+  unfold teerListCountAuthLoopAmbientIs teerScratchZeroIs
+    teerScratchRestWithoutAuthCountOwn
+  pcf
+
+
 set_option maxRecDepth 8000 in
 /-- Frame Assumed under ambient: mid-segment AtListCount → AfterAuthLoopLi. -/
 theorem teerListCountAuthLoop_framed
@@ -373,6 +420,65 @@ def teerScratchWithoutAuthCountOwn : Assertion :=
   memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
   memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
   memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr)
+
+/-- Rebuild WithoutAuthCount from ZeroIs ** Rest (memIs0 → memOwn). -/
+theorem teerScratchWithoutAuthCount_of_zeroIs_rest :
+    ∀ h, (teerScratchZeroIs ** teerScratchRestWithoutAuthCountOwn) h →
+      teerScratchWithoutAuthCountOwn h := by
+  intro h hp
+  have hp' :
+      (teerScratchZeroOwn ** teerScratchRestWithoutAuthCountOwn) h :=
+    sepConj_mono teerScratchZeroIs_to_own (fun _ hpR => hpR) h hp
+  -- Expand both sides fully then xperm
+  dsimp only [teerScratchWithoutAuthCountOwn, teerScratchZeroOwn,
+    teerScratchRestWithoutAuthCountOwn, RegularRefundAddr, SuccessCountAddr,
+    PredelegatedAddr, RolledBackAddr] at hp' ⊢
+  xperm_hyp hp'
+
+theorem teerListCountAuthLoopAmbientIs_to_own :
+    ∀ (spVal spC balPtr chainIdW baiW : Word)
+      (s : TeerSaved) (balBytes : List (BitVec 8))
+      (innerVal cursorV endW s11 : Word) h,
+      teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW baiW s
+          balBytes innerVal cursorV endW s11 h →
+      teerListCountAuthLoopAmbient spVal spC balPtr chainIdW baiW s
+          balBytes innerVal cursorV endW s11 h := by
+  intro spVal spC balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h hp
+  -- Group ZeroIs**Rest as rightmost, convert to WithoutAuthCount, xperm to Ambient.
+  have hpG :
+      (((.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+          regOwn .x15 **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+          stackFree spVal 6 **
+          bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero)) **
+        (teerScratchZeroIs ** teerScratchRestWithoutAuthCountOwn)) h := by
+    unfold teerListCountAuthLoopAmbientIs at hp
+    xperm_hyp hp
+  have hpW :
+      (((.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+          (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+          regOwn .x15 **
+          frameSlotsSaved teerFrame spC (teerSavedVals s) **
+          (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+          (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+          stackFree spVal 6 **
+          bytesRegion balPtr balBytes **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+          memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero)) **
+        teerScratchWithoutAuthCountOwn) h :=
+    sepConj_mono_right teerScratchWithoutAuthCount_of_zeroIs_rest h hpG
+  unfold teerListCountAuthLoopAmbient at ⊢
+  dsimp only [teerScratchWithoutAuthCountOwn] at hpW
+  xperm_hyp hpW
 
 /-- AuthContent ambient scratch shape (auth_count + WithoutAuthCount). -/
 def teerAuthContentScratchOwn : Assertion :=
@@ -856,5 +962,8 @@ theorem teerAuthContentAppliedFlatVnz_nested_to_bridgePre
 #print axioms teerAuthContentPostScratch_of_withoutVnz
 #print axioms teerAuthContentAppliedFlatVnz_choose
 #print axioms teerAuthContentAppliedFlatVnz_nested_to_bridgePre
+
+#print axioms teerScratchWithoutAuthCount_of_zeroIs_rest
+#print axioms teerListCountAuthLoopAmbientIs_to_own
 
 end EvmAsm.Codegen.TxEip7702TeerSpec

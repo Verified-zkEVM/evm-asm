@@ -5596,4 +5596,83 @@ def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_applied
 #print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA
 #print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_applied
 
+
+/-! ### AmbientPostIs: free hrolled0 when ZeroIs threaded -/
+
+/-- AmbientPost with value-carrying ZeroIs (free RolledZero / hrolled0). -/
+def teerAuthLoopEmptyAmbientPostIs
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) : Assertion :=
+  (teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+      (0 : Word) bytes 0 listLenW) **
+    teerListCountAuthLoopAmbientIs spVal spC balPtr chainIdW
+      baiW s balBytes innerVal cursorV endW s11
+
+/-- AmbientPostIs → Source with refund=0. ZeroIs pins rolled/refund; no hrolled0. -/
+theorem teerAuthLoopEmptyAmbientPostIs_to_source
+    (spVal spC listBase listLenW s0 s1 s2 s3 : Word)
+    (bytes : List (BitVec 8))
+    (balPtr chainIdW baiW : Word)
+    (s : TeerSaved) (balBytes : List (BitVec 8))
+    (innerVal cursorV endW s11 : Word) :
+    ∀ h,
+      teerAuthLoopEmptyAmbientPostIs spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW baiW s balBytes innerVal cursorV endW s11 h →
+      teerAuthLoopEmptySource spVal spC listBase listLenW s0 s1 s2 s3 bytes
+        balPtr chainIdW s balBytes innerVal endW s11 (0 : Word) h := by
+  intro h hp0
+  dsimp only [teerAuthLoopEmptyAmbientPostIs, teerListCountAuthLoopAmbientIs,
+    teerScratchZeroIs, teerScratchRestWithoutAuthCountOwn,
+    teerAuthLoopEmptySource, RegularRefundAddr, SuccessCountAddr,
+    PredelegatedAddr, RolledBackAddr, WouldbeStateAddr, WouldbeRegularAddr] at hp0 ⊢
+  -- Convert SuccessCount↦0 ** Predelegated↦0 → memOwn ** memOwn; keep refund/rolled ↦0.
+  have hpair : ∀ h',
+      ((SuccessCountAddr ↦ₘ (0 : Word)) ** (PredelegatedAddr ↦ₘ (0 : Word))) h' →
+      (memOwn SuccessCountAddr ** memOwn PredelegatedAddr) h' := by
+    intro h' hp2
+    obtain ⟨h1, h2, hd, hu, hA, hB⟩ := hp2
+    exact ⟨h1, h2, hd, hu, memIs_implies_memOwn h1 hA, memIs_implies_memOwn h2 hB⟩
+  have hpG :
+      (((teerListCountAuthLoopPost spC listBase AuthCountAddr s0 s1 s2 s3
+            (0 : Word) bytes 0 listLenW) **
+          ((.x20 ↦ᵣ chainIdW) ** (.x25 ↦ᵣ endW) **
+            (.x26 ↦ᵣ (0 : Word)) ** (.x27 ↦ᵣ s11) **
+            regOwn .x15 **
+            frameSlotsSaved teerFrame spC (teerSavedVals s) **
+            (BitVec.ofNat 64 GuestAddrs.teer_type ↦ₘ (4 : Word)) **
+            (BitVec.ofNat 64 GuestAddrs.teer_inner_off ↦ₘ innerVal) **
+            regOwn .x13 ** regOwn .x14 ** regOwn .x16 **
+            stackFree spVal 6 **
+            bytesRegion balPtr balBytes **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recipient_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_value_nonzero) **
+            (RegularRefundAddr ↦ₘ (0 : Word)) **
+            (RolledBackAddr ↦ₘ (0 : Word)) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_authority) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_ptr) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_len) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_acct_absent) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_count) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_pre_acct) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_prior_set_flag) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_finals) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_success_table) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_state) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_wouldbe_regular) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_recover_scratch) **
+            memOwn (BitVec.ofNat 64 GuestAddrs.teer_records_ptr))) **
+        ((SuccessCountAddr ↦ₘ (0 : Word)) ** (PredelegatedAddr ↦ₘ (0 : Word)))) h := by
+    xperm_hyp hp0
+  have hpG' := sepConj_mono_right hpair h hpG
+  dsimp only [RegularRefundAddr, SuccessCountAddr, PredelegatedAddr, RolledBackAddr,
+    WouldbeStateAddr, WouldbeRegularAddr] at hpG' ⊢
+  xperm_hyp hpG'
+
+#print axioms teerAuthLoopEmptyAmbientPostIs_to_source
+
+
 end EvmAsm.Codegen.TxEip7702TeerSpec
