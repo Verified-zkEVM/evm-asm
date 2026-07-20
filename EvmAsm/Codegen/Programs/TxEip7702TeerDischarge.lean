@@ -677,8 +677,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs carries RolledBack ↦ₘ 0).
   --    Own path still residual if not using Is.
   True ∧
-  -- 3. hrunA wire DONE + ABI-pinned (_abi frees s0=loadPtr..cursor/end wire by subst).
-  --    Residual domain fixture (0xc0/slack/valid) + walk guards + list_count asm.
+  -- 3. hrunA wire DONE + ABI-pinned ExitPack/toRet/applied_flat_zero
+  --    (of_applied*_abi frees wire; residual domain 0xc0/slack/valid + walk guards + asm + hret).
   True ∧
   -- 4. Domain empty-short fixture on run (align/slack/valid/bs[0]=0xc0) — fixture not free
   True ∧
