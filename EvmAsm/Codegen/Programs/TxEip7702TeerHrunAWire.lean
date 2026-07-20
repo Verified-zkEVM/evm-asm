@@ -5696,6 +5696,54 @@ theorem teer_hfit_short_string_of_span
 #print axioms teer_hfit_short_string_of_span
 
 
+/-- `srcOff ≥ listLen` at `listOff = 0` ⇒ `hinb` false (cursor past list end).
+    Empty-short `listLenW = 1` therefore admits no field walk at `srcOff ≥ 1`. -/
+theorem teer_hinb_false_srcOff_ge_listLen
+    (regionBase : Word) (srcOff listLen : Nat)
+    (hge : listLen ≤ srcOff)
+    (hnoWrapS : regionBase.toNat + srcOff < 2 ^ 64)
+    (hnoWrapL : regionBase.toNat + listLen < 2 ^ 64) :
+    BitVec.ult (regionBase + BitVec.ofNat 64 srcOff)
+      (regionBase + BitVec.ofNat 64 listLen) = false := by
+  have hs : srcOff < 2 ^ 64 := by omega
+  have hl : listLen < 2 ^ 64 := by omega
+  have hlt : ¬ (regionBase + BitVec.ofNat 64 srcOff).toNat <
+      (regionBase + BitVec.ofNat 64 listLen).toNat := by
+    intro h
+    have h1 : (regionBase + BitVec.ofNat 64 srcOff).toNat =
+        regionBase.toNat + srcOff := by
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs,
+        Nat.mod_eq_of_lt hnoWrapS]
+    have h2 : (regionBase + BitVec.ofNat 64 listLen).toNat =
+        regionBase.toNat + listLen := by
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hl,
+        Nat.mod_eq_of_lt hnoWrapL]
+    rw [h1, h2] at h; omega
+  have : ¬ BitVec.ult (regionBase + BitVec.ofNat 64 srcOff)
+      (regionBase + BitVec.ofNat 64 listLen) = true := by
+    intro hult
+    exact hlt ((BitVec.ult_iff_lt).1 hult)
+  cases h : BitVec.ult (regionBase + BitVec.ofNat 64 srcOff)
+      (regionBase + BitVec.ofNat 64 listLen) with
+  | true => exact (this h).elim
+  | false => rfl
+
+#print axioms teer_hinb_false_srcOff_ge_listLen
+
+/-- Empty-short identity: `listOff=0`, `listLenW=1` ⇒ no `hinb` at `srcOff ≥ 1`. -/
+theorem teer_hinb_false_empty_short_field
+    (regionBase : Word) (srcOff : Nat)
+    (hpos : 1 ≤ srcOff)
+    (hnoWrapS : regionBase.toNat + srcOff < 2 ^ 64)
+    (hnoWrap1 : regionBase.toNat + 1 < 2 ^ 64) :
+    BitVec.ult (regionBase + BitVec.ofNat 64 srcOff)
+      (regionBase + BitVec.ofNat 64 1) = false :=
+  teer_hinb_false_srcOff_ge_listLen regionBase srcOff 1 hpos hnoWrapS hnoWrap1
+
+#print axioms teer_hinb_false_empty_short_field
+
+
+
 
 
 /-- Short-list empty `0xc0` ⇒ `rlpItemDecode` with `next = cursor+1`, `len = 1`.
