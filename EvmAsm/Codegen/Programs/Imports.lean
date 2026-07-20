@@ -135,6 +135,7 @@ import EvmAsm.Codegen.Programs.TxEip7702TeerFrontAuthContentHrun
 import EvmAsm.Codegen.Programs.TxEip7702TeerHrunAWire
 import EvmAsm.Codegen.Programs.TxEip7702TeerSuccessWrite
 import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZero
+import EvmAsm.Codegen.Programs.TxEip7702TeerPriorZeroAuthMatch
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
