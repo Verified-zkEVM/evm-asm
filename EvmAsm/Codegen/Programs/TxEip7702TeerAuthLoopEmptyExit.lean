@@ -5882,7 +5882,7 @@ def teerAuthContentAppliedPostExIs
         ⌜rlpItemDecode bs srcOffA9 (regionBase + BitVec.ofNat 64 srcOffA9)
           endL next lenK⌝) h
 
-/-- Entry rest with ZeroIs ** RestOwn (Is-path applied prest). -/
+/-- Entry rest matching applied_is prest (Own scratch; ZeroIs appears in post only). -/
 def teerAuthContentAppliedEntryRestIs
     (ret spVal loadPtr lenW balPtr balLenW chainIdW baiW : Word)
     (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
@@ -5897,7 +5897,7 @@ def teerAuthContentAppliedEntryRestIs
     (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
     (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
     bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-    teerScratchZeroIs ** teerScratchRestOwn **
+    teerScratchOwn **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
     regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))
@@ -6054,7 +6054,7 @@ theorem teerAuthContentAppliedEntry_split_is
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
           bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-          teerScratchZeroIs ** teerScratchRestOwn **
+          teerScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word))) h ↔
@@ -6089,7 +6089,7 @@ theorem teerAuthContentEntry_free26_to_nested_applied_is
           (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
           (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
           bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-          teerScratchZeroIs ** teerScratchRestOwn **
+          teerScratchOwn **
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))) h := by
@@ -6126,7 +6126,7 @@ theorem teerAuthContent_applied_nestedFree_of_run_is
         (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
         (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
         bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-        teerScratchZeroIs ** teerScratchRestOwn **
+        teerScratchOwn **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
@@ -6168,7 +6168,7 @@ theorem teerEmptyAuth_free26_to_bridgePreIs_empty_short_decode
         (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
         (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
         bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-        teerScratchZeroIs ** teerScratchRestOwn **
+        teerScratchOwn **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
@@ -6234,7 +6234,7 @@ theorem teerEmptyAuth_free26_to_exitPack_of_hrun_empty_short_decode_is
         (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
         (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
         bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
-        teerScratchZeroIs ** teerScratchRestOwn **
+        teerScratchOwn **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
         regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
@@ -6275,5 +6275,115 @@ theorem teerEmptyAuth_free26_to_exitPack_of_hrun_empty_short_decode_is
 #print axioms teerAuthContent_applied_nestedFree_of_run_is
 #print axioms teerEmptyAuth_free26_to_bridgePreIs_empty_short_decode
 #print axioms teerEmptyAuth_free26_to_exitPack_of_hrun_empty_short_decode_is
+
+/-- free20 Own prest → PostExIs @ srcOffA9=0 (Is-path empty-short).
+    Residual inhabit: `teerAuthContent_applied_as_postEx_is` with srcOffA9=0. -/
+structure TeerEmptyAuthHrunEmptyShortIs where
+  nSteps : Nat
+  run :
+    ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+      (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+      (s : TeerSaved)
+      (bs balBytes : List (BitVec 8))
+      (innerVal endL endW cursorV : Word),
+      cpsTripleWithin nSteps E AtListCount teerLinkedCount
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+          stackFree spVal nTeerStackDwords **
+          (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+          (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+          (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+          (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+          (.x27 ↦ᵣ s11) **
+          (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+          (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+          (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+          bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+          teerScratchOwn **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+        (teerAuthContentAppliedPostExIs spVal spC loadPtr lenW balPtr balLenW chainIdW
+          s7 cursorV endW s11 s innerVal endL regionBase bs balBytes 0)
+
+def teerEmptyAuthHrunEmptyShortIs_of
+    (nSteps : Nat)
+    (run :
+      ∀ (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+        (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+        (s : TeerSaved)
+        (bs balBytes : List (BitVec 8))
+        (innerVal endL endW cursorV : Word),
+        cpsTripleWithin nSteps E AtListCount teerLinkedCount
+          ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+            stackFree spVal nTeerStackDwords **
+            (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+            (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+            (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) ** (.x23 ↦ᵣ s7) **
+            (.x24 ↦ᵣ s8) ** (.x25 ↦ᵣ s9) ** (.x26 ↦ᵣ s10) **
+            (.x27 ↦ᵣ s11) **
+            (.x10 ↦ᵣ loadPtr) ** (.x11 ↦ᵣ lenW) **
+            (.x12 ↦ᵣ balPtr) ** (.x13 ↦ᵣ balLenW) **
+            (.x14 ↦ᵣ chainIdW) ** (.x15 ↦ᵣ baiW) **
+            bytesRegion regionBase bs ** bytesRegion balPtr balBytes **
+            teerScratchOwn **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+            regOwn .x16 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)))
+          (teerAuthContentAppliedPostExIs spVal spC loadPtr lenW balPtr balLenW chainIdW
+            s7 cursorV endW s11 s innerVal endL regionBase bs balBytes 0)) :
+    TeerEmptyAuthHrunEmptyShortIs where
+  nSteps := nSteps
+  run := run
+
+/-- free26 → ExitPack empty-short Is under residual hrunA (hident+hrolled0 FREE). -/
+theorem teerEmptyAuth_free26_to_exitPack_of_hrunA_empty_short_decode_is
+    (hrunA : TeerEmptyAuthHrunEmptyShortIs)
+    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
+    (ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 : Word)
+    (s : TeerSaved)
+    (bs balBytes : List (BitVec 8))
+    (hspC : spC = spVal + signExtend12 (-160 : BitVec 12))
+    (innerVal endL endW cursorV : Word)
+    (hoff : (0 : Nat) < bs.length)
+    (h0 : bs[0]'hoff = (0xc0 : BitVec 8))
+    (hs0 : s0 = loadPtr) (hs1 : s1 = lenW)
+    (hs2 : s2 = balPtr) (hs3 : s3 = balLenW)
+    (hs0s : s0 = s.s0) (hs1s : s1 = s.s1)
+    (hs2s : s2 = s.s2) (hs3s : s3 = s.s3)
+    (hs4 : chainIdW = s.s4) (hs9 : endW = s.s9) (hs11 : s11 = s.s11)
+    (hv24 : s8 = cursorV)
+    (hsalign : regionBase.toNat % 8 = 0)
+    (hslack : 1 + 9 ≤ bs.length)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bs.length →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (hrunA.nSteps + nListCountAuthLoopStart 1) E AfterAuthLoopLi
+      teerLinkedField0
+      (stackFree spVal nTeerStackWithListCount **
+        teerAuthContentAppliedEntryRestIs ret spVal loadPtr lenW balPtr balLenW
+          chainIdW baiW s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+          regionBase bs balBytes)
+      (fun h =>
+        ∃ (refund t0Old t1Old baiW' : Word),
+          teerAuthLoopEmptyExitPack spVal spC s
+            (teerAuthLoopEmptyWalkCur regionBase)
+            (teerAuthLoopEmptyWalkEnd regionBase (BitVec.ofNat 64 1))
+            refund
+            (teerAuthLoopEmptyWalkCur regionBase)
+            (teerAuthLoopEmptyWalkEnd regionBase (BitVec.ofNat 64 1))
+            t0Old t1Old baiW'
+            regionBase bs balBytes balPtr h) :=
+  teerEmptyAuth_free26_to_exitPack_of_hrun_empty_short_decode_is
+    ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
+    s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s bs balBytes hspC
+    innerVal endL endW cursorV hoff h0 asm
+    hs0 hs1 hs2 hs3 hs0s hs1s hs2s hs3s hs4 hs9 hs11 hv24
+    hsalign hslack hover hvalid
+    (hrunA.run ret spVal spC regionBase loadPtr lenW balPtr balLenW chainIdW baiW
+      s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s bs balBytes
+      innerVal endL endW cursorV)
+
+#print axioms teerEmptyAuth_free26_to_exitPack_of_hrunA_empty_short_decode_is
 
 end EvmAsm.Codegen.TxEip7702TeerSpec
