@@ -184,6 +184,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "sahsr_acct_struct:\n  .zero 104\n" ++
   ".balign 32\n" ++
   "sahsr_u256:\n  .zero 32\n" ++
+  -- h_SSTORE's authenticated cold-slot fallback needs a stable 64-byte
+  -- original/current pair. It deliberately does not borrow call-frame scratch:
+  -- nested frames reserve their high env words for rollback snapshots.
+  ".balign 32\n" ++
+  "sstore_prestate_pair:\n  .zero 64\n" ++
   -- code_at_header_state_root scratch:
   ".balign 32\n" ++
   "cahsr_state_root:\n  .zero 32\n" ++
