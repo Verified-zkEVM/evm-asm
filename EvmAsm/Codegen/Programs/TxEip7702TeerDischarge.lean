@@ -677,11 +677,10 @@ def teerEmptyAuthResidualLedger : Prop :=
   -- 2. TeerRolledZeroAssumed FREE on Is path (AmbientIs carries RolledBack ↦ₘ 0).
   --    Own path still residual if not using Is.
   True ∧
-  -- 3. hrunA wire DONE: teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short
-  --    (TxEip7702TeerHrunAWire; applied@srcOffA9=0→ExitPack). Residual ABI wire
-  --    (s0=loadPtr…) + domain fixture on empty-short; structure forall still packaging.
+  -- 3. hrunA wire DONE + ABI-pinned (_abi frees s0=loadPtr..cursor/end wire by subst).
+  --    Residual domain fixture (0xc0/slack/valid) + walk guards + list_count asm.
   True ∧
-  -- 4. Domain empty-short fixture on Free26EmptyShort.run (align/slack/valid/bs[0]=0xc0)
+  -- 4. Domain empty-short fixture on run (align/slack/valid/bs[0]=0xc0) — fixture not free
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
   True ∧
