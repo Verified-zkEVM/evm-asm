@@ -684,6 +684,8 @@ def teerEmptyAuthResidualLedger : Prop :=
   --    list_count asm FREE via teerLinked; walk hover/hvalid FREE from dom+hoff;
   --    hvalid0/hoffOff FREE via teer success⇒len>0 + bound + teer_hvalid_of_dom;
   --    residual: domain fixture inhabit + walk hoff/hdec/hss/hls/hll/hinb/hbridge + hret
+  --    per-guard FREE lemmas (coord decompose): teer_hcur_of_srcOff_succ, teer_hss/hls/hll_vacuous_of_ult_*,
+  --    teer_h_ge/h_hi_of_byte_c0 + listOff0_of_dom; teer_ret_aligned packaging alias
   True ∧
   -- 5. Nested stackFree spC 6 outside TeerAssumed free-20 (use free26 path; leftover nested)
   True ∧

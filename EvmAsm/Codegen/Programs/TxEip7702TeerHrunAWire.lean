@@ -25,7 +25,7 @@ open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 open EvmAsm.Codegen.TxTypeDispatchSpec
-  (teerTxTypeDispatch txSlice)
+  (teerTxTypeDispatch txSlice loadPtr_add_rel_eq)
 
 set_option maxRecDepth 8000
 
@@ -4369,6 +4369,114 @@ theorem teer_hoffOff_of_success_bound
 
 #print axioms teer_success_len_pos
 #print axioms teer_hoffOff_of_success_bound
+
+
+/-! ## Per-guard free lemmas (coord: decompose walk package, not one block) -/
+
+/-- `signExtend12 1 = ofNat 1`. -/
+theorem teer_se12_one : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := by decide
+
+#print axioms teer_se12_one
+
+/-- Short-list first-item cursor: `listBase + 1 = regionBase + (listOff + 1)`.
+    Via `loadPtr_add_rel_eq` with `rel = 1`. -/
+theorem teer_hcur_of_srcOff_succ
+    (regionBase : Word) (listOff srcOff : Nat)
+    (hsrc : srcOff = listOff + 1)
+    (hover : regionBase.toNat + listOff + 1 < 2 ^ 64) :
+    (regionBase + BitVec.ofNat 64 listOff) + signExtend12 (1 : BitVec 12) =
+      regionBase + BitVec.ofNat 64 srcOff := by
+  subst hsrc
+  have hse : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := teer_se12_one
+  rw [hse]
+  exact loadPtr_add_rel_eq regionBase (regionBase + BitVec.ofNat 64 listOff) listOff 1
+    rfl hover
+
+#print axioms teer_hcur_of_srcOff_succ
+
+/-- Single-byte head (`ult 0x80`) ⇒ short-string room hyp vacuous. -/
+theorem teer_hss_vacuous_of_ult_80
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (h : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    {P : Prop} :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true → P) :=
+  fun hne _ => absurd h hne
+
+/-- Short-string-or-single head (`ult 0xb8`) ⇒ long-string room hyp vacuous. -/
+theorem teer_hls_vacuous_of_ult_b8
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (h : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    {P : Prop} :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → P) :=
+  fun hne _ => absurd h hne
+
+/-- Not-long-list head (`ult 0xf8`) ⇒ long-list room hyp vacuous. -/
+theorem teer_hll_vacuous_of_ult_f8
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (h : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    {P : Prop} :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → P) :=
+  fun hne => absurd h hne
+
+#print axioms teer_hss_vacuous_of_ult_80
+#print axioms teer_hls_vacuous_of_ult_b8
+#print axioms teer_hll_vacuous_of_ult_f8
+
+/-- Concrete `0xc0` head ⇒ short-list walk_init `h_ge` (`¬ult 0xc0`). -/
+theorem teer_h_ge_of_byte_c0
+    {bs : List (BitVec 8)} {listOff : Nat} (hoff : listOff < bs.length)
+    (h0 : bs[listOff]'hoff = (0xc0 : BitVec 8)) :
+    ¬ BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true := by
+  intro h
+  rw [h0] at h
+  exact absurd h (by decide)
+
+/-- Concrete `0xc0` head ⇒ short-list walk_init `h_hi` (`ult 0xf8`). -/
+theorem teer_h_hi_of_byte_c0
+    {bs : List (BitVec 8)} {listOff : Nat} (hoff : listOff < bs.length)
+    (h0 : bs[listOff]'hoff = (0xc0 : BitVec 8)) :
+    BitVec.ult ((bs[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+  rw [h0]
+  decide
+
+#print axioms teer_h_ge_of_byte_c0
+#print axioms teer_h_hi_of_byte_c0
+
+/-- Domain `bs[0]=0xc0` + `listOff=0` ⇒ walk_init `h_ge` free. -/
+theorem teer_h_ge_listOff0_of_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (listOff : Nat) (hL : listOff = 0)
+    (hoffL : listOff < bs.length) :
+    ¬ BitVec.ult ((bs[listOff]'hoffL).zeroExtend 64) (0xc0 : Word) = true := by
+  subst hL
+  exact teer_h_ge_of_byte_c0 hoffL (by
+    simpa using dom.h0)
+
+/-- Domain `bs[0]=0xc0` + `listOff=0` ⇒ walk_init `h_hi` free. -/
+theorem teer_h_hi_listOff0_of_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (listOff : Nat) (hL : listOff = 0)
+    (hoffL : listOff < bs.length) :
+    BitVec.ult ((bs[listOff]'hoffL).zeroExtend 64) (0xf8 : Word) = true := by
+  subst hL
+  exact teer_h_hi_of_byte_c0 hoffL (by
+    simpa using dom.h0)
+
+#print axioms teer_h_ge_listOff0_of_dom
+#print axioms teer_h_hi_listOff0_of_dom
+
+/-- `ret` 2-aligned packaging alias (ABI residual; free only for concrete PCs via `decide`). -/
+abbrev teer_ret_aligned (ret : Word) : Prop :=
+  (ret &&& ~~~(1 : Word)) = ret
+
+theorem teer_ret_aligned_of (ret : Word)
+    (h : (ret &&& ~~~(1 : Word)) = ret) : teer_ret_aligned ret := h
+
+#print axioms teer_ret_aligned_of
 
 theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi_dom
     (ret spVal spC loadPtr lenW balPtr balLenW chainIdW baiW : Word)
