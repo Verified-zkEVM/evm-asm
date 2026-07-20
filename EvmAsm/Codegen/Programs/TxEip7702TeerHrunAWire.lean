@@ -28,7 +28,8 @@ open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
 open EvmAsm.Codegen.TxTypeDispatchSpec
   (teerTxTypeDispatch txSlice loadPtr_add_rel_eq)
 open EvmAsm.Codegen.TxExtractToAddressHonesty
-  (rlpItemDecode_single_byte rlpItemDecode_single_byte_next)
+  (rlpItemDecode_single_byte rlpItemDecode_single_byte_next
+    rlpItemDecode_empty_short rlpItemDecode_pfx80_imp_next rlpItemDecode_pfx80_imp_len0)
 open EvmAsm.Rv64.SAsm (toNat_zeroExtend_byte)
 
 set_option maxRecDepth 8000
@@ -4756,6 +4757,108 @@ theorem teer_hdec_hbridge_single_byte
   exact teer_hbridge_single_byte bs srcOff regionBase endPtr next len0 hoff hb hdec hnoWrap
 
 #print axioms teer_hdec_hbridge_single_byte
+
+/-- Empty short-string `0x80` + fit ⇒ `hdec` free (`rlpItemDecode_empty_short`).
+    Fit shape: `ult 0 (end - cursor)`. -/
+theorem teer_hdec_empty_short_string
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hfit : BitVec.ult (0 : Word)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true) :
+    ∃ next len0 : Word,
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 :=
+  ⟨_, _, rlpItemDecode_empty_short bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr hoff hb hfit⟩
+
+#print axioms teer_hdec_empty_short_string
+
+/-- Empty short-string decode ⇒ bridge `next = regionBase + ofNat (srcOff+1)`. -/
+theorem teer_hbridge_empty_short_string
+    (bs : List (BitVec 8)) (srcOff : Nat) (regionBase endPtr next len0 : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hdec : rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0)
+    (hnoWrap : regionBase.toNat + (srcOff + 1) < 2 ^ 64) :
+    next = regionBase + BitVec.ofNat 64 (srcOff + 1) := by
+  have hnext := rlpItemDecode_pfx80_imp_next bs srcOff
+    (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 hoff hb hdec
+  have hse : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := teer_se12_one
+  have hnext' : next = (regionBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 1 := by
+    simpa [hse] using hnext
+  apply Eq.trans hnext'
+  apply BitVec.eq_of_toNat_eq
+  have hs : srcOff < 2 ^ 64 := by omega
+  have hs1 : srcOff + 1 < 2 ^ 64 := by omega
+  have hsum0 : regionBase.toNat + srcOff < 2 ^ 64 := by omega
+  have hsum1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64 := hnoWrap
+  have h1mod : (1 : Nat) % 2 ^ 64 = 1 := by decide
+  calc
+    ((regionBase + BitVec.ofNat 64 srcOff) + BitVec.ofNat 64 1).toNat
+        = ((regionBase + BitVec.ofNat 64 srcOff).toNat + 1) % 2 ^ 64 := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, h1mod]
+    _ = (regionBase.toNat + srcOff + 1) % 2 ^ 64 := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs,
+            Nat.mod_eq_of_lt hsum0]
+    _ = regionBase.toNat + srcOff + 1 := by
+          rw [Nat.mod_eq_of_lt (by omega : regionBase.toNat + srcOff + 1 < 2 ^ 64)]
+    _ = regionBase.toNat + (srcOff + 1) := by omega
+    _ = (regionBase + BitVec.ofNat 64 (srcOff + 1)).toNat := by
+          rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hs1,
+            Nat.mod_eq_of_lt hsum1]
+
+#print axioms teer_hbridge_empty_short_string
+
+/-- `0x80` head ⇒ short-string room needs `srcOff+1` in bounds (ante true).
+    Vacuous long-string/long-list rooms still free via `ult 0xb8` / `ult 0xf8`. -/
+theorem teer_room_hls_hll_vacuous_of_byte_80
+    {bs : List (BitVec 8)} {srcOff : Nat} (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8)) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) := by
+  have hb8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true := by
+    rw [hb]; decide
+  have hf8 : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true := by
+    rw [hb]; decide
+  exact ⟨teer_hls_vacuous_of_ult_b8 hoff hb8, teer_hll_vacuous_of_ult_f8 hoff hf8⟩
+
+#print axioms teer_room_hls_hll_vacuous_of_byte_80
+
+/-- Short-string room for `0x80`: need `srcOff+1` valid (empty content peek). -/
+theorem teer_hss_room_of_byte_80
+    {regionBase : Word} {bs : List (BitVec 8)} {srcOff : Nat}
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) :
+    ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+  intro _ _
+  exact ⟨hoff1, hover1, hvalid1⟩
+
+#print axioms teer_hss_room_of_byte_80
+
+/-- Domain slack ≥ 2 from `srcOff` ⇒ short-string room for `0x80` free. -/
+theorem teer_hss_room_of_byte_80_dom
+    {regionBase : Word} {bs : List (BitVec 8)}
+    (dom : TeerEmptyAuthDomainEmptyShortRun regionBase bs)
+    (srcOff : Nat) (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = (0x80 : BitVec 8))
+    (hroom : srcOff + 1 < bs.length) :
+    ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true :=
+  teer_hss_room_of_byte_80 hoff hb hroom
+    (by have h := dom.hover; omega)
+    (dom.hvalid (srcOff + 1) hroom)
+
+#print axioms teer_hss_room_of_byte_80_dom
+
 
 
 
