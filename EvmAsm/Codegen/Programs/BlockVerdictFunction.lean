@@ -912,7 +912,7 @@ def blockVerdictFunction : String :=
   -- the recipient execution storage log is incomplete. The authenticated
   -- state-root recompute remains binding, so skip this redundant storage
   -- exactness check rather than false-rejecting BAL rows against a partial log.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_storage_exact_done\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_bal_storage_omit_fail\n" ++
   -- Reverted/exceptional txs keep access evidence, but their storage writes do not commit.
   -- The raw replay log still contains attempted SSTOREs; do not require those reverted writes
   -- to appear as BAL storage_changes. State-root/BAL application already rejects any committed
