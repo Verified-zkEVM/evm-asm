@@ -121,6 +121,12 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_receipt_logs_helper_status:\n" ++
   "  j .Lbv_receipts_helper_fail\n" ++
   ".Lbv_receipts_accept:\n" ++
+  -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
+  -- conservative bail; the single-tx destroyed-empty detector may replace a
+  -- successful result with 62.  Every nonzero route bypasses the single-tx
+  -- all-account storage/tuple comparators, so none may accept based only on a
+  -- matching attacker-chosen receipts root.
+  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_bal_storage_omit_fail\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
