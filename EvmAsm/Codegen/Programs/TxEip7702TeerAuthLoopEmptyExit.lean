@@ -6841,4 +6841,25 @@ def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_applied
 #print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is
 #print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_applied
 
+/-- Free list_count `asm` residual: use discharged `teerListCountAuthLoopAssumed_teerLinked`. -/
+def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_linked
+    (hrunA : TeerEmptyAuthHrunEmptyShortIs)
+    (content : Word)
+    (hn : hrunA.nSteps + nListCountAuthLoopStart 1 + 30 ≤ nTeerSteps) :
+    TeerFrontToAuthLoopAssumedFree26EmptyShort :=
+  teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is
+    hrunA teerListCountAuthLoopAssumed_teerLinked content hn
+
+/-- `hn` + `asm` free when applied step count + linked list_count. -/
+def teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_applied_linked
+    (hrunA : TeerEmptyAuthHrunEmptyShortIs)
+    (content : Word)
+    (hnSteps : hrunA.nSteps = nFrontToAtListCount) :
+    TeerFrontToAuthLoopAssumedFree26EmptyShort :=
+  teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_applied
+    hrunA teerListCountAuthLoopAssumed_teerLinked content hnSteps
+
+#print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_linked
+#print axioms teerFrontToAuthLoopAssumedFree26EmptyShort_of_hrunA_is_applied_linked
+
 end EvmAsm.Codegen.TxEip7702TeerSpec

@@ -4934,8 +4934,7 @@ theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi
         ((regionBase + BitVec.ofNat 64 listOff) +
           (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA8 lenA8 →
       nextA8 = regionBase + BitVec.ofNat 64 srcOffA9)
-    (hA9 : srcOffA9 = 0)
-    (asm : TeerListCountAuthLoopAssumed teerLinkedCount) :
+    (hA9 : srcOffA9 = 0) :
     let s0 := loadPtr
     let s1 := lenW
     let s2 := balPtr
@@ -4991,7 +4990,8 @@ theorem teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi
     srcOffA8 hoffA8 hoverA8 hvalidA8 hssA8 hlsA8 hllA8 hdecA8 hinbA8 hbridgeA7
     srcOffA9 hoffA9 hoverA9 hvalidA9 hssA9 hlsA9 hllA9 hdecA9 hinbA9 hbridgeA8
     hA9
-    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0 asm
+    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0
+      teerListCountAuthLoopAssumed_teerLinked
     dom.hslack dom.hvalid
 
 #print axioms teerEmptyAuth_free26_to_exitPack_of_applied_as_postEx_is_empty_short_abi_dom
@@ -5614,7 +5614,6 @@ theorem teerEmptyAuth_free26_toRet_of_applied_as_postEx_is_empty_short_abi_dom
           (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA8 lenA8 →
       nextA8 = regionBase + BitVec.ofNat 64 srcOffA9)
     (hA9 : srcOffA9 = 0)
-    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
     (hret : (ret &&& ~~~(1 : Word)) = ret) :
     let s0 := loadPtr
     let s1 := lenW
@@ -5677,7 +5676,8 @@ theorem teerEmptyAuth_free26_toRet_of_applied_as_postEx_is_empty_short_abi_dom
     srcOffA8 hoffA8 hoverA8 hvalidA8 hssA8 hlsA8 hllA8 hdecA8 hinbA8 hbridgeA7
     srcOffA9 hoffA9 hoverA9 hvalidA9 hssA9 hlsA9 hllA9 hdecA9 hinbA9 hbridgeA8
     hA9
-    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0 asm
+    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0
+      teerListCountAuthLoopAssumed_teerLinked
     dom.hslack dom.hvalid hret
 
 
@@ -6299,7 +6299,6 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
           (lenW - (teerTxTypeDispatch (txSlice bs off len)).2.2)) nextA8 lenA8 →
       nextA8 = regionBase + BitVec.ofNat 64 srcOffA9)
     (hA9 : srcOffA9 = 0)
-    (asm : TeerListCountAuthLoopAssumed teerLinkedCount)
     (hret : (ret &&& ~~~(1 : Word)) = ret) :
     let s0 := loadPtr
     let s1 := lenW
@@ -6364,7 +6363,8 @@ theorem teerEmptyAuth_free26_to_applied_flat_of_applied_as_postEx_is_empty_short
     srcOffA8 hoffA8 hoverA8 hvalidA8 hssA8 hlsA8 hllA8 hdecA8 hinbA8 hbridgeA7
     srcOffA9 hoffA9 hoverA9 hvalidA9 hssA9 hlsA9 hllA9 hdecA9 hinbA9 hbridgeA8
     hA9
-    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0 asm
+    (teer_hoff0_of_empty_short_slack dom.hslack) dom.h0
+      teerListCountAuthLoopAssumed_teerLinked
     dom.hslack dom.hvalid hret
 
 
