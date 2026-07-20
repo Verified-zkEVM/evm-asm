@@ -45,9 +45,9 @@ if not out_path.exists():
     print(Path('gen-out/zisk_creation_runtime_windows.emu.log').read_text()[-2000:], file=sys.stderr)
     sys.exit(1)
 out = out_path.read_bytes()
-if len(out) < 200:
-    out += b'\x00' * (200 - len(out))
-words = [struct.unpack_from('<Q', out, i * 8)[0] for i in range(25)]
+if len(out) < 208:
+    out += b'\x00' * (208 - len(out))
+words = [struct.unpack_from('<Q', out, i * 8)[0] for i in range(26)]
 expected = [
     0,      # supported helper status
     1,      # runtime_count after supported
@@ -69,6 +69,7 @@ expected = [
     0xA5,   # created effect address first byte
     0x42,   # copied post-balance first byte
     1,      # created account post nonce
+    0x42,   # CREATE endowment visible as initcode SELFBALANCE
 ]
 labels = [
     'supported_status', 'supported_runtime_count', 'tx_status', 'gas_left',
@@ -78,6 +79,7 @@ labels = [
     'non_creation_count', 'null_initcode_status', 'null_initcode_count',
     'long_initcode_status', 'long_initcode_count', 'nse_effect_count',
     'nse_created_addr0', 'nse_created_post_balance0', 'nse_created_post_nonce',
+    'created_env_self_balance0',
 ]
 failed = False
 for label, got, exp in zip(labels, words, expected):

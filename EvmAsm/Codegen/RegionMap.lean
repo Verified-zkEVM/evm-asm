@@ -300,7 +300,7 @@ def schemeAAnchors : List GuestRegion :=
     `0x5dc4c` for the unconditional mtx process_transaction fix
     (`measure/mtx-whitelist-bypass`, #10471: removes the whitelist-v0
     admission gate, matching spec apply_body:913-914). -/
-def textSizeBytes : Nat := 0x5dff8
+def textSizeBytes : Nat := 0x5e018
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

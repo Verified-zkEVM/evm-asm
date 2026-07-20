@@ -295,6 +295,16 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
   "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
   ".Lbvcr_stage_address_done:\n" ++
+  -- `process_create_message` credits the fresh account with the transaction
+  -- endowment before initcode runs.  `stage_runtime_payload_code` materializes
+  -- that value as CALLVALUE at env+96, but the live account balance consumed by
+  -- SELFBALANCE and SELFDESTRUCT's new-beneficiary surcharge is env+32.  Both
+  -- words use the same little-endian EVM-word representation, so seed the
+  -- latter directly from the former.  Without this, a value-carrying top-level
+  -- CREATE that SELFDESTRUCTs to an empty beneficiary appears balance-zero and
+  -- misses the required NEW_ACCOUNT state-gas charge.
+  "  ld t2, 96(t1); sd t2, 32(t1); ld t2, 104(t1); sd t2, 40(t1)\n" ++
+  "  ld t2, 112(t1); sd t2, 48(t1); ld t2, 120(t1); sd t2, 56(t1)\n" ++
   -- A transaction-level CREATE enters initcode in the freshly-created account,
   -- just like `process_create_message`: mark depth zero as a CREATE frame and
   -- publish its address/nonce before the dispatcher starts.  The runtime uses

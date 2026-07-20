@@ -92,7 +92,8 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
       +168 exec_nonstorage_effect_count        (expect 1)
       +176 created effect addr[0]              (expect 0xA5)
       +184 created effect post_balance[0]      (expect 0x42)
-      +192 created effect post_nonce           (expect 1) -/
+      +192 created effect post_nonce           (expect 1)
+      +200 created env SELFBALANCE low limb    (expect 0x42) -/
 def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
   body        := []
   prologueAsm :=
@@ -131,6 +132,8 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  la t0, exec_nonstorage_effect_log; lbu t1, 0(t0); sd t1, 176(s0)\n" ++
     "  lbu t1, 64(t0); sd t1, 184(s0)\n" ++
     "  ld t1, 104(t0); sd t1, 192(s0)\n" ++
+    -- The CREATE endowment must become the live balance that initcode sees.
+    "  la t0, evm_env; ld t1, 32(t0); sd t1, 200(s0)\n" ++
     -- Unsupported non-STOP initcode must not populate runtime_count.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_bad_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
