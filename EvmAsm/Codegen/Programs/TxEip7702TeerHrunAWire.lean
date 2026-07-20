@@ -32,7 +32,8 @@ open EvmAsm.Codegen.TxExtractToAddressHonesty
     rlpItemDecode_empty_short rlpItemDecode_pfx80_imp_next rlpItemDecode_pfx80_imp_len0
     rlpItemDecode_addr20_short rlpItemDecode_pfx94_imp_next rlpItemDecode_pfx94_imp_len20
     rlpItemDecode_short_string_next hnext_short_string_of_decode
-    rlpItemDecode_short_list)
+    rlpItemDecode_short_string rlpItemDecode_short_list)
+open EvmAsm.EL.RLP (Byte)
 open EvmAsm.Rv64.SAsm (toNat_zeroExtend_byte)
 
 set_option maxRecDepth 8000
@@ -5573,6 +5574,127 @@ theorem teer_field_package_short_list_of_span
     hnoWrap
 
 #print axioms teer_field_package_short_list_of_span
+
+
+/-- Short-string field package for prefix `0x80+n` with `n = data.length ∈ [1,55]`.
+    Residual: head/data + room/fit/canonicity/span. -/
+theorem teer_field_package_short_string_pfx
+    (bs : List (BitVec 8)) (srcOff : Nat) (data : List Byte)
+    (regionBase endPtr : Word)
+    (hoff : srcOff < bs.length)
+    (hb : bs[srcOff]'hoff = BitVec.ofNat 8 (0x80 + data.length))
+    (hlen : data.length ≤ 55)
+    (_hpos : 0 < data.length)
+    (hnotSingle : ¬ (∃ b : Byte, data = [b] ∧ b.toNat < 0x80))
+    (hoff1 : srcOff + 1 < bs.length)
+    (hover1 : regionBase.toNat + (srcOff + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hfit : BitVec.ult (BitVec.ofNat 64 data.length)
+      (endPtr - (regionBase + BitVec.ofNat 64 srcOff)) = true)
+    (hcan : data.length = 1 →
+      ∃ c : BitVec 8, bs[srcOff + 1]? = some c ∧
+        ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hspan : regionBase.toNat + srcOff + 1 + data.length < 2 ^ 64) :
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+          srcOff + 1 < bs.length ∧ regionBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+            isValidByteAccess (regionBase + BitVec.ofNat 64 (srcOff + 1)) = true) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true → True) ∧
+    (¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true → True) ∧
+    (∃ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0) ∧
+    (∀ next len0 : Word,
+        rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 →
+          next = regionBase + BitVec.ofNat 64 (srcOff + 1 + len0.toNat)) := by
+  have hss := teer_hss_room_of_short_string hoff hoff1 hover1 hvalid1
+  have hze : ((bs[srcOff]'hoff).zeroExtend 64).toNat = 0x80 + data.length := by
+    have hp : (BitVec.ofNat 8 (0x80 + data.length)).toNat = 0x80 + data.length := by
+      rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+    rw [hb, toNat_zeroExtend_byte, hp]
+  have h80n : (0x80 : Word).toNat = 0x80 := by decide
+  have hb8n : (0xb8 : Word).toNat = 0xb8 := by decide
+  have hge : ¬ BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true := by
+    intro hult
+    have := (BitVec.ult_iff_lt).1 hult
+    simp only [BitVec.lt_def, hze, h80n] at this; omega
+  have hlt : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true :=
+    (BitVec.ult_iff_lt).2 (by
+      have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xb8 := by rw [hze]; omega
+      simpa [BitVec.lt_def, hb8n] using this)
+  have ⟨hls, hll⟩ := teer_room_hls_hll_vacuous_of_short_string hoff hge hlt
+  have hdecEx :
+      rlpItemDecode bs srcOff (regionBase + BitVec.ofNat 64 srcOff) endPtr
+        ((regionBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12) +
+          BitVec.ofNat 64 data.length)
+        (BitVec.ofNat 64 data.length) :=
+    rlpItemDecode_short_string bs srcOff
+      (regionBase + BitVec.ofNat 64 srcOff) endPtr data hoff hb hlen hnotSingle hfit hcan
+  refine ⟨hss, hls, hll, ⟨_, _, hdecEx⟩, ?_⟩
+  intro next len0 hdec'
+  have hspan' : regionBase.toNat + srcOff + 1 + len0.toNat < 2 ^ 64 := by
+    have hb' : ∃ b : BitVec 8, bs[srcOff]? = some b ∧
+        ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true :=
+      ⟨bs[srcOff]'hoff, List.getElem?_eq_getElem hoff, hge, hlt⟩
+    have hnext := rlpItemDecode_short_string_next bs srcOff
+      (regionBase + BitVec.ofNat 64 srcOff) endPtr next len0 hdec' hb'
+    -- len0 = data.length from unique decode form; use head byte
+    have hlenEq : len0.toNat = data.length := by
+      -- short-string arm: len = b.ze - 0x80
+      obtain ⟨b, hb?, hforms⟩ := hdec'
+      have heq : b = bs[srcOff]'hoff := by
+        have hget : bs[srcOff]? = some (bs[srcOff]'hoff) := List.getElem?_eq_getElem hoff
+        rw [hget] at hb?; exact Option.some.inj hb?.symm
+      subst heq
+      rcases hforms with h1 | h2 | h3 | h4 | h5
+      · exact absurd h1.1 hge
+      · have hlenW : len0 = (bs[srcOff]'hoff).zeroExtend 64 - (0x80 : Word) := h2.2.2.2.2.2
+        have hle : 0x80 ≤ ((bs[srcOff]'hoff).zeroExtend 64).toNat := by
+          rw [hze]; omega
+        have : len0.toNat = ((bs[srcOff]'hoff).zeroExtend 64).toNat - 0x80 := by
+          rw [hlenW, BitVec.toNat_sub_of_le hle]
+          have h80 : (0x80 : Word).toNat = 0x80 := by decide
+          rw [h80]
+        rw [this, hze]; omega
+      · exact absurd hlt h3.1
+      · have hb8 : (0xb8 : Word).toNat = 0xb8 := by decide
+        have hc0 : (0xc0 : Word).toNat = 0xc0 := by decide
+        have hlt' : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xb8 := by
+          have := (BitVec.ult_iff_lt).1 hlt
+          simpa [BitVec.lt_def, hb8] using this
+        have hult : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true :=
+          (BitVec.ult_iff_lt).2 (by
+            have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xc0 := by omega
+            simpa [BitVec.lt_def, hc0] using this)
+        exact absurd hult h4.1
+      · have hb8 : (0xb8 : Word).toNat = 0xb8 := by decide
+        have hf8 : (0xf8 : Word).toNat = 0xf8 := by decide
+        have hlt' : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xb8 := by
+          have := (BitVec.ult_iff_lt).1 hlt
+          simpa [BitVec.lt_def, hb8] using this
+        have hult : BitVec.ult ((bs[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true :=
+          (BitVec.ult_iff_lt).2 (by
+            have : ((bs[srcOff]'hoff).zeroExtend 64).toNat < 0xf8 := by omega
+            simpa [BitVec.lt_def, hf8] using this)
+        exact absurd hult h5.1
+    rw [hlenEq]; exact hspan
+  exact teer_hbridge_short_string bs srcOff regionBase endPtr next len0
+    hoff hge hlt hdec' hspan'
+
+#print axioms teer_field_package_short_string_pfx
+
+/-- Short-string fit free when `cursor.toNat + n < end` (strict, matches ult n (end-cursor)). -/
+theorem teer_hfit_short_string_of_span
+    (cursor endPtr : Word) (n : Nat)
+    (hle : cursor.toNat ≤ endPtr.toNat)
+    (hspan : cursor.toNat + n < endPtr.toNat)
+    (hn64 : n < 2 ^ 64) :
+    BitVec.ult (BitVec.ofNat 64 n) (endPtr - cursor) = true :=
+  teer_hfit_of_toNat cursor endPtr n hle (by omega) hn64
+
+#print axioms teer_hfit_short_string_of_span
+
 
 
 
