@@ -21,14 +21,14 @@ namespace EvmAsm.Codegen
 
 /-- Copy an EVM stack address word into natural 20-byte address order.
 
-    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
-    helpers expect the big-endian byte string whose keccak selects the account
-    path. `x12` is the EVM stack pointer and `t1` points at
-    `eahsr_address_scratch`. -/
+    The runtime stack stores the low 160-bit address bytes in their natural
+    big-endian order at offsets 0..19. Trie lookup and the same-transaction
+    CREATE code-effect log use that same order. `x12` is the EVM stack pointer
+    and `t1` points at `eahsr_address_scratch`. -/
 private def extcodehashWitnessAddressCopy : String :=
   String.intercalate "" <|
     (List.range 20).map fun i =>
-      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+      s!"  lbu t2, {i}(x12)\n  sb t2, {i}(t1)\n"
 
 /-- Raw dispatcher handler for EXTCODEHASH backed by
     `extcodehash_at_header_state_root`.
