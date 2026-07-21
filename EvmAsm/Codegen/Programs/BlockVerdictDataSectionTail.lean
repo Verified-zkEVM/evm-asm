@@ -189,6 +189,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- nested frames reserve their high env words for rollback snapshots.
   ".balign 32\n" ++
   "sstore_prestate_pair:\n  .zero 64\n" ++
+  -- Per-SSTORE marker: the current env.ADDRESS is exactly the active CREATE
+  -- address, so the original storage value is transaction-locally zero while
+  -- a prior same-tx write remains visible as current.
+  "sstore_created_original_zero:\n  .zero 8\n" ++
   -- On a per-transaction log miss, SSTORE combines this block-map current
   -- value with the independently authenticated header-state original value.
   ".balign 32\n" ++

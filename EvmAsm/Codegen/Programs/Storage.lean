@@ -289,10 +289,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  beq x14, x15, .exit_outofgas\n" ++
         "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
         -- execution-specs gives fresh-created accounts a transaction-local
-        -- zero original/current view. `create_frame_flag` alone is too broad:
+        -- zero *original* view. `get_storage` still observes a prior write in
+        -- this transaction, so a matching log row must remain visible for the
+        -- current half of a later SSTORE. `create_frame_flag` alone is too broad:
         -- it describes a depth, while helper/refund activity at that depth can
         -- address another account. Require the current env.ADDRESS (LE) to be
         -- exactly this depth's CREATE address (BE) before taking the zero arm.
+        "  la x14, sstore_created_original_zero; sd zero, 0(x14)\n" ++
         "  la x14, evm_call_depth; ld x14, 0(x14)\n" ++
         "  slli x15, x14, 3; la x16, create_frame_flag; add x16, x16, x15; ld x16, 0(x16)\n" ++
         "  beqz x16, .Lsstore_created_original_scan\n" ++
@@ -303,7 +306,9 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  lbu x14, 0(x17); lbu x18, 0(x16); bne x14, x18, .Lsstore_created_original_scan\n" ++
         "  addi x17, x17, -1; addi x16, x16, 1; addi x15, x15, -1; j .Lsstore_created_addr_cmp\n" ++
         ".Lsstore_created_original_zero:\n" ++
-        "  li x18, 0; j .Lsstore_created_original_done\n" ++
+        -- Preserve original=0, but keep scanning so a later write sees the
+        -- current value established by an earlier same-transaction write.
+        "  li x14, 1; la x16, sstore_created_original_zero; sd x14, 0(x16); j .Lsstore_created_original_scan\n" ++
         ".Lsstore_created_original_scan:\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
@@ -345,6 +350,15 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- `created_accounts` changes only get_storage_original. When this
+        -- exact created account already has a log row, synthesize
+        -- {original = 0, current = row.current}; a first touch retains {0,0}.
+        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_prestate_normal\n" ++
+        "  beqz x18, .Lsstore_created_original_done\n" ++
+        "  la x14, sstore_prestate_pair; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
+        "  ld x15, 32(x18); sd x15, 32(x14); ld x15, 40(x18); sd x15, 40(x14); ld x15, 48(x18); sd x15, 48(x14); ld x15, 56(x18); sd x15, 56(x14)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_created_original_done\n" ++
+        ".Lsstore_prestate_normal:\n" ++
         -- A persistent-log miss is not necessarily an all-zero pre-state slot:
         -- an untouched nonzero slot need not occur in the BAL-derived seed set,
         -- yet an SSTORE still needs its authenticated original/current value for
