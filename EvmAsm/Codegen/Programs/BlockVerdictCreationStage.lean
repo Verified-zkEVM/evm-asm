@@ -508,6 +508,11 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  -- The creation execution/deposit path above is shared by single- and
+  -- multi-transaction callers.  Only publication is mode-specific: retain
+  -- the existing scalar path for single tx, while the multi-tx adapter asks
+  -- us to scatter the identical settled result at its current index.
+  "  la t4, bv_creation_output_mode; ld t5, 0(t4); bnez t5, .Lbvcr_mtx_publish\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
@@ -515,6 +520,19 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bv_receipts_enforce_enabled; sd t5, 0(t4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvcr_ret\n" ++
+  ".Lbvcr_mtx_publish:\n" ++
+  "  la t4, bv_creation_output_index; ld t1, 0(t4); mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t4, bv_creation_output_index; ld t1, 0(t4)\n" ++
+  "  slli t0, t1, 3\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t0; la t4, bv_runtime_gas_left; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund; add t3, t3, t0; la t4, bv_runtime_refund_counter; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_calldata; add t3, t3, t0; la t4, bv_runtime_calldata_floor; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t0; snez t5, s3; sd t5, 0(t3)\n" ++
+  "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; sd s2, 0(t3)\n" ++
+  "  slli t0, t1, 4; la t3, bv_tx_log_window; add t3, t3, t0\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   "  li a0, 0\n" ++
   "  j .Lbvcr_ret\n" ++
   ".Lbvcr_payload_unsupported:\n" ++
