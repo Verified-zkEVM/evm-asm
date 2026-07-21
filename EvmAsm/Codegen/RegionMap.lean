@@ -306,7 +306,7 @@ def schemeAAnchors : List GuestRegion :=
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
     (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x5edb0
+def textSizeBytes : Nat := 0x5ee30
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
