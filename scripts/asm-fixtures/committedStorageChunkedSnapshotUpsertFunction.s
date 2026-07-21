@@ -12,7 +12,7 @@ bv_mtx_committed_chunked_snapshot_upsert:
   sub x31, x31, x29
   add x31, x10, x31
   lbu x31, 0(x31)
-  bne x30, x31, .+308
+  bne x30, x30, .+308
   addi x29, x29, 1
   jal x0, .-40
   lwu x30, 20(x6)
@@ -26,7 +26,7 @@ bv_mtx_committed_chunked_snapshot_upsert:
   li x29, 0
   li x30, 20
   beq x29, x30, .+32
-  add x30, x10, x29
+  add x30, x6, x29
   lbu x30, 0(x30)
   add x31, x28, x29
   lbu x31, 0(x31)
@@ -58,7 +58,7 @@ bv_mtx_committed_chunked_snapshot_upsert:
   li x29, 0
   li x30, 20
   beq x29, x30, .+28
-  add x30, x10, x29
+  add x30, x6, x29
   lbu x31, 0(x30)
   add x30, x28, x29
   sb x31, 0(x30)

@@ -3,8 +3,8 @@
 
   Leaf helper for cross-transaction committed-storage threading. After a tx
   executes, the multi-tx verdict loop snapshots that tx's live storage exec-log
-  entries into `bv_mtx_committed`, re-keying `addrHash` to the tx recipient so a
-  later tx can preload the latest already-committed value for the same account.
+  entries into `bv_mtx_committed` under their real `(addrHash, slotKey)` keys,
+  so a later read can recover the latest already-committed value for any account.
 -/
 
 import EvmAsm.Rv64.Program
@@ -16,7 +16,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-! ## bv_mtx_committed_snapshot_append
-    a0 = recipient ptr (20B)
+    a0 = legacy recipient ptr (20B; unused during the real-key transition)
     a1 = live storage log base (128B entries)
     a2 = live storage log entry count
     a3 = committed table base (128B entries)
@@ -348,15 +348,12 @@ def ziskCommittedStorageSnapshotUpsertProbeUnit : BuildUnit := {
     unique keys append at the global count and overflow only when total chunked
     capacity is exhausted.
 
-    Only live entries owned by the recipient are threaded: an entry whose
-    addrHash (plain LE-numeric form, memory byte k = canonical address byte
-    19-k, high 12 bytes zero) does not match the recipient is skipped. The
-    live log also carries callee/system-write/sender-marker seeds for other
-    addresses, and both readers (`bv_mtx_committed_chunked_latest_value` call
-    sites) only ever query the recipient — without the filter, foreign seeds
-    were re-keyed to the recipient and clobbered the recipient's own threaded
-    values (last-wins), e.g. the EIP-2935 system-write seed overwrote the
-    recipient's slot0 original in bal_cross_tx-style blocks. -/
+    Every well-formed live storage row is retained under its own real
+    `(addrHash, slotKey)` key.  This mirrors execution-specs'
+    `BlockState.storage_writes`: the block map is not recipient-owned, because
+    a transaction may write storage through an internal call to any account.
+    The legacy recipient argument stays in the ABI for the transition, but is
+    deliberately not used to filter or re-key rows. -/
 def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
   [ .LI .x5 (0 : Word),
     .BEQ .x5 .x12 (384 : BitVec 13),
@@ -371,7 +368,7 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .SUB .x31 .x31 .x29,
     .ADD .x31 .x10 .x31,
     .LBU .x31 .x31 (0 : BitVec 12),
-    .BNE .x30 .x31 (308 : BitVec 13),
+    .BNE .x30 .x30 (308 : BitVec 13),
     .ADDI .x29 .x29 (1 : BitVec 12),
     .JAL .x0 (-40 : BitVec 21),
     .LWU .x30 .x6 (20 : BitVec 12),
@@ -385,7 +382,7 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .LI .x29 (0 : Word),
     .LI .x30 (20 : Word),
     .BEQ .x29 .x30 (32 : BitVec 13),
-    .ADD .x30 .x10 .x29,
+    .ADD .x30 .x6 .x29,
     .LBU .x30 .x30 (0 : BitVec 12),
     .ADD .x31 .x28 .x29,
     .LBU .x31 .x31 (0 : BitVec 12),
@@ -417,7 +414,7 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .LI .x29 (0 : Word),
     .LI .x30 (20 : Word),
     .BEQ .x29 .x30 (28 : BitVec 13),
-    .ADD .x30 .x10 .x29,
+    .ADD .x30 .x6 .x29,
     .LBU .x31 .x30 (0 : BitVec 12),
     .ADD .x30 .x28 .x29,
     .SB .x30 .x31 (0 : BitVec 12),

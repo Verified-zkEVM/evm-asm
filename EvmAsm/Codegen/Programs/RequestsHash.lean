@@ -113,19 +113,23 @@ def executionRequestsHashDataSection : String :=
   "erh_blob:\n  .zero 1572865\n"
 
 def executionRequestsHashShaDataSection : String :=
+  ".section .data\n" ++
   ".balign 8\n" ++
   "sha256_w_iv:\n" ++
   "  .quad 0xbb67ae856a09e667\n" ++
   "  .quad 0xa54ff53a3c6ef372\n" ++
   "  .quad 0x9b05688c510e527f\n" ++
   "  .quad 0x5be0cd191f83d9ab\n" ++
+  ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
   "sha256_w_state:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "sha256_w_input:\n  .zero 64\n" ++
+  ".section .data\n" ++
   ".balign 8\n" ++
   "sha256_w_params:\n" ++
   "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n"
+  "  .quad sha256_w_input\n" ++
+  ".section .bss, \"aw\", @nobits\n"
 
 end EvmAsm.Codegen

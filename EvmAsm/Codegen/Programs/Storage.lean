@@ -350,6 +350,24 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x14, x12, 31; la x15, sstore_prestate_pair; addi x15, x15, 32; li x16, 32\n" ++
         ".Lsstore_prestate_key_rev:\n" ++
         "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_key_rev\n" ++
+        -- The block-committed map is execution-specs' `BlockState.storage_writes`.
+        -- On a cold per-tx log miss it is the winning source for *both*
+        -- `get_storage_original` and `get_storage`: a prior successful tx's
+        -- committed value is the next tx's original and current alike.
+        "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
+        "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .Lsstore_committed_done\n" ++
+        "  mv a0, x20; la a1, sstore_prestate_pair; addi a1, a1, 32\n" ++
+        "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+        "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+        "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
+        "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
+        ".Lsstore_committed_done:\n" ++
+        "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .Lsstore_prestate_header\n" ++
+        "  la x14, sstore_committed_current; la x15, sstore_prestate_pair\n" ++
+        "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
+        "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_prestate_restore\n" ++
+        ".Lsstore_prestate_header:\n" ++
         "  ld a0, 576(x20); ld a1, 584(x20); la a2, sstore_prestate_pair; addi a3, a2, 32\n" ++
         "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
         "  jal ra, slot_at_header_state_root\n" ++
@@ -365,6 +383,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x15, sstore_prestate_pair; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
         "  la x18, sstore_prestate_pair\n" ++
         ".Lsstore_prestate_zero:\n" ++
+        ".Lsstore_prestate_restore:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
         ".Lsstore_prestate_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.

@@ -14,6 +14,7 @@
     successive anchors. Here every anchor gets an explicit extent (the gap to the
     next anchor) and a per-region evidence note.
   * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
+    dedicated bounded `.committed_storage` NOBITS map at `0xa2000000`, the
     zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
     (`--section-start=.sszscratch=0xbf600000`). Sizes here are the ELF ground
@@ -305,7 +306,7 @@ def schemeAAnchors : List GuestRegion :=
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
     (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x5eb64
+def textSizeBytes : Nat := 0x5ec38
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -331,7 +332,13 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. -/
-def bssSizeBytes : Nat := 0x1b5feec0
+def bssSizeBytes : Nat := 0x1b5eaf00
+
+/-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
+    storage map. It is kept outside `.data` so zero initialization does not
+    materialize a multi-megabyte payload, and outside `.bss` so the existing
+    frame/SSZ layout remains stable. -/
+def committedStorageSizeBytes : Nat := 0xcdd800
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -353,6 +360,13 @@ def textRegion : GuestRegion :=
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
     evidence := "ELF -Tdata=0xa3000000; 0x5370-byte PROGBITS extent" }
+
+/-- Fixed-size cross-transaction committed-storage map
+    (`--section-start=.committed_storage=0xa2000000`). -/
+def committedStorageRegion : GuestRegion :=
+  { name := ".committed_storage", base := 0xa2000000,
+    size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
 
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
 def bssRegion : GuestRegion :=
@@ -419,7 +433,8 @@ def stateTrackerLiveRegion : GuestRegion :=
     this list because they collide with `guest_stack` in the current build. -/
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
-    stateTrackerLiveRegion, textRegion, dataRegion, bssRegion, sszScratchRegion ]
+    stateTrackerLiveRegion, textRegion, committedStorageRegion, dataRegion,
+    bssRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
@@ -696,11 +711,12 @@ def stableGuestBases : List (String × Nat) :=
     ("zisk_system",       ziskSystemRegion.base),
     ("guest_stack_top",   guestStackTop),
     (".text",             textRegion.base),
+    (".committed_storage", committedStorageRegion.base),
     (".data",             dataRegion.base),
     (".bss",              bssRegion.base),
     (".sszscratch",       sszScratchRegion.base) ]
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
-theorem stableGuestBases_length : stableGuestBases.length = 19 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 20 := by decide
 
 end EvmAsm.Codegen.RegionMap

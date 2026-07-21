@@ -210,12 +210,20 @@ def bvMtxCommittedPageCapacity : Nat := 128
 def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
-/-- Behavior-neutral chunked committed-storage substrate for the follow-up
-    helpers. Each page preserves the current 128-entry layout; the active total
-    capacity is the number of unique `(recipient, slotKey)` entries across the
-    currently wired pages. -/
-def bvMtxCommittedChunkPages : Nat := 4
-def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+/-- A distinct committed storage row can be produced by an access-listed no-op
+    SSTORE, so the block map must not use the 10,000-gas changing-write arm as
+    its bound.  We use 1,900 gas as a deliberately conservative lower bound:
+    it is below Amsterdam's actual 3,000-gas access-list storage-key charge
+    and also leaves room for the following warm SSTORE floor. -/
+def bvMtxCommittedUniqueKeyMinGas : Nat := 1900
+
+/-- Full block-wide `BlockState.storage_writes` capacity. It is keyed by real
+    `(address, slotKey)` pairs and is gas-bounded rather than transaction-bounded:
+    `ceil(200M / 1900) = 105264` rows, or about 13 MiB at the native 128-byte
+    execution-log row stride. -/
+def bvMtxCommittedChunkCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvMtxCommittedUniqueKeyMinGas - 1) /
+    bvMtxCommittedUniqueKeyMinGas
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
 /-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
@@ -477,8 +485,9 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
 #guard bvMtxCommittedBytes = 16384
-#guard bvMtxCommittedChunkCapacity = 512
-#guard bvMtxCommittedChunkBytes = 65536
+#guard bvMtxCommittedUniqueKeyMinGas = 1900
+#guard bvMtxCommittedChunkCapacity = 105264
+#guard bvMtxCommittedChunkBytes = 13473792
 #guard bvMtxCommittedFullKeyCap = 600000
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
