@@ -351,6 +351,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- Preserve the pre-defer resolver contract: an absent delegated target, or
+  -- an existing target carrying EMPTY_CODE_HASH, executes as empty code.
+  "  li t0, 1; beq a0, t0, .Ldtrc_materialize_empty_target\n" ++
+  "  li t0, 5; bne a0, t0, .Ldtrc_materialize_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  j .Ldtrc_materialize_empty_target\n" ++
+  ".Ldtrc_materialize_lookup_done:\n" ++
   "  bnez a0, .Ldtrc_materialize_lookup_fail\n" ++
   "  la t0, cahsr_code_offset; ld t1, 0(t0); ld t2, 608(x20); add s0, t2, t1\n" ++
   "  la t0, cahsr_code_length; ld s1, 0(t0)\n" ++
@@ -360,6 +371,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
+  "  j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_empty_target:\n" ++
+  "  la x21, bv_stop_code; li t1, 1; sd t1, 496(x20)\n" ++
   "  j .Ldtrc_materialize_done\n" ++
   ".Ldtrc_materialize_lookup_fail:\n" ++
   "  li t1, 1; j .Ldtrc_materialize_fail\n" ++
