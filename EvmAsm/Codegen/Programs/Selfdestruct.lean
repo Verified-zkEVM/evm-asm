@@ -535,18 +535,10 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   ".L_sd7708_created_restore:\n" ++
   "  ld x10, 144(sp); ld x12, 152(sp); addi sp, sp, 160\n" ++
   ".L_selfdestruct_eip7708_have_balance:\n" ++
-  "  la t0, evm_selfdestruct_balance_scratch\n" ++
-  "  addi t1, t0, 31\n" ++
-  "  li t2, 16\n" ++
-  ".L_selfdestruct_eip7708_balance_rev:\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  sb t4, 0(t0)\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .L_selfdestruct_eip7708_balance_rev\n" ++
+  -- `evm_selfdestruct_balance_scratch` is already the helper's input word
+  -- representation.  `eip7708_append_synthetic_log` performs the one required
+  -- conversion when it writes canonical BE log data; reversing here would make
+  -- SELFDESTRUCT Transfer amounts little-endian in receipts.
   -- Build stack-word LE forms of the from/to addresses for the EIP-7708 log topics.
   -- sdai_origin_address / evm_selfdestruct_beneficiary are canonical 20-byte BE, but
   -- the receipt log encoder byte-reverses each 32B topic slot (like the CALL value-
