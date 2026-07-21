@@ -379,6 +379,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- silently treating an unsupported output as empty code.
   "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
   "  la t0, top_level_creation_returndata_len; sd zero, 0(t0)\n" ++
+  "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
@@ -389,6 +390,10 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t0, system_call_mode; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- Propagate an unauthenticated nested-CREATE pre-balance lookup as this
+  -- helper's existing nonzero unsupported result.  The caller's normal
+  -- creation-unsupported route reaches the final fail-closed verdict gate.
+  "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Lbvcr_payload_unsupported\n" ++
   -- `process_create_message` consumes a successful constructor RETURN as the
   -- deployed code before transaction gas settlement.  STOP has empty code and
   -- needs no record; a returned payload is captured in the fixed EIP-170
