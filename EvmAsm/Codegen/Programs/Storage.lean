@@ -288,6 +288,14 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 3\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
+        -- A same-transaction-created account has a fresh storage view. Check
+        -- before scanning the persistent log, which can contain an older
+        -- incarnation of this CREATE2 address from an earlier transaction.
+        "  la x14, evm_call_depth; ld x14, 0(x14); slli x14, x14, 3\n" ++
+        "  la x15, create_frame_flag; add x15, x15, x14; ld x15, 0(x15)\n" ++
+        "  beqz x15, .Lsstore_created_original_scan\n" ++
+        "  li x18, 0; j .Lsstore_created_original_done\n" ++
+        ".Lsstore_created_original_scan:\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
@@ -386,6 +394,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         ".Lsstore_prestate_restore:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
         ".Lsstore_prestate_done:\n" ++
+        ".Lsstore_created_original_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
         -- transient-log region; halt conservatively before any append-path
