@@ -136,11 +136,12 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t1, s2, 440\n" ++
   "  ld t2, 0(t1); sd t2, 352(t6); ld t2, 8(t1); sd t2, 360(t6)\n" ++
   "  ld t2, 16(t1); sd t2, 368(t6); ld t2, 24(t1); sd t2, 376(t6)\n" ++
-  -- CALLVALUE (word 3): context value. STOP does not observe it, but staging
-  -- it now keeps the trailer shape aligned with the later broader helper.
-  "  addi t1, s1, 96\n" ++
-  "  ld t2, 0(t1); sd t2, 96(t6); ld t2, 8(t1); sd t2, 104(t6)\n" ++
-  "  ld t2, 16(t1); sd t2, 112(t6); ld t2, 24(t1); sd t2, 120(t6)\n" ++
+  -- CALLVALUE (word 3): context value is BE, while the payload's EVM words
+  -- are LE limbs. This legacy emitted stager is currently non-live, but keep
+  -- its ABI correct instead of preserving an emitted raw-BE env seed.
+  "  addi t1, s1, 127; addi t2, t6, 96; li t3, 32\n" ++
+  ".Lscrpp_callvalue_rev:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; bnez t3, .Lscrpp_callvalue_rev\n" ++
   -- EIP-7843 SLOTNUM (trailer word @env_base+416, low limb): block-header
   -- slot_number (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part
   -- of the reconstructed header hash. The dispatcher copies this word to
@@ -350,12 +351,13 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- Restore the env base for the adjacent SELFBALANCE staging below.
   "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
   -- `process_create_message` credits the newly-created account with tx.value
-  -- before initcode executes.  The common payload stager has already copied
-  -- that value to CALLVALUE@+96, but its generic account lookup leaves this
-  -- fresh CREATE address's SELFBALANCE@+32 at zero.  Seed the frame's live
-  -- self balance from the same context value (both use LE EVM-word layout),
-  -- so SELFDESTRUCT and SELFBALANCE observe the account state the spec uses.
-  "  ld t2, 96(s0); sd t2, 32(t1); ld t2, 104(s0); sd t2, 40(t1); ld t2, 112(s0); sd t2, 48(t1); ld t2, 120(s0); sd t2, 56(t1)\n" ++
+  -- before initcode executes.  The context stores that value in canonical BE
+  -- order, while h_SELFBALANCE copies env+32 directly onto the LE EVM stack.
+  -- Seed this fresh CREATE frame by reversing BE tx.value into the LE env word,
+  -- so SELFDESTRUCT and SELFBALANCE observe the spec's live account balance.
+  "  addi t1, t1, 32; addi t2, s0, 127; li t3, 32\n" ++
+  ".Lbvcr_stage_selfbalance_rev:\n" ++
+  "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t3, t3, -1; bnez t3, .Lbvcr_stage_selfbalance_rev\n" ++
   -- A transaction-level CREATE enters initcode in the freshly-created account,
   -- just like `process_create_message`: mark depth zero as a CREATE frame and
   -- publish its address/nonce before the dispatcher starts.  The runtime uses
