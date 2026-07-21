@@ -184,7 +184,29 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  ld t5, 104(t1); or t4, t4, t5\n" ++
     "  beqz t4, .Lextcodehash_witness_state\n" ++
     "  li t4, 1; la t5, eahsr_same_tx_empty_flag; sd t4, 0(t5)\n" ++
+    -- A same-transaction-created account that SELFDESTRUCTs during its
+    -- constructor remains an EIP-1052 empty-code account until transaction
+    -- finalization.  Its deletion record deliberately has zero post-balance
+    -- and nonce, so the non-storage-effect scan above cannot distinguish it
+    -- from a pre-state absence.  The per-transaction destroyed-address table
+    -- carries the exact BE address and is rollback-scoped by frame_return.
+    -- On overflow, retain the conservative pre-state result.
     ".Lextcodehash_witness_state:\n" ++
+    "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lextcodehash_sd_empty_done\n" ++
+    "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lextcodehash_sd_empty_done\n" ++
+    "  la t2, evm_selfdestruct_destroyed_table\n" ++
+    ".Lextcodehash_sd_empty_scan:\n" ++
+    "  mv t3, t2; la t4, eahsr_address_scratch; li t5, 20\n" ++
+    ".Lextcodehash_sd_empty_cmp:\n" ++
+    "  beqz t5, .Lextcodehash_sd_empty_found\n" ++
+    "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lextcodehash_sd_empty_next\n" ++
+    "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lextcodehash_sd_empty_cmp\n" ++
+    ".Lextcodehash_sd_empty_next:\n" ++
+    "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lextcodehash_sd_empty_scan\n" ++
+    "  j .Lextcodehash_sd_empty_done\n" ++
+    ".Lextcodehash_sd_empty_found:\n" ++
+    "  li t0, 1; la t1, eahsr_same_tx_empty_flag; sd t0, 0(t1)\n" ++
+    ".Lextcodehash_sd_empty_done:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++

@@ -302,8 +302,10 @@ def schemeAAnchors : List GuestRegion :=
     admission gate, matching spec apply_body:913-914). Grew to `0x5e1e8`
     for the guarded post-setup top-level CREATE nonce seed
     (`fix/nested-create-nonce-seed`), which preserves the live nonce for
-    nested CREATE executed from initcode. -/
-def textSizeBytes : Nat := 0x5e5c4
+    nested CREATE executed from initcode. Grew to `0x5e63c` for the
+    same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
+    (`fix/extcodehash-selfdestruct-empty`). -/
+def textSizeBytes : Nat := 0x5e63c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
