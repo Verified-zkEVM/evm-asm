@@ -298,6 +298,30 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_org_diff\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_org_cmp\n" ++
   ".Ldwp_org_diff:\n" ++
+  -- `process_transaction` warms the block coinbase before the top-level
+  -- message (amsterdam/fork.py), so a delegation target equal to the
+  -- fee-recipient pays WARM_ACCESS here. `bv_exec_p+32` is that canonical
+  -- 20-byte BE fee-recipient field.
+  "  la t0, bv_exec_p; ld t0, 0(t0); addi t0, t0, 32; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_coinbase_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_coinbase_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_coinbase_cmp\n" ++
+  -- `prepare_message` also initially warms every active precompile. Mirror
+  -- runtime_access_account_charge's canonical 0x01..0x11 / 0x0100 test
+  -- before falling through to the recipient and access-list probes.
+  ".Ldwp_coinbase_diff:\n" ++
+  "  li t0, 0\n" ++
+  ".Ldwp_precompile_prefix:\n" ++
+  "  li t1, 18; beq t0, t1, .Ldwp_precompile_low16\n" ++
+  "  add t2, s5, t0; lbu t3, 0(t2); bnez t3, .Ldwp_rcp_start\n" ++
+  "  addi t0, t0, 1; j .Ldwp_precompile_prefix\n" ++
+  ".Ldwp_precompile_low16:\n" ++
+  "  lbu t2, 18(s5); lbu t3, 19(s5); slli t2, t2, 8; or t2, t2, t3\n" ++
+  "  li t3, 1; bltu t2, t3, .Ldwp_rcp_start\n" ++
+  "  li t3, 17; bgeu t3, t2, .Ldwp_warm\n" ++
+  "  li t3, 256; beq t2, t3, .Ldwp_warm\n" ++
+  ".Ldwp_rcp_start:\n" ++
   "  addi t0, s6, 72; mv t1, s5; li t2, 20\n" ++
   ".Ldwp_rcp_cmp:\n" ++
   "  beqz t2, .Ldwp_warm\n" ++
