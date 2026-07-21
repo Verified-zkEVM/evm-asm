@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
+import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 
 namespace EvmAsm.Codegen
 
@@ -98,7 +99,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail; ld t2, 48(t0); bnez t2, .Lbv_mtx_creation_unsupported        # creation tx shape\n" ++
+  "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
   -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
   -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
@@ -201,6 +202,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
   "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
   ".Lbv_mtx_nonce_done:\n" ++
+  -- Creation needs the same sender/public-key and nonce setup as every other
+  -- multi-tx item before its runtime adapter can derive CREATE(sender, nonce).
+  -- Route here rather than at context extraction, where ctx+24 is deliberately
+  -- still null and the generalized runner would hash a null sender pointer.
+  "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
@@ -345,6 +351,59 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   blockVerdictMtxValidationTail ++
+  ".Lbv_mtx_creation:\n" ++
+  -- The generalized creation runner is shared with the single-tx route.  Its
+  -- caller contract needs a real CREATE frame first: sender/public-key and
+  -- nonce have already been established by the common mtx prelude above.
+  "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
+  "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0); jal ra, has_code_or_nonce_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
+  "  la t0, hcon_predicate; ld t0, 0(t0); bnez t0, .Lbv_mtx_creation_unsupported\n" ++
+  -- Fresh target: mirror the single CREATE prepare_dispatch charge.  A
+  -- collision stays conservative until its error-receipt publication is also
+  -- indexed; never run initcode for a target whose EIP-684 predicate is true.
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
+  "  la t0, hcon_acct_struct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lbv_mtx_creation_charge_ready\n" ++
+  liAmsterdamNewAccountStateGas "t1" ++
+  "  la t0, runtime_tx_create_state_charge; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_creation_charge_ready:\n" ++
+  -- A creation transaction cannot be EIP-7702.  Its access-list state is
+  -- still part of intrinsic gas, so initialize the same runtime controls as
+  -- the single creation route; nonzero parse failures stay fail-closed.
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0); la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0); la t0, runtime_tx_access_list_len; sd zero, 0(t0); la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0); la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_ctx; ld t0, 160(t0); beqz t0, .Lbv_mtx_creation_access_done\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Lbv_mtx_creation_access_field; li a2, 8; li t1, 2; beq t0, t1, .Lbv_mtx_creation_access_field; li t1, 3; beq t0, t1, .Lbv_mtx_creation_access_field; j .Lbv_mtx_creation_unsupported\n" ++
+  ".Lbv_mtx_creation_access_field:\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); ld a1, 184(t0); la a3, bsg_access_off; la a4, bsg_access_len; jal ra, rlp_list_nth_item; bnez a0, .Lbv_mtx_creation_unsupported\n" ++
+  "  la t0, bv_mtx_ctx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1; la t1, bsg_access_len; ld a1, 0(t1); la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count; jal ra, access_list_count; bnez a0, .Lbv_mtx_creation_unsupported\n" ++
+  "  la t0, bv_mtx_ctx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1; la t0, runtime_tx_access_list_ptr; sd t2, 0(t0); la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0); la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_creation_access_done:\n" ++
+  -- Match the normal mtx dispatch transaction boundary: effects and storage
+  -- begin with a rollback checkpoint, and the dispatcher sees the block-pre
+  -- header while resolving nested accounts.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0); li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0); la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0); la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0); la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_creation_output_mode; li t1, 1; sd t1, 0(t0); la t0, bv_mtx_i; ld t1, 0(t0); la t0, bv_creation_output_index; sd t1, 0(t0)\n" ++
+  "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++
+  "  la t0, bv_creation_output_mode; sd zero, 0(t0); la t0, dtrc_use_pre_header; sd zero, 0(t0)\n" ++
+  "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
+  -- Re-key the shared mtx postlude to the created account.  The context is
+  -- replaced on the next loop iteration, and only its address slot is read by
+  -- the postlude's committed-storage snapshot.
+  "  la t0, bv_create_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_mtx_creation_key_copy:\n  beqz t2, .Lbv_mtx_creation_post; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_key_copy\n" ++
+  ".Lbv_mtx_creation_post:\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3; la t3, bv_tx_status_arr; add t3, t3, t0; ld a4, 0(t3)\n" ++
+  "  bnez a4, .Lbv_mtx_effects_kept\n" ++
+  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0); j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_mtx_creation_unsupported:\n" ++
   -- A creation transaction is not yet dispatched by this loop, but every
   -- preceding transaction has an exact settled runtime result in the strided
