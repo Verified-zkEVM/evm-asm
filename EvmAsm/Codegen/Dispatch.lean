@@ -2835,6 +2835,13 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  -- C1/9skho: transaction-aware callers may defer EIP-7702 target-code
+  -- materialization until this top-frame warm/cold charge has succeeded.
+  "  la x5, runtime_tx_post_top_frame_fn\n" ++
+  "  ld x28, 0(x5)\n" ++
+  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  ".runtime_tx_post_top_frame_done:\n" ++
   -- 5tmlt (Part B): warm tx.to's (env.ADDRESS) EIP-7702 delegation target AFTER the
   -- reset above. The spec warms the delegated_address at the first/free top-level
   -- access (interpreter.py:152-153); the guest's pre-reset resolutions of it are wiped
@@ -3461,6 +3468,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_top_frame_regular_gas:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_post_top_frame_fn:\n" ++
   "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
