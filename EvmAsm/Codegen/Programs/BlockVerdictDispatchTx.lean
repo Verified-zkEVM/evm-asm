@@ -398,6 +398,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
+  "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
   -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
   -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
@@ -972,6 +973,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- A CREATE child whose authenticated pre-balance lookup parse/decode failed
+  -- cannot safely execute with zero.  This sticky flag is set by
+  -- create_frame_descend and is consumed here into the ordinary nonzero
+  -- dispatch return that the verdict's final accept gate rejects.
+  "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
   "  la t4, runtime_tx_post_top_frame_fn; sd zero, 0(t4)\n" ++
