@@ -91,24 +91,31 @@ def createFrameDescendFunction : String :=
   -- before ChildFrameCreateTail captures env+32 as nse_create_pre_bal.
   --
   -- account_at_header_state_root returns 0=found, 1=authenticated absence, and
-  -- 2/3/4=parse/decode/header failure.  Only absence may mean zero.  A malformed
-  -- authenticated lookup must propagate through the consumed runtime failure
-  -- flag rather than silently executing with a guessed zero balance.
-  "  addi sp, sp, -32\n  sd ra, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp)\n" ++
+  -- 2/3/4=parse/decode/header failure.  `call_frame_descend` returns a5=1 when
+  -- its table/effect staging already supplied the current live child balance.
+  -- Only a genuine staging miss may be seeded from authenticated block-pre
+  -- state: overwriting a live value would regress same-block credits and
+  -- recreate-after-SELFDESTRUCT paths.  A malformed authenticated lookup must
+  -- propagate through the consumed runtime failure flag rather than silently
+  -- executing with a guessed zero balance.
+  "  addi sp, sp, -48\n  sd ra, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd a5, 32(sp)\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, create_address_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, create_prebalance_acct\n" ++
   "  jal ra, account_at_header_state_root\n  mv t6, a0\n" ++
-  "  ld ra, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); addi sp, sp, 32\n" ++
+  "  ld ra, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld a5, 32(sp); addi sp, sp, 48\n" ++
   "  beqz t6, .Lcfd_create_pre_found\n  li t0, 1; beq t6, t0, .Lcfd_create_pre_absent\n" ++
-  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_create_pre_done\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_create_pre_finish\n" ++
   ".Lcfd_create_pre_absent:\n" ++
-  "  sd zero, 32(x20); sd zero, 40(x20); sd zero, 48(x20); sd zero, 56(x20); j .Lcfd_create_pre_done\n" ++
+  "  j .Lcfd_create_pre_live\n" ++
   ".Lcfd_create_pre_found:\n" ++
+  "  bnez a5, .Lcfd_create_pre_live  # generic descent already staged the true live balance\n" ++
   -- Account balance is 32B big-endian at account+8; child env+32 is the EVM
   -- stack's LE-limb word, so reverse it exactly as the existing live overlay.
   "  la t0, create_prebalance_acct; addi t0, t0, 39; addi t1, x20, 32; li t2, 32\n" ++
   ".Lcfd_create_pre_copy:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcfd_create_pre_copy\n" ++
-  ".Lcfd_create_pre_done:\n" ++
+  ".Lcfd_create_pre_live:\n" ++
+  "  j .Lcfd_create_pre_finish\n" ++
+  ".Lcfd_create_pre_finish:\n" ++
   -- 4. mark the (now-current) child frame as a CREATE-frame for the .5b return handler.
   "  la t0, evm_call_depth; ld t1, 0(t0)            # child depth (post-push)\n" ++
   "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
