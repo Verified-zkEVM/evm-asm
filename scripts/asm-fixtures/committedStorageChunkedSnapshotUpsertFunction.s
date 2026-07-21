@@ -1,4 +1,57 @@
 bv_mtx_committed_chunked_snapshot_upsert:
+  addi x2, x2, -72
+  sd x1, 0(x2)
+  sd x11, 8(x2)
+  sd x12, 16(x2)
+  sd x13, 24(x2)
+  sd x14, 32(x2)
+  sd x15, 40(x2)
+  sd x16, 48(x2)
+  sd x10, 56(x2)
+  sd x17, 64(x2)
+  ld x6, 16(x2)
+  beq x6, x0, .+148
+  ld x5, 8(x2)
+  ld x31, 64(x2)
+  beq x31, x0, .+68
+  ld x30, 56(x2)
+  li x7, 0
+  li x28, 20
+  beq x7, x28, .+92
+  add x28, x5, x7
+  lbu x28, 0(x28)
+  li x29, 19
+  sub x29, x29, x7
+  add x29, x30, x29
+  lbu x29, 0(x29)
+  bne x28, x29, .+12
+  addi x7, x7, 1
+  jal x0, .-40
+  addi x30, x30, 32
+  addi x31, x31, -1
+  bne x31, x0, .-56
+  li x10, 0
+  ld x11, 8(x2)
+  li x12, 1
+  ld x13, 24(x2)
+  ld x14, 32(x2)
+  ld x15, 40(x2)
+  ld x16, 48(x2)
+  jal x1, .+60
+  bne x11, x0, .+44
+  sd x10, 32(x2)
+  ld x5, 8(x2)
+  addi x5, x5, 128
+  sd x5, 8(x2)
+  ld x6, 16(x2)
+  addi x6, x6, -1
+  sd x6, 16(x2)
+  jal x0, .-148
+  ld x10, 32(x2)
+  li x11, 0
+  ld x1, 0(x2)
+  addi x2, x2, 72
+  jalr x0, 0(x1)
   li x5, 0
   beq x5, x12, .+384
   slli x6, x5, 7

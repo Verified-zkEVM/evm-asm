@@ -60,6 +60,7 @@ run_case "full_fill"  3 "512:0:0:0:0:0:0:102:238"   || FAILED=1
 run_case "overflow"   4 "512:1:1:0:0:0:0:0:238"     || FAILED=1
 run_case "foreign"    5 "1:0:0:1:1:0:0:0:238"       || FAILED=1
 run_case "mixed"      6 "2:0:0:1:1:0:0:0:238"       || FAILED=1
+run_case "destroyed"  7 "0:0:0:0:0:0:0:0:238"       || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

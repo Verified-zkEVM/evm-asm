@@ -145,13 +145,14 @@ def ziskCommittedStorageSnapshotPrologue : String :=
 
 
 /-! ## bv_mtx_committed_snapshot_upsert
-    a0 = recipient ptr (20B)
+    a0 = current transaction's destroyed-address table (20-byte BE addresses)
     a1 = live storage log base (128B entries)
     a2 = live storage log entry count
     a3 = committed table base (128B entries)
     a4 = committed table count
     a5 = committed table capacity
     a6 = overflow status ptr (u64; set to 1 on overflow)
+    a7 = current transaction's destroyed-address count
     returns:
       a0 = new committed table count
       a1 = status (0 ok, 1 overflow)
@@ -348,13 +349,14 @@ def ziskCommittedStorageSnapshotUpsertProbeUnit : BuildUnit := {
     unique keys append at the global count and overflow only when total chunked
     capacity is exhausted.
 
-    Every well-formed live storage row is retained under its own real
+    Every well-formed, non-destroyed live storage row is retained under its own real
     `(addrHash, slotKey)` key.  This mirrors execution-specs'
     `BlockState.storage_writes`: the block map is not recipient-owned, because
     a transaction may write storage through an internal call to any account.
-    The legacy recipient argument stays in the ABI for the transition, but is
-    deliberately not used to filter or re-key rows. -/
-def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
+    The caller removes the seed prefix before entering this helper. The wrapper
+    below additionally mirrors execution-specs' `destroy_storage` by excluding
+    the current transaction's EIP-6780 deleted accounts before real-key upsert. -/
+def bvMtxCommittedChunkedSnapshotUpsertCore_prog : Program :=
   [ .LI .x5 (0 : Word),
     .BEQ .x5 .x12 (384 : BitVec 13),
     .SLLI .x6 .x5 (7 : BitVec 6),
@@ -456,18 +458,52 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .LI .x11 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def committedStorageChunkedSnapshotUpsertFunction : String :=
-  "bv_mtx_committed_chunked_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog
+def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
+  show List Instr from
+  ([ .ADDI .x2 .x2 (-72 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12), .SD .x2 .x11 (8 : BitVec 12),
+    .SD .x2 .x12 (16 : BitVec 12), .SD .x2 .x13 (24 : BitVec 12),
+    .SD .x2 .x14 (32 : BitVec 12), .SD .x2 .x15 (40 : BitVec 12),
+    .SD .x2 .x16 (48 : BitVec 12), .SD .x2 .x10 (56 : BitVec 12),
+    .SD .x2 .x17 (64 : BitVec 12),
+    .LD .x6 .x2 (16 : BitVec 12), .BEQ .x6 .x0 (148 : BitVec 13),
+    .LD .x5 .x2 (8 : BitVec 12), .LD .x31 .x2 (64 : BitVec 12),
+    .BEQ .x31 .x0 (68 : BitVec 13), .LD .x30 .x2 (56 : BitVec 12),
+    .LI .x7 (0 : Word), .LI .x28 (20 : Word), .BEQ .x7 .x28 (92 : BitVec 13),
+    .ADD .x28 .x5 .x7, .LBU .x28 .x28 (0 : BitVec 12),
+    .LI .x29 (19 : Word), .SUB .x29 .x29 .x7, .ADD .x29 .x30 .x29,
+    .LBU .x29 .x29 (0 : BitVec 12), .BNE .x28 .x29 (12 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12), .JAL .x0 (-40 : BitVec 21),
+    .ADDI .x30 .x30 (32 : BitVec 12), .ADDI .x31 .x31 (-1 : BitVec 12),
+    .BNE .x31 .x0 (-56 : BitVec 13),
+    .LI .x10 (0 : Word), .LD .x11 .x2 (8 : BitVec 12), .LI .x12 (1 : Word),
+    .LD .x13 .x2 (24 : BitVec 12), .LD .x14 .x2 (32 : BitVec 12),
+    .LD .x15 .x2 (40 : BitVec 12), .LD .x16 .x2 (48 : BitVec 12),
+    .JAL .x1 (60 : BitVec 21), .BNE .x11 .x0 (44 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x5 .x2 (8 : BitVec 12), .ADDI .x5 .x5 (128 : BitVec 12),
+    .SD .x2 .x5 (8 : BitVec 12), .LD .x6 .x2 (16 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12), .SD .x2 .x6 (16 : BitVec 12),
+    .JAL .x0 (-148 : BitVec 21),
+    .LD .x10 .x2 (32 : BitVec 12), .LI .x11 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12), .ADDI .x2 .x2 (72 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ] : List Instr) ++
+  (show List Instr from bvMtxCommittedChunkedSnapshotUpsertCore_prog)
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `bvMtxCommittedChunkedSnapshotUpsert_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def committedStorageChunkedSnapshotUpsertFunction : String :=
+  "bv_mtx_committed_chunked_snapshot_upsert:\n" ++
+    emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog
+
+/-- Kernel-checked drift guard: the emitted wrapper and bounded core are the
+    exact `Program` concatenation above. -/
 theorem committedStorageChunkedSnapshotUpsertFunction_eq_prog :
-    committedStorageChunkedSnapshotUpsertFunction = "bv_mtx_committed_chunked_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog := rfl
+    committedStorageChunkedSnapshotUpsertFunction =
+      "bv_mtx_committed_chunked_snapshot_upsert:\n" ++
+        emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog := rfl
 
 #guard committedStorageChunkedSnapshotUpsertFunction.startsWith "bv_mtx_committed_chunked_snapshot_upsert:\n"
-#guard bvMtxCommittedChunkedSnapshotUpsert_prog.length = 100
+#guard bvMtxCommittedChunkedSnapshotUpsertCore_prog.length = 100
+#guard bvMtxCommittedChunkedSnapshotUpsert_prog.length = 153
 /-- `zisk_mtx_committed_chunked_snapshot_upsert`: focused probe.
     Input after ziskemu's length wrapper:
       +8 mode: 0 zero-live, 1 129 unique inserts, 2 duplicate update across
@@ -491,6 +527,7 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   "  la t0, cscsu_recipient; li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 19(t0)\n" ++
   "  la t0, cscsu_status; sd zero, 0(t0)\n" ++
   "  la t0, cscsu_table; li t1, 0xEE; li t2, 65536; add t0, t0, t2; sd t1, 0(t0)\n" ++
+  "  la a0, cscsu_recipient; li a7, 0\n" ++
   "  la t0, cscsu_live; li t2, 0\n" ++
   ".Lcscsup_seed_live_loop:\n" ++
   "  li t3, 129; beq t2, t3, .Lcscsup_seed_live_done\n" ++
@@ -504,6 +541,7 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   "  li t0, 3; beq s1, t0, .Lcscsup_full_fill\n" ++
   "  li t0, 5; beq s1, t0, .Lcscsup_foreign_skip\n" ++
   "  li t0, 6; beq s1, t0, .Lcscsup_mixed_skip\n" ++
+  "  li t0, 7; beq s1, t0, .Lcscsup_destroyed_skip\n" ++
   "  j .Lcscsup_overflow\n" ++
   ".Lcscsup_129_unique:\n  li a2, 129; j .Lcscsup_call\n" ++
   ".Lcscsup_cross_duplicate:\n" ++
@@ -528,8 +566,13 @@ def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
   ".Lcscsup_mixed_skip:\n" ++
   "  la t0, cscsu_live; li t1, 0xCC; sb t1, 128(t0)\n" ++
   "  li a2, 2; li a4, 0; j .Lcscsup_call\n" ++
+  ".Lcscsup_destroyed_skip:\n" ++
+  -- The live row stores the execution address little-endian (BB...AA); the
+  -- EIP-6780 table is the canonical 20-byte BE address (AA...BB).
+  "  la t0, cscsu_destroyed; li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 19(t0)\n" ++
+  "  la a0, cscsu_destroyed; li a7, 1; li a2, 1; li a4, 0; j .Lcscsup_call\n" ++
   ".Lcscsup_call:\n" ++
-  "  la a0, cscsu_recipient; la a1, cscsu_live; la a3, cscsu_table; la a6, cscsu_status\n" ++
+  "  la a1, cscsu_live; la a3, cscsu_table; la a6, cscsu_status\n" ++
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
   "  sd a0, 0(s0); sd a1, 8(s0); la t0, cscsu_status; ld t1, 0(t0); sd t1, 16(s0)\n" ++
   "  la t0, cscsu_table\n" ++
@@ -547,6 +590,7 @@ def ziskCommittedStorageChunkedSnapshotUpsertDataSection : String :=
   "cscsu_live:\n  .zero 16640\n" ++
   "cscsu_table:\n  .zero 65544\n" ++
   "cscsu_recipient:\n  .zero 32\n" ++
+  "cscsu_destroyed:\n  .zero 32\n" ++
   "cscsu_status:\n  .zero 8\n"
 
 def ziskCommittedStorageChunkedSnapshotUpsertProbeUnit : BuildUnit := {

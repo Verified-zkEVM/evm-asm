@@ -320,12 +320,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_user_capture_done:\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
-  -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
-  -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
-  "  la a0, bv_mtx_ctx; addi a0, a0, 72             # recipient key\n" ++
+  -- Snapshot only actual runtime SSTORE rows into the cross-tx table. The
+  -- callable dispatcher places the callee witness-preload rows at the prefix
+  -- [0, callee_seed_count); those describe reads, not BlockState.storage_writes.
+  -- A same-tx-created account queued for EIP-6780 deletion is likewise filtered
+  -- by the helper, mirroring destroy_storage before incorporate_tx_into_block.
   "  li a1, 0xa0630000                              # live storage log base\n" ++
   "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
+  "  la t0, callee_seed_count; ld t1, 0(t0); bgeu a2, t1, .Lbv_mtx_commit_seed_count_ok; j .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_commit_seed_count_ok:\n" ++
+  "  slli t2, t1, 7; add a1, a1, t2; sub a2, a2, t1\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
+  "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
   "  li a5, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a6, bv_mtx_committed_chunk_overflow\n" ++
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++

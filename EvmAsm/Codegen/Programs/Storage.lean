@@ -288,12 +288,21 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 3\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
-        -- A same-transaction-created account has a fresh storage view. Check
-        -- before scanning the persistent log, which can contain an older
-        -- incarnation of this CREATE2 address from an earlier transaction.
-        "  la x14, evm_call_depth; ld x14, 0(x14); slli x14, x14, 3\n" ++
-        "  la x15, create_frame_flag; add x15, x15, x14; ld x15, 0(x15)\n" ++
-        "  beqz x15, .Lsstore_created_original_scan\n" ++
+        -- execution-specs gives fresh-created accounts a transaction-local
+        -- zero original/current view. `create_frame_flag` alone is too broad:
+        -- it describes a depth, while helper/refund activity at that depth can
+        -- address another account. Require the current env.ADDRESS (LE) to be
+        -- exactly this depth's CREATE address (BE) before taking the zero arm.
+        "  la x14, evm_call_depth; ld x14, 0(x14)\n" ++
+        "  slli x15, x14, 3; la x16, create_frame_flag; add x16, x16, x15; ld x16, 0(x16)\n" ++
+        "  beqz x16, .Lsstore_created_original_scan\n" ++
+        "  slli x15, x14, 5; la x16, create_address_by_depth; add x16, x16, x15\n" ++
+        "  addi x17, x20, 19; li x15, 20\n" ++
+        ".Lsstore_created_addr_cmp:\n" ++
+        "  beqz x15, .Lsstore_created_original_zero\n" ++
+        "  lbu x14, 0(x17); lbu x18, 0(x16); bne x14, x18, .Lsstore_created_original_scan\n" ++
+        "  addi x17, x17, -1; addi x16, x16, 1; addi x15, x15, -1; j .Lsstore_created_addr_cmp\n" ++
+        ".Lsstore_created_original_zero:\n" ++
         "  li x18, 0; j .Lsstore_created_original_done\n" ++
         ".Lsstore_created_original_scan:\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
