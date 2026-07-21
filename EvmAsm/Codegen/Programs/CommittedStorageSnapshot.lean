@@ -476,7 +476,10 @@ def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
     .ADDI .x7 .x7 (1 : BitVec 12), .JAL .x0 (-40 : BitVec 21),
     .ADDI .x30 .x30 (32 : BitVec 12), .ADDI .x31 .x31 (-1 : BitVec 12),
     .BNE .x31 .x0 (-56 : BitVec 13),
-    .LI .x10 (0 : Word), .LD .x11 .x2 (8 : BitVec 12), .LI .x12 (1 : Word),
+    -- The mechanically converted core still scans its legacy recipient
+    -- operand before the deliberately inert compare below.  Keep it mapped by
+    -- passing this live row (the core does not use its contents semantically).
+    .LD .x10 .x2 (8 : BitVec 12), .LD .x11 .x2 (8 : BitVec 12), .LI .x12 (1 : Word),
     .LD .x13 .x2 (24 : BitVec 12), .LD .x14 .x2 (32 : BitVec 12),
     .LD .x15 .x2 (40 : BitVec 12), .LD .x16 .x2 (48 : BitVec 12),
     .JAL .x1 (60 : BitVec 21), .BNE .x11 .x0 (44 : BitVec 13),

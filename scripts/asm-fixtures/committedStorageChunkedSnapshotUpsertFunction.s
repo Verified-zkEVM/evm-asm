@@ -30,7 +30,7 @@ bv_mtx_committed_chunked_snapshot_upsert:
   addi x30, x30, 32
   addi x31, x31, -1
   bne x31, x0, .-56
-  li x10, 0
+  ld x10, 8(x2)
   ld x11, 8(x2)
   li x12, 1
   ld x13, 24(x2)
