@@ -303,7 +303,7 @@ def schemeAAnchors : List GuestRegion :=
     for the guarded post-setup top-level CREATE nonce seed
     (`fix/nested-create-nonce-seed`), which preserves the live nonce for
     nested CREATE executed from initcode. -/
-def textSizeBytes : Nat := 0x5e7c8
+def textSizeBytes : Nat := 0x5e7c0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
