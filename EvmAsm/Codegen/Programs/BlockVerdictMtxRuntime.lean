@@ -62,7 +62,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted sender index once from public keys. The exact per-tx nonce
   -- check below binary-searches this table and mutates the count field as the
-  -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
+  -- running block-global nonce delta (transactions plus valid EIP-7702
+  -- authorizations); the B1 final-nonce tail consumes that same table.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_sender_seed_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_seed_done\n" ++
@@ -151,11 +152,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, bv_b1_sender_table; la t2, bv_b1_sender_count; ld a1, 0(t2); la a2, bv_mtx_sender_addr\n" ++
   "  jal ra, b1_sender_table_find\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  mv t6, a1; ld t5, 32(t6); addi a0, t5, 1; sd a0, 32(t6)\n" ++
+  "  mv t6, a1; ld t5, 32(t6)\n" ++
   "  la t0, bv_mtx_nonce_pre; ld t0, 0(t0)\n" ++
   "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
+  -- Commit this transaction's sender increment only after its nonce matched,
+  -- then apply every valid authorization from the already-classified type-4
+  -- payload.  This is the execution-specs order: process_transaction first,
+  -- process_authorization_list second.
+  "  addi t5, t5, 1; sd t5, 32(t6)\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); ld a1, 184(t0); ld a5, 160(t0); la a2, bv_mtx_sender_addr; la a3, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a4, 0(t0); li a6, 1; jal ra, b1_eip7702_apply_tx\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to

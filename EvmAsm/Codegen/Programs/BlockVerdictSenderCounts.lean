@@ -142,6 +142,100 @@ def b1SenderCountTableFunction : String :=
   ".Lb1sc_we_count:\n" ++
   "  sd a1, 32(t1); ret"
 
+/-! ## b1_eip7702_apply_tx
+
+    Exact EIP-7702 nonce accounting for the B1 sender-final check.  The B1
+    table already contains every transaction sender.  Its fixed in-row u64 is
+    reused as the sender's nonce delta from block start.  The caller advances
+    the sender before this helper is invoked, mirroring `process_transaction`
+    before `process_authorization_list`.
+
+    An authorization affects B1 only when its recovered authority is itself a
+    transaction sender.  For those rows we still evaluate the complete
+    execution-specs admission predicate: chain id, u64 nonce, recovery,
+    current nonce and block-pre code (`empty` or the 0xef0100 delegation
+    marker).  An authority outside the sender table cannot change any B1
+    expected nonce, so it is deliberately not retained in this fixed table.
+
+    a0/a1 = already-classified inner RLP bytes, a2 = tx sender,
+    a3/a4 = B1 table/count, a5 = classified transaction type.
+    a6 = 0 when this helper must apply the transaction-sender increment; 1
+    when the caller already checked and applied that increment. Returns 0; malformed transaction RLP
+    returns 1 so B1 fails closed rather than trusting a partial count. -/
+def b1Eip7702ApplyTxFunction : String :=
+  "b1_eip7702_apply_tx:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6\n" ++
+  -- Sender nonce increments before EIP-7702 authorization processing.  The
+  -- multi-tx runtime performs its nonce equality check before this helper, so
+  -- it may pass a6=1 after applying that first increment itself.
+  "  mv a0, s3; mv a1, s4; mv a2, s2; jal ra, b1_sender_table_find\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  bnez s6, .Lb1an_sender_done; ld t2, 32(a1); addi t2, t2, 1; sd t2, 32(a1)\n" ++
+  ".Lb1an_sender_done:\n" ++
+  "  li t1, 4; bne s5, t1, .Lb1an_ok\n" ++
+  "  mv s7, s0; mv s8, s1\n" ++
+  -- Field 9 of a type-4 transaction is its authorization-list RLP.
+  "  mv a0, s7; mv a1, s8; li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  la t0, b1an_auth_off; ld t0, 0(t0); add s7, s7, t0; la t0, b1an_auth_len; ld s8, 0(t0)\n" ++
+  "  mv a0, s7; mv a1, s8; la a2, b1an_auth_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  la t0, b1an_auth_count; ld s9, 0(t0); li s10, 0\n" ++
+  ".Lb1an_loop:\n" ++
+  "  bgeu s10, s9, .Lb1an_ok\n" ++
+  "  mv a0, s7; mv a1, s8; mv a2, s10; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  la t0, b1an_item_off; ld t0, 0(t0); add s11, s7, t0; la t0, b1an_item_len; ld t0, 0(t0); sd t0, 104(sp)\n" ++
+  -- chain_id is field 0 (zero means this chain); nonce is field 2.
+  "  mv a0, s11; ld a1, 104(sp); li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  la t0, b1an_field; ld t0, 0(t0); beqz t0, .Lb1an_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .Lb1an_next\n" ++
+  ".Lb1an_chain_ok:\n" ++
+  "  mv a0, s11; ld a1, 104(sp); li a2, 2; la a3, b1an_field; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lb1an_bad\n" ++
+  "  la t0, b1an_field; ld t0, 0(t0); li t1, -1; beq t0, t1, .Lb1an_next; la t1, b1an_signed_nonce; sd t0, 0(t1)\n" ++
+  "  mv a0, s11; ld a1, 104(sp); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lb1an_next\n" ++
+  -- Ignore authorities which are not B1-tracked senders; they cannot affect a
+  -- sender-final nonce. Preserve the tracked row across the header-code lookup.
+  "  mv a0, s3; mv a1, s4; la a2, b1an_authority; jal ra, b1_sender_table_find\n" ++
+  "  bnez a0, .Lb1an_next\n" ++
+  "  sd a1, 104(sp)\n" ++
+  -- Prestate code validity from execution-specs validate_authorization:
+  -- absent/empty is valid; non-empty must be exactly EF 01 00 + 20-byte target.
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, b1an_authority; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  la t0, b1an_field; sd a0, 0(t0)\n" ++
+  "  beqz a0, .Lb1an_code_found; li t0, 1; beq a0, t0, .Lb1an_code_ok; li t0, 5; beq a0, t0, .Lb1an_code_missing\n" ++
+  "  j .Lb1an_next\n" ++
+  -- A status-5 code lookup can still denote an empty-code account: the state
+  -- leaf was found, but EMPTY_CODE_HASH has no corresponding codes-section
+  -- entry.  `validate_authorization` admits that same empty account.
+  ".Lb1an_code_missing:\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash; ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lb1an_next; ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lb1an_next; ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lb1an_next; ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lb1an_next; j .Lb1an_code_ok\n" ++
+  ".Lb1an_code_found:\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lb1an_code_ok; li t1, 23; bne t0, t1, .Lb1an_next\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .Lb1an_next; lbu t1, 1(t0); li t2, 1; bne t1, t2, .Lb1an_next; lbu t1, 2(t0); bnez t1, .Lb1an_next\n" ++
+  ".Lb1an_code_ok:\n" ++
+  -- The B1 table stores the nonce delta from block start, whereas an
+  -- authorization carries an absolute account nonce.  Reconstruct the
+  -- current nonce from the authenticated header account before comparing.
+  "  la t0, b1an_field; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lb1an_pre_absent; la t0, cahsr_acct_struct; ld t2, 0(t0); j .Lb1an_pre_ready\n" ++
+  ".Lb1an_pre_absent:\n" ++
+  "  li t2, 0\n" ++
+  ".Lb1an_pre_ready:\n" ++
+  "  ld t3, 104(sp); ld t3, 32(t3); add t2, t2, t3; la t3, b1an_signed_nonce; ld t3, 0(t3); bne t2, t3, .Lb1an_next\n" ++
+  "  ld t0, 104(sp); ld t2, 32(t0); addi t2, t2, 1; sd t2, 32(t0)\n" ++
+  ".Lb1an_next:\n" ++
+  "  addi s10, s10, 1; j .Lb1an_loop\n" ++
+  ".Lb1an_ok:\n" ++
+  "  li a0, 0; j .Lb1an_ret\n" ++
+  ".Lb1an_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lb1an_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 112; ret"
+
 /-! `b1_sender_table_find`
 
     Binary-search a sorted 40-byte sender-count table produced by
