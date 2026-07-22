@@ -144,8 +144,8 @@ import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxDecode7702
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
-import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasReplay
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -374,7 +374,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
   (GuestAddrs.bti_scan_storage_changes, btiScanStorageChanges_prog),
   (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
-  (GuestAddrs.block_verdict_tx_state_gas_array, blockVerdictTxStateGasArray_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
   (GuestAddrs.u256_min, u256Min_prog),
@@ -530,6 +529,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 365
+#guard guestImageEntries.length = 364
 
 end EvmAsm.Codegen

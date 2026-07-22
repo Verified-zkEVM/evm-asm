@@ -153,6 +153,33 @@ def bvMtxIntrinsicGasFloor : Nat := 21000
 def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
 #guard bvMtxFullTxCap = 9523
 
+/-- Amsterdam `REGULAR_PER_AUTH_BASE_COST`: 101 calldata-floor bytes, one
+    ecrecover precompile, one cold account access, and two warm accesses.  Every
+    authorization tuple pays this regular-gas cost before execution, so it gives
+    a protocol-derived bound on all type-4 authorization records in a block. -/
+def bvEip7702AuthRegularGas : Nat := 7816
+
+/-- Ceiling on authorization tuples in any block under the supported gas limit.
+    This is a gas bound, not a fixture-derived admission cap. -/
+def bvEip7702AuthEntryCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvEip7702AuthRegularGas - 1) / bvEip7702AuthRegularGas
+#guard bvEip7702AuthEntryCapacity = 25589
+
+/-- The ordered EIP-7702 authority simulation materializes the union of all
+    transaction senders and recovered authorization authorities.  The additive
+    bound is conservative (the two maxima cannot both be attained in one valid
+    block) but keeps the static table's fail-closed contract simple. -/
+def bvEip7702AuthorityEventCapacity : Nat :=
+  bvMtxFullTxCap + bvEip7702AuthEntryCapacity
+#guard bvEip7702AuthorityEventCapacity = 35112
+
+/-- One authority-state row is a padded address, running nonce delta, and the
+    current delegation-marker bit. -/
+def bvEip7702AuthorityRowBytes : Nat := 48
+def bvEip7702AuthorityTableBytes : Nat :=
+  bvEip7702AuthorityEventCapacity * bvEip7702AuthorityRowBytes
+#guard bvEip7702AuthorityTableBytes = 1685376
+
 /-- Active multi-transaction execution-loop capacity. Every live per-transaction
     arena and aggregation table is statically sized to the protocol-derived
     `bvMtxFullTxCap`, so the loop must use the same bound rather than preserve a
@@ -322,7 +349,7 @@ def bvBlockLogFullDescTarget : Nat :=
     the INFEASIBLE upper bound -- 533,333 * 256 = ~136.5 MiB of descriptors
     alone. Combined with `bvBlockLogFullMetaBytes` + `bvBlockLogFullDataBytes`
     the fixed-stride arena is ~162 MiB, which is 2.76x the measured ~58.7 MiB of
-    `.data` headroom before `.sszscratch` (0xbf600000). Kept only to document why
+    `.data` headroom before `.sszscratch` (0xbf800000). Kept only to document why
     the verbatim-copy layout cannot reach the 200M target; the actual
     implementation target is `bvBlockLogPackedDescBytes` below. -/
 def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256

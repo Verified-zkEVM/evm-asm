@@ -1425,7 +1425,7 @@ def blockVerdictFunction : String :=
   "  la a3, bvgr_tx_state_gas\n" ++
   "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array_replay\n" ++
   -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
   -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
   -- Do NOT skip the EIP-7778 reject check on that bail (that would be a regression: the check

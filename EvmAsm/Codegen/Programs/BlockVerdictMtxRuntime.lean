@@ -82,6 +82,51 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
   "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
   ".Lbv_mtx_sender_count_zero_done:\n" ++
+  -- S1: materialize the ordered authority state once at the multi-tx pass
+  -- boundary.  The event stream starts with every transaction sender, then
+  -- adds each successfully recovered type-4 authority.  It intentionally
+  -- does not decide authorization validity here: S2 consumes this immutable
+  -- header-seeded table and applies the ordered nonce/code predicate once,
+  -- shared by every gas/result pass.
+  "  la t0, bv_eip7702_authority_event_count; la t1, bv_tx_count; ld t1, 0(t1); sd t1, 0(t0); la t0, bv_eip7702_authority_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_sender_copy_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_sender_copy_done\n" ++
+  "  slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3; slli t3, t1, 5; la t5, nea_sort_b; add t5, t5, t3; li t6, 0\n" ++
+  ".Lbv_eas_sender_copy_bytes:\n" ++
+  "  li a0, 32; beq t6, a0, .Lbv_eas_sender_copy_next\n" ++
+  "  add a0, t4, t6; lbu a1, 0(a0); add a0, t5, t6; sb a1, 0(a0); addi t6, t6, 1; j .Lbv_eas_sender_copy_bytes\n" ++
+  ".Lbv_eas_sender_copy_next:\n" ++
+  "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_eas_sender_copy_loop\n" ++
+  ".Lbv_eas_sender_copy_done:\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_tx_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_materialize\n" ++
+  "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context; la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_sender_nonce_fail\n" ++
+  "  ld t2, 160(t0); li t3, 4; bne t2, t3, .Lbv_eas_tx_next\n" ++
+  -- Field 9 is the type-4 authorization list.  A malformed list is a
+  -- fail-closed verdict error; an unrecoverable signature simply contributes
+  -- no authority event, matching the later validity admission semantics.
+  "  ld a0, 176(t0); ld a1, 184(t0); li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add t1, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); mv a0, t1; la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, b1an_auth_i; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_auth_loop:\n" ++
+  "  la t0, b1an_auth_i; ld t3, 0(t0); la t0, b1an_auth_count; ld t6, 0(t0); bgeu t3, t6, .Lbv_eas_tx_next\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t1, b1an_auth_len; ld a1, 0(t1); mv a2, t3; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t0, b1an_item_off; ld t0, 0(t0); add a0, a0, t0; la t0, b1an_item_len; ld a1, 0(t0); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lbv_eas_auth_next\n" ++
+  "  la t0, bv_eip7702_authority_event_count; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgeu t1, t2, .Lbv_sender_nonce_fail; slli t2, t1, 5; la t5, nea_sort_b; add t5, t5, t2; la t4, b1an_authority; li t2, 0\n" ++
+  ".Lbv_eas_auth_copy:\n" ++
+  "  li t6, 32; beq t2, t6, .Lbv_eas_auth_append\n" ++
+  "  add t6, t4, t2; lbu a0, 0(t6); add t6, t5, t2; sb a0, 0(t6); addi t2, t2, 1; j .Lbv_eas_auth_copy\n" ++
+  ".Lbv_eas_auth_append:\n" ++
+  "  addi t1, t1, 1; la t0, bv_eip7702_authority_event_count; sd t1, 0(t0)\n" ++
+  ".Lbv_eas_auth_next:\n" ++
+  "  la t0, b1an_auth_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_auth_loop\n" ++
+  ".Lbv_eas_tx_next:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_tx_loop\n" ++
+  ".Lbv_eas_materialize:\n" ++
+  "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
   "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
@@ -162,6 +207,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- payload.  This is the execution-specs order: process_transaction first,
   -- process_authorization_list second.
   "  addi t5, t5, 1; sd t5, 32(t6)\n" ++
+  -- The shared authorization helper derives the current sender from the
+  -- authenticated public key and applies the sender increment when validating
+  -- a self-funded authority.  Keep S1's persistent delta limited to applied
+  -- authorizations so runtime and the gas replay have identical state.
   "  la t0, bv_mtx_ctx; ld a0, 176(t0); ld a1, 184(t0); ld a5, 160(t0); la a2, bv_mtx_sender_addr; la a3, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a4, 0(t0); li a6, 1; jal ra, b1_eip7702_apply_tx\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
@@ -449,5 +498,52 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_bail:\n" ++
   bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
+
+/-- Rebuild S1 immediately before the gas replay from authenticated immutable
+    transaction data. `nea_sort_a` is only the immediate input to the radix
+    materializer; no later phase treats it as durable state. -/
+def blockVerdictEip7702AuthorityReplayMaterializeFunction : String :=
+  "block_verdict_eip7702_authority_replay_materialize:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  la t0, bv_tx_count; ld s1, 0(t0); li t1, " ++ toString bvMtxFullTxCap ++ "; bgtu s1, t1, .Leasr_fail\n" ++
+  "  la s2, nea_sort_a; li s0, 0\n" ++
+  ".Leasr_sender_loop:\n" ++
+  "  bgeu s0, s1, .Leasr_sender_done\n" ++
+  "  slli t0, s0, 6; add t0, t0, s0; la t1, bv_public_keys_ptr; ld t1, 0(t1); addi a0, t1, 1; add a0, a0, t0\n" ++
+  "  slli t0, s0, 5; add a1, s2, t0; jal ra, address_from_pubkey\n" ++
+  "  addi s0, s0, 1; j .Leasr_sender_loop\n" ++
+  ".Leasr_sender_done:\n" ++
+  "  la t0, bv_eip7702_authority_event_count; sd s1, 0(t0); la t0, bv_eip7702_authority_overflow; sd zero, 0(t0)\n" ++
+  "  li s0, 0\n" ++
+  ".Leasr_tx_loop:\n" ++
+  "  bgeu s0, s1, .Leasr_materialize\n" ++
+  "  la a0, bv_mtx_ctx; mv a1, s0; jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 0(t0); bnez t1, .Leasr_fail\n" ++
+  "  ld t1, 160(t0); li t2, 4; bne t1, t2, .Leasr_tx_next\n" ++
+  "  ld t1, 176(t0); ld t2, 184(t0); li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; mv a0, t1; mv a1, t2; jal ra, rlp_list_nth_item; bnez a0, .Leasr_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .Leasr_fail\n" ++
+  "  li s3, 0\n" ++
+  ".Leasr_auth_loop:\n" ++
+  "  la t0, b1an_auth_count; ld t1, 0(t0); bgeu s3, t1, .Leasr_tx_next\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); mv a2, s3; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .Leasr_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t0, b1an_item_off; ld t0, 0(t0); add a0, a0, t0; la t0, b1an_item_len; ld a1, 0(t0); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Leasr_auth_next\n" ++
+  "  la t0, bv_eip7702_authority_event_count; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgeu t1, t2, .Leasr_fail; slli t2, t1, 5; add t2, s2, t2; la t3, b1an_authority; li t4, 0\n" ++
+  ".Leasr_auth_copy:\n" ++
+  "  li t5, 32; beq t4, t5, .Leasr_auth_append; add t5, t3, t4; lbu t6, 0(t5); add t5, t2, t4; sb t6, 0(t5); addi t4, t4, 1; j .Leasr_auth_copy\n" ++
+  ".Leasr_auth_append:\n" ++
+  "  addi t1, t1, 1; la t0, bv_eip7702_authority_event_count; sd t1, 0(t0)\n" ++
+  ".Leasr_auth_next:\n" ++
+  "  addi s3, s3, 1; j .Leasr_auth_loop\n" ++
+  ".Leasr_tx_next:\n" ++
+  "  addi s0, s0, 1; j .Leasr_tx_loop\n" ++
+  ".Leasr_materialize:\n" ++
+  "  la a0, nea_sort_a; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Leasr_fail\n" ++
+  "  li a0, 0; j .Leasr_ret\n" ++
+  ".Leasr_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Leasr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 64; ret\n"
 
 end EvmAsm.Codegen

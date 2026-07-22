@@ -84,7 +84,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
       "--section-start=.bss=0xa4000000",
       "--section-start=.committed_storage=0xa2000000",
-      "--section-start=.sszscratch=0xbf600000",
+      "--section-start=.sszscratch=0xbf800000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)

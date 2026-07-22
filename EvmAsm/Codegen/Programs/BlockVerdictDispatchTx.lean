@@ -1013,7 +1013,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund_with_sender_nonce\n" ++
   -- v0.6.0: the runtime pools are driven by the WOULD-BE charges (a
   -- rolled-back prep still charges up to its OOG point); the APPLIED
   -- a0/a1 returns feed only the block-state arrays.

@@ -485,6 +485,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "b1an_auth_off:\n  .zero 8\n" ++
   "b1an_auth_len:\n  .zero 8\n" ++
   "b1an_auth_count:\n  .zero 8\n" ++
+  "b1an_auth_i:\n  .zero 8\n" ++
   "b1an_item_off:\n  .zero 8\n" ++
   "b1an_item_len:\n  .zero 8\n" ++
   "b1an_field:\n  .zero 8\n" ++
@@ -647,6 +648,23 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- any established data symbol or arena anchor.
   ".balign 8\n" ++
   "teer_success_count:\n  .zero 8\n" ++
-  "teer_success_table:\n  .zero 33920\n"
+  "teer_sender_addr:\n  .zero 32\n" ++
+  "teer_success_table:\n  .zero 33920\n" ++
+  -- bmvmx.5.5.18 S1: the ordered EIP-7702 simulation owns one fixed union
+  -- table for all transaction senders and recovered authorization authorities.
+  -- Its capacity is the conservative sum of the supported 200M-gas ceilings:
+  -- 200M / 21,000 senders plus ceil(200M / 7,816) auth tuples.  Overflow is
+  -- therefore unreachable for a valid block and is fail-closed.
+  ".balign 8\n" ++
+  "bv_eip7702_authority_event_count:\n  .zero 8\n" ++
+  "bv_eip7702_authority_count:\n  .zero 8\n" ++
+  "bv_eip7702_authority_overflow:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_eip7702_authority_table:\n  .zero " ++ toString bvEip7702AuthorityTableBytes ++ "\n" ++
+  -- The fixed 20-pass radix materializer leaves the sorted event set in
+  -- `nea_sort_a`; later gas replays use that set as their order-insensitive
+  -- input and may reuse both sort buffers without a second large arena.
+  ".balign 8\n" ++
+  "bv_eip7702_authority_counts:\n  .zero 2048\n"
 
 end EvmAsm.Codegen

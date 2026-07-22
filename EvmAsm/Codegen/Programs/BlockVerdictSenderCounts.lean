@@ -142,6 +142,139 @@ def b1SenderCountTableFunction : String :=
   ".Lb1sc_we_count:\n" ++
   "  sd a1, 32(t1); ret"
 
+/-! ## eip7702_authority_state_materialize
+
+    S1's fixed authority substrate is deliberately separate from the old B1
+    sender-only table.  Its input is a bounded stream of 32-byte padded
+    addresses containing *both* transaction senders and recovered
+    authorization authorities.  It stably radix-sorts that stream and writes
+    one 48-byte row per distinct address:
+
+      `address[32] | nonce_delta:u64 | delegated:u64`
+
+    `delegated` is seeded from the authenticated header-state code (the
+    `0xef0100 || target` marker), never from a mutable execution cache. S3
+    then flips it after each valid non-NULL delegation so AUTH_BASE is charged
+    exactly once per block-global not-delegated -> delegated transition. The
+    later S2 admission pass owns `nonce_delta`. All capacities are static
+    gas-derived bounds. A header-code lookup that cannot establish the marker
+    leaves `delegated = 0`; S2 applies the full authorization predicate and
+    ignores invalid tuples. -/
+def eip7702AuthorityStateMaterializeFunction : String :=
+  "eip7702_authority_state_materialize:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgtu s1, t0, .Leas_cap; bgtu s1, s3, .Leas_cap\n" ++
+  "  beqz s1, .Leas_zero\n" ++
+  "  la s5, nea_sort_a; la s6, nea_sort_b\n" ++
+  "  li s8, 0\n" ++
+  ".Leas_copy_loop:\n" ++
+  "  bgeu s8, s1, .Leas_copy_done\n" ++
+  "  slli t0, s8, 5; add t1, s0, t0; add t2, s5, t0; li t3, 0\n" ++
+  ".Leas_copy_bytes:\n" ++
+  "  li t4, 32; beq t3, t4, .Leas_copy_next\n" ++
+  "  add t4, t1, t3; lbu t5, 0(t4); add t4, t2, t3; sb t5, 0(t4); addi t3, t3, 1; j .Leas_copy_bytes\n" ++
+  ".Leas_copy_next:\n" ++
+  "  addi s8, s8, 1; j .Leas_copy_loop\n" ++
+  ".Leas_copy_done:\n" ++
+  -- Stable LSB radix sort of the 20-byte address prefix.
+  "  li s7, 19\n" ++
+  ".Leas_pass:\n" ++
+  "  la s10, bv_eip7702_authority_counts; li t0, 0\n" ++
+  ".Leas_zero_counts:\n" ++
+  "  li t1, 256; beq t0, t1, .Leas_count_init\n" ++
+  "  slli t2, t0, 3; add t3, s10, t2; sd zero, 0(t3); addi t0, t0, 1; j .Leas_zero_counts\n" ++
+  ".Leas_count_init:\n" ++
+  "  li s8, 0\n" ++
+  ".Leas_count_loop:\n" ++
+  "  bgeu s8, s1, .Leas_prefix_init\n" ++
+  "  slli t0, s8, 5; add t1, s5, t0; add t1, t1, s7; lbu t2, 0(t1); slli t3, t2, 3; add t4, s10, t3; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4); addi s8, s8, 1; j .Leas_count_loop\n" ++
+  ".Leas_prefix_init:\n" ++
+  "  li t0, 0; li t1, 0\n" ++
+  ".Leas_prefix_loop:\n" ++
+  "  li t2, 256; beq t0, t2, .Leas_scatter_init\n" ++
+  "  slli t3, t0, 3; add t4, s10, t3; ld t5, 0(t4); sd t1, 0(t4); add t1, t1, t5; addi t0, t0, 1; j .Leas_prefix_loop\n" ++
+  ".Leas_scatter_init:\n" ++
+  "  li s8, 0\n" ++
+  ".Leas_scatter_loop:\n" ++
+  "  bgeu s8, s1, .Leas_swap\n" ++
+  "  slli t0, s8, 5; add t1, s5, t0; add t2, t1, s7; lbu t2, 0(t2); slli t3, t2, 3; add t4, s10, t3; ld t5, 0(t4); addi t6, t5, 1; sd t6, 0(t4); slli t5, t5, 5; add t6, s6, t5; li t3, 0\n" ++
+  ".Leas_scatter_copy:\n" ++
+  "  li t4, 32; beq t3, t4, .Leas_scatter_next\n" ++
+  "  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Leas_scatter_copy\n" ++
+  ".Leas_scatter_next:\n" ++
+  "  addi s8, s8, 1; j .Leas_scatter_loop\n" ++
+  ".Leas_swap:\n" ++
+  "  mv t0, s5; mv s5, s6; mv s6, t0; beqz s7, .Leas_runs; addi s7, s7, -1; j .Leas_pass\n" ++
+  -- Compress equal addresses and hydrate the immutable header-code bit.
+  ".Leas_runs:\n" ++
+  "  mv s11, s5; li s8, 1; li s7, 0\n" ++
+  ".Leas_run_loop:\n" ++
+  "  bgeu s8, s1, .Leas_write_last\n" ++
+  "  slli t0, s8, 5; add t1, s5, t0; li t2, 0\n" ++
+  ".Leas_run_cmp:\n" ++
+  "  li t3, 20; beq t2, t3, .Leas_run_equal\n" ++
+  "  add t3, s11, t2; lbu t4, 0(t3); add t3, t1, t2; lbu t5, 0(t3); bne t4, t5, .Leas_run_new; addi t2, t2, 1; j .Leas_run_cmp\n" ++
+  ".Leas_run_equal:\n" ++
+  "  addi s8, s8, 1; j .Leas_run_loop\n" ++
+  ".Leas_run_new:\n" ++
+  "  mv s9, t1; mv a0, s11; mv a1, s7; jal ra, eas_write_entry; bnez a0, .Leas_bad; addi s7, s7, 1; mv s11, s9; addi s8, s8, 1; j .Leas_run_loop\n" ++
+  ".Leas_write_last:\n" ++
+  "  mv a0, s11; mv a1, s7; jal ra, eas_write_entry; bnez a0, .Leas_bad; addi s7, s7, 1; sd s7, 0(s4); li a0, 0; j .Leas_ret\n" ++
+  ".Leas_zero:\n" ++
+  "  sd zero, 0(s4); li a0, 0; j .Leas_ret\n" ++
+  ".Leas_cap:\n" ++
+  "  li a0, 1; j .Leas_ret\n" ++
+  ".Leas_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Leas_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 112; ret\n" ++
+  -- a0 = padded address source, a1 = output row index.  Parent s2 is table.
+  "eas_write_entry:\n" ++
+  -- This local helper calls the header-state resolver, so preserve its return
+  -- address explicitly.  The radix-count pointer is dead after sorting; use
+  -- s10 for the row pointer across that call rather than reusing the outer
+  -- frame's only remaining scratch slot.
+  "  li t0, 48; mul t0, a1, t0; add s10, s2, t0; sd ra, 104(sp); li t2, 0\n" ++
+  ".Leas_we_copy:\n" ++
+  "  li t3, 32; beq t2, t3, .Leas_we_header\n" ++
+  "  add t3, a0, t2; lbu t4, 0(t3); add t3, s10, t2; sb t4, 0(t3); addi t2, t2, 1; j .Leas_we_copy\n" ++
+  ".Leas_we_header:\n" ++
+  "  sd zero, 32(s10); sd zero, 40(s10)\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s10; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Leas_we_code; li t0, 1; beq a0, t0, .Leas_we_ok; li t0, 5; bne a0, t0, .Leas_we_ok\n" ++
+  -- Status 5 is only acceptable for the canonical empty-code hash.
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash; ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Leas_we_ok; ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Leas_we_ok; ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Leas_we_ok; ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Leas_we_ok; j .Leas_we_ok\n" ++
+  ".Leas_we_code:\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Leas_we_ok; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .Leas_we_ok; lbu t1, 1(t0); li t2, 1; bne t1, t2, .Leas_we_ok; lbu t1, 2(t0); bnez t1, .Leas_we_ok; li t2, 1; sd t2, 40(s10)\n" ++
+  ".Leas_we_ok:\n" ++
+  "  li a0, 0; ld ra, 104(sp); ret\n" ++
+  ".Leas_we_fail:\n" ++
+  "  li a0, 1; ld ra, 104(sp); ret"
+
+/-- Bounded binary lookup for S1's sorted 48-byte authority rows.
+    `a0 = table`, `a1 = count`, `a2 = 32-byte padded address`; returns
+    `a0 = 0, a1 = row` on success and `a0 = 1` when absent.  Comparison is
+    restricted to the canonical 20-byte address prefix. -/
+def eip7702AuthorityStateFindFunction : String :=
+  "eip7702_authority_state_find:\n" ++
+  "  li t0, 0; mv t1, a1\n" ++
+  ".Leasf_loop:\n" ++
+  "  bgeu t0, t1, .Leasf_absent\n" ++
+  "  sub t2, t1, t0; srli t2, t2, 1; add t2, t2, t0; li t3, 48; mul t3, t2, t3; add t4, a0, t3; li t5, 0\n" ++
+  ".Leasf_cmp:\n" ++
+  "  li t6, 20; beq t5, t6, .Leasf_found\n" ++
+  "  add t6, a2, t5; lbu t6, 0(t6); add a3, t4, t5; lbu a3, 0(a3); bltu t6, a3, .Leasf_less; bltu a3, t6, .Leasf_greater; addi t5, t5, 1; j .Leasf_cmp\n" ++
+  ".Leasf_less:\n" ++
+  "  mv t1, t2; j .Leasf_loop\n" ++
+  ".Leasf_greater:\n" ++
+  "  addi t0, t2, 1; j .Leasf_loop\n" ++
+  ".Leasf_found:\n" ++
+  "  li a0, 0; mv a1, t4; ret\n" ++
+  ".Leasf_absent:\n" ++
+  "  li a0, 1; ret"
+
 /-! ## b1_eip7702_apply_tx
 
     Exact EIP-7702 nonce accounting for the B1 sender-final check.  The B1

@@ -46,7 +46,7 @@ def blockVerdictGasGatePrelude : String :=
   "  la a3, bvgr_tx_state_gas\n" ++
   "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array_replay\n" ++
   "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
   ".Lbv_pregate_state_gas_zero:\n" ++
