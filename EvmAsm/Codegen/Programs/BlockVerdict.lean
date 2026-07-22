@@ -435,6 +435,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
+  blockVerdictTxStateGasArrayReplayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
@@ -449,6 +451,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
+  eip7702AuthorityStateFindFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
   b1Eip7702ApplyTxFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++

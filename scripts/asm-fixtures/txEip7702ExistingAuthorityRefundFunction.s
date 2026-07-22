@@ -1,5 +1,5 @@
 tx_eip7702_existing_authority_refund:
-  addi sp, sp, -160
+  addi sp, sp, -176
   sd ra, 0(sp)
   sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
   sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
@@ -10,6 +10,18 @@ tx_eip7702_existing_authority_refund:
   mv s2, a2                   # BAL ptr
   mv s3, a3                   # reserved
   mv s4, a4                   # chain id
+  # Preserve the caller's sender ABI while this replay derives the current
+  # transaction sender.  The legacy charge logic reads bv_stx_sender_addr.
+  la t0, bv_stx_sender_addr; la t1, teer_sender_addr
+  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1)
+  ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)
+  # Recover this transaction's authenticated sender from public_keys[i].
+  # Both the multi-tx gas replay and runtime call this helper with the same
+  # one-based block index, so this is the single source for the
+  # process_transaction sender-nonce increment that precedes auth validation.
+  addi a0, a5, -1; li t0, 65; mul a0, a0, t0
+  la t0, bv_public_keys_ptr; ld t0, 0(t0); add a0, a0, t0; addi a0, a0, 1
+  la a1, bv_stx_sender_addr; jal ra, address_from_pubkey
   li s10, 0                   # accumulated state CHARGE
   la t0, teer_regular_refund; sd zero, 0(t0)   # accumulated regular CHARGE
   la t0, teer_success_count; sd zero, 0(t0)
@@ -78,6 +90,16 @@ tx_eip7702_existing_authority_refund:
   bnez a1, .Lteer_next
   sd a0, 112(sp); li t2, 20; bne a2, t2, .Lteer_next
   sub s11, a0, a2
+  # Preserve target nullness before parsing the authorization nonce.  The RLP
+  # helpers are not part of this helper's saved-register ABI, so s11 cannot be
+  # treated as stable across the later cursor/content calls.
+  mv t2, s11; li t3, 20; li t4, 0
+.Lteer_target_nonzero_or:
+  beqz t3, .Lteer_target_nonzero_done
+  lbu t5, 0(t2); or t4, t4, t5
+  addi t2, t2, 1; addi t3, t3, -1; j .Lteer_target_nonzero_or
+.Lteer_target_nonzero_done:
+  sd t4, 160(sp)
   ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next
   bnez a1, .Lteer_next
   sd a0, 112(sp); sub a0, a0, a2; mv a1, a2
@@ -112,6 +134,40 @@ tx_eip7702_existing_authority_refund:
 .Lteer_success_find_next:
   addi t2, t2, 1; j .Lteer_success_find_loop
 .Lteer_success_not_found:
+  # S2: after the legacy local scan has established the per-tx prior count,
+  # admit against the persistent S1 nonce row.  The single-tx route does not
+  # materialize S1, so it deliberately uses that local count as its exact
+  # one-transaction delta while retaining the same header-code predicate.
+  la a0, bv_eip7702_authority_table
+  la t0, bv_eip7702_authority_count; ld a1, 0(t0)
+  la a2, teer_authority
+  jal ra, eip7702_authority_state_find
+  beqz a0, .Lteer_state_row
+  la t0, svf_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lteer_invalid_auth_full_refund
+  sd zero, 152(sp)
+  j .Lteer_state_gate
+.Lteer_state_row:
+  sd a1, 152(sp)
+.Lteer_state_gate:
+  jal ra, .Lteer_state_admit
+  bnez a0, .Lteer_invalid_auth_full_refund
+  # S4 commit: S1 has now authenticated this tuple's header-code/nonce
+  # admission.  Charge a non-null undelegated -> delegated transition here,
+  # before the legacy BAL-final accounting path.  That path intentionally
+  # omits self-funded sender authorities after their sender-side nonce/code
+  # change, but it must not suppress this protocol state charge.
+  ld t4, 160(sp)
+  beqz t4, .Lteer_s4_admit_done
+  la t0, teer_prior_set_flag; ld t1, 0(t0); bnez t1, .Lteer_s4_admit_done
+  ld t0, 152(sp)
+  beqz t0, .Lteer_s4_admit_done
+  ld t1, 40(t0)
+  bnez t1, .Lteer_s4_admit_done
+  li t3, 35190
+  add s10, s10, t3
+  li t1, 1
+  sd t1, 40(t0)
+.Lteer_s4_admit_done:
   mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len
   jal ra, bal_find_account_by_address
   bnez a0, .Lteer_no_bal_entry
@@ -246,8 +302,25 @@ tx_eip7702_existing_authority_refund:
   beqz t3, .Lteer_ab_null_ready
   lbu t5, 0(t2); or t4, t4, t5; addi t2, t2, 1; addi t3, t3, -1; j .Lteer_ab_null_or
 .Lteer_ab_null_ready:
+  # The recovery/BAL helpers may clobber s11.  Use the target-nullness
+  # snapshot taken while the RLP target pointer was authoritative.
+  ld t4, 160(sp)
   beqz t4, .Lteer_success_append
   la t0, teer_prior_set_flag; ld t1, 0(t0); bnez t1, .Lteer_success_append
+  # S4: whenever S1 materialized a persistent authority row, it is the
+  # authoritative block-pre delegation classifier.  `svf_tx_count` is a
+  # per-dispatch value (one even while processing a multi-tx block), so it
+  # must not select the mutable-code legacy path here.
+  ld t0, 152(sp)
+  beqz t0, .Lteer_ab_legacy_classify
+  ld t1, 40(t0)
+  bnez t1, .Lteer_success_append
+  li t3, 35190
+  add s10, s10, t3
+  li t1, 1
+  sd t1, 40(t0)
+  j .Lteer_success_append
+.Lteer_ab_legacy_classify:
   la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_ab_multitx
   la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_ab_charge
   la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)
@@ -264,22 +337,27 @@ tx_eip7702_existing_authority_refund:
   la t0, teer_predelegated_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)
   j .Lteer_success_append
 .Lteer_ab_multitx:
-  # Prior-tx-same-block delegation inference: the authority's LATEST
-  # BAL nonce tuple strictly before this tx proves an earlier tx
-  # touched it; treat a strictly-earlier nonce advance as delegation
-  # evidence and suppress the charge (mirrors the v0.5.0 prior-tx
-  # refund path). No evidence -> charge.
-  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); ld a2, 104(sp)
-  jal ra, bal_account_nonce_before_index
-  bnez a0, .Lteer_ab_charge
-  # a nonce tuple exists before this tx: an earlier same-block tx
-  # applied an authorization for this authority.
+  # Legacy fallback when S1 has no row: nonce tuples are not delegation
+  # evidence, because the sender-side parser may already have advanced this
+  # authority's nonce in this same transaction.
+  ld t0, 152(sp)
+  beqz t0, .Lteer_ab_charge
+  ld t1, 40(t0)
+  bnez t1, .Lteer_success_append
+  li t3, 35190
+  add s10, s10, t3
+  li t1, 1
+  sd t1, 40(t0)
   j .Lteer_success_append
 .Lteer_ab_charge:
   li t3, 35190
   add s10, s10, t3
 .Lteer_success_append:
   # Record only tuples that have passed the chain/signature/code/nonce gates.
+  # This is the commit point for the S1 block-global nonce state: local charge
+  # accounting has accepted the tuple, so later transactions observe nonce+1.
+  ld t0, 152(sp); beqz t0, .Lteer_state_delta_done; ld t1, 32(t0); addi t1, t1, 1; sd t1, 32(t0)
+.Lteer_state_delta_done:
   # Capacity covers the protocol maximum; the guard remains conservative.
   la t0, teer_success_count; ld t1, 0(t0); li t2, 1060; bgeu t1, t2, .Lteer_success_append_done
   slli t2, t1, 5; la t3, teer_success_table; add t2, t2, t3
@@ -301,6 +379,9 @@ tx_eip7702_existing_authority_refund:
 .Lteer_next:
   addi s8, s8, 1; j .Lteer_loop
 .Lteer_done:
+  la t0, teer_sender_addr; la t1, bv_stx_sender_addr
+  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1)
+  ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)
   mv a0, s10
   la t0, teer_regular_refund; ld a1, 0(t0)
   la t0, teer_wouldbe_state; sd a0, 0(t0)
@@ -312,5 +393,73 @@ tx_eip7702_existing_authority_refund:
   ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
   ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
   ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)
-  addi sp, sp, 160
+  addi sp, sp, 176
+  ret
+
+# S2 state admission subroutine.  The outer frame has already saved the row
+# at 152(sp) and signed nonce at 144(sp); keep ra in its unused 128(sp) slot
+# across the header-code lookup.
+.Lteer_state_admit:
+  sd ra, 128(sp)
+  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)
+  la t0, sv_pre_rlp_len; ld a1, 0(t0)
+  la a2, teer_authority
+  la t0, bv_witness_state_ptr; ld a3, 0(t0)
+  la t0, bv_witness_state_len; ld a4, 0(t0)
+  la t0, svf_codes_ptr; ld a5, 0(t0)
+  la t0, svf_codes_len; ld a6, 0(t0)
+  jal ra, code_at_header_state_root
+  beqz a0, .Lteer_state_found
+  li t0, 1; beq a0, t0, .Lteer_state_absent
+  li t0, 5; beq a0, t0, .Lteer_state_empty_hash
+  j .Lteer_state_bad
+.Lteer_state_found:
+  la t0, cahsr_code_length; ld t1, 0(t0)
+  beqz t1, .Lteer_state_header_nonce
+  li t2, 23; bne t1, t2, .Lteer_state_bad
+  la t0, svf_codes_ptr; ld t0, 0(t0)
+  la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1
+  lbu t1, 0(t0); li t2, 239; bne t1, t2, .Lteer_state_bad
+  lbu t1, 1(t0); li t2, 1; bne t1, t2, .Lteer_state_bad
+  lbu t1, 2(t0); bnez t1, .Lteer_state_bad
+  j .Lteer_state_header_nonce
+.Lteer_state_empty_hash:
+  la t0, cahsr_acct_struct; addi t0, t0, 72
+  la t1, chahsr_empty_code_hash
+  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lteer_state_bad
+  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lteer_state_bad
+  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lteer_state_bad
+  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lteer_state_bad
+  j .Lteer_state_header_nonce
+.Lteer_state_absent:
+  li t0, 0
+  j .Lteer_state_compare
+.Lteer_state_header_nonce:
+  la t1, cahsr_acct_struct; ld t0, 0(t1)
+.Lteer_state_compare:
+  ld t1, 152(sp); bnez t1, .Lteer_state_persistent_delta
+  la t1, teer_prior_count; ld t1, 0(t1); j .Lteer_state_have_delta
+.Lteer_state_persistent_delta:
+  ld t1, 32(t1)
+.Lteer_state_have_delta:
+  add t0, t0, t1
+  # process_transaction increments the transaction sender before it walks
+  # this authorization list.  Apply that one per-transaction increment here
+  # only for a self-funded authority; S1's persistent delta already carries
+  # every successfully applied earlier authorization for this authority.
+  la t2, teer_authority; la t3, bv_stx_sender_addr; li t4, 20
+.Lteer_state_sender_cmp:
+  beqz t4, .Lteer_state_sender_match
+  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lteer_state_compare_signed
+  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lteer_state_sender_cmp
+.Lteer_state_sender_match:
+  addi t0, t0, 1
+.Lteer_state_compare_signed:
+  ld t1, 144(sp); bne t0, t1, .Lteer_state_bad
+  li a0, 0
+  j .Lteer_state_ret
+.Lteer_state_bad:
+  li a0, 1
+.Lteer_state_ret:
+  ld ra, 128(sp)
   ret
