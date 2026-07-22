@@ -162,7 +162,19 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_slot_loop:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
   "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
-  "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
+  -- execution-specs' `get_storage_original` / `get_storage` first consult
+  -- the cumulative block map.  This callee-preload path feeds the per-tx
+  -- exec log before SSTORE runs, so it must use the FOREIGN callee's real
+  -- address, not the outer recipient, and must win over the header lookup.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Lscs_slot_header\n" ++
+  "  la a0, csce_addrkey                              # real callee exec-log key (LE)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la a1, csce_keys; add a1, a1, t4\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Lscs_done                # malformed over-capacity map: do not seed stale state\n" ++
+  "  li t0, 1; beq a0, t0, .Lscs_slot_committed\n" ++
+  ".Lscs_slot_header:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry: sv_this_rlp single-tx / sv_pre_rlp mtx)
   "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
@@ -193,6 +205,25 @@ def seedCalleeStorageFunction : String :=
   "  li t0, 95; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 64+(31-i)=95-i (entry[64..95])
   "  addi t6, t6, 1; j .Lscs_vrev\n" ++
   ".Lscs_vrevd:\n" ++
+  "  j .Lscs_slot_commit\n" ++
+  -- Level-2 map hit: `dtrc_threadval` is already the exec-log little-endian
+  -- current value.  Rebuild the seed entry with the real callee key and use
+  -- it directly; no header-state lookup is permitted on this path.
+  ".Lscs_slot_committed:\n" ++
+  "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
+  "  la t4, callee_seed_table; add t4, t4, t2\n" ++
+  "  la t5, csce_addrkey\n" ++
+  "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
+  "  li t6, 0\n" ++
+  ".Lscs_kcrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_kcrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  addi t6, t6, 1; j .Lscs_kcrev\n" ++
+  ".Lscs_kcrevd:\n" ++
+  "  la t5, dtrc_threadval\n" ++
+  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
   "  j .Lscs_slot_commit\n" ++
   ".Lscs_slot_vzero:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
@@ -531,6 +562,25 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_i; sd zero, 0(t0)\n" ++
   ".Ldtrc_sloop:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
+  -- `BlockState.storage_writes` is the authoritative pre-tx source.  Query it
+  -- before the parent witness: a prior successful transaction may have changed
+  -- this recipient's slot, and the parent header must not overwrite that value.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_header_storage\n" ++
+  -- Context recipient bytes are canonical BE, while the committed table uses
+  -- the exec-log's LE account key.  Build that key in the reusable slot scratch;
+  -- the lookup copies it into `dtrc_recipkey` before reusing this scratch for the
+  -- slot-key BE->LE conversion.
+  "  addi t4, s2, 91; la t5, dtrc_slotkey_le; li t6, 20\n" ++
+  ".Ldtrc_recipkey_rev:\n" ++
+  "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Ldtrc_recipkey_rev\n" ++
+  "  la a0, dtrc_slotkey_le\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported\n" ++
+  "  li t0, 1; beq a0, t0, .Ldtrc_thread_hit\n" ++
+  ".Ldtrc_header_storage:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0)\n" ++
   "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++
@@ -614,17 +664,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_4788_value_copy:\n" ++
   "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, -1; addi t3, t3, 1; addi t1, t1, -1; bnez t1, .Ldtrc_4788_value_copy\n" ++
   ".Ldtrc_4788_overlay_done:\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
-  -- value for (recipient, slotKey), stage that committed value as this slot's preload
-  -- (original==current). The helper bounds the table count by the named committed-storage
-  -- capacity, prepares recipient/slot scratch, and preserves latest matching entry semantics.
-  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
-  "  addi a0, s2, 72                                  # recipient 20B ptr\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2  # BE slot key ptr\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported # over-capacity table count -> conservative\n" ++
-  "  li t0, 1; bne a0, t0, .Ldtrc_nothread            # no prior-tx value -> keep witness value\n" ++
+  "  j .Ldtrc_nothread\n" ++
+  -- A committed-map hit has already supplied the exact current value.  Materialize
+  -- it as original=current and bypass all header-state work above.
+  ".Ldtrc_thread_hit:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
   "  la t5, dtrc_threadval\n" ++
   "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++

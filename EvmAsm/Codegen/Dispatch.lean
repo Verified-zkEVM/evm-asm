@@ -2442,8 +2442,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
+  "  la x9, exec_log_seed_flag\n" ++ -- this preload row is not an execution write
   ".preload_expand_loop:\n" ++
   "  beqz x6, .preload_expand_done\n" ++
+  "  li x10, 1; sb x10, 0(x9)\n" ++
   -- addrHash = 0 (32 bytes)
   "  sd x0, 0(x7)\n" ++
   "  sd x0, 8(x7)\n" ++
@@ -2473,6 +2475,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x8, 120(x7)\n" ++
   "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
   "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
+  "  addi x9, x9, 1\n" ++
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
@@ -2958,6 +2961,7 @@ def emitCalleeStorageSeedLoop : String :=
   ".Lcallee_seed_loop:\n" ++
   "  beqz x6, .Lcallee_seed_done\n" ++
   "  ld x29, 448(x20)\n" ++                  -- x29 = current entry count
+  "  la x5, exec_log_seed_flag; add x5, x5, x29; li x31, 1; sb x31, 0(x5)\n" ++
   "  slli x30, x29, 7; add x30, x28, x30\n" ++   -- x30 = entry ptr = base + count*128
   -- addrHash src[0..32] -> entry[0..32]
   "  ld x31, 0(x7);  sd x31, 0(x30)\n" ++
@@ -3563,6 +3567,9 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "exec_log_txindex:\n" ++
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
+  ".balign 8\n" ++
+  "exec_log_seed_flag:\n" ++
+  "  .zero 16384\n" ++    -- one provenance byte per persistent-log row; 1 = seed/preload
   ".balign 32\n" ++
   "evm_memory_layout_pad:\n" ++
   "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++

@@ -189,6 +189,16 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- nested frames reserve their high env words for rollback snapshots.
   ".balign 32\n" ++
   "sstore_prestate_pair:\n  .zero 64\n" ++
+  -- Per-SSTORE marker: the current env.ADDRESS is exactly the active CREATE
+  -- address, so the original storage value is transaction-locally zero while
+  -- a prior same-tx write remains visible as current.
+  "sstore_created_original_zero:\n  .zero 8\n" ++
+  -- On a per-transaction log miss, SSTORE combines this block-map current
+  -- value with the independently authenticated header-state original value.
+  ".balign 32\n" ++
+  "sstore_committed_current:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sstore_committed_hit:\n  .zero 8\n" ++
   -- code_at_header_state_root scratch:
   ".balign 32\n" ++
   "cahsr_state_root:\n  .zero 32\n" ++
@@ -287,25 +297,21 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- pre-loop indexed sender aggregation.
 
   "bv_mtx_nonce_pre:\n  .zero 8\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
-  -- the multi-tx loop upserts the live exec log's entries here, re-keyed (addrHash) to that
-  -- tx's recipient (its entries are all the recipient's own because dispatch_tx_runtime_code
-  -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
-  -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
-  -- duplicate writes update in place. The active chunked table keeps the same 128-entry
-  -- page layout over four pages (512 unique keys total); unique-key overflow is
-  -- conservative and surfaced via bv_mtx_committed_chunk_overflow. The legacy single-page
-  -- labels remain while the stacked transition lands, but block-verdict call sites use the
-  -- chunked count/table/overflow labels. dtrc_recipkey / dtrc_threadval are the per-slot
-  -- query key and threaded-value output buffer.
+  -- Cross-transaction `BlockState.storage_writes` map. Each row retains its real
+  -- `(addrHash, slotKey)` identity and duplicate writes update in place. The
+  -- computed gas-bound capacity has its own NOBITS section: the .bss frame/SSZ
+  -- layout has only a narrow fixed headroom, while the map is zero-initialized
+  -- and must not bloat the emitted ELF as a 13 MiB PROGBITS payload.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
   "bv_mtx_committed_overflow:\n  .zero 8\n" ++
   "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
   "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
+  ".section .committed_storage, \"aw\", @nobits\n" ++
   ".balign 32\n" ++
   "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
   "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
+  ".section .bss, \"aw\", @nobits\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match

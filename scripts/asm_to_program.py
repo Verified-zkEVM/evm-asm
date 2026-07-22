@@ -968,6 +968,9 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # This helper is an intentional hand-composed wrapper around a mechanically
+    # converted core, so its source is not one generated literal block.
+    'committedStorageChunkedSnapshotUpsertFunction',
 }
 
 def check_file(path, funcs, rendered=None):

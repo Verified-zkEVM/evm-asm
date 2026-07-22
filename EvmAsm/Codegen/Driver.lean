@@ -83,6 +83,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     -- present, so the flag is harmless for programs that do not emit it.
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
       "--section-start=.bss=0xa4000000",
+      "--section-start=.committed_storage=0xa2000000",
       "--section-start=.sszscratch=0xbf600000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]

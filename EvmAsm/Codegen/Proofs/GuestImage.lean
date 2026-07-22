@@ -73,10 +73,10 @@ theorem guestImage_block_sub :
 def regionScratch (r : RegionMap.GuestRegion) : Assertion :=
   anyBytes (BitVec.ofNat 64 r.base) r.size
 
-/-- The guest's working-state ownership at entry: the seven writable
+/-- The guest's working-state ownership at entry: the eight writable
     (`zone = .ram`) regions of the emitted-reality map, ascending —
     `zisk_system ** OUTPUT ** guest_stack ** state_tracker_live **
-    .data ** .bss ** .sszscratch`.  (The `.bss` tile contains the
+    .committed_storage ** .data ** .bss ** .sszscratch`.  (The `.bss` tile contains the
     `call_frame_arena`; `CallFramePhase.phaseDView` is a sub-tile split
     of it via `anyBytes_add`, so phase-view consumers frame out of this
     same resource.) -/
@@ -85,11 +85,12 @@ def guestScratch : Assertion :=
   regionScratch RegionMap.outputRegion **
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
+  regionScratch RegionMap.committedStorageRegion **
   regionScratch RegionMap.dataRegion **
   regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.sszScratchRegion
 
-/-- Drift pin: the seven tiles of `guestScratch` are EXACTLY the writable
+/-- Drift pin: the eight tiles of `guestScratch` are EXACTLY the writable
     regions of `guestRegionMap`, in map order.  Adding/renaming a `.ram`
     region breaks this `decide`, forcing the bundle to follow. -/
 theorem guestScratch_matches_regionMap :
@@ -98,6 +99,7 @@ theorem guestScratch_matches_regionMap :
       = [RegionMap.ziskSystemRegion.name, RegionMap.outputRegion.name,
          RegionMap.guestStackRegion.name,
          RegionMap.stateTrackerLiveRegion.name,
+         RegionMap.committedStorageRegion.name,
          RegionMap.dataRegion.name, RegionMap.bssRegion.name,
          RegionMap.sszScratchRegion.name] := by
   decide
@@ -187,18 +189,25 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0xa0630000 0xa0830000 :=
     satWithin_ramRegion 0xa0630000 0x200000 (by omega) (by omega)
       (by omega) (by omega)
-  have t5 : (regionScratch RegionMap.dataRegion).SatWithin
+  have t5 : (regionScratch RegionMap.committedStorageRegion).SatWithin
+      0xa2000000 0xa2cdd800 :=
+    satWithin_ramRegion 0xa2000000 0xcdd800 (by omega) (by omega)
+      (by omega) (by omega)
+  have t5' : (regionScratch RegionMap.committedStorageRegion).SatWithin
+      0xa2000000 0xa3000000 :=
+    t5.mono (le_refl _) (by omega)
+  have t6 : (regionScratch RegionMap.dataRegion).SatWithin
       0xa3000000 0xa3005370 :=
     satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
-  have t6 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa4000000 0xbf5feec0 :=
-    satWithin_ramRegion 0xa4000000 0x1b5feec0 (by omega) (by omega)
+  have t7 : (regionScratch RegionMap.bssRegion).SatWithin
+      0xa4000000 0xbf5eef20 :=
+    satWithin_ramRegion 0xa4000000 0x1b5eef20 (by omega) (by omega)
       (by omega) (by omega)
-  have t6' : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3005370 0xbf5feec0 :=
-    t6.mono (by omega) (le_refl _)
-  have t7 : (regionScratch RegionMap.sszScratchRegion).SatWithin
+  have t7' : (regionScratch RegionMap.bssRegion).SatWithin
+      0xa3005370 0xbf5eef20 :=
+    t7.mono (by omega) (le_refl _)
+  have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf600000 0xbfc80000 :=
     satWithin_ramRegion 0xbf600000 0x680000 (by omega) (by omega)
       (by omega) (by omega)
@@ -207,9 +216,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       (t2.sepConj
         (t3.sepConj
           ((t4.mono (by omega) (by omega)).sepConj
-            (t5.sepConj
-              (t6'.sepConj
-                (t7.mono (by omega) (le_refl _))
+            (t5'.sepConj
+              (t6.sepConj
+                (t7'.sepConj
+                  (t8.mono (by omega) (le_refl _))
+                  (by omega) (by omega))
                 (by omega) (by omega))
               (by omega) (by omega))
             (by omega) (by omega))
@@ -275,6 +286,7 @@ def guestResidue : Assertion :=
   outputTailScratch **
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
+  regionScratch RegionMap.committedStorageRegion **
   regionScratch RegionMap.dataRegion **
   regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.sszScratchRegion

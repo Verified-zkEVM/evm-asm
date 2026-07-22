@@ -288,6 +288,28 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 3\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
+        -- execution-specs gives fresh-created accounts a transaction-local
+        -- zero *original* view. `get_storage` still observes a prior write in
+        -- this transaction, so a matching log row must remain visible for the
+        -- current half of a later SSTORE. `create_frame_flag` alone is too broad:
+        -- it describes a depth, while helper/refund activity at that depth can
+        -- address another account. Require the current env.ADDRESS (LE) to be
+        -- exactly this depth's CREATE address (BE) before taking the zero arm.
+        "  la x14, sstore_created_original_zero; sd zero, 0(x14)\n" ++
+        "  la x14, evm_call_depth; ld x14, 0(x14)\n" ++
+        "  slli x15, x14, 3; la x16, create_frame_flag; add x16, x16, x15; ld x16, 0(x16)\n" ++
+        "  beqz x16, .Lsstore_created_original_scan\n" ++
+        "  slli x15, x14, 5; la x16, create_address_by_depth; add x16, x16, x15\n" ++
+        "  addi x17, x20, 19; li x15, 20\n" ++
+        ".Lsstore_created_addr_cmp:\n" ++
+        "  beqz x15, .Lsstore_created_original_zero\n" ++
+        "  lbu x14, 0(x17); lbu x18, 0(x16); bne x14, x18, .Lsstore_created_original_scan\n" ++
+        "  addi x17, x17, -1; addi x16, x16, 1; addi x15, x15, -1; j .Lsstore_created_addr_cmp\n" ++
+        ".Lsstore_created_original_zero:\n" ++
+        -- Preserve original=0, but keep scanning so a later write sees the
+        -- current value established by an earlier same-transaction write.
+        "  li x14, 1; la x16, sstore_created_original_zero; sd x14, 0(x16); j .Lsstore_created_original_scan\n" ++
+        ".Lsstore_created_original_scan:\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
@@ -328,6 +350,15 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- `created_accounts` changes only get_storage_original. When this
+        -- exact created account already has a log row, synthesize
+        -- {original = 0, current = row.current}; a first touch retains {0,0}.
+        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_prestate_normal\n" ++
+        "  beqz x18, .Lsstore_created_original_done\n" ++
+        "  la x14, sstore_prestate_pair; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
+        "  ld x15, 32(x18); sd x15, 32(x14); ld x15, 40(x18); sd x15, 40(x14); ld x15, 48(x18); sd x15, 48(x14); ld x15, 56(x18); sd x15, 56(x14)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_created_original_done\n" ++
+        ".Lsstore_prestate_normal:\n" ++
         -- A persistent-log miss is not necessarily an all-zero pre-state slot:
         -- an untouched nonzero slot need not occur in the BAL-derived seed set,
         -- yet an SSTORE still needs its authenticated original/current value for
@@ -350,6 +381,24 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x14, x12, 31; la x15, sstore_prestate_pair; addi x15, x15, 32; li x16, 32\n" ++
         ".Lsstore_prestate_key_rev:\n" ++
         "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_key_rev\n" ++
+        -- The block-committed map is execution-specs' `BlockState.storage_writes`.
+        -- On a cold per-tx log miss it is the winning source for *both*
+        -- `get_storage_original` and `get_storage`: a prior successful tx's
+        -- committed value is the next tx's original and current alike.
+        "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
+        "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .Lsstore_committed_done\n" ++
+        "  mv a0, x20; la a1, sstore_prestate_pair; addi a1, a1, 32\n" ++
+        "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+        "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+        "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
+        "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
+        ".Lsstore_committed_done:\n" ++
+        "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .Lsstore_prestate_header\n" ++
+        "  la x14, sstore_committed_current; la x15, sstore_prestate_pair\n" ++
+        "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
+        "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_prestate_restore\n" ++
+        ".Lsstore_prestate_header:\n" ++
         "  ld a0, 576(x20); ld a1, 584(x20); la a2, sstore_prestate_pair; addi a3, a2, 32\n" ++
         "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
         "  jal ra, slot_at_header_state_root\n" ++
@@ -365,8 +414,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x15, sstore_prestate_pair; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
         "  la x18, sstore_prestate_pair\n" ++
         ".Lsstore_prestate_zero:\n" ++
+        ".Lsstore_prestate_restore:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
         ".Lsstore_prestate_done:\n" ++
+        ".Lsstore_created_original_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
         -- transient-log region; halt conservatively before any append-path
@@ -484,6 +535,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- x16/x17/x18 are dead post-append (the tail only uses x10).
         "  la x16, current_block_access_index\n  ld x17, 0(x16)\n" ++
         "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
+        -- A new SSTORE row supersedes any stale provenance byte at this slot.
+        "  la x16, exec_log_seed_flag\n  add x16, x16, x15\n  sb x0, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)\n" ++
