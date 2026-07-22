@@ -398,8 +398,7 @@ def callFrameDescendFunction : String :=
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
   -- pointer_reentry's re-entered EOA SSTOREs SELFBALANCE=1000 and the directly-called contract
-  -- 100. The witness lookup can't run here (mid-EVM-execution the MPT walk returns absent), so
-  -- dispatch_tx_runtime_code pre-resolved every BAL account's balance into callee_balance_table
+  -- 100. dispatch_tx_runtime_code pre-resolves BAL-account balances into callee_balance_table
   -- (LE-limb order). Reverse the child ADDRESS@0 (20B stack-word/LE, MSB at env+19) into the free
   -- child-env scratch (env+696; frameEnvBytes=768, fields end 688) -> canonical BE, scan the table,
   -- and copy the matching LE balance verbatim into env+32 (h_SELFBALANCE copies env+32 to the LE
@@ -451,6 +450,25 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
   "  li t2, 1; sd t2, 88(sp)         # committed effect supersedes the table value\n" ++
   ".Lcfd_lbov_done:\n" ++
+  -- The BAL table is intentionally bounded and does not necessarily include every
+  -- account reached by a nested frame.  If neither it nor the live-effect overlay
+  -- supplied a balance, resolve the inherited authenticated header state instead
+  -- of executing with a guessed zero.  This is the same prestate fallback used by
+  -- CREATE descent: a live effect always wins, authenticated absence is zero, and
+  -- malformed lookup results become the existing sticky runtime failure.
+  "  ld t0, 88(sp); bnez t0, .Lcfd_prebalance_done\n" ++
+  "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
+  "  ld a0, 576(s9); ld a1, 584(s9); addi a2, s9, 696; li a3, 20; ld a4, 592(s9); ld a5, 600(s9); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root; mv t6, a0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 8\n" ++
+  "  beqz t6, .Lcfd_prebalance_found\n" ++
+  "  li t0, 1; beq t6, t0, .Lcfd_prebalance_done\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_prebalance_done\n" ++
+  ".Lcfd_prebalance_found:\n" ++
+  "  la t0, create_prebalance_acct; addi t0, t0, 39; addi t1, s9, 32; li t2, 32\n" ++
+  ".Lcfd_prebalance_copy:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcfd_prebalance_copy\n" ++
+  ".Lcfd_prebalance_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used,
   -- evm_state_gas_spilled = state gas drawn from gas_left) into the child env
