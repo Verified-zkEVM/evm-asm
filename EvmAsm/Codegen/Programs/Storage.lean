@@ -328,6 +328,45 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- A persistent-log miss is not necessarily an all-zero pre-state slot:
+        -- an untouched nonzero slot need not occur in the BAL-derived seed set,
+        -- yet an SSTORE still needs its authenticated original/current value for
+        -- Amsterdam state-gas classification. Resolve that cold value from the
+        -- parent-state witness before falling back to zero. An absent account/slot
+        -- or an unresolved witness preimage retains the existing cold-zero behavior;
+        -- a successful authenticated lookup supplies the otherwise-missing nonzero
+        -- pre-state value.
+        "  bnez x18, .Lsstore_prestate_done\n" ++
+        "  addi sp, sp, -40\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x19, 32(sp)\n" ++
+        -- env.ADDRESS is the EVM little-endian stack-word representation;
+        -- slot_at_header_state_root takes a canonical 20-byte big-endian address.
+        "  la x15, sstore_prestate_pair; sd zero, 0(x15); sd zero, 8(x15); sd zero, 16(x15); sd zero, 24(x15)\n" ++
+        "  addi x14, x20, 19; la x15, sstore_prestate_pair; li x16, 20\n" ++
+        ".Lsstore_prestate_addr_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_addr_rev\n" ++
+        -- The stack key is likewise little-endian; use the adjacent env scratch
+        -- as the canonical big-endian lookup key.
+        "  addi x14, x12, 31; la x15, sstore_prestate_pair; addi x15, x15, 32; li x16, 32\n" ++
+        ".Lsstore_prestate_key_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_key_rev\n" ++
+        "  ld a0, 576(x20); ld a1, 584(x20); la a2, sstore_prestate_pair; addi a3, a2, 32\n" ++
+        "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
+        "  jal ra, slot_at_header_state_root\n" ++
+        "  beqz a0, .Lsstore_prestate_found\n" ++
+        "  j .Lsstore_prestate_zero\n" ++
+        ".Lsstore_prestate_found:\n" ++
+        -- sahsr_u256 is canonical big-endian. Materialize both original and
+        -- current in the exec-log's little-endian-limb order in the dedicated
+        -- original/current pair buffer.
+        "  la x14, sahsr_u256; la x15, sstore_prestate_pair; addi x15, x15, 31; li x16, 32\n" ++
+        ".Lsstore_prestate_value_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, 1; addi x15, x15, -1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_value_rev\n" ++
+        "  la x15, sstore_prestate_pair; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
+        "  la x18, sstore_prestate_pair\n" ++
+        ".Lsstore_prestate_zero:\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
+        ".Lsstore_prestate_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
         -- transient-log region; halt conservatively before any append-path

@@ -533,7 +533,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_wouldbe_state:\n  .zero 8\n" ++
   "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
-  "teer_authority:\n  .zero 24\n" ++
+  -- Keep the EIP-7702 authority as a full padded non-storage-effect key.
+  "teer_authority:\n  .zero 32\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
@@ -766,6 +767,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_create_addr:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  -- Output routing for the generalized top-level creation runner.  Mode 0 is
+  -- the legacy single-tx scalar publication; mode 1 scatters its settled
+  -- result into the current multi-tx slot.
+  "bv_creation_output_mode:\n  .zero 8\n" ++
+  "bv_creation_output_index:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++

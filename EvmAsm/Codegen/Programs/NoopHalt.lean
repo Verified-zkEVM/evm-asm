@@ -389,18 +389,30 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       dispatchContinueRet ++ "\n") ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
-  -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
-  -- (evm_memory[x14..x14+x15]) into system_call_returndata so an EIP-7002/7251 predeploy
-  -- system call's return_data is recoverable. RETURN (kind 1) only; flag is 0 for normal
-  -- txs so the halt path stays byte-identical. x13=mem base, x14=offset, x15=size (read-only).
+  -- A capture is valid only for the outermost RETURN: an inner call's data must never
+  -- overwrite the top-level system-call/creation result.  Mode 1 is the bounded
+  -- EIP-7002/7251 capture; mode 2 is top-level CREATE and has the EIP-170-sized
+  -- buffer plus an explicit oversized status.  x13=mem base, x14=offset, x15=size.
   (if kind == 1 then
     "  la t0, system_call_mode\n  ld t0, 0(t0)\n  beqz t0, .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
+    "  la t1, evm_call_depth\n  ld t1, 0(t1)\n  bnez t1, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  li t1, 2\n  beq t0, t1, .Lrr_createcap_" ++ toString kind ++ "\n" ++
+    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized system result -> unsupported
     "  la t1, system_call_returndata_len\n  sd x15, 0(t1)\n" ++
     "  add t2, x13, x14\n  la t3, system_call_returndata\n  mv t4, x15\n" ++
     ".Lrr_capz_" ++ toString kind ++ ":\n" ++
     "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
     "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_capz_" ++ toString kind ++ "\n" ++
+    ".Lrr_createcap_" ++ toString kind ++ ":\n" ++
+    "  li t1, " ++ toString topLevelCreationReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_createcap_over_" ++ toString kind ++ "\n" ++
+    "  la t1, top_level_creation_returndata_status\n  li t5, 1\n  sd t5, 0(t1)\n" ++
+    "  la t1, top_level_creation_returndata_len\n  sd x15, 0(t1)\n" ++
+    "  add t2, x13, x14\n  la t3, top_level_creation_returndata\n  mv t4, x15\n" ++
+    ".Lrr_createcap_copy_" ++ toString kind ++ ":\n" ++
+    "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_createcap_copy_" ++ toString kind ++ "\n" ++
+    ".Lrr_createcap_over_" ++ toString kind ++ ":\n" ++
+    "  la t1, top_level_creation_returndata_status\n  li t5, 2\n  sd t5, 0(t1)\n" ++
     ".Lrr_nocap_" ++ toString kind ++ ":\n"
    else "") ++
   "  li x16, 0xa0010000\n" ++
@@ -611,6 +623,24 @@ private def selfdestructTailAsm : String :=
   "  beqz t3, .L_sd_create_addr_done\n" ++
   "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .L_sd_create_addr_loop\n" ++
   ".L_sd_create_addr_done:\n" ++
+  -- A CREATE init frame which halts through SELFDESTRUCT is still a successful
+  -- CREATE: its creator's nonce advances and its endowment remains moved into
+  -- the (then EIP-6780-cleared) child.  The normal CREATE RETURN/STOP deposit
+  -- arm appends this final creator effect after frame_return; this special arm
+  -- used to return the address without that record, leaving the BAL's creator
+  -- balance/nonce change unmatched (bv_fail=44).
+  -- frame_return has restored the creator env in x20 and the per-depth globals
+  -- above restored create_sender_be/create_value_be/create_nonce.
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  addi t0, x20, 63\n  la t1, nse_create_post_bal\n  li t2, 32\n" ++
+  ".L_sd_create_creator_post_rev:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L_sd_create_creator_post_rev\n" ++
+  "  la a0, nse_create_post_bal\n  la a1, create_value_be\n  la a2, create_creator_newbal\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n" ++
+  "  la a0, create_sender_be\n  la a1, create_creator_newbal\n  la a2, nse_create_post_bal\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   dispatchContinueRet
 
 /-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT
