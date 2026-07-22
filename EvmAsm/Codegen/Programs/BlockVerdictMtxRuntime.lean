@@ -312,24 +312,19 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
   -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
   -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
-  -- (mirrors state clearing), so capture only on success. Rows are captured from
-  -- index 0: the preload rows (addrHash=0) are inert in every consumer scan.
+  -- (mirrors state clearing), so capture only on success. The capture helper
+  -- filters seed/preload rows through explicit per-row provenance rather than
+  -- assuming they occupy a stable prefix of the live log.
   -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
-  "  beqz a4, .Lbv_mtx_user_capture_done\n" ++
-  "  la t0, callee_seed_count; ld a0, 0(t0); la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
+  "  beqz a4, .Lbv_mtx_snapshot_empty\n" ++
+  "  li a0, 0; la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_user_capture_done:\n" ++
-  -- Snapshot only actual runtime SSTORE rows into the cross-tx table. The
-  -- callable dispatcher places the callee witness-preload rows at the prefix
-  -- [0, callee_seed_count); those describe reads, not BlockState.storage_writes.
-  -- A same-tx-created account queued for EIP-6780 deletion is likewise filtered
-  -- by the helper, mirroring destroy_storage before incorporate_tx_into_block.
-  "  li a1, 0xa0630000                              # live storage log base\n" ++
-  "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
-  "  la t0, callee_seed_count; ld t1, 0(t0); bgeu a2, t1, .Lbv_mtx_commit_seed_count_ok; j .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_commit_seed_count_ok:\n" ++
-  "  slli t2, t1, 7; add a1, a1, t2; sub a2, a2, t1\n" ++
+  -- Commit the exact unseeded slice just copied into the user-write arena.
+  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2; j .Lbv_mtx_snapshot_ready\n" ++
+  ".Lbv_mtx_snapshot_empty:\n" ++
+  "  la a1, bv_user_storage_log; li a2, 0\n" ++
+  ".Lbv_mtx_snapshot_ready:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++

@@ -26,9 +26,12 @@ open EvmAsm.Rv64
          reuse this helper with its own capacity).
     a0 (output) = 0 copied / 1 malformed end<start / 2 side arena overflow.
 
-    Copies rows in [start,end) into the side arena and writes txindex=a6 for
-    every copied row. The caller keeps restoring the regular log count, so this
-    side arena is the only durable record of system-call storage writes.
+    Copies the unseeded rows in [start,end) into the side arena and writes
+    txindex=a6 for every copied row. `exec_log_seed_flag` is parallel to the
+    live log: preloads/reads set it, while runtime SSTORE appends clear it.
+    This makes capture independent of any positional seed prefix. The caller
+    keeps restoring the regular log count, so this side arena is the only
+    durable record of system-call storage writes.
     lv44p.2.2: end-of-block system calls (EIP-7002/7251) run at block_access_index
     N+1, so the caller passes N+1 here; the tuple comparator then orders these
     end-of-block rows AFTER the user transactions instead of mis-stamping them 0.
@@ -58,17 +61,13 @@ def captureSystemStorageExecRowsFunction : String :=
   "  la t0, bv_system_storage_capture_rows; sd s6, 0(t0)\n" ++
   "  ld t0, 0(s5)                 # old side count\n" ++
   "  la t1, bv_system_storage_capture_old_count; sd t0, 0(t1)\n" ++
-  "  add t1, t0, s6\n" ++
-  "  la t3, bv_system_storage_capture_new_count; sd t1, 0(t3)\n" ++
-  "  bltu t1, t0, .Lcssc_overflow\n" ++
-  "  mv t2, a7                    # side arena capacity (bmvmx.5.5.10 PR-2)\n" ++
-  "  bgtu t0, t2, .Lcssc_overflow\n" ++
-  "  bgtu t1, t2, .Lcssc_overflow\n" ++
   "  li t3, 0                     # i\n" ++
   ".Lcssc_loop:\n" ++
   "  beq t3, s6, .Lcssc_done\n" ++
-  "  add t4, s0, t3; slli t4, t4, 7; add t4, s2, t4   # src row\n" ++
-  "  ld t0, 0(s5); add t0, t0, t3\n" ++
+  "  add t4, s0, t3               # source row index\n" ++
+  "  la t1, exec_log_seed_flag; add t1, t1, t4; lbu t1, 0(t1); bnez t1, .Lcssc_next\n" ++
+  "  ld t0, 0(s5); bgeu t0, a7, .Lcssc_overflow\n" ++
+  "  slli t4, t4, 7; add t4, s2, t4                   # src row\n" ++
   "  slli t5, t0, 7; add t5, s3, t5                   # dst row\n" ++
   "  slli t6, t0, 3; add t6, s4, t6; la t1, cssc_stamp_txindex; ld t1, 0(t1); sd t1, 0(t6)   # side txindex = a6 (block_access_index)\n" ++
   "  ld t6, 0(t4); sd t6, 0(t5); ld t6, 8(t4); sd t6, 8(t5)\n" ++
@@ -79,9 +78,11 @@ def captureSystemStorageExecRowsFunction : String :=
   "  ld t6, 80(t4); sd t6, 80(t5); ld t6, 88(t4); sd t6, 88(t5)\n" ++
   "  ld t6, 96(t4); sd t6, 96(t5); ld t6, 104(t4); sd t6, 104(t5)\n" ++
   "  ld t6, 112(t4); sd t6, 112(t5); ld t6, 120(t4); sd t6, 120(t5)\n" ++
+  "  addi t0, t0, 1; sd t0, 0(s5)\n" ++
+  ".Lcssc_next:\n" ++
   "  addi t3, t3, 1; j .Lcssc_loop\n" ++
   ".Lcssc_done:\n" ++
-  "  ld t0, 0(s5); add t0, t0, s6; sd t0, 0(s5)\n" ++
+  "  ld t0, 0(s5); la t1, bv_system_storage_capture_new_count; sd t0, 0(t1)\n" ++
   "  li a0, 0; j .Lcssc_ret\n" ++
   ".Lcssc_malformed:\n" ++
   "  li a0, 1\n" ++
