@@ -60,26 +60,19 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 7; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+7
   -- bmvmx.5.5.2 (umbrella-B1): validate each multi-tx SENDER's BAL FINAL nonce == pre_nonce +
   -- (total count of that sender's txs) -- the multi-tx generalization of the single-tx post-
-  -- nonce check (.Lbv_sender_nonce_fail, status 40). An EOA sender's nonce increments once per
-  -- tx (no internal code), so final == pre+count for every valid block -> never false-rejects;
-  -- catches a BAL forging the sender's final nonce. Post-loop pass; sender_i = skip[2i] (A1),
-  -- compacted by b1_sender_count_table into distinct sender/count rows. Conservative skips:
-  -- sender absent from BAL, account_at failure, no declared nonce change. Cursor in
-  -- bv_mtx_skip_idx walks the distinct table and survives jals via memory.
-  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
-  "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- reject if table build failed (capacity/malformed)
+  -- nonce check (.Lbv_sender_nonce_fail, status 40).  The runtime loop has
+  -- already built this table from the authenticated sender lanes and advanced
+  -- each row in transaction order, including valid EIP-7702 authorizations.
+  -- Do not rebuild it here: that would discard the block-global nonce delta.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
   ".Lbv_b1_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- t4 = &distinct sender entry
-  "  ld t6, 32(t4); la t0, bv_b1_count; sd t6, 0(t0)\n" ++             -- stash total count (jal clobbers t6)
+  "  ld t6, 32(t4); la t0, bv_b1_count; sd t6, 0(t0)\n" ++             -- stash total delta (jal clobbers)
   "  ld a0, 8(s0); ld a1, 16(s0); mv a2, t4; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_b1_next\n" ++                                       -- sender lookup fail/absent -> skip (conservative)
-  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++                     -- t0 = pre_nonce (nonce@0)
-  "  la t1, bv_b1_count; ld t1, 0(t1); add t0, t0, t1\n" ++            -- expected = pre_nonce + count
-  "  la t1, bv_b1_expected; sd t0, 0(t1)\n" ++                         -- stash (jal clobbers)
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0); la t1, bv_b1_count; ld t1, 0(t1); add t0, t0, t1; la t1, bv_b1_expected; sd t0, 0(t1)\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- reload t4 = &distinct sender entry
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++

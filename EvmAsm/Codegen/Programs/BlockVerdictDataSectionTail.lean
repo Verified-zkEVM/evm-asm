@@ -480,6 +480,17 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "bv_b1_sender_count:\n  .zero 8\n" ++
   "bv_b1_sender_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n" ++
+  -- Exact EIP-7702 B1 simulation retains only fixed-size RLP/recovery scratch;
+  -- the table row's count word remains the accumulated block-global nonce delta.
+  "b1an_auth_off:\n  .zero 8\n" ++
+  "b1an_auth_len:\n  .zero 8\n" ++
+  "b1an_auth_count:\n  .zero 8\n" ++
+  "b1an_item_off:\n  .zero 8\n" ++
+  "b1an_item_len:\n  .zero 8\n" ++
+  "b1an_field:\n  .zero 8\n" ++
+  "b1an_signed_nonce:\n  .zero 8\n" ++
+  "b1an_authority:\n  .zero 32\n" ++
+  "b1an_recover_scratch:\n  .zero 96\n" ++
   "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
