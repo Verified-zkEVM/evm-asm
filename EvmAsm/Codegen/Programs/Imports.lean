@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.TxIntrinsicStateGasType
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEts
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasReplay
 import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
 import EvmAsm.Codegen.Programs.TxTypeDispatchTyped
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop

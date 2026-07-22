@@ -64,7 +64,7 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
   "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
   "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund_with_sender_nonce\n" ++
   -- v0.6.0: pools driven by WOULD-BE charges (C8 charge-point OOG).
   "  la t1, teer_wouldbe_state; ld t1, 0(t1); la t0, runtime_tx_auth_state_refund; sd t1, 0(t0)\n" ++
   "  la t1, teer_wouldbe_regular; ld t1, 0(t1); la t0, runtime_tx_auth_regular_refund; sd t1, 0(t0)\n" ++

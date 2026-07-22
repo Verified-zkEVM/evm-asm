@@ -538,6 +538,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
   balAccountNonceBeforeIndexFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
+  txEip7702ExistingAuthorityRefundWithSenderNonceFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
