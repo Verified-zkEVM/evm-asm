@@ -1071,8 +1071,14 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s0; mv a1, s9\n" ++
   "  jal ra, bbcv_addr_eq20\n" ++
   "  beqz a0, .Lbsbd_next\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_source_final\n" ++
+  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_source_selected\n" ++
+  ".Lbsbd_source_final:\n" ++
   "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
+  ".Lbsbd_source_selected:\n" ++
   "  bnez a0, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
   -- The last BAL code change is the tx-state code seen by execution-specs.
@@ -1195,7 +1201,12 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lbsbd_target_create_effect\n" ++        -- target absent from final BAL: try same-tx CREATE code
   "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_target_final\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_target_selected\n" ++
+  ".Lbsbd_target_final:\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
+  ".Lbsbd_target_selected:\n" ++
   "  bnez a0, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
@@ -1342,7 +1353,8 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 104\n" ++
   "  ret\n" ++
   "\n" ++
-  balCodePreimagesCreateCollisionFunctions ++
+  balCodePreimagesCreateCollisionFunctions ++ "\n" ++
+  balAccountCodeAtOrBeforeFunction ++ "\n" ++
   balCodePreimagesAuxFunctions
 
 end EvmAsm.Codegen

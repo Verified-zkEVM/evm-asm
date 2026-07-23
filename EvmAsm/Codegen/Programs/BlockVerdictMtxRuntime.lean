@@ -281,6 +281,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
@@ -293,7 +294,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- the loop leaves current_block_access_index at its single-tx default 1, and the per-tx
   -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
   -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
-  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
