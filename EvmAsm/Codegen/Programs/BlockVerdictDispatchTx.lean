@@ -405,6 +405,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+  -- A delegation target may itself have been successfully CREATEd by an
+  -- earlier transaction in this block.  CodeState is the current execution
+  -- state, so consult it before the immutable block-pre witness.
+  "  la a0, dtrc_deleg_target; jal ra, code_state_lookup_current\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
+  "  mv x21, a1; sd a2, 496(x20); j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_not_codestate:\n" ++
+  "  bnez a0, .Ldtrc_materialize_empty_target\n" ++
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
+  "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   -- Preserve the pre-defer resolver contract: an absent delegated target, or
   -- an existing target carrying EMPTY_CODE_HASH, executes as empty code.
@@ -468,6 +478,18 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  -- The BAL resolver only owns EIP-7702 delegation designators.  For ordinary
+  -- code use the shared mutable CodeState first: a tx1 CREATE is visible to a
+  -- tx2 top-level call even though it is absent from the block-pre witness.
+  "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
+  "  addi a0, s2, 72; jal ra, code_state_lookup_current\n" ++
+  "  ld s2, 0(sp); addi sp, sp, 16\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_not_codestate_code\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub t1, a1, t1\n" ++
+  "  la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_not_codestate_code:\n" ++
+  "  bnez a0, .Ldtrc_same_block_empty_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++

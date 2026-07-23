@@ -239,7 +239,15 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
       "  mv x10, s10\n" ++
       "  mv x12, s11\n") ++
     -- If an account-witness context is attached, apply the EIP-684
-    -- code-or-nonce collision check to the derived target address.
+    -- code-or-nonce collision check to the derived target address.  The
+    -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
+    -- overrides a header miss, while a durable same-tx-delete mask permits a
+    -- later recreate.  Only an overlay miss consults block-pre witness data.
+    "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  li t1, 2; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  ld a1, 584(x20)\n" ++
     "  beqz a1, 6f\n" ++
     "  mv s9, x13\n" ++
@@ -361,8 +369,8 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     -- spec is_account_alive(target): the TARGET's header-state balance
-    -- (code/nonce holders already took the collision branch) plus any
-    -- prior same-tx creation effect.
+    -- (code/nonce holders already took the collision branch) plus the shared
+    -- current CodeState overlay for prior creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
     "  jal ra, balance_at_header_state_root\n" ++
@@ -373,8 +381,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  bnez t1, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, create_address_be\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++

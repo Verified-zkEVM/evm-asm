@@ -128,6 +128,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_eas_materialize:\n" ++
   "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
+  -- Execution CodeState is block-lived in the sequential lane.  The callable
+  -- dispatcher resets only its pending overlay; durable state and retained
+  -- comparator bytes survive until this loop finishes.
+  -- CodeState is the sole execution code/existence model for every block,
+  -- including the one-transaction case.  The immutable witness is consulted
+  -- only after its pending and durable overlays miss.
+  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, code_state_durable_count; sd zero, 0(t0); la t0, code_state_pending_count; sd zero, 0(t0); la t0, code_state_created_count; sd zero, 0(t0); la t0, code_state_delete_count; sd zero, 0(t0); la t0, code_state_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
   "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
@@ -337,6 +345,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, code_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
@@ -382,6 +391,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_snapshot_empty:\n" ++
   "  la a1, bv_user_storage_log; li a2, 0\n" ++
   ".Lbv_mtx_snapshot_ready:\n" ++
+  -- Commit the just-successful transaction's current CodeState overlay before
+  -- the next callable dispatch.  A failed receipt commits no code/existence
+  -- mutations, exactly like its effect-log rollback above.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit\n" ++
+  "  la t0, code_state_pending_count; sd zero, 0(t0); la t0, code_state_created_count; sd zero, 0(t0); la t0, code_state_delete_count; sd zero, 0(t0); j .Lbv_mtx_code_commit_done\n" ++
+  ".Lbv_mtx_code_commit:\n" ++
+  "  jal ra, code_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
@@ -415,6 +432,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- nonce have already been established by the common mtx prelude above.
   "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
+  -- EIP-684 observes the current block state before the immutable witness.
+  -- A durable CodeState entry is a prior-tx live account and collides; a
+  -- durable tombstone is a same-tx-created account already deleted at an
+  -- earlier transaction boundary, so it deliberately falls through to the
+  -- pre-block predicate (where it is absent and may be recreated).
+  "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
+  "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
+  "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
+  "  j .Lbv_mtx_creation_unsupported\n" ++
+  ".Lbv_mtx_creation_header_collision:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0); jal ra, has_code_or_nonce_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
   "  la t0, hcon_predicate; ld t0, 0(t0); bnez t0, .Lbv_mtx_creation_unsupported\n" ++
