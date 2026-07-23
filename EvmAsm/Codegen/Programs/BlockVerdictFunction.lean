@@ -839,7 +839,7 @@ def blockVerdictFunction : String :=
   "  jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, code_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, cd_destroyed_empty_hits; ld t0, 0(t0); beqz t0, .Lbv_dispatch_status_ready\n" ++
   "  li a0, 62\n" ++
   ".Lbv_dispatch_status_ready:\n" ++

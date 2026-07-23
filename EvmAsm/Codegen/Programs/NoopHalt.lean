@@ -165,7 +165,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
 " ++
-      -- `code_state_pending_contains` uses a1..a3 for its bounded table
+      -- `account_state_created_contains` uses a1..a3 for its bounded table
       -- scan.  x13/a3 is the CREATE return-data base below, so preserve it.
       "  addi sp, sp, -24
   sd x10, 0(sp)
@@ -173,7 +173,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   sd x13, 16(sp)
 " ++
       "  la a0, create_address_be
-  jal ra, code_state_pending_contains
+  jal ra, account_state_created_contains
 " ++
       "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
 " ++
@@ -556,29 +556,28 @@ private def selfdestructTailAsm : String :=
   "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
   "  j .L_selfdestruct_created_in_tx_mark\n" ++
   ".L_selfdestruct_ctit_codecheck:\n" ++
-  -- code_state_pending_contains follows the normal caller-saved ABI and
+  -- AccountState's transaction-local created set follows the normal caller-saved ABI and
   -- clobbers a0-a3.  x13 is the live EVM stack cursor on this halt path, so
   -- preserve it with the other runtime cursors before asking the CodeState.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, sdai_origin_address\n" ++
-  "  jal ra, code_state_pending_contains\n" ++
+  "  jal ra, account_state_created_contains\n" ++
   "  mv t1, a0\n" ++                                  -- current-tx creation membership
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   "  beqz t1, .L_selfdestruct_created_in_tx_done\n" ++
   "  j .L_selfdestruct_created_in_tx_mark\n" ++
   ".L_selfdestruct_created_in_tx_mark:\n" ++
   -- Deletion is deferred until transaction finalization.  Queue the address
-  -- now; the current CodeState entry stays executable for later same-tx CALLs.
-  -- Both set helpers consume a0-a4.  Keep the live runtime cursors intact
-  -- across the pair, including x13's EVM stack cursor.
+  -- in AccountState; the current entry stays executable for later same-tx
+  -- CALLs.  Keep the live runtime cursors intact across the set helpers.
   "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, sdai_origin_address; la a1, code_state_delete; la a2, code_state_delete_count; li a3, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
-  "  la a0, sdai_origin_address; la a1, code_state_delete; la a2, code_state_delete_count; li a3, " ++ toString codeStateEntryCapacity ++ "; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24; beqz t3, .L_selfdestruct_created_legacy_clear\n" ++
   ".L_selfdestruct_created_delete_restore_overflow:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
   ".L_selfdestruct_created_delete_overflow:\n" ++
-  "  la t0, code_state_overflow; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
   ".L_selfdestruct_created_legacy_clear:\n" ++
   -- coc3g.6.5: EIP-6780 DELETES the created-in-tx contract, so its deployed code is removed --
   -- a created-then-destroyed-same-tx account has NET-ZERO code change and the BAL declares no

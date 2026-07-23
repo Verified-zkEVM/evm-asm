@@ -1168,6 +1168,18 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, 2f\n" ++
     "  sd x0, 0(t1)\n" ++
+    -- An empty CREATE initcode reaches this EOF halt route rather than the
+    -- STOP opcode handler.  Restore the same depth-indexed CREATE metadata
+    -- before entering the shared deposit path, otherwise it observes stale
+    -- globals instead of this child frame's derived address/value/creator.
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     "  li x14, 0\n" ++
     "  li x15, 0\n" ++
     "  j .Lcreate_deposit_from_halt_1\n" ++
@@ -1233,10 +1245,10 @@ def emitDispatcherPrologue : String :=
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
   ".Lrtd_code_log_kept:\n" ++
-  "  la x5, code_state_pending_count; sd x0, 0(x5)\n" ++ -- execution CodeState is a tx overlay
-  "  la x5, code_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
-  "  la x5, code_state_delete_count; sd x0, 0(x5)\n" ++
-  "  la x5, code_state_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++ -- AccountState pending journal is tx scoped
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
@@ -1947,14 +1959,21 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
-    codeStateFindFunction ++ "\n" ++
-    codeStateUpsertFunction ++ "\n" ++
+    accountStateFindFunction ++ "\n" ++
+    accountStateCopyFunction ++ "\n" ++
+    accountStateAppendPendingFunction ++ "\n" ++
+    accountStateUpsertDurableFunction ++ "\n" ++
     codeStateFinalBalanceNonzeroFunction ++ "\n" ++
-    codeStateCommitPendingFunction ++ "\n" ++
+    accountStateCommitPendingFunction ++ "\n" ++
+    accountStateRecordNonstorageFunction ++ "\n" ++
+    accountStateRecordCodeFunction ++ "\n" ++
+    accountStateLatestBalanceFunction ++ "\n" ++
+    accountStateLatestNonceFunction ++ "\n" ++
+    accountStateLookupCurrentFunction ++ "\n" ++
+    accountStateCreatedContainsFunction ++ "\n" ++
     codeStateLookupCurrentFunction ++ "\n" ++
     codeStateAddressSetInsertFunction ++ "\n" ++
     codeStateAddressSetFlagFunction ++ "\n" ++
-    codeStatePendingContainsFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpBackendImpl ++ "\n" ++
     emitModexpBnScratchData ++ "\n" ++
@@ -2912,10 +2931,10 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
   ".Lrtdc_code_log_kept:\n" ++
-  "  la x5, code_state_pending_count; sd x0, 0(x5)\n" ++
-  "  la x5, code_state_created_count; sd x0, 0(x5)\n" ++
-  "  la x5, code_state_delete_count; sd x0, 0(x5)\n" ++
-  "  la x5, code_state_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
   "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
@@ -3105,14 +3124,21 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
-  codeStateFindFunction ++ "\n" ++
-  codeStateUpsertFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateUpsertDurableFunction ++ "\n" ++
   codeStateFinalBalanceNonzeroFunction ++ "\n" ++
-  codeStateCommitPendingFunction ++ "\n" ++
+  accountStateCommitPendingFunction ++ "\n" ++
+  accountStateRecordNonstorageFunction ++ "\n" ++
+  accountStateRecordCodeFunction ++ "\n" ++
+  accountStateLatestBalanceFunction ++ "\n" ++
+  accountStateLatestNonceFunction ++ "\n" ++
+  accountStateLookupCurrentFunction ++ "\n" ++
+  accountStateCreatedContainsFunction ++ "\n" ++
   codeStateLookupCurrentFunction ++ "\n" ++
   codeStateAddressSetInsertFunction ++ "\n" ++
   codeStateAddressSetFlagFunction ++ "\n" ++
-  codeStatePendingContainsFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpBackendImpl ++ "\n" ++
   emitModexpBnScratchData ++ "\n" ++

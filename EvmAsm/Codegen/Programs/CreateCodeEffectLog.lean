@@ -80,6 +80,307 @@ def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
 def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 
+/-! ## Bounded execution AccountState
+
+    The old CodeState owns only code/existence while value and nonce readers
+    reconstruct their state from an append-only comparison log.  AccountState
+    is the replacement execution model: a complete account snapshot is written
+    for every execution mutation, so a later read has one layered source of
+    truth.  Pending entries form a per-transaction journal; durable entries
+    retain the latest successful block state.  Both are fixed arenas.
+
+    40,960 entries is a gas-derived bound.  The lowest-cost operation that
+    changes two accounts is a value transfer; the existing 200M-gas bound is
+    38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
+    cost, keeping its two-account writes below this cap.  Pending is reset at
+    every transaction boundary, while durable stores one latest entry per
+    address for the block. -/
+def accountStateEntryBytes : Nat := 128
+def accountStateEntryCapacity : Nat := 40960
+def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
+def accountStateCreatedCapacity : Nat := 8192
+
+/-! AccountState entry layout (all fields are fixed-width and 8-byte aligned):
+
+      +0   address (20-byte BE, zero-padded to 32)
+      +32  balance (32-byte BE)
+      +64  nonce (u64)
+      +72  code pointer (u64)
+      +80  code length (u64)
+      +88  flags (occupied, exists, code-present, created-this-tx, delete-pending,
+                  code-resolved)
+      +96  reserved (32 bytes; retained so future state fields do not change stride)
+
+    A pending table deliberately appends complete snapshots rather than updating
+    an entry in place: frame rollback is then exactly a high-water-mark rewind.
+    The durable table uses the same record shape but upserts by real address,
+    so its size is bounded by distinct accounts touched in the block. -/
+
+/-! ## account_state_find
+
+    a0 = canonical 20-byte BE address pointer
+    a1 = fixed 128-byte AccountState table base
+    a2 = populated entry count
+    a3 = entry capacity
+    returns a0 = latest matching occupied entry, or zero.
+
+    The forward scan intentionally records the final hit.  Pending is a journal
+    and can contain several snapshots for one address; latest-wins is therefore
+    the state semantics rather than merely a defensive duplicate policy. -/
+def accountStateFindFunction : String :=
+  "account_state_find:\n" ++
+  "  addi sp, sp, -16; sd a3, 0(sp)\n" ++
+  "  bgtu a2, a3, .Lasf_miss\n" ++
+  "  mv t0, a1; li t1, 0; li t2, 0\n" ++
+  ".Lasf_entry:\n" ++
+  "  bgeu t1, a2, .Lasf_done\n" ++
+  "  li t3, 0\n" ++
+  ".Lasf_bytes:\n" ++
+  "  li t4, 20; beq t3, t4, .Lasf_hit; add t4, a0, t3; lbu t5, 0(t4); add t4, t0, t3; lbu t6, 0(t4); bne t5, t6, .Lasf_next; addi t3, t3, 1; j .Lasf_bytes\n" ++
+  ".Lasf_hit:\n" ++
+  "  ld t4, 88(t0); andi t4, t4, 1; beqz t4, .Lasf_next; mv t2, t0\n" ++
+  ".Lasf_next:\n" ++
+  "  addi t0, t0, 128; addi t1, t1, 1; j .Lasf_entry\n" ++
+  ".Lasf_done:\n" ++
+  "  mv a0, t2; ld a3, 0(sp); addi sp, sp, 16; ret\n" ++
+  ".Lasf_miss:\n" ++
+  "  li a0, 0; ld a3, 0(sp); addi sp, sp, 16; ret"
+
+/-! ## account_state_copy
+
+    a0 = 128-byte source snapshot, a1 = 128-byte destination snapshot.
+    Snapshot copying is deliberately whole-record: a balance-only writer cannot
+    accidentally discard nonce/code/existence owned by another execution path. -/
+def accountStateCopyFunction : String :=
+  "account_state_copy:\n" ++
+  "  li t0, 0\n" ++
+  ".Lasc_loop:\n" ++
+  "  li t1, 128; beq t0, t1, .Lasc_done; add t2, a0, t0; ld t3, 0(t2); add t2, a1, t0; sd t3, 0(t2); addi t0, t0, 8; j .Lasc_loop\n" ++
+  ".Lasc_done:\n" ++
+  "  ret"
+
+/-! ## account_state_append_pending
+
+    a0 = full AccountState snapshot, a1 = pending base, a2 = count pointer,
+    a3 = capacity.  Returns zero on append and one on a capacity/count error.
+    This is the only pending writer: callers must first resolve a full snapshot,
+    modify their owned fields, then journal the result through this helper. -/
+def accountStateAppendPendingFunction : String :=
+  "account_state_append_pending:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
+  "  ld t0, 0(a2); bgtu t0, a3, .Lasap_over; bgeu t0, a3, .Lasap_over; slli t1, t0, 7; add a1, s1, t1; mv a0, s0; jal ra, account_state_copy; ld t0, 0(a2); addi t0, t0, 1; sd t0, 0(a2); li a0, 0; j .Lasap_ret\n" ++
+  ".Lasap_over:\n" ++
+  "  li a0, 1\n" ++
+  ".Lasap_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+
+/-! ## account_state_upsert_durable
+
+    a0 = full snapshot, a1 = durable base, a2 = durable count pointer,
+    a3 = capacity.  The durable table is a real-address latest map: a present
+    address is overwritten, otherwise one fixed slot is appended. -/
+def accountStateUpsertDurableFunction : String :=
+  "account_state_upsert_durable:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  ld t0, 0(s2); bgtu t0, s3, .Lasud_over; mv a0, s0; mv a1, s1; mv a2, t0; mv a3, s3; jal ra, account_state_find; bnez a0, .Lasud_copy\n" ++
+  "  ld t0, 0(s2); bgeu t0, s3, .Lasud_over; slli t1, t0, 7; add a0, s1, t1; mv t1, a0; addi t0, t0, 1; sd t0, 0(s2); j .Lasud_copy_dst\n" ++
+  ".Lasud_copy:\n" ++
+  "  mv t1, a0\n" ++
+  ".Lasud_copy_dst:\n" ++
+  "  mv a0, s0; mv a1, t1; jal ra, account_state_copy; li a0, 0; j .Lasud_ret\n" ++
+  ".Lasud_over:\n" ++
+  "  li a0, 1\n" ++
+  ".Lasud_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 48; ret"
+
+/-! ## account_state_commit_pending
+
+    Commit the successful transaction's snapshot journal into the durable
+    block-state map.  Transaction failure and child-frame reversion never call
+    this helper: they rewind the pending count to the saved high-water mark.
+    EIP-161 deletion is applied after pending snapshots merge: therefore a
+    same-transaction CALL can still see its created contract's code, while the
+    next transaction sees the durable tombstone. -/
+def accountStateCommitPendingFunction : String :=
+  "account_state_commit_pending:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
+  "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
+  ".Lascp_loop:\n" ++
+  "  bgeu s1, s0, .Lascp_clear; slli t0, s1, 7; la s2, account_state_pending; add s2, s2, t0; ld t1, 88(s2); andi t1, t1, 1; beqz t1, .Lascp_next\n" ++
+  "  mv a0, s2; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over\n" ++
+  ".Lascp_next:\n" ++
+  "  addi s1, s1, 1; j .Lascp_loop\n" ++
+  ".Lascp_clear:\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateCreatedCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
+  ".Lascp_delete_loop:\n" ++
+  "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
+  -- EIP-161 preserves an empty account whose final balance is nonzero.  The
+  -- AccountState tombstone must therefore distinguish `exists, no code` from
+  -- a deleted account; the authenticated BAL/pre-block helper is the same
+  -- final-balance authority used by the retired CodeState commit path.
+  "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lascp_over; li t1, 17; beqz a0, .Lascp_delete_flags; li t1, 19\n" ++
+  ".Lascp_delete_flags:\n" ++
+  "  sd t1, 40(sp)\n" ++
+  "  mv a0, s2; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lascp_tombstone_found\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Lascp_tombstone_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Lascp_tombstone_addr; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lascp_tombstone_zero\n" ++
+  ".Lascp_tombstone_addr:\n" ++
+  "  li t1, 0\n" ++
+  ".Lascp_tombstone_copy_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lascp_tombstone_new; add t2, s2, t1; lbu t3, 0(t2); la t4, account_state_scratch; add t4, t4, t1; sb t3, 0(t4); addi t1, t1, 1; j .Lascp_tombstone_copy_addr\n" ++
+  ".Lascp_tombstone_new:\n" ++
+  "  ld t1, 40(sp); li t2, 19; beq t1, t2, .Lascp_over; la t0, account_state_scratch; sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over; j .Lascp_delete_next\n" ++
+  ".Lascp_tombstone_found:\n" ++
+  "  mv t0, a0; ld t1, 40(sp); li t2, 19; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
+  ".Lascp_tombstone_write:\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0); j .Lascp_delete_next\n" ++
+  ".Lascp_tombstone_nonzero:\n" ++
+  "  sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
+  ".Lascp_delete_next:\n" ++
+  "  addi s1, s1, 1; j .Lascp_delete_loop\n" ++
+  ".Lascp_finish:\n" ++
+  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); li a0, 0; j .Lascp_ret\n" ++
+  ".Lascp_over:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lascp_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
+
+/-! ## account_state_record_nonstorage
+
+    Adapt the existing non-storage producer ABI to a complete AccountState
+    snapshot.  The raw producer remains the comparison trace; this helper is
+    the execution-state mirror of the same transition.  It clones an existing
+    pending/durable snapshot when available, then overwrites only the balance
+    and nonce supplied by the producer.  Thus a balance mutation preserves the
+    code/existence fields written by CREATE, and vice versa.
+
+    a0 = address, a1 = pre-balance (comparison-only), a2 = post-balance,
+    a3 = pre-nonce (comparison-only), a4 = post-nonce.  It returns zero on
+    success and one on bounded-arena failure. -/
+def accountStateRecordNonstorageFunction : String :=
+  "account_state_record_nonstorage:\n" ++
+  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a2; mv s2, a4\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrn_clone\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrn_clone\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Lasrn_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Lasrn_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrn_zero\n" ++
+  ".Lasrn_clone:\n" ++
+  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
+  ".Lasrn_fields:\n" ++
+  "  la t0, account_state_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 0\n" ++
+  ".Lasrn_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lasrn_balance; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasrn_addr\n" ++
+  ".Lasrn_balance:\n" ++
+  -- Bit 5 records that balance and nonce are authoritative.  Code-only
+  -- snapshots deliberately leave it clear: they must not turn an unknown
+  -- account balance/nonce into an authoritative zero before the companion
+  -- non-storage effect is published.
+  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); sd s2, 64(t0); ld t1, 88(t0); ori t1, t1, 35; sd t1, 88(t0)\n" ++
+  "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lasrn_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); ld a4, 40(sp); addi sp, sp, 64; ret"
+
+/-! ## account_state_record_code
+
+    Mirror a successful CREATE code deposit into the complete AccountState
+    journal.  It has the same clone-then-overwrite discipline as the
+    non-storage adapter, preserving a prior balance/nonce snapshot while
+    updating code/existence.  `created-this-tx` is retained as an explicit
+    bit for EIP-6780 finalization after the source switch.
+
+    a0 = address, a1 = retained code pointer, a2 = code length.
+    Returns zero on success and one on bounded-arena failure. -/
+def accountStateRecordCodeFunction : String :=
+  "account_state_record_code:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrc_clone\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrc_clone\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Lasrc_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Lasrc_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrc_zero\n" ++
+  ".Lasrc_clone:\n" ++
+  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
+  ".Lasrc_fields:\n" ++
+  "  la t0, account_state_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 0\n" ++
+  ".Lasrc_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lasrc_code; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasrc_addr\n" ++
+  ".Lasrc_code:\n" ++
+  -- bit 4 says code is known (distinct from bit 2 meaning nonempty code), so
+  -- a balance-only snapshot never masks authenticated pre-block code.
+  "  sd s1, 72(t0); sd s2, 80(t0); li t1, 27; beqz s2, .Lasrc_flags; ori t1, t1, 4\n" ++
+  ".Lasrc_flags:\n" ++
+  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrc_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lasrc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
+
+/-! ## AccountState read adapters
+
+    These are the only execution-read interfaces the atomic cutover will
+    expose.  A miss intentionally leaves the caller's destination untouched:
+    existing call sites then perform their authenticated header/witness
+    fallback exactly as they do today.  No raw comparison-log read is used. -/
+def accountStateLatestBalanceFunction : String :=
+  "account_state_latest_balance:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslb_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Laslb_hit\n" ++
+  ".Laslb_durable:\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslb_miss; ld t0, 88(a0); andi t0, t0, 32; beqz t0, .Laslb_miss\n" ++
+  ".Laslb_hit:\n" ++
+  "  ld t0, 32(a0); sd t0, 0(s1); ld t0, 40(a0); sd t0, 8(s1); ld t0, 48(a0); sd t0, 16(s1); ld t0, 56(a0); sd t0, 24(s1); li a0, 1; j .Laslb_ret\n" ++
+  ".Laslb_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Laslb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+
+def accountStateLatestNonceFunction : String :=
+  "account_state_latest_nonce:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Lasln_hit\n" ++
+  ".Lasln_durable:\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 32; beqz t0, .Lasln_miss\n" ++
+  ".Lasln_hit:\n" ++
+  "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasln_ret\n" ++
+  ".Lasln_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lasln_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+
+def accountStateLookupCurrentFunction : String :=
+  "account_state_lookup_current:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Laslc_entry\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslc_absent\n" ++
+  ".Laslc_entry:\n" ++
+  "  mv s1, a0; ld t0, 88(s1); andi t1, t0, 16; beqz t1, .Laslc_absent; andi t1, t0, 2; beqz t1, .Laslc_deleted; andi t1, t0, 4; beqz t1, .Laslc_empty; ld a1, 72(s1); ld a2, 80(s1); li a0, 1; j .Laslc_ret\n" ++
+  ".Laslc_empty:\n" ++
+  "  li a0, 2; li a1, 0; li a2, 0; j .Laslc_ret\n" ++
+  ".Laslc_deleted:\n" ++
+  "  li a0, 3; li a1, 0; li a2, 0; j .Laslc_ret\n" ++
+  ".Laslc_absent:\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
+  ".Laslc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+
+/-! Transaction-local EIP-6780 membership query.  This reads only the
+    AccountState `created_accounts` set, never the durable map: an account
+    created in a prior transaction must remain live after SELFDESTRUCT. -/
+def accountStateCreatedContainsFunction : String :=
+  "account_state_created_contains:\n" ++
+  "  la t0, account_state_created_count; ld t1, 0(t0); li t2, " ++ toString accountStateCreatedCapacity ++ "; bgtu t1, t2, .Lascc_no; li t2, 0; la t3, account_state_created\n" ++
+  ".Lascc_entry:\n" ++
+  "  bgeu t2, t1, .Lascc_no; li t4, 0\n" ++
+  ".Lascc_bytes:\n" ++
+  "  li t5, 20; beq t4, t5, .Lascc_yes; add t5, a0, t4; lbu t6, 0(t5); add t5, t3, t4; lbu a1, 0(t5); bne t6, a1, .Lascc_next; addi t4, t4, 1; j .Lascc_bytes\n" ++
+  ".Lascc_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lascc_entry\n" ++
+  ".Lascc_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lascc_no:\n" ++
+  "  li a0, 0; ret"
+
 /-! ## code_state_find
 
     a0 = 20-byte BE address pointer
@@ -242,19 +543,10 @@ def codeStateCommitPendingFunction : String :=
     recreation of the old log-vs-state divergence. -/
 def codeStateLookupCurrentFunction : String :=
   "code_state_lookup_current:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0\n" ++
-  "  la a1, code_state_pending; la t0, code_state_pending_count; ld a2, 0(t0); li a3, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_find; bnez a0, .Lcslc_entry\n" ++
-  "  mv a0, s0; la a1, code_state_durable; la t0, code_state_durable_count; ld a2, 0(t0); li a3, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_find; beqz a0, .Lcslc_absent\n" ++
-  ".Lcslc_entry:\n" ++
-  "  mv s1, a0; ld t0, 48(s1); andi t1, t0, 2; beqz t1, .Lcslc_deleted; andi t1, t0, 4; beqz t1, .Lcslc_empty; ld a1, 32(s1); ld a2, 40(s1); li a0, 1; j .Lcslc_ret\n" ++
-  ".Lcslc_empty:\n" ++
-  "  li a0, 2; li a1, 0; li a2, 0; j .Lcslc_ret\n" ++
-  ".Lcslc_deleted:\n" ++
-  "  li a0, 3; li a1, 0; li a2, 0; j .Lcslc_ret\n" ++
-  ".Lcslc_absent:\n" ++
-  "  li a0, 0; li a1, 0; li a2, 0\n" ++
-  ".Lcslc_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+  -- Compatibility symbol for the atomic tqj1m source cutover.  Every legacy
+  -- caller now reaches the one AccountState layered resolver; the old table
+  -- remains comparison/migration evidence only and is no longer a read source.
+  "  j account_state_lookup_current"
 
 /-! ## code_state_address_set_insert
 
@@ -330,6 +622,15 @@ def codeStateData : String :=
   "code_state_delete_count:\n  .zero 8\n" ++
   "code_state_overflow:\n  .zero 8\n" ++
   "code_state_mtx_active:\n  .zero 8\n" ++
+  -- tqj1m: AccountState is the sole execution-state source.  The old
+  -- CodeState tables were retired after the atomic reader cutover; its small
+  -- scalar names below remain only as compatibility guards for the retained
+  -- comparison-record producer.
+  "account_state_pending_count:\n  .zero 8\n" ++
+  "account_state_durable_count:\n  .zero 8\n" ++
+  "account_state_created_count:\n  .zero 8\n" ++
+  "account_state_delete_count:\n  .zero 8\n" ++
+  "account_state_overflow:\n  .zero 8\n" ++
   -- BAL final-account scratch for the EIP-161 deferred-delete decision.
   "code_state_bal_acct_ptr:\n  .zero 8\n" ++
   "code_state_bal_acct_len:\n  .zero 8\n" ++
@@ -344,17 +645,13 @@ def codeStateData : String :=
   -- its own entry, never its parent's pending CREATE or SELFDESTRUCT work.
   -- The depth is capped at 1024 by the EVM frame gate, hence 1025 slots
   -- including depth zero.  These are counts, not input-sized allocations.
-  "code_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "code_state_created_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "code_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "account_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "account_state_created_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "account_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   ".balign 32\n" ++
-  "code_state_pending:\n  .zero " ++ toString codeStateTableBytes ++ "\n" ++
+  "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
-  "code_state_durable:\n  .zero " ++ toString codeStateTableBytes ++ "\n" ++
-  ".balign 32\n" ++
-  "code_state_created:\n  .zero " ++ toString (codeStateEntryCapacity * 32) ++ "\n" ++
-  ".balign 32\n" ++
-  "code_state_delete:\n  .zero " ++ toString (codeStateEntryCapacity * 32) ++ "\n"
+  "account_state_durable:\n  .zero " ++ toString accountStateTableBytes ++ "\n"
 
 /-! ## create_record_code_effect
 
@@ -401,20 +698,19 @@ def createRecordCodeEffectFunction : String :=
   ".Lcrce_cpc_d:\n" ++
   "  la t0, exec_code_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; addi t1, s2, 55; andi t1, t1, -8; add t1, s3, t1; sd t1, 0(t0)\n" ++
-  -- Publish execution state from the retained heap copy, never from the
-  -- reusable create-child scratch.  This helper is reached only by successful
-  -- CREATE deposit tails, so reverted child creation cannot enter CodeState.
-  "  mv a0, s0; addi a1, t3, 48; mv a2, s2; la a3, code_state_pending; la a4, code_state_pending_count; li a5, " ++ toString codeStateEntryCapacity ++ "; li a6, 3; beqz s2, .Lcrce_state_upsert; ori a6, a6, 4\n" ++
-  ".Lcrce_state_upsert:\n" ++
-  "  jal ra, code_state_upsert; beqz a0, .Lcrce_state_ok\n" ++
-  "  la t0, code_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_state_ok:\n" ++
-  "  mv a0, s0; la a1, code_state_created; la a2, code_state_created_count; li a3, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcrce_state_created_ok\n" ++
-  "  la t0, code_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_state_created_ok:\n" ++
+  -- Publish the successful deposit into AccountState from the retained heap
+  -- copy, never from the reusable create-child scratch.
+  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
+  ".Lcrce_account_state_ok:\n" ++
+  -- This successful deposit is also a transaction-local `created_accounts`
+  -- event for AccountState.  Empty deployed code still reaches this path.
+  "  mv a0, s0; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcrce_account_created_ok\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
+  ".Lcrce_account_created_ok:\n" ++
   -- A successful later CREATE at the same address is the latest transaction
   -- state and cancels an earlier same-transaction EIP-6780 delete request.
-  "  mv a0, s0; la a1, code_state_delete; la a2, code_state_delete_count; li a3, " ++ toString codeStateEntryCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
+  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   ".Lcrce_overflow:\n" ++
@@ -530,9 +826,10 @@ def ziskCreateCodeEffectLogPrologue : String :=
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lccel_done\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
-  codeStateFindFunction ++ "\n" ++
-  codeStateUpsertFunction ++ "\n" ++
-  codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateRecordCodeFunction ++ "\n" ++
   codeStateAddressSetInsertFunction ++ "\n" ++
   codeStateAddressSetFlagFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++

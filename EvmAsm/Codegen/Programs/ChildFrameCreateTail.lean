@@ -180,7 +180,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- (it reads create_nonce for the seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  jal ra, account_state_latest_nonce\n" ++
     "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++

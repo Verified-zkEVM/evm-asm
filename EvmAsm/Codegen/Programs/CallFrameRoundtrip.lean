@@ -102,7 +102,7 @@ def callFrameRoundtripPrologue : String :=
   "bal_same_block_delegation_code_resolve: ret\n" ++
   "code_at_header_state_root: ret\n" ++
   "evm_storage_access_seed_key: ret\n" ++
-  "nonstorage_effect_latest_balance: ret\n" ++
+  "account_state_latest_balance: ret\n" ++
   "rlp_list_count_items: ret\n" ++
   "u256_add_be: ret\n" ++
   "u256_sub_be: ret\n" ++

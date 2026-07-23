@@ -453,7 +453,7 @@ def callDescendFallThrough
       -- instead of overwriting it with the header snapshot.
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_be\n  la a1, nse_acct\n" ++
-      "  jal ra, nonstorage_effect_latest_nonce\n" ++
+      "  jal ra, account_state_latest_nonce\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
@@ -530,7 +530,7 @@ def callDescendFallThrough
     -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
-    "  jal ra, nonstorage_effect_latest_balance\n  mv t6, a0\n" ++
+    "  jal ra, account_state_latest_balance\n  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t6, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, nse_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
@@ -542,7 +542,7 @@ def callDescendFallThrough
     -- overwrite a created account's EIP-161 nonce=1 with header nonce=0.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, nse_callee_be\n  la a1, nse_acct\n" ++
-    "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  jal ra, account_state_latest_nonce\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
