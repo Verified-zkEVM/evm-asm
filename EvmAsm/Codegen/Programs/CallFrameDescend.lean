@@ -440,7 +440,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
@@ -530,9 +530,9 @@ def callFrameDescendFunction : String :=
   -- The mutable CodeState is a transaction overlay, so it needs the same
   -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
   -- the checkpoints depth-indexed rather than extending the packed env ABI.
-  "  la t1, code_state_pending_count; ld t0, 0(t1); la t1, code_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, code_state_created_count; ld t0, 0(t1); la t1, code_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, code_state_delete_count; ld t0, 0(t1); la t1, code_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_pending_count; ld t0, 0(t1); la t1, account_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_created_count; ld t0, 0(t1); la t1, account_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_delete_count; ld t0, 0(t1); la t1, account_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++

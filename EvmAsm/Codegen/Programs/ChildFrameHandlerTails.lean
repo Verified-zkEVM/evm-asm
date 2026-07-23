@@ -182,7 +182,7 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_caller_nonce; la t0, nse_acct; sd zero, 0(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_caller_nonce:\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, nse_acct; jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, nse_acct; jal ra, account_state_latest_nonce\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  la t0, nse_acct; ld a3, 0(t0); mv a4, a3\n" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, cd_balance_be; la a2, cd_caller_newbal; jal ra, record_nonstorage_effect\n" ++
@@ -194,8 +194,8 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_callee_pre; la t0, nse_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_callee_pre:\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; jal ra, nonstorage_effect_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; jal ra, nonstorage_effect_latest_nonce; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; jal ra, account_state_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; jal ra, account_state_latest_nonce; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, nse_acct; addi a0, a0, 8; la a1, cd_value_be; la a2, nse_post_bal; jal ra, u256_add_be; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16\n" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la t0, nse_acct; ld a3, 0(t0); mv a4, a3; la a0, nse_callee_be; addi a1, t0, 8; la a2, nse_post_bal; jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++

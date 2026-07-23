@@ -916,7 +916,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_selfbal_addr_copy\n" ++
   ".Ldtrc_selfbal_addr_done:\n" ++
   "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
   "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
   "  la t3, bv_pending_recipient_pre; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++

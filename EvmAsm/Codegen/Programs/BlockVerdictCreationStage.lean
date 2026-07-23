@@ -445,7 +445,16 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
   ".Lbvcr_csg_used:\n" ++
   "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
-  "  la a0, bv_create_addr; la a1, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a2, 0(t0); jal ra, create_record_code_effect; bnez a0, .Lbvcr_ret; j .Lbvcr_deposit_done\n" ++
+  "  la a0, bv_create_addr; la a1, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a2, 0(t0); jal ra, create_record_code_effect; bnez a0, .Lbvcr_ret\n" ++
+  -- Publish the full created-account snapshot immediately after the code
+  -- deposit.  The code writer intentionally leaves balance/nonce unknown;
+  -- this companion is the top-level analogue of NoopHalt's child-CREATE
+  -- publication and supplies the live final balance plus final nonce.
+  "  la t0, evm_env; addi t1, t0, 63; la t2, nse_create_post_bal; li t3, 32\n" ++
+  ".Lbvcr_created_post_balance:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; bnez t3, .Lbvcr_created_post_balance\n" ++
+  "  la a0, bv_create_addr; jal ra, create_creator_nonce_current; mv t4, a0\n" ++
+  "  la a0, bv_create_addr; la a1, nse_zero_bal; la a2, nse_create_post_bal; li a3, 0; mv a4, t4; jal ra, record_nonstorage_effect; bnez a0, .Lbvcr_ret; j .Lbvcr_deposit_done\n" ++
   -- `process_create_message` treats an invalid returned code (or a deposit
   -- charge OOG) as an ExceptionalHalt of the top-level CREATE, not as an
   -- unsupported execution shape: it restores the creation snapshot, burns

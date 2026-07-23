@@ -181,9 +181,9 @@ def frameReturnFunction : String :=
   -- Restore this child's CodeState high-water marks on REVERT/exceptional
   -- return.  The current depth still names the child at this point.
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
-  "  la t0, code_state_pending_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, code_state_pending_count; sd t3, 0(t1)\n" ++
-  "  la t0, code_state_created_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, code_state_created_count; sd t3, 0(t1)\n" ++
-  "  la t0, code_state_delete_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, code_state_delete_count; sd t3, 0(t1)\n" ++
+  "  la t0, account_state_pending_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
+  "  la t0, account_state_created_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_created_count; sd t3, 0(t1)\n" ++
+  "  la t0, account_state_delete_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
   "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_selfdestruct_seen_overflow_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_overflow; sd t3, 0(t1)\n" ++
