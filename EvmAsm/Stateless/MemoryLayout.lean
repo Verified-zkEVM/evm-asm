@@ -52,7 +52,7 @@
                                [+ 8..16]  LE u64 length of first record
                                [+16..]    SSZ-encoded SszStatelessInput
   0x80000000 .. 0xa0000000   .text + .rodata + .bss (ELF `-Ttext=0x80000000`)
-  0xa3000000 .. 0xbf800000   .data (`-Tdata=0xa3000000`; static tables,
+  0xa3000000 .. 0xbf980000   .data (`-Tdata=0xa3000000`; static tables,
                              fixed data, and 1G-cap BSR/BAL arenas)
   0xa0010000 .. 0xa0020000   OUTPUT_ADDR (64 KiB, public output)
                                [+ 0..N]   SSZ-encoded
@@ -60,7 +60,7 @@
   0xa0020000 .. 0xa3000000   working RAM (decoded structures, DBs,
                              frames) -- the Stateless guest claims this
                              lower tail of ziskemu's RAM region.
-  0xbf800000 .. 0xbfe80000   .sszscratch NOBITS merkleization scratch
+  0xbf980000 .. 0xc0000000   .sszscratch NOBITS merkleization scratch
   ```
 
   `INPUT_ADDR`, `INPUT_DATA_OFFSET`, and `OUTPUT_ADDR` mirror the
@@ -214,7 +214,7 @@ def SHA256_SCRATCH          : Word := 0xa1b90000
     the working-RAM anchors and the stack, and fully inside the verified
     RAM zone `RAM_MEM_START..RAM_MEM_END` (`0xa0000000..0xc0000000`),
     so `isValidMemAddr` already accepts it (no proof changes). -/
-def SSZ_SCRATCH_BASE        : Word := 0xbf800000
-def SSZ_SCRATCH_SIZE        : Nat  := 0x00680000  -- 6.5 MiB (0xbf800000..0xbfe80000)
+def SSZ_SCRATCH_BASE        : Word := 0xbf980000
+def SSZ_SCRATCH_SIZE        : Nat  := 0x00680000  -- 6.5 MiB (0xbf980000..0xc0000000)
 
 end EvmAsm.Stateless

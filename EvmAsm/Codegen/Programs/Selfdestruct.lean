@@ -40,11 +40,14 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- get_account(current_target).balance != 0). A zero-header-balance contract
   -- funded THIS tx (the tx value credit, or an earlier same-tx transfer) must
   -- still charge; prefer the journaled latest balance over the header value.
-  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  -- The layered CodeState lookup uses the standard caller-saved a0-a3
+  -- registers.  Preserve the live EVM stack cursor (x13) as well as the
+  -- runtime context registers across the lookup.
+  "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n  la a1, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, nonstorage_effect_latest_balance\n" ++
   "  mv t6, a0\n" ++
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
     "  beqz t6, .L_selfdestruct_origin_env_bal\n" ++
   "  la t0, evm_selfdestruct_balance_scratch\n  li t2, 4\n" ++
   ".L_selfdestruct_origin_live_scan:\n" ++
@@ -181,15 +184,17 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .L_selfdestruct_csg_self_cmp\n" ++
   "  j .L_selfdestruct_surcharge_done\n" ++   -- beneficiary==self AND created-in-tx (alive) -> no NEW_ACCOUNT state gas
   ".L_selfdestruct_csg_not_ctit:\n" ++
-  -- Mirror is_account_alive's created_accounts membership for the DEPLOYED-code case: if the
-  -- beneficiary has a code-effect record (the CREATE deposit appended one this tx), it is ALIVE ->
-  -- skip the charge. find_code_effect_by_address clobbers t0-t6 + a0(=x10); save x10/x12 (x20=s4 is
-  -- preserved by the helper, but the call itself does not touch it).
-  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
-  "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, evm_selfdestruct_beneficiary\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
+  -- Mirror is_account_alive's created_accounts membership through the shared
+  -- current CodeState: a beneficiary created in this transaction is alive,
+  -- including an empty-code CREATE, so skip the charge.
+  -- The layered CodeState lookup uses the standard caller-saved a0-a3
+  -- registers. Preserve the live EVM stack cursor (x13) with the runtime
+  -- context registers across the lookup.
+  "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n" ++
+  "  jal ra, code_state_lookup_current\n" ++
   "  mv t1, a0\n" ++
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
   -- SELFDESTRUCT to a new (not-alive) beneficiary with a non-zero originator
   -- balance creates the beneficiary account. Amsterdam execution-specs charges

@@ -770,6 +770,11 @@ def emitCreateChildFrameData : String :=
   -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
   createCodeEffectLogData ++ "\n" ++
+  -- The code-effect log above remains BAL comparator evidence.  Execution reads
+  -- use this bounded, real-address keyed CodeState overlay instead, so CREATE /
+  -- SELFDESTRUCT / recreate follow current Ethereum state rather than an
+  -- append-only event history.
+  codeStateData ++ "\n" ++
   -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
   -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
   createNonceTableData ++ "\n" ++
@@ -1220,9 +1225,18 @@ def emitDispatcherPrologue : String :=
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
-  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++    -- (else CREATE deposits + code_covers carry stale records across txs)
+  -- The comparator evidence heap is per dispatch in standalone mode, but is
+  -- block-lived while the MTx CodeState is active: retained code bytes are the
+  -- backing store for cross-transaction execution reads.
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtd_code_log_kept:\n" ++
+  "  la x5, code_state_pending_count; sd x0, 0(x5)\n" ++ -- execution CodeState is a tx overlay
+  "  la x5, code_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
+  "  la x5, code_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
@@ -1933,6 +1947,14 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
+    codeStateFindFunction ++ "\n" ++
+    codeStateUpsertFunction ++ "\n" ++
+    codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+    codeStateCommitPendingFunction ++ "\n" ++
+    codeStateLookupCurrentFunction ++ "\n" ++
+    codeStateAddressSetInsertFunction ++ "\n" ++
+    codeStateAddressSetFlagFunction ++ "\n" ++
+    codeStatePendingContainsFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpBackendImpl ++ "\n" ++
     emitModexpBnScratchData ++ "\n" ++
@@ -2885,9 +2907,15 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_code_log_kept:\n" ++
+  "  la x5, code_state_pending_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_created_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_overflow; sd x0, 0(x5)\n" ++
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
   "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
@@ -3077,6 +3105,14 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+  codeStateFindFunction ++ "\n" ++
+  codeStateUpsertFunction ++ "\n" ++
+  codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+  codeStateCommitPendingFunction ++ "\n" ++
+  codeStateLookupCurrentFunction ++ "\n" ++
+  codeStateAddressSetInsertFunction ++ "\n" ++
+  codeStateAddressSetFlagFunction ++ "\n" ++
+  codeStatePendingContainsFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpBackendImpl ++ "\n" ++
   emitModexpBnScratchData ++ "\n" ++

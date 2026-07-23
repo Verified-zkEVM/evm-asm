@@ -17,7 +17,7 @@
     dedicated bounded `.committed_storage` NOBITS map at `0xa2000000`, the
     zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
-    (`--section-start=.sszscratch=0xbf800000`). Sizes here are the ELF ground
+    (`--section-start=.sszscratch=0xbf980000`). Sizes here are the ELF ground
     truth (`readelf -S`), cross-checked by `scripts/check-region-map.sh`.
 
   **Location rationale.** This module imports both `CallFrameLayout`
@@ -306,7 +306,7 @@ def schemeAAnchors : List GuestRegion :=
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
     (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x60450
+def textSizeBytes : Nat := 0x61184
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -333,7 +333,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b78afa0
+def bssSizeBytes : Nat := 0x1b911080
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -375,10 +375,10 @@ def bssRegion : GuestRegion :=
     evidence := "ELF --section-start=.bss=0xa4000000; 0x1b78af80-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
-    (`--section-start=.sszscratch=0xbf800000`). -/
+    (`--section-start=.sszscratch=0xbf980000`). -/
 def sszScratchRegion : GuestRegion :=
-  { name := ".sszscratch", base := 0xbf800000, size := 0x680000, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.sszscratch=0xbf800000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
+  { name := ".sszscratch", base := 0xbf980000, size := 0x680000, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.sszscratch=0xbf980000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
 
 /-! ## Emitted-reality regions the section/anchor lists omit.
 

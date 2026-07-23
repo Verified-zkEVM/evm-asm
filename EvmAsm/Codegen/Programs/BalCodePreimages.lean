@@ -1226,25 +1226,21 @@ def balCodePreimagesValidFunction : String :=
   ".Lbsbd_active_create_empty:\n" ++
   "  li a0, 2\n" ++
   "  j .Lbsbd_ret\n" ++
-  -- A delegation target may have been CREATEd earlier in this transaction and
-  -- SELFDESTRUCTed before the delegated CALL.  EIP-6780 deletes that account at
-  -- transaction finalization; it does not erase its code during message
-  -- execution.  Its final BAL row therefore has empty/deleted code, while the
-  -- CREATE code-effect log still contains the code that get_code observes.
-  -- Resolve that exact same-tx code here instead of treating the delegated CALL
-  -- as an empty-code success.  Storage context remains the delegating authority:
-  -- only cahsr_code_* is redirected to the target's code bytes.
+  -- A delegation target created earlier in this transaction remains executable
+  -- until transaction finalization.  Resolve it through the same layered
+  -- CodeState used by CALL and EXTCODE*, not through comparison evidence.
   ".Lbsbd_target_create_effect:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); addi a2, s9, 3\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
+  "  addi a0, s9, 3\n" ++
+  "  jal ra, code_state_lookup_current\n" ++
+  "  mv t3, a1; mv t1, a2\n" ++
   -- The delegation marker was found and its target access was already charged.
   -- If no committed CREATE effect exists, the target has empty code (for
   -- example because its CREATE frame reverted); do not report a generic miss,
   -- which makes the caller fall back to and charge the stale pre-state marker.
-  "  beqz a0, .Lbsbd_active_create_empty\n" ++
-  "  ld t1, 40(a0); la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
-  "  addi t1, a0, 48; ld t2, 112(sp); sub t1, t1, t2\n" ++
-  "  la t2, cahsr_code_offset; sd t1, 0(t2)\n" ++
+  "  li t0, 1; bne a0, t0, .Lbsbd_active_create_empty\n" ++
+  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
+  "  ld t2, 112(sp); sub t3, t3, t2\n" ++
+  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++

@@ -84,7 +84,10 @@ def assembleAndLink (asmPath : System.FilePath) :
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
       "--section-start=.bss=0xa4000000",
       "--section-start=.committed_storage=0xa2000000",
-      "--section-start=.sszscratch=0xbf800000",
+      -- CodeState's fixed 1.5 MiB block-lifetime tables extend `.bss` through
+      -- 0xbf910fdf.  Keep the 6.5 MiB SSZ work region below the 0xc0000000
+      -- guest-RAM ceiling while leaving a fixed 0x6f020-byte gap after `.bss`.
+      "--section-start=.sszscratch=0xbf980000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)

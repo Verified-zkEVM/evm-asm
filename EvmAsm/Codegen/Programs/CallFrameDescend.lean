@@ -527,6 +527,12 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- The mutable CodeState is a transaction overlay, so it needs the same
+  -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
+  -- the checkpoints depth-indexed rather than extending the packed env ABI.
+  "  la t1, code_state_pending_count; ld t0, 0(t1); la t1, code_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, code_state_created_count; ld t0, 0(t1); la t1, code_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, code_state_delete_count; ld t0, 0(t1); la t1, code_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
