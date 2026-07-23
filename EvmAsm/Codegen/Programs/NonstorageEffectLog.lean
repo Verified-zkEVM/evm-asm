@@ -38,28 +38,29 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
-    Set to 32768 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
+    Set to 65536 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
     comparators are linear — the FORWARD binary-searches the sorted agg (#9018) and the REVERSE
     _covers uses a matched-bitmap over the sorted agg (#9021) — there is no remaining super-linear
     consumer, so the cap can cover the full 200M-gas worst case.
 
-    Worst-case bound: record_nonstorage_effect APPENDS one raw record per value-bearing CALL /
-    CREATE-created / SELFDESTRUCT-beneficiary. The cheapest record-producing op is a value-CALL to
-    an EXISTING WARM account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400 REGULAR gas
-    (Amsterdam vm/gas.py:50, vm/instructions/system.py:424/465 — value transfer is charged via
-    charge_gas, NOT the EIP-8037 state-gas dimension; CREATE 32000 / SELFDESTRUCT-redeploy ~37000
-    are dearer). So a 200M-gas block emits at most 200_000_000 / 10400 ≈ 19_230 raw records. 32768
-    covers that with ~49% margin (≈298M gas), so the effect log NEVER overflows under the 200M
-    block-gas envelope — i.e. the overflow→skip path (multi-tx BlockVerdictMtxTail) and the
-    single-tx silent-truncation are both UNREACHABLE within scope, closing the conservative skip.
+    Worst-case bound: a nonzero value-CALL appends TWO raw records, the caller debit and the callee
+    credit (ChildFrameHandlers .61.6.8), while its cheapest regular-gas charge is an existing warm
+    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus the raw-record upper bound
+    from the 200M block regular-gas limit is
+      2 * floor(200_000_000 / 10400) = 38_460.
+    CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
+    separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
+    separate block budget and cannot reduce this bound. 65536 therefore covers the full raw stream
+    with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
+    verdict assumption.
 
     Cost: the aggregate radix-sort and both comparators iterate over the live `count`, never `cap`,
-    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 14.7 MiB + cap-byte covered[]), comfortably
+    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 28 MiB + cap-byte covered[]), comfortably
     inside the ~206 MiB .data→.sszscratch slack (CallFrameLayout). Zero runtime cost for normal
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 32768
+def nonstorageEffectLogCap : Nat := 65536
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).

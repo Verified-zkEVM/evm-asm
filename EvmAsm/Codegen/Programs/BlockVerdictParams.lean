@@ -142,13 +142,6 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
-/-- Active multi-transaction execution-loop capacity. The cached `zkevm@v0.4.0`
-    stateless fixtures include blocks with more than the old 16-entry arena
-    cap, topping out at 1021 transactions. Keep this as the conservative loop
-    gate while sender aggregation, skip-list traversal, and other non-cheap
-    algorithms are generalized to the full 200M target. -/
-def bvMtxActiveTxCap : Nat := 1024
-
 /-- Every valid transaction consumes at least this intrinsic gas.  Together
     with the explicit block gas limit this is the protocol-enforced upper bound
     on transaction- and receipt-trie entries; it must not become a detached
@@ -159,6 +152,39 @@ def bvMtxIntrinsicGasFloor : Nat := 21000
     gas limit and the 21,000-gas intrinsic floor. -/
 def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
 #guard bvMtxFullTxCap = 9523
+
+/-- Amsterdam `REGULAR_PER_AUTH_BASE_COST`: 101 calldata-floor bytes, one
+    ecrecover precompile, one cold account access, and two warm accesses.  Every
+    authorization tuple pays this regular-gas cost before execution, so it gives
+    a protocol-derived bound on all type-4 authorization records in a block. -/
+def bvEip7702AuthRegularGas : Nat := 7816
+
+/-- Ceiling on authorization tuples in any block under the supported gas limit.
+    This is a gas bound, not a fixture-derived admission cap. -/
+def bvEip7702AuthEntryCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvEip7702AuthRegularGas - 1) / bvEip7702AuthRegularGas
+#guard bvEip7702AuthEntryCapacity = 25589
+
+/-- The ordered EIP-7702 authority simulation materializes the union of all
+    transaction senders and recovered authorization authorities.  The additive
+    bound is conservative (the two maxima cannot both be attained in one valid
+    block) but keeps the static table's fail-closed contract simple. -/
+def bvEip7702AuthorityEventCapacity : Nat :=
+  bvMtxFullTxCap + bvEip7702AuthEntryCapacity
+#guard bvEip7702AuthorityEventCapacity = 35112
+
+/-- One authority-state row is a padded address, running nonce delta, and the
+    current delegation-marker bit. -/
+def bvEip7702AuthorityRowBytes : Nat := 48
+def bvEip7702AuthorityTableBytes : Nat :=
+  bvEip7702AuthorityEventCapacity * bvEip7702AuthorityRowBytes
+#guard bvEip7702AuthorityTableBytes = 1685376
+
+/-- Active multi-transaction execution-loop capacity. Every live per-transaction
+    arena and aggregation table is statically sized to the protocol-derived
+    `bvMtxFullTxCap`, so the loop must use the same bound rather than preserve a
+    fixture-era 1024-transaction false-reject gate. -/
+def bvMtxActiveTxCap : Nat := bvMtxFullTxCap
 
 /-- An RLP transaction/receipt index below `bvMtxFullTxCap` has at most three
     key bytes, hence at most six nibbles.  The indexed-root replacement keeps
@@ -211,12 +237,20 @@ def bvMtxCommittedPageCapacity : Nat := 128
 def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
-/-- Behavior-neutral chunked committed-storage substrate for the follow-up
-    helpers. Each page preserves the current 128-entry layout; the active total
-    capacity is the number of unique `(recipient, slotKey)` entries across the
-    currently wired pages. -/
-def bvMtxCommittedChunkPages : Nat := 4
-def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+/-- A distinct committed storage row can be produced by an access-listed no-op
+    SSTORE, so the block map must not use the 10,000-gas changing-write arm as
+    its bound.  We use 1,900 gas as a deliberately conservative lower bound:
+    it is below Amsterdam's actual 3,000-gas access-list storage-key charge
+    and also leaves room for the following warm SSTORE floor. -/
+def bvMtxCommittedUniqueKeyMinGas : Nat := 1900
+
+/-- Full block-wide `BlockState.storage_writes` capacity. It is keyed by real
+    `(address, slotKey)` pairs and is gas-bounded rather than transaction-bounded:
+    `ceil(200M / 1900) = 105264` rows, or about 13 MiB at the native 128-byte
+    execution-log row stride. -/
+def bvMtxCommittedChunkCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvMtxCommittedUniqueKeyMinGas - 1) /
+    bvMtxCommittedUniqueKeyMinGas
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
 /-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
@@ -315,7 +349,7 @@ def bvBlockLogFullDescTarget : Nat :=
     the INFEASIBLE upper bound -- 533,333 * 256 = ~136.5 MiB of descriptors
     alone. Combined with `bvBlockLogFullMetaBytes` + `bvBlockLogFullDataBytes`
     the fixed-stride arena is ~162 MiB, which is 2.76x the measured ~58.7 MiB of
-    `.data` headroom before `.sszscratch` (0xbf500000). Kept only to document why
+    `.data` headroom before `.sszscratch` (0xbf800000). Kept only to document why
     the verbatim-copy layout cannot reach the 200M target; the actual
     implementation target is `bvBlockLogPackedDescBytes` below. -/
 def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256
@@ -459,7 +493,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736
 #guard bvMtxSenderCountSkipBytes = 609472
-#guard bvMtxActiveTxCap = 1024
+#guard bvMtxActiveTxCap = bvMtxFullTxCap
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
 #guard bvSystemStorageMinSstoreGas = 100
@@ -478,8 +512,9 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
 #guard bvMtxCommittedBytes = 16384
-#guard bvMtxCommittedChunkCapacity = 512
-#guard bvMtxCommittedChunkBytes = 65536
+#guard bvMtxCommittedUniqueKeyMinGas = 1900
+#guard bvMtxCommittedChunkCapacity = 105264
+#guard bvMtxCommittedChunkBytes = 13473792
 #guard bvMtxCommittedFullKeyCap = 600000
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472

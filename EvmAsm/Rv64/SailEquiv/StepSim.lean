@@ -20,8 +20,11 @@
     and `JAL`/`JALR` (PC/`nextPC`/`misa` agreement + jump-target alignment). Covered
     by the per-instruction lemmas in `BranchProofs`/`ALUProofs` under their explicit
     hypotheses; folding them in needs a strengthened invariant (PC + CSR agreement).
-  * **Memory (11)** — `LOAD`/`STORE`. The `MemProofs` lemmas are conditional on an
-    `h_exec` hypothesis (the deep bare-mode `vmem_read/write` reduction is deferred).
+  * **Memory (11)** — `LOAD`/`STORE`. All eleven are unconditional per-instruction
+    theorems under `StateRel` + `BareModeInv` + per-access facts (loads in
+    `VmemReduction.lean` / `VmemReductionLoads.lean`, stores in
+    `VmemReductionStores.lean`); folding them in needs the strengthened invariant
+    plus the per-access side conditions.
 
   See `docs/agents/sail-phase4-bootstrap.md` and the adversarial review for the
   precondition map and the planned strengthened-invariant design for the other tiers.
@@ -29,9 +32,12 @@
 
 import EvmAsm.Rv64.SailEquiv.InstrMap
 import EvmAsm.Rv64.SailEquiv.ALUProofs
+import EvmAsm.Rv64.SailEquiv.BranchProofs
 import EvmAsm.Rv64.SailEquiv.ImmProofs
 import EvmAsm.Rv64.SailEquiv.ShiftProofs
 import EvmAsm.Rv64.SailEquiv.MExtProofs
+import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
+import EvmAsm.Rv64.SailEquiv.VmemReductionStores
 import EvmAsm.Rv64.Execution
 
 open Out.Functions
@@ -44,9 +50,9 @@ namespace EvmAsm.Rv64
 
     Excludes: the 7 system/pseudo constructors (`ECALL`/`EBREAK`/`FENCE`/`MV`/`LI`/
     `NOP`/`CSRS` — the last is the ZisK accelerator call, outside the SAIL bridge);
-    the 11 memory ops (need the bare-mode `vmem` discharge); and the 9
-    control-flow ops (`AUIPC`, the conditional branches, `JAL`, `JALR` — need PC/CSR
-    agreement and jump-target alignment). -/
+    the 11 memory ops (unconditional, but under `BareModeInv` + per-access facts);
+    and the 9 control-flow ops (`AUIPC`, the conditional branches, `JAL`, `JALR` —
+    need PC/CSR agreement and jump-target alignment). -/
 def Instr.simulableUncond : Instr → Bool
   | .ECALL | .EBREAK | .FENCE | .MV .. | .LI .. | .NOP | .CSRS .. => false
   | .LD .. | .LW .. | .LWU .. | .LB .. | .LBU .. | .LH .. | .LHU .. => false
@@ -56,23 +62,177 @@ def Instr.simulableUncond : Instr → Bool
   | .JAL .. | .JALR .. => false
   | _ => true
 
+/-- Instructions covered by the full `execute` simulation theorem below.
+
+    This includes the register-only tier, AUIPC/branches/jumps, and all memory
+    loads/stores. It excludes pseudo/unmapped constructors and the system
+    instructions whose Sail behavior intentionally diverges from the toy model. -/
+def Instr.simulable : Instr → Bool
+  | .ECALL | .EBREAK | .FENCE | .MV .. | .LI .. | .NOP | .CSRS .. => false
+  | _ => true
+
 namespace SailEquiv
+
+/-- Per-instruction side conditions for the full `execute` simulation theorem.
+
+    Register-only instructions need no extra facts. Control-flow instructions need
+    the PC/CSR/alignment facts already exposed by their per-instruction lemmas.
+    Memory instructions need the bare-mode platform bundle plus the access-local
+    PMA/MMIO/alignment facts, and loads additionally need byte-presence witnesses. -/
+def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
+  match i with
+  | .AUIPC .. => True
+  | .BEQ _ _ offset | .BNE _ _ offset | .BLT _ _ offset | .BGE _ _ offset
+  | .BLTU _ _ offset | .BGEU _ _ offset =>
+      (∃ v, sSail.regs.get? Register.misa = some v) ∧
+      (sRv.pc + signExtend13 offset) &&& 3 = 0
+  | .JAL _ offset =>
+      (∃ v, sSail.regs.get? Register.misa = some v) ∧
+      (sRv.pc + signExtend21 offset) &&& 3 = 0
+  | .JALR _ rs1 offset =>
+      (∃ s_mid, update_elp_state (regToRegidx rs1) sSail = .ok () s_mid ∧
+        StateRel sRv s_mid ∧
+        s_mid.regs.get? Register.PC = some sRv.pc ∧
+        s_mid.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
+        (∃ v, s_mid.regs.get? Register.misa = some v)) ∧
+      ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0
+  | .LD _ rs1 offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region)
+        (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = some region ∧
+        region.attributes.readable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail ∧
+        (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail ∧
+        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+2) = some b2 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+3) = some b3 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+4) = some b4 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+5) = some b5 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+6) = some b6 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+7) = some b7
+  | .LW _ rs1 offset | .LWU _ rs1 offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 b1 b2 b3 : BitVec 8),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = some region ∧
+        region.attributes.readable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail ∧
+        (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail ∧
+        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+2) = some b2 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+3) = some b3
+  | .LH _ rs1 offset | .LHU _ rs1 offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 b1 : BitVec 8),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = some region ∧
+        region.attributes.readable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail ∧
+        (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail ∧
+        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
+        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1
+  | .LB _ rs1 offset | .LBU _ rs1 offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 : BitVec 8),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = some region ∧
+        region.attributes.readable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail ∧
+        (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail ∧
+        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0
+  | .SD rs1 _ offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = some region ∧
+        region.attributes.writable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail ∧
+        (within_htif_writable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
+          = .ok false sSail
+  | .SW rs1 _ offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = some region ∧
+        region.attributes.writable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail ∧
+        (within_htif_writable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
+          = .ok false sSail
+  | .SH rs1 _ offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = some region ∧
+        region.attributes.writable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail ∧
+        (within_htif_writable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
+          = .ok false sSail
+  | .SB rs1 _ offset =>
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
+        is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = true ∧
+        matching_pma_region bm.regions
+          (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = some region ∧
+        region.attributes.writable = true ∧
+        is_aligned_paddr (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = true ∧
+        (within_clint (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail ∧
+        (within_sig (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail ∧
+        (within_htif_writable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
+          = .ok false sSail
+  | _ => True
 
 -- `sim_step`: reduce `execute si` for an unconditional `i` and close via its
 -- per-instruction lemma. `simp only [execute]` turns `execute (instruction.FOO …)`
 -- into the exact `execute_FOO …` the lemma is stated over (the match is definitional).
 set_option hygiene false in
-local macro "sim_step" lemma:term : tactic =>
+local macro "sim_step" lem:term : tactic =>
   `(tactic| (simp only [toSailInstr?, Option.some.injEq] at h
              subst h
              simp only [execute]
-             apply $lemma <;> first | exact hrel | exact h_nextpc))
+             apply $lem <;> first | exact hrel | exact h_nextpc))
 
 -- `no_sim`: discharge an excluded (non-`simulableUncond`) case — `simulableUncond i`
 -- reduces to `false`, contradicting `huncond`.
 set_option hygiene false in
 local macro "no_sim" : tactic =>
-  `(tactic| exact absurd huncond (by simp only [Instr.simulableUncond]; decide))
+  `(tactic| exact absurd huncond (by simp [Instr.simulableUncond]))
 
 /-- **Consolidated step-simulation theorem (unconditional tier).**
 
@@ -149,6 +309,285 @@ theorem step_execute_sail_sim_uncond
   | DIVU _ _ _   => sim_step divu_sail_equiv
   | REM _ _ _    => sim_step rem_sail_equiv
   | REMU _ _ _   => sim_step remu_sail_equiv
+
+theorem step_execute_sail_sim_of_uncond
+    (sRv : MachineState) (sSail : SailState) (hrel : StateRel sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
+    (i : Instr) (si : SailInstr)
+    (h : toSailInstr? i = some si)
+    (huncond : i.simulableUncond = true) :
+    ∃ sSail',
+      runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv i) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc := by
+  exact Exists.elim (step_execute_sail_sim_uncond sRv sSail hrel h_nextpc i si h huncond) (by
+    intro sSail' hpair
+    have h_pc : (execInstrBr sRv i).pc = sRv.pc + 4 := by
+      cases i <;> simp [Instr.simulableUncond, execInstrBr, MachineState.setPC] at huncond ⊢
+    exact ⟨sSail', hpair.left, hpair.right.left, by simpa [h_pc] using hpair.right.right⟩)
+
+/-- **Consolidated `execute` simulation theorem.**
+
+    Covers every non-system instruction mapped by `toSailInstr?`: the unconditional
+    register-only tier, AUIPC/branches/jumps, and all loads/stores. The postcondition
+    keeps the relation at the `execute_*` boundary: registers/memory agree via
+    `StateRel`, and Sail `nextPC` equals the toy post-state PC. A caller that wants a
+    committed-PC `StateRelPC` state can compose this with `tick_pc` via
+    `StepProofs.step_of_execute`. -/
+theorem step_execute_sail_sim
+    (sRv : MachineState) (sSail : SailState) (hrelpc : StateRelPC sRv sSail)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
+    (i : Instr) (si : SailInstr)
+    (h : toSailInstr? i = some si)
+    (hsim : i.simulable = true)
+    (hside : instrSideCond i sRv sSail) :
+    ∃ sSail',
+      runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv i) sSail' ∧
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc := by
+  cases i with
+  | ADD _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SUB _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLL _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SRL _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SRA _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | AND _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | OR _ _ _     => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | XOR _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLT _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLTU _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | ADDI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | ANDI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | ORI _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | XORI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLTI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLTIU _ _ _  => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SLLI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SRLI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | SRAI _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | LUI _ _      => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | ADDIW _ _ _  => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | MUL _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | MULH _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | MULHSU _ _ _ => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | MULHU _ _ _  => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | DIV _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | DIVU _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | REM _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | REMU _ _ _   => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
+  | AUIPC rd imm =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      exact Exists.elim
+        (auipc_sail_equiv sRv sSail hrelpc.toStateRel h_nextpc hrelpc.pc_agree rd imm) (by
+        intro sSail' hpair
+        refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+        simpa [execInstrBr, MachineState.setPC] using hpair.right.right)
+  | BEQ rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact beq_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | BNE rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact bne_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | BLT rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact blt_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | BGE rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact bge_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | BLTU rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact bltu_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | BGEU rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact bgeu_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rs1 rs2 offset h_align
+  | JAL rd offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_misa, h_align⟩
+      exact jal_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc
+        h_misa rd offset h_align
+  | JALR rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨h_elp, h_align⟩
+      exact jalr_sail_equiv sRv sSail rd rs1 offset h_elp h_align
+  | LD rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, b1, b2, b3, b4, b5, b6, b7, h_valign, h_match, h_read,
+          h_palign, hclint, hsig, hhtif, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7⟩
+      exact Exists.elim (ld_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 b1 b2 b3 b4 b5 b6 b7 h_valign h_match h_read h_palign hclint hsig hhtif
+          hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7) (fun sSail' hpair => by
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC])
+  | LW rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, b1, b2, b3, h_valign, h_match, h_read, h_palign, hclint,
+          hsig, hhtif, hm0, hm1, hm2, hm3⟩
+      cases lw_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
+          hm0 hm1 hm2 hm3 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | LWU rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, b1, b2, b3, h_valign, h_match, h_read, h_palign, hclint,
+          hsig, hhtif, hm0, hm1, hm2, hm3⟩
+      cases lwu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
+          hm0 hm1 hm2 hm3 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | LH rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, b1, h_valign, h_match, h_read, h_palign, hclint, hsig,
+          hhtif, hm0, hm1⟩
+      cases lh_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | LHU rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, b1, h_valign, h_match, h_read, h_palign, hclint, hsig,
+          hhtif, hm0, hm1⟩
+      cases lhu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | LB rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hm0⟩
+      cases lb_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | LBU rd rs1 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with
+        ⟨bm, region, b0, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hm0⟩
+      cases lbu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | SD rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨bm, region, h_valign, h_match, h_write, h_palign, hclint, hsig, hhtif⟩
+      cases sd_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
+          h_valign h_match h_write h_palign hclint hsig hhtif with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | SW rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨bm, region, h_valign, h_match, h_write, h_palign, hclint, hsig, hhtif⟩
+      cases sw_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
+          h_valign h_match h_write h_palign hclint hsig hhtif with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | SH rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨bm, region, h_valign, h_match, h_write, h_palign, hclint, hsig, hhtif⟩
+      cases sh_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
+          h_valign h_match h_write h_palign hclint hsig hhtif with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | SB rs1 rs2 offset =>
+      simp only [toSailInstr?, Option.some.injEq] at h
+      subst h
+      simp only [execute]
+      rcases hside with ⟨bm, region, h_valign, h_match, h_write, h_palign, hclint, hsig, hhtif⟩
+      cases sb_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
+          h_valign h_match h_write h_palign hclint hsig hhtif with
+      | intro sSail' hpair =>
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
+          rw [hpair.right.right, h_nextpc]
+          simp [execInstrBr, MachineState.setPC]
+  | MV _ _ =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | LI _ _ =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | NOP =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | ECALL =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | FENCE =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | EBREAK =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
+  | CSRS _ _ =>
+      exact absurd hsim (by simp only [Instr.simulable]; decide)
 
 end SailEquiv
 end EvmAsm.Rv64

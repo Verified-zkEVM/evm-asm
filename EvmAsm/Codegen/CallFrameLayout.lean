@@ -131,7 +131,7 @@ def frameSlotCount : Nat := maxCallDepth + 1
 /-- `-Tdata=` base. -/
 def dataBase : Nat := 0xa3000000
 /-- `--section-start=.sszscratch=` base. -/
-def sszScratchBase : Nat := 0xbf500000
+def sszScratchBase : Nat := 0xbf800000
 
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride
@@ -231,17 +231,17 @@ theorem frameArray_unions_basr_baap :
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
     array (~228 MiB at the reconciled `0x39000` stride) together stay well inside
     the `.data`→`.sszscratch` span
-    (453 MiB) — ~142 MiB of slack for the remaining `.data` objects (~80 MiB
+    (456 MiB) — ~145 MiB of slack for the remaining `.data` objects (~80 MiB
     measured). The ELF-level ground truth is `readelf -lW`: the top RW LOAD
     address must stay below the 0xc0000000 RAM ceiling. (Replaces
     `frameArray_fits_union`, which pinned the retired #8513 basr aliasing.) -/
 theorem frameArray_and_balArenas_fit :
     balArenaTotalBytes + frameArrayBytes ≤ sszScratchBase - dataBase := by decide
 
-/-- The usable `.data`→`.sszscratch` span is `0x1c500000` = 475,004,928 B
-    = 453 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
+/-- The usable `.data`→`.sszscratch` span is `0x1c800000` = 478,150,656 B
+    = 456 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
     standalone frame array (~228 MiB) leave ample room for the rest of `.data`. -/
-theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c500000 := by decide
+theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c800000 := by decide
 
 /-- **vv4hr.3.4.2 PACK:** the active block-log arena = packed descriptors
     (32 B/gas-unit) + the 24 B/log meta table (with the packed desc byte-offset)

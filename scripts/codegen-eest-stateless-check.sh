@@ -56,11 +56,12 @@
 #     --budget-retry-min-gas N
 #                        only retry BUDGET rows whose manifest gas_limit is at
 #                        least N (default $EEST_BUDGET_RETRY_MIN_GAS or 100000000)
-#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
+#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto,
+#                        capped by the automatic memory/CPU cap).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
 #                        first-case warmup (see below) they are relaxed and the
-#                        job count is recomputed up to the same --max-jobs cap.
+#                        job count is recomputed up to the same automatic cap.
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
@@ -83,9 +84,6 @@
 #                        $EEST_SPIKE_JOB_MEM_MIB or 1024 MiB.
 #                        CPU cap uses one core/job on patched ziskemu/spike and
 #                        four cores/job on stock ziskemu unless EEST_JOB_CPU_THREADS is set.
-#     --max-jobs N       cap parallel guest-emulator jobs after memory/CPU auto-cap
-#                        (default $EEST_MAX_JOBS or 2; set higher explicitly
-#                        when this host is not sharing ziskemu capacity).
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
@@ -162,7 +160,6 @@ BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
 # differently; a non-match safely falls through to ERROR.
 STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget|EmulationNoCompleted)}"
 JOBS="${EEST_JOBS:-auto}"
-MAX_JOBS="${EEST_MAX_JOBS:-2}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
@@ -205,7 +202,7 @@ Options:
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
   --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
-  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
+  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by the automatic memory/CPU cap);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
   --max-failures N         stop after N FAIL/ERROR results
@@ -217,7 +214,6 @@ Options:
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
-  --max-jobs N             cap parallel guest-emulator jobs after memory/CPU auto-cap
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
@@ -261,7 +257,6 @@ while [[ $# -gt 0 ]]; do
     --budget-retry-steps) require_arg "$1" "${2:-}"; BUDGET_RETRY_STEPS="$2"; shift 2 ;;
     --budget-retry-min-gas) require_arg "$1" "${2:-}"; BUDGET_RETRY_MIN_GAS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
-    --max-jobs) require_arg "$1" "${2:-}"; MAX_JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
@@ -299,10 +294,6 @@ if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
-  exit 1
-fi
-if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || [[ "$MAX_JOBS" -lt 1 ]]; then
-  echo "--max-jobs/EEST_MAX_JOBS must be a positive integer (got: $MAX_JOBS)" >&2
   exit 1
 fi
 if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; }; then
@@ -522,13 +513,10 @@ compute_job_cap() {
 CPUS="$(nproc 2>/dev/null || echo 1)"
 JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
-if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
-  JOB_CAP="$MAX_JOBS"
-fi
 if [[ "$JOBS" == "auto" ]]; then
   JOBS="$JOB_CAP"
 elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
   JOBS="$JOB_CAP"
 fi
 
@@ -550,25 +538,24 @@ recalibrate_jobs_for_rom_cache() {
   [[ "$JOB_MEM_MIB_AUTO" -eq 1 ]] && JOB_MEM_MIB="$ZISKEMU_CACHED_JOB_MEM_MIB"
   [[ "$JOB_CPU_THREADS_AUTO" -eq 1 ]] && JOB_CPU_THREADS="$ZISKEMU_CACHED_JOB_CPU_THREADS"
   new_cap="$(compute_job_cap)"
-  [[ "$new_cap" -gt "$MAX_JOBS" ]] && new_cap="$MAX_JOBS"
   if [[ "$JOBS_REQUESTED" == "auto" ]]; then
     JOBS="$new_cap"
   else
     JOBS="$JOBS_REQUESTED"
     [[ "$JOBS" -gt "$new_cap" ]] && JOBS="$new_cap"
   fi
-  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS, max_jobs=$MAX_JOBS)"
+  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)"
 }
 
 if [[ "$BACKEND" == "ziskemu" ]]; then
   echo "==> backend: ziskemu"
   echo "    ziskemu: $ZISKEMU"
   echo "    version: $ZISKEMU_VERSION"
-  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 else
   echo "==> backend: spike"
   echo "    spike_run: $SPIKE_RUN"
-  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 fi
 
 # --- locate fixtures --------------------------------------------------------
@@ -655,7 +642,7 @@ patch_bsr_caps_and_relink() {
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
     --section-start=.bss=0xa4000000 \
-    --section-start=.sszscratch=0xbf500000 \
+    --section-start=.sszscratch=0xbf800000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
@@ -1015,7 +1002,7 @@ ensure_verdict_debug_probe() {
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
       --section-start=.bss=0xa4000000 \
-      --section-start=.sszscratch=0xbf500000 \
+      --section-start=.sszscratch=0xbf800000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2

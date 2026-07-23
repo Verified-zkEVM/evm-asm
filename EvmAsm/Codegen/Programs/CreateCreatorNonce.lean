@@ -24,20 +24,45 @@
   The table is reset per transaction (count := 0) by the dispatcher setup; the tail
   integration (replace the pre-state nonce with create_creator_nonce_use's result) +
   the per-tx reset land in .8b-3b. On table overflow the creator's nonce falls back to
-  pre_nonce (no store) and sets create_nonce_table_overflow so the consumer can stay
-  conservative. Entries are 40 bytes: addr (20B BE in the low/first 20, padded to 32)
+  pre_nonce (no store) and sets create_nonce_table_overflow so block_verdict rejects.
+  Entries are 40 bytes: addr (20B BE in the low/first 20, padded to 32)
   + next nonce (u64).
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Capacity (entries) of the per-creator nonce table — distinct creators per tx. -/
-def createNonceTableCap : Nat := 64
+/-- CREATE and CREATE2 each have a 32,000-gas base cost.  One nonce-table entry
+    is created only for a distinct creator that executes one of those opcodes,
+    so this protocol cost gives a consensus-enforced upper bound per supported
+    block. -/
+def createNonceTableGasPerCreator : Nat := 32000
+
+/-- Capacity (entries) of the per-creator nonce table.  Keep this derived from
+    the supported block gas limit: a valid 200M-gas block has at most 6,250
+    distinct CREATE creators.  At 40 bytes per entry this occupies 250,000
+    bytes (about 242 KiB), while remaining a fixed static arena. -/
+def createNonceTableCap : Nat :=
+  bsrStateRootBlockGasLimit / createNonceTableGasPerCreator
+
+#guard createNonceTableCap = 6250
+
+/-- A successful CREATE mutates the table twice at most: it advances its
+    creator, then seeds the created child as a possible recursive creator. -/
+def createNonceUndoCap : Nat := 2 * createNonceTableCap
+
+#guard createNonceUndoCap = 12500
+
+/-- The undo journal is indexed by mutation order, never by attacker-controlled
+    node count. -/
+def createNonceUndoRecordBytes : Nat := 24
+
+def createNonceUndoBytes : Nat := createNonceUndoCap * createNonceUndoRecordBytes
 
 /-! ## create_creator_nonce_use
     a0 = creator address ptr (20-byte big-endian)
@@ -65,6 +90,10 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_found:\n" ++
   "  ld a0, 32(t3)               # ret = entry.nonce\n" ++
   "  li t4, -1; beq a0, t4, .Lccnu_ret  # max nonce: CREATE must fail; do not wrap table\n" ++
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccnu_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd a0, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  addi t4, a0, 1; sd t4, 32(t3)   # entry.nonce += 1\n" ++
   "  j .Lccnu_ret\n" ++
   ".Lccnu_new:\n" ++
@@ -77,6 +106,10 @@ def createCreatorNonceUseFunction : String :=
   "  beqz t6, .Lccnu_cpaddr_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccnu_cpaddr\n" ++
   ".Lccnu_cpaddr_d:\n" ++
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccnu_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd zero, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  addi t4, s1, 1; sd t4, 32(t3)   # entry.nonce = pre_nonce + 1 (next CREATE)\n" ++
   "  la t4, create_nonce_table_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  mv a0, s1                   # ret = pre_nonce (this CREATE)\n" ++
@@ -84,9 +117,48 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_overflow:\n" ++
   "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   "  mv a0, s1                   # conservative fallback: pre_nonce, no store\n" ++
+  "  j .Lccnu_ret\n" ++
+  ".Lccnu_undo_overflow:\n" ++
+  "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   ".Lccnu_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
+  "create_creator_nonce_undo_to:\n" ++
+  "  la t0, create_nonce_undo_count; ld t1, 0(t0)\n" ++
+  ".Lccnu_undo_loop:\n" ++
+  "  bgeu a0, t1, .Lccnu_undo_done\n" ++
+  "  addi t1, t1, -1; li t2, 24; mul t2, t1, t2; la t3, create_nonce_undo_log; add t3, t3, t2\n" ++
+  "  ld t4, 0(t3); ld t5, 8(t3); ld t6, 16(t3)\n" ++
+  "  li t2, 40; mul t2, t4, t2; la t3, create_nonce_table; add t3, t3, t2; sd t5, 32(t3)\n" ++
+  "  la t2, create_nonce_table_count; sd t6, 0(t2)\n" ++
+  "  la t2, create_nonce_undo_count; sd t1, 0(t2); j .Lccnu_undo_loop\n" ++
+  ".Lccnu_undo_done:\n" ++
+  "  li a0, 0; ret\n" ++
+  -- Read the current (next-to-use) nonce for an already-seeded creator without
+  -- advancing the table.  A CREATE child uses this at return time: initcode can
+  -- itself CREATE, so the child final nonce is the table value rather than
+  -- necessarily the initial EIP-161 nonce 1.  A missing table entry is only a
+  -- standalone fallback and returns 1.
+  -- a0 = creator address ptr (20-byte big-endian); a0 = current nonce (or 1 on miss).
+  -- Clobbers t0-t6 and a0-a1; preserves s-registers.
+  "create_creator_nonce_current:\n" ++
+  "  mv t6, a0\n" ++
+  "  la t0, create_nonce_table; la t1, create_nonce_table_count; ld t1, 0(t1)\n" ++
+  "  li t2, 0\n" ++
+  ".Lccnc_loop:\n" ++
+  "  beq t2, t1, .Lccnc_miss\n" ++
+  "  li t3, 40; mul t3, t2, t3; add t3, t0, t3\n" ++
+  "  mv t4, t6; mv t5, t3; li a1, 20\n" ++
+  ".Lccnc_cmp:\n" ++
+  "  beqz a1, .Lccnc_found\n" ++
+  "  lbu a0, 0(t4); lbu t0, 0(t5); bne a0, t0, .Lccnc_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi a1, a1, -1; j .Lccnc_cmp\n" ++
+  ".Lccnc_next:\n" ++
+  "  addi t2, t2, 1; la t0, create_nonce_table; j .Lccnc_loop\n" ++
+  ".Lccnc_found:\n" ++
+  "  ld a0, 32(t3); ret\n" ++
+  ".Lccnc_miss:\n" ++
+  "  li a0, 1; ret\n" ++
   -- A successfully entered CREATE child is initialized with nonce 1 before
   -- its initcode executes (`process_create_message`). Seed/upsert that child
   -- as a potential creator so a recursive CREATE derives its first target
@@ -109,6 +181,11 @@ def createCreatorNonceUseFunction : String :=
   ".Lccns_next:\n" ++
   "  addi t2, t2, 1; j .Lccns_loop\n" ++
   ".Lccns_set:\n" ++
+  "  ld t4, 32(t3)\n" ++
+  "  la t5, create_nonce_undo_count; ld t6, 0(t5); li a0, " ++ toString createNonceUndoCap ++ "; bgeu t6, a0, .Lccns_undo_overflow\n" ++
+  "  li a0, 24; mul a0, t6, a0; la t5, create_nonce_undo_log; add t5, t5, a0\n" ++
+  "  sd t2, 0(t5); sd t4, 8(t5); sd t1, 16(t5)\n" ++
+  "  la t5, create_nonce_undo_count; addi t6, t6, 1; sd t6, 0(t5)\n" ++
   "  li t4, 1; sd t4, 32(t3); j .Lccns_ret\n" ++
   ".Lccns_new:\n" ++
   "  li t3, " ++ toString createNonceTableCap ++ "\n" ++
@@ -120,12 +197,43 @@ def createCreatorNonceUseFunction : String :=
   "  beqz t6, .Lccns_copy_done\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lccns_copy\n" ++
   ".Lccns_copy_done:\n" ++
+  "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccns_undo_overflow\n" ++
+  "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
+  "  sd t2, 0(t4); sd zero, 8(t4); sd t1, 16(t4)\n" ++
+  "  la t4, create_nonce_undo_count; addi t5, t5, 1; sd t5, 0(t4)\n" ++
   "  li t4, 1; sd t4, 32(t3)\n" ++
   "  la t4, create_nonce_table_count; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4); j .Lccns_ret\n" ++
   ".Lccns_overflow:\n" ++
   "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
+  "  j .Lccns_ret\n" ++
+  ".Lccns_undo_overflow:\n" ++
+  "  la t3, create_nonce_table_overflow; li t4, 1; sd t4, 0(t3)\n" ++
   ".Lccns_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); addi sp, sp, 16\n" ++
+  "  ret\n" ++
+  -- Membership in the transaction-local, frame-journaled CREATE table. A hit
+  -- is an `is_account_alive` witness for an account created earlier in this
+  -- transaction, including a constructor that self-destructs before code is
+  -- deposited. Reverts restore the table through create_creator_nonce_undo_to.
+  -- a0 = 20-byte BE address; a0 = 1 on hit, 0 on miss. Clobbers t0-t6/a0-a1.
+  "create_creator_nonce_contains:\n" ++
+  "  mv t6, a0\n" ++
+  "  la t0, create_nonce_table; la t1, create_nonce_table_count; ld t1, 0(t1)\n" ++
+  "  li t2, 0\n" ++
+  ".Lccnc_contains_loop:\n" ++
+  "  beq t2, t1, .Lccnc_contains_miss\n" ++
+  "  li t3, 40; mul t3, t2, t3; add t3, t0, t3\n" ++
+  "  mv t4, t6; mv t5, t3; li a1, 20\n" ++
+  ".Lccnc_contains_cmp:\n" ++
+  "  beqz a1, .Lccnc_contains_found\n" ++
+  "  lbu a0, 0(t4); lbu t0, 0(t5); bne a0, t0, .Lccnc_contains_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi a1, a1, -1; j .Lccnc_contains_cmp\n" ++
+  ".Lccnc_contains_next:\n" ++
+  "  addi t2, t2, 1; la t0, create_nonce_table; j .Lccnc_contains_loop\n" ++
+  ".Lccnc_contains_found:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lccnc_contains_miss:\n" ++
+  "  li a0, 0; ret\n" ++
   "  ret"
 
 /-- Data for the per-creator nonce table (linked into the dispatcher data section in
@@ -136,6 +244,9 @@ def createNonceTableData : String :=
   "create_nonce_table_overflow:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "create_nonce_table:\n  .zero " ++ toString (createNonceTableCap * 40) ++ "\n"
+   ++ "create_nonce_undo_count:\n  .zero 8\n"
+   ++ "create_nonce_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
+   ++ ".balign 8\ncreate_nonce_undo_log:\n  .zero " ++ toString createNonceUndoBytes ++ "\n"
 
 /-- `zisk_create_creator_nonce_use`: known-answer probe. Two creators (A=0x11*20,
     B=0x22*20); the running nonce advances per creator independently:

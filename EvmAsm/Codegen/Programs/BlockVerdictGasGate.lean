@@ -6,6 +6,9 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
@@ -30,425 +33,1108 @@ open EvmAsm.Rv64
     this gate neutral. The gate mirrors the execution-spec pre-execution
     per-dimension block-gas availability checks: regular inclusion uses
     `min(TX_MAX_GAS_LIMIT, tx.gas)` and state inclusion uses full `tx.gas`. -/
+def eip8037StateUsedBeforeTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.bsg_count (GuestAddrs.eip8037_state_used_before_tx + 80)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_count (GuestAddrs.eip8037_state_used_before_tx + 80)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip8037_state_used_before_tx + 88)),
+    .BNE .x10 .x0 (736 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_count (GuestAddrs.eip8037_state_used_before_tx + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_count (GuestAddrs.eip8037_state_used_before_tx + 96)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x20 (716 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x21,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 128)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 128)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 136)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 136)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip8037_state_used_before_tx + 144)),
+    .BNE .x10 .x0 (680 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 152)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x22 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 168)),
+    .LD .x23 .x5 (0 : BitVec 12),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 192)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 192)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 200)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 200)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip8037_state_used_before_tx + 208)),
+    .BNE .x10 .x0 (608 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_off (GuestAddrs.eip8037_state_used_before_tx + 216)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x24 .x22 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_len (GuestAddrs.eip8037_state_used_before_tx + 232)),
+    .LD .x25 .x5 (0 : BitVec 12),
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .AUIPC .x12 (laHi GuestAddrs.bsg_slot_count (GuestAddrs.eip8037_state_used_before_tx + 252)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_slot_count (GuestAddrs.eip8037_state_used_before_tx + 252)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip8037_state_used_before_tx + 260)),
+    .BNE .x10 .x0 (556 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_count (GuestAddrs.eip8037_state_used_before_tx + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_count (GuestAddrs.eip8037_state_used_before_tx + 268)),
+    .LD .x26 .x5 (0 : BitVec 12),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x26 (536 : BitVec 13),
+    .MV .x10 .x24,
+    .MV .x11 .x25,
+    .MV .x12 .x22,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_slot_off (GuestAddrs.eip8037_state_used_before_tx + 300)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_slot_off (GuestAddrs.eip8037_state_used_before_tx + 300)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_slot_len (GuestAddrs.eip8037_state_used_before_tx + 308)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_slot_len (GuestAddrs.eip8037_state_used_before_tx + 308)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip8037_state_used_before_tx + 316)),
+    .BNE .x10 .x0 (492 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_off (GuestAddrs.eip8037_state_used_before_tx + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_off (GuestAddrs.eip8037_state_used_before_tx + 324)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x24 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_len (GuestAddrs.eip8037_state_used_before_tx + 340)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_len (GuestAddrs.eip8037_state_used_before_tx + 340)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_ptr (GuestAddrs.eip8037_state_used_before_tx + 352)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_ptr (GuestAddrs.eip8037_state_used_before_tx + 352)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_item_len (GuestAddrs.eip8037_state_used_before_tx + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_item_len (GuestAddrs.eip8037_state_used_before_tx + 364)),
+    .SD .x5 .x28 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x28,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_changes_off (GuestAddrs.eip8037_state_used_before_tx + 388)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_changes_off (GuestAddrs.eip8037_state_used_before_tx + 388)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 396)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 396)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip8037_state_used_before_tx + 404)),
+    .BNE .x10 .x0 (404 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_slot_ptr (GuestAddrs.eip8037_state_used_before_tx + 412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_slot_ptr (GuestAddrs.eip8037_state_used_before_tx + 412)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_off (GuestAddrs.eip8037_state_used_before_tx + 424)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_off (GuestAddrs.eip8037_state_used_before_tx + 424)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 440)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 440)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 452)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 452)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x28,
+    .AUIPC .x12 (laHi GuestAddrs.bsg_change_count (GuestAddrs.eip8037_state_used_before_tx + 472)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_change_count (GuestAddrs.eip8037_state_used_before_tx + 472)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip8037_state_used_before_tx + 480)),
+    .BNE .x10 .x0 (328 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_count (GuestAddrs.eip8037_state_used_before_tx + 488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_count (GuestAddrs.eip8037_state_used_before_tx + 488)),
+    .LD .x29 .x5 (0 : BitVec 12),
+    .BEQ .x29 .x0 (312 : BitVec 13),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 508)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 520)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_len (GuestAddrs.eip8037_state_used_before_tx + 520)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x29,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_change_off (GuestAddrs.eip8037_state_used_before_tx + 536)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_change_off (GuestAddrs.eip8037_state_used_before_tx + 536)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_change_len (GuestAddrs.eip8037_state_used_before_tx + 544)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_change_len (GuestAddrs.eip8037_state_used_before_tx + 544)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip8037_state_used_before_tx + 552)),
+    .BNE .x10 .x0 (256 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 560)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_changes_ptr (GuestAddrs.eip8037_state_used_before_tx + 560)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_off (GuestAddrs.eip8037_state_used_before_tx + 572)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_off (GuestAddrs.eip8037_state_used_before_tx + 572)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_len (GuestAddrs.eip8037_state_used_before_tx + 588)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_len (GuestAddrs.eip8037_state_used_before_tx + 588)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 600)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 600)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 612)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 612)),
+    .SD .x5 .x28 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x28,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_idx_off (GuestAddrs.eip8037_state_used_before_tx + 636)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_idx_off (GuestAddrs.eip8037_state_used_before_tx + 636)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_idx_len (GuestAddrs.eip8037_state_used_before_tx + 644)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_idx_len (GuestAddrs.eip8037_state_used_before_tx + 644)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_state_used_before_tx + 652)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 660)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 660)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 672)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 672)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_index (GuestAddrs.eip8037_state_used_before_tx + 688)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_index (GuestAddrs.eip8037_state_used_before_tx + 688)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.eip8037_state_used_before_tx + 696)),
+    .BNE .x10 .x0 (112 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_index (GuestAddrs.eip8037_state_used_before_tx + 704)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_index (GuestAddrs.eip8037_state_used_before_tx + 704)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (96 : BitVec 13),
+    .BGEU .x6 .x18 (92 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 724)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_ptr (GuestAddrs.eip8037_state_used_before_tx + 724)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 736)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_change_item_len (GuestAddrs.eip8037_state_used_before_tx + 736)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_value_off (GuestAddrs.eip8037_state_used_before_tx + 752)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_value_off (GuestAddrs.eip8037_state_used_before_tx + 752)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_value_len (GuestAddrs.eip8037_state_used_before_tx + 760)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_value_len (GuestAddrs.eip8037_state_used_before_tx + 760)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_state_used_before_tx + 768)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_value_len (GuestAddrs.eip8037_state_used_before_tx + 776)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_value_len (GuestAddrs.eip8037_state_used_before_tx + 776)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LD .x7 .x19 (0 : BitVec 12),
+    .LUI .x28 (24 : BitVec 20),
+    .ADDIW .x28 .x28 (-384 : BitVec 12),
+    .ADD .x7 .x7 .x28,
+    .SD .x19 .x7 (0 : BitVec 12),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-532 : BitVec 21),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-712 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `eip8037StateUsedBeforeTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip8037StateUsedBeforeTx_relocs : RelocTable :=
+  [ (20, .la .x12 "bsg_count"),
+    (22, .jal .x1 "rlp_list_count_items"),
+    (24, .la .x5 "bsg_count"),
+    (32, .la .x13 "bsg_off"),
+    (34, .la .x14 "bsg_len"),
+    (36, .jal .x1 "rlp_item_span"),
+    (38, .la .x5 "bsg_off"),
+    (42, .la .x5 "bsg_len"),
+    (48, .la .x13 "bsg_off"),
+    (50, .la .x14 "bsg_len"),
+    (52, .jal .x1 "rlp_item_span"),
+    (54, .la .x5 "bsg_off"),
+    (58, .la .x5 "bsg_len"),
+    (63, .la .x12 "bsg_slot_count"),
+    (65, .jal .x1 "rlp_list_count_items"),
+    (67, .la .x5 "bsg_slot_count"),
+    (75, .la .x13 "bsg_slot_off"),
+    (77, .la .x14 "bsg_slot_len"),
+    (79, .jal .x1 "rlp_item_span"),
+    (81, .la .x5 "bsg_slot_off"),
+    (85, .la .x5 "bsg_slot_len"),
+    (88, .la .x5 "bsg_slot_ptr"),
+    (91, .la .x5 "bsg_slot_item_len"),
+    (97, .la .x13 "bsg_changes_off"),
+    (99, .la .x14 "bsg_changes_len"),
+    (101, .jal .x1 "rlp_item_span"),
+    (103, .la .x5 "bsg_slot_ptr"),
+    (106, .la .x5 "bsg_changes_off"),
+    (110, .la .x5 "bsg_changes_ptr"),
+    (113, .la .x5 "bsg_changes_len"),
+    (118, .la .x12 "bsg_change_count"),
+    (120, .jal .x1 "rlp_list_count_items"),
+    (122, .la .x5 "bsg_change_count"),
+    (127, .la .x5 "bsg_changes_ptr"),
+    (130, .la .x5 "bsg_changes_len"),
+    (134, .la .x13 "bsg_change_off"),
+    (136, .la .x14 "bsg_change_len"),
+    (138, .jal .x1 "rlp_item_span"),
+    (140, .la .x5 "bsg_changes_ptr"),
+    (143, .la .x5 "bsg_change_off"),
+    (147, .la .x5 "bsg_change_len"),
+    (150, .la .x5 "bsg_change_ptr"),
+    (153, .la .x5 "bsg_change_item_len"),
+    (159, .la .x13 "bsg_idx_off"),
+    (161, .la .x14 "bsg_idx_len"),
+    (163, .jal .x1 "rlp_list_nth_item"),
+    (165, .la .x5 "bsg_change_ptr"),
+    (168, .la .x5 "bsg_change_item_len"),
+    (172, .la .x13 "bsg_index"),
+    (174, .jal .x1 "rlp_field_to_u64"),
+    (176, .la .x5 "bsg_index"),
+    (181, .la .x5 "bsg_change_ptr"),
+    (184, .la .x5 "bsg_change_item_len"),
+    (188, .la .x13 "bsg_value_off"),
+    (190, .la .x14 "bsg_value_len"),
+    (192, .jal .x1 "rlp_list_nth_item"),
+    (194, .la .x5 "bsg_value_len") ]
+
+def eip8037StateUsedBeforeTxFunction : String :=
+  "eip8037_state_used_before_tx:\n" ++ emitProgramR eip8037StateUsedBeforeTx_prog eip8037StateUsedBeforeTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip8037StateUsedBeforeTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip8037StateUsedBeforeTxFunction_eq_prog :
+    eip8037StateUsedBeforeTxFunction = "eip8037_state_used_before_tx:\n" ++ emitProgramR eip8037StateUsedBeforeTx_prog eip8037StateUsedBeforeTx_relocs := rfl
+
+#guard eip8037StateUsedBeforeTxFunction.startsWith "eip8037_state_used_before_tx:\n"
+#guard eip8037StateUsedBeforeTx_prog.length = 222
+def eip8037PriorStateUsedExact_prog : Program :=
+  [ .SD .x11 .x0 (0 : BitVec 12),
+    .BEQ .x10 .x0 (152 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_prior_state_used_exact + 8)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_prior_state_used_exact + 8)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (144 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bvgr_runtime_count (GuestAddrs.eip8037_prior_state_used_exact + 24)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bvgr_runtime_count (GuestAddrs.eip8037_prior_state_used_exact + 24)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BLTU .x5 .x10 (128 : BitVec 13),
+    .LI .x5 (16 : Word),
+    .BLTU .x5 .x10 (120 : BitVec 13),
+    .MV .x5 .x10,
+    .LI .x6 (0 : Word),
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x5 (92 : BitVec 13),
+    .SLLI .x28 .x6 (3 : BitVec 6),
+    .AUIPC .x29 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 68)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 68)),
+    .ADD .x29 .x29 .x28,
+    .LD .x30 .x29 (0 : BitVec 12),
+    .ADD .x31 .x7 .x30,
+    .BLTU .x31 .x7 (76 : BitVec 13),
+    .MV .x7 .x31,
+    .AUIPC .x29 (laHi GuestAddrs.bv_tx_status_arr (GuestAddrs.eip8037_prior_state_used_exact + 96)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bv_tx_status_arr (GuestAddrs.eip8037_prior_state_used_exact + 96)),
+    .ADD .x29 .x29 .x28,
+    .LD .x30 .x29 (0 : BitVec 12),
+    .BEQ .x30 .x0 (32 : BitVec 13),
+    .AUIPC .x29 (laHi GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 116)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 116)),
+    .ADD .x29 .x29 .x28,
+    .LD .x30 .x29 (0 : BitVec 12),
+    .ADD .x31 .x7 .x30,
+    .BLTU .x31 .x7 (28 : BitVec 13),
+    .MV .x7 .x31,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-88 : BitVec 21),
+    .SD .x11 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `eip8037PriorStateUsedExact_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip8037PriorStateUsedExact_relocs : RelocTable :=
+  [ (2, .la .x5 "bsg_exact_state_ok"),
+    (6, .la .x5 "bvgr_runtime_count"),
+    (17, .la .x29 "bvgr_tx_state_gas"),
+    (24, .la .x29 "bv_tx_status_arr"),
+    (29, .la .x29 "bvgr_tx_exec_state_gas") ]
+
+def eip8037PriorStateUsedExactFunction : String :=
+  "eip8037_prior_state_used_exact:\n" ++ emitProgramR eip8037PriorStateUsedExact_prog eip8037PriorStateUsedExact_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip8037PriorStateUsedExact_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip8037PriorStateUsedExactFunction_eq_prog :
+    eip8037PriorStateUsedExactFunction = "eip8037_prior_state_used_exact:\n" ++ emitProgramR eip8037PriorStateUsedExact_prog eip8037PriorStateUsedExact_relocs := rfl
+
+#guard eip8037PriorStateUsedExactFunction.startsWith "eip8037_prior_state_used_exact:\n"
+#guard eip8037PriorStateUsedExact_prog.length = 43
+def eip8037TxGasGate_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .LI .x20 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_min_block_gas (GuestAddrs.eip8037_tx_gas_gate + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_min_block_gas (GuestAddrs.eip8037_tx_gas_gate + 76)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_tx_gas_gate + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_tx_gas_gate + 88)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x8 (504 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.eip8037_tx_gas_gate + 104)),
+    .ADD .x21 .x8 .x10,
+    .ADDI .x10 .x8 (508 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.eip8037_tx_gas_gate + 116)),
+    .SUB .x22 .x10 .x10,
+    .ADD .x5 .x8 .x10,
+    .SUB .x22 .x5 .x21,
+    .BLTU .x5 .x21 (2100 : BitVec 13),
+    .BEQ .x22 .x0 (2096 : BitVec 13),
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.eip8037_tx_gas_gate + 144)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (2080 : BitVec 13),
+    .SRLI .x23 .x10 (2 : BitVec 6),
+    .BEQ .x23 .x0 (2072 : BitVec 13),
+    .LI .x5 (16 : Word),
+    .BLTU .x5 .x23 (2064 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .MV .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_tx_gas_gate + 184)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_tx_gas_gate + 184)),
+    .AUIPC .x7 (laHi GuestAddrs.teer_records_ptr (GuestAddrs.eip8037_tx_gas_gate + 192)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.teer_records_ptr (GuestAddrs.eip8037_tx_gas_gate + 192)),
+    .AUIPC .x28 (laHi GuestAddrs.basr_records (GuestAddrs.eip8037_tx_gas_gate + 200)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.basr_records (GuestAddrs.eip8037_tx_gas_gate + 200)),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bv_bal_start (GuestAddrs.eip8037_tx_gas_gate + 212)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bv_bal_start (GuestAddrs.eip8037_tx_gas_gate + 212)),
+    .LD .x14 .x7 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bv_bal_len (GuestAddrs.eip8037_tx_gas_gate + 224)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bv_bal_len (GuestAddrs.eip8037_tx_gas_gate + 224)),
+    .LD .x15 .x7 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bv_chain_id (GuestAddrs.eip8037_tx_gas_gate + 236)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bv_chain_id (GuestAddrs.eip8037_tx_gas_gate + 236)),
+    .LD .x16 .x7 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.block_verdict_tx_state_gas_array (GuestAddrs.eip8037_tx_gas_gate + 248)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_tx_gas_gate + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_tx_gas_gate + 256)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x24 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 276)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .BEQ .x24 .x23 (1944 : BitVec 13),
+    .SLLI .x5 .x24 (2 : BitVec 6),
+    .ADD .x6 .x21 .x5,
+    .MV .x10 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.eip8037_tx_gas_gate + 304)),
+    .MV .x25 .x10,
+    .ADDI .x5 .x24 (1 : BitVec 12),
+    .BEQ .x5 .x23 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x6 .x21 .x6,
+    .MV .x10 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.eip8037_tx_gas_gate + 332)),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x10 .x22,
+    .BLTU .x10 .x25 (1888 : BitVec 13),
+    .SUB .x26 .x10 .x25,
+    .ADD .x25 .x21 .x25,
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x12 (laHi GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 364)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 364)),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_tx_inner (GuestAddrs.eip8037_tx_gas_gate + 372)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_tx_inner (GuestAddrs.eip8037_tx_gas_gate + 372)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.eip8037_tx_gas_gate + 380)),
+    .BNE .x10 .x0 (1848 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_inner (GuestAddrs.eip8037_tx_gas_gate + 388)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_inner (GuestAddrs.eip8037_tx_gas_gate + 388)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BLTU .x26 .x7 (1832 : BitVec 13),
+    .ADD .x25 .x25 .x7,
+    .SUB .x26 .x26 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 412)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .BEQ .x6 .x5 (132 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .BEQ .x6 .x5 (224 : BitVec 13),
+    .LI .x5 (3 : Word),
+    .BEQ .x6 .x5 (216 : BitVec 13),
+    .LI .x5 (4 : Word),
+    .BEQ .x6 .x5 (308 : BitVec 13),
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .JAL .x0 (1772 : BitVec 21),
+    .LI .x5 (2 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 468)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 468)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 484)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 484)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 500)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 500)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (5 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 516)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 516)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 532)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 532)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 544)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 544)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (300 : BitVec 21),
+    .LI .x5 (3 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 564)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 564)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 580)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 580)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (5 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 596)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 596)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (6 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 612)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 612)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (7 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 628)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 628)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 644)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 644)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (200 : BitVec 21),
+    .LI .x5 (4 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 664)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 664)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (5 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 680)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 680)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (6 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 696)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 696)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (7 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 712)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 712)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (8 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 728)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 728)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 744)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 744)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (100 : BitVec 21),
+    .LI .x5 (4 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 764)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 764)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (5 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 780)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 780)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (6 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 796)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 796)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (7 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 812)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 812)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (8 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 828)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 828)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (9 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 844)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 844)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 856)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_gas_field (GuestAddrs.eip8037_tx_gas_gate + 856)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 876)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 876)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.eip8037_tx_gas_gate + 884)),
+    .BNE .x10 .x0 (1344 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 892)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 892)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 904)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_value_field (GuestAddrs.eip8037_tx_gas_gate + 904)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_value_off (GuestAddrs.eip8037_tx_gas_gate + 924)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_value_off (GuestAddrs.eip8037_tx_gas_gate + 924)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_value_len (GuestAddrs.eip8037_tx_gas_gate + 932)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_value_len (GuestAddrs.eip8037_tx_gas_gate + 932)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_tx_gas_gate + 940)),
+    .BNE .x10 .x0 (1288 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 948)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_field (GuestAddrs.eip8037_tx_gas_gate + 948)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_data_off (GuestAddrs.eip8037_tx_gas_gate + 968)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_data_off (GuestAddrs.eip8037_tx_gas_gate + 968)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 976)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 976)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_tx_gas_gate + 984)),
+    .BNE .x10 .x0 (1244 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_off (GuestAddrs.eip8037_tx_gas_gate + 992)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_off (GuestAddrs.eip8037_tx_gas_gate + 992)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x25 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_ptr (GuestAddrs.eip8037_tx_gas_gate + 1008)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_ptr (GuestAddrs.eip8037_tx_gas_gate + 1008)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 1020)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_to_field (GuestAddrs.eip8037_tx_gas_gate + 1020)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_to_off (GuestAddrs.eip8037_tx_gas_gate + 1040)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_to_off (GuestAddrs.eip8037_tx_gas_gate + 1040)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1048)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1048)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_tx_gas_gate + 1056)),
+    .BNE .x10 .x0 (1172 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1064)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1064)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (24 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 1080)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 1080)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (32 : BitVec 20),
+    .BLTU .x7 .x6 (1128 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1100)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1112)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1124)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 1136)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_field (GuestAddrs.eip8037_tx_gas_gate + 1136)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (-1 : Word),
+    .BEQ .x6 .x7 (92 : BitVec 13),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .MV .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_access_off (GuestAddrs.eip8037_tx_gas_gate + 1168)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_access_off (GuestAddrs.eip8037_tx_gas_gate + 1168)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_access_len (GuestAddrs.eip8037_tx_gas_gate + 1176)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_access_len (GuestAddrs.eip8037_tx_gas_gate + 1176)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_tx_gas_gate + 1184)),
+    .BNE .x10 .x0 (1044 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_off (GuestAddrs.eip8037_tx_gas_gate + 1192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_off (GuestAddrs.eip8037_tx_gas_gate + 1192)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x25 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_len (GuestAddrs.eip8037_tx_gas_gate + 1208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_len (GuestAddrs.eip8037_tx_gas_gate + 1208)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1220)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1220)),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1228)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1228)),
+    .JAL .x1 (jalOff GuestAddrs.access_list_count (GuestAddrs.eip8037_tx_gas_gate + 1236)),
+    .BNE .x10 .x0 (992 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 1244)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_field (GuestAddrs.eip8037_tx_gas_gate + 1244)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (-1 : Word),
+    .BEQ .x6 .x7 (84 : BitVec 13),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .MV .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_auth_off (GuestAddrs.eip8037_tx_gas_gate + 1276)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_auth_off (GuestAddrs.eip8037_tx_gas_gate + 1276)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_auth_len (GuestAddrs.eip8037_tx_gas_gate + 1284)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_auth_len (GuestAddrs.eip8037_tx_gas_gate + 1284)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip8037_tx_gas_gate + 1292)),
+    .BNE .x10 .x0 (936 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_off (GuestAddrs.eip8037_tx_gas_gate + 1300)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_off (GuestAddrs.eip8037_tx_gas_gate + 1300)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x25 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_len (GuestAddrs.eip8037_tx_gas_gate + 1316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_len (GuestAddrs.eip8037_tx_gas_gate + 1316)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1328)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1328)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip8037_tx_gas_gate + 1336)),
+    .BNE .x10 .x0 (892 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 1344)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 1344)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (3 : Word),
+    .BNE .x6 .x7 (228 : BitVec 13),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x12 (laHi GuestAddrs.tcbg_struct (GuestAddrs.eip8037_tx_gas_gate + 1372)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tcbg_struct (GuestAddrs.eip8037_tx_gas_gate + 1372)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip4844_decode (GuestAddrs.eip8037_tx_gas_gate + 1380)),
+    .BNE .x10 .x0 (840 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.tcbg_struct (GuestAddrs.eip8037_tx_gas_gate + 1388)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tcbg_struct (GuestAddrs.eip8037_tx_gas_gate + 1388)),
+    .LWU .x6 .x5 (168 : BitVec 12),
+    .LWU .x7 .x5 (172 : BitVec 12),
+    .ADD .x10 .x25 .x6,
+    .MV .x11 .x7,
+    .AUIPC .x12 (laHi GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1412)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1412)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip8037_tx_gas_gate + 1420)),
+    .BNE .x10 .x0 (800 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1428)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (784 : BitVec 13),
+    .LI .x7 (6 : Word),
+    .BLTU .x7 .x6 (776 : BitVec 13),
+    .SLLI .x6 .x6 (17 : BitVec 6),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 1456)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 1456)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .LUI .x28 (672 : BitVec 20),
+    .BLTU .x28 .x7 (748 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 1480)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_blob_gas_accum (GuestAddrs.eip8037_tx_gas_gate + 1480)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .ADDI .x10 .x8 (520 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.eip8037_tx_gas_gate + 1496)),
+    .AUIPC .x11 (laHi GuestAddrs.bsg_blob_price_be (GuestAddrs.eip8037_tx_gas_gate + 1500)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bsg_blob_price_be (GuestAddrs.eip8037_tx_gas_gate + 1500)),
+    .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.eip8037_tx_gas_gate + 1508)),
+    .BNE .x10 .x0 (712 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.tcbg_blob_fee_be (GuestAddrs.eip8037_tx_gas_gate + 1516)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tcbg_blob_fee_be (GuestAddrs.eip8037_tx_gas_gate + 1516)),
+    .AUIPC .x11 (laHi GuestAddrs.bsg_blob_price_be (GuestAddrs.eip8037_tx_gas_gate + 1524)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bsg_blob_price_be (GuestAddrs.eip8037_tx_gas_gate + 1524)),
+    .AUIPC .x12 (laHi GuestAddrs.bsg_blob_lt_out (GuestAddrs.eip8037_tx_gas_gate + 1532)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsg_blob_lt_out (GuestAddrs.eip8037_tx_gas_gate + 1532)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.eip8037_tx_gas_gate + 1540)),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_blob_lt_out (GuestAddrs.eip8037_tx_gas_gate + 1544)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_blob_lt_out (GuestAddrs.eip8037_tx_gas_gate + 1544)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (668 : BitVec 13),
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .LI .x12 (6 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1572)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_blob_count (GuestAddrs.eip8037_tx_gas_gate + 1572)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip4844_validate_blob_hashes (GuestAddrs.eip8037_tx_gas_gate + 1580)),
+    .BNE .x10 .x0 (640 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 1588)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_type (GuestAddrs.eip8037_tx_gas_gate + 1588)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (4 : Word),
+    .BEQ .x6 .x7 (16 : BitVec 13),
+    .LI .x7 (3 : Word),
+    .BEQ .x6 .x7 (24 : BitVec 13),
+    .JAL .x0 (36 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1620)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1620)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BEQ .x7 .x0 (592 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1636)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1636)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BEQ .x7 .x0 (576 : BitVec 13),
+    .LI .x31 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1656)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1656)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (112 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_ptr (GuestAddrs.eip8037_tx_gas_gate + 1676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_ptr (GuestAddrs.eip8037_tx_gas_gate + 1676)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (96 : BitVec 13),
+    .SLLI .x6 .x24 (6 : BitVec 6),
+    .ADD .x6 .x6 .x24,
+    .ADD .x5 .x5 .x6,
+    .ADDI .x10 .x5 (1 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.bsg_sender_addr (GuestAddrs.eip8037_tx_gas_gate + 1708)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bsg_sender_addr (GuestAddrs.eip8037_tx_gas_gate + 1708)),
+    .JAL .x1 (jalOff GuestAddrs.address_from_pubkey (GuestAddrs.eip8037_tx_gas_gate + 1716)),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_sender_addr (GuestAddrs.eip8037_tx_gas_gate + 1720)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_sender_addr (GuestAddrs.eip8037_tx_gas_gate + 1720)),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_to_off (GuestAddrs.eip8037_tx_gas_gate + 1728)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_to_off (GuestAddrs.eip8037_tx_gas_gate + 1728)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x6 .x25 .x6,
+    .LI .x7 (20 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (24 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x31 (1 : Word),
+    .LI .x30 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_value_len (GuestAddrs.eip8037_tx_gas_gate + 1788)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_value_len (GuestAddrs.eip8037_tx_gas_gate + 1788)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .LI .x30 (1 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_ptr (GuestAddrs.eip8037_tx_gas_gate + 1808)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_ptr (GuestAddrs.eip8037_tx_gas_gate + 1808)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 1820)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_data_len (GuestAddrs.eip8037_tx_gas_gate + 1820)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1832)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_to_len (GuestAddrs.eip8037_tx_gas_gate + 1832)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .SLTIU .x12 .x12 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1848)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_addrs (GuestAddrs.eip8037_tx_gas_gate + 1848)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1860)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_access_slots (GuestAddrs.eip8037_tx_gas_gate + 1860)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1872)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_auth_count (GuestAddrs.eip8037_tx_gas_gate + 1872)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x16 (laHi GuestAddrs.bsg_intrinsic_gas (GuestAddrs.eip8037_tx_gas_gate + 1884)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.bsg_intrinsic_gas (GuestAddrs.eip8037_tx_gas_gate + 1884)),
+    .AUIPC .x17 (laHi GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 1892)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 1892)),
+    .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x30 (0 : BitVec 12),
+    .SD .x2 .x31 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.intrinsic_gas_amsterdam_counts (GuestAddrs.eip8037_tx_gas_gate + 1912)),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .BNE .x10 .x0 (312 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 1924)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 1924)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SLLI .x7 .x24 (3 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.bv_mtx_calldata (GuestAddrs.eip8037_tx_gas_gate + 1940)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bv_mtx_calldata (GuestAddrs.eip8037_tx_gas_gate + 1940)),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .BGEU .x29 .x6 (8 : BitVec 13),
+    .SD .x28 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_state_gas (GuestAddrs.eip8037_tx_gas_gate + 1964)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_state_gas (GuestAddrs.eip8037_tx_gas_gate + 1964)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_intrinsic_gas (GuestAddrs.eip8037_tx_gas_gate + 1976)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_intrinsic_gas (GuestAddrs.eip8037_tx_gas_gate + 1976)),
+    .LD .x27 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 1988)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 1988)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 2000)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_floor_gas (GuestAddrs.eip8037_tx_gas_gate + 2000)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .MV .x5 .x27,
+    .BGEU .x5 .x31 (8 : BitVec 13),
+    .MV .x5 .x31,
+    .LUI .x29 (4096 : BitVec 20),
+    .BLTU .x29 .x5 (196 : BitVec 13),
+    .MV .x29 .x27,
+    .BGEU .x29 .x31 (8 : BitVec 13),
+    .MV .x29 .x31,
+    .BLTU .x6 .x29 (180 : BitVec 13),
+    .AUIPC .x30 (laHi GuestAddrs.bsg_min_block_gas (GuestAddrs.eip8037_tx_gas_gate + 2048)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.bsg_min_block_gas (GuestAddrs.eip8037_tx_gas_gate + 2048)),
+    .LD .x7 .x30 (0 : BitVec 12),
+    .BLTU .x19 .x7 (148 : BitVec 13),
+    .SUB .x28 .x19 .x7,
+    .MV .x29 .x6,
+    .LUI .x31 (4096 : BitVec 20),
+    .BGEU .x31 .x29 (8 : BitVec 13),
+    .MV .x29 .x31,
+    .BLTU .x28 .x29 (124 : BitVec 13),
+    .BLTU .x28 .x5 (120 : BitVec 13),
+    .ADD .x7 .x7 .x5,
+    .SD .x30 .x7 (0 : BitVec 12),
+    .BLTU .x6 .x27 (132 : BitVec 13),
+    .SUB .x7 .x6 .x27,
+    .AUIPC .x5 (laHi GuestAddrs.bsg_worst_state (GuestAddrs.eip8037_tx_gas_gate + 2108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_worst_state (GuestAddrs.eip8037_tx_gas_gate + 2108)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .MV .x10 .x24,
+    .AUIPC .x11 (laHi GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2124)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2124)),
+    .JAL .x1 (jalOff GuestAddrs.eip8037_prior_state_used_exact (GuestAddrs.eip8037_tx_gas_gate + 2132)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .ADDI .x12 .x24 (1 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2152)),
+    .JAL .x1 (jalOff GuestAddrs.eip8037_state_used_before_tx (GuestAddrs.eip8037_tx_gas_gate + 2160)),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 2164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_tx_gas (GuestAddrs.eip8037_tx_gas_gate + 2164)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsg_prior_state (GuestAddrs.eip8037_tx_gas_gate + 2176)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .BLTU .x19 .x28 (28 : BitVec 13),
+    .SUB .x29 .x19 .x28,
+    .BLTU .x29 .x6 (20 : BitVec 13),
+    .ADDI .x24 .x24 (1 : BitVec 12),
+    .JAL .x0 (-1916 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `eip8037TxGasGate_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip8037TxGasGate_relocs : RelocTable :=
+  [ (19, .la .x5 "bsg_min_block_gas"),
+    (22, .la .x5 "bsg_exact_state_ok"),
+    (26, .jal .x1 "bgv_u32le"),
+    (29, .jal .x1 "bgv_u32le"),
+    (36, .jal .x1 "bgv_u32le"),
+    (46, .la .x13 "bvgr_tx_state_gas"),
+    (48, .la .x7 "teer_records_ptr"),
+    (50, .la .x28 "basr_records"),
+    (53, .la .x7 "bv_bal_start"),
+    (56, .la .x7 "bv_bal_len"),
+    (59, .la .x7 "bv_chain_id"),
+    (62, .jal .x1 "block_verdict_tx_state_gas_array"),
+    (64, .la .x5 "bsg_exact_state_ok"),
+    (69, .la .x5 "bsg_blob_gas_accum"),
+    (76, .jal .x1 "bgv_u32le"),
+    (83, .jal .x1 "bgv_u32le"),
+    (91, .la .x12 "bsg_tx_type"),
+    (93, .la .x13 "bsg_tx_inner"),
+    (95, .jal .x1 "tx_type_dispatch"),
+    (97, .la .x5 "bsg_tx_inner"),
+    (103, .la .x5 "bsg_tx_type"),
+    (117, .la .x6 "bsg_gas_field"),
+    (121, .la .x6 "bsg_to_field"),
+    (125, .la .x6 "bsg_value_field"),
+    (129, .la .x6 "bsg_data_field"),
+    (133, .la .x6 "bsg_access_field"),
+    (136, .la .x6 "bsg_auth_field"),
+    (141, .la .x6 "bsg_gas_field"),
+    (145, .la .x6 "bsg_to_field"),
+    (149, .la .x6 "bsg_value_field"),
+    (153, .la .x6 "bsg_data_field"),
+    (157, .la .x6 "bsg_access_field"),
+    (161, .la .x6 "bsg_auth_field"),
+    (166, .la .x6 "bsg_gas_field"),
+    (170, .la .x6 "bsg_to_field"),
+    (174, .la .x6 "bsg_value_field"),
+    (178, .la .x6 "bsg_data_field"),
+    (182, .la .x6 "bsg_access_field"),
+    (186, .la .x6 "bsg_auth_field"),
+    (191, .la .x6 "bsg_gas_field"),
+    (195, .la .x6 "bsg_to_field"),
+    (199, .la .x6 "bsg_value_field"),
+    (203, .la .x6 "bsg_data_field"),
+    (207, .la .x6 "bsg_access_field"),
+    (211, .la .x6 "bsg_auth_field"),
+    (214, .la .x5 "bsg_gas_field"),
+    (219, .la .x13 "bsg_tx_gas"),
+    (221, .jal .x1 "rlp_field_to_u64"),
+    (223, .la .x5 "bsg_tx_gas"),
+    (226, .la .x5 "bsg_value_field"),
+    (231, .la .x13 "bsg_value_off"),
+    (233, .la .x14 "bsg_value_len"),
+    (235, .jal .x1 "rlp_list_nth_item"),
+    (237, .la .x5 "bsg_data_field"),
+    (242, .la .x13 "bsg_data_off"),
+    (244, .la .x14 "bsg_data_len"),
+    (246, .jal .x1 "rlp_list_nth_item"),
+    (248, .la .x5 "bsg_data_off"),
+    (252, .la .x5 "bsg_data_ptr"),
+    (255, .la .x5 "bsg_to_field"),
+    (260, .la .x13 "bsg_to_off"),
+    (262, .la .x14 "bsg_to_len"),
+    (264, .jal .x1 "rlp_list_nth_item"),
+    (266, .la .x5 "bsg_to_len"),
+    (270, .la .x5 "bsg_data_len"),
+    (275, .la .x5 "bsg_access_addrs"),
+    (278, .la .x5 "bsg_access_slots"),
+    (281, .la .x5 "bsg_auth_count"),
+    (284, .la .x5 "bsg_access_field"),
+    (292, .la .x13 "bsg_access_off"),
+    (294, .la .x14 "bsg_access_len"),
+    (296, .jal .x1 "rlp_list_nth_item"),
+    (298, .la .x5 "bsg_access_off"),
+    (302, .la .x5 "bsg_access_len"),
+    (305, .la .x12 "bsg_access_addrs"),
+    (307, .la .x13 "bsg_access_slots"),
+    (309, .jal .x1 "access_list_count"),
+    (311, .la .x5 "bsg_auth_field"),
+    (319, .la .x13 "bsg_auth_off"),
+    (321, .la .x14 "bsg_auth_len"),
+    (323, .jal .x1 "rlp_list_nth_item"),
+    (325, .la .x5 "bsg_auth_off"),
+    (329, .la .x5 "bsg_auth_len"),
+    (332, .la .x12 "bsg_auth_count"),
+    (334, .jal .x1 "rlp_list_count_items"),
+    (336, .la .x5 "bsg_tx_type"),
+    (343, .la .x12 "tcbg_struct"),
+    (345, .jal .x1 "tx_eip4844_decode"),
+    (347, .la .x5 "tcbg_struct"),
+    (353, .la .x12 "bsg_blob_count"),
+    (355, .jal .x1 "rlp_list_count_items"),
+    (357, .la .x5 "bsg_blob_count"),
+    (364, .la .x5 "bsg_blob_gas_accum"),
+    (370, .la .x5 "bsg_blob_gas_accum"),
+    (374, .jal .x1 "bgv_u64le"),
+    (375, .la .x11 "bsg_blob_price_be"),
+    (377, .jal .x1 "amsterdam_blob_gas_price_u256"),
+    (379, .la .x10 "tcbg_blob_fee_be"),
+    (381, .la .x11 "bsg_blob_price_be"),
+    (383, .la .x12 "bsg_blob_lt_out"),
+    (385, .jal .x1 "u256_lt_be"),
+    (386, .la .x5 "bsg_blob_lt_out"),
+    (393, .la .x13 "bsg_blob_count"),
+    (395, .jal .x1 "tx_eip4844_validate_blob_hashes"),
+    (397, .la .x5 "bsg_tx_type"),
+    (405, .la .x5 "bsg_auth_count"),
+    (409, .la .x5 "bsg_to_len"),
+    (414, .la .x5 "bsg_to_len"),
+    (419, .la .x5 "bv_public_keys_ptr"),
+    (427, .la .x11 "bsg_sender_addr"),
+    (429, .jal .x1 "address_from_pubkey"),
+    (430, .la .x5 "bsg_sender_addr"),
+    (432, .la .x6 "bsg_to_off"),
+    (447, .la .x5 "bsg_value_len"),
+    (452, .la .x5 "bsg_data_ptr"),
+    (455, .la .x5 "bsg_data_len"),
+    (458, .la .x5 "bsg_to_len"),
+    (462, .la .x5 "bsg_access_addrs"),
+    (465, .la .x5 "bsg_access_slots"),
+    (468, .la .x5 "bsg_auth_count"),
+    (471, .la .x16 "bsg_intrinsic_gas"),
+    (473, .la .x17 "bsg_floor_gas"),
+    (478, .jal .x1 "intrinsic_gas_amsterdam_counts"),
+    (481, .la .x5 "bsg_floor_gas"),
+    (485, .la .x28 "bv_mtx_calldata"),
+    (491, .la .x5 "bsg_state_gas"),
+    (494, .la .x5 "bsg_intrinsic_gas"),
+    (497, .la .x5 "bsg_tx_gas"),
+    (500, .la .x5 "bsg_floor_gas"),
+    (512, .la .x30 "bsg_min_block_gas"),
+    (527, .la .x5 "bsg_worst_state"),
+    (531, .la .x11 "bsg_prior_state"),
+    (533, .jal .x1 "eip8037_prior_state_used_exact"),
+    (538, .la .x13 "bsg_prior_state"),
+    (540, .jal .x1 "eip8037_state_used_before_tx"),
+    (541, .la .x5 "bsg_tx_gas"),
+    (544, .la .x5 "bsg_prior_state") ]
+
 def eip8037TxGasGateFunction : String :=
-  "eip8037_state_used_before_tx:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
-  "  mv s0, a0                   # BAL ptr\n" ++
-  "  mv s1, a1                   # BAL len\n" ++
-  "  mv s2, a2                   # target tx index (1-based)\n" ++
-  "  mv s3, a3                   # out ptr\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, bsg_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lesub_ok\n" ++
-  "  la t0, bsg_count; ld s4, 0(t0)        # account count\n" ++
-  "  li s5, 0                              # account i\n" ++
-  ".Lesub_acct_loop:\n" ++
-  "  beq s5, s4, .Lesub_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5; la a3, bsg_off; la a4, bsg_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lesub_ok\n" ++
-  "  la t0, bsg_off; ld t1, 0(t0); add s6, s0, t1     # account ptr\n" ++
-  "  la t0, bsg_len; ld s7, 0(t0)                     # account len\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 1; la a3, bsg_off; la a4, bsg_len\n" ++
-  "  jal ra, rlp_item_span                              # storage_changes list\n" ++
-  "  bnez a0, .Lesub_next_acct\n" ++
-  "  la t0, bsg_off; ld t1, 0(t0); add s8, s6, t1      # storage_changes ptr\n" ++
-  "  la t0, bsg_len; ld s9, 0(t0)                      # storage_changes len\n" ++
-  "  mv a0, s8; mv a1, s9; la a2, bsg_slot_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lesub_next_acct\n" ++
-  "  la t0, bsg_slot_count; ld s10, 0(t0)\n" ++
-  "  li s6, 0                                          # slot i\n" ++
-  ".Lesub_slot_loop:\n" ++
-  "  beq s6, s10, .Lesub_next_acct\n" ++
-  "  mv a0, s8; mv a1, s9; mv a2, s6; la a3, bsg_slot_off; la a4, bsg_slot_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_slot_off; ld t1, 0(t0); add t2, s8, t1 # slot-change ptr\n" ++
-  "  la t0, bsg_slot_len; ld t3, 0(t0)                 # slot-change len\n" ++
-  "  la t0, bsg_slot_ptr; sd t2, 0(t0); la t0, bsg_slot_item_len; sd t3, 0(t0)\n" ++
-  "  mv a0, t2; mv a1, t3; li a2, 1; la a3, bsg_changes_off; la a4, bsg_changes_len\n" ++
-  "  jal ra, rlp_item_span                              # per-slot changes list\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_slot_ptr; ld t2, 0(t0); la t0, bsg_changes_off; ld t1, 0(t0); add t2, t2, t1\n" ++
-  "  la t0, bsg_changes_ptr; sd t2, 0(t0)\n" ++
-  "  la t0, bsg_changes_len; ld t3, 0(t0)\n" ++
-  "  mv a0, t2; mv a1, t3; la a2, bsg_change_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_change_count; ld t4, 0(t0); beqz t4, .Lesub_next_slot\n" ++
-  "  addi t4, t4, -1                                  # final change only\n" ++
-  "  la t0, bsg_changes_ptr; ld a0, 0(t0); la t0, bsg_changes_len; ld a1, 0(t0); mv a2, t4; la a3, bsg_change_off; la a4, bsg_change_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_changes_ptr; ld t2, 0(t0); la t0, bsg_change_off; ld t1, 0(t0); add t2, t2, t1\n" ++
-  "  la t0, bsg_change_len; ld t3, 0(t0)\n" ++
-  "  la t0, bsg_change_ptr; sd t2, 0(t0); la t0, bsg_change_item_len; sd t3, 0(t0)\n" ++
-  "  mv a0, t2; mv a1, t3; li a2, 0; la a3, bsg_idx_off; la a4, bsg_idx_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); li a2, 0; la a3, bsg_index\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_index; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lesub_next_slot                         # system writes do not spend tx state gas\n" ++
-  "  bgeu t1, s2, .Lesub_next_slot\n" ++
-  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); li a2, 1; la a3, bsg_value_off; la a4, bsg_value_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lesub_next_slot\n" ++
-  "  la t0, bsg_value_len; ld t1, 0(t0); beqz t1, .Lesub_next_slot\n" ++
-  "  ld t2, 0(s3);" ++ liAmsterdamStorageSetStateGas "t3" ++
-  "  add t2, t2, t3; sd t2, 0(s3)\n" ++
-  ".Lesub_next_slot:\n" ++
-  "  addi s6, s6, 1; j .Lesub_slot_loop\n" ++
-  ".Lesub_next_acct:\n" ++
-  "  addi s5, s5, 1; j .Lesub_acct_loop\n" ++
-  ".Lesub_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret\n" ++
-  "eip8037_prior_state_used_exact:\n" ++
-  "  # a0 = prior tx count (0-based current tx index), a1 = out ptr.\n" ++
-  "  # Returns a0=0 when the execution-derived prior-state sum is exact, else 1.\n" ++
-  "  sd zero, 0(a1)\n" ++
-  "  beqz a0, .Lepse_ok\n" ++
-  "  la t0, bsg_exact_state_ok; ld t0, 0(t0); beqz t0, .Lepse_fail\n" ++
-  "  la t0, bvgr_runtime_count; ld t0, 0(t0); bltu t0, a0, .Lepse_fail\n" ++
-  "  li t0, 16; bgtu a0, t0, .Lepse_fail\n" ++
-  "  mv t0, a0                   # prior count\n" ++
-  "  li t1, 0                    # i\n" ++
-  "  li t2, 0                    # accumulated state gas\n" ++
-  ".Lepse_loop:\n" ++
-  "  beq t1, t0, .Lepse_store\n" ++
-  "  slli t3, t1, 3\n" ++
-  "  la t4, bvgr_tx_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
-  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
-  "  la t4, bv_tx_status_arr; add t4, t4, t3; ld t5, 0(t4); beqz t5, .Lepse_next\n" ++
-  "  la t4, bvgr_tx_exec_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
-  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
-  ".Lepse_next:\n" ++
-  "  addi t1, t1, 1; j .Lepse_loop\n" ++
-  ".Lepse_store:\n" ++
-  "  sd t2, 0(a1)\n" ++
-  ".Lepse_ok:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lepse_fail:\n" ++
-  "  li a0, 1; ret\n" ++
-  "eip8037_tx_gas_gate:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # exec_payload\n" ++
-  "  mv s1, a1                   # BAL ptr\n" ++
-  "  mv s2, a2                   # BAL len\n" ++
-  "  mv s3, a3                   # gas_limit\n" ++
-  "  li s4, 0                    # reserved (keeps the stable frame/register shape)\n" ++
-  "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
-  "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
-  "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
-  "  add s5, s0, a0              # tx list ptr\n" ++
-  "  addi a0, s0, 508; jal ra, bgv_u32le\n" ++
-  "  sub s6, a0, a0              # clear before bounds checks\n" ++
-  "  add t0, s0, a0              # withdrawals ptr\n" ++
-  "  sub s6, t0, s5              # tx list len\n" ++
-  "  bltu t0, s5, .Letg_ok\n" ++
-  "  beqz s6, .Letg_ok\n" ++
-  "  mv a0, s5; jal ra, bgv_u32le\n" ++
-  "  andi t0, a0, 3; bnez t0, .Letg_ok\n" ++
-  "  srli s7, a0, 2              # tx_count = first offset / 4\n" ++
-  "  beqz s7, .Letg_ok\n" ++
-  "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
-  "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
-  -- bmvmx.5.5.11.1 (0-FA): fill WITH the BAL refund context (mirrors the
-  -- GasGatePrelude/BlockVerdictFunction fills). The context-free fill dropped
-  -- every 7702 auth state charge from the sequential inclusion gate's
-  -- prior-state sum: a failed set-delegation tx left block_state_gas_used = 0
-  -- here while the reference retains the auth residue, so a crafted follow-up
-  -- tx passed the state budget that the reference rejects at check_transaction.
-  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
-  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array\n" ++
-  "  bnez a0, .Letg_state_array_ready\n" ++
-  "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Letg_state_array_ready:\n" ++
-  "  li s8, 0                    # tx index, 0-based\n" ++
-  "  la t0, bsg_blob_gas_accum; sd zero, 0(t0)\n" ++
-  ".Letg_tx_loop:\n" ++
-  "  beq s8, s7, .Letg_ok\n" ++
-  "  slli t0, s8, 2; add t1, s5, t0; mv a0, t1; jal ra, bgv_u32le\n" ++
-  "  mv s9, a0                   # item_off\n" ++
-  "  addi t0, s8, 1\n" ++
-  "  beq t0, s7, .Letg_last_tx\n" ++
-  "  slli t1, t0, 2; add t1, s5, t1; mv a0, t1; jal ra, bgv_u32le\n" ++
-  "  j .Letg_have_next\n" ++
-  ".Letg_last_tx:\n" ++
-  "  mv a0, s6\n" ++
-  ".Letg_have_next:\n" ++
-  "  bltu a0, s9, .Letg_ok\n" ++
-  "  sub s10, a0, s9             # tx len\n" ++
-  "  add s9, s5, s9              # tx ptr\n" ++
-  "  mv a0, s9; mv a1, s10; la a2, bsg_tx_type; la a3, bsg_tx_inner\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_tx_inner; ld t2, 0(t0)\n" ++
-  "  bgtu t2, s10, .Letg_ok\n" ++
-  "  add s9, s9, t2              # inner RLP ptr (typed txs skip type byte)\n" ++
-  "  sub s10, s10, t2            # inner RLP len\n" ++
-  "  la t0, bsg_tx_type; ld t1, 0(t0)\n" ++
-  "  li t0, 1; beq t1, t0, .Letg_type_2930\n" ++
-  "  li t0, 2; beq t1, t0, .Letg_type_1559\n" ++
-  "  li t0, 3; beq t1, t0, .Letg_type_4844\n" ++
-  "  li t0, 4; beq t1, t0, .Letg_type_7702\n" ++
-  "  beqz t1, .Letg_type_legacy\n" ++
-  "  j .Letg_ok\n" ++
-  ".Letg_type_legacy:\n" ++
-  "  li t0, 2; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
-  "  li t0, 3; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
-  "  li t0, 4; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
-  "  li t0, 5; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
-  "  li t0, -1; la t1, bsg_access_field; sd t0, 0(t1); la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
-  "  j .Letg_have_fields\n" ++
-  ".Letg_type_2930:\n" ++
-  "  li t0, 3; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
-  "  li t0, 4; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
-  "  li t0, 5; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
-  "  li t0, 6; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
-  "  li t0, 7; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
-  "  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
-  "  j .Letg_have_fields\n" ++
-  ".Letg_type_1559:\n" ++
-  ".Letg_type_4844:\n" ++
-  "  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
-  "  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
-  "  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
-  "  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
-  "  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
-  "  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
-  "  j .Letg_have_fields\n" ++
-  ".Letg_type_7702:\n" ++
-  "  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)\n" ++
-  "  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)\n" ++
-  "  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)\n" ++
-  "  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)\n" ++
-  "  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)\n" ++
-  "  li t0, 9; la t1, bsg_auth_field; sd t0, 0(t1)\n" ++
-  ".Letg_have_fields:\n" ++
-  "  la t0, bsg_gas_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_tx_gas\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
-  "  la t0, bsg_value_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_value_off; la a4, bsg_value_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_data_off; ld t1, 0(t0); add t1, s9, t1\n" ++
-  "  la t0, bsg_data_ptr; sd t1, 0(t0)\n" ++
-  "  la t0, bsg_to_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_to_off; la a4, bsg_to_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_to_len; ld t1, 0(t0); bnez t1, .Letg_after_initcode_limit\n" ++
-  "  # Amsterdam/EIP-7954 MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 131072.\n" ++
-  "  la t0, bsg_data_len; ld t1, 0(t0); li t2, 131072; bgtu t1, t2, .Letg_validate_fail\n" ++
-  ".Letg_after_initcode_limit:\n" ++
-  "  la t0, bsg_access_addrs; sd zero, 0(t0)\n" ++
-  "  la t0, bsg_access_slots; sd zero, 0(t0)\n" ++
-  "  la t0, bsg_auth_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsg_access_field; ld t1, 0(t0); li t2, -1; beq t1, t2, .Letg_after_access\n" ++
-  "  mv a0, s9; mv a1, s10; mv a2, t1; la a3, bsg_access_off; la a4, bsg_access_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_access_off; ld t1, 0(t0); add a0, s9, t1\n" ++
-  "  la t0, bsg_access_len; ld a1, 0(t0)\n" ++
-  "  la a2, bsg_access_addrs; la a3, bsg_access_slots\n" ++
-  "  jal ra, access_list_count\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  ".Letg_after_access:\n" ++
-  "  la t0, bsg_auth_field; ld t1, 0(t0); li t2, -1; beq t1, t2, .Letg_after_auth\n" ++
-  "  mv a0, s9; mv a1, s10; mv a2, t1; la a3, bsg_auth_off; la a4, bsg_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_auth_off; ld t1, 0(t0); add a0, s9, t1\n" ++
-  "  la t0, bsg_auth_len; ld a1, 0(t0); la a2, bsg_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  ".Letg_after_auth:\n" ++
-  "  la t0, bsg_tx_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Letg_after_blob_precheck\n" ++
-  "  mv a0, s9; mv a1, s10; la a2, tcbg_struct\n" ++
-  "  jal ra, tx_eip4844_decode\n" ++
-  "  bnez a0, .Letg_validate_fail\n" ++
-  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
-  "  add a0, s9, t1; mv a1, t2; la a2, bsg_blob_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Letg_validate_fail\n" ++
-  "  la t0, bsg_blob_count; ld t1, 0(t0); beqz t1, .Letg_validate_fail\n" ++
-  "  li t2, 6; bgtu t1, t2, .Letg_validate_fail\n" ++
-  "  slli t1, t1, 17\n" ++
-  "  la t0, bsg_blob_gas_accum; ld t2, 0(t0); add t2, t2, t1\n" ++
-  "  li t3, 2752512             # Amsterdam MAX_BLOB_GAS_PER_BLOCK\n" ++
-  "  bgtu t2, t3, .Letg_validate_fail\n" ++
-  "  la t0, bsg_blob_gas_accum; sd t2, 0(t0)\n" ++
-  "  addi a0, s0, 520; jal ra, bgv_u64le       # header excess_blob_gas (u64)\n" ++
-  "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256  # price (u256 BE)\n" ++
-  "  bnez a0, .Letg_validate_fail              # u256 overflow (unreachable for valid blocks)\n" ++
-  "  # EIP-8037: reject iff max_fee_per_blob_gas < blob_gas_price. Compared in u256:\n" ++
-  "  # in the >328M excess regime both exceed u64, so the old u64 amsterdam_blob_gas_price\n" ++
-  "  # overflowed and false-rejected valid blob txs (evm-asm-lcx60.1).\n" ++
-  "  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bsg_blob_lt_out\n" ++
-  "  jal ra, u256_lt_be                        # *out = 1 iff max_fee < price\n" ++
-  "  la t0, bsg_blob_lt_out; ld t0, 0(t0); bnez t0, .Letg_validate_fail\n" ++
-  "  # EIP-4844 versioned-hash validity: every blob_versioned_hash must be 32\n" ++
-  "  # bytes and start with the KZG version byte 0x01 (VERSIONED_HASH_VERSION_KZG,\n" ++
-  "  # spec fork.py check_transaction). The inline precheck above validates blob\n" ++
-  "  # count and gas only, so call K139 here to reject a bad version byte\n" ++
-  "  # (status 6) or malformed item (status 5). s9/s10 are preserved by K139.\n" ++
-  "  mv a0, s9; mv a1, s10; li a2, 6; la a3, bsg_blob_count\n" ++
-  "  jal ra, tx_eip4844_validate_blob_hashes\n" ++
-  "  bnez a0, .Letg_validate_fail\n" ++
-  ".Letg_after_blob_precheck:\n" ++
-  "  # p6ggi: EIP-4844 (type 3) and EIP-7702 (type 4) forbid contract creation:\n" ++
-  "  # an empty 'to' raises TransactionTypeContractCreationError (fork.py:664-666).\n" ++
-  "  # Type 4 additionally requires a non-empty authorization_list, else\n" ++
-  "  # EmptyAuthorizationListError (fork.py:668-670). Both are InvalidBlock on the\n" ++
-  "  # block-validation path, so a block carrying such a tx is rejected. to_len and\n" ++
-  "  # auth_count here are the same reliably-parsed fields the gate already branches\n" ++
-  "  # on (init-code limit, CREATE/auth state gas); a valid type-3/4 tx has a 20-byte\n" ++
-  "  # 'to' and a valid type-4 tx has >=1 authorization, so neither is false-rejected.\n" ++
-  "  la t0, bsg_tx_type; ld t1, 0(t0)\n" ++
-  "  li t2, 4; beq t1, t2, .Letg_type47_auth_check\n" ++
-  "  li t2, 3; beq t1, t2, .Letg_type34_create_check\n" ++
-  "  j .Letg_after_type34_checks\n" ++
-  ".Letg_type47_auth_check:\n" ++
-  "  la t0, bsg_auth_count; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
-  ".Letg_type34_create_check:\n" ++
-  "  la t0, bsg_to_len; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
-  ".Letg_after_type34_checks:\n" ++
-  "  # execution-specs calculate_intrinsic_cost(tx, sender): sender==to\n" ++
-  "  # self-transfers skip recipient/value intrinsic charges inside the helper.\n" ++
-  "  li t6, 0\n" ++
-  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Letg_intrinsic_self_ready\n" ++
-  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); beqz t0, .Letg_intrinsic_self_ready\n" ++
-  "  slli t1, s8, 6; add t1, t1, s8; add t0, t0, t1; addi a0, t0, 1\n" ++
-  "  la a1, bsg_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  la t0, bsg_sender_addr; la t1, bsg_to_off; ld t1, 0(t1); add t1, s9, t1; li t2, 20\n" ++
-  ".Letg_intrinsic_self_cmp:\n" ++
-  "  beqz t2, .Letg_intrinsic_self_match\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Letg_intrinsic_self_ready\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Letg_intrinsic_self_cmp\n" ++
-  ".Letg_intrinsic_self_match:\n" ++
-  "  li t6, 1\n" ++
-  ".Letg_intrinsic_self_ready:\n" ++
-  "  li t5, 0\n" ++
-  "  la t0, bsg_value_len; ld t1, 0(t0); beqz t1, .Letg_intrinsic_value_ready\n" ++
-  "  li t5, 1\n" ++
-  ".Letg_intrinsic_value_ready:\n" ++
-  "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
-  "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
-  "  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2\n" ++
-  "  la t0, bsg_access_addrs; ld a3, 0(t0)\n" ++
-  "  la t0, bsg_access_slots; ld a4, 0(t0)\n" ++
-  "  la t0, bsg_auth_count; ld a5, 0(t0)\n" ++
-  "  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd t5, 0(sp); sd t6, 8(sp)\n" ++
-  "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_floor_gas; ld t1, 0(t0)\n" ++
-  "  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)\n" ++
-  "  bgeu t4, t1, .Letg_floor_stored\n" ++
-  "  sd t1, 0(t3)\n" ++
-  ".Letg_floor_stored:\n" ++
-  "  # v0.6.0 (EIP-2780): intrinsic.state is ZERO -- the CREATE new-account\n" ++
-  "  # and per-authorization state reserves left calculate_intrinsic_cost\n" ++
-  "  # (charged exactly at the top frame / set_delegation instead), so the\n" ++
-  "  # per-tx sufficiency test below reduces to max(regular, floor).\n" ++
-  "  la t0, bsg_state_gas; sd zero, 0(t0)\n" ++
-  "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
-  "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
-  "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
-  "  mv t0, t6\n" ++
-  ".Letg_required_have:\n" ++
-  "  li t4, 16777216\n" ++
-  "  # TX_MAX_GAS_LIMIT test (spec transactions.py:590) uses max(regular, floor),\n" ++
-  "  # no state component.\n" ++
-  "  bgtu t0, t4, .Letg_validate_fail\n" ++
-  "  # Per-tx 'insufficient gas' test (spec transactions.py:618-622 at\n" ++
-  "  # v0.6.0) uses max(intrinsic.regular + intrinsic.state, calldata_floor);\n" ++
-  "  # intrinsic.state is zero post-EIP-2780, so the required gas is\n" ++
-  "  # max(regular, floor).\n" ++
-  "  mv t4, s11\n" ++
-  "  bgeu t4, t6, .Letg_suff_have\n" ++
-  "  mv t4, t6\n" ++
-  ".Letg_suff_have:\n" ++
-  "  bltu t1, t4, .Letg_validate_fail\n" ++
-  "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
-  "  bltu s3, t2, .Letg_regular_reject\n" ++
-  "  sub t3, s3, t2\n" ++
-  "  # Spec pre-execution inclusion uses min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
-  "  # against remaining regular gas. Prior runtime gas is unknown in the\n" ++
-  "  # conservative multi-tx path, but prior mandatory regular gas is a lower\n" ++
-  "  # bound; if even that leaves too little room, rejection is certain.\n" ++
-  "  mv t4, t1\n" ++
-  "  li t6, 16777216\n" ++
-  "  bleu t4, t6, .Letg_declared_regular_have\n" ++
-  "  mv t4, t6\n" ++
-  ".Letg_declared_regular_have:\n" ++
-  "  bgtu t4, t3, .Letg_regular_reject\n" ++
-  "  # The required minimum regular gas is also accumulated so later txs get\n" ++
-  "  # the same lower-bound availability check.\n" ++
-  "  bgtu t0, t3, .Letg_regular_reject\n" ++
-  "  add t2, t2, t0; sd t2, 0(t5)\n" ++
-  "  # Do not accumulate declared gas limits across transactions here.\n" ++
-  "  # execution-specs releases each reservation after execution and advances\n" ++
-  "  # block_gas_used by the settled regular gas.  The later exact\n" ++
-  "  # eip7778_remaining_block_gas_from_results gate checks that prefix using\n" ++
-  "  # the runtime increments; summing declarations here false-rejects blocks\n" ++
-  "  # whose transactions individually fit after earlier transactions settle.\n" ++
-  "  bltu t1, s11, .Letg_ok\n" ++
-  "  sub t2, t1, s11             # tx.gas - intrinsic.regular\n" ++
-  "  la t0, bsg_worst_state; sd t2, 0(t0)\n" ++
-  "  mv a0, s8; la a1, bsg_prior_state\n" ++
-  "  jal ra, eip8037_prior_state_used_exact\n" ++
-  "  beqz a0, .Letg_prior_state_have\n" ++
-  "  addi a2, s8, 1\n" ++
-  "  mv a0, s1; mv a1, s2; la a3, bsg_prior_state\n" ++
-  "  jal ra, eip8037_state_used_before_tx\n" ++
-  ".Letg_prior_state_have:\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
-  "  la t0, bsg_prior_state; ld t3, 0(t0)\n" ++
-  "  bltu s3, t3, .Letg_state_fail\n" ++
-  "  sub t4, s3, t3\n" ++
-  "  # execution-specs check_transaction: tx.gas > state_gas_available rejects.\n" ++
-  "  bgtu t1, t4, .Letg_state_fail\n" ++
-  "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
-  ".Letg_regular_reject:\n" ++
-  "  li a0, 1; j .Letg_ret\n" ++
-  ".Letg_state_fail:\n" ++
-  "  li a0, 2; j .Letg_ret\n" ++
-  ".Letg_validate_fail:\n" ++
-  "  li a0, 3; j .Letg_ret\n" ++
-  ".Letg_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Letg_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret"
+  "eip8037_tx_gas_gate:\n" ++ emitProgramR eip8037TxGasGate_prog eip8037TxGasGate_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip8037TxGasGate_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip8037TxGasGateFunction_eq_prog :
+    eip8037TxGasGateFunction = "eip8037_tx_gas_gate:\n" ++ emitProgramR eip8037TxGasGate_prog eip8037TxGasGate_relocs := rfl
+
+#guard eip8037TxGasGateFunction.startsWith "eip8037_tx_gas_gate:\n"
+#guard eip8037TxGasGate_prog.length = 574
+/-- The three EIP-8037 gas-gate routines are emitted consecutively in the guest. -/
+def eip8037GasGateBundleFunction : String :=
+  eip8037StateUsedBeforeTxFunction ++ "\n" ++
+  eip8037PriorStateUsedExactFunction ++ "\n" ++
+  eip8037TxGasGateFunction
 
 end EvmAsm.Codegen

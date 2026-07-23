@@ -39,6 +39,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.CreateCreatorNonce
 
 namespace EvmAsm.Codegen
 
@@ -86,6 +87,12 @@ def frameReturnFunction : String :=
   -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
   -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
   "  bnez s0, .Lfr_sgas_done\n" ++
+  -- Revert every CREATE nonce-table mutation made since this child frame's
+  -- entry checkpoint.  This is a journal replay, not a count truncation: it
+  -- restores in-place advances of an existing creator as well as new entries.
+  "  la t0, evm_call_depth; ld t1, 0(t0); slli t1, t1, 3\n" ++
+  "  la t0, create_nonce_undo_checkpoint; add t0, t0, t1; ld a0, 0(t0)\n" ++
+  "  jal ra, create_creator_nonce_undo_to\n" ++
   -- On child error, execution-specs `refill_frame_state_gas` returns the
   -- child state-gas allocation in LIFO order: the portion that spilled into
   -- `gas_left` is credited back to the child frame gas first, and only the
@@ -771,6 +778,7 @@ def ziskFrameReturnPrologue : String :=
   "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 248(s0)  # expect 22<<32 | 23\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
+  createCreatorNonceUseFunction ++ "\n" ++
   ".Lfr_done:"
 
 /-- Data stubs so the probe links standalone (the real symbols live in the guest's
@@ -822,7 +830,8 @@ def ziskFrameReturnDataSection : String :=
   "fr_pstack:\n  .zero 256\n" ++
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++
-  "fr_ret:\n  .zero 512\n"
+  "fr_ret:\n  .zero 512\n" ++
+  createNonceTableData
 
 def ziskFrameReturnProbeUnit : BuildUnit := {
   body        := NOP

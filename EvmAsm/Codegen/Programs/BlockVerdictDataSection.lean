@@ -387,7 +387,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- future M29 blockhash table (.3b). dispatch_tx_runtime_code's .Ldtrc_stage guard bails
   -- conservatively for any payload that would still exceed this, so the staging write can
   -- never overflow into the adjacent gas-result / bvcd_* cells.
-  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~61MB (dataBase 0xa3000000 -> sszScratchBase 0xbf500000).
+  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~62MB (dataBase 0xa3000000 -> sszScratchBase 0xbf600000).
   "bv_stop_code:\n  .byte 0x00\n" ++
   ".balign 8\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
@@ -533,7 +533,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_wouldbe_state:\n  .zero 8\n" ++
   "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
-  "teer_authority:\n  .zero 24\n" ++
+  -- Keep the EIP-7702 authority as a full padded non-storage-effect key.
+  "teer_authority:\n  .zero 32\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
@@ -572,6 +573,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "stfv_wd_credit:\n  .zero 32\n" ++
   "bsw_amount:\n  .zero 32\n" ++
   "bsw_wei:\n  .zero 32\n" ++
+  -- 7rbp3: authenticated EIP-4895 withdrawal -> nonstorage-effect producer scratch.
+  ".balign 32\n" ++
+  "bv_wdne_addr:\n  .zero 32\n" ++
+  "bv_wdne_acct:\n  .zero 104\n" ++
+  "bv_wdne_post:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
   "strv_row_off:\n  .zero 8\n" ++
@@ -761,6 +767,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_create_addr:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  -- Output routing for the generalized top-level creation runner.  Mode 0 is
+  -- the legacy single-tx scalar publication; mode 1 scatters its settled
+  -- result into the current multi-tx slot.
+  "bv_creation_output_mode:\n  .zero 8\n" ++
+  "bv_creation_output_index:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++

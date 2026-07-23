@@ -448,6 +448,13 @@ def callDescendFallThrough
       "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
       "  la t0, nse_acct\n  sd zero, 0(t0)\n" ++            -- not found / error -> nonce 0
       ".Lcd_deb_have_nonce_" ++ tag ++ ":\n" ++
+      -- A value CALL leaves its caller nonce unchanged, but its append can follow
+      -- a same-transaction CREATE by that caller. Preserve that running nonce
+      -- instead of overwriting it with the header snapshot.
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  la a0, cd_caller_be\n  la a1, nse_acct\n" ++
+      "  jal ra, nonstorage_effect_latest_nonce\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
       "  jal ra, u256_add_be\n" ++
@@ -530,6 +537,13 @@ def callDescendFallThrough
     "  beqz t1, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0)\n" ++
     ".Lcd_nse_prior_alive_done_" ++ tag ++ ":\n" ++
+    -- A value transfer does not change a nonce, but its row is appended after
+    -- same-transaction effects. Keep the latest recorded nonce so it cannot
+    -- overwrite a created account's EIP-161 nonce=1 with header nonce=0.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n" ++
+    "  jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
@@ -707,25 +721,10 @@ def callDescendFallThrough
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
-  -- c83ty.3: a same-tx-created account that SELFDESTRUCTed is queued for deletion and must not
-  -- be resurrected by the same-tx code-effect fallback below. Treat later CALLs to that address as
-  -- empty-code success. This also preserves the value-transfer effects already recorded above.
-  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  "  la t2, evm_selfdestruct_destroyed_table\n" ++
-  ".Lcd_code_sdskip_scan_" ++ tag ++ ":\n" ++
-  "  mv t3, t2; la t4, cd_callee_be; li t5, 20\n" ++
-  ".Lcd_code_sdskip_cmp_" ++ tag ++ ":\n" ++
-  "  beqz t5, .Lcd_code_sdskip_found_" ++ tag ++ "\n" ++
-  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lcd_code_sdskip_next_" ++ tag ++ "\n" ++
-  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lcd_code_sdskip_cmp_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_next_" ++ tag ++ ":\n" ++
-  "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_code_sdskip_scan_" ++ tag ++ "\n" ++
-  "  j .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_found_" ++ tag ++ ":\n" ++
-  "  la t0, cd_destroyed_empty_hits; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  j .Lcd_empty_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_done_" ++ tag ++ ":\n" ++
+  -- EIP-6780 defers account deletion until transaction finalization.  A
+  -- SELFDESTRUCT marker therefore remains relevant to state-gas and final-state
+  -- accounting, but must not make a later same-transaction CALL resolve empty
+  -- code: normal header/code-effect lookup below supplies the still-live code.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  ld a0, 576(x20)\n" ++

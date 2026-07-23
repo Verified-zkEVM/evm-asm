@@ -161,7 +161,7 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
   "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
   "  la t0, bv_chain_id; ld a4, 0(t0); li a5, 1\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund_with_sender_nonce\n" ++
   -- v0.6.0: fold the WOULD-BE charges (state into the state dimension,
   -- ACCOUNT_WRITE regular into the intrinsic-regular output/cell) so
   -- every simple-transfer consumer reproduces the spec's charge-point
