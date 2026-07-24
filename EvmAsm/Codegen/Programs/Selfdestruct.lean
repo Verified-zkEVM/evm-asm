@@ -195,6 +195,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  jal ra, code_state_lookup_current\n" ++
   "  mv t1, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
+  codeStateStatusIsLiveAsm "t1" ++
   "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
   -- SELFDESTRUCT to a new (not-alive) beneficiary with a non-zero originator
   -- balance creates the beneficiary account. Amsterdam execution-specs charges
