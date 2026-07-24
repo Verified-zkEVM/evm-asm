@@ -587,7 +587,9 @@ private def selfdestructTailAsm : String :=
   -- both the forward (bal_account_code_consistent: has_code_change=0 + BAL silent -> consistent) and
   -- the reverse (_covers: has_code_change=0 -> no obligation) treat it as no code change. KEEP code_len
   -- (record+40) so both comparators' variable-stride walk stays aligned.
-  "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, sdai_origin_address; jal ra, find_code_effect_by_address; mv t1, a0; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16; beqz t1, .L_selfdestruct_created_in_tx_done; sd x0, 32(t1)\n" ++
+  "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, sdai_origin_address; jal ra, find_code_effect_by_address; mv t1, a0; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16; beqz t1, .L_selfdestruct_created_in_tx_finish; sd x0, 32(t1)\n" ++
+  ".L_selfdestruct_created_in_tx_finish:\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
   ".L_selfdestruct_created_in_tx_done:\n" ++
   selfdestructBalanceTransferRuntimeAsm ++
   selfdestructEip7708LogRuntimeAsm ++
