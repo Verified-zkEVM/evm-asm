@@ -216,9 +216,8 @@ def accountStateCommitPendingFunction : String :=
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
   -- EIP-161 preserves an empty account whose final balance is nonzero.  The
   -- AccountState tombstone must therefore distinguish `exists, no code` from
-  -- a deleted account; the authenticated BAL/pre-block helper is the same
-  -- final-balance authority used by the retired CodeState commit path.
-  "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lascp_over; li t1, 17; beqz a0, .Lascp_delete_flags; li t1, 19\n" ++
+  -- a deleted account using execution state, never the BAL comparison input.
+  "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lascp_over; li t1, 17; beqz a0, .Lascp_delete_flags; li t1, 51\n" ++
   ".Lascp_delete_flags:\n" ++
   "  sd t1, 40(sp)\n" ++
   "  mv a0, s2; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lascp_tombstone_found\n" ++
@@ -230,9 +229,9 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_tombstone_copy_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lascp_tombstone_new; add t2, s2, t1; lbu t3, 0(t2); la t4, account_state_scratch; add t4, t4, t1; sb t3, 0(t4); addi t1, t1, 1; j .Lascp_tombstone_copy_addr\n" ++
   ".Lascp_tombstone_new:\n" ++
-  "  ld t1, 40(sp); li t2, 19; beq t1, t2, .Lascp_over; la t0, account_state_scratch; sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over; j .Lascp_delete_next\n" ++
+  "  ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_over; la t0, account_state_scratch; sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over; j .Lascp_delete_next\n" ++
   ".Lascp_tombstone_found:\n" ++
-  "  mv t0, a0; ld t1, 40(sp); li t2, 19; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
+  "  mv t0, a0; ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
   ".Lascp_tombstone_write:\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0); j .Lascp_delete_next\n" ++
   ".Lascp_tombstone_nonzero:\n" ++
@@ -445,47 +444,36 @@ def codeStateUpsertFunction : String :=
 
 /-! ## code_state_final_balance_nonzero
 
-    Resolve the authoritative BAL final balance for a deferred SELFDESTRUCT
-    deletion.  EIP-161 prunes only an empty final account: a same-transaction
-    CREATE followed by SELFDESTRUCT to itself may have no code but must remain
-    an existing empty account when its final balance is nonzero.
+    Resolve the final EIP-161 existence predicate for a deferred SELFDESTRUCT
+    deletion.  The primary source is the already-committed execution
+    `AccountState` snapshot; an authenticated pre-block account lookup is used
+    only when execution has no authoritative balance/nonce snapshot.  BAL is a
+    comparison input and must never decide an execution-visible account state.
 
     a0 = canonical 20-byte BE address
-    returns a0 = 0 final balance is zero, 1 final balance is nonzero,
-                 2 BAL is absent/malformed/unavailable.
-
-    A missing BAL balance field is not malformed: it means the balance is
-    unchanged from the authenticated pre-block account.  In that case the
-    helper reads the header/witness account balance; an absent pre-block account
-    is zero.  Only genuine BAL or witness parse errors remain fail-closed. -/
+    returns a0 = 0 EIP-161-empty, 1 exists (nonzero balance or nonce),
+                 2 authenticated fallback unavailable. -/
 def codeStateFinalBalanceNonzeroFunction : String :=
   "code_state_final_balance_nonzero:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); sd a4, 32(sp); mv s0, a0\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, s0; la a3, code_state_bal_acct_ptr; la a4, code_state_bal_acct_len; jal ra, bal_find_account_by_address; bnez a0, .Lcsfb_unavailable\n" ++
-  "  la t0, code_state_bal_acct_ptr; ld a0, 0(t0); la t0, code_state_bal_acct_len; ld a1, 0(t0); la a2, code_state_bal_bytes; la a3, code_state_bal_len; la a4, code_state_bal_nonce; la a5, code_state_bal_nonce_len; jal ra, bal_account_post_fields; bnez a0, .Lcsfb_unavailable\n" ++
-  "  la t0, code_state_bal_len; ld s1, 0(t0); li t1, -1; beq s1, t1, .Lcsfb_preblock; li t1, 32; bgtu s1, t1, .Lcsfb_unavailable\n" ++
-  "  li t2, 0\n" ++
-  ".Lcsfb_scan:\n" ++
-  "  bgeu t2, s1, .Lcsfb_zero; la t3, code_state_bal_bytes; add t3, t3, t2; lbu t4, 0(t3); bnez t4, .Lcsfb_nonzero; addi t2, t2, 1; j .Lcsfb_scan\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd a3, 16(sp); sd a4, 24(sp); sd a5, 32(sp); mv s0, a0\n" ++
+  "  la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lcsfb_preblock; ld t0, 88(a0); andi t1, t0, 32; beqz t1, .Lcsfb_preblock\n" ++
+  "  ld t1, 32(a0); ld t2, 40(a0); or t1, t1, t2; ld t2, 48(a0); or t1, t1, t2; ld t2, 56(a0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 64(a0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_zero:\n" ++
   "  la t0, code_state_last_delete_balance_status; sd zero, 0(t0); li a0, 0; j .Lcsfb_ret\n" ++
   ".Lcsfb_nonzero:\n" ++
   "  la t0, code_state_last_delete_balance_status; li t1, 1; sd t1, 0(t0); li a0, 1; j .Lcsfb_ret\n" ++
-  -- No balance_changes entry means the final balance is inherited unchanged
-  -- from the authenticated pre-block state.  This is the normal same-tx
-  -- CREATE+SELFDESTRUCT case: the address is absent pre-block, therefore its
-  -- final balance is zero and EIP-161 prunes it at transaction finalization.
+  -- A missing authoritative execution snapshot inherits the authenticated
+  -- pre-block balance/nonce.  This is normally an absent same-tx CREATE,
+  -- therefore EIP-161-empty, but also handles a pre-funded CREATE target.
   ".Lcsfb_preblock:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, code_state_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lcsfb_pre_found; li t0, 1; bne a0, t0, .Lcsfb_unavailable; li a0, 0; j .Lcsfb_zero\n" ++
   ".Lcsfb_pre_found:\n" ++
-  "  li t2, 0\n" ++
-  ".Lcsfb_pre_scan:\n" ++
-  "  li t1, 32; beq t2, t1, .Lcsfb_zero; la t3, code_state_pre_acct; addi t3, t3, 8; add t3, t3, t2; lbu t4, 0(t3); bnez t4, .Lcsfb_nonzero; addi t2, t2, 1; j .Lcsfb_pre_scan\n" ++
+  "  la t0, code_state_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_unavailable:\n" ++
   "  la t0, code_state_last_delete_balance_status; li t1, 2; sd t1, 0(t0); li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); ld a4, 32(sp); addi sp, sp, 40; ret"
+  "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
 
 /-! ## code_state_commit_pending
 
