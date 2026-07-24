@@ -26,12 +26,14 @@ def bgvU32leInstrs : List Instr :=
 
 def bgvU32leBody : Stmt := .block "read" bgvU32leInstrs
 
-/-- Verified port of `bgv_u32le`: `a0 := leU32 (bytes at a0) 0`. -/
+/-- Verified port of `bgv_u32le`: `a0 := leU32 (bytes at a0) 0`.
+    Pins ambient `A = empAssertion` so `Fn.retSpecFlat` can discharge
+    `hpostEmp` (needed by whole-program callers such as a4gbr). -/
 def bgvU32leFn (p : Word) (bs : List (BitVec 8)) : Fn where
   name := "bgvU32le"
   region := ⟨p, bs⟩
-  pre := fun rf _ _ => rf.get .x10 = p ∧ 4 ≤ bs.length
-  post := fun rf _ _ => rf.get .x10 = leU32 bs 0
+  pre := fun rf _ A => rf.get .x10 = p ∧ 4 ≤ bs.length ∧ A = empAssertion
+  post := fun rf _ A => rf.get .x10 = leU32 bs 0 ∧ A = empAssertion
   body := bgvU32leBody
 
 theorem bgvU32le_byte_tie :
@@ -67,7 +69,7 @@ theorem bgvU32leFn_spec (p : Word) (bs : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case bgvU32le.read.mem =>
-    rintro rf ws A hws ⟨hx10, hlen⟩
+    rintro rf ws A hws ⟨hx10, hlen, hA⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     have e0 : (rf.get .x10 + signExtend12 (0 : BitVec 12) - p).toNat = 0 := by
       rw [hx10, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
@@ -90,8 +92,9 @@ theorem bgvU32leFn_spec (p : Word) (bs : List (BitVec 8))
       trivial, trivial, trivial, trivial⟩
   case bgvU32le.post =>
     intro rf' ws' A' h
-    obtain ⟨rf₀, ws₀, hws₀, ⟨hx10, _⟩, rfl, rfl⟩ := h
+    obtain ⟨rf₀, ws₀, hws₀, ⟨hx10, _, hA⟩, rfl, rfl⟩ := h
     obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
+    refine ⟨?_, hA⟩
     show RegFile.get _ .x10 = leU32 bs 0
     exact bgvU32le_engine (bgvU32leFn p bs).region
       (bgvU32leFn p bs).rw.base rf₀ hx10

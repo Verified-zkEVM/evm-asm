@@ -162,7 +162,19 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_slot_loop:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
   "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
-  "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
+  -- execution-specs' `get_storage_original` / `get_storage` first consult
+  -- the cumulative block map.  This callee-preload path feeds the per-tx
+  -- exec log before SSTORE runs, so it must use the FOREIGN callee's real
+  -- address, not the outer recipient, and must win over the header lookup.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Lscs_slot_header\n" ++
+  "  la a0, csce_addrkey                              # real callee exec-log key (LE)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la a1, csce_keys; add a1, a1, t4\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Lscs_done                # malformed over-capacity map: do not seed stale state\n" ++
+  "  li t0, 1; beq a0, t0, .Lscs_slot_committed\n" ++
+  ".Lscs_slot_header:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry: sv_this_rlp single-tx / sv_pre_rlp mtx)
   "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
@@ -193,6 +205,25 @@ def seedCalleeStorageFunction : String :=
   "  li t0, 95; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 64+(31-i)=95-i (entry[64..95])
   "  addi t6, t6, 1; j .Lscs_vrev\n" ++
   ".Lscs_vrevd:\n" ++
+  "  j .Lscs_slot_commit\n" ++
+  -- Level-2 map hit: `dtrc_threadval` is already the exec-log little-endian
+  -- current value.  Rebuild the seed entry with the real callee key and use
+  -- it directly; no header-state lookup is permitted on this path.
+  ".Lscs_slot_committed:\n" ++
+  "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
+  "  la t4, callee_seed_table; add t4, t4, t2\n" ++
+  "  la t5, csce_addrkey\n" ++
+  "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
+  "  li t6, 0\n" ++
+  ".Lscs_kcrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_kcrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  addi t6, t6, 1; j .Lscs_kcrev\n" ++
+  ".Lscs_kcrevd:\n" ++
+  "  la t5, dtrc_threadval\n" ++
+  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
   "  j .Lscs_slot_commit\n" ++
   ".Lscs_slot_vzero:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
@@ -298,6 +329,30 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_org_diff\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_org_cmp\n" ++
   ".Ldwp_org_diff:\n" ++
+  -- `process_transaction` warms the block coinbase before the top-level
+  -- message (amsterdam/fork.py), so a delegation target equal to the
+  -- fee-recipient pays WARM_ACCESS here. `bv_exec_p+32` is that canonical
+  -- 20-byte BE fee-recipient field.
+  "  la t0, bv_exec_p; ld t0, 0(t0); addi t0, t0, 32; mv t1, s5; li t2, 20\n" ++
+  ".Ldwp_coinbase_cmp:\n" ++
+  "  beqz t2, .Ldwp_warm\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldwp_coinbase_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldwp_coinbase_cmp\n" ++
+  -- `prepare_message` also initially warms every active precompile. Mirror
+  -- runtime_access_account_charge's canonical 0x01..0x11 / 0x0100 test
+  -- before falling through to the recipient and access-list probes.
+  ".Ldwp_coinbase_diff:\n" ++
+  "  li t0, 0\n" ++
+  ".Ldwp_precompile_prefix:\n" ++
+  "  li t1, 18; beq t0, t1, .Ldwp_precompile_low16\n" ++
+  "  add t2, s5, t0; lbu t3, 0(t2); bnez t3, .Ldwp_rcp_start\n" ++
+  "  addi t0, t0, 1; j .Ldwp_precompile_prefix\n" ++
+  ".Ldwp_precompile_low16:\n" ++
+  "  lbu t2, 18(s5); lbu t3, 19(s5); slli t2, t2, 8; or t2, t2, t3\n" ++
+  "  li t3, 1; bltu t2, t3, .Ldwp_rcp_start\n" ++
+  "  li t3, 17; bgeu t3, t2, .Ldwp_warm\n" ++
+  "  li t3, 256; beq t2, t3, .Ldwp_warm\n" ++
+  ".Ldwp_rcp_start:\n" ++
   "  addi t0, s6, 72; mv t1, s5; li t2, 20\n" ++
   ".Ldwp_rcp_cmp:\n" ++
   "  beqz t2, .Ldwp_warm\n" ++
@@ -340,6 +395,63 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n" ++
   "\n" ++
+  -- C1/9skho: materialize a prior-block EIP-7702 target only after the
+  -- callable runtime has paid its top-frame access charge.  The staged payload
+  -- retains the marker layout; code fetch uses x21, so only x21/codeSize need
+  -- change after the target lookup.
+  "dtrc_materialize_deferred_delegation:\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
+  "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+  -- A delegation target may itself have been successfully CREATEd by an
+  -- earlier transaction in this block.  CodeState is the current execution
+  -- state, so consult it before the immutable block-pre witness.
+  "  la a0, dtrc_deleg_target; jal ra, code_state_lookup_current\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
+  "  mv x21, a1; sd a2, 496(x20); j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_not_codestate:\n" ++
+  "  bnez a0, .Ldtrc_materialize_empty_target\n" ++
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
+  "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  -- Preserve the pre-defer resolver contract: an absent delegated target, or
+  -- an existing target carrying EMPTY_CODE_HASH, executes as empty code.
+  "  li t0, 1; beq a0, t0, .Ldtrc_materialize_empty_target\n" ++
+  "  li t0, 5; bne a0, t0, .Ldtrc_materialize_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_materialize_lookup_done\n" ++
+  "  j .Ldtrc_materialize_empty_target\n" ++
+  ".Ldtrc_materialize_lookup_done:\n" ++
+  "  bnez a0, .Ldtrc_materialize_lookup_fail\n" ++
+  "  la t0, cahsr_code_offset; ld t1, 0(t0); ld t2, 608(x20); add s0, t2, t1\n" ++
+  "  la t0, cahsr_code_length; ld s1, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, bytecode_is_self_contained\n" ++
+  "  bnez a0, .Ldtrc_materialize_self_contained_fail\n" ++
+  "  mv x21, s0; sd s1, 496(x20)\n" ++
+  "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  "  j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_empty_target:\n" ++
+  "  la x21, bv_stop_code; li t1, 1; sd t1, 496(x20)\n" ++
+  "  j .Ldtrc_materialize_done\n" ++
+  ".Ldtrc_materialize_lookup_fail:\n" ++
+  "  li t1, 1; j .Ldtrc_materialize_fail\n" ++
+  ".Ldtrc_materialize_self_contained_fail:\n" ++
+  "  li t1, 2\n" ++
+  ".Ldtrc_materialize_fail:\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd t1, 0(t0)\n" ++
+  "  la x21, bv_stop_code; li t1, 1; sd t1, 496(x20)\n" ++
+  ".Ldtrc_materialize_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 40\n" ++
+  "  ret\n" ++
+  "\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -348,6 +460,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
+  "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
   -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
   -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
@@ -362,6 +478,18 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  -- The BAL resolver only owns EIP-7702 delegation designators.  For ordinary
+  -- code use the shared mutable CodeState first: a tx1 CREATE is visible to a
+  -- tx2 top-level call even though it is absent from the block-pre witness.
+  "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
+  "  addi a0, s2, 72; jal ra, code_state_lookup_current\n" ++
+  "  ld s2, 0(sp); addi sp, sp, 16\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_not_codestate_code\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub t1, a1, t1\n" ++
+  "  la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_not_codestate_code:\n" ++
+  "  bnez a0, .Ldtrc_same_block_empty_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
@@ -398,20 +526,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t1, 100\n" ++
   ".Ldtrc_prior_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
-  -- Re-resolve the TARGET's code against the same header the recipient resolved under.
-  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
-  "  la a2, dtrc_deleg_target\n" ++
-  "  mv a3, s0; mv a4, s1\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
-  -- Warm the delegated target (EIP-2929 accessed_addresses.add(delegated_address)).
-  "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
-  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
-  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_seed\n" ++
+  -- Amsterdam prepare_dispatch charges this delegated access before reading
+  -- the target account/code.  Keep the marker payload until the callable
+  -- runtime reaches that existing OOG branch, then materialize on success.
+  "  la t0, dtrc_deleg_deferred; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_materialize_deferred_delegation; sd t1, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_empty_code:\n" ++
+  ".Ldtrc_deleg_empty_target_code:\n" ++
   "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
   "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
@@ -430,8 +552,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
+  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_deferred_marker_ready\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
   "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
+  ".Ldtrc_deferred_marker_ready:\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
@@ -460,6 +584,25 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_i; sd zero, 0(t0)\n" ++
   ".Ldtrc_sloop:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
+  -- `BlockState.storage_writes` is the authoritative pre-tx source.  Query it
+  -- before the parent witness: a prior successful transaction may have changed
+  -- this recipient's slot, and the parent header must not overwrite that value.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_header_storage\n" ++
+  -- Context recipient bytes are canonical BE, while the committed table uses
+  -- the exec-log's LE account key.  Build that key in the reusable slot scratch;
+  -- the lookup copies it into `dtrc_recipkey` before reusing this scratch for the
+  -- slot-key BE->LE conversion.
+  "  addi t4, s2, 91; la t5, dtrc_slotkey_le; li t6, 20\n" ++
+  ".Ldtrc_recipkey_rev:\n" ++
+  "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Ldtrc_recipkey_rev\n" ++
+  "  la a0, dtrc_slotkey_le\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported\n" ++
+  "  li t0, 1; beq a0, t0, .Ldtrc_thread_hit\n" ++
+  ".Ldtrc_header_storage:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0)\n" ++
   "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++
@@ -482,6 +625,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
   "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
+  -- An authenticated absent account has the empty storage trie, so every
+  -- requested slot has the same zero pre-state value as an absent slot.
+  -- Keep parse/decode failures below as conservative unsupported exits.
+  "  li t2, 1; beq a0, t2, .Ldtrc_vzero\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_storage_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
@@ -539,17 +686,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_4788_value_copy:\n" ++
   "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, -1; addi t3, t3, 1; addi t1, t1, -1; bnez t1, .Ldtrc_4788_value_copy\n" ++
   ".Ldtrc_4788_overlay_done:\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
-  -- value for (recipient, slotKey), stage that committed value as this slot's preload
-  -- (original==current). The helper bounds the table count by the named committed-storage
-  -- capacity, prepares recipient/slot scratch, and preserves latest matching entry semantics.
-  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
-  "  addi a0, s2, 72                                  # recipient 20B ptr\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2  # BE slot key ptr\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported # over-capacity table count -> conservative\n" ++
-  "  li t0, 1; bne a0, t0, .Ldtrc_nothread            # no prior-tx value -> keep witness value\n" ++
+  "  j .Ldtrc_nothread\n" ++
+  -- A committed-map hit has already supplied the exact current value.  Materialize
+  -- it as original=current and bypass all header-state work above.
+  ".Ldtrc_thread_hit:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
   "  la t5, dtrc_threadval\n" ++
   "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++
@@ -776,7 +916,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_selfbal_addr_copy\n" ++
   ".Ldtrc_selfbal_addr_done:\n" ++
   "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
   "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
   "  la t3, bv_pending_recipient_pre; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
@@ -895,7 +1035,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
   "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund_with_sender_nonce\n" ++
   -- v0.6.0: the runtime pools are driven by the WOULD-BE charges (a
   -- rolled-back prep still charges up to its OOG point); the APPLIED
   -- a0/a1 returns feed only the block-state arrays.
@@ -922,8 +1062,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- A CREATE child whose authenticated pre-balance lookup parse/decode failed
+  -- cannot safely execute with zero.  This sticky flag is set by
+  -- create_frame_descend and is consumed here into the ordinary nonzero
+  -- dispatch return that the verdict's final accept gate rejects.
+  "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_tx_post_top_frame_fn; sd zero, 0(t4)\n" ++
+  "  la t4, dtrc_deleg_materialize_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and

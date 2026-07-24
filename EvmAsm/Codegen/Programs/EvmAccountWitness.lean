@@ -134,18 +134,16 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_not_create_self:\n" ++
-    -- Check exec_code_effect_log for CREATE'd contract code (extcodehash
-    -- after CREATE: the deployed code is in the log but not in the BAL
-    -- code_changes or the pre-state witness).
-    "  la a0, exec_code_effect_log\n" ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-    "  la a2, eahsr_address_scratch\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    -- Execution code visibility is resolved from the layered mutable
+    -- CodeState, never from the append-only BAL comparison log.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodehash_witness_check\n" ++
-    -- Found CREATE'd code: keccak(code) → hash
-    "  mv t3, a0\n" ++
-    "  ld a1, 40(t3)\n" ++
-    "  addi a0, t3, 48\n" ++
+    "  li t3, 3; beq a0, t3, .Lextcodehash_codestate_deleted\n" ++
+    "  li t3, 2; beq a0, t3, .Lextcodehash_create_self_empty\n" ++
+    "  li t3, 1; bne a0, t3, .Lextcodehash_witness_check\n" ++
+    -- Found CREATE'd code: keccak(code) → hash.
+    "  mv t3, a1; mv a1, a2; mv a0, t3\n" ++
     "  la a2, rsbd_hash\n" ++
     "  jal ra, zkvm_keccak256\n" ++
     "  ld x10, 0(sp)\n" ++
@@ -159,6 +157,13 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_create_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
+    dispatchContinueRet ++ "\n" ++
+    -- A durable CodeState tombstone is a transaction-finalized EIP-6780
+    -- deletion.  It masks stale pre-block code and is non-existent for
+    -- EXTCODEHASH (zero, unlike an existing empty-code account's keccak("")).
+    ".Lextcodehash_codestate_deleted:\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x21, 16(sp)\n  ld x13, 24(sp)\n" ++
+    "  addi sp, sp, 32\n  sd zero, 0(x12)\n  sd zero, 8(x12)\n  sd zero, 16(x12)\n  sd zero, 24(x12)\n  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_witness_check:\n" ++
     "  la t0, eahsr_same_tx_empty_flag; sd zero, 0(t0)\n" ++
@@ -184,7 +189,29 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  ld t5, 104(t1); or t4, t4, t5\n" ++
     "  beqz t4, .Lextcodehash_witness_state\n" ++
     "  li t4, 1; la t5, eahsr_same_tx_empty_flag; sd t4, 0(t5)\n" ++
+    -- A same-transaction-created account that SELFDESTRUCTs during its
+    -- constructor remains an EIP-1052 empty-code account until transaction
+    -- finalization.  Its deletion record deliberately has zero post-balance
+    -- and nonce, so the non-storage-effect scan above cannot distinguish it
+    -- from a pre-state absence.  The per-transaction destroyed-address table
+    -- carries the exact BE address and is rollback-scoped by frame_return.
+    -- On overflow, retain the conservative pre-state result.
     ".Lextcodehash_witness_state:\n" ++
+    "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lextcodehash_sd_empty_done\n" ++
+    "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lextcodehash_sd_empty_done\n" ++
+    "  la t2, evm_selfdestruct_destroyed_table\n" ++
+    ".Lextcodehash_sd_empty_scan:\n" ++
+    "  mv t3, t2; la t4, eahsr_address_scratch; li t5, 20\n" ++
+    ".Lextcodehash_sd_empty_cmp:\n" ++
+    "  beqz t5, .Lextcodehash_sd_empty_found\n" ++
+    "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lextcodehash_sd_empty_next\n" ++
+    "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lextcodehash_sd_empty_cmp\n" ++
+    ".Lextcodehash_sd_empty_next:\n" ++
+    "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lextcodehash_sd_empty_scan\n" ++
+    "  j .Lextcodehash_sd_empty_done\n" ++
+    ".Lextcodehash_sd_empty_found:\n" ++
+    "  li t0, 1; la t1, eahsr_same_tx_empty_flag; sd t0, 0(t1)\n" ++
+    ".Lextcodehash_sd_empty_done:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
@@ -286,14 +313,13 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_after_same_block:\n" ++
-    -- Check exec_code_effect_log for CREATE'd contract code
-    "  la a0, exec_code_effect_log\n" ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-    "  la a2, eahsr_address_scratch\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    -- Consult the shared CodeState before the authenticated witness fallback.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodesize_witness_check\n" ++
-    -- Found: return code_len
-    "  ld t1, 40(a0)\n" ++
+    "  li t3, 1; bne a0, t3, .Lextcodesize_codestate_empty\n" ++
+    -- Found: return code_len.
+    "  mv t1, a2\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
@@ -304,6 +330,10 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
+    dispatchContinueRet ++ "\n" ++
+    ".Lextcodesize_codestate_empty:\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x21, 16(sp)\n  ld x13, 24(sp)\n" ++
+    "  addi sp, sp, 32\n  sd zero, 0(x12)\n  sd zero, 8(x12)\n  sd zero, 16(x12)\n  sd zero, 24(x12)\n  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_witness_check:\n" ++
     "  ld x10, 0(sp)\n" ++

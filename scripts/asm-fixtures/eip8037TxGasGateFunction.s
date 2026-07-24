@@ -1,0 +1,303 @@
+eip8037_tx_gas_gate:
+  addi sp, sp, -112
+  sd ra, 0(sp)
+  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
+  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)
+  mv s0, a0                   # exec_payload
+  mv s1, a1                   # BAL ptr
+  mv s2, a2                   # BAL len
+  mv s3, a3                   # gas_limit
+  li s4, 0                    # reserved (keeps the stable frame/register shape)
+  la t0, bsg_min_block_gas; sd zero, 0(t0)
+  la t0, bsg_exact_state_ok; sd zero, 0(t0)
+  addi a0, s0, 504; jal ra, bgv_u32le
+  add s5, s0, a0              # tx list ptr
+  addi a0, s0, 508; jal ra, bgv_u32le
+  sub s6, a0, a0              # clear before bounds checks
+  add t0, s0, a0              # withdrawals ptr
+  sub s6, t0, s5              # tx list len
+  bltu t0, s5, .Letg_ok
+  beqz s6, .Letg_ok
+  mv a0, s5; jal ra, bgv_u32le
+  andi t0, a0, 3; bnez t0, .Letg_ok
+  srli s7, a0, 2              # tx_count = first offset / 4
+  beqz s7, .Letg_ok
+  li t0, 16; bgtu s7, t0, .Letg_ok
+  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas
+  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)
+  la t2, bv_bal_start; ld a4, 0(t2)
+  la t2, bv_bal_len; ld a5, 0(t2)
+  la t2, bv_chain_id; ld a6, 0(t2)
+  jal ra, block_verdict_tx_state_gas_array
+  bnez a0, .Letg_state_array_ready
+  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)
+.Letg_state_array_ready:
+  li s8, 0                    # tx index, 0-based
+  la t0, bsg_blob_gas_accum; sd zero, 0(t0)
+.Letg_tx_loop:
+  beq s8, s7, .Letg_ok
+  slli t0, s8, 2; add t1, s5, t0; mv a0, t1; jal ra, bgv_u32le
+  mv s9, a0                   # item_off
+  addi t0, s8, 1
+  beq t0, s7, .Letg_last_tx
+  slli t1, t0, 2; add t1, s5, t1; mv a0, t1; jal ra, bgv_u32le
+  j .Letg_have_next
+.Letg_last_tx:
+  mv a0, s6
+.Letg_have_next:
+  bltu a0, s9, .Letg_ok
+  sub s10, a0, s9             # tx len
+  add s9, s5, s9              # tx ptr
+  mv a0, s9; mv a1, s10; la a2, bsg_tx_type; la a3, bsg_tx_inner
+  jal ra, tx_type_dispatch
+  bnez a0, .Letg_ok
+  la t0, bsg_tx_inner; ld t2, 0(t0)
+  bgtu t2, s10, .Letg_ok
+  add s9, s9, t2              # inner RLP ptr (typed txs skip type byte)
+  sub s10, s10, t2            # inner RLP len
+  la t0, bsg_tx_type; ld t1, 0(t0)
+  li t0, 1; beq t1, t0, .Letg_type_2930
+  li t0, 2; beq t1, t0, .Letg_type_1559
+  li t0, 3; beq t1, t0, .Letg_type_4844
+  li t0, 4; beq t1, t0, .Letg_type_7702
+  beqz t1, .Letg_type_legacy
+  j .Letg_ok
+.Letg_type_legacy:
+  li t0, 2; la t1, bsg_gas_field; sd t0, 0(t1)
+  li t0, 3; la t1, bsg_to_field; sd t0, 0(t1)
+  li t0, 4; la t1, bsg_value_field; sd t0, 0(t1)
+  li t0, 5; la t1, bsg_data_field; sd t0, 0(t1)
+  li t0, -1; la t1, bsg_access_field; sd t0, 0(t1); la t1, bsg_auth_field; sd t0, 0(t1)
+  j .Letg_have_fields
+.Letg_type_2930:
+  li t0, 3; la t1, bsg_gas_field; sd t0, 0(t1)
+  li t0, 4; la t1, bsg_to_field; sd t0, 0(t1)
+  li t0, 5; la t1, bsg_value_field; sd t0, 0(t1)
+  li t0, 6; la t1, bsg_data_field; sd t0, 0(t1)
+  li t0, 7; la t1, bsg_access_field; sd t0, 0(t1)
+  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)
+  j .Letg_have_fields
+.Letg_type_1559:
+.Letg_type_4844:
+  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)
+  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)
+  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)
+  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)
+  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)
+  li t0, -1; la t1, bsg_auth_field; sd t0, 0(t1)
+  j .Letg_have_fields
+.Letg_type_7702:
+  li t0, 4; la t1, bsg_gas_field; sd t0, 0(t1)
+  li t0, 5; la t1, bsg_to_field; sd t0, 0(t1)
+  li t0, 6; la t1, bsg_value_field; sd t0, 0(t1)
+  li t0, 7; la t1, bsg_data_field; sd t0, 0(t1)
+  li t0, 8; la t1, bsg_access_field; sd t0, 0(t1)
+  li t0, 9; la t1, bsg_auth_field; sd t0, 0(t1)
+.Letg_have_fields:
+  la t0, bsg_gas_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_tx_gas
+  jal ra, rlp_field_to_u64
+  bnez a0, .Letg_ok
+  la t0, bsg_tx_gas; ld t1, 0(t0)
+  la t0, bsg_value_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_value_off; la a4, bsg_value_len
+  jal ra, rlp_list_nth_item
+  bnez a0, .Letg_ok
+  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len
+  jal ra, rlp_list_nth_item
+  bnez a0, .Letg_ok
+  la t0, bsg_data_off; ld t1, 0(t0); add t1, s9, t1
+  la t0, bsg_data_ptr; sd t1, 0(t0)
+  la t0, bsg_to_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_to_off; la a4, bsg_to_len
+  jal ra, rlp_list_nth_item
+  bnez a0, .Letg_ok
+  la t0, bsg_to_len; ld t1, 0(t0); bnez t1, .Letg_after_initcode_limit
+  # Amsterdam/EIP-7954 MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 131072.
+  la t0, bsg_data_len; ld t1, 0(t0); li t2, 131072; bgtu t1, t2, .Letg_validate_fail
+.Letg_after_initcode_limit:
+  la t0, bsg_access_addrs; sd zero, 0(t0)
+  la t0, bsg_access_slots; sd zero, 0(t0)
+  la t0, bsg_auth_count; sd zero, 0(t0)
+  la t0, bsg_access_field; ld t1, 0(t0); li t2, -1; beq t1, t2, .Letg_after_access
+  mv a0, s9; mv a1, s10; mv a2, t1; la a3, bsg_access_off; la a4, bsg_access_len
+  jal ra, rlp_list_nth_item
+  bnez a0, .Letg_ok
+  la t0, bsg_access_off; ld t1, 0(t0); add a0, s9, t1
+  la t0, bsg_access_len; ld a1, 0(t0)
+  la a2, bsg_access_addrs; la a3, bsg_access_slots
+  jal ra, access_list_count
+  bnez a0, .Letg_ok
+.Letg_after_access:
+  la t0, bsg_auth_field; ld t1, 0(t0); li t2, -1; beq t1, t2, .Letg_after_auth
+  mv a0, s9; mv a1, s10; mv a2, t1; la a3, bsg_auth_off; la a4, bsg_auth_len
+  jal ra, rlp_list_nth_item
+  bnez a0, .Letg_ok
+  la t0, bsg_auth_off; ld t1, 0(t0); add a0, s9, t1
+  la t0, bsg_auth_len; ld a1, 0(t0); la a2, bsg_auth_count
+  jal ra, rlp_list_count_items
+  bnez a0, .Letg_ok
+.Letg_after_auth:
+  la t0, bsg_tx_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Letg_after_blob_precheck
+  mv a0, s9; mv a1, s10; la a2, tcbg_struct
+  jal ra, tx_eip4844_decode
+  bnez a0, .Letg_validate_fail
+  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)
+  add a0, s9, t1; mv a1, t2; la a2, bsg_blob_count
+  jal ra, rlp_list_count_items
+  bnez a0, .Letg_validate_fail
+  la t0, bsg_blob_count; ld t1, 0(t0); beqz t1, .Letg_validate_fail
+  li t2, 6; bgtu t1, t2, .Letg_validate_fail
+  slli t1, t1, 17
+  la t0, bsg_blob_gas_accum; ld t2, 0(t0); add t2, t2, t1
+  li t3, 2752512             # Amsterdam MAX_BLOB_GAS_PER_BLOCK
+  bgtu t2, t3, .Letg_validate_fail
+  la t0, bsg_blob_gas_accum; sd t2, 0(t0)
+  addi a0, s0, 520; jal ra, bgv_u64le       # header excess_blob_gas (u64)
+  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256  # price (u256 BE)
+  bnez a0, .Letg_validate_fail              # u256 overflow (unreachable for valid blocks)
+  # EIP-8037: reject iff max_fee_per_blob_gas < blob_gas_price. Compared in u256:
+  # in the >328M excess regime both exceed u64, so the old u64 amsterdam_blob_gas_price
+  # overflowed and false-rejected valid blob txs (evm-asm-lcx60.1).
+  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bsg_blob_lt_out
+  jal ra, u256_lt_be                        # *out = 1 iff max_fee < price
+  la t0, bsg_blob_lt_out; ld t0, 0(t0); bnez t0, .Letg_validate_fail
+  # EIP-4844 versioned-hash validity: every blob_versioned_hash must be 32
+  # bytes and start with the KZG version byte 0x01 (VERSIONED_HASH_VERSION_KZG,
+  # spec fork.py check_transaction). The inline precheck above validates blob
+  # count and gas only, so call K139 here to reject a bad version byte
+  # (status 6) or malformed item (status 5). s9/s10 are preserved by K139.
+  mv a0, s9; mv a1, s10; li a2, 6; la a3, bsg_blob_count
+  jal ra, tx_eip4844_validate_blob_hashes
+  bnez a0, .Letg_validate_fail
+.Letg_after_blob_precheck:
+  # p6ggi: EIP-4844 (type 3) and EIP-7702 (type 4) forbid contract creation:
+  # an empty 'to' raises TransactionTypeContractCreationError (fork.py:664-666).
+  # Type 4 additionally requires a non-empty authorization_list, else
+  # EmptyAuthorizationListError (fork.py:668-670). Both are InvalidBlock on the
+  # block-validation path, so a block carrying such a tx is rejected. to_len and
+  # auth_count here are the same reliably-parsed fields the gate already branches
+  # on (init-code limit, CREATE/auth state gas); a valid type-3/4 tx has a 20-byte
+  # 'to' and a valid type-4 tx has >=1 authorization, so neither is false-rejected.
+  la t0, bsg_tx_type; ld t1, 0(t0)
+  li t2, 4; beq t1, t2, .Letg_type47_auth_check
+  li t2, 3; beq t1, t2, .Letg_type34_create_check
+  j .Letg_after_type34_checks
+.Letg_type47_auth_check:
+  la t0, bsg_auth_count; ld t2, 0(t0); beqz t2, .Letg_validate_fail
+.Letg_type34_create_check:
+  la t0, bsg_to_len; ld t2, 0(t0); beqz t2, .Letg_validate_fail
+.Letg_after_type34_checks:
+  # execution-specs calculate_intrinsic_cost(tx, sender): sender==to
+  # self-transfers skip recipient/value intrinsic charges inside the helper.
+  li t6, 0
+  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Letg_intrinsic_self_ready
+  la t0, bv_public_keys_ptr; ld t0, 0(t0); beqz t0, .Letg_intrinsic_self_ready
+  slli t1, s8, 6; add t1, t1, s8; add t0, t0, t1; addi a0, t0, 1
+  la a1, bsg_sender_addr; jal ra, address_from_pubkey
+  la t0, bsg_sender_addr; la t1, bsg_to_off; ld t1, 0(t1); add t1, s9, t1; li t2, 20
+.Letg_intrinsic_self_cmp:
+  beqz t2, .Letg_intrinsic_self_match
+  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Letg_intrinsic_self_ready
+  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Letg_intrinsic_self_cmp
+.Letg_intrinsic_self_match:
+  li t6, 1
+.Letg_intrinsic_self_ready:
+  li t5, 0
+  la t0, bsg_value_len; ld t1, 0(t0); beqz t1, .Letg_intrinsic_value_ready
+  li t5, 1
+.Letg_intrinsic_value_ready:
+  la t0, bsg_data_ptr; ld a0, 0(t0)
+  la t0, bsg_data_len; ld a1, 0(t0)
+  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2
+  la t0, bsg_access_addrs; ld a3, 0(t0)
+  la t0, bsg_access_slots; ld a4, 0(t0)
+  la t0, bsg_auth_count; ld a5, 0(t0)
+  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas
+  addi sp, sp, -16
+  sd t5, 0(sp); sd t6, 8(sp)
+  jal ra, intrinsic_gas_amsterdam_counts
+  addi sp, sp, 16
+  bnez a0, .Letg_ok
+  la t0, bsg_floor_gas; ld t1, 0(t0)
+  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)
+  bgeu t4, t1, .Letg_floor_stored
+  sd t1, 0(t3)
+.Letg_floor_stored:
+  # v0.6.0 (EIP-2780): intrinsic.state is ZERO -- the CREATE new-account
+  # and per-authorization state reserves left calculate_intrinsic_cost
+  # (charged exactly at the top frame / set_delegation instead), so the
+  # per-tx sufficiency test below reduces to max(regular, floor).
+  la t0, bsg_state_gas; sd zero, 0(t0)
+  la t0, bsg_intrinsic_gas; ld s11, 0(t0)
+  la t0, bsg_tx_gas; ld t1, 0(t0)
+  la t0, bsg_floor_gas; ld t6, 0(t0)
+  mv t0, s11; bgeu t0, t6, .Letg_required_have
+  mv t0, t6
+.Letg_required_have:
+  li t4, 16777216
+  # TX_MAX_GAS_LIMIT test (spec transactions.py:590) uses max(regular, floor),
+  # no state component.
+  bgtu t0, t4, .Letg_validate_fail
+  # Per-tx 'insufficient gas' test (spec transactions.py:618-622 at
+  # v0.6.0) uses max(intrinsic.regular + intrinsic.state, calldata_floor);
+  # intrinsic.state is zero post-EIP-2780, so the required gas is
+  # max(regular, floor).
+  mv t4, s11
+  bgeu t4, t6, .Letg_suff_have
+  mv t4, t6
+.Letg_suff_have:
+  bltu t1, t4, .Letg_validate_fail
+  la t5, bsg_min_block_gas; ld t2, 0(t5)
+  bltu s3, t2, .Letg_regular_reject
+  sub t3, s3, t2
+  # Spec pre-execution inclusion uses min(TX_MAX_GAS_LIMIT, tx.gas)
+  # against remaining regular gas. Prior runtime gas is unknown in the
+  # conservative multi-tx path, but prior mandatory regular gas is a lower
+  # bound; if even that leaves too little room, rejection is certain.
+  mv t4, t1
+  li t6, 16777216
+  bleu t4, t6, .Letg_declared_regular_have
+  mv t4, t6
+.Letg_declared_regular_have:
+  bgtu t4, t3, .Letg_regular_reject
+  # The required minimum regular gas is also accumulated so later txs get
+  # the same lower-bound availability check.
+  bgtu t0, t3, .Letg_regular_reject
+  add t2, t2, t0; sd t2, 0(t5)
+  # Do not accumulate declared gas limits across transactions here.
+  # execution-specs releases each reservation after execution and advances
+  # block_gas_used by the settled regular gas.  The later exact
+  # eip7778_remaining_block_gas_from_results gate checks that prefix using
+  # the runtime increments; summing declarations here false-rejects blocks
+  # whose transactions individually fit after earlier transactions settle.
+  bltu t1, s11, .Letg_ok
+  sub t2, t1, s11             # tx.gas - intrinsic.regular
+  la t0, bsg_worst_state; sd t2, 0(t0)
+  mv a0, s8; la a1, bsg_prior_state
+  jal ra, eip8037_prior_state_used_exact
+  beqz a0, .Letg_prior_state_have
+  addi a2, s8, 1
+  mv a0, s1; mv a1, s2; la a3, bsg_prior_state
+  jal ra, eip8037_state_used_before_tx
+.Letg_prior_state_have:
+  la t0, bsg_tx_gas; ld t1, 0(t0)
+  la t0, bsg_prior_state; ld t3, 0(t0)
+  bltu s3, t3, .Letg_state_fail
+  sub t4, s3, t3
+  # execution-specs check_transaction: tx.gas > state_gas_available rejects.
+  bgtu t1, t4, .Letg_state_fail
+  addi s8, s8, 1; j .Letg_tx_loop
+.Letg_regular_reject:
+  li a0, 1; j .Letg_ret
+.Letg_state_fail:
+  li a0, 2; j .Letg_ret
+.Letg_validate_fail:
+  li a0, 3; j .Letg_ret
+.Letg_ok:
+  li a0, 0
+.Letg_ret:
+  ld ra, 0(sp)
+  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
+  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)
+  addi sp, sp, 112
+  ret

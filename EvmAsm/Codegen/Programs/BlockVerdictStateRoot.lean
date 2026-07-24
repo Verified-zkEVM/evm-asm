@@ -149,6 +149,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
+  ".Lbsr_bal_replay:\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
   "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++

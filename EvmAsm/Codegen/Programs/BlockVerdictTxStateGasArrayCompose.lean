@@ -1,0 +1,108 @@
+/-
+  Composition scaffolding for unconditional `block_verdict_tx_state_gas_array`.
+
+  Status (a4gbr track):
+  * Array tops (#10432+#10437+#10442): conditional on
+    IntrinsicAssumed / TeerAssumed / BgvOffsetAssumed (named hyps).
+  * Intrinsic leaf (#10434): framed success under ExtractAssumed +
+    TypeDispatchAssumed; ets proven.
+  * Discharge (`TxIntrinsicStateGasDischarge`): framed → IntrinsicAssumed
+    shape at **off = 0, len = bs.length** (slice-eq-ambient), still under
+    TisCalleeAssumptions. Temps are concrete in the discharge pre; array
+    hyp uses regOwn (peel at package time residual).
+  * Teer leaf (prover1): targets TeerAssumed.applied_flat verbatim; body
+    modulo 11 assumed callees; will ping when top lands.
+  * prior_exact (#10433): success + mid-loop overflow complete (gate sum).
+
+  Residual set for "unconditional" a4gbr claim (honest):
+  1. TeerAssumed ← prover1 teer top (modulo 11 input callees)
+  2. IntrinsicAssumed ← discharge package for all offs (ambient multi-tx)
+     + regOwn temp peel + CodeReq mono into array fullCode
+  3. TisCalleeAssumptions ← convert/prove extract + type_dispatch
+  4. BgvOffsetAssumed ← ambient LBU composition for unaligned loop bgv
+  5. Full eip8037_tx_gas_gate composition (separate residual of a4gbr.1)
+
+  This module holds the residual inventory and import hooks. Concrete
+  compose theorems land when prover1 teer top is available.
+-/
+
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayTop
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasDischarge
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+
+namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose
+
+open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
+open EvmAsm.Codegen.BlockVerdictTxStateGasArraySpec
+  (BgvOffsetAssumed nIntrinsicSteps nIntrinsicStackDwords tisScratchOwn fullCode)
+open EvmAsm.Codegen.TxIntrinsicStateGasSpec
+  (TisCalleeAssumptions ExtractEntry TypeEntry LinkEts T
+    intrinsicAssumed_success_flat_off0)
+open EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
+  (TeerApplied pureIntrinsicStateGasSuccess)
+
+/-- Residual inventory for the unconditional a4gbr deliverable.
+    Each field is a named hyp still required after leaf discharges land. -/
+structure A4gbrResiduals where
+  /-- Extract + type_dispatch assumed contracts (intrinsic leaf). -/
+  tisCallees : TisCalleeAssumptions TxIntrinsicStateGasSpec.fullCode
+  /-- Loop-site unaligned bgv (Region.wf 8-align gap). -/
+  bgvOffset : BgvOffsetAssumed fullCode
+  /-- Multi-tx ambient intrinsic (off ≠ 0 or len ≠ blob.length).
+      off=0 ∧ len=blob.length is discharged by
+      `intrinsicAssumed_success_flat_off0`. -/
+  ambientMultiTx : True := trivial
+  /-- Teer leaf modulo its 11 input callees (prover1 scope). -/
+  teerInputCallees : True := trivial
+
+/-- Slice-eq-ambient discharge is available (off=0, full blob).
+    Packaging into `IntrinsicAssumed` for arbitrary off/len remains residual. -/
+theorem intrinsic_discharge_off0_available
+    (asm : TisCalleeAssumptions TxIntrinsicStateGasSpec.fullCode)
+    (hextract : asm.extract.entry = ExtractEntry)
+    (htype : asm.typeDispatch.entry = TypeEntry)
+    (ret spVal regionBase outPtr oldOut : Word)
+    (s0 s1 s2 s3 s4 s5 s6 : Word)
+    (bs : List (BitVec 8))
+    (old5 old6 old7 old13 old14 old15 old16 : Word)
+    (hret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlink : (LinkEts &&& ~~~(1 : Word)) = LinkEts) :
+    let lenW := BitVec.ofNat 64 bs.length
+    cpsTripleWithin nIntrinsicSteps T ret TxIntrinsicStateGasSpec.fullCode
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ regionBase) **
+        (.x11 ↦ᵣ lenW) **
+        (.x12 ↦ᵣ outPtr) ** bytesRegion regionBase bs **
+        (outPtr ↦ₘ oldOut) **
+        tisScratchOwn **
+        (.x5 ↦ᵣ old5) ** (.x6 ↦ᵣ old6) ** (.x7 ↦ᵣ old7) **
+        (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14) ** (.x15 ↦ᵣ old15) **
+        (.x16 ↦ᵣ old16) **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spVal) **
+        stackFree spVal nIntrinsicStackDwords **
+        (.x8 ↦ᵣ s0) ** (.x9 ↦ᵣ s1) **
+        (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
+        (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6) **
+        (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion regionBase bs **
+        (outPtr ↦ₘ (BitVec.ofNat 64 pureIntrinsicStateGasSuccess)) **
+        tisScratchOwn **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word))) :=
+  intrinsicAssumed_success_flat_off0 asm hextract htype
+    ret spVal regionBase outPtr oldOut s0 s1 s2 s3 s4 s5 s6 bs
+    old5 old6 old7 old13 old14 old15 old16 hret hlink
+
+#print axioms intrinsic_discharge_off0_available
+
+end EvmAsm.Codegen.BlockVerdictTxStateGasArrayCompose

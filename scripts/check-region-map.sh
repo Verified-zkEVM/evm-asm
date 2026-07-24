@@ -60,15 +60,17 @@ for line in sys.stdin:
 " "$1"
 }
 read TEXT_BASE TEXT_SIZE <<<"$(sec .text)"
+read COMMITTED_BASE COMMITTED_SIZE <<<"$(sec .committed_storage)"
 read DATA_BASE DATA_SIZE <<<"$(sec .data)"
 read BSS_BASE  BSS_SIZE  <<<"$(sec .bss)"
 read SSZ_BASE  SSZ_SIZE  <<<"$(sec .sszscratch)"
 
 echo "== structural (must never drift) =="
 check ".text base"       "0000000080000000" "$TEXT_BASE"
+check ".committed_storage base" "00000000a2000000" "$COMMITTED_BASE"
 check ".data base"       "00000000a3000000" "$DATA_BASE"
 check ".bss base"        "00000000a4000000" "$BSS_BASE"
-check ".sszscratch base" "00000000bf500000" "$SSZ_BASE"
+check ".sszscratch base" "00000000bf980000" "$SSZ_BASE"
 
 # emitted-reality anchors the section table omits (guest stack top + ZisK MTVEC).
 # These live in the emitted .s (absolute `li` constants), not the ELF symtab.
@@ -91,9 +93,9 @@ BSS_END=$(python3 -c "print('%x' % (0x$BSS_BASE + 0x$BSS_SIZE))")
 python3 - "$DATA_END" "$BSS_END" <<'PY' || fail=1
 import sys
 data_end, bss_end = [int(x, 16) for x in sys.argv[1:]]
-ok = data_end <= 0xa4000000 and bss_end < 0xbf500000 and bss_end < 0xc0000000
+ok = data_end <= 0xa4000000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
 print(f"  {'OK  ' if ok else 'DRIFT'} .data end 0x{data_end:x} <= .bss base 0xa4000000")
-print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf500000 and < RAM ceiling 0xc0000000")
+print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf980000 and < RAM ceiling 0xc0000000")
 sys.exit(0 if ok else 1)
 PY
 
@@ -145,9 +147,11 @@ PY
 # --- link-dependent sizes vs RegionMap constants ---
 echo "== link-layout (regenerate on drift: gen-symbol-addresses.py --build) =="
 LEAN_TEXT=$(grep -oE 'def textSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
+LEAN_COMMITTED=$(grep -oE 'def committedStorageSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_DATA=$(grep -oE 'def dataSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_BSS=$(grep -oE 'def bssSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 check "RegionMap.textSizeBytes" "$(printf '%x' $LEAN_TEXT)" "$(printf '%x' 0x$TEXT_SIZE)"
+check "RegionMap.committedStorageSizeBytes" "$(printf '%x' $LEAN_COMMITTED)" "$(printf '%x' 0x$COMMITTED_SIZE)"
 check "RegionMap.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
 check "RegionMap.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
 

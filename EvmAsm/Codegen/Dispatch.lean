@@ -72,6 +72,13 @@ def systemCallReturndataMaxBytes : Nat := 12288
 
 #guard systemCallReturndataMaxBytes = 12288
 
+/-- EIP-170's Amsterdam deployed-code limit.  Top-level creation retains a
+    successful initcode RETURN in a fixed buffer of exactly this size before
+    applying the code-deposit rules. -/
+def topLevelCreationReturndataMaxBytes : Nat := 65536
+
+#guard topLevelCreationReturndataMaxBytes = 65536
+
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
 
@@ -763,6 +770,11 @@ def emitCreateChildFrameData : String :=
   -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
   createCodeEffectLogData ++ "\n" ++
+  -- The code-effect log above remains BAL comparator evidence.  Execution reads
+  -- use this bounded, real-address keyed CodeState overlay instead, so CREATE /
+  -- SELFDESTRUCT / recreate follow current Ethereum state rather than an
+  -- append-only event history.
+  codeStateData ++ "\n" ++
   -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
   -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
   createNonceTableData ++ "\n" ++
@@ -1156,6 +1168,18 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, 2f\n" ++
     "  sd x0, 0(t1)\n" ++
+    -- An empty CREATE initcode reaches this EOF halt route rather than the
+    -- STOP opcode handler.  Restore the same depth-indexed CREATE metadata
+    -- before entering the shared deposit path, otherwise it observes stale
+    -- globals instead of this child frame's derived address/value/creator.
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     "  li x14, 0\n" ++
     "  li x15, 0\n" ++
     "  j .Lcreate_deposit_from_halt_1\n" ++
@@ -1212,9 +1236,19 @@ def emitDispatcherPrologue : String :=
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
-  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++    -- (else CREATE deposits + code_covers carry stale records across txs)
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  -- The comparator evidence heap is per dispatch in standalone mode, but is
+  -- block-lived while the MTx CodeState is active: retained code bytes are the
+  -- backing store for cross-transaction execution reads.
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtd_code_log_kept:\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++ -- AccountState pending journal is tx scoped
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
@@ -1925,6 +1959,21 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
+    accountStateFindFunction ++ "\n" ++
+    accountStateCopyFunction ++ "\n" ++
+    accountStateAppendPendingFunction ++ "\n" ++
+    accountStateUpsertDurableFunction ++ "\n" ++
+    codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+    accountStateCommitPendingFunction ++ "\n" ++
+    accountStateRecordNonstorageFunction ++ "\n" ++
+    accountStateRecordCodeFunction ++ "\n" ++
+    accountStateLatestBalanceFunction ++ "\n" ++
+    accountStateLatestNonceFunction ++ "\n" ++
+    accountStateLookupCurrentFunction ++ "\n" ++
+    accountStateCreatedContainsFunction ++ "\n" ++
+    codeStateLookupCurrentFunction ++ "\n" ++
+    codeStateAddressSetInsertFunction ++ "\n" ++
+    codeStateAddressSetFlagFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpBackendImpl ++ "\n" ++
     emitModexpBnScratchData ++ "\n" ++
@@ -2239,6 +2288,15 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
   "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -2425,8 +2483,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
+  "  la x9, exec_log_seed_flag\n" ++ -- this preload row is not an execution write
   ".preload_expand_loop:\n" ++
   "  beqz x6, .preload_expand_done\n" ++
+  "  li x10, 1; sb x10, 0(x9)\n" ++
   -- addrHash = 0 (32 bytes)
   "  sd x0, 0(x7)\n" ++
   "  sd x0, 8(x7)\n" ++
@@ -2456,6 +2516,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x8, 120(x7)\n" ++
   "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
   "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
+  "  addi x9, x9, 1\n" ++
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
@@ -2589,6 +2650,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
   "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+  -- `calculate_intrinsic_cost` includes the EIP-7708 synthetic Transfer-log
+  -- cost in a value-carrying CREATE's recipient_regular_gas.  This is part of
+  -- base_regular_gas, so it must feed both the regular intrinsic and the
+  -- calldata floor before the latter is persisted below.
+  "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
+  "  ld x9, 112(x20); or x8, x8, x9\n" ++
+  "  ld x9, 120(x20); or x8, x8, x9\n" ++
+  "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
+  "  li x8, 1756\n" ++             -- TRANSFER_LOG_COST
+  "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++
+  "  j .runtime_tx_gas_recipient_done\n" ++
   ".runtime_tx_gas_no_create:\n" ++
   -- EIP-2780 decomposes the non-create recipient/value components out of the
   -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self
@@ -2806,6 +2879,13 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  -- C1/9skho: transaction-aware callers may defer EIP-7702 target-code
+  -- materialization until this top-frame warm/cold charge has succeeded.
+  "  la x5, runtime_tx_post_top_frame_fn\n" ++
+  "  ld x28, 0(x5)\n" ++
+  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  ".runtime_tx_post_top_frame_done:\n" ++
   -- 5tmlt (Part B): warm tx.to's (env.ADDRESS) EIP-7702 delegation target AFTER the
   -- reset above. The spec warms the delegated_address at the first/free top-level
   -- access (interpreter.py:152-153); the guest's pre-reset resolutions of it are wiped
@@ -2831,6 +2911,32 @@ def emitRuntimeDispatcherSetup : String :=
      "  li x21, 0x40000010\n")     -- M15: preserved code base (mirrors x10 init)
 
 def emitRuntimeDispatcherCallableSetup : String :=
+  -- The callable dispatcher executes one transaction in the stateless guest.
+  -- Reset every auxiliary transaction journal before its dispatch.  The
+  -- standalone prologue does the same; retaining any of these across callable
+  -- invocations lets a preceding transaction alter the next transaction's
+  -- execution evidence.
+  "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_code_log_kept:\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
     ("  la x5, runtime_dispatcher_input_ptr\n" ++
      "  ld x6, 0(x5)\n" ++
@@ -2902,6 +3008,7 @@ def emitCalleeStorageSeedLoop : String :=
   ".Lcallee_seed_loop:\n" ++
   "  beqz x6, .Lcallee_seed_done\n" ++
   "  ld x29, 448(x20)\n" ++                  -- x29 = current entry count
+  "  la x5, exec_log_seed_flag; add x5, x5, x29; li x31, 1; sb x31, 0(x5)\n" ++
   "  slli x30, x29, 7; add x30, x28, x30\n" ++   -- x30 = entry ptr = base + count*128
   -- addrHash src[0..32] -> entry[0..32]
   "  ld x31, 0(x7);  sd x31, 0(x30)\n" ++
@@ -2970,6 +3077,17 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  -- A top-level CREATE seeds its own nonce to one before executing initcode.
+  -- BlockVerdictCreationStage marks that frame before entering this callable
+  -- dispatcher, but this setup deliberately resets the per-transaction CREATE
+  -- nonce table. Seed only after that reset: a nested CREATE in the constructor
+  -- must derive from the top-level created account's live nonce (1), not its
+  -- header-state nonce (usually 0). Non-creation callers leave the marker zero.
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n" ++
+  "  la t0, create_frame_flag; ld t1, 0(t0); beqz t1, .Lrtd_top_create_nonce_done\n" ++
+  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
+  ".Lrtd_top_create_nonce_done:\n" ++
+  "  ld x10, 0(sp); addi sp, sp, 16\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
@@ -3006,6 +3124,21 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateUpsertDurableFunction ++ "\n" ++
+  codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+  accountStateCommitPendingFunction ++ "\n" ++
+  accountStateRecordNonstorageFunction ++ "\n" ++
+  accountStateRecordCodeFunction ++ "\n" ++
+  accountStateLatestBalanceFunction ++ "\n" ++
+  accountStateLatestNonceFunction ++ "\n" ++
+  accountStateLookupCurrentFunction ++ "\n" ++
+  accountStateCreatedContainsFunction ++ "\n" ++
+  codeStateLookupCurrentFunction ++ "\n" ++
+  codeStateAddressSetInsertFunction ++ "\n" ++
+  codeStateAddressSetFlagFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpBackendImpl ++ "\n" ++
   emitModexpBnScratchData ++ "\n" ++
@@ -3402,6 +3535,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_top_frame_regular_gas:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_post_top_frame_fn:\n" ++
+  "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
   -- and standalone runtime inputs.
@@ -3494,6 +3629,9 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "exec_log_txindex:\n" ++
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
+  ".balign 8\n" ++
+  "exec_log_seed_flag:\n" ++
+  "  .zero 16384\n" ++    -- one provenance byte per persistent-log row; 1 = seed/preload
   ".balign 32\n" ++
   "evm_memory_layout_pad:\n" ++
   "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++
@@ -3541,6 +3679,15 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
   "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++

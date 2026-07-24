@@ -32,34 +32,36 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
 /-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
-    Set to 32768 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
+    Set to 65536 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
     comparators are linear — the FORWARD binary-searches the sorted agg (#9018) and the REVERSE
     _covers uses a matched-bitmap over the sorted agg (#9021) — there is no remaining super-linear
     consumer, so the cap can cover the full 200M-gas worst case.
 
-    Worst-case bound: record_nonstorage_effect APPENDS one raw record per value-bearing CALL /
-    CREATE-created / SELFDESTRUCT-beneficiary. The cheapest record-producing op is a value-CALL to
-    an EXISTING WARM account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400 REGULAR gas
-    (Amsterdam vm/gas.py:50, vm/instructions/system.py:424/465 — value transfer is charged via
-    charge_gas, NOT the EIP-8037 state-gas dimension; CREATE 32000 / SELFDESTRUCT-redeploy ~37000
-    are dearer). So a 200M-gas block emits at most 200_000_000 / 10400 ≈ 19_230 raw records. 32768
-    covers that with ~49% margin (≈298M gas), so the effect log NEVER overflows under the 200M
-    block-gas envelope — i.e. the overflow→skip path (multi-tx BlockVerdictMtxTail) and the
-    single-tx silent-truncation are both UNREACHABLE within scope, closing the conservative skip.
+    Worst-case bound: a nonzero value-CALL appends TWO raw records, the caller debit and the callee
+    credit (ChildFrameHandlers .61.6.8), while its cheapest regular-gas charge is an existing warm
+    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus the raw-record upper bound
+    from the 200M block regular-gas limit is
+      2 * floor(200_000_000 / 10400) = 38_460.
+    CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
+    separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
+    separate block budget and cannot reduce this bound. 40960 therefore covers the full raw stream
+    with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
+    verdict assumption.
 
     Cost: the aggregate radix-sort and both comparators iterate over the live `count`, never `cap`,
-    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 14.7 MiB + cap-byte covered[]), comfortably
+    so a larger cap is pure reserved BSS (4 × cap×112 ≈ 28 MiB + cap-byte covered[]), comfortably
     inside the ~206 MiB .data→.sszscratch slack (CallFrameLayout). Zero runtime cost for normal
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 32768
+def nonstorageEffectLogCap : Nat := 40960
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
@@ -69,8 +71,8 @@ def nonstorageEffectLogCap : Nat := 32768
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
 def recordNonstorageEffectFunction : String :=
   "record_nonstorage_effect:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp)\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd ra, 40(sp)\n" ++
   "  mv s0, a0                   # addr ptr\n" ++
   "  mv s1, a1                   # pre_balance ptr\n" ++
   "  mv s2, a2                   # post_balance ptr\n" ++
@@ -91,13 +93,18 @@ def recordNonstorageEffectFunction : String :=
   "  sd s3, 96(t3)               # pre_nonce\n" ++
   "  sd s4, 104(t3)              # post_nonce\n" ++
   "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  -- tqj1m: mirror the comparison trace into the full execution AccountState
+  -- journal.  The legacy record remains intact for the BAL comparator until
+  -- the final comparison-materialization switch; a bounded journal failure
+  -- fails closed through this producer's established overflow path.
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
   ".Lrnse_overflow:\n" ++
   "  la t0, exec_nonstorage_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lrnse_ret:\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); addi sp, sp, 40\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld ra, 40(sp); addi sp, sp, 48\n" ++
   "  ret"
 
 /-! ## nonstorage_effect_latest_balance (yisv8 .spine.1)
@@ -257,6 +264,10 @@ def ziskNonstorageEffectLogPrologue : String :=
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lnsel_done\n" ++
   recordNonstorageEffectFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateRecordNonstorageFunction ++ "\n" ++
   ".Lnsel_done:"
 
 def ziskNonstorageEffectLogDataSection : String :=
@@ -269,7 +280,8 @@ def ziskNonstorageEffectLogDataSection : String :=
   "nsel_qa:\n  .zero 32\n" ++
   "nsel_pb:\n  .zero 32\n" ++
   "nsel_qb:\n  .zero 32\n" ++
-  nonstorageEffectLogData
+  nonstorageEffectLogData ++
+  codeStateData
 
 def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
   body        := NOP
@@ -408,10 +420,21 @@ def nonstorageEffectAggregateFunction : String :=
 
 /-- Shared sort scratch for `nonstorage_effect_aggregate` (cap x 112 B each). -/
 def nonstorageEffectAggregateScratch : String :=
+  -- This is runtime scratch, not initialized input data.  Name the section
+  -- explicitly because the main dispatcher appends it while emitting `.data`.
+  -- In particular, AccountState's phase alias must cover both radix buffers
+  -- in the same NOBITS region.
+  ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
-  "nea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  -- The per-transaction AccountState journal is dead before this post-dispatch
+  -- radix scratch is first used. Durable AccountState remains separate.
+  "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
-  "nea_counts:\n  .zero 2048\n"
+  ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
+  ".set account_state_delete, account_state_pending + " ++ toString (accountStateTableBytes + accountStateCreatedCapacity * 32) ++ "\n" ++
+  "nea_counts:\n  .zero 2048\n" ++
+  -- Callers append initialized dispatcher storage after this shared scratch.
+  ".section .data\n"
 
 /-- `zisk_nonstorage_effect_aggregate`: known-answer probe. Three input records
     (A=0x11.., B=0x22.., A again) exercise dedup with first-pre / last-post:

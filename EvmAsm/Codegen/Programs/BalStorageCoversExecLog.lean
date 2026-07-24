@@ -111,9 +111,34 @@ def balStorageCoversExecLogFunction : String :=
   "  ld t1, 120(s5); ld t2, 88(s5); bne t1, t2, .Lbsce_netchange\n" ++
   "  j .Lbsce_next                        # no net change -> not required in the BAL\n" ++
   ".Lbsce_netchange:\n" ++
-  -- A contract created and SELFDESTRUCTed in the same transaction does not commit
-  -- constructor storage writes. The raw exec log still records them, but EIP-7928
-  -- exposes those touched slots as storage_reads, not storage_changes. Failed
+  -- EIP-6780 net deletion is the authoritative demotion criterion.  The
+  -- dispatcher clears this table at each transaction boundary, child-frame
+  -- reverts restore its count, and SELFDESTRUCT appends only an account both
+  -- created and committed-destroyed in this transaction.  Such an ephemeral
+  -- account has no post-state storage trie, so its raw execution writes are
+  -- storage reads rather than BAL storage_changes.  Never trust the table on
+  -- overflow: falling through preserves the fail-closed comparison.
+  "  bnez s8, .Lbsce_legacy_deleted\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lbsce_legacy_deleted\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; ld t4, 0(t0); beqz t4, .Lbsce_legacy_deleted\n" ++
+  "  la t5, evm_selfdestruct_destroyed_table; mv t6, zero\n" ++
+  ".Lbsce_netdeleted_scan:\n" ++
+  "  beq t6, t4, .Lbsce_legacy_deleted\n" ++
+  "  slli t0, t6, 5; add t0, t5, t0; li t1, 0\n" ++
+  ".Lbsce_netdeleted_cmp:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbsce_next\n" ++
+  "  add t2, t0, t1; lbu t2, 0(t2)\n" ++
+  "  li t3, 19; sub t3, t3, t1; add t3, s0, t3; lbu t3, 0(t3)\n" ++
+  "  bne t2, t3, .Lbsce_netdeleted_next\n" ++
+  "  addi t1, t1, 1; j .Lbsce_netdeleted_cmp\n" ++
+  ".Lbsce_netdeleted_next:\n" ++
+  "  addi t6, t6, 1; j .Lbsce_netdeleted_scan\n" ++
+  ".Lbsce_legacy_deleted:\n" ++
+  -- Legacy evidence-based fallback for failed CREATE/CREATE2 initcode. A contract
+  -- created and SELFDESTRUCTed in the same transaction is handled above by the
+  -- authoritative committed net-deletion table. The raw exec log still records
+  -- noncommitting constructor storage writes, while EIP-7928 exposes those touched
+  -- slots as storage_reads, not storage_changes. Failed
   -- CREATE/CREATE2 initcode can leave the same noncommitting storage trace when it
   -- reaches the target account and then OOGs before deployment: the account is
   -- accessed, but no deployed-code effect is produced. Restrict the demotion to the
@@ -274,7 +299,9 @@ def balStorageCoversExecLogData : String :=
     slot 9 -> 0x33. The exec log is varied per scenario (addrHash A=0xAA):
       (1) S7 (0x11 then 0x22), S9 0x33, SB read no-op -> all net changes claimed -> 0
       (2) + S5 net change 0x44 not in the BAL                            -> 1 (omission)
-      (3) S7 last current 0x99 (BAL claims 0x22)                         -> 1 (mismatch) -/
+      (3) S7 last current 0x99 (BAL claims 0x22)                         -> 1 (mismatch)
+      (4) stale same-tx-destroyed marker for A skips the omitted S5      -> 0
+      (5) clearing that marker makes the same omitted S5 demand BAL      -> 1 -/
 def ziskBalStorageCoversExecLogPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -338,6 +365,20 @@ def ziskBalStorageCoversExecLogPrologue : String :=
   "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 4\n" ++
   "  jal ra, bal_storage_covers_exec_log\n" ++
   "  sd a0, 16(s0)\n" ++
+  -- A stale marker from an earlier transaction makes the omitted S5 appear
+  -- ephemeral. The table holds a BE-20 address: addrHash A's low byte is at
+  -- byte 19, so it is 0xAA at that final table byte.
+  "  la t0, evm_selfdestruct_destroyed_table; li t1, 0xAA; sb t1, 19(t0)\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 5\n" ++
+  "  jal ra, bal_storage_covers_exec_log\n" ++
+  "  sd a0, 24(s0)\n" ++
+  -- The callable per-transaction reset clears the marker.  With exactly the
+  -- same omitted write, coverage must now demand a BAL storage change.
+  "  la t0, evm_selfdestruct_destroyed_count; sd zero, 0(t0)\n" ++
+  "  la a0, bsce_addr; la a1, bsce_acct; li a2, 43; la a3, bsce_log; li a4, 5\n" ++
+  "  jal ra, bal_storage_covers_exec_log\n" ++
+  "  sd a0, 32(s0)\n" ++
   "  j .Lbsce_probe_done\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
@@ -366,7 +407,13 @@ def ziskBalStorageCoversExecLogDataSection : String :=
   "exec_code_effect_count:\n  .zero 8\n" ++
   "exec_code_effect_overflow:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "exec_code_effect_log:\n  .zero 48\n"
+  "exec_code_effect_log:\n  .zero 48\n" ++
+  -- Net-deletion marker stubs: the real guest owns these per-transaction cells.
+  ".balign 8\n" ++
+  "evm_selfdestruct_destroyed_count:\n  .zero 8\n" ++
+  "evm_selfdestruct_destroyed_overflow:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_destroyed_table:\n  .zero 32\n"
 
 def ziskBalStorageCoversExecLogProbeUnit : BuildUnit := {
   body        := NOP

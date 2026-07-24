@@ -251,6 +251,13 @@ def callFrameDescendFunction : String :=
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s6, 40(sp); sd s7, 48(sp); sd s8, 56(sp); sd s9, 64(sp)\n" ++
   "  sd s10, 72(sp); sd s11, 80(sp)\n" ++
+  -- Return a per-invocation balance-staging bit in a5. The CREATE descent
+  -- consumes it immediately after this call: a set bit means this generic
+  -- descent already supplied the child with a live balance (from the BAL table
+  -- or a committed in-tx effect), so a later CREATE-specific header fallback
+  -- must not overwrite it. Keep it in this frame's unused final save slot,
+  -- rather than in global scratch, so nested descents cannot clobber it.
+  "  sd zero, 88(sp)                 # a5 return: child env+32 was staged\n" ++
   -- &desc arrives in a1 (x11) so it does NOT alias x10/x12/x13/x20/x21 (the live
   -- parent PC/stack/mem/env/code-base, which this routine reads first).
   "  mv s7, a1                      # &desc\n" ++
@@ -391,8 +398,7 @@ def callFrameDescendFunction : String :=
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
   -- pointer_reentry's re-entered EOA SSTOREs SELFBALANCE=1000 and the directly-called contract
-  -- 100. The witness lookup can't run here (mid-EVM-execution the MPT walk returns absent), so
-  -- dispatch_tx_runtime_code pre-resolved every BAL account's balance into callee_balance_table
+  -- 100. dispatch_tx_runtime_code pre-resolves BAL-account balances into callee_balance_table
   -- (LE-limb order). Reverse the child ADDRESS@0 (20B stack-word/LE, MSB at env+19) into the free
   -- child-env scratch (env+696; frameEnvBytes=768, fields end 688) -> canonical BE, scan the table,
   -- and copy the matching LE balance verbatim into env+32 (h_SELFBALANCE copies env+32 to the LE
@@ -409,6 +415,7 @@ def callFrameDescendFunction : String :=
   "  ld t2, 8(t1); ld t3, 704(s9); bne t2, t3, .Lcfd_sb_next\n" ++
   "  lwu t2, 16(t1); lwu t3, 712(s9); bne t2, t3, .Lcfd_sb_next\n" ++
   "  ld t2, 32(t1); sd t2, 32(s9); ld t2, 40(t1); sd t2, 40(s9); ld t2, 48(t1); sd t2, 48(s9); ld t2, 56(t1); sd t2, 56(s9)\n" ++
+  "  li t2, 1; sd t2, 88(sp)         # table supplied the child's live pre-balance\n" ++
   "  j .Lcfd_sb_done\n" ++
   ".Lcfd_sb_next:\n" ++
   "  addi t1, t1, 64; addi t0, t0, -1; j .Lcfd_sb_scan\n" ++
@@ -433,7 +440,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
@@ -441,7 +448,27 @@ def callFrameDescendFunction : String :=
   "  addi t0, s9, 728; addi t1, s9, 63; li t2, 32\n" ++
   ".Lcfd_lbov_wb:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
+  "  li t2, 1; sd t2, 88(sp)         # committed effect supersedes the table value\n" ++
   ".Lcfd_lbov_done:\n" ++
+  -- The BAL table is intentionally bounded and does not necessarily include every
+  -- account reached by a nested frame.  If neither it nor the live-effect overlay
+  -- supplied a balance, resolve the inherited authenticated header state instead
+  -- of executing with a guessed zero.  This is the same prestate fallback used by
+  -- CREATE descent: a live effect always wins, authenticated absence is zero, and
+  -- malformed lookup results become the existing sticky runtime failure.
+  "  ld t0, 88(sp); bnez t0, .Lcfd_prebalance_done\n" ++
+  "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
+  "  ld a0, 576(s9); ld a1, 584(s9); addi a2, s9, 696; li a3, 20; ld a4, 592(s9); ld a5, 600(s9); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root; mv t6, a0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 8\n" ++
+  "  beqz t6, .Lcfd_prebalance_found\n" ++
+  "  li t0, 1; beq t6, t0, .Lcfd_prebalance_done\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_prebalance_done\n" ++
+  ".Lcfd_prebalance_found:\n" ++
+  "  la t0, create_prebalance_acct; addi t0, t0, 39; addi t1, s9, 32; li t2, 32\n" ++
+  ".Lcfd_prebalance_copy:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcfd_prebalance_copy\n" ++
+  ".Lcfd_prebalance_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used,
   -- evm_state_gas_spilled = state gas drawn from gas_left) into the child env
@@ -491,9 +518,21 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
   "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
   ".Lcfd_nse_snap_done:\n" ++
+  -- Every child frame owns a journal high-water mark captured at ITS entry.
+  -- In particular, a CREATE's creator-nonce advance is already committed before
+  -- its child descends, so a child REVERT must retain that parent mutation and
+  -- roll back only mutations made inside the child (its seed/nested CREATEs).
+  "  la t1, create_nonce_undo_count; ld t0, 0(t1)\n" ++
+  "  la t1, create_nonce_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- The mutable CodeState is a transaction overlay, so it needs the same
+  -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
+  -- the checkpoints depth-indexed rather than extending the packed env ABI.
+  "  la t1, account_state_pending_count; ld t0, 0(t1); la t1, account_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_created_count; ld t0, 0(t1); la t1, account_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_delete_count; ld t0, 0(t1); la t1, account_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
@@ -536,6 +575,7 @@ def callFrameDescendFunction : String :=
   "  ld t0, 64(s7)                  # code_ptr\n" ++
   "  mv x21, t0                     # child code base\n" ++
   "  mv x10, t0                     # child PC at code[0]\n" ++
+  "  ld a5, 88(sp)                  # return whether env+32 already has a live value\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s6, 40(sp); ld s7, 48(sp); ld s8, 56(sp); ld s9, 64(sp)\n" ++
