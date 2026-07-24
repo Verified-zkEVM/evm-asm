@@ -398,6 +398,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  -- `account_state_commit_pending` uses a1/a2 for durable-map operations.
+  -- Reconstruct the successful transaction's captured storage slice before the
+  -- committed-storage upsert: a1/a2 are caller-saved and must not be reused
+  -- across that call.  This is the same slice computed at snapshot_ready.
+  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
