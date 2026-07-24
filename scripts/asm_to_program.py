@@ -708,6 +708,15 @@ def lean_render(manifest):
     if not manifest: return {}
     repo=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mods=sorted({_module_of(p) for p in manifest.values()})
+    # A pure-fetch Lake build can leave these modules only in the artifact
+    # cache.  `lake env lean` resolves imports from `.lake/build`, so make the
+    # manifest's exact render surface local before invoking Lean.  Keep this
+    # explicit rather than relying on the caller's cache environment: the
+    # byte-tie must behave the same in a fresh worktree and in CI.
+    materialize_env=os.environ.copy()
+    materialize_env["LAKE_ARTIFACT_CACHE"]="false"
+    subprocess.run(['lake', 'build', *mods], cwd=repo, env=materialize_env,
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     funcs=sorted(manifest)
     # For reloc-bearing functions the emitted string ({fn}) is the SYMBOLIC
     # image-agnostic view; we ALSO render `emitProgram <prog>` (key "{fn}#c") —
@@ -744,6 +753,7 @@ def lean_render(manifest):
         f.write(src); tmp=f.name
     try:
         out=subprocess.run(['lake','env','lean','--run',tmp],cwd=repo,
+                           env=materialize_env,
                            check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode()
     except subprocess.CalledProcessError as exc:
         raise ConvError("Lean render failed:\n" + exc.stdout.decode() + exc.stderr.decode()) from exc
