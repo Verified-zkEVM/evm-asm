@@ -654,12 +654,13 @@ def callDescendFallThrough
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
     -- 183600 new-account state gas -> OOG (.exit_outofgas) -> the value-CALL exceptional-fails and the
-    -- child never descends/runs.  Overlay status nonzero proves a current
-    -- account state (including empty-code CREATE), so skip the charge.
+    -- child never descends/runs.  Only resolver statuses 1 and 2 prove a
+    -- current account state; status 3 is a finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    codeStateStatusIsLiveAsm "t6" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
     -- SELFDESTRUCT moves the origin balance to zero but leaves the account alive until tx end.
     "  la t0, evm_selfdestruct_seen_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
@@ -923,6 +924,7 @@ def callDescendFallThrough
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
        "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n  mv t6, a0\n" ++
        "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       codeStateStatusIsLiveAsm "t6" ++
        "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
        -- c83ty.2: same-tx SELFDESTRUCTed accounts are alive until transaction end, so an
        -- insufficient-balance CALL to one also skips NEW_ACCOUNT state gas.

@@ -536,6 +536,16 @@ def codeStateLookupCurrentFunction : String :=
   -- remains comparison/migration evidence only and is no longer a read source.
   "  j account_state_lookup_current"
 
+/-! ## codeStateStatusIsLiveAsm
+
+    Converts the shared resolver's status into the execution-spec `is_account_alive`
+    answer needed by NEW_ACCOUNT state-gas consumers. Status 1 has code and
+    status 2 is an existing empty-code account; status 3 is a finalized deletion
+    and is not live. -/
+def codeStateStatusIsLiveAsm (statusReg : String) : String :=
+  "  addi t0, " ++ statusReg ++ ", -1\n" ++
+  "  sltiu " ++ statusReg ++ ", t0, 2\n"
+
 /-! ## code_state_address_set_insert
 
     Bounded 32-byte-address set used for transaction-local `created_accounts`

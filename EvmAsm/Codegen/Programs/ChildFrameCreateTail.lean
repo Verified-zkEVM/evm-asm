@@ -384,6 +384,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    codeStateStatusIsLiveAsm "t1" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
