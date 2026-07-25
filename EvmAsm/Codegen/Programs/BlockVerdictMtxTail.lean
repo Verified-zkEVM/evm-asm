@@ -126,8 +126,16 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_b2_next\n" ++                                              -- overflow (unreachable for real values)
   -- A reverted / exceptional transaction still pays gas, but its call value is
   -- rolled back.  `bv_tx_status_arr[i]` is the authoritative settle status
-  -- published by the MTx runtime, so add value only for a committed body.
+  -- published by the MTx runtime, so add value only for a committed body.  A
+  -- committed transfer to self also retains its value: sender and recipient
+  -- are the same AccountState entry, so only the gas/blob debit is netted.
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3; la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); beqz t0, .Lbv_b2_after_value\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 6; la t2, bv_mtx_skip_list; add t2, t2, t1; addi t3, t2, 32; li t4, 20\n" ++
+  ".Lbv_b2_self_value_cmp:\n" ++
+  "  beqz t4, .Lbv_b2_after_value\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbv_b2_add_value\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbv_b2_self_value_cmp\n" ++
+  ".Lbv_b2_add_value:\n" ++
   "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_mtx_skip_ctx; addi a1, a1, 96; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_add_be\n" ++                                               -- debit += tx.value
   "  bnez a0, .Lbv_b2_next\n" ++

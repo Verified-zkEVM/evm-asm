@@ -195,8 +195,12 @@ calculator rather than duplicate fee arithmetic here.
 Any implementation of the design must run a full A/B, but these are mandatory
 focused controls first:
 
-- **B2.3 false-accept forge:** `scripts/make-mtx-sender-balance-forge.py` and
-  `/tmp/sender_balance_forge.bin` must reject (output success byte 32 is zero).
+- **B2.3 false-accept forges:** the tracked inputs in
+  `fixtures/kat/mtx-sender-balance/` and
+  `fixtures/kat/mtx-self-transfer-b2/` must reject (output success byte 32 is
+  zero).  `scripts/make-mtx-sender-balance-forge.py` regenerates the original
+  sender-under-debit case; `scripts/kat/make_mtx_self_transfer_b2_forgery_kat.py`
+  materializes the self-transfer control as a packed ziskemu input.
 - **Reverted/OOG value semantics:** #10517's nine controls remain accepted:
   deposits `23016/23018/23024/23057/23058`, withdrawals `23191/23193`, and
   consolidations `23345/23347`.
