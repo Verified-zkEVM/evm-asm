@@ -43,8 +43,12 @@ reconstructions that happen to agree on most blocks.
   from both paths (`BlockVerdictDispatchTx.lean:829`, `BlockVerdictMtxRuntime.lean:268`).
 - **Terminal postlude** — both paths converge on `.Lbv_after_tx_gas_precharge`
   (`BlockVerdictGasGatePrelude.lean:15`, inlined at `BlockVerdictFunction.lean:1385`):
-  arena prepare → per-tx state-gas fill (`block_verdict_tx_state_gas_array`) +
-  EIP-8037 net + EIP-7778 block-gas gate → `blockVerdictExactGasCheck` →
+  arena prepare → EIP-8037 net + EIP-7778 block-gas gate over the per-tx
+  state-gas **already accumulated inline per tx** (via
+  `block_verdict_tx_state_gas_inline_prepare`/`inline_finalize` +
+  `dispatcher_capture_exec_state_gas`, the post-#10513 mechanism — the old
+  terminal `block_verdict_tx_state_gas_array` fill was dead after #10513 and is
+  removed by 7r7w9/#10515) → `blockVerdictExactGasCheck` →
   `blockVerdictReceiptsTail` → epilogue `.Lbv_ret:`. This terminal is already
   single; unification does not touch it (beyond feeding it uniformly).
 
@@ -160,6 +164,9 @@ reversal `bv_mtx_base_fee_be` (`:92-96`), sorted sender index `bv_b1_sender_tabl
 
 - Doctrine: `docs/agents/spec-alignment-doctrine.md` (§1 model-mirroring, §3
   final-form-over-hybrid, §6 single-writer).
-- Retirement precedent: the #10513 gas-array-replay retirement inlined per-tx
-  state-gas — the `dispatcher_capture_exec_state_gas` / inline_finalize hooks are
-  the current per-tx state-gas mechanism the unified loop feeds.
+- Inline state-gas precedent: #10513 (inline EIP-7702 state-gas accounting) moved
+  per-tx state-gas onto the inline `block_verdict_tx_state_gas_inline_prepare`/
+  `inline_finalize` + `dispatcher_capture_exec_state_gas` hooks — the current
+  per-tx state-gas mechanism the unified loop feeds. It left the old array
+  Programs/proofs orphaned; the dead-code retirement of that closure is 7r7w9/
+  #10515. The unified loop must run these inline hooks per iteration.
