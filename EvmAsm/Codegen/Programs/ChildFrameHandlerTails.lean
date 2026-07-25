@@ -141,6 +141,68 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".L" ++ tag ++ "_precompile_xlog_skip:\n"
 
+/-- Record the successful value move of the CALL-to-precompile fast path.
+    `basicPrecompileCallTail` bypasses `callDescendFallThrough`, so it must mirror
+    that path's debit/credit rows before returning success. -/
+def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option Nat) : String :=
+  if tag != "call_target" then "" else
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    "  ld t0, " ++ toString valueOff ++ "(x12); ld t1, " ++ toString (valueOff + 8) ++ "(x12); or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff + 16) ++ "(x12); or t0, t0, t1; ld t1, " ++ toString (valueOff + 24) ++ "(x12); or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_nse_done\n" ++
+    "  ld t0, 584(x20); beqz t0, .L" ++ tag ++ "_precompile_nse_done\n" ++
+    -- Keep the dispatcher context across the whole inline sequence. Some
+    -- precompile kernels do not preserve the s-register snapshot used by the
+    -- tail, so restore from this explicit ABI frame rather than from s9-s11.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    -- `precompileValueBalanceGateAsm` has already populated cd_balance_be and
+    -- cd_value_be from the live caller state, and rejected an insufficient value.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, cd_balance_be; la a1, cd_value_be; la a2, cd_caller_newbal\n" ++
+    "  jal ra, u256_sub_be; mv t0, a0\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  bnez t0, .L" ++ tag ++ "_precompile_nse_restore\n" ++
+    -- Keep the caller frame's live balance in lock-step with the emitted debit.
+    "  la t0, cd_caller_newbal; addi t1, x20, 63; li t2, 32\n" ++
+    ".L" ++ tag ++ "_precompile_nse_caller_write:\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_precompile_nse_caller_write\n" ++
+    -- Canonical BE caller and callee addresses for the effect records.
+    "  addi t0, x20, 19; la t1, cd_caller_be; li t2, 20\n" ++
+    ".L" ++ tag ++ "_precompile_nse_caller_addr:\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_precompile_nse_caller_addr\n" ++
+    "  addi t0, x12, 51; la t1, nse_callee_be; li t2, 20\n" ++
+    ".L" ++ tag ++ "_precompile_nse_callee_addr:\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_precompile_nse_callee_addr\n" ++
+    -- Caller nonce: header value, overlaid by an earlier same-tx effect.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_caller_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
+    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_nse_caller_nonce; la t0, nse_acct; sd zero, 0(t0)\n" ++
+    ".L" ++ tag ++ "_precompile_nse_caller_nonce:\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, nse_acct; jal ra, account_state_latest_nonce\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  la t0, nse_acct; ld a3, 0(t0); mv a4, a3\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, cd_balance_be; la a2, cd_caller_newbal; jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    -- Callee credit: use its header state (or zero) plus any earlier same-tx credit.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20); ld a1, 584(x20); la a2, nse_callee_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
+    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_nse_callee_pre; la t0, nse_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+    ".L" ++ tag ++ "_precompile_nse_callee_pre:\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; jal ra, account_state_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; jal ra, account_state_latest_nonce; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, nse_acct; addi a0, a0, 8; la a1, cd_value_be; la a2, nse_post_bal; jal ra, u256_add_be; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la t0, nse_acct; ld a3, 0(t0); mv a4, a3; la a0, nse_callee_be; addi a1, t0, 8; la a2, nse_post_bal; jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    ".L" ++ tag ++ "_precompile_nse_restore:\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    ".L" ++ tag ++ "_precompile_nse_done:\n"
+
 def refundSuccessfulPrecompileValueStipendAsm (tag : String) (valueOff? : Option Nat) : String :=
   match valueOff? with
   | none => ""
@@ -514,6 +576,7 @@ def basicPrecompileCallTail
     "  bnez x22, 6b\n" ++
     "7:\n" ++
     refundSuccessfulPrecompileValueStipendAsm tag valueOff? ++
+    recordSuccessfulPrecompileValueEffectsAsm tag valueOff? ++
     emitSuccessfulPrecompileValueLogAsm tag valueOff? ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++

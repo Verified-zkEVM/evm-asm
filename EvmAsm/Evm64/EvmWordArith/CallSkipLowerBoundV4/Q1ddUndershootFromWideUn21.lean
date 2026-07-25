@@ -227,18 +227,4 @@ theorem divKTrialCallV4Q1dd_lt_q_true_1_of_un21_ge_vTop
       _ < vTop.toNat := h_mod_lt
   exact absurd h_un21_lt (Nat.not_lt.2 hUn21_ge_vTop)
 
-/-- Equivalent form: `un21 ≥ vTop ⇒ Q1dd + 1 ≤ q_true_1` (Nat-friendly
-    rephrasing for downstream consumers). -/
-theorem divKTrialCallV4Q1dd_succ_le_q_true_1_of_un21_ge_vTop
-    (uHi uLo vTop : Word)
-    (hvTop_ge : vTop.toNat ≥ 2^63)
-    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
-    (hUn21_ge_vTop :
-      (divKTrialCallV4Un21 uHi uLo vTop).toNat ≥ vTop.toNat) :
-    (divKTrialCallV4Q1dd uHi uLo vTop).toNat + 1 ≤
-      (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat :=
-  Nat.succ_le_of_lt
-    (divKTrialCallV4Q1dd_lt_q_true_1_of_un21_ge_vTop
-      uHi uLo vTop hvTop_ge huHi_lt_vTop hUn21_ge_vTop)
-
 end EvmAsm.Evm64

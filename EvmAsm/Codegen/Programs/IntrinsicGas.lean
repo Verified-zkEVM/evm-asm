@@ -560,15 +560,23 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
     charges; the guest's u64 running counter guards each refund subtraction
     against underflow, so its captured value is always >= 0 — the settled sum
     here mirrors `Uint(max(0, tx_state_gas))`.) -/
+/-- 4-instr leaf: `*a5 = a0 + a1; a0 = 0; ret`.
+    a2–a4 are retired v0.5 args (ignored; kept so `tx_intrinsic_state_gas` ABI stands). -/
+def eip8037TxStateGas_prog : Program :=
+  [ .ADD .x5 .x10 .x11
+  , .SD .x15 .x5 (0 : BitVec 12)
+  , .LI .x10 (0 : Word)
+  , .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def eip8037TxStateGasFunction : String :=
-  "eip8037_tx_state_gas:\n" ++
-  "  # a0=intrinsic_state_gas, a1=state_gas_used (executed), a5=tx_state_gas_out\n" ++
-  "  # a2-a4 are the retired v0.5 refund/error/creation args, ignored; the\n" ++
-  "  # positions are kept so g8zeq.1.3 callers (tx_intrinsic_state_gas) stand.\n" ++
-  "  add t0, a0, a1            # tx_state_gas = intrinsic.state + executed state\n" ++
-  "  sd t0, 0(a5)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog
+
+theorem eip8037TxStateGasFunction_eq_prog :
+    eip8037TxStateGasFunction =
+      "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
+
+#guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
+#guard eip8037TxStateGas_prog.length = 4
 
 /-- `zisk_eip8037_tx_state_gas`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):

@@ -448,6 +448,13 @@ def callDescendFallThrough
       "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
       "  la t0, nse_acct\n  sd zero, 0(t0)\n" ++            -- not found / error -> nonce 0
       ".Lcd_deb_have_nonce_" ++ tag ++ ":\n" ++
+      -- A value CALL leaves its caller nonce unchanged, but its append can follow
+      -- a same-transaction CREATE by that caller. Preserve that running nonce
+      -- instead of overwriting it with the header snapshot.
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  la a0, cd_caller_be\n  la a1, nse_acct\n" ++
+      "  jal ra, account_state_latest_nonce\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
       "  jal ra, u256_add_be\n" ++
@@ -523,13 +530,20 @@ def callDescendFallThrough
     -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
-    "  jal ra, nonstorage_effect_latest_balance\n  mv t6, a0\n" ++
+    "  jal ra, account_state_latest_balance\n  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t6, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, nse_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
     "  beqz t1, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0)\n" ++
     ".Lcd_nse_prior_alive_done_" ++ tag ++ ":\n" ++
+    -- A value transfer does not change a nonce, but its row is appended after
+    -- same-transaction effects. Keep the latest recorded nonce so it cannot
+    -- overwrite a created account's EIP-161 nonce=1 with header nonce=0.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n" ++
+    "  jal ra, account_state_latest_nonce\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
@@ -634,18 +648,19 @@ def callDescendFallThrough
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
-    -- coc3g.6.5: a callee CREATEd earlier in THIS tx is ALIVE (has code/nonce), so is_account_alive(to)
+    -- A callee created earlier in the block is live even when absent from the
+    -- pre-block witness.  Ask the shared current CodeState rather than the
+    -- append-only comparator log.
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
     -- 183600 new-account state gas -> OOG (.exit_outofgas) -> the value-CALL exceptional-fails and the
-    -- child never descends/runs (bv_fail=44). Detect created-in-tx via the code-effect log (the CREATE
-    -- deposit recorded the deployed code there) and skip the charge. find_code_effect_by_address
-    -- clobbers t0-t6 + a0(=x10); save x10/x12/x13.
+    -- child never descends/runs.  Only resolver statuses 1 and 2 prove a
+    -- current account state; status 3 is a finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, cd_callee_be\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    codeStateStatusIsLiveAsm "t6" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
     -- SELFDESTRUCT moves the origin balance to zero but leaves the account alive until tx end.
     "  la t0, evm_selfdestruct_seen_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
@@ -707,25 +722,21 @@ def callDescendFallThrough
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
-  -- c83ty.3: a same-tx-created account that SELFDESTRUCTed is queued for deletion and must not
-  -- be resurrected by the same-tx code-effect fallback below. Treat later CALLs to that address as
-  -- empty-code success. This also preserves the value-transfer effects already recorded above.
-  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  "  la t2, evm_selfdestruct_destroyed_table\n" ++
-  ".Lcd_code_sdskip_scan_" ++ tag ++ ":\n" ++
-  "  mv t3, t2; la t4, cd_callee_be; li t5, 20\n" ++
-  ".Lcd_code_sdskip_cmp_" ++ tag ++ ":\n" ++
-  "  beqz t5, .Lcd_code_sdskip_found_" ++ tag ++ "\n" ++
-  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lcd_code_sdskip_next_" ++ tag ++ "\n" ++
-  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lcd_code_sdskip_cmp_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_next_" ++ tag ++ ":\n" ++
-  "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_code_sdskip_scan_" ++ tag ++ "\n" ++
-  "  j .Lcd_code_sdskip_done_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_found_" ++ tag ++ ":\n" ++
-  "  la t0, cd_destroyed_empty_hits; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  j .Lcd_empty_" ++ tag ++ "\n" ++
-  ".Lcd_code_sdskip_done_" ++ tag ++ ":\n" ++
+  -- Layered execution lookup: pending/durable CodeState is authoritative over
+  -- the block-pre witness.  In particular a durable tx1 CREATE must be seen by
+  -- tx2 even though absent from the header, while a tx-end same-tx deletion
+  -- masks stale header code.  Only an overlay miss may query the witness.
+  "  addi sp, sp, -64\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
+  "  beqz t0, .Lcd_header_lookup_" ++ tag ++ "\n" ++
+  "  li t3, 1; bne t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  "  la t3, cahsr_code_length; sd t2, 0(t3)\n" ++
+  "  ld t3, 608(x20); sub t1, t1, t3; la t3, cahsr_code_offset; sd t1, 0(t3)\n" ++
+  "  j .Lcd_descend_" ++ tag ++ "\n" ++
+  ".Lcd_header_lookup_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  ld a0, 576(x20)\n" ++
@@ -806,16 +817,17 @@ def callDescendFallThrough
   "  addi sp, sp, 32\n" ++
   "  li t4, 2; beq t3, t4, .Lcd_empty_" ++ tag ++ "\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
-  -- coc3g.6.5: CALL into a SAME-TX-CREATED contract. A child CREATEd earlier in this tx is
+  -- CALL into a contract created earlier in this block.  Resolve the current
+  -- mutable CodeState before treating a header-witness miss as an empty EOA.
   -- ABSENT from the block-pre witness, so code_at_header_state_root returns status 1 (account
   -- not in state trie) and the delegation resolver also misses -> the call falsely routed to
   -- .Lcd_empty (empty EOA, push 1) and the child's runtime (e.g. its SELFDESTRUCT / outgoing
   -- value-CALLs) NEVER ran in re-execution -> its deletion / beneficiary credit were never
   -- recorded -> the exec-vs-BAL non-storage comparator false-rejects (bv_fail=44 on
   -- selfdestruct_same_tx_via_call + create-then-call families). The CREATE deposit already
-  -- appended the child's deployed code to exec_code_effect_log (create_record_code_effect @
-  -- NoopHalt). On the code-lookup MISS, fall back to find_code_effect_by_address(cd_callee_be):
-  -- on a hit, point the descend code/len at the recorded entry (code bytes @ record+48, len @
+  -- published the child's deployed code into CodeState. On the code-lookup miss, resolve
+  -- `cd_callee_be` from the shared overlay; on a hit, point the descend code/len at its retained
+  -- byte arena (code pointer + length) by setting cahsr_code_offset/length so
   -- record+40) by setting cahsr_code_offset/length so 608(x20)+offset == record+48 (the existing
   -- .Lcd_descend_ path computes code_ptr = 608(x20)+cahsr_code_offset), then DESCEND so the child
   -- runtime runs. Soundness: descending records MORE exec effects (never a SKIP), and the BAL
@@ -823,19 +835,18 @@ def callDescendFallThrough
   -- introduce a false-accept. The caller-debit / callee-credit / EIP-7708 transfer log above are
   -- recorded ONCE before this decision (unchanged whether we descend or not), so descending does
   -- not double-count them; the child's own SELFDESTRUCT records the deletion / beneficiary credit
-  -- separately. find_code_effect_by_address clobbers t0-t6 + a0(=x10); save x10/x12/x13.
+  -- separately. The resolver is shared with EXTCODE*/collision/NACC so recreate and
+  -- cross-transaction visibility use one current-state rule.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, cd_callee_be\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  mv t4, a0\n" ++                                   -- t4 = record ptr or 0
+  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  mv t4, a0; mv t5, a1; mv t6, a2\n" ++             -- status, code ptr, code len
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  beqz t4, .Lcd_callee_nocreate_" ++ tag ++ "\n" ++ -- no code-effect record -> fall through to status check
-  "  ld t5, 40(t4); la t6, cahsr_code_length; sd t5, 0(t6)\n" ++  -- cahsr_code_length = record.code_len
-  "  addi t5, t4, 48\n" ++                             -- t5 = record+48 = absolute code ptr
-  "  ld t6, 608(x20); sub t5, t5, t6\n" ++             -- offset = (record+48) - codes_base
-  "  la t6, cahsr_code_offset; sd t5, 0(t6)\n" ++      -- cahsr_code_offset = offset (608(x20)+offset == record+48)
+  "  li t3, 1; bne t4, t3, .Lcd_callee_nocreate_" ++ tag ++ "\n" ++
+  "  la t3, cahsr_code_length; sd t6, 0(t3)\n" ++       -- CodeState code length
+  "  ld t3, 608(x20); sub t5, t5, t3\n" ++              -- code offset from codes base
+  "  la t3, cahsr_code_offset; sd t5, 0(t3)\n" ++
   "  j .Lcd_descend_" ++ tag ++ "\n" ++
   ".Lcd_callee_nocreate_" ++ tag ++ ":\n" ++
   "  li t3, 1\n" ++
@@ -911,9 +922,9 @@ def callDescendFallThrough
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
        -- created this tx -> alive -> no charge
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-       "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, cd_callee_be\n" ++
-       "  jal ra, find_code_effect_by_address\n  mv t6, a0\n" ++
+       "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n  mv t6, a0\n" ++
        "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       codeStateStatusIsLiveAsm "t6" ++
        "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
        -- c83ty.2: same-tx SELFDESTRUCTed accounts are alive until transaction end, so an
        -- insufficient-balance CALL to one also skips NEW_ACCOUNT state gas.

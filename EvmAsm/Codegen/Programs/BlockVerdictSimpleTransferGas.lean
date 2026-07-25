@@ -154,22 +154,12 @@ def simpleTransferIntrinsicGasFunction : String :=
   "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
   "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
   "  sd s1, 48(sp); sd s2, 56(sp)\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_runtime_intrinsic_state_gas\n" ++
-  "  jal ra, tx_intrinsic_state_gas\n" ++
-  "  bnez a0, .Lstig_fail\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0)\n" ++
-  "  la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
-  "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
-  "  la t0, bv_chain_id; ld a4, 0(t0); li a5, 1\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  -- v0.6.0: fold the WOULD-BE charges (state into the state dimension,
-  -- ACCOUNT_WRITE regular into the intrinsic-regular output/cell) so
-  -- every simple-transfer consumer reproduces the spec's charge-point
-  -- OOG; the v0.5.0 refund subtraction is gone with the flip.
-  "  la t2, teer_wouldbe_state; ld t2, 0(t2)\n" ++
-  "  la t0, bv_runtime_intrinsic_state_gas; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
+  -- The common transaction boundary is the sole state-gas writer.  This
+  -- shortcut only consumes its already-materialized state cell and adds the
+  -- live auth regular component to ordinary intrinsic regular gas.
+  "  la t0, bvgr_tx_state_gas; ld t1, 0(t0)\n" ++
   "  ld s1, 48(sp); ld s2, 56(sp)\n" ++
-  "  la t2, teer_wouldbe_regular; ld t2, 0(t2); add s1, s1, t2\n" ++
+  "  la t2, runtime_tx_auth_regular_refund; ld t2, 0(t2); add s1, s1, t2\n" ++
   "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
   "  li a0, 0; mv a1, s1; mv a2, s2; mv a3, t1\n" ++
   "  j .Lstig_ret\n" ++

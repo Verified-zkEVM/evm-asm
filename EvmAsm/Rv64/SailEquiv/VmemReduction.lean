@@ -749,7 +749,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail',
       runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' := by
+      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' ∧
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -764,7 +765,7 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     exact Int.ofNat_inj.mp h
   have hdata := hrel.mem_agree (sRv.getReg rs1 + signExtend12 offset) halign8
   refine ⟨sailStateWithReg sSail rd
-      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat), ?_, ?_⟩
+      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat), ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_LOAD
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
@@ -783,5 +784,6 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
         using reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
         using hrel.mem_agree a ha
+  · simp
 
 end EvmAsm.Rv64.SailEquiv

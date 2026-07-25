@@ -51,25 +51,16 @@ def blockVerdictMtxEoaSettlement : String :=
   -- charges, state refill, ACCOUNT_WRITE refund, and recovered-authority warming
   -- must therefore be staged before runtime_dispatcher_call as well.
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t6, bv_mtx_ctx; ld t0, 160(t6); li t1, 4; bne t0, t1, .Lbv_mtx_eoa_auth_ready\n" ++
   "  ld a0, 176(t6); ld a1, 184(t6); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
   "  jal ra, rlp_list_nth_item; bnez a0, .Lbv_mtx_bail\n" ++
   "  la t6, bv_mtx_ctx; ld t0, 176(t6); la t1, dtrc_auth_off; ld t1, 0(t1); add t2, t0, t1\n" ++
   "  la t0, runtime_tx_auth_list_ptr; sd t2, 0(t0); la t1, dtrc_auth_len; ld t2, 0(t1); la t0, runtime_tx_auth_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; la t1, eip7702_warm_recovered_authorities; sd t1, 0(t0)\n" ++
-  "  la t0, teer_records_ptr; la t1, basr_records; sd t1, 0(t0)\n" ++
-  "  la t6, bv_mtx_ctx; ld a0, 8(t6); ld a1, 16(t6); la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
-  "  la t0, bv_chain_id; ld a4, 0(t0); la t0, bv_mtx_i; ld a5, 0(t0); addi a5, a5, 1\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  -- v0.6.0: pools driven by WOULD-BE charges (C8 charge-point OOG).
-  "  la t1, teer_wouldbe_state; ld t1, 0(t1); la t0, runtime_tx_auth_state_refund; sd t1, 0(t0)\n" ++
-  "  la t1, teer_wouldbe_regular; ld t1, 0(t1); la t0, runtime_tx_auth_regular_refund; sd t1, 0(t0)\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
-  "  la t0, teer_auth_count; ld t1, 0(t0); la t0, runtime_tx_auth_count; sd t1, 0(t0)\n" ++
+  -- EIP-7702 preparation is common pre-routing work in the MTx loop; the
+  -- EOA shortcut must not re-run the AccountState sole writer.
   ".Lbv_mtx_eoa_auth_ready:\n" ++
   -- This shortcut calls the low-level STOP dispatcher directly, bypassing the
   -- full dispatch_tx_runtime_code setup reset. Reset the per-tx gas cells here
@@ -178,6 +169,8 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
-  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n"
+  -- Share the one MTx terminal postlude with contract and creation routes;
+  -- it finalizes this indexed state-gas cell before commit and loop advance.
+  "  j .Lbv_mtx_effects_kept\n"
 
 end EvmAsm.Codegen

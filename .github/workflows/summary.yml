@@ -106,7 +106,7 @@ jobs:
 
       - name: Generate PR Summary
         if: steps.summary_guard.outputs.skip != 'true'
-        uses: alexanderlhicks/lean-summary-workflow@main
+        uses: alexanderlhicks/lean4repo-utils/summary@0.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           api_key: ${{ secrets.OPENROUTER_KEY }}

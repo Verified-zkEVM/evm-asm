@@ -280,10 +280,9 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
-    -- A same-transaction CREATE deposit is not visible in the header-state code
-    -- witness. The CREATE return path records deployed bytes in
-    -- exec_code_effect_log, so EXTCODECOPY must consult that current-code overlay
-    -- before falling back to the pre-block trie helper.
+    -- Current code comes from the shared mutable CodeState overlay before the
+    -- authenticated pre-block witness.  The append-only effect log is BAL
+    -- comparator evidence only and must not decide execution visibility.
     "  addi sp, sp, -64
 " ++
     "  sd x10, 0(sp)
@@ -300,15 +299,11 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  sd x21, 48(sp)
 " ++
-    "  la a0, exec_code_effect_log
+    "  la a0, ecc_address_scratch
 " ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)
+    "  jal ra, code_state_lookup_current
 " ++
-    "  la a2, ecc_address_scratch
-" ++
-    "  jal ra, find_code_effect_by_address
-" ++
-    "  mv t0, a0
+    "  mv t0, a0; mv t2, a2; sd a1, 56(sp); ld t1, 56(sp)
 " ++
     "  ld x10, 0(sp)
 " ++
@@ -326,11 +321,13 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
-    "  beqz t0, .Lrt_ecc_no_create_effect
+    "  li t5, 1; beq t0, t5, .Lrt_ecc_same_from_codestate
 " ++
-    "  addi t1, t0, 48
+    "  bnez t0, .Lrt_ecc_codestate_empty
 " ++
-    "  ld t2, 40(t0)
+    "  j .Lrt_ecc_no_create_effect
+" ++
+    ".Lrt_ecc_same_from_codestate:
 " ++
     "  ld t3, 64(x12)
 " ++
@@ -338,6 +335,23 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  j .Lrt_ecc_same_loop
 " ++
+    -- An explicit empty/deleted CodeState entry masks pre-block witness code.
+    -- EXTCODECOPY consequently writes zero bytes without touching the witness.
+    ".Lrt_ecc_codestate_empty:
+" ++
+    "  mv t0, x19; mv t1, x15
+" ++
+    ".Lrt_ecc_codestate_zero_loop:
+" ++
+    "  beqz t1, .Lrt_ecc_codestate_zero_done
+" ++
+    "  sb zero, 0(t0); addi t0, t0, 1; addi t1, t1, -1; j .Lrt_ecc_codestate_zero_loop
+" ++
+    ".Lrt_ecc_codestate_zero_done:
+" ++
+    "  addi x12, x12, 128; addi x10, x10, 1
+" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lrt_ecc_no_create_effect:
 " ++
     "  ld t0, 608(x20)

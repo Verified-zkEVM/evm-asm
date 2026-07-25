@@ -164,7 +164,7 @@ PYPATCH
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
     --section-start=.bss=0xa4000000 \
-    --section-start=.sszscratch=0xbf500000 \
+    --section-start=.sszscratch=0xbf800000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 

@@ -166,11 +166,27 @@ def balStorageMatchesExecLogFunction : String :=
   "  bnez t2, .Lbsme_scan\n" ++
   "  j .Lbsme_mismatch            # scanned whole log, key not found\n" ++
   ".Lbsme_advance:\n" ++
+  -- Temporary differential trace for a matching row (same layout as mismatch).
+  "  li t0, 0xa0010100\n" ++
+  "  ld t1, 0(s0); sd t1, 0(t0); ld t1, 8(s0); sd t1, 8(t0); ld t1, 16(s0); sd t1, 16(t0); ld t1, 24(s0); sd t1, 24(t0)\n" ++
+  "  ld t1, 0(t6); sd t1, 32(t0); ld t1, 8(t6); sd t1, 40(t0); ld t1, 16(t6); sd t1, 48(t0); ld t1, 24(t6); sd t1, 56(t0)\n" ++
+  "  ld t1, 32(t6); sd t1, 64(t0); ld t1, 40(t6); sd t1, 72(t0); ld t1, 48(t6); sd t1, 80(t0); ld t1, 56(t6); sd t1, 88(t0)\n" ++
+  "  ld t1, 96(t3); sd t1, 96(t0); ld t1, 104(t3); sd t1, 104(t0); ld t1, 112(t3); sd t1, 112(t0); ld t1, 120(t3); sd t1, 120(t0)\n" ++
   "  addi s4, s4, 1; j .Lbsme_loop\n" ++
   ".Lbsme_match:\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsme_ret\n" ++
   ".Lbsme_mismatch:\n" ++
+  -- Temporary direct verdict-debug trace for AccountState convergence: persist the
+  -- failing BAL tuple and the last candidate exec-log row outside the 112-byte
+  -- result window.  The epilogue preserves these offsets for post-run comparison.
+  -- OUTPUT+128 account, +160 slot (LE), +192 BAL value (LE), +224 scanned row,
+  -- +352 log base/count/index.  Diagnostic only; remove after 00199 root pin.
+  "  li t0, 0xa0010100\n" ++
+  "  ld t1, 0(s0); sd t1, 0(t0); ld t1, 8(s0); sd t1, 8(t0); ld t1, 16(s0); sd t1, 16(t0); ld t1, 24(s0); sd t1, 24(t0)\n" ++
+  "  ld t1, 0(t6); sd t1, 32(t0); ld t1, 8(t6); sd t1, 40(t0); ld t1, 16(t6); sd t1, 48(t0); ld t1, 24(t6); sd t1, 56(t0)\n" ++
+  "  ld t1, 32(t6); sd t1, 64(t0); ld t1, 40(t6); sd t1, 72(t0); ld t1, 48(t6); sd t1, 80(t0); ld t1, 56(t6); sd t1, 88(t0)\n" ++
+  "  ld t1, 96(t3); sd t1, 96(t0); ld t1, 104(t3); sd t1, 104(t0); ld t1, 112(t3); sd t1, 112(t0); ld t1, 120(t3); sd t1, 120(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lbsme_ret:\n" ++
   "  ld ra, 0(sp)\n" ++

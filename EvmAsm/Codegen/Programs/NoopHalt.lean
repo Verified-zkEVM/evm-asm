@@ -159,23 +159,21 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
-      -- Capture execution-specs generic_create target_alive current-tx evidence BEFORE
-      -- appending this CREATE's own code-effect record. A previous same-tx CREATE deposit
-      -- leaves a code-effect record even if the block-pre balance is zero; the later refund
-      -- decision combines this flag with nse_create_pre_bal.
+      -- Capture execution-specs generic_create target_alive current-tx evidence
+      -- before publishing this CREATE.  This is a transaction-local CodeState
+      -- membership query, not an append-only code-effect scan.
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
 " ++
-      "  addi sp, sp, -16
+      -- `account_state_created_contains` uses a1..a3 for its bounded table
+      -- scan.  x13/a3 is the CREATE return-data base below, so preserve it.
+      "  addi sp, sp, -24
   sd x10, 0(sp)
   sd x12, 8(sp)
+  sd x13, 16(sp)
 " ++
-      "  la a0, exec_code_effect_log
-  la t0, exec_code_effect_count
-  ld a1, 0(t0)
-  la a2, create_address_be
-" ++
-      "  jal ra, find_code_effect_by_address
+      "  la a0, create_address_be
+  jal ra, account_state_created_contains
 " ++
       "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
 " ++
@@ -187,12 +185,16 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
 " ++
       "  ld x10, 0(sp)
   ld x12, 8(sp)
-  addi sp, sp, 16
+  ld x13, 16(sp)
+  addi sp, sp, 24
 " ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
-      -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre absent 0/0;
-      -- post nonce=1, balance = C's FINAL balance). The final balance is C's LIVE selfBalance (env+32),
+      -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre balance captured
+      -- before the CREATE frame; post nonce is the initcode's final nonce, balance = C's FINAL balance). The target may already be
+      -- present with a nonzero balance, so its pre balance is nse_create_pre_bal rather than a fabricated
+      -- zero: updateBuilderFromTx records a balance change only when the actual block pre/post differ.
+      -- The final balance is C's LIVE selfBalance (env+32),
       -- NOT the CALLVALUE endowment: the initcode may CALL value out, so the created account ends at
       -- E - net_out. env+32 was credited the endowment at create_frame_descend (drj99.1 part 2) and
       -- debited by each byte-order-correct outgoing value-CALL (drj99.1 part 4), so it holds the true
@@ -204,7 +206,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
       "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n  sd x14, 24(sp)\n  sd x15, 32(sp)\n" ++
-      "  la a0, create_address_be\n  la a1, nse_zero_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
+      -- The per-creator nonce table is seeded to 1 for this child and advances
+      -- for every inner CREATE. Do not use the generic effect log here: a later
+      -- value-transfer record can carry a header-derived nonce for a newly-created
+      -- account and is not the account's running CREATE nonce.
+      "  la a0, create_address_be\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
+      "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  ld x14, 24(sp)\n  ld x15, 32(sp)\n  addi sp, sp, 48\n" ++
       -- drj99.1 part 1: a SUCCESSFUL CREATE deposit must pass success=1 to frame_return so the child
@@ -381,18 +388,30 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       dispatchContinueRet ++ "\n") ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
-  -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
-  -- (evm_memory[x14..x14+x15]) into system_call_returndata so an EIP-7002/7251 predeploy
-  -- system call's return_data is recoverable. RETURN (kind 1) only; flag is 0 for normal
-  -- txs so the halt path stays byte-identical. x13=mem base, x14=offset, x15=size (read-only).
+  -- A capture is valid only for the outermost RETURN: an inner call's data must never
+  -- overwrite the top-level system-call/creation result.  Mode 1 is the bounded
+  -- EIP-7002/7251 capture; mode 2 is top-level CREATE and has the EIP-170-sized
+  -- buffer plus an explicit oversized status.  x13=mem base, x14=offset, x15=size.
   (if kind == 1 then
     "  la t0, system_call_mode\n  ld t0, 0(t0)\n  beqz t0, .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
+    "  la t1, evm_call_depth\n  ld t1, 0(t1)\n  bnez t1, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  li t1, 2\n  beq t0, t1, .Lrr_createcap_" ++ toString kind ++ "\n" ++
+    "  li t1, " ++ toString systemCallReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized system result -> unsupported
     "  la t1, system_call_returndata_len\n  sd x15, 0(t1)\n" ++
     "  add t2, x13, x14\n  la t3, system_call_returndata\n  mv t4, x15\n" ++
     ".Lrr_capz_" ++ toString kind ++ ":\n" ++
     "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
     "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_capz_" ++ toString kind ++ "\n" ++
+    ".Lrr_createcap_" ++ toString kind ++ ":\n" ++
+    "  li t1, " ++ toString topLevelCreationReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_createcap_over_" ++ toString kind ++ "\n" ++
+    "  la t1, top_level_creation_returndata_status\n  li t5, 1\n  sd t5, 0(t1)\n" ++
+    "  la t1, top_level_creation_returndata_len\n  sd x15, 0(t1)\n" ++
+    "  add t2, x13, x14\n  la t3, top_level_creation_returndata\n  mv t4, x15\n" ++
+    ".Lrr_createcap_copy_" ++ toString kind ++ ":\n" ++
+    "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_createcap_copy_" ++ toString kind ++ "\n" ++
+    ".Lrr_createcap_over_" ++ toString kind ++ ":\n" ++
+    "  la t1, top_level_creation_returndata_status\n  li t5, 2\n  sd t5, 0(t1)\n" ++
     ".Lrr_nocap_" ++ toString kind ++ ":\n"
    else "") ++
   "  li x16, 0xa0010000\n" ++
@@ -535,15 +554,31 @@ private def selfdestructTailAsm : String :=
   "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  ld t1, 0(t1)\n" ++
   "  beqz t1, .L_selfdestruct_ctit_codecheck\n" ++
   "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
-  "  j .L_selfdestruct_created_in_tx_done\n" ++   -- no code record to clear (constructor never deposited)
+  "  j .L_selfdestruct_created_in_tx_mark\n" ++
   ".L_selfdestruct_ctit_codecheck:\n" ++
-  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
-  "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, sdai_origin_address\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  mv t1, a0\n" ++                                  -- t1 = code-effect record ptr (or 0)
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  -- AccountState's transaction-local created set follows the normal caller-saved ABI and
+  -- clobbers a0-a3.  x13 is the live EVM stack cursor on this halt path, so
+  -- preserve it with the other runtime cursors before asking the CodeState.
+  "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, sdai_origin_address\n" ++
+  "  jal ra, account_state_created_contains\n" ++
+  "  mv t1, a0\n" ++                                  -- current-tx creation membership
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   "  beqz t1, .L_selfdestruct_created_in_tx_done\n" ++
-  "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
+  "  j .L_selfdestruct_created_in_tx_mark\n" ++
+  ".L_selfdestruct_created_in_tx_mark:\n" ++
+  -- Deletion is deferred until transaction finalization.  Queue the address
+  -- in AccountState; the current entry stays executable for later same-tx
+  -- CALLs.  Keep the live runtime cursors intact across the set helpers.
+  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24; beqz t3, .L_selfdestruct_created_legacy_clear\n" ++
+  ".L_selfdestruct_created_delete_restore_overflow:\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
+  ".L_selfdestruct_created_delete_overflow:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
+  ".L_selfdestruct_created_legacy_clear:\n" ++
   -- coc3g.6.5: EIP-6780 DELETES the created-in-tx contract, so its deployed code is removed --
   -- a created-then-destroyed-same-tx account has NET-ZERO code change and the BAL declares no
   -- codeChange. The CREATE deposit appended a code-effect record (has_code_change=1) to
@@ -552,7 +587,9 @@ private def selfdestructTailAsm : String :=
   -- both the forward (bal_account_code_consistent: has_code_change=0 + BAL silent -> consistent) and
   -- the reverse (_covers: has_code_change=0 -> no obligation) treat it as no code change. KEEP code_len
   -- (record+40) so both comparators' variable-stride walk stays aligned.
-  "  sd x0, 32(t1)\n" ++
+  "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, sdai_origin_address; jal ra, find_code_effect_by_address; mv t1, a0; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16; beqz t1, .L_selfdestruct_created_in_tx_finish; sd x0, 32(t1)\n" ++
+  ".L_selfdestruct_created_in_tx_finish:\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
   ".L_selfdestruct_created_in_tx_done:\n" ++
   selfdestructBalanceTransferRuntimeAsm ++
   selfdestructEip7708LogRuntimeAsm ++
@@ -603,6 +640,24 @@ private def selfdestructTailAsm : String :=
   "  beqz t3, .L_sd_create_addr_done\n" ++
   "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .L_sd_create_addr_loop\n" ++
   ".L_sd_create_addr_done:\n" ++
+  -- A CREATE init frame which halts through SELFDESTRUCT is still a successful
+  -- CREATE: its creator's nonce advances and its endowment remains moved into
+  -- the (then EIP-6780-cleared) child.  The normal CREATE RETURN/STOP deposit
+  -- arm appends this final creator effect after frame_return; this special arm
+  -- used to return the address without that record, leaving the BAL's creator
+  -- balance/nonce change unmatched (bv_fail=44).
+  -- frame_return has restored the creator env in x20 and the per-depth globals
+  -- above restored create_sender_be/create_value_be/create_nonce.
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  addi t0, x20, 63\n  la t1, nse_create_post_bal\n  li t2, 32\n" ++
+  ".L_sd_create_creator_post_rev:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L_sd_create_creator_post_rev\n" ++
+  "  la a0, nse_create_post_bal\n  la a1, create_value_be\n  la a2, create_creator_newbal\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n" ++
+  "  la a0, create_sender_be\n  la a1, create_creator_newbal\n  la a2, nse_create_post_bal\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   dispatchContinueRet
 
 /-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT

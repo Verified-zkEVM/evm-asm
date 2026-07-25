@@ -387,7 +387,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- future M29 blockhash table (.3b). dispatch_tx_runtime_code's .Ldtrc_stage guard bails
   -- conservatively for any payload that would still exceed this, so the staging write can
   -- never overflow into the adjacent gas-result / bvcd_* cells.
-  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~61MB (dataBase 0xa3000000 -> sszScratchBase 0xbf500000).
+  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~62MB (dataBase 0xa3000000 -> sszScratchBase 0xbf600000).
   "bv_stop_code:\n  .byte 0x00\n" ++
   ".balign 8\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
@@ -473,9 +473,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_refund_counter:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_calldata_floor:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_block_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- g8zeq.1.4.3: per-tx EIP-8037 state-gas array, the state counterpart of
-  -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
-  -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
+  -- g8zeq.1.4.3: per-tx EIP-8037 intrinsic/auth state-gas array, the state
+  -- counterpart of bvgr_block_gas_increments.  The live transaction boundary
+  -- writes it before runtime dispatch; the common gas gate consumes it later.
   "bvgr_tx_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: per-tx EXECUTED state gas (net of refunds), filled by
   -- dispatcher_capture_exec_state_gas at each contract dispatch (mirrors
@@ -490,8 +490,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
-  -- delegation marker. Debug/accounting context for auth-base state refunds;
-  -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
+  -- delegation marker. The inline transaction-boundary helper uses this
+  -- accounting context when materializing auth state gas.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Preserve the settled-prefix block gas across `bgv_u64le` while checking
   -- whether a following CREATE transaction fits the remaining 2D budget.
@@ -504,9 +504,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
-  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
-  -- precise BAL/account predicate follow-up.
+  -- EIP-7702 authenticated-header lookup scratch retained by the live inline
+  -- authority/account-state helpers.
   "teer_type:\n  .zero 8\n" ++
   "teer_inner_off:\n  .zero 8\n" ++
   "teer_auth_off:\n  .zero 8\n" ++
@@ -533,7 +532,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_wouldbe_state:\n  .zero 8\n" ++
   "teer_wouldbe_regular:\n  .zero 8\n" ++
   "teer_first_nonce:\n  .zero 8\n" ++
-  "teer_authority:\n  .zero 24\n" ++
+  -- Keep the EIP-7702 authority as a full padded non-storage-effect key.
+  "teer_authority:\n  .zero 32\n" ++
   "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
@@ -572,6 +572,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "stfv_wd_credit:\n  .zero 32\n" ++
   "bsw_amount:\n  .zero 32\n" ++
   "bsw_wei:\n  .zero 32\n" ++
+  -- 7rbp3: authenticated EIP-4895 withdrawal -> nonstorage-effect producer scratch.
+  ".balign 32\n" ++
+  "bv_wdne_addr:\n  .zero 32\n" ++
+  "bv_wdne_acct:\n  .zero 104\n" ++
+  "bv_wdne_post:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
   "strv_row_off:\n  .zero 8\n" ++
@@ -761,6 +766,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_create_addr:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  -- Output routing for the generalized top-level creation runner.  Mode 0 is
+  -- the legacy single-tx scalar publication; mode 1 scatters its settled
+  -- result into the current multi-tx slot.
+  "bv_creation_output_mode:\n  .zero 8\n" ++
+  "bv_creation_output_index:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++

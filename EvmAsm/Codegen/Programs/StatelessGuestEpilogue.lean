@@ -821,6 +821,12 @@ def statelessGuestEpilogue : String :=
   "  add t3, t0, t2; ld t4, 0(t3); add t3, t1, t2; sd t4, 0(t3)\n" ++
   "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_save\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
+  -- Verdict-debug ABI: byte 32 is only the success bit and byte 33 belongs
+  -- to result payload, so neither is the internal rejection classification.
+  -- Surface the actual verdict accumulator at OUTPUT+112 (outside the saved
+  -- result prefix) for multi-tx census/debug probes.  This is diagnostic-only
+  -- and does not participate in the SSZ validation result.
+  "  la t5, bv_fail_code; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 112(t0)\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++

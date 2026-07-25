@@ -237,7 +237,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_eip8037_tx_state_gas_net_array" => some ziskEip8037TxStateGasNetArrayProbeUnit
   | "zisk_eip8037_block_gas_used" => some ziskEip8037BlockGasUsedProbeUnit
   | "zisk_tx_intrinsic_state_gas" => some ziskTxIntrinsicStateGasProbeUnit
-  | "zisk_block_verdict_tx_state_gas_array" => some ziskBlockVerdictTxStateGasArrayProbeUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
   

@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.BlockVerdictEip7702AuthNonstorageEffectsArray
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -423,7 +424,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
@@ -431,10 +432,13 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
   balAccountNonceBeforeIndexFunction ++ "\n" ++
-  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
+  eip7702AuthorityAsOfFunction ++ "\n" ++
+  eip7702AuthStatePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
-  blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
@@ -449,7 +453,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
+  eip7702AuthorityStateFindFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
+  b1Eip7702ApplyTxFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
