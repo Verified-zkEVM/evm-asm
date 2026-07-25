@@ -172,7 +172,6 @@ def knownProgramNamesTail : List String :=
    "zisk_eip8037_tx_state_gas_net_array",
    "zisk_eip8037_block_gas_used",
    "zisk_tx_intrinsic_state_gas",
-   "zisk_block_verdict_tx_state_gas_array",
    "zisk_mpt_nibbles_to_compact",
    "zisk_mpt_compact_to_nibbles",
    "zisk_mpt_node_classify",
